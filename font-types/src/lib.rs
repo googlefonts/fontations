@@ -4,6 +4,7 @@
 
 mod fixed;
 mod fword;
+mod longdatetime;
 mod offset;
 mod tag;
 mod uint24;
@@ -36,3 +37,4 @@ pub type int32 = i32;
 pub use fixed::{F2dot14, Fixed};
 pub use tag::Tag;
 pub use uint24::Uint24;
+pub use longdatetime::LongDateTime;
