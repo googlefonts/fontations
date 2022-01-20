@@ -35,7 +35,8 @@ pub type uint32 = u32;
 pub type int32 = i32;
 
 pub use fixed::{F2dot14, Fixed};
+pub use longdatetime::LongDateTime;
 pub use offset::{Offset16, Offset24, Offset32};
 pub use tag::Tag;
 pub use uint24::Uint24;
-pub use longdatetime::LongDateTime;
+pub use version16dot16::Version16Dot16;
