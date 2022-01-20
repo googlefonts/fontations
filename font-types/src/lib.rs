@@ -33,4 +33,5 @@ pub type uint32 = u32;
 #[allow(non_camel_case_types)]
 pub type int32 = i32;
 
+pub use tag::Tag;
 pub use uint24::Uint24;
