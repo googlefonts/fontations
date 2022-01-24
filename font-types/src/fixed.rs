@@ -15,6 +15,9 @@ macro_rules! fixed_impl {
             /// Maximum value.
             pub const MAX: Self = Self(<$ty>::MAX);
 
+            /// This type's smallest representable value
+            pub const EPSILON: Self = Self(1);
+
             const INT_MASK: $ty = !0 << $fract_bits;
             const ROUND: $ty = 1 << ($fract_bits - 1);
             const ONE: $ty = 1 << $fract_bits;
@@ -62,30 +65,6 @@ macro_rules! fixed_impl {
             }
         }
 
-        impl std::fmt::Display for $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                let int = (self.0 & Self::INT_MASK) >> $fract_bits;
-                write!(f, "{}.", int)?;
-
-                let mut fract = (self.0 & !Self::INT_MASK) as u32;
-                while fract > 0 {
-                    fract *= 10;
-                    let val = fract >> $fract_bits;
-                    debug_assert!(val < 10);
-                    write!(f, "{}", val)?;
-                    fract &= ((1 << $fract_bits) - 1);
-                }
-                Ok(())
-            }
-        }
-
-        //FIXME: this should respect padding and other format options
-        impl std::fmt::Debug for $name {
-            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-                write!(f, "{}", self)
-            }
-        }
-
         impl Add for $name {
             type Output = Self;
             #[inline(always)]
@@ -129,7 +108,7 @@ macro_rules! float_conv {
             /// This operation is lossy; the float will be rounded to the nearest
             /// representable value.
             pub fn $from(x: $ty) -> Self {
-                Self((x * Self::ONE as $ty) as _)
+                Self((x * Self::ONE as $ty).round() as _)
             }
 
             #[doc = concat!("Returns the value as an ", stringify!($ty), ".")]
@@ -140,6 +119,19 @@ macro_rules! float_conv {
                 let int = ((self.0 & Self::INT_MASK) >> Self::FRACT_BITS) as $ty;
                 let fract = (self.0 & !Self::INT_MASK) as $ty / Self::ONE as $ty;
                 int + fract
+            }
+        }
+
+        //hack: we can losslessly go to float, so use those fmt impls
+        impl std::fmt::Display for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                self.$to().fmt(f)
+            }
+        }
+
+        impl std::fmt::Debug for $name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                self.$to().fmt(f)
             }
         }
     };
@@ -162,7 +154,7 @@ mod tests {
         assert_eq!(F2dot14(0x7000), F2dot14::from_f32(1.75));
         assert_eq!(F2dot14(0x0001), F2dot14::from_f32(0.0000610356));
         assert_eq!(F2dot14(0x0000), F2dot14::from_f32(0.0));
-        assert_eq!(F2dot14(0xffff), F2dot14::from_f32(-0.000075));
+        assert_eq!(F2dot14(0xffff), F2dot14::from_f32(-0.000061));
         assert_eq!(F2dot14(0x8000), F2dot14::from_f32(-2.0));
     }
 
@@ -189,7 +181,7 @@ mod tests {
         assert_eq!(Fixed(0x0001_8000).round(), Fixed(0x0002_0000));
     }
 
-    // disabled because it's slow
+    // disabled because it's slow; these were just for my edification anyway
     //#[test]
     //fn roundtrip_fixed() {
     //for i in i32::MIN..=i32::MAX {
