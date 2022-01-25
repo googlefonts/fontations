@@ -16,4 +16,5 @@ impl LongDateTime {
     }
 }
 
+super::conversion::impl_from_be_by_proxy!(LongDateTime, 8);
 //TODO: maybe a 'chrono' feature for constructing these sanely?

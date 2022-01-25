@@ -25,6 +25,7 @@ impl Tag {
     /// # Panics
     ///
     /// This method panics if the tag is not valid per the requirements above.
+    //FIXME: this should take a byte string, we're ascii-only
     pub const fn new(src: &str) -> Tag {
         assert!(
             !src.is_empty() && src.len() < 5,

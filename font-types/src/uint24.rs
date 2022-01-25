@@ -26,6 +26,18 @@ impl Uint24 {
     }
 }
 
+impl From<Uint24> for u32 {
+    fn from(src: Uint24) -> u32 {
+        src.0
+    }
+}
+
+unsafe impl super::FromBeBytes<3> for super::Uint24 {
+    fn from_be_bytes(raw: [u8; 3]) -> Self {
+        Self((raw[0] as u32) << 16 | (raw[1] as u32) << 8 | raw[2] as u32)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
