@@ -2,6 +2,16 @@
 //!
 //! [data types]: https://docs.microsoft.com/en-us/typography/opentype/spec/otff#data-types
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
+#[cfg(any(feature = "std", test))]
+#[macro_use]
+extern crate std;
+
+#[cfg(all(not(feature = "std"), not(test)))]
+#[macro_use]
+extern crate core as std;
+
 mod conversion;
 mod fixed;
 mod fword;

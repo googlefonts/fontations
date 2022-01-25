@@ -65,4 +65,5 @@ impl std::fmt::Display for Never {
     }
 }
 
+#[cfg(any(feature = "std", test))]
 impl std::error::Error for Never {}
