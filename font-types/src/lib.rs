@@ -35,7 +35,7 @@ pub type uint32 = u32;
 #[allow(non_camel_case_types)]
 pub type int32 = i32;
 
-pub use conversion::FromBeBytes;
+pub use conversion::{FromBeBytes, Never};
 pub use fixed::{F2dot14, Fixed};
 pub use fword::{Fword, Ufword};
 pub use longdatetime::LongDateTime;

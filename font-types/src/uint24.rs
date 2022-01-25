@@ -32,9 +32,12 @@ impl From<Uint24> for u32 {
     }
 }
 
-unsafe impl super::FromBeBytes<3> for super::Uint24 {
-    fn from_be_bytes(raw: [u8; 3]) -> Self {
-        Self((raw[0] as u32) << 16 | (raw[1] as u32) << 8 | raw[2] as u32)
+impl super::FromBeBytes<3> for super::Uint24 {
+    type Error = crate::Never;
+    fn read(raw: [u8; 3]) -> Result<Self, Self::Error> {
+        Ok(Self(
+            (raw[0] as u32) << 16 | (raw[1] as u32) << 8 | raw[2] as u32,
+        ))
     }
 }
 

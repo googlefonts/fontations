@@ -2,6 +2,8 @@
 
 use std::num::{NonZeroU16, NonZeroU32};
 
+use crate::{FromBeBytes, Uint24};
+
 macro_rules! impl_offset {
     ($name:ident, $bits:literal, $ty:ty, $rawty:ty) => {
         #[doc = concat!("A", stringify!($bits), "-bit offset to a table.")]
@@ -12,6 +14,7 @@ macro_rules! impl_offset {
         pub struct $name($ty);
 
         impl $name {
+            const BYTES: usize = $bits / 8;
             /// Create a new offset.
             pub fn new(raw: $rawty) -> Option<Self> {
                 <$ty>::new(raw).map(Self)
@@ -20,6 +23,13 @@ macro_rules! impl_offset {
             /// Return the raw integer value of this offset
             pub fn to_raw(self) -> $rawty {
                 self.0.get()
+            }
+        }
+
+        impl FromBeBytes<{ $name::BYTES }> for Option<$name> {
+            type Error = crate::Never;
+            fn read(bytes: [u8; $name::BYTES]) -> Result<Self, Self::Error> {
+                FromBeBytes::read(bytes).map($name::new)
             }
         }
     };
@@ -44,5 +54,12 @@ impl Offset24 {
     /// Return the raw integer value of this offset
     pub fn to_raw(self) -> u32 {
         self.0.get()
+    }
+}
+
+impl FromBeBytes<3> for Option<Offset24> {
+    type Error = crate::Never;
+    fn read(bytes: [u8; 3]) -> Result<Self, Self::Error> {
+        Uint24::read(bytes).map(|val| Offset24::new(val.into()))
     }
 }
