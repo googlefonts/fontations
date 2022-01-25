@@ -5,6 +5,8 @@ use std::{
     str::FromStr,
 };
 
+use crate::FromBeBytes;
+
 /// An OpenType tag.
 ///
 /// A tag is a 4-byte array where each byte is in the printable ascii range
@@ -25,8 +27,7 @@ impl Tag {
     /// # Panics
     ///
     /// This method panics if the tag is not valid per the requirements above.
-    //FIXME: this should take a byte string, we're ascii-only
-    pub const fn new(src: &str) -> Tag {
+    pub const fn new(src: &[u8]) -> Tag {
         assert!(
             !src.is_empty() && src.len() < 5,
             "input must be 1-4 bytes in length"
@@ -37,7 +38,7 @@ impl Tag {
             if i <= 0x20 || i > 0x7e {
                 panic!("all bytes must be in range (0x20, 0x7E)");
             }
-            raw[i] = src.as_bytes()[i];
+            raw[i] = src[i];
             i += 1;
         }
         Tag(raw)
@@ -52,8 +53,7 @@ impl Tag {
     /// ascii range (`0x20..=0x7E`).
     ///
     /// If the input has fewer than four bytes, spaces will be appended.
-    pub fn new_checked(src: impl AsRef<[u8]>) -> Result<Self, InvalidTag> {
-        let src = src.as_ref();
+    pub fn new_checked(src: &[u8]) -> Result<Self, InvalidTag> {
         if src.is_empty() || src.len() > 4 {
             return Err(InvalidTag::InvalidLength(src.len()));
         }
@@ -77,13 +77,13 @@ impl Tag {
 
     /// This tag as a `&str`.
     pub fn as_str(&self) -> &str {
-        // safety: tag can only be constructed from valid utf-8 (via FromStr)
+        // safety: tag can only be constructed from valid utf-8
         unsafe { std::str::from_utf8_unchecked(&self.0) }
     }
 }
 
 /// An error representing an invalid tag.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum InvalidTag {
     InvalidLength(usize),
     InvalidByte { pos: usize, byte: u8 },
@@ -93,7 +93,14 @@ impl FromStr for Tag {
     type Err = InvalidTag;
 
     fn from_str(src: &str) -> Result<Self, Self::Err> {
-        Tag::new_checked(src)
+        Tag::new_checked(src.as_bytes())
+    }
+}
+
+impl FromBeBytes<4> for Tag {
+    type Error = InvalidTag;
+    fn read(bytes: [u8; 4]) -> Result<Self, Self::Error> {
+        Tag::new_checked(&bytes)
     }
 }
 
@@ -141,6 +148,12 @@ impl PartialEq<&str> for Tag {
     }
 }
 
+impl PartialEq<&[u8]> for Tag {
+    fn eq(&self, other: &&[u8]) -> bool {
+        self.0.as_ref() == *other
+    }
+}
+
 impl Display for Tag {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "{}", self.as_str())
@@ -153,15 +166,14 @@ mod tests {
 
     #[test]
     fn smoke_test() {
-        assert!(Tag::new_checked("").is_err());
-        assert!(Tag::new_checked("a").is_ok());
-        assert!(Tag::new_checked("ab").is_ok());
-        assert!(Tag::new_checked("abc").is_ok());
-        assert!(Tag::new_checked("abcd").is_ok());
-        assert!(Tag::new_checked("abcde").is_err());
+        assert!(Tag::new_checked(b"").is_err());
+        assert!(Tag::new_checked(b"a").is_ok());
+        assert!(Tag::new_checked(b"ab").is_ok());
+        assert!(Tag::new_checked(b"abc").is_ok());
+        assert!(Tag::new_checked(b"abcd").is_ok());
+        assert!(Tag::new_checked(b"abcde").is_err());
 
         // ascii only:
-        assert!(Tag::new_checked("é").is_err());
         assert!(Tag::new_checked(&[0x19]).is_err());
         assert!(Tag::new_checked(&[0x20]).is_ok());
         assert!(Tag::new_checked(&[0x7E]).is_ok());
