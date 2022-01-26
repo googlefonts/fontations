@@ -108,7 +108,15 @@ macro_rules! float_conv {
             /// This operation is lossy; the float will be rounded to the nearest
             /// representable value.
             pub fn $from(x: $ty) -> Self {
-                Self((x * Self::ONE as $ty).round() as _)
+                #[cfg(any(feature = "std", test))]
+                return Self((x * Self::ONE as $ty).round() as _);
+                //NOTE: this behaviour is not exactly equivalent, but should be okay?
+                //what matters is that we are rounding *away from zero*.
+                #[cfg(all(not(feature = "std"), not(test)))]
+                Self(
+                    (x * Self::ONE as $ty + (0.5 * (-1.0 * x.is_sign_negative() as u8 as $ty)))
+                        as _,
+                )
             }
 
             #[doc = concat!("Returns the value as an ", stringify!($ty), ".")]
