@@ -2,4 +2,5 @@
 
 members = [
     "font-types",
+    "font-tables-macro",
 ]

@@ -1,0 +1,19 @@
+[package]
+name = "font-types-macro"
+version = "0.0.0"
+edition = "2021"
+autotests = false
+publish = false
+
+[lib]
+proc-macro = true
+
+[[test]]
+name = "tests"
+path = "tests/all.rs"
+
+[dev-dependencies]
+trybuild = { version = "1.0.49", features = ["diff"] }
+
+[dependencies]
+# TODO
