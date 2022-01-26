@@ -8,8 +8,10 @@ macro_rules! impl_offset {
     ($name:ident, $bits:literal, $ty:ty, $rawty:ty) => {
         #[doc = concat!("A", stringify!($bits), "-bit offset to a table.")]
         ///
-        /// Offsets should generally be represented as `Option<Offset>`, where
-        /// the NULL offset is represented as the `None` case.
+        /// Specific offset fields may or may not permit NULL values. For that
+        /// reason, you may specific a field as `Option<Offset>` and have the
+        /// `None` case represent NULL, or you can use a non-optional offset
+        /// and have NULL be treated as an error.
         #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
         pub struct $name($ty);
 
@@ -33,6 +35,13 @@ macro_rules! impl_offset {
             const SIZE: usize = $bits / 8;
         }
 
+        unsafe impl FromBeBytes<{ $bits / 8 }> for $name {
+            type Error = NullOffset;
+            fn read(bytes: [u8; $bits / 8]) -> Result<Self, Self::Error> {
+                $name::new(FromBeBytes::read(bytes).unwrap()).ok_or(NullOffset)
+            }
+        }
+
         unsafe impl FromBeBytes<{ $bits / 8 }> for Option<$name> {
             type Error = crate::Never;
             fn read(bytes: [u8; $bits / 8]) -> Result<Self, Self::Error> {
@@ -47,10 +56,15 @@ impl_offset!(Offset32, 32, NonZeroU32, u32);
 
 /// A 24-bit offset to a table.
 ///
-/// Offsets should generally be represented as `Option<Offset>`, where
-/// the NULL offset is represented as the `None` case.
+/// reason, you may specific a field as `Option<Offset>` and have the
+/// `None` case represent NULL, or you can use a non-optional offset
+/// and have NULL be treated as an error.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Offset24(NonZeroU32);
+
+/// An error type representing an unexpected `NULL` offset.
+#[derive(Debug, Clone)]
+pub struct NullOffset;
 
 impl Offset24 {
     /// Create a new offset.
@@ -66,6 +80,17 @@ impl Offset24 {
 
 impl ExactSized for Option<Offset24> {
     const SIZE: usize = 3;
+}
+
+impl ExactSized for Offset24 {
+    const SIZE: usize = 3;
+}
+
+unsafe impl FromBeBytes<3> for Offset24 {
+    type Error = NullOffset;
+    fn read(bytes: [u8; 3]) -> Result<Self, Self::Error> {
+        Offset24::new(Uint24::read(bytes).unwrap().into()).ok_or(NullOffset)
+    }
 }
 
 unsafe impl FromBeBytes<3> for Option<Offset24> {
