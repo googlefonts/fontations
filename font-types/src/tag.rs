@@ -5,7 +5,7 @@ use std::{
     str::FromStr,
 };
 
-use crate::FromBeBytes;
+use crate::{ExactSized, FromBeBytes};
 
 /// An OpenType tag.
 ///
@@ -97,7 +97,11 @@ impl FromStr for Tag {
     }
 }
 
-impl FromBeBytes<4> for Tag {
+impl ExactSized for Tag {
+    const SIZE: usize = 4;
+}
+
+unsafe impl FromBeBytes<4> for Tag {
     type Error = InvalidTag;
     fn read(bytes: [u8; 4]) -> Result<Self, Self::Error> {
         Tag::new_checked(&bytes)

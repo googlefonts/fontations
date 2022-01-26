@@ -1,3 +1,5 @@
+use crate::ExactSized;
+
 /// 24-bit unsigned integer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Uint24(u32);
@@ -32,7 +34,11 @@ impl From<Uint24> for u32 {
     }
 }
 
-impl super::FromBeBytes<3> for super::Uint24 {
+impl ExactSized for Uint24 {
+    const SIZE: usize = 3;
+}
+
+unsafe impl super::FromBeBytes<3> for super::Uint24 {
     type Error = crate::Never;
     fn read(raw: [u8; 3]) -> Result<Self, Self::Error> {
         Ok(Self(

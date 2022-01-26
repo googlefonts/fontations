@@ -2,7 +2,7 @@
 
 use std::num::{NonZeroU16, NonZeroU32};
 
-use crate::{FromBeBytes, Uint24};
+use crate::{ExactSized, FromBeBytes, Uint24};
 
 macro_rules! impl_offset {
     ($name:ident, $bits:literal, $ty:ty, $rawty:ty) => {
@@ -14,7 +14,6 @@ macro_rules! impl_offset {
         pub struct $name($ty);
 
         impl $name {
-            const BYTES: usize = $bits / 8;
             /// Create a new offset.
             pub fn new(raw: $rawty) -> Option<Self> {
                 <$ty>::new(raw).map(Self)
@@ -26,9 +25,17 @@ macro_rules! impl_offset {
             }
         }
 
-        impl FromBeBytes<{ $name::BYTES }> for Option<$name> {
+        impl ExactSized for $name {
+            const SIZE: usize = $bits / 8;
+        }
+
+        impl ExactSized for Option<$name> {
+            const SIZE: usize = $bits / 8;
+        }
+
+        unsafe impl FromBeBytes<{ $bits / 8 }> for Option<$name> {
             type Error = crate::Never;
-            fn read(bytes: [u8; $name::BYTES]) -> Result<Self, Self::Error> {
+            fn read(bytes: [u8; $bits / 8]) -> Result<Self, Self::Error> {
                 FromBeBytes::read(bytes).map($name::new)
             }
         }
@@ -57,7 +64,11 @@ impl Offset24 {
     }
 }
 
-impl FromBeBytes<3> for Option<Offset24> {
+impl ExactSized for Option<Offset24> {
+    const SIZE: usize = 3;
+}
+
+unsafe impl FromBeBytes<3> for Option<Offset24> {
     type Error = crate::Never;
     fn read(bytes: [u8; 3]) -> Result<Self, Self::Error> {
         Uint24::read(bytes).map(|val| Offset24::new(val.into()))
