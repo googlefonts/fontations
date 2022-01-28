@@ -11,6 +11,7 @@ extern crate std;
 #[cfg(all(not(feature = "std"), not(test)))]
 #[macro_use]
 extern crate core as std;
+mod scratch;
 
 mod conversion;
 mod fixed;
@@ -53,3 +54,18 @@ pub use offset::{Offset16, Offset24, Offset32};
 pub use tag::Tag;
 pub use uint24::Uint24;
 pub use version16dot16::Version16Dot16;
+
+//NOTE: just throwing this here while I test macros
+pub trait FromBytes<'a>: Sized {
+    /// If this type has a single known size, it is declared here.
+    ///
+    /// If this is declared, it is always used(?)
+    //const FIXED_SIZE: Option<usize>;
+
+    fn from_bytes(bytes: &'a [u8]) -> Option<Self>;
+}
+
+pub trait FontThing<'a>: FromBytes<'a> {
+    type View: FromBytes<'a>;
+    const SIZE_HINT: Option<usize>;
+}

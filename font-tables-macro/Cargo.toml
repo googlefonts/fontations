@@ -14,6 +14,9 @@ path = "tests/all.rs"
 
 [dev-dependencies]
 trybuild = { version = "1.0.49", features = ["diff"] }
+font-types = { path = "../font-types" }
 
 [dependencies]
-# TODO
+syn = "1.0.86"
+proc-macro2 = "1.0"
+quote = "1.0"
