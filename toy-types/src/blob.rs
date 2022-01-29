@@ -3,6 +3,7 @@ use std::ops::Range;
 use crate::{ExactSized, FromBeBytes};
 
 /// Some bytes.
+#[derive(Clone, Debug)]
 pub struct Blob<'a>(&'a [u8]);
 
 impl<'a> Blob<'a> {

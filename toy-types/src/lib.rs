@@ -77,6 +77,13 @@ pub trait FromBeBytes: Sized {
     fn from_bytes(bytes: &[u8]) -> Option<Self>;
 }
 
+// this is weirdly cyclical and I don't even know if it makes sense
+impl<'a, T: ExactSized + FromBeBytes> FontRead<'a> for T {
+    fn read(blob: Blob<'a>) -> Option<Self> {
+        blob.read(0)
+    }
+}
+
 macro_rules! be_scalar {
     ($name:ident, $size:literal) => {
         impl ExactSized for $name {

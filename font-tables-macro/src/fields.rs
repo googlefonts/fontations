@@ -1,4 +1,4 @@
-use syn::{spanned::Spanned, Meta, NestedMeta};
+use syn::{spanned::Spanned, LitStr, Meta, NestedMeta};
 
 const TOP_ATTR: &str = "font_thing";
 const COUNT_ATTR: &str = "count";
@@ -7,14 +7,14 @@ const OFFSET_ATTR: &str = "offset";
 
 pub struct Field {
     pub name: syn::Ident,
-    pub ty: syn::Type,
+    pub ty: syn::Path,
     pub attrs: Option<Attrs>,
 }
 
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct Attrs {
-    count: Option<String>,
-    offset: Option<String>,
+    pub count: Option<LitStr>,
+    pub offset: Option<LitStr>,
     _args: Vec<String>,
 }
 
@@ -23,9 +23,16 @@ impl Field {
         let name = field
             .ident
             .clone()
-            //.map(|id| id.to_string().trim_start_matches("r#").to_owned())
             .ok_or_else(|| syn::Error::new(field.span(), "only named fields are supported"))?;
-        let ty = field.ty.clone();
+        let ty = match &field.ty {
+            syn::Type::Path(p) if p.qself.is_none() => p.path.clone(),
+            _ => {
+                return Err(syn::Error::new(
+                    field.ty.span(),
+                    "field can only contain named, unqualified types",
+                ))
+            }
+        };
 
         let attr = match field.attrs.iter().find(|attr| attr.path.is_ident(TOP_ATTR)) {
             Some(attr) => attr,
@@ -75,9 +82,9 @@ impl Attrs {
     }
 }
 
-fn expect_lit_str(lit: &syn::Lit) -> Result<String, syn::Error> {
+fn expect_lit_str(lit: &syn::Lit) -> Result<syn::LitStr, syn::Error> {
     match lit {
-        syn::Lit::Str(s) => Ok(s.value()),
+        syn::Lit::Str(s) => Ok(s.clone()),
         _ => Err(syn::Error::new(lit.span(), "expected string literal")),
     }
 }
