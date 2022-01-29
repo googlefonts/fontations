@@ -47,8 +47,8 @@ fn derive_struct(
     let view_part = make_view(input, &fields)?;
 
     let decl = quote! {
-        impl<'font> ::toy_types::FromBeBytes<'font> for #ident {
-            fn from_bytes(bytes: &'font [u8]) -> Option<Self> {
+        impl<'font> ::toy_types::FontRead<'font> for #ident {
+            fn read(blob: ::toy_types::Blob<'font>) -> Option<Self> {
                 let mut #offset_var = 0;
 
                 #( #field_inits )*
@@ -76,16 +76,16 @@ fn make_view(
     let getters = fields.iter().map(|x| field_getter(x, &fields));
 
     Ok(quote! {
-        pub struct #view_ident<'font>(&'font [u8]);
+        pub struct #view_ident<'font>(::toy_types::Blob<'font>);
 
         impl<'font> #view_ident<'font> {
             #( #getters )*
 
         }
 
-        impl<'font> ::toy_types::FromBeBytes<'font> for #view_ident<'font> {
-            fn from_bytes(bytes: &'font [u8]) -> Option<Self> {
-                Some(Self(bytes))
+        impl<'font> ::toy_types::FontRead<'font> for #view_ident<'font> {
+            fn read(blob: ::toy_types::Blob<'font>) -> Option<Self> {
+                Some(Self(blob))
             }
         }
 
@@ -105,9 +105,8 @@ fn init_field(field: &Field, _all: &[Field], offset_var: &syn::Ident) -> proc_ma
     if field.attrs.is_none() {
         quote! {
             let #name = {
+                let temp: #type_ = blob.read(#offset_var)?;
                 let len = <#type_ as ::toy_types::ExactSized>::SIZE;
-                let range = #offset_var..#offset_var + len;
-                let temp: #type_ = ::toy_types::FromBeBytes::from_bytes(bytes.get(range)?)?;
                 #offset_var += usize::from(len);
                 temp
             };
@@ -145,10 +144,11 @@ fn field_getter(field: &Field, all: &[Field]) -> proc_macro2::TokenStream {
 
         quote! {
             pub fn #name(&self) -> Option<#type_> {
+                //FIXME: this should assume that length has been checked,
+                //(and we should be checking length in the constructor)
+                //assert this somehow, and then use unsafe
                 #init_off
-                let len = <#type_ as ::toy_types::ExactSized>::SIZE;
-                let bytes = self.0.get(offset..offset+len)?;
-                ::toy_types::FromBeBytes::from_bytes(bytes)
+                self.0.read(offset)
             }
         }
     } else {

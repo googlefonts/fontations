@@ -1,5 +1,5 @@
 use font_types_macro::FontThing;
-use toy_types::FromBeBytes;
+use toy_types::FontRead;
 
 #[derive(FontThing)]
 struct Durp {
@@ -19,8 +19,9 @@ fn main() {
     buffer.extend((-6i32).to_be_bytes());
     buffer.extend(3u16.to_be_bytes());
     buffer.extend(13u16.to_be_bytes());
+    let blob = toy_types::Blob::new(&buffer);
 
-    let herp = Durp::from_bytes(&buffer).unwrap();
+    let herp = Durp::read(blob).unwrap();
     assert_eq!(herp.durp, -6);
     assert_eq!(herp.offset, 3);
 }
