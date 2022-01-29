@@ -33,21 +33,19 @@ fn derive_struct(
         .iter()
         .map(fields::Field::parse)
         .collect::<Result<Vec<_>, _>>()?;
-    // get a lifetime if needed
-    let ident = &input.ident;
 
-    let _lifetime = generate_lifetime(&input.generics);
-    // make the init code that finds each field's position.
-    //let field_inits = init_fields(&fields);
+    let ident = &input.ident;
+    let generics = get_generics(&input.generics)?;
+
     let offset_var = syn::Ident::new("__very_private_internal_offset", input.ident.span());
     let field_inits = fields
         .iter()
         .map(|field| init_field(field, &fields, &offset_var));
     let names = fields.iter().map(|f| &f.name);
-    let view_part = make_view(input, &fields)?;
+    let view_part = make_view(input, &fields, &generics)?;
 
     let decl = quote! {
-        impl<'font> ::toy_types::FontRead<'font> for #ident {
+        impl<'font> ::toy_types::FontRead<'font> for #ident #generics {
             fn read(blob: ::toy_types::Blob<'font>) -> Option<Self> {
                 let mut #offset_var = 0;
 
@@ -62,18 +60,16 @@ fn derive_struct(
         #view_part
     };
     Ok(decl.into())
-    //TODO: error if any generics etc are present
-    //input.attrs
-    //todo!()
 }
 
 fn make_view(
     input: &syn::DeriveInput,
     fields: &[Field],
+    generics: &proc_macro2::TokenStream,
 ) -> Result<proc_macro2::TokenStream, syn::Error> {
     let ident = &input.ident;
     let view_ident = syn::Ident::new(&format!("{}DerivedView", &input.ident), input.ident.span());
-    let getters = fields.iter().map(|x| field_getter(x, &fields));
+    let getters = fields.iter().map(|x| field_getter(x, fields));
 
     Ok(quote! {
         pub struct #view_ident<'font>(::toy_types::Blob<'font>);
@@ -89,14 +85,39 @@ fn make_view(
             }
         }
 
-        impl<'font> ::toy_types::FontThing<'font> for #ident {
+        impl<'font> ::toy_types::FontThing<'font> for #ident #generics {
             type View = #view_ident<'font>;
         }
     })
 }
 
-fn generate_lifetime(_generics: &syn::Generics) -> Result<proc_macro2::TokenStream, syn::Error> {
-    Ok(quote!())
+/// Check that generic arguments are acceptable
+///
+/// They are acceptable if they are empty, or contain a single lifetime.
+///
+/// We return tokens (possibly empty) to append to impl blocks for the type.
+/// As in: if the type has a declared lifetime, we need to have that lifetime
+/// match the lifetime in the traits we're implementing.
+fn get_generics(generics: &syn::Generics) -> Result<proc_macro2::TokenStream, syn::Error> {
+    if generics.type_params().count() + generics.const_params().count() > 0 {
+        return Err(syn::Error::new(
+            generics.span(),
+            "generics are not allowed in font tables",
+        ));
+    }
+    if let Some(lifetime) = generics.lifetimes().nth(1) {
+        return Err(syn::Error::new(
+            lifetime.span(),
+            "tables can contain at most a single lifetime",
+        ));
+    }
+
+    Ok(generics
+        .lifetimes()
+        .next()
+        .is_some()
+        .then(|| quote!(<'font>))
+        .unwrap_or_default())
 }
 
 fn init_field(field: &Field, _all: &[Field], offset_var: &syn::Ident) -> proc_macro2::TokenStream {
@@ -111,12 +132,10 @@ fn init_field(field: &Field, _all: &[Field], offset_var: &syn::Ident) -> proc_ma
                 temp
             };
         }
-        .into()
     } else {
         quote! {
             let #name = Default::default();
         }
-        .into()
     }
 }
 
@@ -154,39 +173,5 @@ fn field_getter(field: &Field, all: &[Field]) -> proc_macro2::TokenStream {
     } else {
         //TODO: generate code for non-scalar fields
         quote!()
-        //quote!(compile_error!("ahh");)
-    }
-}
-
-#[proc_macro]
-pub fn font_tables(input: TokenStream) -> TokenStream {
-    //let span = input.();
-    let input = proc_macro2::TokenStream::from(input);
-    let strings = input
-        .into_iter()
-        .map(|item| item_type(&item))
-        .collect::<Vec<_>>();
-    dbg!(strings);
-    //let err = syn::Error::new(input.span(), strings.join(", "));
-    //for item in input {
-
-    //}
-    //let _ = input;
-    //let input = parse_macro_input!(input);
-
-    unimplemented!()
-}
-
-//fn generate_item(input: &proc_macro2::TokenTree) -> Result<proc_macro2::TokenStream, syn::Error> {
-//Err(syn::Error::new_spanned(input, "idk man"))
-
-//}
-
-fn item_type(tree: &proc_macro2::TokenTree) -> String {
-    match tree {
-        proc_macro2::TokenTree::Group(_g) => format!("Group"),
-        proc_macro2::TokenTree::Ident(i) => format!("ident {}", i),
-        proc_macro2::TokenTree::Punct(i) => format!("{}", i),
-        proc_macro2::TokenTree::Literal(i) => format!("L{}", i),
     }
 }

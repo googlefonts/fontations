@@ -38,7 +38,7 @@ impl Field {
             }
         };
 
-        let attrs = Attrs::parse(&attr)?;
+        let attrs = Attrs::parse(attr)?;
         Ok(Field {
             name,
             ty,
