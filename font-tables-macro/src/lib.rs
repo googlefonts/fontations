@@ -47,7 +47,7 @@ fn derive_struct(
     let view_part = make_view(input, &fields)?;
 
     let decl = quote! {
-        impl<'font> ::font_types::FromBytes<'font> for #ident {
+        impl<'font> ::toy_types::FromBeBytes<'font> for #ident {
             fn from_bytes(bytes: &'font [u8]) -> Option<Self> {
                 let mut #offset_var = 0;
 
@@ -83,13 +83,13 @@ fn make_view(
 
         }
 
-        impl<'font> ::font_types::FromBytes<'font> for #view_ident<'font> {
+        impl<'font> ::toy_types::FromBeBytes<'font> for #view_ident<'font> {
             fn from_bytes(bytes: &'font [u8]) -> Option<Self> {
                 Some(Self(bytes))
             }
         }
 
-        impl<'font> ::font_types::FontThing<'font> for #ident {
+        impl<'font> ::toy_types::FontThing<'font> for #ident {
             type View = #view_ident<'font>;
         }
     })
@@ -105,13 +105,14 @@ fn init_field(field: &Field, _all: &[Field], offset_var: &syn::Ident) -> proc_ma
     if field.attrs.is_none() {
         quote! {
             let #name = {
-                let len = <#type_ as ::font_types::ExactSized>::SIZE;
+                let len = <#type_ as ::toy_types::ExactSized>::SIZE;
                 let range = #offset_var..#offset_var + len;
-                let temp: #type_ = ::font_types::FromBeBytes::read(bytes.get(range)?.try_into().ok()?).ok()?;
+                let temp: #type_ = ::toy_types::FromBeBytes::from_bytes(bytes.get(range)?)?;
                 #offset_var += usize::from(len);
                 temp
             };
-        }.into()
+        }
+        .into()
     } else {
         quote! {
             let #name = Default::default();
@@ -134,7 +135,7 @@ fn field_getter(field: &Field, all: &[Field]) -> proc_macro2::TokenStream {
             let init_off = all.iter().take_while(|x| x.name != field.name).map(|x| {
                 let t = &x.ty;
                 quote! {
-                    <#t as ::font_types::ExactSized>::SIZE
+                    <#t as ::toy_types::ExactSized>::SIZE
                 }
             });
             quote! {
@@ -145,13 +146,15 @@ fn field_getter(field: &Field, all: &[Field]) -> proc_macro2::TokenStream {
         quote! {
             pub fn #name(&self) -> Option<#type_> {
                 #init_off
-                let len = <#type_ as ::font_types::ExactSized>::SIZE;
+                let len = <#type_ as ::toy_types::ExactSized>::SIZE;
                 let bytes = self.0.get(offset..offset+len)?;
-                ::font_types::FromBeBytes::read(bytes.try_into().unwrap()).ok()
+                ::toy_types::FromBeBytes::from_bytes(bytes)
             }
         }
     } else {
-        quote!(compiler_error!("ahh"))
+        //TODO: generate code for non-scalar fields
+        quote!()
+        //quote!(compile_error!("ahh");)
     }
 }
 

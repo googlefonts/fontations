@@ -1,5 +1,5 @@
 use font_types_macro::FontThing;
-use font_types::FromBytes;
+use toy_types::FromBeBytes;
 
 #[derive(FontThing)]
 struct Durp {

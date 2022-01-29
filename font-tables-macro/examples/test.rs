@@ -1,7 +1,7 @@
 //! something to macro-expand when debugging
 
-use font_types::FromBytes;
 use font_types_macro::FontThing;
+use toy_types::FromBeBytes;
 
 #[derive(FontThing)]
 struct Durp {
@@ -10,8 +10,8 @@ struct Durp {
     durp: i32,
     offset: u16,
     n_items: u16,
-    //#[font_thing(count = "n_items", offset = "offset")]
-    //items: Vec<u16>,
+    #[font_thing(count = "n_items", offset = "offset")]
+    items: Vec<u16>,
 }
 
 fn main() {
