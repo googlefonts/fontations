@@ -35,6 +35,7 @@ fn derive_struct(
         .collect::<Result<Vec<_>, _>>()?;
     // get a lifetime if needed
     let ident = &input.ident;
+
     let _lifetime = generate_lifetime(&input.generics);
     // make the init code that finds each field's position.
     //let field_inits = init_fields(&fields);
@@ -43,6 +44,7 @@ fn derive_struct(
         .iter()
         .map(|field| init_field(field, &fields, &offset_var));
     let names = fields.iter().map(|f| &f.name);
+    let view_part = make_view(input, &fields)?;
 
     let decl = quote! {
         impl<'font> ::font_types::FromBytes<'font> for #ident {
@@ -56,11 +58,41 @@ fn derive_struct(
                 })
             }
         }
+
+        #view_part
     };
     Ok(decl.into())
     //TODO: error if any generics etc are present
     //input.attrs
     //todo!()
+}
+
+fn make_view(
+    input: &syn::DeriveInput,
+    fields: &[Field],
+) -> Result<proc_macro2::TokenStream, syn::Error> {
+    let ident = &input.ident;
+    let view_ident = syn::Ident::new(&format!("{}DerivedView", &input.ident), input.ident.span());
+    let getters = fields.iter().map(|x| field_getter(x, &fields));
+
+    Ok(quote! {
+        pub struct #view_ident<'font>(&'font [u8]);
+
+        impl<'font> #view_ident<'font> {
+            #( #getters )*
+
+        }
+
+        impl<'font> ::font_types::FromBytes<'font> for #view_ident<'font> {
+            fn from_bytes(bytes: &'font [u8]) -> Option<Self> {
+                Some(Self(bytes))
+            }
+        }
+
+        impl<'font> ::font_types::FontThing<'font> for #ident {
+            type View = #view_ident<'font>;
+        }
+    })
 }
 
 fn generate_lifetime(_generics: &syn::Generics) -> Result<proc_macro2::TokenStream, syn::Error> {
@@ -88,20 +120,40 @@ fn init_field(field: &Field, _all: &[Field], offset_var: &syn::Ident) -> proc_ma
     }
 }
 
-//pub trait FromBytes<'a>: Sized {
-///// If this type has a single known size, it is declared here.
-/////
-///// If this is declared, it is always used(?)
-//const FIXED_SIZE: Option<usize>;
+fn field_getter(field: &Field, all: &[Field]) -> proc_macro2::TokenStream {
+    let type_ = &field.ty;
+    let name = &field.name;
 
-//fn from_bytes(bytes: &'a [u8]) -> Option<(Self)>;
-//fn byte_len(&self) -> usize;
-//}
+    if field.attrs.is_none() {
+        let field_pos = all.iter().position(|i| i.name == field.name).unwrap();
+        let init_off = if field_pos == 0 {
+            quote! {
+                let offset = 0_usize;
+            }
+        } else {
+            let init_off = all.iter().take_while(|x| x.name != field.name).map(|x| {
+                let t = &x.ty;
+                quote! {
+                    <#t as ::font_types::ExactSized>::SIZE
+                }
+            });
+            quote! {
+                let offset = #( #init_off )+*;
+            }
+        };
 
-//pub trait FontThing<'a>: FromBytes<'a> {
-//type View: FromBytes<'a>;
-//const SIZE_HINT: Option<usize>;
-//}
+        quote! {
+            pub fn #name(&self) -> Option<#type_> {
+                #init_off
+                let len = <#type_ as ::font_types::ExactSized>::SIZE;
+                let bytes = self.0.get(offset..offset+len)?;
+                ::font_types::FromBeBytes::read(bytes.try_into().unwrap()).ok()
+            }
+        }
+    } else {
+        quote!(compiler_error!("ahh"))
+    }
+}
 
 #[proc_macro]
 pub fn font_tables(input: TokenStream) -> TokenStream {
