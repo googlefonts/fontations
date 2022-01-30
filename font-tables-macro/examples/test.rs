@@ -1,5 +1,7 @@
 //! something to macro-expand when debugging
 
+#![allow(dead_code)]
+
 use font_types_macro::FontThing;
 use toy_types::*;
 

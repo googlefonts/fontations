@@ -37,7 +37,6 @@ fn derive_struct(
     let ident = &input.ident;
     let ty_generics = get_generics(&input.generics)?;
     let trait_generics = ty_generics.clone().unwrap_or_else(|| quote!(<'font>));
-    //let thing: Option<syn::Ident> = None;
 
     let offset_var = syn::Ident::new("__very_private_internal_offset", input.ident.span());
     let field_inits = fields
@@ -45,6 +44,7 @@ fn derive_struct(
         .map(|field| init_field(field, &fields, &offset_var));
     let names = fields.iter().map(|f| &f.name);
     let view_part = make_view(input, &fields, &ty_generics)?;
+    let exact_sized_part = impl_exact_sized(input, &fields, &ty_generics)?;
 
     let decl = quote! {
         impl #trait_generics ::toy_types::FontRead #trait_generics for #ident #ty_generics {
@@ -60,6 +60,7 @@ fn derive_struct(
         }
 
         #view_part
+        #exact_sized_part
     };
     Ok(decl.into())
 }
@@ -92,6 +93,29 @@ fn make_view(
             type View = #view_ident #trait_generics;
         }
     })
+}
+
+fn impl_exact_sized(
+    input: &syn::DeriveInput,
+    fields: &[Field],
+    ty_generics: &Option<proc_macro2::TokenStream>,
+) -> Result<Option<proc_macro2::TokenStream>, syn::Error> {
+    // we only impl this if all fields are scalars
+    if fields.iter().any(|fld| fld.attrs.is_some()) {
+        return Ok(None);
+    }
+
+    let sizes = fields.iter().map(|fld| {
+        let ty = &fld.ty;
+        quote!(<#ty as ::toy_types::ExactSized>::SIZE)
+    });
+
+    let ident = &input.ident;
+    Ok(Some(quote! {
+        impl #ty_generics ::toy_types::ExactSized for #ident {
+            const SIZE: usize = #( #sizes )+*;
+        }
+    }))
 }
 
 /// Check that generic arguments are acceptable
