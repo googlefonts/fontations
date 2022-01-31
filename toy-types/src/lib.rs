@@ -11,8 +11,12 @@ extern crate std;
 #[macro_use]
 extern crate core as std;
 
+pub use font_types_macro::FontThing;
+extern crate self as toy_types;
+
 mod array;
 mod blob;
+pub mod tables;
 
 /// 8-bit unsigned integer
 #[allow(non_camel_case_types)]
