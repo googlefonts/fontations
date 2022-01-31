@@ -1,5 +1,6 @@
 use crate::{Blob, ExactSized, FontRead};
 
+#[derive(Clone, Debug)]
 pub struct Array<'a, T> {
     data: Blob<'a>,
     _t: std::marker::PhantomData<T>,
@@ -22,9 +23,21 @@ impl<'a, T: ExactSized + FontRead<'a>> Array<'a, T> {
         let offset = idx * T::SIZE;
         self.data.get(offset..offset + T::SIZE).and_then(T::read)
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = T> + 'a {
+        let mut offset = 0;
+        let blob = self.data.clone();
+
+        std::iter::from_fn(move || {
+            let result = blob.get(offset..offset + T::SIZE).and_then(T::read);
+            offset += T::SIZE;
+            result
+        })
+    }
 }
 
 /// An array with non-uniform member sizes.
+#[derive(Clone, Debug)]
 pub struct VariableSizeArray<'a, T> {
     data: Blob<'a>,
     _t: std::marker::PhantomData<T>,
