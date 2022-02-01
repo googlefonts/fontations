@@ -18,9 +18,9 @@ pub struct Attrs {
     pub count_fn: Option<CountFn>,
 }
 
-#[derive(Clone, )]
+#[derive(Clone)]
 pub struct CountFn {
-    pub fn_: syn::Ident,
+    pub fn_: syn::Path,
     pub args: Vec<syn::Ident>,
 }
 
@@ -79,7 +79,7 @@ impl Attrs {
         for item in meta.nested.iter() {
             match item {
                 NestedMeta::Meta(Meta::NameValue(val)) if val.path.is_ident(COUNT_ATTR) => {
-                    this.count = Some(expect_lit_str_ident(&val.lit)?);
+                    this.count = Some(expect_lit_str(&val.lit).and_then(str_to_ident)?);
                 }
 
                 NestedMeta::Meta(Meta::List(list)) if list.path.is_ident(COUNT_ATTR) => {
@@ -105,7 +105,9 @@ fn parse_count_fn(list: &MetaList) -> Result<CountFn, syn::Error> {
                 if count_fn.is_some() {
                     return Err(syn::Error::new(val.path.span(), "duplicate attribute"));
                 }
-                count_fn = Some(expect_lit_str_ident(&val.lit)?);
+                let path_str = expect_lit_str(&val.lit)?;
+                let path: syn::Path = syn::parse_str(&path_str.value())?;
+                count_fn = Some(path);
             }
             NestedMeta::Meta(Meta::List(args)) if args.path.is_ident("args") => {
                 if args.nested.is_empty() {
@@ -114,7 +116,7 @@ fn parse_count_fn(list: &MetaList) -> Result<CountFn, syn::Error> {
                 for arg in args.nested.iter() {
                     match arg {
                         NestedMeta::Lit(lit) => {
-                            let lit_str = expect_lit_str_ident(lit)?;
+                            let lit_str = expect_lit_str(lit).and_then(str_to_ident)?;
                             parsed_args.push(lit_str);
                         }
                         _ => {
@@ -131,18 +133,27 @@ fn parse_count_fn(list: &MetaList) -> Result<CountFn, syn::Error> {
     }
 
     if count_fn.is_none() {
-        return Err(syn::Error::new(list.span(), "missing required argument 'fn'"));
+        return Err(syn::Error::new(
+            list.span(),
+            "missing required argument 'fn'",
+        ));
     }
 
-    count_fn.map(|fn_| CountFn {
-        fn_,
-        args: parsed_args,
-    }).ok_or_else(|| syn::Error::new(list.span(), "missing required argument 'fn'"))
+    count_fn
+        .map(|fn_| CountFn {
+            fn_,
+            args: parsed_args,
+        })
+        .ok_or_else(|| syn::Error::new(list.span(), "missing required argument 'fn'"))
 }
 
-fn expect_lit_str_ident(lit: &syn::Lit) -> Result<syn::Ident, syn::Error> {
+fn expect_lit_str(lit: &syn::Lit) -> Result<syn::LitStr, syn::Error> {
     match lit {
-        syn::Lit::Str(s) => Ok(syn::Ident::new(&s.value(), s.span())),
+        syn::Lit::Str(s) => Ok(s.clone()),
         _ => Err(syn::Error::new(lit.span(), "expected string literal")),
     }
+}
+
+fn str_to_ident(lit: syn::LitStr) -> Result<syn::Ident, syn::Error> {
+    Ok(syn::Ident::new(&lit.value(), lit.span()))
 }

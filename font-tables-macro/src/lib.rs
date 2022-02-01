@@ -237,11 +237,11 @@ fn field_getter(
                     ))
                 });
 
-                *offset_val = quote!(#offset_val + usize::from(#get_count_fn));
-                quote! {
-                    let count = #get_count_fn;
-                    <#type_>::new(self.0.clone(), #this_off, count.into())
-                }
+            *offset_val = quote!(#offset_val + usize::from(#get_count_fn));
+            quote! {
+                let count = #get_count_fn;
+                <#type_>::new(self.0.clone(), #this_off, count.into())
+            }
         }
     };
     quote! {
