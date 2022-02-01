@@ -41,7 +41,8 @@ fn derive_struct(
     let offset_var = syn::Ident::new("__very_private_internal_offset", input.ident.span());
     let field_inits = fields
         .iter()
-        .map(|field| init_field(field, &fields, &offset_var));
+        .map(|field| init_field(field, &fields, &offset_var))
+        .collect::<Result<Vec<_>, _>>()?;
     let names = fields.iter().map(|f| &f.name);
     let view_part = make_view(input, &fields, &ty_generics)?;
     let exact_sized_part = impl_exact_sized(input, &fields, &ty_generics)?;
@@ -148,25 +149,27 @@ fn get_generics(generics: &syn::Generics) -> Result<Option<proc_macro2::TokenStr
     }))
 }
 
-fn init_field(field: &Field, all: &[Field], offset_var: &syn::Ident) -> proc_macro2::TokenStream {
+fn init_field(
+    field: &Field,
+    all: &[Field],
+    offset_var: &syn::Ident,
+) -> Result<proc_macro2::TokenStream, syn::Error> {
     let name = &field.name;
     let type_ = &field.ty;
     let is_last = field.name == all.last().unwrap().name;
 
     match field.attrs.as_ref() {
-        None => {
-            quote! {
-                let #name = {
-                    let temp: #type_ = blob.read(#offset_var)?;
-                    let len = <#type_ as ::toy_types::ExactSized>::SIZE;
-                    #offset_var += usize::from(len);
-                    temp
-                };
-            }
-        }
+        None => Ok(quote! {
+            let #name = {
+                let temp: #type_ = blob.read(#offset_var)?;
+                let len = <#type_ as ::toy_types::ExactSized>::SIZE;
+                #offset_var += usize::from(len);
+                temp
+            };
+        }),
         Some(attrs) if attrs.data.is_some() => {
             //TODO: validate these, make sure data is last item?
-            quote!(let #name = blob;)
+            Ok(quote!(let #name = blob;))
         }
 
         Some(attrs) => {
@@ -178,19 +181,25 @@ fn init_field(field: &Field, all: &[Field], offset_var: &syn::Ident) -> proc_mac
                     let args = count_fn.args.iter();
                     quote!(#fn_( #(#args),* ))
                 })
-                .or_else(|| attrs.count.as_ref().map(|ident| quote!(#ident)))
-                .unwrap_or_else(|| {
-                    quote!(compile_error!(
-                        "TODO: validate attributes before generating fields"
-                    ))
-                });
+                .or_else(|| attrs.count.as_ref().map(|ident| quote!(#ident)));
+            let decl = if let Some(count) = count {
+                quote!(<#type_>::new(blob.clone(), #offset_var.into(), #count.into()))
+            } else if attrs.count_all.is_some() {
+                quote!(<#type_>::new_no_len(blob.clone(), #offset_var.into()))
+            } else {
+                return Err(syn::Error::new(
+                    field.name.span(),
+                    "expected 'all' or 'count' attribute",
+                ));
+            };
+
             // the last item is allowed to have unknown length, so doesn't always
             // have a len() method; we just don't call len() if we're the last item.
             let update_offset = (!is_last).then(|| quote!(#offset_var += #name.len()));
-            quote! {
-                let #name = <#type_>::new(blob.clone(), #offset_var.into(), #count.into())?;
+            Ok(quote! {
+                let #name = #decl?;
                 #update_offset;
-            }
+            })
         }
     }
 }
@@ -230,17 +239,18 @@ fn field_getter(
                     let args = count_fn.args.iter();
                     quote!(#fn_( #(self.#args()?),* ))
                 })
-                .or_else(|| attrs.count.as_ref().map(|ident| quote!(self.#ident()?)))
-                .unwrap_or_else(|| {
-                    quote!(compile_error!(
-                        "TODO: validate attributes before generating fields"
-                    ))
-                });
+                .or_else(|| attrs.count.as_ref().map(|ident| quote!(self.#ident()?)));
 
-            *offset_val = quote!(#offset_val + usize::from(#get_count_fn));
-            quote! {
-                let count = #get_count_fn;
-                <#type_>::new(self.0.clone(), #this_off, count.into())
+            if let Some(count_fn) = &get_count_fn {
+                *offset_val = quote!(#offset_val + usize::from(#count_fn));
+            }
+
+            if let Some(count) = &get_count_fn {
+                quote!(<#type_>::new(self.0.clone(), #this_off, #count.into()))
+            } else if attrs.count_all.is_some() {
+                quote!(<#type_>::new_no_len(self.0.clone(), #this_off))
+            } else {
+                unreachable!("attributes are validated when fields are made?");
             }
         }
     };

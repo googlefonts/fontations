@@ -16,6 +16,7 @@ pub struct Attrs {
     pub data: Option<syn::Path>,
     pub count: Option<syn::Ident>,
     pub count_fn: Option<CountFn>,
+    pub count_all: Option<syn::Path>,
 }
 
 #[derive(Clone)]
@@ -81,9 +82,11 @@ impl Attrs {
                 NestedMeta::Meta(Meta::NameValue(val)) if val.path.is_ident(COUNT_ATTR) => {
                     this.count = Some(expect_lit_str(&val.lit).and_then(str_to_ident)?);
                 }
-
                 NestedMeta::Meta(Meta::List(list)) if list.path.is_ident(COUNT_ATTR) => {
-                    this.count_fn = Some(parse_count_fn(&list)?);
+                    this.count_fn = Some(parse_count_fn(list)?);
+                }
+                NestedMeta::Meta(Meta::Path(val)) if val.is_ident("all") => {
+                    this.count_all = Some(val.clone());
                 }
                 NestedMeta::Meta(Meta::Path(val)) if val.is_ident(DATA_ATTR) => {
                     this.data = Some(val.to_owned());

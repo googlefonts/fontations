@@ -24,6 +24,6 @@ fn main() {
     assert_eq!(test.count_one, 3);
     assert_eq!(test.count_two, 5);
     let bytes = test.items.iter().collect::<Vec<_>>();
-    assert_eq!(bytes,b"this is 15 chrs" );
+    assert_eq!(bytes, b"this is 15 chrs");
     assert_eq!(test.word, 0xca11_c0c0);
 }
