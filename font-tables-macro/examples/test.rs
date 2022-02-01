@@ -7,10 +7,10 @@ use toy_types::*;
 
 #[derive(FontThing)]
 struct Durp<'a> {
-    offset: u16,
     n_items: u16,
-    #[font_thing(count = "n_items", offset = "offset")]
+    #[font_thing(count = "n_items")]
     items: Array<'a, u16>,
+    offset: u16,
 }
 
 fn main() {

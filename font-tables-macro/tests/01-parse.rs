@@ -8,7 +8,7 @@ struct Durp<'font> {
     durp: i32,
     offset: u16,
     n_items: u16,
-    #[font_thing(count = "n_items", offset = "offset")]
+    #[font_thing(count = "n_items")]
     items: Array<'font, u16>,
 }
 

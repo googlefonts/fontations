@@ -1,11 +1,11 @@
-use syn::{spanned::Spanned, LitStr, Meta, NestedMeta};
+use syn::{spanned::Spanned, Meta, MetaList, NestedMeta};
 
 const TOP_ATTR: &str = "font_thing";
 const COUNT_ATTR: &str = "count";
-const OFFSET_ATTR: &str = "offset";
-//const ARGS_ATTR: &str = "args";
+const DATA_ATTR: &str = "data";
 
 pub struct Field {
+    pub vis: syn::Visibility,
     pub name: syn::Ident,
     pub ty: syn::Path,
     pub attrs: Option<Attrs>,
@@ -13,9 +13,15 @@ pub struct Field {
 
 #[derive(Clone, Default)]
 pub struct Attrs {
-    pub count: Option<LitStr>,
-    pub offset: Option<LitStr>,
-    _args: Vec<String>,
+    pub data: Option<syn::Path>,
+    pub count: Option<syn::Ident>,
+    pub count_fn: Option<CountFn>,
+}
+
+#[derive(Clone, )]
+pub struct CountFn {
+    pub fn_: syn::Ident,
+    pub args: Vec<syn::Ident>,
 }
 
 impl Field {
@@ -33,6 +39,7 @@ impl Field {
                 ))
             }
         };
+        let vis = field.vis.clone();
 
         let attr = match field.attrs.iter().find(|attr| attr.path.is_ident(TOP_ATTR)) {
             Some(attr) => attr,
@@ -40,6 +47,7 @@ impl Field {
                 return Ok(Field {
                     name,
                     ty,
+                    vis,
                     attrs: None,
                 })
             }
@@ -49,6 +57,7 @@ impl Field {
         Ok(Field {
             name,
             ty,
+            vis,
             attrs: Some(attrs),
         })
     }
@@ -70,10 +79,14 @@ impl Attrs {
         for item in meta.nested.iter() {
             match item {
                 NestedMeta::Meta(Meta::NameValue(val)) if val.path.is_ident(COUNT_ATTR) => {
-                    this.count = Some(expect_lit_str(&val.lit)?);
+                    this.count = Some(expect_lit_str_ident(&val.lit)?);
                 }
-                NestedMeta::Meta(Meta::NameValue(val)) if val.path.is_ident(OFFSET_ATTR) => {
-                    this.offset = Some(expect_lit_str(&val.lit)?);
+
+                NestedMeta::Meta(Meta::List(list)) if list.path.is_ident(COUNT_ATTR) => {
+                    this.count_fn = Some(parse_count_fn(&list)?);
+                }
+                NestedMeta::Meta(Meta::Path(val)) if val.is_ident(DATA_ATTR) => {
+                    this.data = Some(val.to_owned());
                 }
                 _ => return Err(syn::Error::new(item.span(), "unknown attribute")),
             }
@@ -82,9 +95,54 @@ impl Attrs {
     }
 }
 
-fn expect_lit_str(lit: &syn::Lit) -> Result<syn::LitStr, syn::Error> {
+fn parse_count_fn(list: &MetaList) -> Result<CountFn, syn::Error> {
+    let mut count_fn = None;
+    let mut parsed_args = Vec::new();
+
+    for item in list.nested.iter() {
+        match item {
+            NestedMeta::Meta(Meta::NameValue(val)) if val.path.is_ident("fn") => {
+                if count_fn.is_some() {
+                    return Err(syn::Error::new(val.path.span(), "duplicate attribute"));
+                }
+                count_fn = Some(expect_lit_str_ident(&val.lit)?);
+            }
+            NestedMeta::Meta(Meta::List(args)) if args.path.is_ident("args") => {
+                if args.nested.is_empty() {
+                    return Err(syn::Error::new(args.span(), "args should not be empty"));
+                }
+                for arg in args.nested.iter() {
+                    match arg {
+                        NestedMeta::Lit(lit) => {
+                            let lit_str = expect_lit_str_ident(lit)?;
+                            parsed_args.push(lit_str);
+                        }
+                        _ => {
+                            return Err(syn::Error::new(
+                                arg.span(),
+                                "unexpected item, expected (string) arguments",
+                            ));
+                        }
+                    }
+                }
+            }
+            _ => return Err(syn::Error::new(item.span(), "unexpected attribute")),
+        }
+    }
+
+    if count_fn.is_none() {
+        return Err(syn::Error::new(list.span(), "missing required argument 'fn'"));
+    }
+
+    count_fn.map(|fn_| CountFn {
+        fn_,
+        args: parsed_args,
+    }).ok_or_else(|| syn::Error::new(list.span(), "missing required argument 'fn'"))
+}
+
+fn expect_lit_str_ident(lit: &syn::Lit) -> Result<syn::Ident, syn::Error> {
     match lit {
-        syn::Lit::Str(s) => Ok(s.clone()),
+        syn::Lit::Str(s) => Ok(syn::Ident::new(&s.value(), s.span())),
         _ => Err(syn::Error::new(lit.span(), "expected string literal")),
     }
 }

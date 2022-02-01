@@ -72,7 +72,10 @@ fn make_view(
 ) -> Result<proc_macro2::TokenStream, syn::Error> {
     let ident = &input.ident;
     let view_ident = syn::Ident::new(&format!("{}DerivedView", &input.ident), input.ident.span());
-    let getters = fields.iter().map(|x| field_getter(x, fields));
+    let mut field_offset = quote!(0_usize);
+    let getters = fields
+        .iter()
+        .map(|x| field_getter(x, fields, &mut field_offset));
     let trait_generics = ty_generics.clone().unwrap_or_else(|| quote!(<'font>));
 
     Ok(quote! {
@@ -143,13 +146,13 @@ fn get_generics(generics: &syn::Generics) -> Result<Option<proc_macro2::TokenStr
         let lifetime = &gen.lifetime;
         quote! {<#lifetime>}
     }))
-    //.is_some()
-    //.unwrap_or_else(|| quote!(<'font>))
 }
 
-fn init_field(field: &Field, _all: &[Field], offset_var: &syn::Ident) -> proc_macro2::TokenStream {
+fn init_field(field: &Field, all: &[Field], offset_var: &syn::Ident) -> proc_macro2::TokenStream {
     let name = &field.name;
     let type_ = &field.ty;
+    let is_last = field.name == all.last().unwrap().name;
+
     match field.attrs.as_ref() {
         None => {
             quote! {
@@ -161,62 +164,89 @@ fn init_field(field: &Field, _all: &[Field], offset_var: &syn::Ident) -> proc_ma
                 };
             }
         }
-        Some(attrs) => {
-            let offset = attrs
-                .offset
-                .as_ref()
-                .map(|s| syn::Ident::new(&s.value(), s.span()))
-                .unwrap_or_else(|| offset_var.clone());
-            let count = match attrs.count.as_ref() {
-                Some(count) => {
-                    let ident = syn::Ident::new(&count.value(), count.span());
-                    quote!(#ident)
-                }
-                None => quote!(compiler_error!(
-                    "TODO: validate attributes before generating fields"
-                )),
-            };
+        Some(attrs) if attrs.data.is_some() => {
+            //TODO: validate these, make sure data is last item?
+            quote!(let #name = blob;)
+        }
 
+        Some(attrs) => {
+            let count = attrs
+                .count_fn
+                .as_ref()
+                .map(|count_fn| {
+                    let fn_ = &count_fn.fn_;
+                    let args = count_fn.args.iter();
+                    quote!(#fn_( #(#args),* ))
+                })
+                .or_else(|| attrs.count.as_ref().map(|ident| quote!(#ident)))
+                .unwrap_or_else(|| {
+                    quote!(compile_error!(
+                        "TODO: validate attributes before generating fields"
+                    ))
+                });
+            // the last item is allowed to have unknown length, so doesn't always
+            // have a len() method; we just don't call len() if we're the last item.
+            let update_offset = (!is_last).then(|| quote!(#offset_var += #name.len()));
             quote! {
-                let #name = <#type_>::new(blob.clone(), #offset.into(), #count.into())?;
+                let #name = <#type_>::new(blob.clone(), #offset_var.into(), #count.into())?;
+                #update_offset;
             }
         }
     }
 }
 
-fn field_getter(field: &Field, all: &[Field]) -> proc_macro2::TokenStream {
+/// offset_val is something we accumulate while building the fields; each field
+/// appends its length to the input value before returning
+fn field_getter(
+    field: &Field,
+    _all: &[Field],
+    offset_val: &mut proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
     let type_ = &field.ty;
     let name = &field.name;
+    let vis = &field.vis;
+    let this_off = offset_val.clone();
 
-    if field.attrs.is_none() {
-        let field_pos = all.iter().position(|i| i.name == field.name).unwrap();
-        let init_off = if field_pos == 0 {
-            quote! {
-                let offset = 0_usize;
-            }
-        } else {
-            let init_off = all.iter().take_while(|x| x.name != field.name).map(|x| {
-                let t = &x.ty;
-                quote! {
-                    <#t as ::toy_types::ExactSized>::SIZE
-                }
-            });
-            quote! {
-                let offset = #( #init_off )+*;
-            }
-        };
+    let getter_body = match &field.attrs {
+        None => {
+            let this_len = quote! { <#type_ as ::toy_types::ExactSized>::SIZE };
+            *offset_val = quote! { #offset_val + #this_len };
 
-        quote! {
-            pub fn #name(&self) -> Option<#type_> {
-                //FIXME: this should assume that length has been checked,
-                //(and we should be checking length in the constructor)
-                //assert this somehow, and then use unsafe
-                #init_off
-                self.0.read(offset)
+            quote! {
+                    //FIXME: this should assume that length has been checked,
+                    //(and we should be checking length in the constructor)
+                    //assert this somehow, and then use unsafe
+                    self.0.read(#this_off)
             }
         }
-    } else {
-        //TODO: generate code for non-scalar fields
-        quote!()
+        //FIXME: figure out how we hold on to data
+        Some(attrs) if attrs.data.is_some() => return Default::default(),
+        Some(attrs) => {
+            let get_count_fn = attrs
+                .count_fn
+                .as_ref()
+                .map(|count_fn| {
+                    let fn_ = &count_fn.fn_;
+                    let args = count_fn.args.iter();
+                    quote!(#fn_( #(self.#args()?),* ))
+                })
+                .or_else(|| attrs.count.as_ref().map(|ident| quote!(self.#ident()?)))
+                .unwrap_or_else(|| {
+                    quote!(compile_error!(
+                        "TODO: validate attributes before generating fields"
+                    ))
+                });
+
+                *offset_val = quote!(#offset_val + usize::from(#get_count_fn));
+                quote! {
+                    let count = #get_count_fn;
+                    <#type_>::new(self.0.clone(), #this_off, count.into())
+                }
+        }
+    };
+    quote! {
+        #vis fn #name(&self) -> Option<#type_> {
+            #getter_body
+        }
     }
 }
