@@ -32,6 +32,10 @@ impl<'a, T: ExactSized + FontRead<'a>> Array<'a, T> {
         self.data_len() / T::SIZE
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// The number of *bytes* backing the array
     pub fn data_len(&self) -> usize {
         self.data.len()
@@ -52,9 +56,7 @@ impl<'a, T: ExactSized + FontRead<'a>> Array<'a, T> {
             result
         })
     }
-}
 
-impl<'a, T: ExactSized + FontRead<'a> + Ord> Array<'a, T> {
     //taken from std
     #[inline]
     pub fn binary_search_by<F>(&self, mut f: F) -> Result<usize, usize>
@@ -92,7 +94,9 @@ impl<'a, T: ExactSized + FontRead<'a> + Ord> Array<'a, T> {
         }
         Err(left)
     }
+}
 
+impl<'a, T: ExactSized + FontRead<'a> + Ord> Array<'a, T> {
     pub fn binary_search(&self, item: &T) -> Result<usize, usize> {
         self.binary_search_by(|other| other.cmp(item))
     }

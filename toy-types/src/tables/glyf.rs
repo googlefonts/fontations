@@ -23,4 +23,10 @@ impl<'a> Glyf<'a> {
             .get(offset..self.data.len())
             .and_then(GlyphHeader::read)
     }
+
+    pub fn get_view(&self, offset: usize) -> Option<GlyphHeaderDerivedView> {
+        self.data
+            .get(offset..self.data.len())
+            .and_then(<GlyphHeader as FontThing>::View::read)
+    }
 }

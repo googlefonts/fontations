@@ -48,6 +48,8 @@ fn derive_struct(
     let exact_sized_part = impl_exact_sized(input, &fields, &ty_generics)?;
 
     let decl = quote! {
+
+        #[automatically_derived]
         impl #trait_generics ::toy_types::FontRead #trait_generics for #ident #ty_generics {
             fn read(blob: ::toy_types::Blob #trait_generics) -> Option<Self> {
                 let mut #offset_var = 0;
@@ -82,11 +84,14 @@ fn make_view(
     Ok(quote! {
         pub struct #view_ident #trait_generics(::toy_types::Blob #trait_generics);
 
+        #[automatically_derived]
+        #[allow(clippy::len_without_is_empty)]
         impl #trait_generics #view_ident #trait_generics {
             #( #getters )*
 
         }
 
+        #[automatically_derived]
         impl #trait_generics ::toy_types::FontRead #trait_generics for #view_ident #trait_generics {
             fn read(blob: ::toy_types::Blob #trait_generics) -> Option<Self> {
                 Some(Self(blob))

@@ -58,11 +58,11 @@ impl<'a> FontRef<'a> {
     }
 
     pub fn table_data(&self, tag: Tag) -> Option<Blob<'a>> {
-        //TODO: binary search
         self.table_directory
             .table_records
-            .iter()
-            .find(|item| item.tag == tag)
+            .binary_search_by(|rec| rec.tag.cmp(&tag))
+            .ok()
+            .and_then(|idx| self.table_directory.table_records.get(idx))
             .and_then(|record| {
                 assert!(record.offset != 0); // that would be confusing
                 let start = record.offset as usize;
@@ -86,9 +86,12 @@ pub trait TableProvider {
 }
 
 pub trait TableProviderRef {
-    fn head(&self) -> Option<head::HeadDerivedView>;
-    fn maxp(&self) -> Option<maxp::Maxp05DerivedView>;
-    fn loca(&self, is_32_bit: bool) -> Option<()>;
+    fn head_ref(&self) -> Option<head::HeadDerivedView>;
+    fn maxp_ref(&self) -> Option<maxp::Maxp05DerivedView>;
+    //NOTE: These tables are already always views
+    //fn loca(&self, is_32_bit: bool) -> Option<Loca>;
+    //fn glyf(&self) -> Option<Glyf>;
+    //fn cmap(&self) -> Option<Cmap>;
 }
 
 impl TableProvider for FontRef<'_> {
@@ -104,7 +107,6 @@ impl TableProvider for FontRef<'_> {
 
     fn loca(&self, is_32_bit: bool) -> Option<Loca> {
         let data = self.table_data(LOCA_TAG)?;
-        eprintln!("local {}", data.len());
         Loca::new(data, is_32_bit)
     }
 
@@ -113,5 +115,16 @@ impl TableProvider for FontRef<'_> {
     }
     fn cmap(&self) -> Option<Cmap<'_>> {
         self.table_data(CMAP_TAG).and_then(Cmap::read)
+    }
+}
+
+impl TableProviderRef for FontRef<'_> {
+    fn head_ref(&self) -> Option<head::HeadDerivedView<'_>> {
+        self.table_data(HEAD_TAG)
+            .and_then(head::HeadDerivedView::read)
+    }
+
+    fn maxp_ref(&self) -> Option<maxp::Maxp05DerivedView<'_>> {
+        todo!()
     }
 }
