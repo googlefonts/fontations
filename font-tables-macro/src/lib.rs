@@ -17,6 +17,7 @@ pub(crate) fn derive_font_thing(
 ) -> Result<proc_macro::TokenStream, syn::Error> {
     match &input.data {
         syn::Data::Struct(s) => derive_struct(&input, s),
+        syn::Data::Enum(e) => derive_enum(&input, e),
         _ => Err(syn::Error::new(
             input.span(),
             "only structs supported for now",
@@ -66,6 +67,106 @@ fn derive_struct(
         #exact_sized_part
     };
     Ok(decl.into())
+}
+
+fn derive_enum(input: &syn::DeriveInput, item: &syn::DataEnum) -> Result<TokenStream, syn::Error> {
+    // ensure that a format type is specified:
+    let format = get_enum_format(input)?;
+    let format_values: Vec<_> = item
+        .variants
+        .iter()
+        .map(get_variant_format)
+        .collect::<Result<_, _>>()?;
+    let variant_names = item.variants.iter().map(|variant| &variant.ident);
+
+    let ident = &input.ident;
+    let ty_generics = get_generics(&input.generics)?;
+    let trait_generics = ty_generics.clone().unwrap_or_else(|| quote!(<'font>));
+    let match_arms = format_values.iter().zip(variant_names).map(|(value, variant)| {
+        quote!( #value => Some(Self::#variant(::toy_types::FontRead::read(blob)?)), )
+    });
+
+    let decl = quote! {
+        #[automatically_derived]
+        impl #trait_generics ::toy_types::FontRead #trait_generics for #ident #ty_generics {
+            fn read(blob: ::toy_types::Blob #trait_generics) -> Option<Self> {
+                let tag: #format = blob.read(0)?;
+                match tag {
+                    #(#match_arms)*
+
+                        other => {
+                            eprintln!("unknown enum variant {:?}", tag);
+                            None
+                        }
+                }
+            }
+        }
+    };
+
+    Ok(decl.into())
+}
+
+fn get_enum_format(item: &syn::DeriveInput) -> Result<syn::Path, syn::Error> {
+    let list = expect_meta_list(&item.attrs, "font_thing", item.ident.span())?;
+    let first = list
+        .nested
+        .iter()
+        .next()
+        .ok_or_else(|| syn::Error::new(list.span(), "expected enum format specification"))?;
+    match first {
+        syn::NestedMeta::Meta(syn::Meta::List(list)) if list.path.is_ident("format") => {
+            //dbg!(&list);
+            if let Some(syn::NestedMeta::Meta(syn::Meta::Path(path))) = list.nested.iter().next() {
+                return Ok(path.clone());
+            }
+        }
+        _ => (),
+    };
+    Err(syn::Error::new(
+        first.span(),
+        "expected enum format type specification, like #[font_thing(format(uint16))]",
+    ))
+}
+
+fn expect_meta_list(
+    attrs: &[syn::Attribute],
+    ident: &str,
+    err_span: proc_macro2::Span,
+) -> Result<syn::MetaList, syn::Error> {
+    let item = attrs
+        .iter()
+        .find(|attr| attr.path.is_ident(ident))
+        .ok_or_else(|| {
+            syn::Error::new(err_span, format!("expected #[{}()] attribute list", ident))
+        })?;
+
+    match item.parse_meta()? {
+        syn::Meta::List(list) => Ok(list.clone()),
+        _ => Err(syn::Error::new(item.span(), "expected attribute list")),
+    }
+}
+
+fn get_variant_format(item: &syn::Variant) -> Result<syn::Lit, syn::Error> {
+    let attrs = expect_meta_list(&item.attrs, "font_thing", item.ident.span())?;
+    let first = attrs
+        .nested
+        .iter()
+        .next()
+        .ok_or_else(|| syn::Error::new(attrs.span(), "expected enum format specification"))?;
+
+    match first {
+        syn::NestedMeta::Meta(syn::Meta::NameValue(val)) if val.path.is_ident("format") => {
+            return Ok(val.lit.clone());
+            //if let Some(syn::NestedMeta::Meta(syn::Meta::Path(path))) = list.nested.iter().next() {
+            //return Ok(path.clone());
+            //}
+        }
+        _ => (),
+    };
+    Err(syn::Error::new(
+        first.span(),
+        "expected enum format type specification, like #[font_thing(format(uint16))]",
+    ))
 }
 
 fn make_view(

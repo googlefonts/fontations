@@ -1,6 +1,6 @@
 use crate::{Blob, ExactSized, FontRead};
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Array<'a, T> {
     data: Blob<'a>,
     _t: std::marker::PhantomData<T>,
@@ -146,5 +146,12 @@ impl<T: ExactSized> Array<'_, T> {}
 impl<'a, T> Default for Array<'a, T> {
     fn default() -> Self {
         todo!()
+    }
+}
+
+impl<'a, T: std::fmt::Debug + ExactSized + FontRead<'a>> std::fmt::Debug for Array<'a, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        writeln!(f, "{} {} items:", std::any::type_name::<Self>(), self.len())?;
+        f.debug_list().entries(self.iter()).finish()
     }
 }

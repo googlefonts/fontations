@@ -18,6 +18,7 @@ pub struct EncodingRecord {
     pub subtable_offset: Offset32,
 }
 
+/// A 'concrete' Cmap4 type
 #[derive(Clone, Debug, FontThing)]
 pub struct Cmap4<'a> {
     pub format: uint16,
@@ -44,12 +45,39 @@ fn div_by_two(seg_count_x2: uint16) -> uint16 {
     seg_count_x2 / 2
 }
 
+/// A dummy version of cmap format 6.
+///
+/// We only have this so we can test out generating an enum from an inline tag.
+#[derive(Clone, Debug, FontThing)]
+pub struct Cmap6 {
+    pub format: uint16,
+    pub length: uint16,
+    pub language: uint16,
+    pub first_code: uint16,
+    pub entry_count: uint16,
+}
+
+/// A proof-of-concept of a generated enum.
+#[derive(Clone, Debug, FontThing)]
+// format() attribute is for specifying the type of the version number, assumed
+// to be at the start of the buffer.
+#[font_thing(format(uint16))]
+pub enum CmapSubtable<'a> {
+    #[font_thing(format = 4)] // this variant will be created if this format # is parsed
+    Format4(Cmap4<'a>),
+    #[font_thing(format = 6)]
+    Format6(Cmap6),
+}
+
+/// A Cmap4 type using zerocopy.
+///
+/// This is all hand-written, and is intended as a proof-of-concept to get a feel
+/// for what the API is like.
 pub struct Cmap4Zero<'a> {
     pub header: LayoutVerified<&'a [u8], Cmap4ZeroHeader>,
     data: &'a [u8],
 }
 
-//NOTE: the following is a sketch of what this would look like in zerocopy land.
 #[derive(FromBytes, AsBytes, Unaligned)]
 #[repr(C)]
 pub struct Cmap4ZeroHeader {
@@ -177,7 +205,14 @@ impl<'a> Cmap<'a> {
         self.data.read(offset as usize)
     }
 
-    pub fn get_subtable<T: FontRead<'a>>(&self, offset: Offset32) -> Option<T> {
+    pub fn subtable(&self, offset: Offset32) -> Option<CmapSubtable> {
+        self.data
+            .get(offset as usize..self.data.len())
+            .and_then(FontRead::read)
+    }
+
+    /// Get the subtable at the given offset and attempt to interpret it as `T`
+    pub fn parse_subtable<T: FontRead<'a>>(&self, offset: Offset32) -> Option<T> {
         self.data
             .get(offset as usize..self.data.len())
             .and_then(T::read)

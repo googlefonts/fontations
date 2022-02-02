@@ -5,7 +5,7 @@ mod loca;
 mod maxp;
 
 use crate::*;
-pub use cmap::{Cmap, Cmap4};
+pub use cmap::{Cmap, Cmap4, CmapSubtable};
 pub use glyf::{Glyf, GlyphHeader};
 pub use head::Head;
 pub use loca::Loca;

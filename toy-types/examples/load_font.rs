@@ -1,5 +1,5 @@
 #![allow(dead_code, unused_imports)]
-use toy_types::tables::{Cmap4, FontRef, TableProvider, TableProviderRef};
+use toy_types::tables::{Cmap, Cmap4, CmapSubtable, FontRef, TableProvider, TableProviderRef};
 
 fn make_test_chars() -> impl Iterator<Item = char> {
     ('\u{0}'..='\u{FFF}').cycle()
@@ -17,8 +17,10 @@ fn main() {
         .map(|record| record.subtable_offset)
         .expect("failed to load cmap table");
 
-    let cmap4 = cmap.get_subtable::<Cmap4>(subtable_offset).unwrap();
+    let cmap4 = cmap.parse_subtable::<Cmap4>(subtable_offset).unwrap();
     //let cmap4 = cmap.get_zerocopy_cmap4(subtable_offset).unwrap();
+
+    test_cmap_enum_thing(&cmap);
 
     let mut total_area = 0;
     let mut total_chars = 0;
@@ -41,6 +43,29 @@ fn main() {
         "{} chars\n{} glyphs\n{} area",
         total_chars, total_glyphs, total_area
     );
+}
+
+fn test_cmap_enum_thing(table: &Cmap) {
+    let offsets_and_tables = table
+        .encoding_records
+        .iter()
+        .map(|record| {
+            let offset = record.subtable_offset;
+            (record, table.subtable(offset).unwrap())
+        })
+        .collect::<Vec<_>>();
+    for (record, table) in &offsets_and_tables {
+        dbg!(record);
+        match table {
+            CmapSubtable::Format4(table) => eprintln!(
+                "format {} len {} seg_count2 {}",
+                table.format, table.length, table.seg_count_x2
+            ),
+            CmapSubtable::Format6(table) => {
+                dbg!(table);
+            }
+        }
+    }
 }
 
 fn print_font_info(font: &FontRef) {
