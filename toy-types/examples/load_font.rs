@@ -1,4 +1,7 @@
-use toy_types::tables::{FontRef, TableProvider};
+use toy_types::tables::{Cmap4, FontRef, TableProvider};
+
+static TEST_INPUT: &str =
+    include_str!("/Users/rofls/dev/projects/xi-mac/test-data/the-golden-boys.txt");
 
 fn main() {
     let path = std::env::args().nth(1).expect("missing path argument");
@@ -16,17 +19,26 @@ fn main() {
     }
 
     let head = font.head().expect("missing head");
-    let upm = head.units_per_em;
+    //let upm = head.units_per_em;
     let _32bit_loca = head.index_to_loc_format == 1;
-    dbg!(head);
     let maxp = font.maxp().expect("missing maxp");
-    let num_glyphs = maxp.num_glyphs;
-    dbg!(maxp);
+    //let num_glyphs = maxp.num_glyphs;
     let loca = font.loca(_32bit_loca).expect("missing loca");
     let glyf = font.glyf().expect("missing glyf");
-    for (i, offset) in loca.iter().take(10).enumerate() {
-        let glyph_header = glyf.get(offset as usize).expect("missing glyf table");
-        eprintln!("{} off {}: {:?}", i, offset, glyph_header);
+    let cmap = font.cmap().expect("missing cmap");
+    eprintln!("cmap ({} tables):", cmap.num_tables);
+    let subtable = cmap
+        .encoding_records
+        .iter()
+        .find(|record| cmap.get_subtable_version(record.subtable_offset) == Some(4))
+        .and_then(|record| cmap.get_subtable::<Cmap4>(record.subtable_offset))
+        .expect("failed to load cmap table");
+
+    for c in ['0', 'a', 'b', 'A', 'l', '.', '*'] {
+        let gid = subtable.glyph_id_for_char(c).unwrap_or_default();
+        let g_off = loca.get(gid as usize);
+        let g_header = g_off.and_then(|off| glyf.get(off as usize));
+        eprintln!("'{}': {} {:?}", c, gid, g_header);
     }
-    //offset = loca.get(i);
+    eprintln!("subtable entries: {}", subtable.length);
 }

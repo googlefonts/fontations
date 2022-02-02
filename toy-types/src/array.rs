@@ -19,6 +19,24 @@ impl<'a, T: ExactSized + FontRead<'a>> Array<'a, T> {
         })
     }
 
+    /// A new array taking all of the data `offset..`. Used in cmap glyph id arrays
+    pub fn new_no_len(data: Blob<'a>, offset: usize) -> Option<Self> {
+        data.get(offset..data.len()).map(|data| Self {
+            data,
+            _t: std::marker::PhantomData,
+        })
+    }
+
+    /// The number of *items* in the array
+    pub fn len(&self) -> usize {
+        self.data_len() / T::SIZE
+    }
+
+    /// The number of *bytes* backing the array
+    pub fn data_len(&self) -> usize {
+        self.data.len()
+    }
+
     pub fn get(&self, idx: usize) -> Option<T> {
         let offset = idx * T::SIZE;
         self.data.get(offset..offset + T::SIZE).and_then(T::read)
@@ -33,6 +51,50 @@ impl<'a, T: ExactSized + FontRead<'a>> Array<'a, T> {
             offset += T::SIZE;
             result
         })
+    }
+}
+
+impl<'a, T: ExactSized + FontRead<'a> + Ord> Array<'a, T> {
+    //taken from std
+    #[inline]
+    pub fn binary_search_by<F>(&self, mut f: F) -> Result<usize, usize>
+    where
+        F: FnMut(T) -> std::cmp::Ordering,
+    {
+        use std::cmp::Ordering::*;
+        let mut size = self.len();
+        let mut left = 0;
+        let mut right = size;
+        while left < right {
+            let mid = left + size / 2;
+            //let mid_off = mid * T::SIZE;
+
+            // SAFETY: the call is made safe by the following invariants:
+            // - `mid >= 0`
+            // - `mid < size`: `mid` is limited by `[left; right)` bound.
+            //let cmp = f(unsafe { self.get_unchecked(mid) });
+            let cmp = f(self.get(mid).unwrap());
+
+            // The reason why we use if/else control flow rather than match
+            // is because match reorders comparison operations, which is perf sensitive.
+            // This is x86 asm for u8: https://rust.godbolt.org/z/8Y8Pra.
+            if cmp == Less {
+                left = mid + 1;
+            } else if cmp == Greater {
+                right = mid;
+            } else {
+                // SAFETY: same as the `get_unchecked` above
+                //unsafe { crate::intrinsics::assume(mid < self.len()) };
+                return Ok(mid);
+            }
+
+            size = right - left;
+        }
+        Err(left)
+    }
+
+    pub fn binary_search(&self, item: &T) -> Result<usize, usize> {
+        self.binary_search_by(|other| other.cmp(item))
     }
 }
 

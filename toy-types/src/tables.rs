@@ -1,9 +1,11 @@
+mod cmap;
 mod glyf;
 mod head;
 mod loca;
 mod maxp;
 
 use crate::*;
+pub use cmap::{Cmap, Cmap4};
 pub use glyf::{Glyf, GlyphHeader};
 pub use head::Head;
 pub use loca::Loca;
@@ -73,12 +75,14 @@ const HEAD_TAG: Tag = [b'h', b'e', b'a', b'd'];
 const MAXP_TAG: Tag = [b'm', b'a', b'x', b'p'];
 const LOCA_TAG: Tag = [b'l', b'o', b'c', b'a'];
 const GLYF_TAG: Tag = [b'g', b'l', b'y', b'f'];
+const CMAP_TAG: Tag = [b'c', b'm', b'a', b'p'];
 
 pub trait TableProvider {
     fn head(&self) -> Option<head::Head>;
     fn maxp(&self) -> Option<maxp::Maxp05>;
     fn loca(&self, is_32_bit: bool) -> Option<Loca>;
     fn glyf(&self) -> Option<Glyf>;
+    fn cmap(&self) -> Option<Cmap>;
 }
 
 pub trait TableProviderRef {
@@ -106,5 +110,8 @@ impl TableProvider for FontRef<'_> {
 
     fn glyf(&self) -> Option<Glyf> {
         self.table_data(GLYF_TAG).and_then(Glyf::new)
+    }
+    fn cmap(&self) -> Option<Cmap<'_>> {
+        self.table_data(CMAP_TAG).and_then(Cmap::read)
     }
 }

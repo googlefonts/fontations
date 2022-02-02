@@ -195,7 +195,7 @@ fn init_field(
 
             // the last item is allowed to have unknown length, so doesn't always
             // have a len() method; we just don't call len() if we're the last item.
-            let update_offset = (!is_last).then(|| quote!(#offset_var += #name.len()));
+            let update_offset = (!is_last).then(|| quote!(#offset_var += #name.data_len()));
             Ok(quote! {
                 let #name = #decl?;
                 #update_offset;
