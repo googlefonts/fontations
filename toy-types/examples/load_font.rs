@@ -1,11 +1,8 @@
+#![allow(dead_code, unused_imports)]
 use toy_types::tables::{Cmap4, FontRef, TableProvider, TableProviderRef};
 
 fn make_test_chars() -> impl Iterator<Item = char> {
-    ('0'..='9')
-        .chain('a'..='z')
-        .chain('A'..='Z')
-        .chain('¡'..='ÿ')
-        .cycle()
+    ('\u{0}'..='\u{FFF}').cycle()
 }
 
 fn main() {
@@ -13,24 +10,27 @@ fn main() {
     let bytes = std::fs::read(path).unwrap();
     let font = FontRef::new(&bytes).unwrap();
     let cmap = font.cmap().expect("missing cmap");
-    let subtable = cmap
+    let subtable_offset = cmap
         .encoding_records
         .iter()
         .find(|record| cmap.get_subtable_version(record.subtable_offset) == Some(4))
-        .and_then(|record| cmap.get_subtable::<Cmap4>(record.subtable_offset))
+        .map(|record| record.subtable_offset)
         .expect("failed to load cmap table");
+
+    let cmap4 = cmap.get_subtable::<Cmap4>(subtable_offset).unwrap();
+    //let cmap4 = cmap.get_zerocopy_cmap4(subtable_offset).unwrap();
 
     let mut total_area = 0;
     let mut total_chars = 0;
     let mut total_glyphs = 0;
 
     for c in make_test_chars().take(10_usize.pow(7)) {
-        let gid = subtable.glyph_id_for_char(c).unwrap_or_default();
+        let gid = cmap4.glyph_id_for_char(c);
 
         // this is artificially bad, we want to exagerate the difference between
         // these two approaches.
         total_chars += 1;
-        if let Some(bbox) = get_glyph_bbox1(&font, gid) {
+        if let Some(bbox) = get_glyph_bbox2(&font, gid) {
             let width = bbox.x1 - bbox.x0;
             let height = bbox.y1 - bbox.y0;
             total_area += width as usize * (height as usize);
