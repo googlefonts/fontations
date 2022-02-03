@@ -22,9 +22,9 @@ pub struct Cmap6 {
     /// language field in 'cmap' subtables” in this document.
     language: uint16,
     /// First character code of subrange.
-    firstCode: uint16,
+    first_code: uint16,
     /// Number of character codes in subrange.
-    entryCount: uint16,
+    entry_count: uint16,
 }
 
 #[derive(Clone, Debug, FontThing)]

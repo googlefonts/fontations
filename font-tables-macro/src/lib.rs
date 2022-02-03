@@ -141,7 +141,7 @@ fn expect_meta_list(
         })?;
 
     match item.parse_meta()? {
-        syn::Meta::List(list) => Ok(list.clone()),
+        syn::Meta::List(list) => Ok(list),
         _ => Err(syn::Error::new(item.span(), "expected attribute list")),
     }
 }

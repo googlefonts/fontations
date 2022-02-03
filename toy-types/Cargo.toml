@@ -12,3 +12,10 @@ default = ["std"]
 [dependencies]
 font-types-macro = {path = "../font-tables-macro"}
 zerocopy = "0.6.1"
+
+[dev-dependencies]
+criterion = "0.3"
+
+[[bench]]
+name = "impl_compare"
+harness = false
