@@ -10,7 +10,7 @@ std = []
 default = ["std"]
 
 [dependencies]
-font-types-macro = {path = "../font-tables-macro"}
+toy-types-derive = {path = "../toy-types-derive"}
 zerocopy = "0.6.1"
 
 [dev-dependencies]

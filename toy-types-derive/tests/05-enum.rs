@@ -1,4 +1,4 @@
-use font_types_macro::FontThing;
+use toy_types_derive::FontThing;
 use toy_types::*;
 
 #[derive(Clone, Debug, FontThing)]

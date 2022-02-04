@@ -2,7 +2,7 @@
 
 #![allow(dead_code)]
 
-use font_types_macro::FontThing;
+use toy_types_derive::FontThing;
 use toy_types::*;
 
 #[derive(FontThing)]

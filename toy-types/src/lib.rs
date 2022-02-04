@@ -11,7 +11,7 @@ extern crate std;
 #[macro_use]
 extern crate core as std;
 
-pub use font_types_macro::FontThing;
+pub use toy_types_derive::FontThing;
 extern crate self as toy_types;
 
 mod array;

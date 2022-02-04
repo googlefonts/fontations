@@ -1,5 +1,5 @@
 [package]
-name = "font-types-macro"
+name = "toy-types-derive"
 version = "0.0.0"
 edition = "2021"
 autotests = false
