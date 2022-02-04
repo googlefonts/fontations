@@ -2,8 +2,8 @@
 
 #![allow(dead_code)]
 
-use toy_types_derive::FontThing;
 use toy_types::*;
+use toy_types_derive::FontThing;
 
 #[derive(FontThing)]
 struct Durp<'a> {

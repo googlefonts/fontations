@@ -1,4 +1,4 @@
-use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use toy_types::tables::{Cmap, Cmap4, Cmap4Zero, FontRef, TableProvider, TableProviderRef};
 
 fn get_font_bytes() -> Vec<u8> {
@@ -44,7 +44,7 @@ pub fn zc_get_head_fields(c: &mut Criterion) {
 }
 
 pub fn pod_glyph_bbox(c: &mut Criterion) {
-    fn pod_get_bbox(font: &FontRef, gid: u16) -> Option<Bbox> {
+    fn pod_get_bbox_area(font: &FontRef, gid: u16) -> usize {
         let head = font.head().expect("missing head");
         let _32bit_loca = head.index_to_loc_format == 1;
         let loca = font.loca(_32bit_loca).expect("missing loca");
@@ -52,12 +52,10 @@ pub fn pod_glyph_bbox(c: &mut Criterion) {
         let g_off = loca.get(gid as usize);
         g_off
             .and_then(|off| glyf.get(off as usize))
-            .map(|glyph| Bbox {
-                x0: glyph.x_min,
-                x1: glyph.x_max,
-                y0: glyph.y_min,
-                y1: glyph.y_max,
+            .map(|glyph| {
+                (glyph.x_max - glyph.x_min) as usize * (glyph.y_max - glyph.y_min) as usize
             })
+            .unwrap_or_default()
     }
 
     let data = get_font_bytes();
@@ -68,34 +66,34 @@ pub fn pod_glyph_bbox(c: &mut Criterion) {
     let glyf = font.glyf().expect("missing glyf");
     let offset = loca.get(10).unwrap();
 
-    c.bench_with_input(
-        BenchmarkId::new("pod_glyph_bbox_only", offset),
-        &offset,
-        |b, i| b.iter(|| glyf.get(*i as usize).map(|g| g.x_max - g.x_min)),
-    );
-    c.bench_function("pod_glyph_bbox_from_root 1", |b| {
-        b.iter(|| pod_get_bbox(&font, 10))
+    c.bench_function("pod_glyph_bbox_only", |b| {
+        b.iter(|| glyf.get(offset as usize).map(|g| g.x_max - g.x_min))
     });
-    c.bench_function("pod_glyph_bbox_from_root 1000", |b| {
-        b.iter(|| (0u16..=1000).map(|gid| pod_get_bbox(&font, gid)))
+    c.bench_function("zc_glyph_bbox_only", |b| {
+        b.iter(|| {
+            glyf.get_zc(offset as usize)
+                .map(|g| g.x_max.get() - g.x_min.get())
+        })
+    });
+    c.bench_function("pod_glyph_bbox_root", |b| {
+        b.iter(|| pod_get_bbox_area(&font, 10))
     });
 }
 
 pub fn view_glyph_bbox(c: &mut Criterion) {
-    fn view_get_bbox(font: &FontRef, gid: u16) -> Option<Bbox> {
+    fn view_get_bbox_area(font: &FontRef, gid: u16) -> usize {
         let head = font.head_ref().expect("missing head");
-        let _32bit_loca = head.index_to_loc_format()? == 1;
+        let _32bit_loca = head.index_to_loc_format() == Some(1);
         let loca = font.loca(_32bit_loca).expect("missing loca");
         let glyf = font.glyf().expect("missing glyf");
         let g_off = loca.get(gid as usize);
         g_off
             .and_then(|off| glyf.get_view(off as usize))
-            .map(|glyph| Bbox {
-                x0: glyph.x_min().unwrap_or(0),
-                x1: glyph.x_max().unwrap_or(0),
-                y0: glyph.y_min().unwrap_or(0),
-                y1: glyph.y_max().unwrap_or(0),
+            .map(|glyph| {
+                (glyph.x_max().unwrap_or(0) - glyph.x_min().unwrap_or(0)) as usize
+                    * (glyph.y_max().unwrap_or(0) - glyph.y_min().unwrap_or(0)) as usize
             })
+            .unwrap_or_default()
     }
 
     let data = get_font_bytes();
@@ -106,22 +104,14 @@ pub fn view_glyph_bbox(c: &mut Criterion) {
     let glyf = font.glyf().expect("missing glyf");
     let offset = loca.get(10).unwrap();
 
-    c.bench_with_input(
-        BenchmarkId::new("view_glyph_bbox_from_glyf 1", offset),
-        &offset,
-        |b, i| {
-            b.iter(|| {
-                glyf.get_view(*i as usize)
-                    .map(|g| g.x_max().unwrap_or_default() - g.x_min().unwrap_or_default())
-            })
-        },
-    );
-
-    c.bench_function("view_glyph_bbox_from_root 1", |b| {
-        b.iter(|| view_get_bbox(&font, 10))
+    c.bench_function("view_glyph_bbox_only", |b| {
+        b.iter(|| {
+            glyf.get_view(offset as usize)
+                .map(|g| g.x_max().unwrap_or_default() - g.x_min().unwrap_or_default())
+        })
     });
-    c.bench_function("view_glyph_bbox_from_root 1000", |b| {
-        b.iter(|| (0u16..=1000).map(|gid| view_get_bbox(&font, gid)))
+    c.bench_function("view_glyph_bbox_root", |b| {
+        b.iter(|| view_get_bbox_area(&font, 10))
     });
 }
 
@@ -183,14 +173,6 @@ pub fn zc_cmap_lookup(c: &mut Criterion) {
     c.bench_function("zc_cmap_lookup_get", |b| {
         b.iter(|| get_subtable(&cmap, subtable_offset))
     });
-}
-
-#[allow(dead_code)]
-struct Bbox {
-    x0: i16,
-    x1: i16,
-    y0: i16,
-    y1: i16,
 }
 
 criterion_group!(cmap_lookup, pod_cmap_lookup, zc_cmap_lookup);
