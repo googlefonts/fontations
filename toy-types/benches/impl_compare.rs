@@ -1,8 +1,5 @@
 use criterion::{criterion_group, criterion_main, BenchmarkId, Criterion};
-use toy_types::tables::{
-    Cmap, Cmap4, Cmap4Zero, CmapSubtable, FontRef, TableProvider, TableProviderRef,
-};
-//use mycrate::fibonacci;
+use toy_types::tables::{Cmap, Cmap4, Cmap4Zero, FontRef, TableProvider, TableProviderRef};
 
 fn get_font_bytes() -> Vec<u8> {
     std::fs::read("/Users/rofls/Library/Fonts/Inconsolata-Regular.ttf").unwrap()
@@ -33,6 +30,17 @@ pub fn view_get_head_fields(c: &mut Criterion) {
     let data = get_font_bytes();
     let font = FontRef::new(&data).unwrap();
     c.bench_function("view_get_head_fields", |b| b.iter(|| our_impl(&font)));
+}
+
+pub fn zc_get_head_fields(c: &mut Criterion) {
+    fn our_impl(font: &FontRef) -> Option<(u16, i16)> {
+        // upm & loca_format
+        font.head_zero()
+            .map(|head| (head.units_per_em.get(), head.index_to_loc_format.get()))
+    }
+    let data = get_font_bytes();
+    let font = FontRef::new(&data).unwrap();
+    c.bench_function("zc_get_head_fields", |b| b.iter(|| our_impl(&font)));
 }
 
 pub fn pod_glyph_bbox(c: &mut Criterion) {
@@ -186,7 +194,12 @@ struct Bbox {
 }
 
 criterion_group!(cmap_lookup, pod_cmap_lookup, zc_cmap_lookup);
-criterion_group!(get_head_fields, pod_get_head_fields, view_get_head_fields);
+criterion_group!(
+    get_head_fields,
+    pod_get_head_fields,
+    view_get_head_fields,
+    zc_get_head_fields
+);
 criterion_group!(glyf_bbox, pod_glyph_bbox, view_glyph_bbox);
 
 criterion_main!(cmap_lookup, get_head_fields, glyf_bbox);

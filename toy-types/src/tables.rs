@@ -69,6 +69,14 @@ impl<'a> FontRef<'a> {
                 self.data.get(start..start + record.len as usize)
             })
     }
+
+    // this isn't in trait just because it's slightly annoying
+    pub fn head_zero(&self) -> Option<&'a head::HeadZero> {
+        let data = self.table_data(HEAD_TAG)?;
+        let data = data.as_bytes();
+        assert!(data.len() >= std::mem::size_of::<head::HeadZero>());
+        Some(unsafe { &*(data.as_ptr() as *const _) })
+    }
 }
 
 const HEAD_TAG: Tag = [b'h', b'e', b'a', b'd'];
@@ -118,13 +126,13 @@ impl TableProvider for FontRef<'_> {
     }
 }
 
-impl TableProviderRef for FontRef<'_> {
-    fn head_ref(&self) -> Option<head::HeadDerivedView<'_>> {
+impl<'a> TableProviderRef for FontRef<'a> {
+    fn head_ref(&self) -> Option<head::HeadDerivedView<'a>> {
         self.table_data(HEAD_TAG)
             .and_then(head::HeadDerivedView::read)
     }
 
-    fn maxp_ref(&self) -> Option<maxp::Maxp05DerivedView<'_>> {
+    fn maxp_ref(&self) -> Option<maxp::Maxp05DerivedView<'a>> {
         todo!()
     }
 }

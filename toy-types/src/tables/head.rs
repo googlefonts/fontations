@@ -1,5 +1,5 @@
 use crate::*;
-//use font_types_macro::
+use zerocopy::{AsBytes, FromBytes, Unaligned, BE, I16, I32, I64, U16, U32};
 
 #[derive(Debug, Clone, FontThing)]
 pub struct Head {
@@ -21,4 +21,27 @@ pub struct Head {
     pub font_direction_hint: int16,
     pub index_to_loc_format: int16,
     pub glyph_data_format: int16,
+}
+
+#[derive(FromBytes, AsBytes, Unaligned)]
+#[repr(C)]
+pub struct HeadZero {
+    pub major_version: U16<BE>,
+    pub minor_version: U16<BE>,
+    pub font_revision: I32<BE>,
+    pub checksum_adjustment: U32<BE>,
+    pub magic_number: U32<BE>,
+    pub flags: U16<BE>,
+    pub units_per_em: U16<BE>,
+    pub created: I64<BE>,
+    pub modified: I64<BE>,
+    pub x_min: I16<BE>,
+    pub y_min: I16<BE>,
+    pub x_max: I16<BE>,
+    pub y_max: I16<BE>,
+    pub mac_style: U16<BE>,
+    pub lowest_rec_ppem: U16<BE>,
+    pub font_direction_hint: I16<BE>,
+    pub index_to_loc_format: I16<BE>,
+    pub glyph_data_format: I16<BE>,
 }
