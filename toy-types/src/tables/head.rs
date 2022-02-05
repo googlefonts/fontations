@@ -1,5 +1,5 @@
 use crate::*;
-use zerocopy::{AsBytes, FromBytes, Unaligned, BE, I16, I32, I64, U16, U32};
+use zerocopy::{AsBytes, FromBytes, LayoutVerified, Unaligned, BE, I16, I32, I64, U16, U32};
 
 #[derive(Debug, Clone, FontThing)]
 pub struct Head {
@@ -23,7 +23,7 @@ pub struct Head {
     pub glyph_data_format: int16,
 }
 
-#[derive(FromBytes, AsBytes, Unaligned)]
+#[derive(Clone, FromBytes, AsBytes, Unaligned)]
 #[repr(C)]
 pub struct HeadZero {
     pub major_version: U16<BE>,
@@ -44,4 +44,11 @@ pub struct HeadZero {
     pub font_direction_hint: I16<BE>,
     pub index_to_loc_format: I16<BE>,
     pub glyph_data_format: I16<BE>,
+}
+
+impl<'a> FontRead<'a> for &'a HeadZero {
+    fn read(data: blob::Blob<'a>) -> Option<Self> {
+        let layout = LayoutVerified::<_, HeadZero>::new_unaligned(data.as_bytes())?;
+        Some(layout.into_ref())
+    }
 }

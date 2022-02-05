@@ -33,14 +33,24 @@ pub fn view_get_head_fields(c: &mut Criterion) {
 }
 
 pub fn zc_get_head_fields(c: &mut Criterion) {
+    // only borrows the table (zerocopy)
     fn our_impl(font: &FontRef) -> Option<(u16, i16)> {
-        // upm & loca_format
         font.head_zero()
             .map(|head| (head.units_per_em.get(), head.index_to_loc_format.get()))
     }
+
+    // copies the whole table
+    fn our_impl_copy(font: &FontRef) -> Option<(u16, i16)> {
+        font.head_zero_copy()
+            .map(|head| (head.units_per_em.get(), head.index_to_loc_format.get()))
+    }
+
     let data = get_font_bytes();
     let font = FontRef::new(&data).unwrap();
     c.bench_function("zc_get_head_fields", |b| b.iter(|| our_impl(&font)));
+    c.bench_function("zc_get_head_fields_copy", |b| {
+        b.iter(|| our_impl_copy(&font))
+    });
 }
 
 pub fn pod_glyph_bbox(c: &mut Criterion) {
