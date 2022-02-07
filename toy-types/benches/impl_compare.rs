@@ -1,5 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use toy_types::tables::{Cmap, Cmap4, Cmap4Zero, FontRef, TableProvider, TableProviderRef};
+use toy_types::tables::{
+    Cmap, Cmap4, Cmap4Zero, Cmap4ZeroChecked, FontRef, TableProvider, TableProviderRef,
+};
 
 static FONT_BYTES: &[u8] = include_bytes!("../../resources/Inconsolata-Regular.ttf");
 
@@ -152,6 +154,10 @@ pub fn zc_cmap_lookup(c: &mut Criterion) {
         (cmap4.glyph_id_for_char('\u{2}') + cmap4.glyph_id_for_char('A')) as usize
     }
 
+    fn retain_subtable_checked(cmap4: &Cmap4ZeroChecked) -> usize {
+        (cmap4.glyph_id_for_char('\u{2}') + cmap4.glyph_id_for_char('A')) as usize
+    }
+
     fn get_subtable(cmap: &Cmap, subtable_offset: u32) -> usize {
         let cmap4 = cmap.get_zerocopy_cmap4(subtable_offset).unwrap();
         (cmap4.glyph_id_for_char('\u{2}') + cmap4.glyph_id_for_char('A')) as usize
@@ -167,10 +173,16 @@ pub fn zc_cmap_lookup(c: &mut Criterion) {
         .expect("failed to load cmap table");
 
     let cmap4 = cmap.get_zerocopy_cmap4(subtable_offset).unwrap();
+    let cmap4checked = cmap.get_zerocopy_cmap4_precheck(subtable_offset).unwrap();
 
     c.bench_function("zc_cmap_lookup_retain", |b| {
         b.iter(|| retain_subtable(&cmap4))
     });
+
+    c.bench_function("zc_cmap_lookup_retain_checked", |b| {
+        b.iter(|| retain_subtable_checked(&cmap4checked))
+    });
+
     c.bench_function("zc_cmap_lookup_get", |b| {
         b.iter(|| get_subtable(&cmap, subtable_offset))
     });

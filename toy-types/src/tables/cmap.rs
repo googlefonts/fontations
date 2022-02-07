@@ -85,6 +85,20 @@ impl Cmap4Zero<'_> {
     }
 }
 
+/// A Cmap4 type using zerocopy, which does bounds checking etc ahead of time
+///
+/// This is all hand-written, and is intended as a proof-of-concept to get a feel
+/// for what the API is like.
+pub struct Cmap4ZeroChecked<'a> {
+    pub header: &'a Cmap4ZeroHeader,
+    end_code: &'a [U16<BE>],
+    _reserved_pad: U16<BE>,
+    start_code: &'a [U16<BE>],
+    id_delta: &'a [I16<BE>],
+    id_range_offsets: &'a [U16<BE>],
+    glyph_id_array: &'a [U16<BE>],
+}
+
 #[derive(FromBytes, AsBytes, Unaligned)]
 #[repr(C)]
 pub struct Cmap4ZeroHeader {
@@ -210,6 +224,79 @@ impl<'a> Cmap4Zero<'a> {
     }
 }
 
+impl<'a> Cmap4ZeroChecked<'a> {
+    fn new(bytes: &'a [u8]) -> Option<Self> {
+        fn make_slice<'a, T: FromBytes + Unaligned>(raw: &'a [u8]) -> Option<&'a [T]> {
+            LayoutVerified::new_slice_unaligned(raw).map(|lv| lv.into_slice())
+        }
+
+        let (header, data) = LayoutVerified::<_, Cmap4ZeroHeader>::new_from_prefix(bytes)?;
+        let header = header.into_ref();
+        let seg_len_bytes = header.seg_count_x2.get() as usize;
+        let padding_len = std::mem::size_of::<u16>();
+        let end_code = data.get(..seg_len_bytes).and_then(make_slice)?;
+        let start_code = data
+            .get(seg_len_bytes + padding_len..)
+            .and_then(make_slice)?;
+        let id_delta = data
+            .get(seg_len_bytes * 2 + padding_len..)
+            .and_then(make_slice)?;
+        let id_range_offsets = data
+            .get(seg_len_bytes * 3 + padding_len..)
+            .and_then(make_slice)?;
+        let glyph_id_array = data
+            .get(seg_len_bytes * 4 + padding_len..)
+            .and_then(make_slice)?;
+        Some(Self {
+            header,
+            end_code,
+            start_code,
+            id_delta,
+            id_range_offsets,
+            _reserved_pad: 2.into(),
+            glyph_id_array,
+        })
+    }
+
+    pub fn glyph_id_for_char(&self, chr: char) -> uint16 {
+        let n_segs = self.header.seg_count_x2.get() / 2;
+        let raw_char = (chr as u32).try_into().unwrap_or_default();
+        let seg_idx = match self
+            .end_code
+            .binary_search_by(|probe| probe.get().cmp(&raw_char))
+        {
+            Ok(idx) => idx,
+            Err(idx) => idx,
+        };
+
+        // safety: `seg_idx` must be < end_code.len(), and all arrays have equal length;
+        // therefore the index must be valid in all of them.
+        let start_code = unsafe { self.start_code.get_unchecked(seg_idx).get() };
+        // TODO: get rid of this branch?
+        if start_code > raw_char {
+            return 0;
+        }
+        let id_delta = unsafe { self.id_delta.get_unchecked(seg_idx).get() };
+        let range_offset = unsafe { self.id_range_offsets.get_unchecked(seg_idx).get() / 2 };
+        let glyf_idx = if range_offset == 0 {
+            wrapping_add_delta(raw_char, id_delta)
+        } else {
+            let offset_rel_id_range = range_offset + (raw_char - start_code);
+            let glyf_idx = offset_rel_id_range - (n_segs - seg_idx as u16);
+            if glyf_idx != 0 {
+                wrapping_add_delta(glyf_idx, id_delta)
+            } else {
+                0
+            }
+        };
+
+        self.glyph_id_array
+            .get(glyf_idx as usize)
+            .map(|val| val.get())
+            .unwrap_or_default()
+    }
+}
+
 impl<'a> Cmap<'a> {
     pub fn get_subtable_version(&self, offset: Offset32) -> Option<u16> {
         self.data.read(offset as usize)
@@ -232,6 +319,12 @@ impl<'a> Cmap<'a> {
         self.data
             .get(offset as usize..self.data.len())
             .and_then(|data| Cmap4Zero::new(data.as_bytes()))
+    }
+
+    pub fn get_zerocopy_cmap4_precheck(&self, offset: Offset32) -> Option<Cmap4ZeroChecked> {
+        self.data
+            .get(offset as usize..self.data.len())
+            .and_then(|data| Cmap4ZeroChecked::new(data.as_bytes()))
     }
 }
 
