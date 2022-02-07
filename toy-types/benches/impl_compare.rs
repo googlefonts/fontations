@@ -1,9 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use toy_types::tables::{Cmap, Cmap4, Cmap4Zero, FontRef, TableProvider, TableProviderRef};
 
-fn get_font_bytes() -> Vec<u8> {
-    std::fs::read("/Users/rofls/Library/Fonts/Inconsolata-Regular.ttf").unwrap()
-}
+static FONT_BYTES: &[u8] = include_bytes!("../../resources/Inconsolata-Regular.ttf");
 
 pub fn pod_get_head_fields(c: &mut Criterion) {
     fn our_impl(font: &FontRef) -> Option<(u16, i16)> {
@@ -12,8 +10,7 @@ pub fn pod_get_head_fields(c: &mut Criterion) {
             .map(|head| (head.units_per_em, head.index_to_loc_format))
     }
 
-    let data = get_font_bytes();
-    let font = FontRef::new(&data).unwrap();
+    let font = FontRef::new(FONT_BYTES).unwrap();
     c.bench_function("pod_get_head_fields", |b| b.iter(|| our_impl(&font)));
 }
 
@@ -27,8 +24,7 @@ pub fn view_get_head_fields(c: &mut Criterion) {
             )
         })
     }
-    let data = get_font_bytes();
-    let font = FontRef::new(&data).unwrap();
+    let font = FontRef::new(FONT_BYTES).unwrap();
     c.bench_function("view_get_head_fields", |b| b.iter(|| our_impl(&font)));
 }
 
@@ -45,8 +41,7 @@ pub fn zc_get_head_fields(c: &mut Criterion) {
             .map(|head| (head.units_per_em.get(), head.index_to_loc_format.get()))
     }
 
-    let data = get_font_bytes();
-    let font = FontRef::new(&data).unwrap();
+    let font = FontRef::new(FONT_BYTES).unwrap();
     c.bench_function("zc_get_head_fields", |b| b.iter(|| our_impl(&font)));
     c.bench_function("zc_get_head_fields_copy", |b| {
         b.iter(|| our_impl_copy(&font))
@@ -68,8 +63,7 @@ pub fn pod_glyph_bbox(c: &mut Criterion) {
             .unwrap_or_default()
     }
 
-    let data = get_font_bytes();
-    let font = FontRef::new(&data).unwrap();
+    let font = FontRef::new(FONT_BYTES).unwrap();
     let head = font.head().expect("missing head");
     let _32bit_loca = head.index_to_loc_format == 1;
     let loca = font.loca(_32bit_loca).expect("missing loca");
@@ -106,8 +100,7 @@ pub fn view_glyph_bbox(c: &mut Criterion) {
             .unwrap_or_default()
     }
 
-    let data = get_font_bytes();
-    let font = FontRef::new(&data).unwrap();
+    let font = FontRef::new(FONT_BYTES).unwrap();
     let head = font.head().expect("missing head");
     let _32bit_loca = head.index_to_loc_format == 1;
     let loca = font.loca(_32bit_loca).expect("missing loca");
@@ -135,8 +128,7 @@ pub fn pod_cmap_lookup(c: &mut Criterion) {
         (cmap4.glyph_id_for_char('\u{2}') + cmap4.glyph_id_for_char('A')) as usize
     }
 
-    let data = get_font_bytes();
-    let font = FontRef::new(&data).unwrap();
+    let font = FontRef::new(FONT_BYTES).unwrap();
     let cmap = font.cmap().unwrap();
     let subtable_offset = cmap
         .encoding_records
@@ -165,8 +157,7 @@ pub fn zc_cmap_lookup(c: &mut Criterion) {
         (cmap4.glyph_id_for_char('\u{2}') + cmap4.glyph_id_for_char('A')) as usize
     }
 
-    let data = get_font_bytes();
-    let font = FontRef::new(&data).unwrap();
+    let font = FontRef::new(FONT_BYTES).unwrap();
     let cmap = font.cmap().unwrap();
     let subtable_offset = cmap
         .encoding_records
