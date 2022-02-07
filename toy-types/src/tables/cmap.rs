@@ -226,7 +226,7 @@ impl<'a> Cmap4Zero<'a> {
 
 impl<'a> Cmap4ZeroChecked<'a> {
     fn new(bytes: &'a [u8]) -> Option<Self> {
-        fn make_slice<'a, T: FromBytes + Unaligned>(raw: &'a [u8]) -> Option<&'a [T]> {
+        fn make_slice<T: FromBytes + Unaligned>(raw: &[u8]) -> Option<&[T]> {
             LayoutVerified::new_slice_unaligned(raw).map(|lv| lv.into_slice())
         }
 

@@ -7,7 +7,7 @@ mod maxp;
 use crate::*;
 pub use cmap::{Cmap, Cmap4, Cmap4Zero, Cmap4ZeroChecked, CmapSubtable};
 pub use glyf::{Glyf, GlyphHeader};
-pub use head::Head;
+pub use head::{Head, HeadZero};
 pub use loca::Loca;
 pub use maxp::Maxp05;
 
@@ -77,7 +77,7 @@ impl<'a> FontRef<'a> {
     }
 
     pub fn head_zero_copy(&self) -> Option<head::HeadZero> {
-        self.head_zero().map(|h| h.clone())
+        self.head_zero().cloned()
     }
 }
 

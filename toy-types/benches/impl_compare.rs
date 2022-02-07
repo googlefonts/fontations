@@ -1,6 +1,10 @@
 use criterion::{criterion_group, criterion_main, Criterion};
-use toy_types::tables::{
-    Cmap, Cmap4, Cmap4Zero, Cmap4ZeroChecked, FontRef, TableProvider, TableProviderRef,
+use toy_types::{
+    tables::{
+        Cmap, Cmap4, Cmap4Zero, Cmap4ZeroChecked, FontRef, Head, HeadZero, TableProvider,
+        TableProviderRef,
+    },
+    FontRead,
 };
 
 static FONT_BYTES: &[u8] = include_bytes!("../../resources/Inconsolata-Regular.ttf");
@@ -47,6 +51,29 @@ pub fn zc_get_head_fields(c: &mut Criterion) {
     c.bench_function("zc_get_head_fields", |b| b.iter(|| our_impl(&font)));
     c.bench_function("zc_get_head_fields_copy", |b| {
         b.iter(|| our_impl_copy(&font))
+    });
+}
+
+pub fn load_get_head(c: &mut Criterion) {
+    let font = FontRef::new(FONT_BYTES).unwrap();
+    let head_bytes = font.table_data(*b"head").unwrap();
+
+    c.bench_function("find_head", |b| {
+        b.iter(|| font.table_data(*b"head").unwrap().len())
+    });
+
+    c.bench_function("zc_load_head", |b| {
+        b.iter(|| {
+            let head = <&HeadZero>::read(head_bytes.clone()).unwrap();
+            head.units_per_em.get() as i16 + head.index_to_loc_format.get()
+        })
+    });
+
+    c.bench_function("pod_load_head", |b| {
+        b.iter(|| {
+            let head = Head::read(head_bytes.clone()).unwrap();
+            head.units_per_em as i16 + head.index_to_loc_format
+        })
     });
 }
 
@@ -193,7 +220,8 @@ criterion_group!(
     get_head_fields,
     pod_get_head_fields,
     view_get_head_fields,
-    zc_get_head_fields
+    zc_get_head_fields,
+    load_get_head,
 );
 criterion_group!(glyf_bbox, pod_glyph_bbox, view_glyph_bbox);
 
