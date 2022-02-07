@@ -78,6 +78,13 @@ pub struct Cmap4Zero<'a> {
     data: &'a [u8],
 }
 
+impl Cmap4Zero<'_> {
+    /// only exists so we can check what asm is being generated
+    pub fn length(&self) -> u16 {
+        self.header.length.get()
+    }
+}
+
 #[derive(FromBytes, AsBytes, Unaligned)]
 #[repr(C)]
 pub struct Cmap4ZeroHeader {
