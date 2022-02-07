@@ -27,6 +27,10 @@ impl<'a> Blob<'a> {
         self.0.get(range).map(Self)
     }
 
+    pub unsafe fn get_unchecked(&self, range: Range<usize>) -> Self {
+        Self(self.0.get_unchecked(range))
+    }
+
     pub fn read<T: ExactSized + FromBeBytes>(&self, offset: usize) -> Option<T> {
         self.0.get(offset..offset + T::SIZE).and_then(T::from_bytes)
     }

@@ -46,6 +46,11 @@ impl<'a, T: ExactSized + FontRead<'a>> Array<'a, T> {
         self.data.get(offset..offset + T::SIZE).and_then(T::read)
     }
 
+    pub unsafe fn get_unchecked(&self, idx: usize) -> T {
+        let offset = idx * T::SIZE;
+        T::read(self.data.get_unchecked(offset..offset + T::SIZE)).unwrap()
+    }
+
     pub fn iter(&self) -> impl Iterator<Item = T> + 'a {
         let mut offset = 0;
         let blob = self.data.clone();
@@ -74,8 +79,8 @@ impl<'a, T: ExactSized + FontRead<'a>> Array<'a, T> {
             // SAFETY: the call is made safe by the following invariants:
             // - `mid >= 0`
             // - `mid < size`: `mid` is limited by `[left; right)` bound.
-            //let cmp = f(unsafe { self.get_unchecked(mid) });
-            let cmp = f(self.get(mid).unwrap());
+            let cmp = f(unsafe { self.get_unchecked(mid) });
+            //let cmp = f(self.get_unchecked(mid).unwrap());
 
             // The reason why we use if/else control flow rather than match
             // is because match reorders comparison operations, which is perf sensitive.
