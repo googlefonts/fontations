@@ -74,7 +74,7 @@ pub enum CmapSubtable<'a> {
 /// This is all hand-written, and is intended as a proof-of-concept to get a feel
 /// for what the API is like.
 pub struct Cmap4Zero<'a> {
-    pub header: LayoutVerified<&'a [u8], Cmap4ZeroHeader>,
+    pub header: &'a Cmap4ZeroHeader,
     data: &'a [u8],
 }
 
@@ -106,7 +106,10 @@ impl<'a> Cmap4Zero<'a> {
         if data.len() < table_len + padding_len {
             None
         } else {
-            Some(Cmap4Zero { header, data })
+            Some(Cmap4Zero {
+                header: header.into_ref(),
+                data,
+            })
         }
     }
 
