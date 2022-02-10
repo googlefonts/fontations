@@ -9,11 +9,14 @@ pub fn tables(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as parse::Item);
     let name = &input.name;
     let field_names = input.fields.iter().map(|field| &field.name);
-    let field_types = input.fields.iter().map(|field| &field.ty);
+    let field_types = input
+        .fields
+        .iter()
+        .map(|field| field.concrete_type_tokens());
 
     quote! {
-        struct #name {
-            #( #field_names: #field_types, )*
+        pub struct #name {
+            #( pub #field_names: #field_types, )*
         }
     }
     .into()

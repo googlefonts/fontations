@@ -1,0 +1,11 @@
+error: object containing array or offset requires lifetime param (MyTable<'a>)
+ --> tests/must-include-lifetime.rs:3:5
+  |
+3 |     MyTable {
+  |     ^^^^^^^
+
+error: only objects containing arrays or offsets require lifetime
+  --> tests/must-include-lifetime.rs:13:5
+   |
+13 |     MyTable<'a> {
+   |     ^^^^^^^

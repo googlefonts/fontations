@@ -15,7 +15,7 @@ path = "tests/all.rs"
 
 [dev-dependencies]
 trybuild = { version = "1.0.49", features = ["diff"] }
-toy-types = { path = "../toy-types" }
+raw-types = { path = "../raw-types" }
 
 [dependencies]
 syn =  { version = "1.0.86", features = ["parsing"] }

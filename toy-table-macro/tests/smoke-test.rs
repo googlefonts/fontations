@@ -1,17 +1,8 @@
-struct AxisValueMap;
-type uint16 = u16;
+pub struct AxisValueMap;
 
 toy_table_macro::tables! {
-    SegmentMaps {
-        position_map_count: uint16,
-        axis_value_maps: [AxisValueMap],
-    }
-}
-
-toy_table_macro::tables! {
-    #[explode(true)]
-    OtherThing {
-        position_map_count: uint16,
+    SegmentMaps<'a> {
+        position_map_count: Uint16,
         #[count(position_map_count)]
         axis_value_maps: [AxisValueMap],
     }
