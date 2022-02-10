@@ -11,6 +11,8 @@ use syn::{
     token, Attribute, Token,
 };
 
+pub struct Items(Vec<Item>);
+
 pub struct Item {
     pub lifetime: bool,
     pub attrs: Vec<syn::Attribute>,
@@ -24,7 +26,7 @@ pub struct Field {
     pub ty: Type,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Scalar {
     I8,
     U8,
@@ -45,10 +47,26 @@ pub enum Scalar {
 
 pub enum Type {
     Single(Scalar),
-    Array(syn::Ident),
+    Array { typ: syn::Ident, lifetime: bool },
     // not sure we want to have full paths here? I think everything should need
     // to be in scope.
     //Path(syn::Path),
+}
+
+impl Parse for Items {
+    fn parse(input: ParseStream) -> Result<Self, syn::Error> {
+        let mut result = Vec::new();
+        while !input.is_empty() {
+            result.push(input.parse()?)
+        }
+        Ok(Self(result))
+    }
+}
+
+impl Items {
+    pub fn iter(&self) -> impl Iterator<Item = &Item> {
+        self.0.iter()
+    }
 }
 
 impl Parse for Item {
@@ -85,10 +103,11 @@ impl Parse for Field {
 impl Field {
     pub fn concrete_type_tokens(&self) -> proc_macro2::TokenStream {
         match &self.ty {
-            Type::Array(ident) => {
-                match Scalar::from_str(&ident.to_string()).map(|s| s.raw_type_tokens()) {
+            Type::Array { typ, lifetime } => {
+                match Scalar::from_str(&typ.to_string()).map(|s| s.raw_type_tokens()) {
                     Ok(typ) => quote!([#typ]),
-                    Err(_) => quote!([#ident]),
+                    Err(_) if *lifetime => quote!([#typ<'a>]),
+                    Err(_) => quote!([#typ]),
                 }
             }
             Type::Single(scalar) => scalar.raw_type_tokens(),
@@ -96,14 +115,19 @@ impl Field {
     }
 
     fn is_array(&self) -> bool {
-        matches!(self.ty, Type::Array(_))
+        matches!(self.ty, Type::Array { .. })
     }
 
     fn requires_lifetime(&self) -> bool {
         matches!(
             self.ty,
-            Type::Array(_) | Type::Single(Scalar::Offset16 | Scalar::Offset24 | Scalar::Offset32)
+            Type::Array { .. }
+                | Type::Single(Scalar::Offset16 | Scalar::Offset24 | Scalar::Offset32)
         )
+    }
+
+    pub fn is_scalar(&self) -> bool {
+        matches!(self.ty, Type::Single(_))
     }
 }
 
@@ -112,7 +136,10 @@ impl Parse for Type {
         if input.lookahead1().peek(token::Bracket) {
             let content;
             bracketed!(content in input);
-            return Ok(Type::Array(content.parse()?));
+            let typ = content.parse::<syn::Ident>()?;
+            let lifetime = get_generics(&&content)?;
+
+            return Ok(Type::Array { typ, lifetime });
         }
 
         input.parse().map(Type::Single)
@@ -135,6 +162,19 @@ impl Item {
             ));
         }
         Ok(())
+    }
+
+    pub fn checkable_len(&self) -> usize {
+        self.fields
+            .iter()
+            .filter_map(|fld| {
+                if let Type::Single(scalar) = fld.ty {
+                    Some(scalar.size())
+                } else {
+                    None
+                }
+            })
+            .sum()
     }
 }
 
