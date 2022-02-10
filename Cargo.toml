@@ -5,4 +5,5 @@ members = [
     "toy-types-derive",
     "toy-types",
     "toy-table-macro",
+    "raw-types",
 ]
