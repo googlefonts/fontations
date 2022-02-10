@@ -9,7 +9,7 @@ pub type Int32 = I32<BE>;
 pub type Uint32 = U32<BE>;
 
 pub type Fixed = Int32;
-pub type F2dot14 = Int16;
+pub type F2Dot14 = Int16;
 pub type LongDateTime = I64<BE>;
 
 pub type Offset16 = Uint16;
