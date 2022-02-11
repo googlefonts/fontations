@@ -1,9 +1,11 @@
+//! something to macro-expand when debugging
+
+#![allow(dead_code)]
+
 toy_table_macro::tables! {
     SegmentMaps<'a> {
         position_map_count: Uint16,
         #[count(position_map_count)]
-        axis_value_maps: [AxisValueMap],
-        #[count_with(div_by_two, position_map_count)]
         axis_value_maps: [AxisValueMap],
     }
 
@@ -22,10 +24,6 @@ toy_table_macro::tables! {
         #[variable_size]
         axis_segment_maps: [SegmentMaps<'a>],
     }
-}
-
-fn div_by_two(arg: raw_types::Uint16) -> usize {
-    arg.get() as usize / 2
 }
 
 fn main() {}

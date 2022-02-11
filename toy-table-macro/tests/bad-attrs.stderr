@@ -1,0 +1,37 @@
+error: proc macro panicked
+ --> tests/bad-attrs.rs:1:1
+  |
+1 | / toy_table_macro::tables! {
+2 | |     TooMuchCount<'a> {
+3 | |         item_count: Uint16,
+4 | |         #[count(item_count)]
+... |
+7 | |     }
+8 | | }
+  | |_^
+  |
+  = help: message: I ONLY COUNT ONCE
+
+error: expected ident
+  --> tests/bad-attrs.rs:17:30
+   |
+17 |         #[count_with(double, Self::item_count)]
+   |                              ^^^^
+
+error: array types require 'count' or 'count_with' attribute
+  --> tests/bad-attrs.rs:25:9
+   |
+25 |         items: [Uint24],
+   |         ^^^^^
+
+error: count/count_with attribute not valid on scalar fields
+  --> tests/bad-attrs.rs:31:17
+   |
+31 |         #[count(item_count)]
+   |                 ^^^^^^^^^^
+
+error: 'hidden' is only valid on scalar fields
+  --> tests/bad-attrs.rs:41:11
+   |
+41 |         #[hidden]
+   |           ^^^^^^

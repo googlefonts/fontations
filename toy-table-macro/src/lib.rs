@@ -25,7 +25,10 @@ fn generate_item_code(item: &parse::Item) -> proc_macro2::TokenStream {
 fn generate_zerocopy_impls(item: &parse::Item) -> proc_macro2::TokenStream {
     assert!(!item.lifetime);
     let name = &item.name;
-    let field_names = item.fields.iter().map(|field| &field.name);
+    let field_names = item
+        .fields
+        .iter()
+        .map(|field| &field.as_scalar().unwrap().name);
     let field_types = item.fields.iter().map(parse::Field::concrete_type_tokens);
 
     quote! {

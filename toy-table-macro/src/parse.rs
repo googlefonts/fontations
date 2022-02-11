@@ -20,14 +20,8 @@ pub struct Item {
     pub fields: Vec<Field>,
 }
 
-pub struct Field {
-    pub attrs: Vec<syn::Attribute>,
-    pub name: syn::Ident,
-    pub ty: Type,
-}
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Scalar {
+pub enum ScalarType {
     I8,
     U8,
     I16,
@@ -45,12 +39,32 @@ pub enum Scalar {
     Version16Dot16,
 }
 
-pub enum Type {
-    Single(Scalar),
-    Array { typ: syn::Ident, lifetime: bool },
-    // not sure we want to have full paths here? I think everything should need
-    // to be in scope.
-    //Path(syn::Path),
+pub enum Field {
+    Scalar(ScalarField),
+    Array(ArrayField),
+}
+
+pub struct ScalarField {
+    pub name: syn::Ident,
+    pub typ: ScalarType,
+    pub hidden: Option<syn::Path>,
+}
+
+pub struct ArrayField {
+    pub name: syn::Ident,
+    pub inner_typ: syn::Ident,
+    pub inner_lifetime: bool,
+    pub count: Count,
+    pub variable_size: Option<syn::Path>,
+}
+
+/// Annotations for how to calculate the count of an array.
+pub enum Count {
+    Field(syn::Ident),
+    Function {
+        fn_: syn::Path,
+        args: Vec<syn::Ident>,
+    },
 }
 
 impl Parse for Items {
@@ -71,9 +85,9 @@ impl Items {
 
 impl Parse for Item {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        let attrs = get_optional_attributes(&input)?;
+        let attrs = get_optional_attributes(input)?;
         let name: syn::Ident = input.parse()?;
-        let lifetime = get_generics(&input)?;
+        let lifetime = get_generics(input)?;
         let content;
         let _ = braced!(content in input);
         let fields = Punctuated::<Field, Token![,]>::parse_terminated(&content)?;
@@ -91,58 +105,181 @@ impl Parse for Item {
 
 impl Parse for Field {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        let attrs = get_optional_attributes(&input)?;
-        let name = input.parse()?;
+        let attrs = get_optional_attributes(input)?;
+        let attrs = AllAttrs::parse(&attrs)?;
+        let name = input.parse::<syn::Ident>()?;
         let _ = input.parse::<Token![:]>()?;
-        let ty = input.parse()?;
 
-        Ok(Field { attrs, name, ty })
+        if input.lookahead1().peek(token::Bracket) {
+            let content;
+            bracketed!(content in input);
+            let typ = content.parse::<syn::Ident>()?;
+            let lifetime = get_generics(&content)?;
+            attrs.into_array(name, typ, lifetime).map(Field::Array)
+        } else {
+            attrs.into_scalar(name, input.parse()?).map(Field::Scalar)
+        }
+    }
+}
+
+#[derive(Default)]
+struct AllAttrs {
+    hidden: Option<syn::Path>,
+    count: Option<Count>,
+    variable_size: Option<syn::Path>,
+}
+
+impl AllAttrs {
+    fn parse(attrs: &[syn::Attribute]) -> Result<AllAttrs, syn::Error> {
+        let mut result = AllAttrs::default();
+        for attr in attrs {
+            //dbg!(attr);
+            match attr.parse_meta()? {
+                syn::Meta::Path(path) if path.is_ident("hidden") => {
+                    result.hidden = Some(path.clone())
+                }
+                syn::Meta::Path(path) if path.is_ident("variable_size") => {
+                    result.variable_size = Some(path.clone())
+                }
+                syn::Meta::List(list) if list.path.is_ident("count") => {
+                    if let Some(syn::NestedMeta::Meta(syn::Meta::Path(p))) = list.nested.first() {
+                        if let Some(ident) = p.get_ident() {
+                            result.count = Some(Count::Field(ident.clone()));
+                            continue;
+                        }
+                    }
+                    return Err(syn::Error::new(
+                        list.path.span(),
+                        "count attribute should have format count(some_path)",
+                    ));
+                }
+                syn::Meta::List(list) if list.path.is_ident("count_with") => {
+                    let mut items = list.nested.iter();
+                    if let Some(syn::NestedMeta::Meta(syn::Meta::Path(path))) = items.next() {
+                        let args = items.map(expect_ident).collect::<Result<_, _>>()?;
+                        assert!(result.count.is_none(), "I ONLY COUNT ONCE");
+                        result.count = Some(Count::Function {
+                            fn_: path.to_owned(),
+                            args,
+                        });
+                        continue;
+                    }
+                    return Err(syn::Error::new(
+                        list.path.span(),
+                        "count_with attribute should have format count_with(path::to::fn, arg1, arg2)",
+                    ));
+                }
+                other => return Err(syn::Error::new(other.span(), "unknown attribute")),
+            }
+        }
+        Ok(result)
+    }
+
+    fn into_array(
+        self,
+        name: syn::Ident,
+        inner_typ: syn::Ident,
+        inner_lifetime: bool,
+    ) -> Result<ArrayField, syn::Error> {
+        if let Some(path) = &self.hidden {
+            return Err(syn::Error::new(
+                path.span(),
+                "'hidden' is only valid on scalar fields",
+            ));
+        }
+        let count = self.count.ok_or_else(|| {
+            syn::Error::new(
+                name.span(),
+                "array types require 'count' or 'count_with' attribute",
+            )
+        })?;
+        let variable_size = self.variable_size;
+        Ok(ArrayField {
+            name,
+            inner_typ,
+            inner_lifetime,
+            count,
+            variable_size,
+        })
+    }
+
+    fn into_scalar(self, name: syn::Ident, typ: ScalarType) -> Result<ScalarField, syn::Error> {
+        if let Some(span) = self.count.as_ref().map(Count::span) {
+            return Err(syn::Error::new(
+                span,
+                "count/count_with attribute not valid on scalar fields",
+            ));
+        }
+        if let Some(token) = self.variable_size {
+            return Err(syn::Error::new(token.span(), "not valid on scalar fields"));
+        }
+
+        Ok(ScalarField {
+            name,
+            typ,
+            hidden: self.hidden,
+        })
+    }
+}
+
+fn expect_ident(meta: &syn::NestedMeta) -> Result<syn::Ident, syn::Error> {
+    match meta {
+        syn::NestedMeta::Meta(syn::Meta::Path(p)) if p.get_ident().is_some() => {
+            Ok(p.get_ident().unwrap().clone())
+        }
+        _ => Err(syn::Error::new(meta.span(), "expected ident")),
+    }
+}
+
+impl Count {
+    fn span(&self) -> proc_macro2::Span {
+        match self {
+            Count::Field(ident) => ident.span(),
+            Count::Function { fn_, .. } => fn_.span(),
+        }
     }
 }
 
 impl Field {
     pub fn concrete_type_tokens(&self) -> proc_macro2::TokenStream {
-        match &self.ty {
-            Type::Array { typ, lifetime } => {
-                match Scalar::from_str(&typ.to_string()).map(|s| s.raw_type_tokens()) {
-                    Ok(typ) => quote!([#typ]),
-                    Err(_) if *lifetime => quote!([#typ<'a>]),
-                    Err(_) => quote!([#typ]),
-                }
-            }
-            Type::Single(scalar) => scalar.raw_type_tokens(),
+        match &self {
+            Self::Array(ArrayField {
+                inner_typ,
+                inner_lifetime,
+                ..
+            }) => match ScalarType::from_str(&inner_typ.to_string()).map(|s| s.raw_type_tokens()) {
+                Ok(typ) => quote!([#typ]),
+                Err(_) if *inner_lifetime => quote!([#inner_typ<'a>]),
+                Err(_) => quote!([#inner_typ]),
+            },
+            Self::Scalar(ScalarField { typ, .. }) => typ.raw_type_tokens(),
+        }
+    }
+
+    pub fn as_scalar(&self) -> Option<&ScalarField> {
+        match self {
+            Field::Array(_) => None,
+            Field::Scalar(v) => Some(v),
+        }
+    }
+
+    pub fn as_array(&self) -> Option<&ArrayField> {
+        match self {
+            Field::Array(v) => Some(v),
+            Field::Scalar(_) => None,
         }
     }
 
     fn is_array(&self) -> bool {
-        matches!(self.ty, Type::Array { .. })
+        matches!(self, Field::Array(_))
     }
 
     fn requires_lifetime(&self) -> bool {
-        matches!(
-            self.ty,
-            Type::Array { .. }
-                | Type::Single(Scalar::Offset16 | Scalar::Offset24 | Scalar::Offset32)
-        )
+        self.is_array()
     }
 
     pub fn is_scalar(&self) -> bool {
-        matches!(self.ty, Type::Single(_))
-    }
-}
-
-impl Parse for Type {
-    fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        if input.lookahead1().peek(token::Bracket) {
-            let content;
-            bracketed!(content in input);
-            let typ = content.parse::<syn::Ident>()?;
-            let lifetime = get_generics(&&content)?;
-
-            return Ok(Type::Array { typ, lifetime });
-        }
-
-        input.parse().map(Type::Single)
+        matches!(self, Field::Scalar(_))
     }
 }
 
@@ -167,30 +304,27 @@ impl Item {
     pub fn checkable_len(&self) -> usize {
         self.fields
             .iter()
-            .filter_map(|fld| {
-                if let Type::Single(scalar) = fld.ty {
-                    Some(scalar.size())
-                } else {
-                    None
-                }
+            .filter_map(|fld| match fld {
+                Field::Array(_) => None,
+                Field::Scalar(val) => Some(val.typ.size()),
             })
             .sum()
     }
 }
 
-impl Scalar {
+impl ScalarType {
     const fn size(self) -> usize {
         match self {
-            Scalar::I8 | Scalar::U8 => 1,
-            Scalar::I16 | Scalar::U16 | Scalar::Offset16 | Scalar::F2Dot14 => 2,
-            Scalar::U24 | Scalar::Offset24 => 3,
-            Scalar::Fixed
-            | Scalar::Tag
-            | Scalar::U32
-            | Scalar::I32
-            | Scalar::Version16Dot16
-            | Scalar::Offset32 => 4,
-            Scalar::LongDateTime => 8,
+            ScalarType::I8 | ScalarType::U8 => 1,
+            ScalarType::I16 | ScalarType::U16 | ScalarType::Offset16 | ScalarType::F2Dot14 => 2,
+            ScalarType::U24 | ScalarType::Offset24 => 3,
+            ScalarType::Fixed
+            | ScalarType::Tag
+            | ScalarType::U32
+            | ScalarType::I32
+            | ScalarType::Version16Dot16
+            | ScalarType::Offset32 => 4,
+            ScalarType::LongDateTime => 8,
         }
     }
 
@@ -215,18 +349,18 @@ impl Scalar {
     }
 }
 
-impl Parse for Scalar {
+impl Parse for ScalarType {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
         let name: syn::Ident = input
             .parse()
             .map_err(|e| syn::Error::new(e.span(), "expected scalar type"))?;
         let name_str = name.to_string();
-        Scalar::from_str(&name_str)
+        ScalarType::from_str(&name_str)
             .map_err(|_| syn::Error::new(name.span(), "Expected scalar type"))
     }
 }
 
-impl FromStr for Scalar {
+impl FromStr for ScalarType {
     type Err = ();
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         match s {
@@ -250,19 +384,18 @@ impl FromStr for Scalar {
     }
 }
 
-fn get_optional_attributes(input: &ParseStream) -> Result<Vec<syn::Attribute>, syn::Error> {
-    Ok(input
-        .lookahead1()
-        .peek(Token![#])
-        .then(|| Attribute::parse_outer(input))
-        .transpose()?
-        .unwrap_or_default())
+fn get_optional_attributes(input: ParseStream) -> Result<Vec<syn::Attribute>, syn::Error> {
+    let mut result = Vec::new();
+    while input.lookahead1().peek(Token![#]) {
+        result.extend(Attribute::parse_outer(input)?);
+    }
+    Ok(result)
 }
 
 /// Check that generic arguments are acceptable
 ///
 /// They are acceptable if they are empty, or contain a single lifetime.
-fn get_generics(input: &ParseStream) -> Result<bool, syn::Error> {
+fn get_generics(input: ParseStream) -> Result<bool, syn::Error> {
     let generics = input.parse::<syn::Generics>()?;
     if generics.type_params().count() + generics.const_params().count() > 0 {
         return Err(syn::Error::new(
