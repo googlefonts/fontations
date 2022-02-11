@@ -79,8 +79,8 @@ fn generate_view_impls(item: &parse::Item) -> proc_macro2::TokenStream {
                 ));
                 in_checked_range = false;
             }
-            _other => {
-                current_offset = quote!(compile_error!("invalid offset: field not generated"));
+            parse::Field::Array(array) => {
+                getters.push(make_var_array_getter(array, &mut current_offset));
             }
         }
     }
@@ -152,6 +152,27 @@ fn make_array_getter(
             self.0.get(#start_off..#start_off + len_bytes)
                 .and_then(|bytes| zerocopy::LayoutVerified::new_slice_unaligned(bytes))
                 .map(|layout| layout.into_slice())
+        }
+    }
+}
+
+fn make_var_array_getter(
+    field: &parse::ArrayField,
+    offset: &mut proc_macro2::TokenStream,
+) -> proc_macro2::TokenStream {
+    let name = &field.name;
+    let start_off = offset.clone();
+    let inner_typ = &field.inner_typ;
+    assert!(
+        field.inner_lifetime,
+        "variable arrays are meaningless without an inner lifetime?"
+    );
+    *offset = quote!(compile_error!(
+        "guard violated: variable_size array must be last field in item."
+    ));
+    quote! {
+        pub fn #name(&self) -> Option<raw_types::VarArray<'a, #inner_typ<'a>>> {
+            self.0.get(#start_off..).map(raw_types::VarArray::new)
         }
     }
 }
