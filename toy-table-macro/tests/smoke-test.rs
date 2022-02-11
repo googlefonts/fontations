@@ -3,8 +3,6 @@ toy_table_macro::tables! {
         position_map_count: Uint16,
         #[count(position_map_count)]
         axis_value_maps: [AxisValueMap],
-        #[count_with(div_by_two, position_map_count)]
-        axis_value_maps: [AxisValueMap],
     }
 
     AxisValueMap {

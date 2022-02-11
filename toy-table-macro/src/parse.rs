@@ -313,7 +313,7 @@ impl Item {
 }
 
 impl ScalarType {
-    const fn size(self) -> usize {
+    pub const fn size(self) -> usize {
         match self {
             ScalarType::I8 | ScalarType::U8 => 1,
             ScalarType::I16 | ScalarType::U16 | ScalarType::Offset16 | ScalarType::F2Dot14 => 2,
@@ -328,7 +328,7 @@ impl ScalarType {
         }
     }
 
-    fn raw_type_tokens(&self) -> proc_macro2::TokenStream {
+    pub fn raw_type_tokens(&self) -> proc_macro2::TokenStream {
         match self {
             Self::I8 => quote!(::raw_types::Int8),
             Self::U8 => quote!(::raw_types::Uint8),
