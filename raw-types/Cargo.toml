@@ -7,3 +7,4 @@ edition = "2021"
 
 [dependencies]
 zerocopy = "0.6.1"
+toy-table-macro = {path = "../toy-table-macro"}
