@@ -9,3 +9,9 @@ error: all enum groups require #[format(..)] attribute
    |
 36 |     enum OneOrTwo {
    |          ^^^^^^^^
+
+error[E0425]: cannot find value `MISSING_VERSION` in this scope
+  --> tests/enum-bad-attrs.rs:51:19
+   |
+51 |         #[version(MISSING_VERSION)]
+   |                   ^^^^^^^^^^^^^^^ not found in this scope

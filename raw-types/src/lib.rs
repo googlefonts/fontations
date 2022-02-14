@@ -45,3 +45,9 @@ pub trait FontRead<'a>: Sized {
 pub trait VarSized<'a>: FontRead<'a> {
     fn len(&self) -> usize;
 }
+
+impl<'a, T: FromBytes> FontRead<'a> for T {
+    fn read(bytes: &'a [u8]) -> Option<Self> {
+        T::read_from_prefix(bytes)
+    }
+}

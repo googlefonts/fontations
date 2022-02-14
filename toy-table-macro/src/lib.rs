@@ -8,8 +8,8 @@ mod parse;
 pub fn tables(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as parse::Items);
     let code = input.iter().map(|item| match item {
-        parse::Item::Single(item) => Some(generate_item_code(item)),
-        parse::Item::Group(_group) => None,
+        parse::Item::Single(item) => generate_item_code(item),
+        parse::Item::Group(group) => generate_group(group),
     });
     quote! {
         #(#code)*
@@ -22,6 +22,61 @@ fn generate_item_code(item: &parse::SingleItem) -> proc_macro2::TokenStream {
         generate_zerocopy_impls(item)
     } else {
         generate_view_impls(item)
+    }
+}
+
+fn generate_group(group: &parse::ItemGroup) -> proc_macro2::TokenStream {
+    let name = &group.name;
+    let lifetime = group.lifetime.as_ref().map(|_| quote!(<'a>));
+    let variants = group.variants.iter().map(|variant| {
+        let name = &variant.name;
+        let typ = &variant.typ;
+        let lifetime = variant.typ_lifetime.as_ref().map(|_| quote!(<'a>));
+        quote!(#name(#typ #lifetime))
+    });
+
+    let format = &group.format_typ;
+    let match_arms = group.variants.iter().map(|variant| {
+        let name = &variant.name;
+        let version = &variant.version;
+        quote! {
+            #version => {
+                Some(Self::#name(raw_types::FontRead::read(bytes)?))
+            }
+        }
+    });
+
+    let var_versions = group.variants.iter().map(|v| &v.version);
+
+    // make sure this is a constant and we aren't accidentally aliasing?
+    // I'm not sure if this is necessary.
+    let validation_check = quote! {
+        #( const _: #format = #var_versions; )*
+    };
+    let font_read = quote! {
+
+        impl<'a> raw_types::FontRead<'a> for #name #lifetime {
+            fn read(bytes: &'a [u8]) -> Option<Self> {
+                #validation_check
+                let version: #format = raw_types::FontRead::read(bytes)?;
+                match version {
+                    #( #match_arms ),*
+
+                        other => {
+                            eprintln!("unknown enum variant {:?}", version);
+                            None
+                        }
+                }
+            }
+        }
+    };
+
+    quote! {
+        pub enum #name #lifetime {
+            #( #variants ),*
+        }
+
+        #font_read
     }
 }
 
