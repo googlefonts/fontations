@@ -68,7 +68,7 @@ impl AllAttrs {
         self,
         name: syn::Ident,
         inner_typ: syn::Ident,
-        inner_lifetime: bool,
+        inner_lifetime: Option<syn::Lifetime>,
     ) -> Result<ArrayField, syn::Error> {
         if let Some(path) = &self.hidden {
             return Err(syn::Error::new(

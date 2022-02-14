@@ -19,7 +19,7 @@ pub use attrs::Count;
 pub struct Items(Vec<Item>);
 
 pub struct Item {
-    pub lifetime: bool,
+    pub lifetime: Option<syn::Lifetime>,
     pub attrs: Vec<syn::Attribute>,
     pub name: syn::Ident,
     pub fields: Vec<Field>,
@@ -58,7 +58,7 @@ pub struct ScalarField {
 pub struct ArrayField {
     pub name: syn::Ident,
     pub inner_typ: syn::Ident,
-    pub inner_lifetime: bool,
+    pub inner_lifetime: Option<syn::Lifetime>,
     pub count: Count,
     pub variable_size: Option<syn::Path>,
 }
@@ -127,7 +127,7 @@ impl Field {
                 ..
             }) => match ScalarType::from_str(&inner_typ.to_string()).map(|s| s.raw_type_tokens()) {
                 Ok(typ) => quote!([#typ]),
-                Err(_) if *inner_lifetime => quote!([#inner_typ<'a>]),
+                Err(_) if inner_lifetime.is_some() => quote!([#inner_typ<'a>]),
                 Err(_) => quote!([#inner_typ]),
             },
             Self::Scalar(ScalarField { typ, .. }) => typ.raw_type_tokens(),
@@ -164,15 +164,15 @@ impl Field {
 impl Item {
     fn validate(&self) -> Result<(), syn::Error> {
         let needs_lifetime = self.fields.iter().any(|x| x.requires_lifetime());
-        if needs_lifetime && !self.lifetime {
+        if needs_lifetime && self.lifetime.is_none() {
             let msg = format!(
                 "object containing array or offset requires lifetime param ({}<'a>)",
                 self.name
             );
             return Err(syn::Error::new(self.name.span(), &msg));
-        } else if !needs_lifetime && self.lifetime {
+        } else if !needs_lifetime && self.lifetime.is_some() {
             return Err(syn::Error::new(
-                self.name.span(),
+                self.lifetime.as_ref().unwrap().span(),
                 "only objects containing arrays or offsets require lifetime",
             ));
         }
@@ -273,7 +273,7 @@ fn get_optional_attributes(input: ParseStream) -> Result<Vec<syn::Attribute>, sy
 /// Check that generic arguments are acceptable
 ///
 /// They are acceptable if they are empty, or contain a single lifetime.
-fn get_generics(input: ParseStream) -> Result<bool, syn::Error> {
+fn get_generics(input: ParseStream) -> Result<Option<syn::Lifetime>, syn::Error> {
     let generics = input.parse::<syn::Generics>()?;
     if generics.type_params().count() + generics.const_params().count() > 0 {
         return Err(syn::Error::new(
@@ -302,9 +302,9 @@ fn get_generics(input: ParseStream) -> Result<bool, syn::Error> {
                     "only a single unbounded lifetime is allowed",
                 ))
             } else {
-                Ok(true)
+                Ok(Some(ltime.lifetime.clone()))
             }
         }
-        None => Ok(false),
+        None => Ok(None),
     }
 }

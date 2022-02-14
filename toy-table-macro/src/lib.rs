@@ -23,7 +23,7 @@ fn generate_item_code(item: &parse::Item) -> proc_macro2::TokenStream {
 }
 
 fn generate_zerocopy_impls(item: &parse::Item) -> proc_macro2::TokenStream {
-    assert!(!item.lifetime);
+    assert!(item.lifetime.is_none());
     let name = &item.name;
     let field_names = item
         .fields
@@ -133,7 +133,7 @@ fn make_array_getter(
     let start_off = offset.clone();
     let inner_typ = &field.inner_typ;
     assert!(
-        !field.inner_lifetime,
+        field.inner_lifetime.is_none(),
         "inner_lifetime should only exist on variable size fields"
     );
     let len = match &field.count {
@@ -164,7 +164,7 @@ fn make_var_array_getter(
     let start_off = offset.clone();
     let inner_typ = &field.inner_typ;
     assert!(
-        field.inner_lifetime,
+        field.inner_lifetime.is_some(),
         "variable arrays are meaningless without an inner lifetime?"
     );
     *offset = quote!(compile_error!(
