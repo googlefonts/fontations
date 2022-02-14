@@ -4,7 +4,7 @@ use std::str::FromStr;
 
 use quote::quote;
 use syn::{
-    braced, bracketed,
+    braced, bracketed, parenthesized,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
     spanned::Spanned,
@@ -13,16 +13,39 @@ use syn::{
 
 mod attrs;
 
-use attrs::AllAttrs;
 pub use attrs::Count;
+use attrs::{FieldAttrs, VariantAttrs};
+
+use self::attrs::ItemAttrs;
 
 pub struct Items(Vec<Item>);
 
-pub struct Item {
+pub enum Item {
+    Single(SingleItem),
+    Group(ItemGroup),
+}
+
+/// A single concrete object, such as a particular table version or record format.
+pub struct SingleItem {
     pub lifetime: Option<syn::Lifetime>,
-    pub attrs: Vec<syn::Attribute>,
     pub name: syn::Ident,
     pub fields: Vec<Field>,
+}
+
+/// A group of items that can exist in the same location, such as tables
+/// with multiple versions.
+pub struct ItemGroup {
+    pub name: syn::Ident,
+    pub lifetime: Option<syn::Lifetime>,
+    pub format_typ: syn::Ident,
+    pub variants: Vec<Variant>,
+}
+
+pub struct Variant {
+    pub name: syn::Ident,
+    pub version: syn::Path,
+    pub typ: syn::Ident,
+    pub typ_lifetime: Option<syn::Lifetime>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -82,27 +105,63 @@ impl Items {
 impl Parse for Item {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
         let attrs = get_optional_attributes(input)?;
+        let attrs = ItemAttrs::parse(&attrs)?;
+        let enum_token = input
+            .peek(Token![enum])
+            .then(|| input.parse::<Token![enum]>())
+            .transpose()?;
         let name: syn::Ident = input.parse()?;
         let lifetime = get_generics(input)?;
         let content;
         let _ = braced!(content in input);
-        let fields = Punctuated::<Field, Token![,]>::parse_terminated(&content)?;
-        let fields = fields.into_iter().collect();
-        let item = Self {
-            lifetime,
-            attrs,
-            name,
-            fields,
-        };
-        item.validate()?;
-        Ok(item)
+        if let Some(_token) = enum_token {
+            let variants = Punctuated::<Variant, Token![,]>::parse_terminated(&content)?;
+            let variants = variants.into_iter().collect();
+            ItemGroup::new(name, lifetime, variants, attrs).map(Self::Group)
+        } else {
+            let fields = Punctuated::<Field, Token![,]>::parse_terminated(&content)?;
+            let fields = fields.into_iter().collect();
+            let item = SingleItem {
+                lifetime,
+                //attrs,
+                name,
+                fields,
+            };
+            item.validate()?;
+            Ok(Self::Single(item))
+        }
+    }
+}
+
+impl Parse for Variant {
+    fn parse(input: ParseStream) -> Result<Self, syn::Error> {
+        let attrs = get_optional_attributes(input)?;
+        let attrs = VariantAttrs::parse(&attrs)?;
+        let name = input.parse::<syn::Ident>()?;
+        let content;
+        parenthesized!(content in input);
+        let typ = content.parse::<syn::Ident>()?;
+        let typ_lifetime = get_generics(&content)?;
+        if let Some(version) = attrs.version {
+            Ok(Self {
+                name,
+                version,
+                typ,
+                typ_lifetime,
+            })
+        } else {
+            Err(syn::Error::new(
+                name.span(),
+                "all variants require #[version(..)] attribute",
+            ))
+        }
     }
 }
 
 impl Parse for Field {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
         let attrs = get_optional_attributes(input)?;
-        let attrs = AllAttrs::parse(&attrs)?;
+        let attrs = FieldAttrs::parse(&attrs)?;
         let name = input.parse::<syn::Ident>()?;
         let _ = input.parse::<Token![:]>()?;
 
@@ -161,7 +220,7 @@ impl Field {
     }
 }
 
-impl Item {
+impl SingleItem {
     fn validate(&self) -> Result<(), syn::Error> {
         let needs_lifetime = self.fields.iter().any(|x| x.requires_lifetime());
         if needs_lifetime && self.lifetime.is_none() {
@@ -190,6 +249,28 @@ impl Item {
     }
 }
 
+impl ItemGroup {
+    fn new(
+        name: syn::Ident,
+        lifetime: Option<syn::Lifetime>,
+        variants: Vec<Variant>,
+        attrs: ItemAttrs,
+    ) -> Result<Self, syn::Error> {
+        if let Some(format_typ) = attrs.format {
+            Ok(Self {
+                name,
+                lifetime,
+                variants,
+                format_typ,
+            })
+        } else {
+            Err(syn::Error::new(
+                name.span(),
+                "all enum groups require #[format(..)] attribute",
+            ))
+        }
+    }
+}
 impl ScalarType {
     pub const fn size(self) -> usize {
         match self {

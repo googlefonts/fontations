@@ -1,0 +1,11 @@
+error: all variants require #[version(..)] attribute
+  --> tests/enum-bad-attrs.rs:20:9
+   |
+20 |         Version0_5(Maxp05),
+   |         ^^^^^^^^^^
+
+error: all enum groups require #[format(..)] attribute
+  --> tests/enum-bad-attrs.rs:36:10
+   |
+36 |     enum OneOrTwo {
+   |          ^^^^^^^^

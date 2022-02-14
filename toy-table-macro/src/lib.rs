@@ -7,14 +7,17 @@ mod parse;
 #[proc_macro]
 pub fn tables(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as parse::Items);
-    let code = input.iter().map(generate_item_code);
+    let code = input.iter().map(|item| match item {
+        parse::Item::Single(item) => Some(generate_item_code(item)),
+        parse::Item::Group(_group) => None,
+    });
     quote! {
         #(#code)*
     }
     .into()
 }
 
-fn generate_item_code(item: &parse::Item) -> proc_macro2::TokenStream {
+fn generate_item_code(item: &parse::SingleItem) -> proc_macro2::TokenStream {
     if item.fields.iter().all(|x| x.is_scalar()) {
         generate_zerocopy_impls(item)
     } else {
@@ -22,7 +25,7 @@ fn generate_item_code(item: &parse::Item) -> proc_macro2::TokenStream {
     }
 }
 
-fn generate_zerocopy_impls(item: &parse::Item) -> proc_macro2::TokenStream {
+fn generate_zerocopy_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
     assert!(item.lifetime.is_none());
     let name = &item.name;
     let field_names = item
@@ -43,7 +46,7 @@ fn generate_zerocopy_impls(item: &parse::Item) -> proc_macro2::TokenStream {
     }
 }
 
-fn generate_view_impls(item: &parse::Item) -> proc_macro2::TokenStream {
+fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
     // scalars only get getters? that makes 'count' and friends complicated...
     // we can at least have a 'new' method that does a reasonable job of bounds checking,
     // but then we're going to be unsafing all over. that's also maybe okay though

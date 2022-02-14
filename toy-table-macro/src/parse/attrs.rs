@@ -2,8 +2,12 @@ use syn::spanned::Spanned;
 
 use super::{ArrayField, ScalarField, ScalarType};
 
+/// All of the attrs that can be applied to a field.
+///
+/// These are not validated, and do not all make sense on all fields;
+/// rather they are just collected here.
 #[derive(Default)]
-pub struct AllAttrs {
+pub struct FieldAttrs {
     hidden: Option<syn::Path>,
     count: Option<Count>,
     variable_size: Option<syn::Path>,
@@ -18,11 +22,20 @@ pub enum Count {
     },
 }
 
-impl AllAttrs {
-    pub fn parse(attrs: &[syn::Attribute]) -> Result<AllAttrs, syn::Error> {
-        let mut result = AllAttrs::default();
+#[derive(Default)]
+pub struct VariantAttrs {
+    pub version: Option<syn::Path>,
+}
+
+#[derive(Default)]
+pub struct ItemAttrs {
+    pub format: Option<syn::Ident>,
+}
+
+impl FieldAttrs {
+    pub fn parse(attrs: &[syn::Attribute]) -> Result<FieldAttrs, syn::Error> {
+        let mut result = FieldAttrs::default();
         for attr in attrs {
-            //dbg!(attr);
             match attr.parse_meta()? {
                 syn::Meta::Path(path) if path.is_ident("hidden") => {
                     result.hidden = Some(path.clone())
@@ -117,6 +130,55 @@ impl Count {
             Count::Field(ident) => ident.span(),
             Count::Function { fn_, .. } => fn_.span(),
         }
+    }
+}
+
+static VERSION: &str = "version";
+impl VariantAttrs {
+    pub fn parse(attrs: &[syn::Attribute]) -> Result<VariantAttrs, syn::Error> {
+        let mut result = VariantAttrs::default();
+        for attr in attrs {
+            match attr.parse_meta()? {
+                syn::Meta::List(list) if list.path.is_ident(VERSION) => {
+                    if let Some(syn::NestedMeta::Meta(syn::Meta::Path(p))) = list.nested.first() {
+                        result.version = Some(p.clone());
+                    } else {
+                        return Err(syn::Error::new(
+                            list.path.span(),
+                            "version attribute should have format version(path::to::CONST_VERSION)",
+                        ));
+                    }
+                }
+                other => return Err(syn::Error::new(other.span(), "unknown attribute")),
+            }
+        }
+        Ok(result)
+    }
+}
+
+static FORMAT: &str = "format";
+impl ItemAttrs {
+    pub fn parse(attrs: &[syn::Attribute]) -> Result<ItemAttrs, syn::Error> {
+        let mut result = ItemAttrs::default();
+        for attr in attrs {
+            match attr.parse_meta()? {
+                syn::Meta::List(list) if list.path.is_ident(FORMAT) => {
+                    if let Some(syn::NestedMeta::Meta(syn::Meta::Path(p))) = list.nested.first() {
+                        if let Some(ident) = p.get_ident() {
+                            result.format = Some(ident.clone());
+                            continue;
+                        }
+                    }
+
+                    return Err(syn::Error::new(
+                        list.path.span(),
+                        "format attribute should  be in form 'version(ScalarType)'",
+                    ));
+                }
+                other => return Err(syn::Error::new(other.span(), "unknown attribute")),
+            }
+        }
+        Ok(result)
     }
 }
 
