@@ -91,14 +91,16 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
     quote! {
         pub struct #name<'a>(&'a [u8]);
 
-        impl<'a> #name<'a> {
-            pub fn new(bytes: &'a [u8]) -> Option<Self> {
+        impl<'a> raw_types::FontRead<'a> for #name<'a> {
+            fn read(bytes: &'a [u8]) -> Option<Self> {
                 if bytes.len() < #checkable_len {
                     return None;
                 }
                 Some(Self(bytes))
             }
+        }
 
+        impl<'a> #name<'a> {
             #( #getters )*
         }
     }

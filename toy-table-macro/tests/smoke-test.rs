@@ -23,7 +23,6 @@ toy_table_macro::tables! {
 }
 
 impl<'a> raw_types::VarSized<'a> for SegmentMaps<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> { SegmentMaps::new(bytes) }
     fn len(&self) -> usize {
         self.position_map_count().unwrap_or_default().get() as usize * std::mem::size_of::<AxisValueMap>()
     }

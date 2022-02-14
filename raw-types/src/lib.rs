@@ -28,13 +28,20 @@ pub type Version16Dot16 = Uint32;
 
 pub use var_array::VarArray;
 
+/// A type that can be read from some chunk of bytes.
+pub trait FontRead<'a>: Sized {
+    /// attempt to read self from raw bytes.
+    ///
+    /// `bytes` may contain 'extra' bytes; the implemention should ignore them.
+    fn read(bytes: &'a [u8]) -> Option<Self>;
+}
+
 //HACK: I'm not sure how this should work
 /// A trait for types with variable length.
 ///
 /// Currently we implement this by hand where necessary; it is only necessary
 /// if these types occur in an array?
 #[allow(clippy::len_without_is_empty)]
-pub trait VarSized<'a>: Sized {
-    fn read(bytes: &'a [u8]) -> Option<Self>;
+pub trait VarSized<'a>: FontRead<'a> {
     fn len(&self) -> usize;
 }
