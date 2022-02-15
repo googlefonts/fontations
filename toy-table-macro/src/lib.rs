@@ -197,19 +197,33 @@ fn make_array_getter(
         "inner_lifetime should only exist on variable size fields"
     );
     let len = match &field.count {
-        parse::Count::Field(name) => quote!(usize::from(self.#name().unwrap_or_default())),
+        parse::Count::Field(name) => Some(quote!(usize::from(self.#name().unwrap_or_default()))),
         parse::Count::Function { fn_, args } => {
             let args = args
                 .iter()
                 .map(|arg| quote!(self.#arg().unwrap_or_default()));
-            quote!(#fn_( #( #args ),* ))
+            Some(quote!(#fn_( #( #args ),* )))
+        }
+        parse::Count::All(_) => None,
+    };
+
+    let range = match len {
+        Some(len) => {
+            *offset = quote!(#offset + #len);
+            //FIXME: we need to figure out our 'get' business
+            quote!(#start_off..#start_off + #len * std::mem::size_of::<#inner_typ>())
+        }
+        None => {
+            // guard to ensure that this item is only ever the last:
+            *offset = quote!(compile_error!(
+                "#[count_all] annotation only valid on last field (TODO: validate before here)"
+            ));
+            quote!(#start_off..)
         }
     };
-    *offset = quote!(#offset + #len);
     quote! {
         pub fn #name(&self) -> Option<&'a [#inner_typ]> {
-            let len_bytes = #len * std::mem::size_of::<#inner_typ>();
-            self.0.get(#start_off..#start_off + len_bytes)
+            self.0.get(#range)
                 .and_then(|bytes| zerocopy::LayoutVerified::new_slice_unaligned(bytes))
                 .map(|layout| layout.into_slice())
         }

@@ -5,7 +5,7 @@
 toy_table_macro::tables! {
     SegmentMaps<'a> {
         position_map_count: Uint16,
-        #[count(position_map_count)]
+        #[count_with(identity, position_map_count)]
         axis_value_maps: [AxisValueMap],
     }
 
@@ -24,6 +24,10 @@ toy_table_macro::tables! {
         #[variable_size]
         axis_segment_maps: [SegmentMaps<'a>],
     }
+}
+
+fn identity(t: raw_types::Uint16) -> usize {
+    t.get() as _
 }
 
 impl<'a> raw_types::VarSized<'a> for SegmentMaps<'a> {

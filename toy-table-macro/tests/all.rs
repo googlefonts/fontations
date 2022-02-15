@@ -7,4 +7,5 @@ fn tests() {
     t.compile_fail("tests/bad-attrs.rs");
     t.pass("tests/enums.rs");
     t.compile_fail("tests/enum-bad-attrs.rs");
+    t.compile_fail("tests/count-all-guard.rs");
 }

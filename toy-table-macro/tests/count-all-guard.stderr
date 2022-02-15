@@ -1,0 +1,13 @@
+error: #[count_all] annotation only valid on last field (TODO: validate before here)
+  --> tests/count-all-guard.rs:3:1
+   |
+3  | / toy_table_macro::tables! {
+4  | |     CountAll<'a> {
+5  | |         item_count: Uint16,
+6  | |         #[count_all]
+...  |
+9  | |     }
+10 | | }
+   | |_^
+   |
+   = note: this error originates in the macro `toy_table_macro::tables` (in Nightly builds, run with -Z macro-backtrace for more info)

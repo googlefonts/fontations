@@ -16,6 +16,7 @@ pub struct FieldAttrs {
 /// Annotations for how to calculate the count of an array.
 pub enum Count {
     Field(syn::Ident),
+    All(syn::Path),
     Function {
         fn_: syn::Path,
         args: Vec<syn::Ident>,
@@ -43,6 +44,10 @@ impl FieldAttrs {
                 syn::Meta::Path(path) if path.is_ident("variable_size") => {
                     result.variable_size = Some(path.clone())
                 }
+                syn::Meta::Path(path) if path.is_ident("count_all") => {
+                    result.count = Some(Count::All(path.clone()));
+                }
+
                 syn::Meta::List(list) if list.path.is_ident("count") => {
                     if let Some(syn::NestedMeta::Meta(syn::Meta::Path(p))) = list.nested.first() {
                         if let Some(ident) = p.get_ident() {
@@ -127,6 +132,7 @@ impl FieldAttrs {
 impl Count {
     fn span(&self) -> proc_macro2::Span {
         match self {
+            Count::All(path) => path.span(),
             Count::Field(ident) => ident.span(),
             Count::Function { fn_, .. } => fn_.span(),
         }
