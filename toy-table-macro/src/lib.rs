@@ -197,7 +197,7 @@ fn make_array_getter(
         "inner_lifetime should only exist on variable size fields"
     );
     let len = match &field.count {
-        parse::Count::Field(name) => Some(quote!(usize::from(self.#name().unwrap_or_default()))),
+        parse::Count::Field(name) => Some(quote!(self.#name().unwrap_or_default().get() as usize)),
         parse::Count::Function { fn_, args } => {
             let args = args
                 .iter()
