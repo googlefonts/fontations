@@ -1,0 +1,62 @@
+Gdef_1_0
+uint16	majorVersion	Major version of the GDEF table, = 1
+uint16	minorVersion	Minor version of the GDEF table, = 0
+Offset16	glyphClassDefOffset	Offset to class definition table for glyph type, from beginning of GDEF header (may be NULL)
+Offset16	attachListOffset	Offset to attachment point list table, from beginning of GDEF header (may be NULL)
+Offset16	ligCaretListOffset	Offset to ligature caret list table, from beginning of GDEF header (may be NULL)
+Offset16	markAttachClassDefOffset	Offset to class definition table for mark attachment type, from beginning of GDEF header (may be NULL)
+
+Gdef_1_2
+uint16	majorVersion	Major version of the GDEF table, = 1
+uint16	minorVersion	Minor version of the GDEF table, = 2
+Offset16	glyphClassDefOffset	Offset to class definition table for glyph type, from beginning of GDEF header (may be NULL)
+Offset16	attachListOffset	Offset to attachment point list table, from beginning of GDEF header (may be NULL)
+Offset16	ligCaretListOffset	Offset to ligature caret list table, from beginning of GDEF header (may be NULL)
+Offset16	markAttachClassDefOffset	Offset to class definition table for mark attachment type, from beginning of GDEF header (may be NULL)
+Offset16	markGlyphSetsDefOffset	Offset to the table of mark glyph set definitions, from beginning of GDEF header (may be NULL)
+
+Gdef_1_3
+uint16	majorVersion	Major version of the GDEF table, = 1
+uint16	minorVersion	Minor version of the GDEF table, = 3
+Offset16	glyphClassDefOffset	Offset to class definition table for glyph type, from beginning of GDEF header (may be NULL)
+Offset16	attachListOffset	Offset to attachment point list table, from beginning of GDEF header (may be NULL)
+Offset16	ligCaretListOffset	Offset to ligature caret list table, from beginning of GDEF header (may be NULL)
+Offset16	markAttachClassDefOffset	Offset to class definition table for mark attachment type, from beginning of GDEF header (may be NULL)
+Offset16	markGlyphSetsDefOffset	Offset to the table of mark glyph set definitions, from beginning of GDEF header (may be NULL)
+Offset32	itemVarStoreOffset	Offset to the Item Variation Store table, from beginning of GDEF header (may be NULL)
+
+AttachList
+Offset16	coverageOffset	Offset to Coverage table - from beginning of AttachList table
+uint16	glyphCount	Number of glyphs with attachment points
+Offset16	attachPointOffsets[glyphCount]	Array of offsets to AttachPoint tables-from beginning of AttachList table-in Coverage Index order
+
+AttachPoint
+uint16	pointCount	Number of attachment points on this glyph
+uint16	pointIndices[pointCount]	Array of contour point indices -in increasing numerical order
+
+LigCaretList
+Offset16	coverageOffset	Offset to Coverage table - from beginning of LigCaretList table
+uint16	ligGlyphCount	Number of ligature glyphs
+Offset16	ligGlyphOffsets[ligGlyphCount]	Array of offsets to LigGlyph tables, from beginning of LigCaretList table —in Coverage Index order
+
+LigGlyph
+uint16	caretCount	Number of CaretValue tables for this ligature (components - 1)
+Offset16	caretValueOffsets[caretCount]	Array of offsets to CaretValue tables, from beginning of LigGlyph table — in increasing coordinate order
+
+CaretValueFormat1
+uint16	caretValueFormat	Format identifier: format = 1
+int16	coordinate	X or Y value, in design units
+
+CaretValueFormat2
+uint16	caretValueFormat	Format identifier: format = 2
+uint16	caretValuePointIndex	Contour point index on glyph
+
+CaretValueFormat3
+uint16	caretValueFormat	Format identifier-format = 3
+int16	coordinate	X or Y value, in design units
+Offset16	deviceOffset	Offset to Device table (non-variable font) / Variation Index table (variable font) for X or Y value-from beginning of CaretValue table
+
+MarkGlyphSets
+uint16	format	Format identifier == 1
+uint16	markGlyphSetCount	Number of mark glyph sets defined
+Offset32	coverageOffsets[markGlyphSetCount]	Array of offsets to mark glyph set coverage tables, from the start of the MarkGlyphSets table.
