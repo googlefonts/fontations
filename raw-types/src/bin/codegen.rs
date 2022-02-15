@@ -30,16 +30,18 @@
 //! *limitations:* this doesn't handle lifetimes, and doesn't generate annotations.
 //! You will need to clean up the output.
 
+use std::fmt::Write;
+
 macro_rules! exit_with_msg {
     ($disp:expr) => {{
-        eprintln!("{}", $disp);
+        eprintln!("ERROR: {}", $disp);
         std::process::exit(1);
     }};
 }
 fn main() {
     let in_path = std::env::args().nth(1).expect("expected path argument");
     let input = std::fs::read_to_string(in_path).expect("failed to read path");
-    let mut lines = input.lines().map(str::trim);
+    let mut lines = input.lines().map(str::trim).filter(|l| !l.starts_with('#'));
     while let Some(item) = generate_one_item(&mut lines) {
         println!("{}", item);
     }
@@ -58,17 +60,44 @@ fn generate_one_item<'a>(lines: impl Iterator<Item = &'a str>) -> Option<String>
         _ => return None,
     };
 
-    let field_text = lines.map_while(parse_field);
-    let mut result = format!("{} {{\n", name);
-    for line in field_text {
-        result.push_str(&line);
-        result.push('\n');
+    let fields = lines.map_while(parse_field).collect::<Vec<_>>();
+    let lifetime_str = if fields.iter().any(|x| x.maybe_count.is_some()) {
+        "<'a>"
+    } else {
+        ""
+    };
+    let mut result = format!("{}{} {{\n", name, lifetime_str);
+    for line in &fields {
+        writeln!(&mut result, "{}", line).unwrap();
     }
     result.push_str("}\n");
     Some(result)
 }
 
-fn parse_field(line: &str) -> Option<String> {
+struct Field<'a> {
+    name: String,
+    maybe_count: Option<String>,
+    typ: &'a str,
+    comment: &'a str,
+}
+
+impl<'a> std::fmt::Display for Field<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        format_comment(f, "    ", self.comment)?;
+        if self.name.contains("reserved") {
+            writeln!(f, "    #[hidden]")?;
+        }
+        if let Some(count) = &self.maybe_count {
+            writeln!(f, "    #[count({})]", count)?;
+            write!(f, "    {}: [{}],", self.name, self.typ)?;
+        } else {
+            write!(f, "    {}: {},", self.name, self.typ)?;
+        }
+        Ok(())
+    }
+}
+
+fn parse_field(line: &str) -> Option<Field> {
     if line.is_empty() {
         return None;
     }
@@ -81,9 +110,24 @@ fn parse_field(line: &str) -> Option<String> {
         )),
     };
     let typ = normalize_type(typ);
-    let ident = decamalize(ident);
-    let comment = format_comment("    ", comment);
-    Some(format!("{}\n    {}: {},", comment, ident, typ))
+    let (name, maybe_count) = split_ident(ident);
+    let name = decamalize(name);
+    let maybe_count = maybe_count.map(decamalize);
+    Some(Field {
+        name,
+        maybe_count,
+        typ,
+        comment,
+    })
+}
+
+/// takes an ident and splits it into the name and an optional count (if the item
+/// is an array)
+fn split_ident(input: &str) -> (&str, Option<&str>) {
+    match input.split_once('[') {
+        Some((front, back)) => (front, Some(back.trim_end_matches(']'))),
+        None => (input, None),
+    }
 }
 
 fn normalize_type(input: &str) -> &str {
@@ -99,8 +143,7 @@ fn normalize_type(input: &str) -> &str {
         "UFWORD" => "UfWord",
         "F2DOT14" => "F2Dot14",
         "LONGDATETIME" => "LongDateTime",
-        "Tag" | "Fixed" | "Offset16" | "Offset32" | "Offset24" | "Version16Dot16" => input,
-        other => exit_with_msg!(format!("unknown type '{}'", other)),
+        other => other,
     }
 }
 
@@ -116,24 +159,28 @@ fn decamalize(input: &str) -> String {
     snake
 }
 
-fn format_comment(whitespace: &str, input: &str) -> String {
+fn format_comment(
+    f: &mut std::fmt::Formatter<'_>,
+    whitespace: &str,
+    input: &str,
+) -> std::fmt::Result {
     const LINE_LEN: usize = 72;
 
-    let mut docs = String::new();
-    //docs.push_str()
+    let mut cur_len = 0;
 
-    let mut cur_len = docs.len();
     for token in input.split_inclusive(' ') {
-        if docs.is_empty() || cur_len + token.len() > LINE_LEN {
-            if !docs.is_empty() {
-                docs.push('\n');
+        if cur_len == 0 || cur_len + token.len() > LINE_LEN {
+            if cur_len > 0 {
+                writeln!(f)?;
             }
-            docs.push_str(whitespace);
-            docs.push_str("/// ");
+            write!(f, "{}/// ", whitespace)?;
             cur_len = whitespace.len() + 4;
         }
-        docs.push_str(token);
+        write!(f, "{}", token)?;
         cur_len += token.len();
     }
-    docs
+    if cur_len > 0 {
+        writeln!(f)?;
+    }
+    Ok(())
 }
