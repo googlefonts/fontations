@@ -204,6 +204,7 @@ fn make_array_getter(
                 .map(|arg| quote!(self.#arg().unwrap_or_default()));
             Some(quote!(#fn_( #( #args ),* )))
         }
+        parse::Count::Literal(lit) => Some(quote! { (#lit as usize) }),
         parse::Count::All(_) => None,
     };
 

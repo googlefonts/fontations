@@ -16,6 +16,7 @@ pub struct FieldAttrs {
 /// Annotations for how to calculate the count of an array.
 pub enum Count {
     Field(syn::Ident),
+    Literal(syn::LitInt),
     All(syn::Path),
     Function {
         fn_: syn::Path,
@@ -49,16 +50,19 @@ impl FieldAttrs {
                 }
 
                 syn::Meta::List(list) if list.path.is_ident("count") => {
-                    if let Some(syn::NestedMeta::Meta(syn::Meta::Path(p))) = list.nested.first() {
-                        if let Some(ident) = p.get_ident() {
-                            result.count = Some(Count::Field(ident.clone()));
-                            continue;
+                    let inner = expect_single_item_list(&list)?;
+                    match inner {
+                        syn::NestedMeta::Meta(syn::Meta::Path(p)) if p.get_ident().is_some() => {
+                            result.count = Some(Count::Field(p.get_ident().unwrap().clone()));
                         }
+                        syn::NestedMeta::Lit(syn::Lit::Int(int)) => {
+                            result.count = Some(Count::Literal(int));
+                        }
+                        _ => return Err(syn::Error::new(
+                            list.path.span(),
+                            "count attribute should have format #[count(field)] or #[count(123)]",
+                        )),
                     }
-                    return Err(syn::Error::new(
-                        list.path.span(),
-                        "count attribute should have format count(some_path)",
-                    ));
                 }
                 syn::Meta::List(list) if list.path.is_ident("count_with") => {
                     let mut items = list.nested.iter();
@@ -135,6 +139,7 @@ impl Count {
             Count::All(path) => path.span(),
             Count::Field(ident) => ident.span(),
             Count::Function { fn_, .. } => fn_.span(),
+            Count::Literal(lit) => lit.span(),
         }
     }
 }
@@ -185,6 +190,13 @@ impl ItemAttrs {
             }
         }
         Ok(result)
+    }
+}
+
+fn expect_single_item_list(meta: &syn::MetaList) -> Result<syn::NestedMeta, syn::Error> {
+    match meta.nested.first() {
+        Some(item) if meta.nested.len() == 1 => Ok(item.clone()),
+        _ => Err(syn::Error::new(meta.span(), "expected single item list")),
     }
 }
 
