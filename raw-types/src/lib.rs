@@ -2,6 +2,7 @@ extern crate self as raw_types;
 
 use zerocopy::{FromBytes, Unaligned, BE, I16, I32, I64, U16, U32};
 
+pub mod layout;
 pub mod tables;
 mod var_array;
 

@@ -1,0 +1,218 @@
+ScriptList
+uint16	scriptCount	Number of ScriptRecords
+ScriptRecord	scriptRecords[scriptCount]	Array of ScriptRecords, listed alphabetically by script tag
+
+ScriptRecord
+Tag	scriptTag	4-byte script tag identifier
+Offset16	scriptOffset	Offset to Script table, from beginning of ScriptList
+
+Script
+Offset16	defaultLangSysOffset	Offset to default LangSys table, from beginning of Script table — may be NULL
+uint16	langSysCount	Number of LangSysRecords for this script — excluding the default LangSys
+LangSysRecord	langSysRecords[langSysCount]	Array of LangSysRecords, listed alphabetically by LangSys tag
+
+LangSysRecord
+Tag	langSysTag	4-byte LangSysTag identifier
+Offset16	langSysOffset	Offset to LangSys table, from beginning of Script table
+
+LangSys
+Offset16	lookupOrderOffset	= NULL (reserved for an offset to a reordering table)
+uint16	requiredFeatureIndex	Index of a feature required for this language system; if no required features = 0xFFFF
+uint16	featureIndexCount	Number of feature index values for this language system — excludes the required feature
+uint16	featureIndices[featureIndexCount]	Array of indices into the FeatureList, in arbitrary order
+
+FeatureList 
+uint16	featureCount	Number of FeatureRecords in this table
+FeatureRecord	featureRecords[featureCount]	Array of FeatureRecords — zero-based (first feature has FeatureIndex = 0), listed alphabetically by feature tag
+
+FeatureRecord
+Tag	featureTag	4-byte feature identification tag
+Offset16	featureOffset	Offset to Feature table, from beginning of FeatureList
+
+Feature
+uint16	lookupIndexCount	Number of LookupList indices for this feature
+uint16	lookupListIndices[lookupIndexCount]	Array of indices into the LookupList — zero-based (first lookup is LookupListIndex = 0)
+
+LookupList
+uint16	lookupCount	Number of lookups in this table
+Offset16	lookupOffsets[lookupCount]	Array of offsets to Lookup tables, from beginning of LookupList — zero based (first lookup is Lookup index = 0)
+
+
+Lookup
+uint16	lookupType	Different enumerations for GSUB and GPOS
+uint16	lookupFlag	Lookup qualifiers
+uint16	subTableCount	Number of subtables for this lookup
+Offset16	subtableOffsets[subTableCount]	Array of offsets to lookup subtables, from beginning of Lookup table
+uint16	markFilteringSet	Index (base 0) into GDEF mark glyph sets structure. This field is only present if the USE_MARK_FILTERING_SET lookup flag is set.
+
+CoverageFormat1
+uint16	coverageFormat	Format identifier — format = 1
+uint16	glyphCount	Number of glyphs in the glyph array
+uint16	glyphArray[glyphCount]	Array of glyph IDs — in numerical order
+
+CoverageFormat2
+uint16	coverageFormat	Format identifier — format = 2
+uint16	rangeCount	Number of RangeRecords
+RangeRecord	rangeRecords[rangeCount]	Array of glyph ranges — ordered by startGlyphID.
+
+RangeRecord
+uint16	startGlyphID	First glyph ID in the range
+uint16	endGlyphID	Last glyph ID in the range
+uint16	startCoverageIndex	Coverage Index of first glyph ID in range
+
+ClassDefFormat1
+uint16	classFormat	Format identifier — format = 1
+uint16	startGlyphID	First glyph ID of the classValueArray
+uint16	glyphCount	Size of the classValueArray
+uint16	classValueArray[glyphCount]	Array of Class Values — one per glyph ID
+
+ClassDefFormat2
+uint16	classFormat	Format identifier — format = 2
+uint16	classRangeCount	Number of ClassRangeRecords
+ClassRangeRecord	classRangeRecords[classRangeCount]	Array of ClassRangeRecords — ordered by startGlyphID
+
+ClassRangeRecord
+uint16	startGlyphID	First glyph ID in the range
+uint16	endGlyphID	Last glyph ID in the range
+uint16	class	Applied to all glyphs in the range
+
+SequenceLookupRecord
+uint16	sequenceIndex	Index (zero-based) into the input glyph sequence
+uint16	lookupListIndex	Index (zero-based) into the LookupList
+
+SequenceContextFormat1
+uint16	format	Format identifier: format = 1
+Offset16	coverageOffset	Offset to Coverage table, from beginning of SequenceContextFormat1 table
+uint16	seqRuleSetCount	Number of SequenceRuleSet tables
+Offset16	seqRuleSetOffsets[seqRuleSetCount]	Array of offsets to SequenceRuleSet tables, from beginning of SequenceContextFormat1 table (offsets may be NULL)
+
+SequenceRuleSet
+uint16	seqRuleCount	Number of SequenceRule tables
+Offset16	seqRuleOffsets[posRuleCount]	Array of offsets to SequenceRule tables, from beginning of the SequenceRuleSet table
+
+SequenceRule 
+uint16	glyphCount	Number of glyphs in the input glyph sequence
+uint16	seqLookupCount	Number of SequenceLookupRecords
+uint16	inputSequence[glyphCount - 1]	Array of input glyph IDs—starting with the second glyph
+SequenceLookupRecord	seqLookupRecords[seqLookupCount]	Array of Sequence lookup records
+
+SequenceContextFormat2
+uint16	format	Format identifier: format = 2
+Offset16	coverageOffset	Offset to Coverage table, from beginning of SequenceContextFormat2 table
+Offset16	classDefOffset	Offset to ClassDef table, from beginning of SequenceContextFormat2 table
+uint16	classSeqRuleSetCount	Number of ClassSequenceRuleSet tables
+Offset16	classSeqRuleSetOffsets[classSeqRuleSetCount]	Array of offsets to ClassSequenceRuleSet tables, from beginning of SequenceContextFormat2 table (may be NULL)
+
+ClassSequenceRuleSet
+uint16	classSeqRuleCount	Number of ClassSequenceRule tables
+Offset16	classSeqRuleOffsets[classSeqRuleCount]	Array of offsets to ClassSequenceRule tables, from beginning of ClassSequenceRuleSet table
+
+ClassSequenceRule
+uint16	glyphCount	Number of glyphs to be matched
+uint16	seqLookupCount	Number of SequenceLookupRecords
+uint16	inputSequence[glyphCount - 1]	Sequence of classes to be matched to the input glyph sequence, beginning with the second glyph position
+SequenceLookupRecord	seqLookupRecords[seqLookupCount]	Array of SequenceLookupRecords
+
+SequenceContextFormat3
+uint16	format	Format identifier: format = 3
+uint16	glyphCount	Number of glyphs in the input sequence
+uint16	seqLookupCount	Number of SequenceLookupRecords
+Offset16	coverageOffsets[glyphCount]	Array of offsets to Coverage tables, from beginning of SequenceContextFormat3 subtable
+SequenceLookupRecord	seqLookupRecords[seqLookupCount]	Array of SequenceLookupRecords
+
+ChainedSequenceContextFormat1
+uint16	format	Format identifier: format = 1
+Offset16	coverageOffset	Offset to Coverage table, from beginning of ChainSequenceContextFormat1 table
+uint16	chainedSeqRuleSetCount	Number of ChainedSequenceRuleSet tables
+Offset16	chainedSeqRuleSetOffsets[chainedSeqRuleSetCount]	Array of offsets to ChainedSeqRuleSet tables, from beginning of ChainedSequenceContextFormat1 table (may be NULL)
+
+ChainedSequenceRuleSet
+uint16	chainedSeqRuleCount	Number of ChainedSequenceRule tables
+Offset16	chainedSeqRuleOffsets[chainedSeqRuleCount]	Array of offsets to ChainedSequenceRule tables, from beginning of ChainedSequenceRuleSet table
+
+ChainedSequenceRule
+uint16	backtrackGlyphCount	Number of glyphs in the backtrack sequence
+uint16	backtrackSequence[backtrackGlyphCount]	Array of backtrack glyph IDs
+uint16	inputGlyphCount	Number of glyphs in the input sequence
+uint16	inputSequence[inputGlyphCount - 1]	Array of input glyph IDs—start with second glyph
+uint16	lookaheadGlyphCount	Number of glyphs in the lookahead sequence
+uint16	lookaheadSequence[lookaheadGlyphCount]	Array of lookahead glyph IDs
+uint16	seqLookupCount	Number of SequenceLookupRecords
+SequenceLookupRecord	seqLookupRecords[seqLookupCount]	Array of SequenceLookupRecords
+
+ChainedSequenceContextFormat2
+uint16	format	Format identifier: format = 2
+Offset16	coverageOffset	Offset to Coverage table, from beginning of ChainedSequenceContextFormat2 table
+Offset16	backtrackClassDefOffset	Offset to ClassDef table containing backtrack sequence context, from beginning of ChainedSequenceContextFormat2 table
+Offset16	inputClassDefOffset	Offset to ClassDef table containing input sequence context, from beginning of ChainedSequenceContextFormat2 table
+Offset16	lookaheadClassDefOffset	Offset to ClassDef table containing lookahead sequence context, from beginning of ChainedSequenceContextFormat2 table
+uint16	chainedClassSeqRuleSetCount	Number of ChainedClassSequenceRuleSet tables
+Offset16	chainedClassSeqRuleSetOffsets[chainedClassSeqRuleSetCount]	Array of offsets to ChainedClassSequenceRuleSet tables, from beginning of ChainedSequenceContextFormat2 table (may be NULL)
+
+ChainedClassSequenceRuleSet
+uint16	chainedClassSeqRuleCount	Number of ChainedClassSequenceRule tables
+Offset16	chainedClassSeqRuleOffsets[chainedClassSeqRuleCount]	Array of offsets to ChainedClassSequenceRule tables, from beginning of ChainedClassSequenceRuleSet
+
+ChainedClassSequenceRule
+uint16	backtrackGlyphCount	Number of glyphs in the backtrack sequence
+uint16	backtrackSequence[backtrackGlyphCount]	Array of backtrack-sequence classes
+uint16	inputGlyphCount	Total number of glyphs in the input sequence
+uint16	inputSequence[inputGlyphCount - 1]	Array of input sequence classes, beginning with the second glyph position
+uint16	lookaheadGlyphCount	Number of glyphs in the lookahead sequence
+uint16	lookaheadSequence[lookaheadGlyphCount]	Array of lookahead-sequence classes
+uint16	seqLookupCount	Number of SequenceLookupRecords
+SequenceLookupRecord	seqLookupRecords[seqLookupCount]	Array of SequenceLookupRecords
+
+ChainedSequenceContextFormat3
+uint16	format	Format identifier: format = 3
+uint16	backtrackGlyphCount	Number of glyphs in the backtrack sequence
+Offset16	backtrackCoverageOffsets[backtrackGlyphCount]	Array of offsets to coverage tables for the backtrack sequence
+uint16	inputGlyphCount	Number of glyphs in the input sequence
+Offset16	inputCoverageOffsets[inputGlyphCount]	Array of offsets to coverage tables for the input sequence
+uint16	lookaheadGlyphCount	Number of glyphs in the lookahead sequence
+Offset16	lookaheadCoverageOffsets[lookaheadGlyphCount]	Array of offsets to coverage tables for the lookahead sequence
+uint16	seqLookupCount	Number of SequenceLookupRecords
+SequenceLookupRecord	seqLookupRecords[seqLookupCount]	Array of SequenceLookupRecords
+
+Device
+uint16	startSize	Smallest size to correct, in ppem
+uint16	endSize	Largest size to correct, in ppem
+uint16	deltaFormat	Format of deltaValue array data: 0x0001, 0x0002, or 0x0003
+uint16	deltaValue[ ]	Array of compressed data
+
+VariationIndex
+uint16	deltaSetOuterIndex	A delta-set outer index — used to select an item variation data subtable within the item variation store.
+uint16	deltaSetInnerIndex	A delta-set inner index — used to select a delta-set row within an item variation data subtable.
+uint16	deltaFormat	Format, = 0x8000
+
+FeatureVariations
+uint16	majorVersion	Major version of the FeatureVariations table — set to 1.
+uint16	minorVersion	Minor version of the FeatureVariations table — set to 0.
+uint32	featureVariationRecordCount	Number of feature variation records.
+FeatureVariationRecord	featureVariationRecords[featureVariationRecordCount]	Array of feature variation records.
+
+FeatureVariationRecord
+Offset32	conditionSetOffset	Offset to a condition set table, from beginning of FeatureVariations table.
+Offset32	featureTableSubstitutionOffset	Offset to a feature table substitution table, from beginning of the FeatureVariations table.
+
+ConditionSet
+uint16	conditionCount	Number of conditions for this condition set.
+Offset32	conditionOffsets[conditionCount]	Array of offsets to condition tables, from beginning of the ConditionSet table.
+
+ConditionFormat1
+uint16	format	Format, = 1
+uint16	axisIndex	Index (zero-based) for the variation axis within the 'fvar' table.
+F2DOT14	filterRangeMinValue	Minimum value of the font variation instances that satisfy this condition.
+F2DOT14	filterRangeMaxValue	Maximum value of the font variation instances that satisfy this condition.
+
+FeatureTableSubstitution
+uint16	majorVersion	Major version of the feature table substitution table — set to 1
+uint16	minorVersion	Minor version of the feature table substitution table — set to 0.
+uint16	substitutionCount	Number of feature table substitution records.
+FeatureTableSubstitutionRecord	substitutions[substitutionCount]	Array of feature table substitution records.
+
+FeatureTableSubstitutionRecord
+uint16	featureIndex	The feature table index to match.
+Offset32	alternateFeatureOffset	Offset to an alternate feature table, from start of the FeatureTableSubstitution table.
+
+
