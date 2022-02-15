@@ -28,11 +28,16 @@ fn generate_item_code(item: &parse::SingleItem) -> proc_macro2::TokenStream {
 fn generate_group(group: &parse::ItemGroup) -> proc_macro2::TokenStream {
     let name = &group.name;
     let lifetime = group.lifetime.as_ref().map(|_| quote!(<'a>));
+    let docs = &group.docs;
     let variants = group.variants.iter().map(|variant| {
         let name = &variant.name;
         let typ = &variant.typ;
+        let docs = variant.docs.iter();
         let lifetime = variant.typ_lifetime.as_ref().map(|_| quote!(<'a>));
-        quote!(#name(#typ #lifetime))
+        quote! {
+                #( #docs )*
+                #name(#typ #lifetime)
+        }
     });
 
     let format = &group.format_typ;
@@ -72,6 +77,7 @@ fn generate_group(group: &parse::ItemGroup) -> proc_macro2::TokenStream {
     };
 
     quote! {
+        #( #docs )*
         pub enum #name #lifetime {
             #( #variants ),*
         }
@@ -87,13 +93,19 @@ fn generate_zerocopy_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream
         .fields
         .iter()
         .map(|field| &field.as_scalar().unwrap().name);
+    let docs = &item.docs;
     let field_types = item.fields.iter().map(parse::Field::concrete_type_tokens);
+    let field_docs = item.fields.iter().map(|fld| {
+        let docs = &fld.as_scalar().unwrap().docs;
+        quote!( #( #docs )* )
+    });
 
     quote! {
+        #( #docs )*
         #[derive(Clone, Copy, Debug, zerocopy::FromBytes, zerocopy::Unaligned)]
         #[repr(C)]
         pub struct #name {
-            #( pub #field_names: #field_types, )*
+            #( #field_docs pub #field_names: #field_types, )*
         }
 
         // and now I want getters. but not for everything? also they return... a different concrete
@@ -107,6 +119,7 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
     // but then we're going to be unsafing all over. that's also maybe okay though
 
     let name = &item.name;
+    let docs = &item.docs;
 
     let mut current_offset = quote!(0);
     let mut in_checked_range = true;
@@ -142,8 +155,13 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
             }
         }
     }
+    let field_docs = item.fields.iter().map(|field| {
+        let docs = field.docs();
+        quote!( #( #docs )* )
+    });
 
     quote! {
+        #( #docs )*
         pub struct #name<'a>(&'a [u8]);
 
         impl<'a> raw_types::FontRead<'a> for #name<'a> {
@@ -156,7 +174,7 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
         }
 
         impl<'a> #name<'a> {
-            #( #getters )*
+            #( #field_docs #getters )*
         }
     }
 }

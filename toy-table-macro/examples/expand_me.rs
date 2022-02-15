@@ -3,8 +3,13 @@
 #![allow(dead_code)]
 
 toy_table_macro::tables! {
+    /// Some segment maps
+    ///
+    /// These map segments
     SegmentMaps<'a> {
+        /// Count of position maps
         position_map_count: Uint16,
+        /// maps of axisvalues
         #[count_with(identity, position_map_count)]
         axis_value_maps: [AxisValueMap],
     }

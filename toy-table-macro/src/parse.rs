@@ -27,6 +27,7 @@ pub enum Item {
 
 /// A single concrete object, such as a particular table version or record format.
 pub struct SingleItem {
+    pub docs: Vec<syn::Attribute>,
     pub lifetime: Option<syn::Lifetime>,
     pub name: syn::Ident,
     pub fields: Vec<Field>,
@@ -35,6 +36,7 @@ pub struct SingleItem {
 /// A group of items that can exist in the same location, such as tables
 /// with multiple versions.
 pub struct ItemGroup {
+    pub docs: Vec<syn::Attribute>,
     pub name: syn::Ident,
     pub lifetime: Option<syn::Lifetime>,
     pub format_typ: syn::Ident,
@@ -42,6 +44,7 @@ pub struct ItemGroup {
 }
 
 pub struct Variant {
+    pub docs: Vec<syn::Attribute>,
     pub name: syn::Ident,
     pub version: syn::Path,
     pub typ: syn::Ident,
@@ -73,12 +76,14 @@ pub enum Field {
 }
 
 pub struct ScalarField {
+    pub docs: Vec<syn::Attribute>,
     pub name: syn::Ident,
     pub typ: ScalarType,
     pub hidden: Option<syn::Path>,
 }
 
 pub struct ArrayField {
+    pub docs: Vec<syn::Attribute>,
     pub name: syn::Ident,
     pub inner_typ: syn::Ident,
     pub inner_lifetime: Option<syn::Lifetime>,
@@ -122,6 +127,7 @@ impl Parse for Item {
             let fields = Punctuated::<Field, Token![,]>::parse_terminated(&content)?;
             let fields = fields.into_iter().collect();
             let item = SingleItem {
+                docs: attrs.docs,
                 lifetime,
                 //attrs,
                 name,
@@ -144,6 +150,7 @@ impl Parse for Variant {
         let typ_lifetime = get_generics(&content)?;
         if let Some(version) = attrs.version {
             Ok(Self {
+                docs: attrs.docs,
                 name,
                 version,
                 typ,
@@ -218,6 +225,13 @@ impl Field {
     pub fn is_scalar(&self) -> bool {
         matches!(self, Field::Scalar(_))
     }
+
+    pub fn docs(&self) -> &[syn::Attribute] {
+        match self {
+            Field::Array(v) => &v.docs,
+            Field::Scalar(v) => &v.docs,
+        }
+    }
 }
 
 impl SingleItem {
@@ -258,6 +272,7 @@ impl ItemGroup {
     ) -> Result<Self, syn::Error> {
         if let Some(format_typ) = attrs.format {
             Ok(Self {
+                docs: attrs.docs,
                 name,
                 lifetime,
                 variants,

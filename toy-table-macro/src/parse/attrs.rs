@@ -8,6 +8,7 @@ use super::{ArrayField, ScalarField, ScalarType};
 /// rather they are just collected here.
 #[derive(Default)]
 pub struct FieldAttrs {
+    docs: Vec<syn::Attribute>,
     hidden: Option<syn::Path>,
     count: Option<Count>,
     variable_size: Option<syn::Path>,
@@ -26,11 +27,13 @@ pub enum Count {
 
 #[derive(Default)]
 pub struct VariantAttrs {
+    pub docs: Vec<syn::Attribute>,
     pub version: Option<syn::Path>,
 }
 
 #[derive(Default)]
 pub struct ItemAttrs {
+    pub docs: Vec<syn::Attribute>,
     pub format: Option<syn::Ident>,
 }
 
@@ -39,6 +42,9 @@ impl FieldAttrs {
         let mut result = FieldAttrs::default();
         for attr in attrs {
             match attr.parse_meta()? {
+                syn::Meta::NameValue(value) if value.path.is_ident("doc") => {
+                    result.docs.push(attr.clone());
+                }
                 syn::Meta::Path(path) if path.is_ident("hidden") => {
                     result.hidden = Some(path.clone())
                 }
@@ -80,7 +86,9 @@ impl FieldAttrs {
                         "count_with attribute should have format count_with(path::to::fn, arg1, arg2)",
                     ));
                 }
-                other => return Err(syn::Error::new(other.span(), "unknown attribute")),
+                other => {
+                    return Err(syn::Error::new(other.span(), "unknown attribute"));
+                }
             }
         }
         Ok(result)
@@ -106,6 +114,7 @@ impl FieldAttrs {
         })?;
         let variable_size = self.variable_size;
         Ok(ArrayField {
+            docs: self.docs,
             name,
             inner_typ,
             inner_lifetime,
@@ -126,6 +135,7 @@ impl FieldAttrs {
         }
 
         Ok(ScalarField {
+            docs: self.docs,
             name,
             typ,
             hidden: self.hidden,
@@ -150,6 +160,9 @@ impl VariantAttrs {
         let mut result = VariantAttrs::default();
         for attr in attrs {
             match attr.parse_meta()? {
+                syn::Meta::NameValue(value) if value.path.is_ident("doc") => {
+                    result.docs.push(attr.clone());
+                }
                 syn::Meta::List(list) if list.path.is_ident(VERSION) => {
                     if let Some(syn::NestedMeta::Meta(syn::Meta::Path(p))) = list.nested.first() {
                         result.version = Some(p.clone());
@@ -172,7 +185,11 @@ impl ItemAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<ItemAttrs, syn::Error> {
         let mut result = ItemAttrs::default();
         for attr in attrs {
+            //if let syn::Attribute::break
             match attr.parse_meta()? {
+                syn::Meta::NameValue(value) if value.path.is_ident("doc") => {
+                    result.docs.push(attr.clone());
+                }
                 syn::Meta::List(list) if list.path.is_ident(FORMAT) => {
                     if let Some(syn::NestedMeta::Meta(syn::Meta::Path(p))) = list.nested.first() {
                         if let Some(ident) = p.get_ident() {
@@ -186,7 +203,7 @@ impl ItemAttrs {
                         "format attribute should  be in form 'version(ScalarType)'",
                     ));
                 }
-                other => return Err(syn::Error::new(other.span(), "unknown attribute")),
+                other => return Err(syn::Error::new(dbg!(other).span(), "unknown attribute")),
             }
         }
         Ok(result)
