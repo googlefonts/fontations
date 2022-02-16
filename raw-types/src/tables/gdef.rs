@@ -134,6 +134,22 @@ toy_table_macro::tables! {
         /// CaretValue table
         device_offset: Offset16,
     }
+
+    #[format(Uint16)]
+    enum CaretValue {
+        #[version(CaretValue::FORMAT_1)]
+        Format1(CaretValueFormat1),
+        #[version(CaretValue::FORMAT_2)]
+        Format2(CaretValueFormat2),
+        #[version(CaretValue::FORMAT_3)]
+        Format3(CaretValueFormat3),
+    }
+}
+
+impl CaretValue {
+    const FORMAT_1: Uint16 = Uint16::from_bytes(1u16.to_be_bytes());
+    const FORMAT_2: Uint16 = Uint16::from_bytes(2u16.to_be_bytes());
+    const FORMAT_3: Uint16 = Uint16::from_bytes(3u16.to_be_bytes());
 }
 
 toy_table_macro::tables! {
