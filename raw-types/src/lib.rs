@@ -15,6 +15,8 @@ pub type Int32 = I32<BE>;
 pub type Uint32 = U32<BE>;
 
 pub type Fixed = Int32;
+pub type FWord = Int16;
+pub type UfWord = Int16;
 pub type F2Dot14 = Int16;
 pub type LongDateTime = I64<BE>;
 
@@ -28,6 +30,21 @@ pub struct Tag([u8; 4]);
 pub type Version16Dot16 = Uint32;
 
 pub use var_array::VarArray;
+
+/// A convenience type for version stored as separate major/minor values
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Unaligned, FromBytes)]
+#[repr(C)]
+pub struct MajorMinor(Uint16, Uint16);
+
+impl MajorMinor {
+    /// Construct a new version.
+    pub const fn new(major: u16, minor: u16) -> Self {
+        MajorMinor(
+            Uint16::from_bytes(major.to_be_bytes()),
+            Uint16::from_bytes(minor.to_be_bytes()),
+        )
+    }
+}
 
 /// A type that can be read from some chunk of bytes.
 pub trait FontRead<'a>: Sized {

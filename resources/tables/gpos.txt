@@ -1,0 +1,183 @@
+
+# headers
+
+Gpos1_0
+uint16	majorVersion	Major version of the GPOS table, = 1
+uint16	minorVersion	Minor version of the GPOS table, = 0
+Offset16	scriptListOffset	Offset to ScriptList table, from beginning of GPOS table
+Offset16	featureListOffset	Offset to FeatureList table, from beginning of GPOS table
+Offset16	lookupListOffset	Offset to LookupList table, from beginning of GPOS table
+
+
+Gpos1_1
+uint16	majorVersion	Major version of the GPOS table, = 1
+uint16	minorVersion	Minor version of the GPOS table, = 1
+Offset16	scriptListOffset	Offset to ScriptList table, from beginning of GPOS table
+Offset16	featureListOffset	Offset to FeatureList table, from beginning of GPOS table
+Offset16	lookupListOffset	Offset to LookupList table, from beginning of GPOS table
+Offset32	featureVariationsOffset	Offset to FeatureVariations table, from beginning of GPOS table (may be NULL)
+
+# shared types:
+
+ValueRecord
+int16	xPlacement	Horizontal adjustment for placement, in design units.
+int16	yPlacement	Vertical adjustment for placement, in design units.
+int16	xAdvance	Horizontal adjustment for advance, in design units — only used for horizontal layout.
+int16	yAdvance	Vertical adjustment for advance, in design units — only used for vertical layout.
+Offset16	xPlaDeviceOffset	Offset to Device table (non-variable font) / VariationIndex table (variable font) for horizontal placement, from beginning of the immediate parent table (SinglePos or PairPosFormat2 lookup subtable, PairSet table within a PairPosFormat1 lookup subtable) — may be NULL.
+Offset16	yPlaDeviceOffset	Offset to Device table (non-variable font) / VariationIndex table (variable font) for vertical placement, from beginning of the immediate parent table (SinglePos or PairPosFormat2 lookup subtable, PairSet table within a PairPosFormat1 lookup subtable) — may be NULL.
+Offset16	xAdvDeviceOffset	Offset to Device table (non-variable font) / VariationIndex table (variable font) for horizontal advance, from beginning of the immediate parent table (SinglePos or PairPosFormat2 lookup subtable, PairSet table within a PairPosFormat1 lookup subtable) — may be NULL.
+Offset16	yAdvDeviceOffset	Offset to Device table (non-variable font) / VariationIndex table (variable font) for vertical advance, from beginning of the immediate parent table (SinglePos or PairPosFormat2 lookup subtable, PairSet table within a PairPosFormat1 lookup subtable) — may be NULL.
+
+AnchorFormat1
+uint16	anchorFormat	Format identifier, = 1
+int16	xCoordinate	Horizontal value, in design units
+int16	yCoordinate	Vertical value, in design units
+
+AnchorFormat2
+uint16	anchorFormat	Format identifier, = 2
+int16	xCoordinate	Horizontal value, in design units
+int16	yCoordinate	Vertical value, in design units
+uint16	anchorPoint	Index to glyph contour point
+
+AnchorFormat3
+uint16	anchorFormat	Format identifier, = 3
+int16	xCoordinate	Horizontal value, in design units
+int16	yCoordinate	Vertical value, in design units
+Offset16	xDeviceOffset	Offset to Device table (non-variable font) / VariationIndex table (variable font) for X coordinate, from beginning of Anchor table (may be NULL)
+Offset16	yDeviceOffset	Offset to Device table (non-variable font) / VariationIndex table (variable font) for Y coordinate, from beginning of Anchor table (may be NULL)
+
+MarkArray
+uint16	markCount	Number of MarkRecords
+MarkRecord	markRecords[markCount]	Array of MarkRecords, ordered by corresponding glyphs in the associated mark Coverage table.
+
+MarkRecord
+uint16	markClass	Class defined for the associated mark.
+Offset16	markAnchorOffset	Offset to Anchor table, from beginning of MarkArray table.
+
+# Gpos1
+SinglePos1
+uint16	posFormat	Format identifier: format = 1
+Offset16	coverageOffset	Offset to Coverage table, from beginning of SinglePos subtable.
+uint16	valueFormat	Defines the types of data in the ValueRecord.
+ValueRecord	valueRecord	Defines positioning value(s) — applied to all glyphs in the Coverage table.
+
+SinglePos2
+uint16	posFormat	Format identifier: format = 2
+Offset16	coverageOffset	Offset to Coverage table, from beginning of SinglePos subtable.
+uint16	valueFormat	Defines the types of data in the ValueRecords.
+uint16	valueCount	Number of ValueRecords — must equal glyphCount in the Coverage table.
+ValueRecord	valueRecords[valueCount]	Array of ValueRecords — positioning values applied to glyphs.
+
+# gpos 2
+
+PairPos1
+uint16	posFormat	Format identifier: format = 1
+Offset16	coverageOffset	Offset to Coverage table, from beginning of PairPos subtable.
+uint16	valueFormat1	Defines the types of data in valueRecord1 — for the first glyph in the pair (may be zero).
+uint16	valueFormat2	Defines the types of data in valueRecord2 — for the second glyph in the pair (may be zero).
+uint16	pairSetCount	Number of PairSet tables
+Offset16	pairSetOffsets[pairSetCount]	Array of offsets to PairSet tables. Offsets are from beginning of PairPos subtable, ordered by Coverage Index.
+
+PairSet
+uint16	pairValueCount	Number of PairValueRecords
+PairValueRecord	pairValueRecords[pairValueCount]	Array of PairValueRecords, ordered by glyph ID of the second glyph.
+
+PairValueRecord
+Type	Name	Description
+uint16	secondGlyph	Glyph ID of second glyph in the pair (first glyph is listed in the Coverage table).
+ValueRecord	valueRecord1	Positioning data for the first glyph in the pair.
+ValueRecord	valueRecord2	Positioning data for the second glyph in the pair.
+
+PairPos2
+uint16	posFormat	Format identifier: format = 2
+Offset16	coverageOffset	Offset to Coverage table, from beginning of PairPos subtable.
+uint16	valueFormat1	ValueRecord definition — for the first glyph of the pair (may be zero).
+uint16	valueFormat2	ValueRecord definition — for the second glyph of the pair (may be zero).
+Offset16	classDef1Offset	Offset to ClassDef table, from beginning of PairPos subtable — for the first glyph of the pair.
+Offset16	classDef2Offset	Offset to ClassDef table, from beginning of PairPos subtable — for the second glyph of the pair.
+uint16	class1Count	Number of classes in classDef1 table — includes Class 0.
+uint16	class2Count	Number of classes in classDef2 table — includes Class 0.
+Class1Record	class1Records[class1Count]	Array of Class1 records, ordered by classes in classDef1.
+
+Class1Record
+Class2Record	class2Records[class2Count]	Array of Class2 records, ordered by classes in classDef2.
+
+Class2Record
+ValueRecord	valueRecord1	Positioning for first glyph — empty if valueFormat1 = 0.
+ValueRecord	valueRecord2	Positioning for second glyph — empty if valueFormat2 = 0.
+
+# gpos 3
+
+CursivePos1
+uint16	posFormat	Format identifier: format = 1
+Offset16	coverageOffset	Offset to Coverage table, from beginning of CursivePos subtable.
+uint16	entryExitCount	Number of EntryExit records
+EntryExitRecord	entryExitRecord[entryExitCount]	Array of EntryExit records, in Coverage index order.
+
+EntryExitRecord
+Offset16	entryAnchorOffset	Offset to entryAnchor table, from beginning of CursivePos subtable (may be NULL).
+Offset16	exitAnchorOffset	Offset to exitAnchor table, from beginning of CursivePos subtable (may be NULL).
+
+# gpos 4
+
+MarkBasePos1
+uint16	posFormat	Format identifier: format = 1
+Offset16	markCoverageOffset	Offset to markCoverage table, from beginning of MarkBasePos subtable.
+Offset16	baseCoverageOffset	Offset to baseCoverage table, from beginning of MarkBasePos subtable.
+uint16	markClassCount	Number of classes defined for marks
+Offset16	markArrayOffset	Offset to MarkArray table, from beginning of MarkBasePos subtable.
+Offset16	baseArrayOffset	Offset to BaseArray table, from beginning of MarkBasePos subtable.
+
+BaseArray
+uint16	baseCount	Number of BaseRecords
+BaseRecord	baseRecords[baseCount]	Array of BaseRecords, in order of baseCoverage Index.
+
+BaseRecord
+Offset16	baseAnchorOffsets[markClassCount]	Array of offsets (one per mark class) to Anchor tables. Offsets are from beginning of BaseArray table, ordered by class (offsets may be NULL).
+
+# gpos 5 
+
+MarkLigPos1
+uint16	posFormat	Format identifier: format = 1
+Offset16	markCoverageOffset	Offset to markCoverage table, from beginning of MarkLigPos subtable.
+Offset16	ligatureCoverageOffset	Offset to ligatureCoverage table, from beginning of MarkLigPos subtable.
+uint16	markClassCount	Number of defined mark classes
+uint32 reservedPadding Hello
+Offset16	markArrayOffset	Offset to MarkArray table, from beginning of MarkLigPos subtable.
+Offset16	ligatureArrayOffset	Offset to LigatureArray table, from beginning of MarkLigPos subtable.
+
+LigatureArray
+uint16	ligatureCount	Number of LigatureAttach table offsets
+Offset16	ligatureAttachOffsets[ligatureCount]	Array of offsets to LigatureAttach tables. Offsets are from beginning of LigatureArray table, ordered by ligatureCoverage index.
+
+LigatureAttach
+uint16	componentCount	Number of ComponentRecords in this ligature
+ComponentRecord	componentRecords[componentCount]	Array of Component records, ordered in writing direction.
+
+ComponentRecord
+Offset16	ligatureAnchorOffsets[markClassCount]	Array of offsets (one per class) to Anchor tables. Offsets are from beginning of LigatureAttach table, ordered by class (offsets may be NULL).
+
+# gpos 6
+
+MarkMarkPosFormat1 
+uint16	posFormat	Format identifier: format = 1
+Offset16	mark1CoverageOffset	Offset to Combining Mark Coverage table, from beginning of MarkMarkPos subtable.
+Offset16	mark2CoverageOffset	Offset to Base Mark Coverage table, from beginning of MarkMarkPos subtable.
+uint16	markClassCount	Number of Combining Mark classes defined
+Offset16	mark1ArrayOffset	Offset to MarkArray table for mark1, from beginning of MarkMarkPos subtable.
+Offset16	mark2ArrayOffset	Offset to Mark2Array table for mark2, from beginning of MarkMarkPos subtable.
+
+Mark2Array
+uint16	mark2Count	Number of Mark2 records
+Mark2Record	mark2Records[mark2Count]	Array of Mark2Records, in Coverage order.
+
+Mark2Record
+Offset16	mark2AnchorOffsets[markClassCount]	Array of offsets (one per class) to Anchor tables. Offsets are from beginning of Mark2Array table, in class order (offsets may be NULL).
+
+# gpos 9
+
+ExtensionPosFormat1
+uint16	posFormat	Format identifier: format = 1
+uint16	extensionLookupType	Lookup type of subtable referenced by extensionOffset (i.e. the extension subtable).
+Offset32	extensionOffset	Offset to the extension subtable, of lookup type extensionLookupType, relative to the start of the ExtensionPosFormat1 subtable.

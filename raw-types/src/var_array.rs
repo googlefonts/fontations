@@ -1,3 +1,4 @@
+/// An array with members of different sizes
 pub struct VarArray<'a, T> {
     bytes: &'a [u8],
     _t: std::marker::PhantomData<T>,

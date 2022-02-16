@@ -1,0 +1,89 @@
+Gsub_1_0
+uint16	majorVersion	Major version of the GSUB table, = 1
+uint16	minorVersion	Minor version of the GSUB table, = 0
+Offset16	scriptListOffset	Offset to ScriptList table, from beginning of GSUB table
+Offset16	featureListOffset	Offset to FeatureList table, from beginning of GSUB table
+Offset16	lookupListOffset	Offset to LookupList table, from beginning of GSUB table
+
+Gsub_1_1
+uint16	majorVersion	Major version of the GSUB table, = 1
+uint16	minorVersion	Minor version of the GSUB table, = 1
+Offset16	scriptListOffset	Offset to ScriptList table, from beginning of GSUB table
+Offset16	featureListOffset	Offset to FeatureList table, from beginning of GSUB table
+Offset16	lookupListOffset	Offset to LookupList table, from beginning of GSUB table
+Offset32	featureVariationsOffset	Offset to FeatureVariations table, from beginning of the GSUB table (may be NULL)
+
+
+# single substitution
+
+SingleSubstFormat1
+uint16	substFormat	Format identifier: format = 1
+Offset16	coverageOffset	Offset to Coverage table, from beginning of substitution subtable
+int16	deltaGlyphID	Add to original glyph ID to get substitute glyph ID
+
+SingleSubstFormat2
+uint16	substFormat	Format identifier: format = 2
+Offset16	coverageOffset	Offset to Coverage table, from beginning of substitution subtable
+uint16	glyphCount	Number of glyph IDs in the substituteGlyphIDs array
+uint16	substituteGlyphIDs[glyphCount]	Array of substitute glyph IDs — ordered by Coverage index
+
+
+# multiple substitution
+
+MultipleSubstFormat1
+uint16	substFormat	Format identifier: format = 1
+Offset16	coverageOffset	Offset to Coverage table, from beginning of substitution subtable
+uint16	sequenceCount	Number of Sequence table offsets in the sequenceOffsets array
+Offset16	sequenceOffsets[sequenceCount]	Array of offsets to Sequence tables. Offsets are from beginning of substitution subtable, ordered by Coverage index
+
+Sequence
+uint16	glyphCount	Number of glyph IDs in the substituteGlyphIDs array. This must always be greater than 0.
+uint16	substituteGlyphIDs[glyphCount]	String of glyph IDs to substitute
+
+# alternate substitution
+
+AlternateSubstFormat1
+uint16	substFormat	Format identifier: format = 1
+Offset16	coverageOffset	Offset to Coverage table, from beginning of substitution subtable
+uint16	alternateSetCount	Number of AlternateSet tables
+Offset16	alternateSetOffsets[alternateSetCount]	Array of offsets to AlternateSet tables. Offsets are from beginning of substitution subtable, ordered by Coverage index
+
+AlternateSet
+uint16	glyphCount	Number of glyph IDs in the alternateGlyphIDs array
+uint16	alternateGlyphIDs[glyphCount]	Array of alternate glyph IDs, in arbitrary order
+
+# ligature substitution
+
+LigatureSubstFormat1
+uint16	substFormat	Format identifier: format = 1
+Offset16	coverageOffset	Offset to Coverage table, from beginning of substitution subtable
+uint16	ligatureSetCount	Number of LigatureSet tables
+Offset16	ligatureSetOffsets[ligatureSetCount]	Array of offsets to LigatureSet tables. Offsets are from beginning of substitution subtable, ordered by Coverage index
+
+LigatureSet
+uint16	ligatureCount	Number of Ligature tables
+Offset16	ligatureOffsets[LigatureCount]	Array of offsets to Ligature tables. Offsets are from beginning of LigatureSet table, ordered by preference.
+
+Ligature
+uint16	ligatureGlyph	glyph ID of ligature to substitute
+uint16	componentCount	Number of components in the ligature
+uint16	componentGlyphIDs[componentCount - 1]	Array of component glyph IDs — start with the second component, ordered in writing direction
+
+# extension substitution
+
+ExtensionSubstFormat1
+uint16	substFormat	Format identifier. Set to 1.
+uint16	extensionLookupType	Lookup type of subtable referenced by extensionOffset (that is, the extension subtable).
+Offset32	extensionOffset	Offset to the extension subtable, of lookup type extensionLookupType, relative to the start of the ExtensionSubstFormat1 subtable.
+
+# reverse chaining
+
+ReverseChainSingleSubstFormat1
+uint16	substFormat	Format identifier: format = 1
+Offset16	coverageOffset	Offset to Coverage table, from beginning of substitution subtable.
+uint16	backtrackGlyphCount	Number of glyphs in the backtrack sequence.
+Offset16	backtrackCoverageOffsets[backtrackGlyphCount]	Array of offsets to coverage tables in backtrack sequence, in glyph sequence order.
+uint16	lookaheadGlyphCount	Number of glyphs in lookahead sequence.
+Offset16	lookaheadCoverageOffsets[lookaheadGlyphCount]	Array of offsets to coverage tables in lookahead sequence, in glyph sequence order.
+uint16	glyphCount	Number of glyph IDs in the substituteGlyphIDs array.
+uint16	substituteGlyphIDs[glyphCount]	Array of substitute glyph IDs — ordered by Coverage index.
