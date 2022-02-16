@@ -38,13 +38,18 @@ macro_rules! exit_with_msg {
         std::process::exit(1);
     }};
 }
+
+static MACRO_CALL: &str = "toy_table_macro::tables!";
+
 fn main() {
     let in_path = std::env::args().nth(1).expect("expected path argument");
     let input = std::fs::read_to_string(in_path).expect("failed to read path");
     let mut lines = input.lines().map(str::trim).filter(|l| !l.starts_with('#'));
+    println!("{} {{", MACRO_CALL);
     while let Some(item) = generate_one_item(&mut lines) {
         println!("{}", item);
     }
+    println!("}}");
 }
 
 /// parse a single table or record.
