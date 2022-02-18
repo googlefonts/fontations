@@ -1,7 +1,3 @@
-#![allow(dead_code)]
-
-use std::str::FromStr;
-
 use quote::quote;
 use syn::{
     braced, bracketed, parenthesized,
@@ -51,34 +47,15 @@ pub struct Variant {
     pub typ_lifetime: Option<syn::Lifetime>,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum ScalarType {
-    I8,
-    U8,
-    I16,
-    U16,
-    U32,
-    I32,
-    U24,
-    Fixed,
-    F2Dot14,
-    LongDateTime,
-    Offset16,
-    Offset24,
-    Offset32,
-    Tag,
-    Version16Dot16,
-}
-
 pub enum Field {
-    Scalar(ScalarField),
+    Single(SingleField),
     Array(ArrayField),
 }
 
-pub struct ScalarField {
+pub struct SingleField {
     pub docs: Vec<syn::Attribute>,
     pub name: syn::Ident,
-    pub typ: ScalarType,
+    pub typ: syn::Path,
     pub hidden: Option<syn::Path>,
 }
 
@@ -179,38 +156,30 @@ impl Parse for Field {
             let lifetime = get_generics(&content)?;
             attrs.into_array(name, typ, lifetime).map(Field::Array)
         } else {
-            attrs.into_scalar(name, input.parse()?).map(Field::Scalar)
+            attrs.into_single(name, input.parse()?).map(Field::Single)
         }
     }
 }
 
 impl Field {
-    pub fn concrete_type_tokens(&self) -> proc_macro2::TokenStream {
-        match &self {
-            Self::Array(ArrayField {
-                inner_typ,
-                inner_lifetime,
-                ..
-            }) => match ScalarType::from_str(&inner_typ.to_string()).map(|s| s.raw_type_tokens()) {
-                Ok(typ) => quote!([#typ]),
-                Err(_) if inner_lifetime.is_some() => quote!([#inner_typ<'a>]),
-                Err(_) => quote!([#inner_typ]),
-            },
-            Self::Scalar(ScalarField { typ, .. }) => typ.raw_type_tokens(),
+    pub fn name(&self) -> &syn::Ident {
+        match self {
+            Field::Array(v) => &v.name,
+            Field::Single(v) => &v.name,
         }
     }
 
-    pub fn as_scalar(&self) -> Option<&ScalarField> {
+    pub fn as_single(&self) -> Option<&SingleField> {
         match self {
             Field::Array(_) => None,
-            Field::Scalar(v) => Some(v),
+            Field::Single(v) => Some(v),
         }
     }
 
     pub fn as_array(&self) -> Option<&ArrayField> {
         match self {
             Field::Array(v) => Some(v),
-            Field::Scalar(_) => None,
+            Field::Single(_) => None,
         }
     }
 
@@ -222,20 +191,44 @@ impl Field {
         self.is_array()
     }
 
-    pub fn is_scalar(&self) -> bool {
-        matches!(self, Field::Scalar(_))
+    pub fn is_single(&self) -> bool {
+        matches!(self, Field::Single(_))
     }
 
     pub fn docs(&self) -> &[syn::Attribute] {
         match self {
             Field::Array(v) => &v.docs,
-            Field::Scalar(v) => &v.docs,
+            Field::Single(v) => &v.docs,
         }
+    }
+}
+
+impl SingleField {
+    /// tokens representing the length of this field in raw bytes
+    pub fn len_tokens(&self) -> proc_macro2::TokenStream {
+        let typ = &self.typ;
+        quote!(std::mem::size_of::<#typ>())
+        //quote!(std::mem::size_of::<<#typ as ::raw_types::FontType>::Raw>())
+    }
+
+    pub fn raw_type_tokens(&self) -> proc_macro2::TokenStream {
+        let typ = &self.typ;
+        quote!(#typ)
+        //quote!(<#typ as ::raw_types::FontType::Raw>::Raw)
+    }
+
+    /// tokens for getting this field from a byte slice.
+    ///
+    /// This should return Option<Self>, and it will be unwrapped where it has been prechecked.
+    pub fn getter_tokens(&self, bytes: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+        let typ = &self.typ;
+        quote!(<#typ as zerocopy::FromBytes>::read_from(#bytes))
     }
 }
 
 impl SingleItem {
     fn validate(&self) -> Result<(), syn::Error> {
+        // check for lifetime
         let needs_lifetime = self.fields.iter().any(|x| x.requires_lifetime());
         if needs_lifetime && self.lifetime.is_none() {
             let msg = format!(
@@ -249,17 +242,26 @@ impl SingleItem {
                 "only objects containing arrays or offsets require lifetime",
             ));
         }
-        Ok(())
-    }
 
-    pub fn checkable_len(&self) -> usize {
-        self.fields
+        let split_pos = self
+            .fields
             .iter()
-            .filter_map(|fld| match fld {
-                Field::Array(_) => None,
-                Field::Scalar(val) => Some(val.typ.size()),
-            })
-            .sum()
+            .position(|x| x.is_array())
+            .unwrap_or_else(|| self.fields.len());
+
+        let valid_input_fields = &self.fields[..split_pos];
+        // check that fields are known & are scalar
+        for ident in self
+            .fields
+            .iter()
+            .filter_map(Field::as_array)
+            .flat_map(|x| x.count.iter_input_fields())
+        {
+            if !valid_input_fields.iter().any(|x| x.name() == ident) {
+                return Err(syn::Error::new(ident.span(), "unknown field"));
+            }
+        }
+        Ok(())
     }
 }
 
@@ -283,77 +285,6 @@ impl ItemGroup {
                 name.span(),
                 "all enum groups require #[format(..)] attribute",
             ))
-        }
-    }
-}
-impl ScalarType {
-    pub const fn size(self) -> usize {
-        match self {
-            ScalarType::I8 | ScalarType::U8 => 1,
-            ScalarType::I16 | ScalarType::U16 | ScalarType::Offset16 | ScalarType::F2Dot14 => 2,
-            ScalarType::U24 | ScalarType::Offset24 => 3,
-            ScalarType::Fixed
-            | ScalarType::Tag
-            | ScalarType::U32
-            | ScalarType::I32
-            | ScalarType::Version16Dot16
-            | ScalarType::Offset32 => 4,
-            ScalarType::LongDateTime => 8,
-        }
-    }
-
-    pub fn raw_type_tokens(&self) -> proc_macro2::TokenStream {
-        match self {
-            Self::I8 => quote!(::raw_types::Int8),
-            Self::U8 => quote!(::raw_types::Uint8),
-            Self::I16 => quote!(::raw_types::Int16),
-            Self::U16 => quote!(::raw_types::Uint16),
-            Self::U24 => quote!(::raw_types::Uint24),
-            Self::I32 => quote!(::raw_types::Int32),
-            Self::U32 => quote!(::raw_types::Uint32),
-            Self::Fixed => quote!(::raw_types::Fixed),
-            Self::F2Dot14 => quote!(::raw_types::F2Dot14),
-            Self::LongDateTime => quote!(::raw_types::LongDateTime),
-            Self::Offset16 => quote!(::raw_types::Offset16),
-            Self::Offset24 => quote!(::raw_types::Offset24),
-            Self::Offset32 => quote!(::raw_types::Offset32),
-            Self::Tag => quote!(::raw_types::Tag),
-            Self::Version16Dot16 => quote!(::raw_types::Version16Dot16),
-        }
-    }
-}
-
-impl Parse for ScalarType {
-    fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        let name: syn::Ident = input
-            .parse()
-            .map_err(|e| syn::Error::new(e.span(), "expected scalar type"))?;
-        let name_str = name.to_string();
-        ScalarType::from_str(&name_str)
-            .map_err(|_| syn::Error::new(name.span(), "Expected scalar type"))
-    }
-}
-
-impl FromStr for ScalarType {
-    type Err = ();
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "Int8" => Ok(Self::I8),
-            "Uint8" => Ok(Self::U8),
-            "Int16" => Ok(Self::I16),
-            "Uint16" => Ok(Self::U16),
-            "Uint24" => Ok(Self::U24),
-            "Int32" => Ok(Self::I32),
-            "Uint32" => Ok(Self::U32),
-            "Fixed" => Ok(Self::Fixed),
-            "F2Dot14" => Ok(Self::F2Dot14),
-            "LongDateTime" => Ok(Self::LongDateTime),
-            "Offset16" => Ok(Self::Offset16),
-            "Offset24" => Ok(Self::Offset24),
-            "Offset32" => Ok(Self::Offset32),
-            "Tag" => Ok(Self::Tag),
-            "Version16Dot16" => Ok(Self::Version16Dot16),
-            _ => Err(()),
         }
     }
 }

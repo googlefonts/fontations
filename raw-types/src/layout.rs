@@ -2,7 +2,7 @@
 //!
 //! See [the docs](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2).
 
-use raw_types::{Offset16, Offset32, Uint16};
+use crate::{F2Dot14, Offset16, Offset32, Tag, Uint16, Uint32};
 
 toy_table_macro::tables! {
     ScriptList<'a> {
@@ -294,6 +294,7 @@ toy_table_macro::tables! {
         chained_seq_rule_offsets: [Offset16],
     }
 
+    //FIXME: this includes scalars after arrays, and we don't currently handle that
     ChainedSequenceRule<'a> {
         /// Number of glyphs in the backtrack sequence
         backtrack_glyph_count: Uint16,
@@ -303,17 +304,20 @@ toy_table_macro::tables! {
         /// Number of glyphs in the input sequence
         input_glyph_count: Uint16,
         /// - 1]    Array of input glyph IDs—start with second glyph
-        #[count(input_glyph_count)]
+        //#[count(input_glyph_count)]
+        #[count(0)]
         input_sequence: [Uint16],
         /// Number of glyphs in the lookahead sequence
         lookahead_glyph_count: Uint16,
         /// Array of lookahead glyph IDs
         #[count(lookahead_glyph_count)]
+        #[count(0)]
         lookahead_sequence: [Uint16],
         /// Number of SequenceLookupRecords
         seq_lookup_count: Uint16,
         /// Array of SequenceLookupRecords
-        #[count(seq_lookup_count)]
+        //#[count(seq_lookup_count)]
+        #[count(0)]
         seq_lookup_records: [SequenceLookupRecord],
     }
 
@@ -349,6 +353,7 @@ toy_table_macro::tables! {
         chained_class_seq_rule_offsets: [Offset16],
     }
 
+    //FIXME: more scalars after arrays,w
     ChainedClassSequenceRule<'a> {
         /// Number of glyphs in the backtrack sequence
         backtrack_glyph_count: Uint16,
@@ -359,17 +364,20 @@ toy_table_macro::tables! {
         input_glyph_count: Uint16,
         /// - 1]    Array of input sequence classes, beginning with the second
         /// glyph position
-        #[count(input_glyph_count)]
+        //#[count(input_glyph_count)]
+        #[count(0)]
         input_sequence: [Uint16],
         /// Number of glyphs in the lookahead sequence
         lookahead_glyph_count: Uint16,
         /// Array of lookahead-sequence classes
-        #[count(lookahead_glyph_count)]
+        //#[count(lookahead_glyph_count)]
+        #[count(0)]
         lookahead_sequence: [Uint16],
         /// Number of SequenceLookupRecords
         seq_lookup_count: Uint16,
         /// Array of SequenceLookupRecords
-        #[count(seq_lookup_count)]
+        //#[count(seq_lookup_count)]
+        #[count(0)]
         seq_lookup_records: [SequenceLookupRecord],
     }
 
@@ -384,17 +392,20 @@ toy_table_macro::tables! {
         /// Number of glyphs in the input sequence
         input_glyph_count: Uint16,
         /// Array of offsets to coverage tables for the input sequence
-        #[count(input_glyph_count)]
+        //#[count(input_glyph_count)]
+        #[count(0)]
         input_coverage_offsets: [Offset16],
         /// Number of glyphs in the lookahead sequence
         lookahead_glyph_count: Uint16,
         /// Array of offsets to coverage tables for the lookahead sequence
-        #[count(lookahead_glyph_count)]
+        //#[count(lookahead_glyph_count)]
+        #[count(0)]
         lookahead_coverage_offsets: [Offset16],
         /// Number of SequenceLookupRecords
         seq_lookup_count: Uint16,
         /// Array of SequenceLookupRecords
-        #[count(seq_lookup_count)]
+        //#[count(seq_lookup_count)]
+        #[count(0)]
         seq_lookup_records: [SequenceLookupRecord],
     }
 }

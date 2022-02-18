@@ -1,3 +1,5 @@
+use crate::Int16;
+
 toy_table_macro::tables! {
     GlyphHeader {
         number_of_contours: Int16,

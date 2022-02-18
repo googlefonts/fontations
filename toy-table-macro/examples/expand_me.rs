@@ -2,6 +2,8 @@
 
 #![allow(dead_code)]
 
+use raw_types::{F2Dot14, Uint16};
+
 toy_table_macro::tables! {
     /// Some segment maps
     ///
@@ -37,8 +39,7 @@ fn identity(t: raw_types::Uint16) -> usize {
 
 impl<'a> raw_types::VarSized<'a> for SegmentMaps<'a> {
     fn len(&self) -> usize {
-        self.position_map_count().unwrap_or_default().get() as usize
-            * std::mem::size_of::<AxisValueMap>()
+        self.position_map_count().get() as usize * std::mem::size_of::<AxisValueMap>()
     }
 }
 

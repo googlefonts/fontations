@@ -18,7 +18,7 @@ pub fn tables(input: TokenStream) -> TokenStream {
 }
 
 fn generate_item_code(item: &parse::SingleItem) -> proc_macro2::TokenStream {
-    if item.fields.iter().all(|x| x.is_scalar()) {
+    if item.fields.iter().all(|x| x.is_single()) {
         generate_zerocopy_impls(item)
     } else {
         generate_view_impls(item)
@@ -92,11 +92,14 @@ fn generate_zerocopy_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream
     let field_names = item
         .fields
         .iter()
-        .map(|field| &field.as_scalar().unwrap().name);
+        .map(|field| &field.as_single().unwrap().name);
     let docs = &item.docs;
-    let field_types = item.fields.iter().map(parse::Field::concrete_type_tokens);
+    let field_types = item
+        .fields
+        .iter()
+        .map(|field| field.as_single().unwrap().raw_type_tokens());
     let field_docs = item.fields.iter().map(|fld| {
-        let docs = &fld.as_scalar().unwrap().docs;
+        let docs = &fld.as_single().unwrap().docs;
         quote!( #( #docs )* )
     });
 
@@ -123,37 +126,44 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
 
     let mut current_offset = quote!(0);
     let mut in_checked_range = true;
-    let mut checkable_len = 0;
+    // some fields do not know their length. If we encounter one of those fields,
+    // we set this to the initial offset of that field; otherwise we set this
+    // to the final calculated offset.
+    // We verify that the input data is at least this long when we construct our
+    // object, and any fields in this checked data can use get_unchecked in their getters
+    let mut checkable_len = None;
     let mut getters = Vec::new();
 
     for field in &item.fields {
         match field {
-            parse::Field::Scalar(scalar) => {
+            parse::Field::Single(scalar) => {
                 if scalar.hidden.is_none() {
                     getters.push(make_scalar_getter(
                         scalar,
-                        &current_offset,
+                        &mut current_offset,
                         in_checked_range,
                     ));
+                } else {
+                    let len = scalar.len_tokens();
+                    current_offset = quote!( #current_offset + #len );
                 }
-                let field_len = scalar.typ.size();
-                if in_checked_range {
-                    checkable_len += field_len;
-                }
-                current_offset = quote!(#current_offset + #field_len);
-            }
-            parse::Field::Array(array) if array.variable_size.is_none() => {
-                getters.push(make_array_getter(
-                    array,
-                    &mut current_offset,
-                    in_checked_range,
-                ));
-                in_checked_range = false;
             }
             parse::Field::Array(array) => {
-                getters.push(make_var_array_getter(array, &mut current_offset));
+                if checkable_len.is_none() {
+                    checkable_len = Some(quote!(#current_offset));
+                    in_checked_range = false;
+                }
+                let getter = if array.variable_size.is_none() {
+                    make_array_getter(array, &mut current_offset, in_checked_range)
+                } else {
+                    make_var_array_getter(array, &mut current_offset)
+                };
+                getters.push(getter);
             }
         }
+    }
+    if checkable_len.is_none() {
+        checkable_len = Some(current_offset);
     }
     let field_docs = item.fields.iter().map(|field| {
         let docs = field.docs();
@@ -180,12 +190,12 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
 }
 
 fn make_scalar_getter(
-    field: &parse::ScalarField,
-    offset: &proc_macro2::TokenStream,
+    field: &parse::SingleField,
+    offset: &mut proc_macro2::TokenStream,
     checked: bool,
 ) -> proc_macro2::TokenStream {
     let name = &field.name;
-    let len = field.typ.size();
+    let len = field.len_tokens();
 
     let get_bytes = if checked {
         quote!(unsafe { self.0.get_unchecked(#offset..#offset + #len) })
@@ -193,11 +203,22 @@ fn make_scalar_getter(
         quote!(self.0.get(#offset..#offset + #len).unwrap_or_default())
     };
 
-    let ty = field.typ.raw_type_tokens();
+    *offset = quote!(#offset + #len);
+    let ty = &field.typ;
 
-    quote! {
-        pub fn #name(&self) -> Option<#ty> {
-            zerocopy::FromBytes::read_from(#get_bytes)
+    let from_bytes = field.getter_tokens(&get_bytes);
+    if checked {
+        quote! {
+        pub fn #name(&self) -> #ty {
+            let raw = #from_bytes.unwrap();
+            raw
+        }
+        }
+    } else {
+        quote! {
+            pub fn #name(&self) -> Option<#ty> {
+                #from_bytes
+            }
         }
     }
 }
@@ -215,11 +236,9 @@ fn make_array_getter(
         "inner_lifetime should only exist on variable size fields"
     );
     let len = match &field.count {
-        parse::Count::Field(name) => Some(quote!(self.#name().unwrap_or_default().get() as usize)),
+        parse::Count::Field(name) => Some(quote!(self.#name().get() as usize)),
         parse::Count::Function { fn_, args } => {
-            let args = args
-                .iter()
-                .map(|arg| quote!(self.#arg().unwrap_or_default()));
+            let args = args.iter().map(|arg| quote!(self.#arg()));
             Some(quote!(#fn_( #( #args ),* )))
         }
         parse::Count::Literal(lit) => Some(quote! { (#lit as usize) }),

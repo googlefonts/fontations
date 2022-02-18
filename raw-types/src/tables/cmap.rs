@@ -135,7 +135,7 @@ impl<'a> Cmap4<'a> {
     /// (It can just map the single character code 0xFFFF to missingGlyph).
     /// However, the segment must be present.
     pub fn glyph_id_for_char(&self, chr: char) -> Uint16 {
-        let n_segs = self.seg_count_x2().unwrap_or_default().get() / 2;
+        let n_segs = self.seg_count_x2().get() / 2;
         let raw_char = (chr as u32).try_into().unwrap_or_default();
         let seg_idx = match self
             .end_code()

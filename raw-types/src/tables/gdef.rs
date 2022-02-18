@@ -1,4 +1,4 @@
-use raw_types::{Offset16, Offset32, Uint16};
+use crate::{Int16, Offset16, Offset32, Uint16};
 
 toy_table_macro::tables! {
     Gdef_1_0 {

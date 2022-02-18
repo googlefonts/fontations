@@ -1,3 +1,5 @@
+use crate::{Fixed, Int16, LongDateTime, Uint16, Uint32};
+
 toy_table_macro::tables! {
     Head {
      major_version: Uint16,

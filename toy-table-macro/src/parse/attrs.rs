@@ -1,6 +1,6 @@
 use syn::spanned::Spanned;
 
-use super::{ArrayField, ScalarField, ScalarType};
+use super::{ArrayField, SingleField};
 
 /// All of the attrs that can be applied to a field.
 ///
@@ -123,7 +123,7 @@ impl FieldAttrs {
         })
     }
 
-    pub fn into_scalar(self, name: syn::Ident, typ: ScalarType) -> Result<ScalarField, syn::Error> {
+    pub fn into_single(self, name: syn::Ident, typ: syn::Path) -> Result<SingleField, syn::Error> {
         if let Some(span) = self.count.as_ref().map(Count::span) {
             return Err(syn::Error::new(
                 span,
@@ -134,7 +134,7 @@ impl FieldAttrs {
             return Err(syn::Error::new(token.span(), "not valid on scalar fields"));
         }
 
-        Ok(ScalarField {
+        Ok(SingleField {
             docs: self.docs,
             name,
             typ,
@@ -151,6 +151,20 @@ impl Count {
             Count::Function { fn_, .. } => fn_.span(),
             Count::Literal(lit) => lit.span(),
         }
+    }
+
+    pub fn iter_input_fields(&self) -> impl Iterator<Item = &syn::Ident> {
+        let fn_fields = match self {
+            Count::Function { args, .. } => args.as_slice(),
+            _ => &[],
+        };
+
+        let field = match self {
+            Count::Field(ident) => Some(ident),
+            _ => None,
+        };
+
+        field.into_iter().chain(fn_fields)
     }
 }
 
@@ -200,7 +214,7 @@ impl ItemAttrs {
 
                     return Err(syn::Error::new(
                         list.path.span(),
-                        "format attribute should  be in form 'version(ScalarType)'",
+                        "format attribute should  be in form 'version(Type)'",
                     ));
                 }
                 other => return Err(syn::Error::new(dbg!(other).span(), "unknown attribute")),

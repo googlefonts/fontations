@@ -1,3 +1,5 @@
+use crate::{Uint16, Version16Dot16};
+
 toy_table_macro::tables! {
 Maxp05 {
      version: Version16Dot16,
