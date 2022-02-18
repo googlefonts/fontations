@@ -1,4 +1,4 @@
-use raw_types::{Offset16, Uint16};
+use crate::{Int16, Offset16, Offset32, Uint16};
 
 toy_table_macro::tables! {
     Gsub_1_0 {
@@ -144,6 +144,7 @@ toy_table_macro::tables! {
         extension_offset: Offset32,
     }
 
+    //FIXME: scalars after arrays
     ReverseChainSingleSubstFormat1<'a> {
         /// Format identifier: format = 1
         subst_format: Uint16,
@@ -160,12 +161,14 @@ toy_table_macro::tables! {
         lookahead_glyph_count: Uint16,
         /// Array of offsets to coverage tables in lookahead sequence, in
         /// glyph sequence order.
-        #[count(lookahead_glyph_count)]
+        //#[count(lookahead_glyph_count)]
+        #[count(0)]
         lookahead_coverage_offsets: [Offset16],
         /// Number of glyph IDs in the substituteGlyphIDs array.
         glyph_count: Uint16,
         /// Array of substitute glyph IDs — ordered by Coverage index.
-        #[count(glyph_count)]
+        //#[count(glyph_count)]
+        #[count(0)]
         substitute_glyph_i_ds: [Uint16],
     }
 

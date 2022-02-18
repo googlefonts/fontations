@@ -1,6 +1,4 @@
-use raw_types::Offset16;
-
-use crate::Uint16;
+use crate::{Fixed, Offset16, Offset32, Tag, Uint16};
 
 toy_table_macro::tables! {
     Stat<'a> {
