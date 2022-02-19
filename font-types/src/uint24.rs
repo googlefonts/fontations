@@ -1,5 +1,3 @@
-use crate::ExactSized;
-
 /// 24-bit unsigned integer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Uint24(u32);
@@ -34,16 +32,15 @@ impl From<Uint24> for u32 {
     }
 }
 
-impl ExactSized for Uint24 {
-    const SIZE: usize = 3;
-}
+/// An unaligned big-endian unsigned 24-bit integer.
+#[derive(Debug, Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
+#[repr(transparent)]
+pub struct RawU24([u8; 3]);
 
-unsafe impl super::FromBeBytes<3> for super::Uint24 {
-    type Error = crate::Never;
-    fn read(raw: [u8; 3]) -> Result<Self, Self::Error> {
-        Ok(Self(
-            (raw[0] as u32) << 16 | (raw[1] as u32) << 8 | raw[2] as u32,
-        ))
+impl crate::RawType for RawU24 {
+    type Cooked = Uint24;
+    fn get(self) -> Uint24 {
+        Uint24::new((self.0[0] as u32) << 16 | (self.0[1] as u32) << 8 | self.0[2] as u32)
     }
 }
 

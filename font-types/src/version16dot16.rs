@@ -1,3 +1,5 @@
+use crate::integers::RawU32;
+
 /// A legacy 16/16 version encoding
 
 /// Packed 32-bit value with major and minor version numbers.
@@ -6,6 +8,11 @@
 /// additional details.
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Version16Dot16(u32);
+
+/// A raw (big-endian) [`Version16Dot16`].
+#[derive(Debug, Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
+#[repr(transparent)]
+pub struct RawVersion16Dot16(RawU32);
 
 impl Version16Dot16 {
     /// Create a new version with the provided major and minor parts.
@@ -26,6 +33,13 @@ impl Version16Dot16 {
         let major = (self.0 >> 16) as u16;
         let minor = ((self.0 & 0xFFFF) >> 12) as u16;
         (major, minor)
+    }
+}
+
+impl crate::RawType for RawVersion16Dot16 {
+    type Cooked = Version16Dot16;
+    fn get(self) -> Version16Dot16 {
+        Version16Dot16(self.0.get())
     }
 }
 

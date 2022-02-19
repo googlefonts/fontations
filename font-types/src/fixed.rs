@@ -1,10 +1,21 @@
 //! fixed-point numerical types
 
+use crate::integers::{RawI16, RawI32};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
+
+/// An unaligned 32-bit big-endian signed fixed-point number (16.16)
+#[derive(Debug, Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
+#[repr(transparent)]
+pub struct RawFixed(RawI32);
+
+/// An unaligned big-endian 16-bit signed fixed-point number (2.14)
+#[derive(Debug, Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
+#[repr(transparent)]
+pub struct RawF2Dot14(RawI16);
 
 // shared between Fixed and F2dot14
 macro_rules! fixed_impl {
-    ($name:ident, $bits:literal, $fract_bits:literal, $ty:ty) => {
+    ($name:ident, $bits:literal, $fract_bits:literal, $ty:ty, $raw:ty) => {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
         #[doc = concat!(stringify!($bits), "-bit signed fixed point number with ", stringify!($fract_bits), " bits of fraction." )]
         pub struct $name($ty);
@@ -93,7 +104,14 @@ macro_rules! fixed_impl {
                 *self = *self - other;
             }
         }
-    };
+
+        impl crate::RawType for $raw {
+            type Cooked = $name;
+            fn get(self) -> $name {
+                $name(self.0.get())
+            }
+        }
+    }
 }
 
 /// impl float conversion methods.
@@ -145,9 +163,9 @@ macro_rules! float_conv {
     };
 }
 
-fixed_impl!(F2dot14, 16, 14, i16);
-fixed_impl!(Fixed, 32, 16, i32);
-float_conv!(F2dot14, to_f32, from_f32, f32);
+fixed_impl!(F2Dot14, 16, 14, i16, RawF2Dot14);
+fixed_impl!(Fixed, 32, 16, i32, RawFixed);
+float_conv!(F2Dot14, to_f32, from_f32, f32);
 float_conv!(Fixed, to_f64, from_f64, f64);
 
 #[cfg(test)]
@@ -158,27 +176,27 @@ mod tests {
     #[test]
     fn f2dot14_floats() {
         // Examples from https://docs.microsoft.com/en-us/typography/opentype/spec/otff#data-types
-        assert_eq!(F2dot14(0x7fff), F2dot14::from_f32(1.999939));
-        assert_eq!(F2dot14(0x7000), F2dot14::from_f32(1.75));
-        assert_eq!(F2dot14(0x0001), F2dot14::from_f32(0.0000610356));
-        assert_eq!(F2dot14(0x0000), F2dot14::from_f32(0.0));
-        assert_eq!(F2dot14(0xffff), F2dot14::from_f32(-0.000061));
-        assert_eq!(F2dot14(0x8000), F2dot14::from_f32(-2.0));
+        assert_eq!(F2Dot14(0x7fff), F2Dot14::from_f32(1.999939));
+        assert_eq!(F2Dot14(0x7000), F2Dot14::from_f32(1.75));
+        assert_eq!(F2Dot14(0x0001), F2Dot14::from_f32(0.0000610356));
+        assert_eq!(F2Dot14(0x0000), F2Dot14::from_f32(0.0));
+        assert_eq!(F2Dot14(0xffff), F2Dot14::from_f32(-0.000061));
+        assert_eq!(F2Dot14(0x8000), F2Dot14::from_f32(-2.0));
     }
 
     #[test]
     fn roundtrip_f2dot14() {
         for i in i16::MIN..=i16::MAX {
-            let val = F2dot14(i);
-            assert_eq!(val, F2dot14::from_f32(val.to_f32()));
+            let val = F2Dot14(i);
+            assert_eq!(val, F2Dot14::from_f32(val.to_f32()));
         }
     }
 
     #[test]
     fn round_f2dot14() {
-        assert_eq!(F2dot14(0x7000).round(), F2dot14::from_f32(-2.0));
-        assert_eq!(F2dot14(0x1F00).round(), F2dot14::from_f32(0.0));
-        assert_eq!(F2dot14(0x2000).round(), F2dot14::from_f32(1.0));
+        assert_eq!(F2Dot14(0x7000).round(), F2Dot14::from_f32(-2.0));
+        assert_eq!(F2Dot14(0x1F00).round(), F2Dot14::from_f32(0.0));
+        assert_eq!(F2Dot14(0x2000).round(), F2Dot14::from_f32(1.0));
     }
 
     #[test]

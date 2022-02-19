@@ -5,13 +5,25 @@ use std::{
     str::FromStr,
 };
 
-use crate::{ExactSized, FromBeBytes};
+//FIXME: this needs to  be rethought, we need to safely handle invalid data
 
 /// An OpenType tag.
 ///
 /// A tag is a 4-byte array where each byte is in the printable ascii range
 /// (0x20..=0x7E).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    Hash,
+    PartialOrd,
+    Ord,
+    zerocopy::Unaligned,
+    zerocopy::FromBytes,
+)]
+#[repr(transparent)]
 pub struct Tag([u8; 4]);
 
 impl Tag {
@@ -97,14 +109,11 @@ impl FromStr for Tag {
     }
 }
 
-impl ExactSized for Tag {
-    const SIZE: usize = 4;
-}
-
-unsafe impl FromBeBytes<4> for Tag {
-    type Error = InvalidTag;
-    fn read(bytes: [u8; 4]) -> Result<Self, Self::Error> {
-        Tag::new_checked(&bytes)
+// Tag is stored as [u8; 4] so encoding is correct regardless of endianness
+impl crate::RawType for Tag {
+    type Cooked = Tag;
+    fn get(self) -> Tag {
+        self
     }
 }
 

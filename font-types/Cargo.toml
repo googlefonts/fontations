@@ -8,3 +8,6 @@ edition = "2021"
 [features]
 std = []
 default = ["std"]
+
+[dependencies]
+zerocopy = "0.6"

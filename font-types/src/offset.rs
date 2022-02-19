@@ -2,10 +2,26 @@
 
 use std::num::{NonZeroU16, NonZeroU32};
 
-use crate::{ExactSized, FromBeBytes, Uint24};
+use crate::integers::{RawU16, RawU32};
+use crate::RawU24;
+
+/// A raw (big-endinag) 16-bit offset.
+#[derive(Debug, Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
+#[repr(transparent)]
+pub struct RawOffset16(RawU16);
+
+/// A raw (big-endinag) 24-bit offset.
+#[derive(Debug, Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
+#[repr(transparent)]
+pub struct RawOffset24(RawU24);
+
+/// A raw (big-endian) 32-bit offset.
+#[derive(Debug, Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
+#[repr(transparent)]
+pub struct RawOffset32(RawU32);
 
 macro_rules! impl_offset {
-    ($name:ident, $bits:literal, $ty:ty, $rawty:ty) => {
+    ($name:ident, $raw:ty, $bits:literal, $ty:ty, $rawty:ty) => {
         #[doc = concat!("A", stringify!($bits), "-bit offset to a table.")]
         ///
         /// Specific offset fields may or may not permit NULL values. For that
@@ -27,32 +43,17 @@ macro_rules! impl_offset {
             }
         }
 
-        impl ExactSized for $name {
-            const SIZE: usize = $bits / 8;
-        }
-
-        impl ExactSized for Option<$name> {
-            const SIZE: usize = $bits / 8;
-        }
-
-        unsafe impl FromBeBytes<{ $bits / 8 }> for $name {
-            type Error = NullOffset;
-            fn read(bytes: [u8; $bits / 8]) -> Result<Self, Self::Error> {
-                $name::new(FromBeBytes::read(bytes).unwrap()).ok_or(NullOffset)
-            }
-        }
-
-        unsafe impl FromBeBytes<{ $bits / 8 }> for Option<$name> {
-            type Error = crate::Never;
-            fn read(bytes: [u8; $bits / 8]) -> Result<Self, Self::Error> {
-                FromBeBytes::read(bytes).map($name::new)
+        impl crate::RawType for $raw {
+            type Cooked = Option<$name>;
+            fn get(self) -> Option<$name> {
+                $name::new(self.0.get())
             }
         }
     };
 }
 
-impl_offset!(Offset16, 16, NonZeroU16, u16);
-impl_offset!(Offset32, 32, NonZeroU32, u32);
+impl_offset!(Offset16, RawOffset16, 16, NonZeroU16, u16);
+impl_offset!(Offset32, RawOffset32, 32, NonZeroU32, u32);
 
 /// A 24-bit offset to a table.
 ///
@@ -62,9 +63,9 @@ impl_offset!(Offset32, 32, NonZeroU32, u32);
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Offset24(NonZeroU32);
 
-/// An error type representing an unexpected `NULL` offset.
-#[derive(Debug, Clone)]
-pub struct NullOffset;
+///// An error type representing an unexpected `NULL` offset.
+//#[derive(Debug, Clone)]
+//pub struct NullOffset;
 
 impl Offset24 {
     /// Create a new offset.
@@ -78,24 +79,10 @@ impl Offset24 {
     }
 }
 
-impl ExactSized for Option<Offset24> {
-    const SIZE: usize = 3;
-}
+impl crate::RawType for RawOffset24 {
+    type Cooked = Option<Offset24>;
 
-impl ExactSized for Offset24 {
-    const SIZE: usize = 3;
-}
-
-unsafe impl FromBeBytes<3> for Offset24 {
-    type Error = NullOffset;
-    fn read(bytes: [u8; 3]) -> Result<Self, Self::Error> {
-        Offset24::new(Uint24::read(bytes).unwrap().into()).ok_or(NullOffset)
-    }
-}
-
-unsafe impl FromBeBytes<3> for Option<Offset24> {
-    type Error = crate::Never;
-    fn read(bytes: [u8; 3]) -> Result<Self, Self::Error> {
-        Uint24::read(bytes).map(|val| Offset24::new(val.into()))
+    fn get(self) -> Option<Offset24> {
+        Offset24::new(self.0.get().into())
     }
 }
