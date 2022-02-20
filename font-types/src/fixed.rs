@@ -167,6 +167,8 @@ fixed_impl!(F2Dot14, 16, 14, i16, RawF2Dot14);
 fixed_impl!(Fixed, 32, 16, i32, RawFixed);
 float_conv!(F2Dot14, to_f32, from_f32, f32);
 float_conv!(Fixed, to_f64, from_f64, f64);
+crate::newtype_scalar!(F2Dot14, [u8; 2]);
+crate::newtype_scalar!(Fixed, [u8; 4]);
 
 #[cfg(test)]
 mod tests {

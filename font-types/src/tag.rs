@@ -117,6 +117,18 @@ impl crate::RawType for Tag {
     }
 }
 
+impl crate::raw::Scalar for Tag {
+    type Raw = [u8; 4];
+
+    fn to_raw(self) -> Self::Raw {
+        self.0
+    }
+
+    fn from_raw(raw: Self::Raw) -> Self {
+        Self(raw)
+    }
+}
+
 impl AsRef<str> for Tag {
     fn as_ref(&self) -> &str {
         self.as_str()

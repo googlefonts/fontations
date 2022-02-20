@@ -43,6 +43,8 @@ impl crate::RawType for RawVersion16Dot16 {
     }
 }
 
+crate::newtype_scalar!(Version16Dot16, [u8; 4]);
+
 impl std::fmt::Debug for Version16Dot16 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "Version16Dot16({:08x})", self.0)

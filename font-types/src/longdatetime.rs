@@ -27,4 +27,6 @@ impl crate::RawType for RawLongDateTime {
         LongDateTime(i64::from_be_bytes(self.0))
     }
 }
+
+crate::newtype_scalar!(LongDateTime, [u8; 8]);
 //TODO: maybe a 'chrono' feature for constructing these sanely?

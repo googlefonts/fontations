@@ -34,3 +34,5 @@ impl UfWord {
 
 crate::newtype_raw_type!(RawFWord, FWord);
 crate::newtype_raw_type!(RawUfWord, UfWord);
+crate::newtype_scalar!(FWord, [u8; 2]);
+crate::newtype_scalar!(UfWord, [u8; 2]);

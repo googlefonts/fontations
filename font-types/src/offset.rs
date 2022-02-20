@@ -2,8 +2,11 @@
 
 use std::num::{NonZeroU16, NonZeroU32};
 
-use crate::integers::{RawU16, RawU32};
 use crate::RawU24;
+use crate::{
+    integers::{RawU16, RawU32},
+    Uint24,
+};
 
 /// A raw (big-endinag) 16-bit offset.
 #[derive(Debug, Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
@@ -49,6 +52,18 @@ macro_rules! impl_offset {
                 $name::new(self.0.get())
             }
         }
+
+        impl crate::raw::Scalar for Option<$name> {
+            type Raw = <$rawty as crate::raw::Scalar>::Raw;
+            fn from_raw(raw: Self::Raw) -> Self {
+                let raw = <$rawty>::from_raw(raw);
+                $name::new(raw)
+            }
+
+            fn to_raw(self) -> Self::Raw {
+                self.map(|x| x.0.get()).unwrap_or_default().to_raw()
+            }
+        }
     };
 }
 
@@ -84,5 +99,16 @@ impl crate::RawType for RawOffset24 {
 
     fn get(self) -> Option<Offset24> {
         Offset24::new(self.0.get().into())
+    }
+}
+
+impl crate::raw::Scalar for Option<Offset24> {
+    type Raw = [u8; 3];
+    fn from_raw(raw: Self::Raw) -> Self {
+        Offset24::new(Uint24::from_raw(raw).into())
+    }
+
+    fn to_raw(self) -> Self::Raw {
+        Uint24::new(self.map(|x| x.0.get()).unwrap_or_default()).to_raw()
     }
 }

@@ -26,7 +26,7 @@ pub use fixed::{F2Dot14, Fixed, RawF2Dot14, RawFixed};
 pub use fword::{FWord, RawFWord, RawUfWord, UfWord};
 pub use longdatetime::{LongDateTime, RawLongDateTime};
 pub use offset::{Offset16, Offset24, Offset32, RawOffset16, RawOffset24, RawOffset32};
-pub use raw::RawType;
+pub use raw::{BigEndian, RawType};
 pub use tag::Tag;
 pub use uint24::{RawU24, Uint24};
 pub use version16dot16::{RawVersion16Dot16, Version16Dot16};
