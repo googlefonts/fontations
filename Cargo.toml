@@ -2,5 +2,5 @@
 
 members = [
     "font-types",
-    "toy-table-macro",
+    "font-types-macro",
 ]

@@ -9,8 +9,8 @@ background.
 
 - `font-types` is an early attempt at a high-level API representing the core
   scalar types, and how to efficiently handle reading them.
-- `toy-table-macro` contains a function-like proc macro that implements a DSL
-  for describing arbitrary font-like-things.
+- `font-types-macro` contains a function-like proc macro that implements a DSL
+  for describing arbitrary font-like-things (tables, records, etc).
 
 The `retired_crates` directory contains some earlier experiments:
 

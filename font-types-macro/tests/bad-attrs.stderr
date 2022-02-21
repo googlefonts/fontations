@@ -1,7 +1,7 @@
 error: proc macro panicked
  --> tests/bad-attrs.rs:1:1
   |
-1 | / toy_table_macro::tables! {
+1 | / font_types_macro::tables! {
 2 | |     TooMuchCount<'a> {
 3 | |         item_count: Uint16,
 4 | |         #[count(item_count)]

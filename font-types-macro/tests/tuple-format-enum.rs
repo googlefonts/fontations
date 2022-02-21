@@ -5,7 +5,7 @@ type MajorMinorU16 = [u16; 2];
 const VERSION_1_0: MajorMinorU16 = [1, 0];
 const VERSION_1_1: MajorMinorU16 = [1, 1];
 
-toy_table_macro::tables! {
+font_types_macro::tables! {
     Table1_0 {
          version_major: BigEndian<u16>,
          version_minor: BigEndian<u16>,

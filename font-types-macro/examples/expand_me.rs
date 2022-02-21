@@ -4,7 +4,7 @@
 
 use font_types::{BigEndian, F2Dot14};
 
-toy_table_macro::tables! {
+font_types_macro::tables! {
     /// Some segment maps
     ///
     /// These map segments

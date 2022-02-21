@@ -1,4 +1,4 @@
-toy_table_macro::tables! {
+font_types_macro::tables! {
     SingleLifetimeOnly<'a, 'b> {
         item_count: BigEndian<u16>,
         #[count(item_count)]

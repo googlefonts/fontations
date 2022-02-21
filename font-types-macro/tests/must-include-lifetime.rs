@@ -1,4 +1,4 @@
-toy_table_macro::tables! {
+font_types_macro::tables! {
 // this should fail because it needs to have a lifetime
     MyTable {
         item_count: Uint24,
@@ -8,7 +8,7 @@ toy_table_macro::tables! {
 }
 
 
-toy_table_macro::tables! {
+font_types_macro::tables! {
 // this should fail because it needs to *not* a lifetime
     MyTable<'a> {
         item_count: Uint24,
