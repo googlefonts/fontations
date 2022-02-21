@@ -6,11 +6,6 @@
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LongDateTime(i64);
 
-/// A raw (big-endian) [`LongDateTime`].
-#[derive(Debug, Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
-#[repr(transparent)]
-pub struct RawLongDateTime([u8; 8]);
-
 impl LongDateTime {
     /// The number of seconds since 00:00 1904-01-01, UTC.
     ///
@@ -18,13 +13,6 @@ impl LongDateTime {
     /// to the reference date.
     pub fn as_secs(&self) -> i64 {
         self.0
-    }
-}
-
-impl crate::RawType for RawLongDateTime {
-    type Cooked = LongDateTime;
-    fn get(self) -> LongDateTime {
-        LongDateTime(i64::from_be_bytes(self.0))
     }
 }
 

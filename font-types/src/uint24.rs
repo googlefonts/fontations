@@ -41,18 +41,6 @@ impl From<Uint24> for u32 {
     }
 }
 
-/// An unaligned big-endian unsigned 24-bit integer.
-#[derive(Debug, Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
-#[repr(transparent)]
-pub struct RawU24([u8; 3]);
-
-impl crate::RawType for RawU24 {
-    type Cooked = Uint24;
-    fn get(self) -> Uint24 {
-        Uint24::new((self.0[0] as u32) << 16 | (self.0[1] as u32) << 8 | self.0[2] as u32)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

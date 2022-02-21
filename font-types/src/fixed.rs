@@ -1,21 +1,10 @@
 //! fixed-point numerical types
 
-use crate::integers::{RawI16, RawI32};
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 
-/// An unaligned 32-bit big-endian signed fixed-point number (16.16)
-#[derive(Debug, Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
-#[repr(transparent)]
-pub struct RawFixed(RawI32);
-
-/// An unaligned big-endian 16-bit signed fixed-point number (2.14)
-#[derive(Debug, Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
-#[repr(transparent)]
-pub struct RawF2Dot14(RawI16);
-
-// shared between Fixed and F2dot14
+// shared between Fixed and F2Dot14
 macro_rules! fixed_impl {
-    ($name:ident, $bits:literal, $fract_bits:literal, $ty:ty, $raw:ty) => {
+    ($name:ident, $bits:literal, $fract_bits:literal, $ty:ty) => {
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Default)]
         #[doc = concat!(stringify!($bits), "-bit signed fixed point number with ", stringify!($fract_bits), " bits of fraction." )]
         pub struct $name($ty);
@@ -104,14 +93,7 @@ macro_rules! fixed_impl {
                 *self = *self - other;
             }
         }
-
-        impl crate::RawType for $raw {
-            type Cooked = $name;
-            fn get(self) -> $name {
-                $name(self.0.get())
-            }
-        }
-    }
+    };
 }
 
 /// impl float conversion methods.
@@ -163,8 +145,8 @@ macro_rules! float_conv {
     };
 }
 
-fixed_impl!(F2Dot14, 16, 14, i16, RawF2Dot14);
-fixed_impl!(Fixed, 32, 16, i32, RawFixed);
+fixed_impl!(F2Dot14, 16, 14, i16);
+fixed_impl!(Fixed, 32, 16, i32);
 float_conv!(F2Dot14, to_f32, from_f32, f32);
 float_conv!(Fixed, to_f64, from_f64, f64);
 crate::newtype_scalar!(F2Dot14, [u8; 2]);

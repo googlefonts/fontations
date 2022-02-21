@@ -23,18 +23,17 @@ mod uint24;
 mod var_array;
 mod version16dot16;
 
-pub use fixed::{F2Dot14, Fixed, RawF2Dot14, RawFixed};
-pub use fword::{FWord, RawFWord, RawUfWord, UfWord};
-pub use integers::{RawI16, RawI32, RawU16, RawU32};
-pub use longdatetime::{LongDateTime, RawLongDateTime};
-pub use offset::{Offset16, Offset24, Offset32, RawOffset16, RawOffset24, RawOffset32};
-pub use raw::{BigEndian, RawType};
-pub use tag::Tag;
-pub use uint24::{RawU24, Uint24};
-pub use var_array::VarArray;
-pub use version16dot16::{RawVersion16Dot16, Version16Dot16};
-
 pub use font_types_macro::tables;
+
+pub use fixed::{F2Dot14, Fixed};
+pub use fword::{FWord, UfWord};
+pub use longdatetime::LongDateTime;
+pub use offset::{Offset16, Offset24, Offset32};
+pub use raw::{BigEndian, Scalar};
+pub use tag::Tag;
+pub use uint24::Uint24;
+pub use var_array::VarArray;
+pub use version16dot16::Version16Dot16;
 
 /// A type that can be read from some chunk of bytes.
 pub trait FontRead<'a>: Sized {

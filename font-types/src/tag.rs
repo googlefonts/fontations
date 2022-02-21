@@ -5,25 +5,11 @@ use std::{
     str::FromStr,
 };
 
-//FIXME: this needs to  be rethought, we need to safely handle invalid data
-
 /// An OpenType tag.
 ///
 /// A tag is a 4-byte array where each byte is in the printable ascii range
 /// (0x20..=0x7E).
-#[derive(
-    Clone,
-    Copy,
-    Debug,
-    PartialEq,
-    Eq,
-    Hash,
-    PartialOrd,
-    Ord,
-    zerocopy::Unaligned,
-    zerocopy::FromBytes,
-)]
-#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Tag([u8; 4]);
 
 impl Tag {
@@ -106,14 +92,6 @@ impl FromStr for Tag {
 
     fn from_str(src: &str) -> Result<Self, Self::Err> {
         Tag::new_checked(src.as_bytes())
-    }
-}
-
-// Tag is stored as [u8; 4] so encoding is correct regardless of endianness
-impl crate::RawType for Tag {
-    type Cooked = Tag;
-    fn get(self) -> Tag {
-        self
     }
 }
 
