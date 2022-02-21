@@ -13,10 +13,12 @@ extern crate core as std;
 
 use font_types::{BigEndian, FontRead, Offset, Offset32, Tag};
 
+pub mod tables;
+
 /// A temporary type for accessing tables
 pub struct FontRef<'a> {
     data: &'a [u8],
-    table_directory: TableDirectory<'a>,
+    pub table_directory: TableDirectory<'a>,
 }
 
 const TT_MAGIC: u32 = 0x00010000;
@@ -46,6 +48,12 @@ impl<'a> FontRef<'a> {
                 let start = record.offset.get().non_null()?;
                 self.data.get(start..start + record.len.get() as usize)
             })
+    }
+}
+
+impl tables::TableProvider for FontRef<'_> {
+    fn data_for_tag(&self, tag: Tag) -> Option<&[u8]> {
+        self.table_data(tag)
     }
 }
 
