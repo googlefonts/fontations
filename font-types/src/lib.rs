@@ -34,6 +34,8 @@ pub use uint24::{RawU24, Uint24};
 pub use var_array::VarArray;
 pub use version16dot16::{RawVersion16Dot16, Version16Dot16};
 
+pub use font_types_macro::tables;
+
 /// A type that can be read from some chunk of bytes.
 pub trait FontRead<'a>: Sized {
     /// attempt to read self from raw bytes.
