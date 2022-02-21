@@ -1,25 +1,24 @@
-use raw_types::{Version16Dot16, Uint16};
+use font_types::{Version16Dot16, BigEndian};
 
-const VERSION_0_5: Version16Dot16 = Version16Dot16::from_bytes(0x00005000i32.to_be_bytes());
-const VERSION_1_0: Version16Dot16 = Version16Dot16::from_bytes(0x00010000i32.to_be_bytes());
+const VERSION_0_5: Version16Dot16 = Version16Dot16::new(0, 5);
+const VERSION_1_0: Version16Dot16 = Version16Dot16::new(1, 0);
 
 mod consts {
-    use raw_types::Uint16;
-    pub const ONE: Uint16 = Uint16::from_bytes(1u16.to_be_bytes());
+    pub const ONE: u16 = 1;
 }
 
 toy_table_macro::tables! {
     Maxp05 {
-         version: Version16Dot16,
-         num_glyphs: Uint16,
+         version: BigEndian<Version16Dot16>,
+         num_glyphs: BigEndian<u16>,
     }
 
     Maxp10 {
-         version: Version16Dot16,
-         num_glyphs: Uint16,
-         max_points: Uint16,
-         max_contours: Uint16,
-         max_composite_points: Uint16,
+         version: BigEndian<Version16Dot16>,
+         num_glyphs: BigEndian<u16>,
+         max_points: BigEndian<u16>,
+         max_contours: BigEndian<u16>,
+         max_composite_points: BigEndian<u16>,
     }
 
     #[format(Version16Dot16)]
@@ -33,10 +32,10 @@ toy_table_macro::tables! {
 
 toy_table_macro::tables! {
     One {
-         one: Uint16,
+         one: BigEndian<u16>,
     }
 
-    #[format(Uint16)]
+    #[format(u16)]
     enum OneOrTwo {
         #[version(consts::ONE)]
         One(One),

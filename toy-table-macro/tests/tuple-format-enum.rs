@@ -1,23 +1,21 @@
-use raw_types::Uint16;
+use font_types::BigEndian;
 
-const ONE: Uint16 = Uint16::from_bytes(1u16.to_be_bytes());
+type MajorMinorU16 = [u16; 2];
 
-type MajorMinorU16 = [Uint16; 2];
-
-const VERSION_1_0: MajorMinorU16 = [ONE, Uint16::ZERO];
-const VERSION_1_1: MajorMinorU16 = [ONE, ONE];
+const VERSION_1_0: MajorMinorU16 = [1, 0];
+const VERSION_1_1: MajorMinorU16 = [1, 1];
 
 toy_table_macro::tables! {
     Table1_0 {
-         version_major: Uint16,
-         version_minor: Uint16,
-         num_glyphs: Uint16,
+         version_major: BigEndian<u16>,
+         version_minor: BigEndian<u16>,
+         num_glyphs: BigEndian<u16>,
     }
 
     Table1_1 {
-         version_major: Uint16,
-         version_minor: Uint16,
-         num_glyphs: Uint16,
+         version_major: BigEndian<u16>,
+         version_minor: BigEndian<u16>,
+         num_glyphs: BigEndian<u16>,
     }
 
     #[format(MajorMinorU16)]

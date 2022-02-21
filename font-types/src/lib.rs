@@ -20,13 +20,40 @@ mod offset;
 mod raw;
 mod tag;
 mod uint24;
+mod var_array;
 mod version16dot16;
 
 pub use fixed::{F2Dot14, Fixed, RawF2Dot14, RawFixed};
 pub use fword::{FWord, RawFWord, RawUfWord, UfWord};
+pub use integers::{RawI16, RawI32, RawU16, RawU32};
 pub use longdatetime::{LongDateTime, RawLongDateTime};
 pub use offset::{Offset16, Offset24, Offset32, RawOffset16, RawOffset24, RawOffset32};
 pub use raw::{BigEndian, RawType};
 pub use tag::Tag;
 pub use uint24::{RawU24, Uint24};
+pub use var_array::VarArray;
 pub use version16dot16::{RawVersion16Dot16, Version16Dot16};
+
+/// A type that can be read from some chunk of bytes.
+pub trait FontRead<'a>: Sized {
+    /// attempt to read self from raw bytes.
+    ///
+    /// `bytes` may contain 'extra' bytes; the implemention should ignore them.
+    fn read(bytes: &'a [u8]) -> Option<Self>;
+}
+
+//HACK: I'm not sure how this should work
+/// A trait for types with variable length.
+///
+/// Currently we implement this by hand where necessary; it is only necessary
+/// if these types occur in an array?
+#[allow(clippy::len_without_is_empty)]
+pub trait VarSized<'a>: FontRead<'a> {
+    fn len(&self) -> usize;
+}
+
+impl<'a, T: zerocopy::FromBytes> FontRead<'a> for T {
+    fn read(bytes: &'a [u8]) -> Option<Self> {
+        T::read_from_prefix(bytes)
+    }
+}

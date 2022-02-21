@@ -3,9 +3,3 @@ error: tables can contain at most a single lifetime
   |
 2 |     SingleLifetimeOnly<'a, 'b> {
   |                            ^^
-
-error: only a single unbounded lifetime is allowed
-  --> tests/single-lifetime-only.rs:10:26
-   |
-10 |     NoLifetimeBounds<'a: 'b> {
-   |                          ^^

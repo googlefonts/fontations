@@ -97,7 +97,7 @@ impl FieldAttrs {
     pub fn into_array(
         self,
         name: syn::Ident,
-        inner_typ: syn::Ident,
+        inner_typ: syn::Path,
         inner_lifetime: Option<syn::Lifetime>,
     ) -> Result<ArrayField, syn::Error> {
         if let Some(path) = &self.hidden {

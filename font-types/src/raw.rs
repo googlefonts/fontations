@@ -64,7 +64,7 @@ pub trait Scalar {
 }
 
 /// A wrapper around raw big-endian bytes for some type.
-#[derive(Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
+#[derive(Clone, Debug, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
 #[repr(transparent)]
 pub struct BigEndian<T: Scalar>(T::Raw);
 

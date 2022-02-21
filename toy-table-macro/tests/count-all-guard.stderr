@@ -3,7 +3,7 @@ error: #[count_all] annotation only valid on last field (TODO: validate before h
    |
 3  | / toy_table_macro::tables! {
 4  | |     CountAll<'a> {
-5  | |         item_count: Uint16,
+5  | |         item_count: BigEndian<u16>,
 6  | |         #[count_all]
 ...  |
 9  | |     }

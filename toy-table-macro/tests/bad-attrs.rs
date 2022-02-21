@@ -7,7 +7,7 @@ toy_table_macro::tables! {
     }
 }
 
-fn double(val: raw_types::Uint16) -> usize {
+fn double(val: font_types::BigEndian<u16>) -> usize {
     val.get() as usize * 2
 }
 

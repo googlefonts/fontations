@@ -1,11 +1,11 @@
-use raw_types::Uint16;
+use font_types::BigEndian;
 
 toy_table_macro::tables! {
     CountAll<'a> {
-        item_count: Uint16,
+        item_count: BigEndian<u16>,
         #[count_all]
-        items: [Uint16],
-        other: Uint16,
+        items: [BigEndian<u16>],
+        other: BigEndian<u16>,
     }
 }
 

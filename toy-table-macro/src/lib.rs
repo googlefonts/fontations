@@ -46,7 +46,7 @@ fn generate_group(group: &parse::ItemGroup) -> proc_macro2::TokenStream {
         let version = &variant.version;
         quote! {
             #version => {
-                Some(Self::#name(raw_types::FontRead::read(bytes)?))
+                Some(Self::#name(font_types::FontRead::read(bytes)?))
             }
         }
     });
@@ -60,11 +60,11 @@ fn generate_group(group: &parse::ItemGroup) -> proc_macro2::TokenStream {
     };
     let font_read = quote! {
 
-        impl<'a> raw_types::FontRead<'a> for #name #lifetime {
+        impl<'a> font_types::FontRead<'a> for #name #lifetime {
             fn read(bytes: &'a [u8]) -> Option<Self> {
                 #validation_check
-                let version: #format = raw_types::FontRead::read(bytes)?;
-                match version {
+                let version: BigEndian<#format> = font_types::FontRead::read(bytes)?;
+                match version.get() {
                     #( #match_arms ),*
 
                         other => {
@@ -174,7 +174,7 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
         #( #docs )*
         pub struct #name<'a>(&'a [u8]);
 
-        impl<'a> raw_types::FontRead<'a> for #name<'a> {
+        impl<'a> font_types::FontRead<'a> for #name<'a> {
             fn read(bytes: &'a [u8]) -> Option<Self> {
                 if bytes.len() < #checkable_len {
                     return None;
@@ -283,8 +283,8 @@ fn make_var_array_getter(
         "guard violated: variable_size array must be last field in item."
     ));
     quote! {
-        pub fn #name(&self) -> Option<raw_types::VarArray<'a, #inner_typ<'a>>> {
-            self.0.get(#start_off..).map(raw_types::VarArray::new)
+        pub fn #name(&self) -> Option<font_types::VarArray<'a, #inner_typ>> {
+            self.0.get(#start_off..).map(font_types::VarArray::new)
         }
     }
 }

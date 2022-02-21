@@ -62,7 +62,7 @@ pub struct SingleField {
 pub struct ArrayField {
     pub docs: Vec<syn::Attribute>,
     pub name: syn::Ident,
-    pub inner_typ: syn::Ident,
+    pub inner_typ: syn::Path,
     pub inner_lifetime: Option<syn::Lifetime>,
     pub count: Count,
     pub variable_size: Option<syn::Path>,
@@ -93,7 +93,7 @@ impl Parse for Item {
             .then(|| input.parse::<Token![enum]>())
             .transpose()?;
         let name: syn::Ident = input.parse()?;
-        let lifetime = get_generics(input)?;
+        let lifetime = validate_lifetime(input)?;
         let content;
         let _ = braced!(content in input);
         if let Some(_token) = enum_token {
@@ -124,7 +124,7 @@ impl Parse for Variant {
         let content;
         parenthesized!(content in input);
         let typ = content.parse::<syn::Ident>()?;
-        let typ_lifetime = get_generics(&content)?;
+        let typ_lifetime = validate_lifetime(&content)?;
         if let Some(version) = attrs.version {
             Ok(Self {
                 docs: attrs.docs,
@@ -152,8 +152,8 @@ impl Parse for Field {
         if input.lookahead1().peek(token::Bracket) {
             let content;
             bracketed!(content in input);
-            let typ = content.parse::<syn::Ident>()?;
-            let lifetime = get_generics(&content)?;
+            let typ = content.parse::<syn::Path>()?;
+            let lifetime = ensure_single_lifetime(&typ)?;
             attrs.into_array(name, typ, lifetime).map(Field::Array)
         } else {
             attrs.into_single(name, input.parse()?).map(Field::Single)
@@ -297,15 +297,38 @@ fn get_optional_attributes(input: ParseStream) -> Result<Vec<syn::Attribute>, sy
     Ok(result)
 }
 
-/// Check that generic arguments are acceptable
-///
-/// They are acceptable if they are empty, or contain a single lifetime.
-fn get_generics(input: ParseStream) -> Result<Option<syn::Lifetime>, syn::Error> {
+fn ensure_single_lifetime(input: &syn::Path) -> Result<Option<syn::Lifetime>, syn::Error> {
+    match input.segments.last().map(|seg| &seg.arguments) {
+        Some(syn::PathArguments::AngleBracketed(args)) => {
+            let mut iter = args.args.iter().filter_map(|arg| match arg {
+                syn::GenericArgument::Lifetime(arg) => Some(arg),
+                _ => None,
+            });
+            let result = iter.next();
+            if let Some(extra_lifetime) = iter.next() {
+                Err(syn::Error::new(
+                    extra_lifetime.span(),
+                    "at most a single lifetime \"'a\" is supported",
+                ))
+            } else {
+                Ok(result.cloned())
+            }
+        }
+        Some(syn::PathArguments::Parenthesized(args)) => Err(syn::Error::new(
+            args.span(),
+            "whatever this is trying to do, we definitely do not support it",
+        )),
+        None | Some(syn::PathArguments::None) => Ok(None),
+    }
+}
+
+/// Ensure types have at most a single lifetime param, "'a".
+fn validate_lifetime(input: ParseStream) -> Result<Option<syn::Lifetime>, syn::Error> {
     let generics = input.parse::<syn::Generics>()?;
-    if generics.type_params().count() + generics.const_params().count() > 0 {
+    if generics.const_params().count() + generics.type_params().count() > 1 {
         return Err(syn::Error::new(
             generics.span(),
-            "generics are not allowed in font tables",
+            "font types should contain at most a single lifetime",
         ));
     }
     if let Some(lifetime) = generics.lifetimes().nth(1) {
@@ -315,23 +338,6 @@ fn get_generics(input: ParseStream) -> Result<Option<syn::Lifetime>, syn::Error>
         ));
     }
 
-    let lifetime = generics.lifetimes().next();
-    match lifetime {
-        Some(ltime) => {
-            if ltime.colon_token.is_some() || !ltime.attrs.is_empty() {
-                let span = if ltime.colon_token.is_some() {
-                    ltime.bounds.span()
-                } else {
-                    ltime.span()
-                };
-                Err(syn::Error::new(
-                    span,
-                    "only a single unbounded lifetime is allowed",
-                ))
-            } else {
-                Ok(Some(ltime.lifetime.clone()))
-            }
-        }
-        None => Ok(None),
-    }
+    let result = generics.lifetimes().nth(0).map(|lt| &lt.lifetime).cloned();
+    Ok(result)
 }
