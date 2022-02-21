@@ -6,7 +6,7 @@
 /// detail of the [`BigEndian`] wrapper.
 pub trait Scalar {
     /// The raw byte representation of this type.
-    type Raw: zerocopy::Unaligned + zerocopy::FromBytes + zerocopy::AsBytes;
+    type Raw: Copy + zerocopy::Unaligned + zerocopy::FromBytes + zerocopy::AsBytes;
 
     /// The size of the raw type. Essentially an alias for `std::mem::size_of`.
     //TODO: remove this probably
@@ -19,7 +19,7 @@ pub trait Scalar {
 }
 
 /// A wrapper around raw big-endian bytes for some type.
-#[derive(Clone, Debug, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
+#[derive(Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
 #[repr(transparent)]
 pub struct BigEndian<T: Scalar>(T::Raw);
 
@@ -50,4 +50,16 @@ macro_rules! newtype_scalar {
             }
         }
     };
+}
+
+impl<T: std::fmt::Debug + Scalar + Copy> std::fmt::Debug for BigEndian<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.get().fmt(f)
+    }
+}
+
+impl<T: std::fmt::Display + Scalar + Copy> std::fmt::Display for BigEndian<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.get().fmt(f)
+    }
 }
