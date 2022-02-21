@@ -14,7 +14,6 @@ extern crate core as std;
 
 mod fixed;
 mod fword;
-mod integers;
 mod longdatetime;
 mod offset;
 mod raw;
