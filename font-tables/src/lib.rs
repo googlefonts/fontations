@@ -11,7 +11,7 @@ extern crate std;
 #[macro_use]
 extern crate core as std;
 
-use font_types::{BigEndian, FontRead, Offset32, Tag};
+use font_types::{BigEndian, FontRead, Offset, Offset32, Tag};
 
 /// A temporary type for accessing tables
 pub struct FontRef<'a> {
@@ -43,7 +43,7 @@ impl<'a> FontRef<'a> {
             .ok()
             .and_then(|idx| self.table_directory.table_records().unwrap().get(idx))
             .and_then(|record| {
-                let start = record.offset.get().unwrap().to_raw() as usize;
+                let start = record.offset.get().non_null()?;
                 self.data.get(start..start + record.len.get() as usize)
             })
     }
@@ -67,7 +67,7 @@ font_types::tables! {
         /// Checksum for the table.
         checksum: BigEndian<u32>,
         /// Offset from the beginning of the font data.
-        offset: BigEndian<Option<Offset32>>,
+        offset: BigEndian<Offset32>,
         /// Length of the table.
         len: BigEndian<u32>,
     }
