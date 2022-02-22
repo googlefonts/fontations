@@ -1,6 +1,7 @@
 use font_types::{BigEndian, Fixed, LongDateTime};
 
 font_types::tables! {
+    /// <https://docs.microsoft.com/en-us/typography/opentype/spec/head>
     Head {
         /// Major version number of the font header table — set to 1.
         major_version: BigEndian<u16>,

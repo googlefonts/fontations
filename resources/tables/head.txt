@@ -1,6 +1,6 @@
 # input to the codgen binary tool
 {
-    @Head
+    @table Head <https://docs.microsoft.com/en-us/typography/opentype/spec/head>
         uint16	majorVersion	Major version number of the font header table — set to 1.
         uint16	minorVersion	Minor version number of the font header table — set to 0.
         Fixed	fontRevision	Set by font manufacturer.

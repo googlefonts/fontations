@@ -70,7 +70,7 @@ fn main() {
         .filter(|l| !l.starts_with('#'));
 
     while let Some(group) = generate_group(&mut lines) {
-        println!("{} {{", MACRO_CALL);
+        println!("\n{} {{", MACRO_CALL);
         println!("{}", group);
         println!("}}");
     }
@@ -92,34 +92,45 @@ fn generate_group<'a>(lines: impl Iterator<Item = Line<'a>>) -> Option<String> {
 
     while let Some(item) = generate_one_item(&mut lines) {
         if !result.is_empty() {
-            result.push('\n');
+            result.push_str("\n\n");
         }
         result.push_str(&item);
     }
     Some(result)
 }
 
-/// parse a single table or record.
+/// parse a single enum, table or record.
 ///
 /// Returns `Some` on success, `None` if there are no more items, and terminates
 /// if something goes wrong.
 fn generate_one_item<'a>(lines: impl Iterator<Item = Line<'a>>) -> Option<String> {
     let mut lines = lines.skip_while(|line| line.is_empty());
 
-    let decl_line = match lines.next() {
-        Some(line) if line.starts_with('@') => line,
+    let decl = match lines.next() {
+        Some(line) if line.starts_with('@') => Decl::parse(line).unwrap(),
         Some(line) => exit_with_msg!("expected table or record name", line),
         None => return None,
     };
 
-    let name = decl_line.trim_matches('@');
+    match decl.kind {
+        DeclKind::RawEnum => generate_one_enum(decl, lines),
+        DeclKind::Table | DeclKind::Record => generate_one_table(decl, lines),
+    }
+}
+
+/// Generate a single table or record (they're currently the same)
+fn generate_one_table<'a>(decl: Decl, lines: impl Iterator<Item = Line<'a>>) -> Option<String> {
     let fields = lines.map_while(parse_field).collect::<Vec<_>>();
     let lifetime_str = if fields.iter().any(|x| x.maybe_count.is_some()) {
         "<'a>"
     } else {
         ""
     };
-    let mut result = format!("{}{} {{\n", name, lifetime_str);
+    let mut result = String::new();
+    if !decl.link.is_empty() {
+        writeln!(&mut result, "/// <{}>", decl.link).unwrap();
+    }
+    writeln!(&mut result, "{}{} {{", decl.name, lifetime_str).unwrap();
     for line in &fields {
         writeln!(&mut result, "{}", line).unwrap();
     }
@@ -127,8 +138,76 @@ fn generate_one_item<'a>(lines: impl Iterator<Item = Line<'a>>) -> Option<String
     Some(result)
 }
 
+fn generate_one_enum<'a>(decl: Decl, lines: impl Iterator<Item = Line<'a>>) -> Option<String> {
+    let fields = lines.map_while(parse_field).collect::<Vec<_>>();
+    let mut result = String::new();
+    if !decl.link.is_empty() {
+        writeln!(&mut result, "/// <{}>", decl.link).unwrap();
+    }
+    writeln!(
+        &mut result,
+        "#[repr({})]\nenum {} {{",
+        decl.annotation, decl.name
+    )
+    .unwrap();
+    for line in &fields {
+        writeln!(&mut result, "    {} = {},", line.name, line.typ).unwrap();
+    }
+    result.push('}');
+    Some(result)
+}
+
+enum DeclKind {
+    Table,
+    Record,
+    RawEnum,
+}
+
+struct Decl<'a> {
+    kind: DeclKind,
+    annotation: &'a str,
+    name: &'a str,
+    link: &'a str,
+}
+
+impl<'a> Decl<'a> {
+    fn parse(line: Line<'a>) -> Option<Self> {
+        let mut decl = line.text.split_whitespace();
+        let mut annotation = "";
+        let kind = match decl.next()? {
+            "@table" => DeclKind::Table,
+            "@record" => DeclKind::Record,
+            x if x.starts_with("@enum(") => {
+                let repr = x.trim_start_matches("@enum(").trim_end_matches(')');
+                if !["u8", "u16"].contains(&repr) {
+                    exit_with_msg!(format!("unexpected enum repr '{}'", repr), line);
+                }
+                annotation = repr;
+                DeclKind::RawEnum
+            }
+            other => exit_with_msg!(format!("unknown item kind '{}'", other), line),
+        };
+        let name = decl
+            .next()
+            .unwrap_or_else(|| exit_with_msg!("missing name", line));
+
+        let link = match decl.next() {
+            Some(text) if text.starts_with('<') => text.trim_matches(['<', '>'].as_slice()),
+            None => "",
+            Some(_) => exit_with_msg!("last line element not parsed as link", line),
+        };
+
+        Some(Decl {
+            kind,
+            annotation,
+            name,
+            link,
+        })
+    }
+}
+
 struct Field<'a> {
-    name: String,
+    name: &'a str,
     maybe_count: Option<String>,
     typ: &'a str,
     comment: &'a str,
@@ -142,9 +221,9 @@ impl<'a> std::fmt::Display for Field<'a> {
         }
         if let Some(count) = &self.maybe_count {
             writeln!(f, "    #[count({})]", count)?;
-            write!(f, "    {}: [{}],", self.name, self.typ)?;
+            write!(f, "    {}: [{}],", decamalize(self.name), self.typ)?;
         } else {
-            write!(f, "    {}: {},", self.name, self.typ)?;
+            write!(f, "    {}: {},", decamalize(self.name), self.typ)?;
         }
         Ok(())
     }
@@ -154,14 +233,15 @@ fn parse_field(line: Line) -> Option<Field> {
     if line.is_empty() {
         return None;
     }
-    let mut iter = line.text.splitn(3, |c: char| c.is_ascii_whitespace());
+    let mut iter = line.text.splitn(3, '\t');
     let (typ, ident, comment) = match (iter.next(), iter.next(), iter.next()) {
         (Some(a), Some(b), Some(c)) => (a, b, c),
+        (Some(a), Some(b), None) => (a, b, ""),
         _ => exit_with_msg!("line could not be parsed as type/name/comment", line),
     };
     let typ = normalize_type(typ);
     let (name, maybe_count) = split_ident(ident);
-    let name = decamalize(name);
+    //let name = decamalize(name);
     let maybe_count = maybe_count.map(decamalize);
     Some(Field {
         name,
