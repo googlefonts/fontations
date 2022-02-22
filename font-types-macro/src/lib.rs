@@ -204,19 +204,19 @@ fn make_scalar_getter(
     };
 
     *offset = quote!(#offset + #len);
-    let ty = &field.typ;
+    let return_ty = field.cooked_type_tokens();
 
     let from_bytes = field.getter_tokens(&get_bytes);
     if checked {
         quote! {
-        pub fn #name(&self) -> #ty {
+        pub fn #name(&self) -> #return_ty {
             let raw = #from_bytes.unwrap();
             raw
         }
         }
     } else {
         quote! {
-            pub fn #name(&self) -> Option<#ty> {
+            pub fn #name(&self) -> Option<#return_ty> {
                 #from_bytes
             }
         }
@@ -236,7 +236,7 @@ fn make_array_getter(
         "inner_lifetime should only exist on variable size fields"
     );
     let len = match &field.count {
-        parse::Count::Field(name) => Some(quote!(self.#name().get() as usize)),
+        parse::Count::Field(name) => Some(quote!(self.#name() as usize)),
         parse::Count::Function { fn_, args } => {
             let args = args.iter().map(|arg| quote!(self.#arg()));
             Some(quote!(#fn_( #( #args ),* )))

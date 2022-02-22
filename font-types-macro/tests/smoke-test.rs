@@ -26,12 +26,12 @@ font_types_macro::tables! {
 
 impl<'a> font_types::VarSized<'a> for SegmentMaps<'a> {
     fn len(&self) -> usize {
-        self.position_map_count().get() as usize * std::mem::size_of::<AxisValueMap>()
+        self.position_map_count() as usize * std::mem::size_of::<AxisValueMap>()
     }
 }
 
-fn div_by_two(arg: BigEndian<u16>) -> usize {
-    arg.get() as usize / 2
+fn div_by_two(arg: u16) -> usize {
+    arg as usize / 2
 }
 
 fn main() {}

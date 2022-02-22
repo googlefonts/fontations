@@ -27,13 +27,13 @@ const OT_MAGIC: u32 = 0x4F54544F;
 impl<'a> FontRef<'a> {
     pub fn new(data: &'a [u8]) -> Result<Self, u32> {
         let table_directory = TableDirectory::read(data).ok_or(0x_dead_beef_u32)?;
-        if [TT_MAGIC, OT_MAGIC].contains(&table_directory.sfnt_version().get()) {
+        if [TT_MAGIC, OT_MAGIC].contains(&table_directory.sfnt_version()) {
             Ok(FontRef {
                 data,
                 table_directory,
             })
         } else {
-            Err(table_directory.sfnt_version().get())
+            Err(table_directory.sfnt_version())
         }
     }
 

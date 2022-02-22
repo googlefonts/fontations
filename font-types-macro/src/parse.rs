@@ -217,12 +217,38 @@ impl SingleField {
         //quote!(<#typ as ::raw_types::FontType::Raw>::Raw)
     }
 
+    fn is_be_wrapper(&self) -> bool {
+        matches!(self.typ.segments.last(), Some(seg) if seg.ident == "BigEndian")
+    }
+
+    /// The return type of a getter of this type.
+    ///
+    /// (this is about returning T for BigEndian<T>)
+    pub fn cooked_type_tokens(&self) -> proc_macro2::TokenStream {
+        let last = self.typ.segments.last().unwrap();
+        if last.ident == "BigEndian" {
+            let args = match &last.arguments {
+                syn::PathArguments::AngleBracketed(args) => args,
+                _ => panic!("BigEndian type should always have generic params"),
+            };
+            let last_arg = args.args.last().unwrap();
+            if let syn::GenericArgument::Type(inner) = last_arg {
+                return quote!(#inner);
+            }
+            panic!("failed to find BigEndian generic type");
+        }
+
+        let typ = &self.typ;
+        quote!(#typ)
+    }
+
     /// tokens for getting this field from a byte slice.
     ///
     /// This should return Option<Self>, and it will be unwrapped where it has been prechecked.
     pub fn getter_tokens(&self, bytes: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
         let typ = &self.typ;
-        quote!(<#typ as zerocopy::FromBytes>::read_from(#bytes))
+        let convert_to_cooked = self.is_be_wrapper().then(|| quote!(.map(|x| x.get())));
+        quote!(<#typ as zerocopy::FromBytes>::read_from(#bytes) #convert_to_cooked )
     }
 }
 
@@ -338,6 +364,6 @@ fn validate_lifetime(input: ParseStream) -> Result<Option<syn::Lifetime>, syn::E
         ));
     }
 
-    let result = generics.lifetimes().nth(0).map(|lt| &lt.lifetime).cloned();
+    let result = generics.lifetimes().next().map(|lt| &lt.lifetime).cloned();
     Ok(result)
 }

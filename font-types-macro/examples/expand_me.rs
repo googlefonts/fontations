@@ -33,13 +33,13 @@ font_types_macro::tables! {
     }
 }
 
-fn identity(t: BigEndian<u16>) -> usize {
-    t.get() as _
+fn identity(t: u16) -> usize {
+    t as _
 }
 
 impl<'a> font_types::VarSized<'a> for SegmentMaps<'a> {
     fn len(&self) -> usize {
-        self.position_map_count().get() as usize * std::mem::size_of::<AxisValueMap>()
+        self.position_map_count() as usize * std::mem::size_of::<AxisValueMap>()
     }
 }
 
