@@ -12,7 +12,7 @@ fn main() {
 fn print_font_info(font: &FontRef) {
     let num_tables = font.table_directory.num_tables();
     println!("loaded {} tables", num_tables);
-    for record in font.table_directory.table_records().unwrap() {
+    for record in font.table_directory.table_records() {
         println!(
             "table {} at {:?} (len {})",
             record.tag.get(),

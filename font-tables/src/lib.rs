@@ -42,10 +42,9 @@ impl<'a> FontRef<'a> {
     pub fn table_data(&self, tag: Tag) -> Option<&'a [u8]> {
         self.table_directory
             .table_records()
-            .unwrap_or_default()
             .binary_search_by(|rec| rec.tag.get().cmp(&tag))
             .ok()
-            .and_then(|idx| self.table_directory.table_records().unwrap().get(idx))
+            .and_then(|idx| self.table_directory.table_records().get(idx))
             .and_then(|record| {
                 let start = record.offset.get().non_null()?;
                 self.data.get(start..start + record.len.get() as usize)

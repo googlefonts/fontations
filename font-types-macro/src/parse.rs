@@ -305,22 +305,37 @@ impl SingleItem {
             ));
         }
 
-        let split_pos = self
+        // check that fields referenced in #count annotations are sane
+        for (field_idx, ident) in self
             .fields
             .iter()
-            .position(|x| x.is_array())
-            .unwrap_or_else(|| self.fields.len());
-
-        let valid_input_fields = &self.fields[..split_pos];
-        // check that fields are known & are scalar
-        for ident in self
-            .fields
-            .iter()
-            .filter_map(Field::as_array)
-            .flat_map(|x| x.count.iter_input_fields())
+            .enumerate()
+            .filter_map(|(i, fld)| fld.as_array().map(|arr| (i, arr)))
+            .flat_map(|(i, x)| x.count.iter_input_fields().map(move |id| (i, id)))
         {
-            if !valid_input_fields.iter().any(|x| x.name() == ident) {
-                return Err(syn::Error::new(ident.span(), "unknown field"));
+            match self.fields.iter().position(|fld| fld.name() == ident) {
+                Some(x) if x < field_idx => (),
+                Some(_) => {
+                    return Err(syn::Error::new(
+                        ident.span(),
+                        "field must occur before it can be referenced",
+                    ))
+                }
+                None => return Err(syn::Error::new(ident.span(), "unknown field")),
+            }
+        }
+
+        // ensure #[count_all] is last, if it exists
+        for (i, field) in self.fields.iter().enumerate() {
+            if let Some(array) = field.as_array() {
+                if let Count::All(all) = &array.count {
+                    if i != self.fields.len() - 1 {
+                        return Err(syn::Error::new(
+                            all.span(),
+                            "#[count_all] only valid on last item",
+                        ));
+                    }
+                }
             }
         }
         Ok(())

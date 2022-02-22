@@ -1,5 +1,3 @@
-use font_types::BigEndian;
-
 font_types_macro::tables! {
     CountAll<'a> {
         item_count: BigEndian<u16>,

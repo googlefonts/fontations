@@ -1,13 +1,5 @@
-error: #[count_all] annotation only valid on last field (TODO: validate before here)
-  --> tests/count-all-guard.rs:3:1
-   |
-3  | / font_types_macro::tables! {
-4  | |     CountAll<'a> {
-5  | |         item_count: BigEndian<u16>,
-6  | |         #[count_all]
-...  |
-9  | |     }
-10 | | }
-   | |_^
-   |
-   = note: this error originates in the macro `font_types_macro::tables` (in Nightly builds, run with -Z macro-backtrace for more info)
+error: #[count_all] only valid on last item
+ --> tests/count-all-guard.rs:4:11
+  |
+4 |         #[count_all]
+  |           ^^^^^^^^^

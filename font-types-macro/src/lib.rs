@@ -1,5 +1,5 @@
 use proc_macro::TokenStream;
-use quote::quote;
+use quote::{quote, quote_spanned};
 use syn::parse_macro_input;
 
 mod parse;
@@ -22,7 +22,8 @@ fn generate_item_code(item: &parse::SingleItem) -> proc_macro2::TokenStream {
     if item.fields.iter().all(|x| x.is_single()) {
         generate_zerocopy_impls(item)
     } else {
-        generate_view_impls(item)
+        let _ = generate_view_impls(item);
+        generate_view_impls2(item)
     }
 }
 
@@ -189,6 +190,136 @@ fn generate_zc_getter(field: &parse::SingleField) -> proc_macro2::TokenStream {
             }
         }
     }
+}
+
+fn generate_view_impls2(item: &parse::SingleItem) -> proc_macro2::TokenStream {
+    // scalars only get getters? that makes 'count' and friends complicated...
+    // we can at least have a 'new' method that does a reasonable job of bounds checking,
+    // but then we're going to be unsafing all over. that's also maybe okay though
+
+    let name = &item.name;
+    let docs = &item.docs;
+    let input_fields = item
+        .fields
+        .iter()
+        .filter_map(|fld| match fld {
+            parse::Field::Single(_) => None,
+            parse::Field::Array(array) => Some(array.count.iter_input_fields()),
+        })
+        .flatten()
+        .collect::<Vec<_>>();
+
+    let mut field_decls = Vec::new();
+    let mut getters = Vec::new();
+    for field in &item.fields {
+        let docs = field.docs();
+        let span = field.name().span();
+        match field {
+            parse::Field::Single(scalar) => {
+                let name = &scalar.name;
+                let typ = scalar.raw_type_tokens();
+                let cooked_type = scalar.cooked_type_tokens();
+                let (body, return_type) = if scalar.is_be_wrapper() {
+                    (quote_spanned!(span=> self.#name.read().get()), cooked_type)
+                } else {
+                    (quote_spanned!(span=> &self.#name), quote!(&cooked_type))
+                };
+                getters.push(quote_spanned! {span=>
+                    #( #docs )*
+                    pub fn #name(&self) -> #return_type {
+                        #body
+                    }
+                });
+                field_decls
+                    .push(quote_spanned!(span=> #name: zerocopy::LayoutVerified<&'a [u8], #typ>));
+            }
+            parse::Field::Array(array) if array.variable_size.is_none() => {
+                let name = &array.name;
+                let typ = &array.inner_typ;
+                getters.push(quote_spanned! {span=>
+                    #( #docs )*
+                    pub fn #name(&self) -> &[#typ] {
+                        &self.#name
+                    }
+                });
+                field_decls
+                    .push(quote_spanned!(span=> #name: zerocopy::LayoutVerified<&'a [u8], [#typ]>));
+            }
+            _ => (),
+        }
+    }
+
+    let used_fields = item.fields.iter().filter_map(|field| match field {
+        parse::Field::Single(scalar) => Some(&scalar.name),
+        parse::Field::Array(array) if array.variable_size.is_none() => Some(&array.name),
+        _ => None,
+    });
+
+    let field_inits = item.fields.iter().map(|field| match field {
+        parse::Field::Single(scalar) => {
+            let name = &scalar.name;
+            let typ = scalar.raw_type_tokens();
+            let span = name.span();
+            let resolved = input_fields.contains(&name).then(|| {
+                let resolved_ident = make_resolved_ident(name);
+                quote_spanned!(span=> let #resolved_ident = #name.read().get();)
+            });
+            quote_spanned! {span=>
+                let (#name, bytes) = zerocopy::LayoutVerified::<_, #typ>::new_unaligned_from_prefix(bytes)?;
+                #resolved
+            }
+        }
+        parse::Field::Array(array) if array.variable_size.is_none() => {
+            let name = &array.name;
+            let typ = &array.inner_typ;
+            let span = name.span();
+            let init_call = match &array.count {
+                parse::Count::Field(name) => {
+                    let count = make_resolved_ident(name);
+                    quote_spanned!(span=> zerocopy::LayoutVerified::<_, [#typ]>::new_slice_unaligned_from_prefix(bytes, #count as usize)?;)
+                }
+                parse::Count::Function { fn_, args } => {
+                    let args = args.iter().map(make_resolved_ident);
+                    quote_spanned!{span=>
+                        zerocopy::LayoutVerified::<_, [#typ]>::new_slice_unaligned_from_prefix(bytes, #fn_( #( #args ),* ))?;
+                        }
+                }
+                parse::Count::Literal(lit) => quote_spanned!(span=> zerocopy::LayoutVerified::<_, [#typ]>::new_slice_unaligned_from_prefix(bytes, #lit)?;),
+                parse::Count::All(_) => {
+                    quote_spanned!(span=> (zerocopy::LayoutVerified::<_, [#typ]>::new_slice_unaligned(bytes)?, 0);)
+                }
+            };
+            quote_spanned! {span=>
+                let (#name, bytes) = #init_call
+            }
+        }
+        _ => Default::default(),
+    });
+
+    quote! {
+        #( #docs )*
+        pub struct #name<'a> {
+            #( #field_decls ),*
+        }
+
+        impl<'a> font_types::FontRead<'a> for #name<'a> {
+            fn read(bytes: &'a [u8]) -> Option<Self> {
+                #( #field_inits )*
+                let _ = bytes;
+                Some(#name {
+                    #( #used_fields, )*
+                })
+            }
+        }
+
+        impl<'a> #name<'a> {
+            #( #getters )*
+        }
+    }
+}
+
+fn make_resolved_ident(ident: &syn::Ident) -> syn::Ident {
+    quote::format_ident!("__resolved_{}", ident)
 }
 
 fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
