@@ -40,12 +40,39 @@ font_types::tables! {
         /// see somewhere else
         mac_style: BigEndian<u16>,
         /// Smallest readable size in pixels.
-        lowest_rec_p_p_e_m: BigEndian<u16>,
+        lowest_rec_ppem: BigEndian<u16>,
         /// Deprecated (Set to 2).
         font_direction_hint: BigEndian<i16>,
         /// 0 for short offsets (Offset16), 1 for long (Offset32).
         index_to_loc_format: BigEndian<i16>,
         /// 0 for current format.
         glyph_data_format: BigEndian<i16>,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use font_types::{test_helpers::BeBuffer, FontRead};
+
+    #[test]
+    fn smoke_text() {
+        let mut buf = BeBuffer::new();
+        buf.extend([1u16, 0u16]);
+        buf.push(Fixed::from_f64(2.8));
+        buf.extend([42u32, 0x5f0f3cf5]);
+        buf.extend([16u16, 4096]); // flags, upm
+        buf.extend([LongDateTime::new(-500), LongDateTime::new(101)]);
+        buf.extend([-100i16, -50, 400, 711]);
+        buf.extend([0u16, 12]); // mac_style / ppem
+        buf.extend([2i16, 1, 0]);
+
+        let head = Head::read(&buf).unwrap();
+        assert_eq!(head.major_version(), 1);
+        assert_eq!(head.minor_version(), 0);
+        assert_eq!(head.font_revision(), Fixed::from_f64(2.8));
+        assert_eq!(head.units_per_em(), 4096);
+        assert_eq!(head.created().as_secs(), -500);
+        assert_eq!(head.y_min(), -50);
     }
 }

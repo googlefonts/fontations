@@ -22,6 +22,9 @@ mod uint24;
 mod var_array;
 mod version16dot16;
 
+#[doc(hidden)]
+pub mod test_helpers;
+
 pub use font_types_macro::tables;
 
 pub use fixed::{F2Dot14, Fixed};

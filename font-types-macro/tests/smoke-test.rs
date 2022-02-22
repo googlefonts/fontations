@@ -1,4 +1,4 @@
-use font_types::{BigEndian, F2Dot14};
+use font_types::{test_helpers, FontRead, BigEndian, F2Dot14};
 
 font_types_macro::tables! {
     SegmentMaps<'a> {
@@ -34,4 +34,18 @@ fn div_by_two(arg: u16) -> usize {
     arg as usize / 2
 }
 
-fn main() {}
+//TODO: when we actually implement avar, tests should move to font-tables crate
+fn main() {
+    let mut buffer = test_helpers::BeBuffer::new();
+    buffer.extend([1u16, 0u16]); // version
+    buffer.push(69u16); // reserved
+    buffer.push(1u16); // one axis
+    // start segment maps:
+
+    buffer.push(2u16); // position_map_count
+    buffer.extend([F2Dot14::from_f32(1.0), F2Dot14::from_f32(-1.0)]);
+    buffer.extend([F2Dot14::from_f32(1.75), F2Dot14::from_f32(-0.5)]);
+
+    let avar = Avar::read(&buffer).unwrap();
+    assert_eq!(avar.major_version(), 1);
+}
