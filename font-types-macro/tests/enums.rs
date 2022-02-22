@@ -40,6 +40,16 @@ font_types_macro::tables! {
         #[version(consts::ONE)]
         One(One),
     }
+
+    #[repr(u16)]
+    enum EncodingId {
+        Up = 1,
+        Down = 2,
+        Big = 3,
+    }
 }
 
-fn main() {}
+fn main() {
+    let encoding = EncodingId::new(1);
+    assert_eq!(encoding, EncodingId::Up);
+}

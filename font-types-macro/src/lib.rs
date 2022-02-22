@@ -10,6 +10,7 @@ pub fn tables(input: TokenStream) -> TokenStream {
     let code = input.iter().map(|item| match item {
         parse::Item::Single(item) => generate_item_code(item),
         parse::Item::Group(group) => generate_group(group),
+        parse::Item::RawEnum(raw_enum) => generate_raw_enum(raw_enum),
     });
     quote! {
         #(#code)*
@@ -83,6 +84,48 @@ fn generate_group(group: &parse::ItemGroup) -> proc_macro2::TokenStream {
         }
 
         #font_read
+    }
+}
+
+fn generate_raw_enum(raw: &parse::RawEnum) -> proc_macro2::TokenStream {
+    let name = &raw.name;
+    let docs = &raw.docs;
+    let repr = &raw.repr;
+    let variants = raw.variants.iter().map(|variant| {
+        let name = &variant.name;
+        let value = &variant.value;
+        let docs = &variant.docs;
+        quote! {
+            #( #docs )*
+            #name = #value,
+        }
+    });
+    let variant_inits = raw.variants.iter().map(|variant| {
+        let name = &variant.name;
+        let value = &variant.value;
+        quote!(#value => Self::#name,)
+    });
+
+    quote! {
+        #( #docs )*
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        #[repr(#repr)]
+        pub enum #name {
+            #( #variants )*
+            Unknown,
+        }
+
+        impl #name {
+            /// Create from a raw scalar.
+            ///
+            /// This will never fail; unknown values will be mapped to the `Unknown` variant
+            pub fn new(raw: #repr) -> Self {
+                match raw {
+                    #( #variant_inits )*
+                    _ => Self::Unknown,
+                }
+            }
+        }
     }
 }
 

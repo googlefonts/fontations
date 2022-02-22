@@ -19,6 +19,7 @@ pub struct Items(Vec<Item>);
 pub enum Item {
     Single(SingleItem),
     Group(ItemGroup),
+    RawEnum(RawEnum),
 }
 
 /// A single concrete object, such as a particular table version or record format.
@@ -37,6 +38,21 @@ pub struct ItemGroup {
     pub lifetime: Option<syn::Lifetime>,
     pub format_typ: syn::Ident,
     pub variants: Vec<Variant>,
+}
+
+/// A raw c-style enum
+pub struct RawEnum {
+    pub docs: Vec<syn::Attribute>,
+    pub name: syn::Ident,
+    pub repr: syn::Ident,
+    pub variants: Vec<RawVariant>,
+}
+
+/// A raw scalar variant
+pub struct RawVariant {
+    pub docs: Vec<syn::Attribute>,
+    pub name: syn::Ident,
+    pub value: syn::LitInt,
 }
 
 pub struct Variant {
@@ -96,7 +112,12 @@ impl Parse for Item {
         let lifetime = validate_lifetime(input)?;
         let content;
         let _ = braced!(content in input);
-        if let Some(_token) = enum_token {
+        if enum_token.is_some() && attrs.repr.is_some() {
+            let variants = Punctuated::<RawVariant, Token![,]>::parse_terminated(&content)?
+                .into_iter()
+                .collect();
+            RawEnum::new(name, variants, attrs).map(Self::RawEnum)
+        } else if enum_token.is_some() {
             let variants = Punctuated::<Variant, Token![,]>::parse_terminated(&content)?;
             let variants = variants.into_iter().collect();
             ItemGroup::new(name, lifetime, variants, attrs).map(Self::Group)
@@ -139,6 +160,21 @@ impl Parse for Variant {
                 "all variants require #[version(..)] attribute",
             ))
         }
+    }
+}
+
+impl Parse for RawVariant {
+    fn parse(input: ParseStream) -> Result<Self, syn::Error> {
+        let attrs = get_optional_attributes(input)?;
+        let attrs = VariantAttrs::parse(&attrs)?;
+        let name = input.parse::<syn::Ident>()?;
+        let _ = input.parse::<Token![=]>()?;
+        let value: syn::LitInt = input.parse()?;
+        Ok(Self {
+            docs: attrs.docs,
+            name,
+            value,
+        })
     }
 }
 
@@ -312,6 +348,27 @@ impl ItemGroup {
                 "all enum groups require #[format(..)] attribute",
             ))
         }
+    }
+}
+
+impl RawEnum {
+    fn new(
+        name: syn::Ident,
+        variants: Vec<RawVariant>,
+        attrs: ItemAttrs,
+    ) -> Result<Self, syn::Error> {
+        let repr = attrs.repr.ok_or_else(|| {
+            syn::Error::new(
+                name.span(),
+                "raw enumerations require repr annotation (like: #[repr(u16)])",
+            )
+        })?;
+        Ok(RawEnum {
+            docs: attrs.docs,
+            repr,
+            variants,
+            name,
+        })
     }
 }
 

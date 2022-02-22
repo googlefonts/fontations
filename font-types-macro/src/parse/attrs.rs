@@ -35,6 +35,7 @@ pub struct VariantAttrs {
 pub struct ItemAttrs {
     pub docs: Vec<syn::Attribute>,
     pub format: Option<syn::Ident>,
+    pub repr: Option<syn::Ident>,
 }
 
 impl FieldAttrs {
@@ -195,14 +196,19 @@ impl VariantAttrs {
 }
 
 static FORMAT: &str = "format";
+static REPR: &str = "repr";
+
 impl ItemAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<ItemAttrs, syn::Error> {
         let mut result = ItemAttrs::default();
         for attr in attrs {
-            //if let syn::Attribute::break
             match attr.parse_meta()? {
                 syn::Meta::NameValue(value) if value.path.is_ident("doc") => {
                     result.docs.push(attr.clone());
+                }
+                syn::Meta::List(list) if list.path.is_ident(REPR) => {
+                    let item = expect_single_item_list(&list)?;
+                    result.repr = Some(expect_ident(&item)?);
                 }
                 syn::Meta::List(list) if list.path.is_ident(FORMAT) => {
                     if let Some(syn::NestedMeta::Meta(syn::Meta::Path(p))) = list.nested.first() {
