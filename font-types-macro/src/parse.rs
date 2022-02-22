@@ -217,7 +217,7 @@ impl SingleField {
         //quote!(<#typ as ::raw_types::FontType::Raw>::Raw)
     }
 
-    fn is_be_wrapper(&self) -> bool {
+    pub fn is_be_wrapper(&self) -> bool {
         matches!(self.typ.segments.last(), Some(seg) if seg.ident == "BigEndian")
     }
 

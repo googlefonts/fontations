@@ -1,6 +1,8 @@
 //! font tables, records, etc.
 
 #![cfg_attr(not(feature = "std"), no_std)]
+// we autogenerate len methods in some places
+#![allow(clippy::len_without_is_empty)]
 
 #[cfg(any(feature = "std", test))]
 #[allow(unused_imports)]

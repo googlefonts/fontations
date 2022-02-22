@@ -98,10 +98,19 @@ fn generate_zerocopy_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream
         .fields
         .iter()
         .map(|field| field.as_single().unwrap().raw_type_tokens());
-    let field_docs = item.fields.iter().map(|fld| {
-        let docs = &fld.as_single().unwrap().docs;
-        quote!( #( #docs )* )
-    });
+    let field_docs = item
+        .fields
+        .iter()
+        .map(|fld| {
+            let docs = &fld.as_single().unwrap().docs;
+            quote!( #( #docs )* )
+        })
+        .collect::<Vec<_>>();
+
+    let getters = item
+        .fields
+        .iter()
+        .map(|fld| generate_zc_getter(fld.as_single().unwrap()));
 
     quote! {
         #( #docs )*
@@ -111,8 +120,31 @@ fn generate_zerocopy_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream
             #( #field_docs pub #field_names: #field_types, )*
         }
 
-        // and now I want getters. but not for everything? also they return... a different concrete
-        // type? or... do I want this, in the zero-copy version?
+        impl #name {
+            #(
+                #field_docs
+                #getters
+            )*
+        }
+
+    }
+}
+
+fn generate_zc_getter(field: &parse::SingleField) -> proc_macro2::TokenStream {
+    let name = &field.name;
+    let cooked_type = field.cooked_type_tokens();
+    if field.is_be_wrapper() {
+        quote! {
+            pub fn #name(&self) -> #cooked_type {
+                self.#name.get()
+            }
+        }
+    } else {
+        quote! {
+            pub fn #name(&self) -> &#cooked_type {
+                &self.name
+            }
+        }
     }
 }
 
