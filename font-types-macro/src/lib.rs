@@ -22,8 +22,7 @@ fn generate_item_code(item: &parse::SingleItem) -> proc_macro2::TokenStream {
     if item.fields.iter().all(|x| x.is_single()) {
         generate_zerocopy_impls(item)
     } else {
-        let _ = generate_view_impls(item);
-        generate_view_impls2(item)
+        generate_view_impls(item)
     }
 }
 
@@ -141,7 +140,7 @@ fn generate_zerocopy_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream
     let field_types = item
         .fields
         .iter()
-        .map(|field| field.as_single().unwrap().raw_type_tokens());
+        .map(|field| &field.as_single().unwrap().typ);
     let field_docs = item
         .fields
         .iter()
@@ -192,109 +191,61 @@ fn generate_zc_getter(field: &parse::SingleField) -> proc_macro2::TokenStream {
     }
 }
 
-fn generate_view_impls2(item: &parse::SingleItem) -> proc_macro2::TokenStream {
-    // scalars only get getters? that makes 'count' and friends complicated...
-    // we can at least have a 'new' method that does a reasonable job of bounds checking,
-    // but then we're going to be unsafing all over. that's also maybe okay though
-
+fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
     let name = &item.name;
     let docs = &item.docs;
-    let input_fields = item
+
+    // these are fields which are inputs to the size calculations of *other fields.
+    // For each of these field, we generate a 'resolved' identifier, and we assign the
+    // value of this field to that identifier at init time. Subsequent fields can then
+    // access that identifier in their own generated code, to determine the runtime
+    // value of something.
+    #[allow(clippy::needless_collect)] // bad clippy
+    let fields_used_as_inputs = item
         .fields
         .iter()
-        .filter_map(|fld| match fld {
-            parse::Field::Single(_) => None,
-            parse::Field::Array(array) => Some(array.count.iter_input_fields()),
-        })
-        .flatten()
+        .filter_map(parse::Field::as_array)
+        .flat_map(|array| array.count.iter_input_fields())
         .collect::<Vec<_>>();
 
+    // The fields in the declaration of the struct.
     let mut field_decls = Vec::new();
+    // the getters for those fields that have getters
     let mut getters = Vec::new();
+    // just the names; we use these at the end to assemble the struct (shorthand initializer syntax)
+    let mut used_field_names = Vec::new();
+    // the code to intiailize each field. each block of code is expected to take the form,
+    // `let (field_name, bytes) = $expr`, where 'bytes' is the whatever is left over
+    // from the input bytes after validating this field.
+    let mut field_inits = Vec::new();
+
     for field in &item.fields {
-        let docs = field.docs();
-        let span = field.name().span();
-        match field {
-            parse::Field::Single(scalar) => {
-                let name = &scalar.name;
-                let typ = scalar.raw_type_tokens();
-                let cooked_type = scalar.cooked_type_tokens();
-                let (body, return_type) = if scalar.is_be_wrapper() {
-                    (quote_spanned!(span=> self.#name.read().get()), cooked_type)
-                } else {
-                    (quote_spanned!(span=> &self.#name), quote!(&cooked_type))
-                };
-                getters.push(quote_spanned! {span=>
-                    #( #docs )*
-                    pub fn #name(&self) -> #return_type {
-                        #body
-                    }
-                });
-                field_decls
-                    .push(quote_spanned!(span=> #name: zerocopy::LayoutVerified<&'a [u8], #typ>));
-            }
-            parse::Field::Array(array) if array.variable_size.is_none() => {
-                let name = &array.name;
-                let typ = &array.inner_typ;
-                getters.push(quote_spanned! {span=>
-                    #( #docs )*
-                    pub fn #name(&self) -> &[#typ] {
-                        &self.#name
-                    }
-                });
-                field_decls
-                    .push(quote_spanned!(span=> #name: zerocopy::LayoutVerified<&'a [u8], [#typ]>));
-            }
-            _ => (),
+        if matches!(field, parse::Field::Array(arr) if arr.variable_size.is_some()) {
+            continue;
         }
+
+        let name = field.name();
+        let span = name.span();
+
+        field_decls.push(field.view_field_decl());
+        used_field_names.push(field.name());
+
+        if let Some(getter) = field.view_getter_fn() {
+            getters.push(getter);
+        }
+
+        let field_init = field.view_init_expr();
+        // if this field is used by another field, resolve it's current value
+        let maybe_resolved_value = fields_used_as_inputs.contains(&name).then(|| {
+            let resolved_ident = make_resolved_ident(name);
+            quote_spanned!(span=> let #resolved_ident = #name.read().get();)
+        });
+
+        field_inits.push(quote! {
+            #field_init
+            #maybe_resolved_value
+        });
     }
-
-    let used_fields = item.fields.iter().filter_map(|field| match field {
-        parse::Field::Single(scalar) => Some(&scalar.name),
-        parse::Field::Array(array) if array.variable_size.is_none() => Some(&array.name),
-        _ => None,
-    });
-
-    let field_inits = item.fields.iter().map(|field| match field {
-        parse::Field::Single(scalar) => {
-            let name = &scalar.name;
-            let typ = scalar.raw_type_tokens();
-            let span = name.span();
-            let resolved = input_fields.contains(&name).then(|| {
-                let resolved_ident = make_resolved_ident(name);
-                quote_spanned!(span=> let #resolved_ident = #name.read().get();)
-            });
-            quote_spanned! {span=>
-                let (#name, bytes) = zerocopy::LayoutVerified::<_, #typ>::new_unaligned_from_prefix(bytes)?;
-                #resolved
-            }
-        }
-        parse::Field::Array(array) if array.variable_size.is_none() => {
-            let name = &array.name;
-            let typ = &array.inner_typ;
-            let span = name.span();
-            let init_call = match &array.count {
-                parse::Count::Field(name) => {
-                    let count = make_resolved_ident(name);
-                    quote_spanned!(span=> zerocopy::LayoutVerified::<_, [#typ]>::new_slice_unaligned_from_prefix(bytes, #count as usize)?;)
-                }
-                parse::Count::Function { fn_, args } => {
-                    let args = args.iter().map(make_resolved_ident);
-                    quote_spanned!{span=>
-                        zerocopy::LayoutVerified::<_, [#typ]>::new_slice_unaligned_from_prefix(bytes, #fn_( #( #args ),* ))?;
-                        }
-                }
-                parse::Count::Literal(lit) => quote_spanned!(span=> zerocopy::LayoutVerified::<_, [#typ]>::new_slice_unaligned_from_prefix(bytes, #lit)?;),
-                parse::Count::All(_) => {
-                    quote_spanned!(span=> (zerocopy::LayoutVerified::<_, [#typ]>::new_slice_unaligned(bytes)?, 0);)
-                }
-            };
-            quote_spanned! {span=>
-                let (#name, bytes) = #init_call
-            }
-        }
-        _ => Default::default(),
-    });
 
     quote! {
         #( #docs )*
@@ -307,7 +258,7 @@ fn generate_view_impls2(item: &parse::SingleItem) -> proc_macro2::TokenStream {
                 #( #field_inits )*
                 let _ = bytes;
                 Some(#name {
-                    #( #used_fields, )*
+                    #( #used_field_names, )*
                 })
             }
         }
@@ -320,177 +271,4 @@ fn generate_view_impls2(item: &parse::SingleItem) -> proc_macro2::TokenStream {
 
 fn make_resolved_ident(ident: &syn::Ident) -> syn::Ident {
     quote::format_ident!("__resolved_{}", ident)
-}
-
-fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
-    // scalars only get getters? that makes 'count' and friends complicated...
-    // we can at least have a 'new' method that does a reasonable job of bounds checking,
-    // but then we're going to be unsafing all over. that's also maybe okay though
-
-    let name = &item.name;
-    let docs = &item.docs;
-
-    let mut current_offset = quote!(0);
-    let mut in_checked_range = true;
-    // some fields do not know their length. If we encounter one of those fields,
-    // we set this to the initial offset of that field; otherwise we set this
-    // to the final calculated offset.
-    // We verify that the input data is at least this long when we construct our
-    // object, and any fields in this checked data can use get_unchecked in their getters
-    let mut checkable_len = None;
-    let mut getters = Vec::new();
-
-    for field in &item.fields {
-        match field {
-            parse::Field::Single(scalar) => {
-                if scalar.hidden.is_none() {
-                    getters.push(make_scalar_getter(
-                        scalar,
-                        &mut current_offset,
-                        in_checked_range,
-                    ));
-                } else {
-                    let len = scalar.len_tokens();
-                    current_offset = quote!( #current_offset + #len );
-                }
-            }
-            parse::Field::Array(array) => {
-                if checkable_len.is_none() {
-                    checkable_len = Some(quote!(#current_offset));
-                    in_checked_range = false;
-                }
-                let getter = if array.variable_size.is_none() {
-                    make_array_getter(array, &mut current_offset, in_checked_range)
-                } else {
-                    make_var_array_getter(array, &mut current_offset)
-                };
-                getters.push(getter);
-            }
-        }
-    }
-    if checkable_len.is_none() {
-        checkable_len = Some(current_offset);
-    }
-    let field_docs = item.fields.iter().map(|field| {
-        let docs = field.docs();
-        quote!( #( #docs )* )
-    });
-
-    quote! {
-        #( #docs )*
-        pub struct #name<'a>(&'a [u8]);
-
-        impl<'a> font_types::FontRead<'a> for #name<'a> {
-            fn read(bytes: &'a [u8]) -> Option<Self> {
-                if bytes.len() < #checkable_len {
-                    return None;
-                }
-                Some(Self(bytes))
-            }
-        }
-
-        impl<'a> #name<'a> {
-            #( #field_docs #getters )*
-        }
-    }
-}
-
-fn make_scalar_getter(
-    field: &parse::SingleField,
-    offset: &mut proc_macro2::TokenStream,
-    checked: bool,
-) -> proc_macro2::TokenStream {
-    let name = &field.name;
-    let len = field.len_tokens();
-
-    let get_bytes = if checked {
-        quote!(unsafe { self.0.get_unchecked(#offset..#offset + #len) })
-    } else {
-        quote!(self.0.get(#offset..#offset + #len).unwrap_or_default())
-    };
-
-    *offset = quote!(#offset + #len);
-    let return_ty = field.cooked_type_tokens();
-
-    let from_bytes = field.getter_tokens(&get_bytes);
-    if checked {
-        quote! {
-        pub fn #name(&self) -> #return_ty {
-            let raw = #from_bytes.unwrap();
-            raw
-        }
-        }
-    } else {
-        quote! {
-            pub fn #name(&self) -> Option<#return_ty> {
-                #from_bytes
-            }
-        }
-    }
-}
-
-fn make_array_getter(
-    field: &parse::ArrayField,
-    offset: &mut proc_macro2::TokenStream,
-    _checked: bool,
-) -> proc_macro2::TokenStream {
-    let name = &field.name;
-    let start_off = offset.clone();
-    let inner_typ = &field.inner_typ;
-    assert!(
-        field.inner_lifetime.is_none(),
-        "inner_lifetime should only exist on variable size fields"
-    );
-    let len = match &field.count {
-        parse::Count::Field(name) => Some(quote!(self.#name() as usize)),
-        parse::Count::Function { fn_, args } => {
-            let args = args.iter().map(|arg| quote!(self.#arg()));
-            Some(quote!(#fn_( #( #args ),* )))
-        }
-        parse::Count::Literal(lit) => Some(quote! { (#lit as usize) }),
-        parse::Count::All(_) => None,
-    };
-
-    let range = match len {
-        Some(len) => {
-            *offset = quote!(#offset + #len);
-            //FIXME: we need to figure out our 'get' business
-            quote!(#start_off..#start_off + #len * std::mem::size_of::<#inner_typ>())
-        }
-        None => {
-            // guard to ensure that this item is only ever the last:
-            *offset = quote!(compile_error!(
-                "#[count_all] annotation only valid on last field (TODO: validate before here)"
-            ));
-            quote!(#start_off..)
-        }
-    };
-    quote! {
-        pub fn #name(&self) -> Option<&'a [#inner_typ]> {
-            self.0.get(#range)
-                .and_then(|bytes| zerocopy::LayoutVerified::new_slice_unaligned(bytes))
-                .map(|layout| layout.into_slice())
-        }
-    }
-}
-
-fn make_var_array_getter(
-    field: &parse::ArrayField,
-    offset: &mut proc_macro2::TokenStream,
-) -> proc_macro2::TokenStream {
-    let name = &field.name;
-    let start_off = offset.clone();
-    let inner_typ = &field.inner_typ;
-    assert!(
-        field.inner_lifetime.is_some(),
-        "variable arrays are meaningless without an inner lifetime?"
-    );
-    *offset = quote!(compile_error!(
-        "guard violated: variable_size array must be last field in item."
-    ));
-    quote! {
-        pub fn #name(&self) -> Option<font_types::VarArray<'a, #inner_typ>> {
-            self.0.get(#start_off..).map(font_types::VarArray::new)
-        }
-    }
 }

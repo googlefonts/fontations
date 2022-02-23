@@ -1,4 +1,4 @@
-use quote::quote;
+use quote::{quote, quote_spanned};
 use syn::{
     braced, bracketed, parenthesized,
     parse::{Parse, ParseStream},
@@ -237,22 +237,107 @@ impl Field {
             Field::Single(v) => &v.docs,
         }
     }
+
+    pub fn view_init_expr(&self) -> proc_macro2::TokenStream {
+        let name = self.name();
+        let span = name.span();
+        let init_fn = match self {
+            Field::Single(value) => {
+                let typ = &value.typ;
+                quote_spanned!(span=> zerocopy::LayoutVerified::<_, #typ>::new_unaligned_from_prefix(bytes)?)
+            }
+            Field::Array(array) if array.variable_size.is_none() => {
+                let typ = &array.inner_typ;
+                let count = match &array.count {
+                    Count::Field(name) => {
+                        let span = name.span();
+                        let resolved_value = super::make_resolved_ident(name);
+                        Some(quote_spanned!(span=> #resolved_value as usize))
+                    }
+                    Count::Literal(lit) => {
+                        let span = lit.span();
+                        Some(quote_spanned!(span=> #lit))
+                    }
+                    Count::Function { fn_, args } => {
+                        let span = fn_.span();
+                        let args = args.iter().map(super::make_resolved_ident);
+                        Some(quote_spanned!(span=> #fn_( #( #args ),* )))
+                    }
+                    Count::All(_) => None,
+                };
+                if let Some(count) = count {
+                    quote_spanned!(span=> zerocopy::LayoutVerified::<_, [#typ]>::new_slice_unaligned_from_prefix(bytes, #count)?)
+                } else {
+                    quote_spanned!(span => (zerocopy::LayoutVerified::<_, [#typ]>::new_slice_unaligned(bytes)?, 0))
+                }
+            }
+            _ => quote_spanned!(span=> compile_errror!("we don't init this type yet")),
+        };
+        quote_spanned!(span=> let (#name, bytes) = #init_fn;)
+    }
+
+    pub fn view_getter_fn(&self) -> Option<proc_macro2::TokenStream> {
+        let docs = self.docs();
+        let name = self.name();
+        let span = name.span();
+        match self {
+            Field::Single(s) if s.hidden.is_some() => None,
+            Field::Array(a) if a.variable_size.is_some() => None,
+            _ => {
+                let body = self.getter_body();
+                let return_type = self.getter_return_type();
+                Some(quote_spanned! {span=>
+                    #( #docs )*
+                    pub fn #name(&self) -> #return_type {
+                        #body
+                    }
+                })
+            }
+        }
+    }
+
+    fn getter_return_type(&self) -> proc_macro2::TokenStream {
+        match self {
+            Field::Single(field) => field.cooked_type_tokens(),
+            Field::Array(array) => {
+                let typ = &array.inner_typ;
+                let span = array.name.span();
+                quote_spanned!(span=> &[#typ])
+            }
+        }
+    }
+
+    fn getter_body(&self) -> proc_macro2::TokenStream {
+        let span = self.name().span();
+        let name = self.name();
+        match self {
+            Field::Single(field) if field.is_be_wrapper() => {
+                quote_spanned!(span=> self.#name.read().get())
+            }
+            _ => quote_spanned!(span=> &self.#name),
+        }
+    }
+
+    /// The type that represents this field in a view struct.
+    pub fn view_field_decl(&self) -> proc_macro2::TokenStream {
+        let name = self.name();
+        match self {
+            Field::Single(scalar) => {
+                let typ = &scalar.typ;
+                let span = typ.span();
+                quote_spanned!(span=> #name: zerocopy::LayoutVerified<&'a [u8], #typ>)
+            }
+            Field::Array(array) if array.variable_size.is_none() => {
+                let typ = &array.inner_typ;
+                let span = typ.span();
+                quote_spanned!(span=> #name: zerocopy::LayoutVerified<&'a [u8], [#typ]>)
+            }
+            _ => panic!("variable arrays are not handled yet, you shouldn't be calling this"),
+        }
+    }
 }
 
 impl SingleField {
-    /// tokens representing the length of this field in raw bytes
-    pub fn len_tokens(&self) -> proc_macro2::TokenStream {
-        let typ = &self.typ;
-        quote!(std::mem::size_of::<#typ>())
-        //quote!(std::mem::size_of::<<#typ as ::raw_types::FontType>::Raw>())
-    }
-
-    pub fn raw_type_tokens(&self) -> proc_macro2::TokenStream {
-        let typ = &self.typ;
-        quote!(#typ)
-        //quote!(<#typ as ::raw_types::FontType::Raw>::Raw)
-    }
-
     pub fn is_be_wrapper(&self) -> bool {
         matches!(self.typ.segments.last(), Some(seg) if seg.ident == "BigEndian")
     }
@@ -276,15 +361,6 @@ impl SingleField {
 
         let typ = &self.typ;
         quote!(#typ)
-    }
-
-    /// tokens for getting this field from a byte slice.
-    ///
-    /// This should return Option<Self>, and it will be unwrapped where it has been prechecked.
-    pub fn getter_tokens(&self, bytes: &proc_macro2::TokenStream) -> proc_macro2::TokenStream {
-        let typ = &self.typ;
-        let convert_to_cooked = self.is_be_wrapper().then(|| quote!(.map(|x| x.get())));
-        quote!(<#typ as zerocopy::FromBytes>::read_from(#bytes) #convert_to_cooked )
     }
 }
 
