@@ -1,136 +1,189 @@
-ScriptList
+{
+ /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
+@table ScriptList
 uint16	scriptCount	Number of ScriptRecords
 ScriptRecord	scriptRecords[scriptCount]	Array of ScriptRecords, listed alphabetically by script tag
 
-ScriptRecord
+/// [Script Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
+@record ScriptRecord
 Tag	scriptTag	4-byte script tag identifier
 Offset16	scriptOffset	Offset to Script table, from beginning of ScriptList
+}
 
-Script
+{
+ /// [Script Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-table-and-language-system-record)
+@table Script
 Offset16	defaultLangSysOffset	Offset to default LangSys table, from beginning of Script table — may be NULL
 uint16	langSysCount	Number of LangSysRecords for this script — excluding the default LangSys
 LangSysRecord	langSysRecords[langSysCount]	Array of LangSysRecords, listed alphabetically by LangSys tag
 
-LangSysRecord
+@record LangSysRecord
 Tag	langSysTag	4-byte LangSysTag identifier
 Offset16	langSysOffset	Offset to LangSys table, from beginning of Script table
+}
 
-LangSys
+{
+/// [Language System Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#language-system-table)
+@table LangSys
 Offset16	lookupOrderOffset	= NULL (reserved for an offset to a reordering table)
 uint16	requiredFeatureIndex	Index of a feature required for this language system; if no required features = 0xFFFF
 uint16	featureIndexCount	Number of feature index values for this language system — excludes the required feature
 uint16	featureIndices[featureIndexCount]	Array of indices into the FeatureList, in arbitrary order
+}
+{
 
-FeatureList 
+/// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
+@table FeatureList
 uint16	featureCount	Number of FeatureRecords in this table
 FeatureRecord	featureRecords[featureCount]	Array of FeatureRecords — zero-based (first feature has FeatureIndex = 0), listed alphabetically by feature tag
 
-FeatureRecord
+/// Part of [FeatureList]
+@record FeatureRecord
 Tag	featureTag	4-byte feature identification tag
 Offset16	featureOffset	Offset to Feature table, from beginning of FeatureList
+}
 
-Feature
+{
+/// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
+@table Feature
 uint16	lookupIndexCount	Number of LookupList indices for this feature
 uint16	lookupListIndices[lookupIndexCount]	Array of indices into the LookupList — zero-based (first lookup is LookupListIndex = 0)
+}
 
-LookupList
+{
+/// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
+@table LookupList
 uint16	lookupCount	Number of lookups in this table
 Offset16	lookupOffsets[lookupCount]	Array of offsets to Lookup tables, from beginning of LookupList — zero based (first lookup is Lookup index = 0)
+}
 
-
-Lookup
+{
+/// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
+@table Lookup
 uint16	lookupType	Different enumerations for GSUB and GPOS
 uint16	lookupFlag	Lookup qualifiers
 uint16	subTableCount	Number of subtables for this lookup
 Offset16	subtableOffsets[subTableCount]	Array of offsets to lookup subtables, from beginning of Lookup table
 uint16	markFilteringSet	Index (base 0) into GDEF mark glyph sets structure. This field is only present if the USE_MARK_FILTERING_SET lookup flag is set.
 
-CoverageFormat1
+# LookupFlag bit enumeration
+#0x0001	RIGHT_TO_LEFT	This bit relates only to the correct processing of the cursive attachment lookup type (GPOS lookup type 3). When this bit is set, the last glyph in a given sequence to which the cursive attachment lookup is applied, will be positioned on the baseline.
+#0x0002	IGNORE_BASE_GLYPHS	If set, skips over base glyphs
+#0x0004	IGNORE_LIGATURES	If set, skips over ligatures
+#0x0008	IGNORE_MARKS	If set, skips over all combining marks
+#0x0010	USE_MARK_FILTERING_SET	If set, indicates that the lookup table structure is followed by a MarkFilteringSet field. The layout engine skips over all mark glyphs not in the mark filtering set indicated.
+#0x00E0	reserved	For future use (Set to zero)
+#0xFF00	MARK_ATTACHMENT_TYPE_MASK	If not zero, skips over all marks of attachment type different from specified.
+}
+
+{
+/// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
+@table CoverageFormat1
 uint16	coverageFormat	Format identifier — format = 1
 uint16	glyphCount	Number of glyphs in the glyph array
 uint16	glyphArray[glyphCount]	Array of glyph IDs — in numerical order
 
-CoverageFormat2
+/// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
+@table CoverageFormat2
 uint16	coverageFormat	Format identifier — format = 2
 uint16	rangeCount	Number of RangeRecords
 RangeRecord	rangeRecords[rangeCount]	Array of glyph ranges — ordered by startGlyphID.
 
-RangeRecord
+/// Used in [CoverageFormat2]
+@record RangeRecord
 uint16	startGlyphID	First glyph ID in the range
 uint16	endGlyphID	Last glyph ID in the range
 uint16	startCoverageIndex	Coverage Index of first glyph ID in range
+}
 
-ClassDefFormat1
+{
+/// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
+@table ClassDefFormat1
 uint16	classFormat	Format identifier — format = 1
 uint16	startGlyphID	First glyph ID of the classValueArray
 uint16	glyphCount	Size of the classValueArray
 uint16	classValueArray[glyphCount]	Array of Class Values — one per glyph ID
 
-ClassDefFormat2
+/// [Class Definition Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-2)
+@table ClassDefFormat2
 uint16	classFormat	Format identifier — format = 2
 uint16	classRangeCount	Number of ClassRangeRecords
 ClassRangeRecord	classRangeRecords[classRangeCount]	Array of ClassRangeRecords — ordered by startGlyphID
 
-ClassRangeRecord
+/// Used in [ClassDefFormat2]
+@record ClassRangeRecord
 uint16	startGlyphID	First glyph ID in the range
 uint16	endGlyphID	Last glyph ID in the range
 uint16	class	Applied to all glyphs in the range
+}
 
-SequenceLookupRecord
+{
+/// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
+@record SequenceLookupRecord
 uint16	sequenceIndex	Index (zero-based) into the input glyph sequence
 uint16	lookupListIndex	Index (zero-based) into the LookupList
 
-SequenceContextFormat1
+/// [Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-1-simple-glyph-contexts)
+@table SequenceContextFormat1
 uint16	format	Format identifier: format = 1
 Offset16	coverageOffset	Offset to Coverage table, from beginning of SequenceContextFormat1 table
 uint16	seqRuleSetCount	Number of SequenceRuleSet tables
 Offset16	seqRuleSetOffsets[seqRuleSetCount]	Array of offsets to SequenceRuleSet tables, from beginning of SequenceContextFormat1 table (offsets may be NULL)
 
-SequenceRuleSet
+/// Part of [SequenceContextFormat1]
+@table SequenceRuleSet
 uint16	seqRuleCount	Number of SequenceRule tables
 Offset16	seqRuleOffsets[posRuleCount]	Array of offsets to SequenceRule tables, from beginning of the SequenceRuleSet table
 
-SequenceRule 
+/// Part of [SequenceContextFormat1]
+@table SequenceRule
 uint16	glyphCount	Number of glyphs in the input glyph sequence
 uint16	seqLookupCount	Number of SequenceLookupRecords
 uint16	inputSequence[glyphCount - 1]	Array of input glyph IDs—starting with the second glyph
 SequenceLookupRecord	seqLookupRecords[seqLookupCount]	Array of Sequence lookup records
 
-SequenceContextFormat2
+/// [Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-2-class-based-glyph-contexts)
+@table SequenceContextFormat2
 uint16	format	Format identifier: format = 2
 Offset16	coverageOffset	Offset to Coverage table, from beginning of SequenceContextFormat2 table
 Offset16	classDefOffset	Offset to ClassDef table, from beginning of SequenceContextFormat2 table
 uint16	classSeqRuleSetCount	Number of ClassSequenceRuleSet tables
 Offset16	classSeqRuleSetOffsets[classSeqRuleSetCount]	Array of offsets to ClassSequenceRuleSet tables, from beginning of SequenceContextFormat2 table (may be NULL)
 
-ClassSequenceRuleSet
+/// Part of [SequenceContextFormat2]
+@table ClassSequenceRuleSet
 uint16	classSeqRuleCount	Number of ClassSequenceRule tables
 Offset16	classSeqRuleOffsets[classSeqRuleCount]	Array of offsets to ClassSequenceRule tables, from beginning of ClassSequenceRuleSet table
 
-ClassSequenceRule
+/// Part of [SequenceContextFormat2]
+@table ClassSequenceRule
 uint16	glyphCount	Number of glyphs to be matched
 uint16	seqLookupCount	Number of SequenceLookupRecords
 uint16	inputSequence[glyphCount - 1]	Sequence of classes to be matched to the input glyph sequence, beginning with the second glyph position
 SequenceLookupRecord	seqLookupRecords[seqLookupCount]	Array of SequenceLookupRecords
 
-SequenceContextFormat3
+/// [Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-3-coverage-based-glyph-contexts)
+@table SequenceContextFormat3
 uint16	format	Format identifier: format = 3
 uint16	glyphCount	Number of glyphs in the input sequence
 uint16	seqLookupCount	Number of SequenceLookupRecords
 Offset16	coverageOffsets[glyphCount]	Array of offsets to Coverage tables, from beginning of SequenceContextFormat3 subtable
 SequenceLookupRecord	seqLookupRecords[seqLookupCount]	Array of SequenceLookupRecords
 
-ChainedSequenceContextFormat1
+/// [Chained Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-1-simple-glyph-contexts)
+@table ChainedSequenceContextFormat1
 uint16	format	Format identifier: format = 1
 Offset16	coverageOffset	Offset to Coverage table, from beginning of ChainSequenceContextFormat1 table
 uint16	chainedSeqRuleSetCount	Number of ChainedSequenceRuleSet tables
 Offset16	chainedSeqRuleSetOffsets[chainedSeqRuleSetCount]	Array of offsets to ChainedSeqRuleSet tables, from beginning of ChainedSequenceContextFormat1 table (may be NULL)
 
-ChainedSequenceRuleSet
+/// Part of [ChainedSequenceContextFormat1]
+@table ChainedSequenceRuleSet
 uint16	chainedSeqRuleCount	Number of ChainedSequenceRule tables
 Offset16	chainedSeqRuleOffsets[chainedSeqRuleCount]	Array of offsets to ChainedSequenceRule tables, from beginning of ChainedSequenceRuleSet table
 
-ChainedSequenceRule
+/// Part of [ChainedSequenceContextFormat1]
+@table ChainedSequenceRule
 uint16	backtrackGlyphCount	Number of glyphs in the backtrack sequence
 uint16	backtrackSequence[backtrackGlyphCount]	Array of backtrack glyph IDs
 uint16	inputGlyphCount	Number of glyphs in the input sequence
@@ -140,7 +193,8 @@ uint16	lookaheadSequence[lookaheadGlyphCount]	Array of lookahead glyph IDs
 uint16	seqLookupCount	Number of SequenceLookupRecords
 SequenceLookupRecord	seqLookupRecords[seqLookupCount]	Array of SequenceLookupRecords
 
-ChainedSequenceContextFormat2
+/// [Chained Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-2-class-based-glyph-contexts)
+@table ChainedSequenceContextFormat2
 uint16	format	Format identifier: format = 2
 Offset16	coverageOffset	Offset to Coverage table, from beginning of ChainedSequenceContextFormat2 table
 Offset16	backtrackClassDefOffset	Offset to ClassDef table containing backtrack sequence context, from beginning of ChainedSequenceContextFormat2 table
@@ -149,11 +203,13 @@ Offset16	lookaheadClassDefOffset	Offset to ClassDef table containing lookahead s
 uint16	chainedClassSeqRuleSetCount	Number of ChainedClassSequenceRuleSet tables
 Offset16	chainedClassSeqRuleSetOffsets[chainedClassSeqRuleSetCount]	Array of offsets to ChainedClassSequenceRuleSet tables, from beginning of ChainedSequenceContextFormat2 table (may be NULL)
 
-ChainedClassSequenceRuleSet
+/// Part of [ChainedSequenceContextFormat2]
+@table ChainedClassSequenceRuleSet
 uint16	chainedClassSeqRuleCount	Number of ChainedClassSequenceRule tables
 Offset16	chainedClassSeqRuleOffsets[chainedClassSeqRuleCount]	Array of offsets to ChainedClassSequenceRule tables, from beginning of ChainedClassSequenceRuleSet
 
-ChainedClassSequenceRule
+/// Part of [ChainedSequenceContextFormat2]
+@table ChainedClassSequenceRule
 uint16	backtrackGlyphCount	Number of glyphs in the backtrack sequence
 uint16	backtrackSequence[backtrackGlyphCount]	Array of backtrack-sequence classes
 uint16	inputGlyphCount	Total number of glyphs in the input sequence
@@ -163,7 +219,8 @@ uint16	lookaheadSequence[lookaheadGlyphCount]	Array of lookahead-sequence classe
 uint16	seqLookupCount	Number of SequenceLookupRecords
 SequenceLookupRecord	seqLookupRecords[seqLookupCount]	Array of SequenceLookupRecords
 
-ChainedSequenceContextFormat3
+/// [Chained Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-3-coverage-based-glyph-contexts)
+@table ChainedSequenceContextFormat3
 uint16	format	Format identifier: format = 3
 uint16	backtrackGlyphCount	Number of glyphs in the backtrack sequence
 Offset16	backtrackCoverageOffsets[backtrackGlyphCount]	Array of offsets to coverage tables for the backtrack sequence
@@ -173,46 +230,71 @@ uint16	lookaheadGlyphCount	Number of glyphs in the lookahead sequence
 Offset16	lookaheadCoverageOffsets[lookaheadGlyphCount]	Array of offsets to coverage tables for the lookahead sequence
 uint16	seqLookupCount	Number of SequenceLookupRecords
 SequenceLookupRecord	seqLookupRecords[seqLookupCount]	Array of SequenceLookupRecords
+}
 
-Device
+{
+#@flags DeltaFormat
+#0x0001	LOCAL_2_BIT_DELTAS	Signed 2-bit value, 8 values per uint16
+#0x0002	LOCAL_4_BIT_DELTAS	Signed 4-bit value, 4 values per uint16
+#0x0003	LOCAL_8_BIT_DELTAS	Signed 8-bit value, 2 values per uint16
+#0x8000	VARIATION_INDEX	VariationIndex table, contains a delta-set index pair.
+#0x7FFC	Reserved	For future use — set to 0
+
+/// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
+@table Device
 uint16	startSize	Smallest size to correct, in ppem
 uint16	endSize	Largest size to correct, in ppem
 uint16	deltaFormat	Format of deltaValue array data: 0x0001, 0x0002, or 0x0003
 uint16	deltaValue[ ]	Array of compressed data
 
-VariationIndex
+@table VariationIndex
 uint16	deltaSetOuterIndex	A delta-set outer index — used to select an item variation data subtable within the item variation store.
 uint16	deltaSetInnerIndex	A delta-set inner index — used to select a delta-set row within an item variation data subtable.
 uint16	deltaFormat	Format, = 0x8000
+}
 
-FeatureVariations
+{
+/// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
+@table FeatureVariations
 uint16	majorVersion	Major version of the FeatureVariations table — set to 1.
 uint16	minorVersion	Minor version of the FeatureVariations table — set to 0.
 uint32	featureVariationRecordCount	Number of feature variation records.
 FeatureVariationRecord	featureVariationRecords[featureVariationRecordCount]	Array of feature variation records.
 
-FeatureVariationRecord
+/// Part of [FeatureVariations]
+@record FeatureVariationRecord
 Offset32	conditionSetOffset	Offset to a condition set table, from beginning of FeatureVariations table.
 Offset32	featureTableSubstitutionOffset	Offset to a feature table substitution table, from beginning of the FeatureVariations table.
+}
 
-ConditionSet
+{
+/// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
+@table ConditionSet
 uint16	conditionCount	Number of conditions for this condition set.
 Offset32	conditionOffsets[conditionCount]	Array of offsets to condition tables, from beginning of the ConditionSet table.
 
-ConditionFormat1
+/// [Condition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table)
+@table Condition
+fake	no_field	FIXME: make an enum
+
+/// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
+@table ConditionFormat1
 uint16	format	Format, = 1
 uint16	axisIndex	Index (zero-based) for the variation axis within the 'fvar' table.
 F2DOT14	filterRangeMinValue	Minimum value of the font variation instances that satisfy this condition.
 F2DOT14	filterRangeMaxValue	Maximum value of the font variation instances that satisfy this condition.
 
-FeatureTableSubstitution
+/// [FeatureTableSubstitution Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featuretablesubstitution-table)
+@table FeatureTableSubstitution
 uint16	majorVersion	Major version of the feature table substitution table — set to 1
 uint16	minorVersion	Minor version of the feature table substitution table — set to 0.
 uint16	substitutionCount	Number of feature table substitution records.
 FeatureTableSubstitutionRecord	substitutions[substitutionCount]	Array of feature table substitution records.
 
-FeatureTableSubstitutionRecord
+/// Used in [FeatureTableSubstitution]
+@record FeatureTableSubstitutionRecord
 uint16	featureIndex	The feature table index to match.
 Offset32	alternateFeatureOffset	Offset to an alternate feature table, from start of the FeatureTableSubstitution table.
+}
 
 

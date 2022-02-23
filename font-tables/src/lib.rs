@@ -15,6 +15,7 @@ extern crate core as std;
 
 use font_types::{BigEndian, FontRead, Offset, Offset32, Tag};
 
+pub mod layout;
 pub mod tables;
 
 /// A temporary type for accessing tables
