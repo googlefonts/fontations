@@ -1,0 +1,184 @@
+{
+    @table Cmap <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview>
+        uint16	version	Table version number (0).
+        uint16	numTables	Number of encoding tables that follow.
+        EncodingRecord	encodingRecords[numTables]
+
+    @record EncodingRecord <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings>
+        uint16	platformId	Platform ID.
+        uint16	encodingId	Platform-specific encoding ID.
+        Offset32	subtableOffset	Byte offset from beginning of table to the subtable for this encoding.
+
+        @enum(u16) PlatformId <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#platform-ids>
+        0	Unicode	Various
+        1	Macintosh	Script manager code
+        2	ISO [deprecated]	ISO encoding [deprecated]
+        3	Windows	Windows encoding
+        4	Custom	Custom
+
+}
+
+# skipping these for now, not sure what the actual desired API is going to be:
+
+#        @enum(u16) UnicodeEncodingId <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#unicode-platform-platform-id--0>
+#        0	Unicode 1.0 semantics—deprecated
+#        1	Unicode 1.1 semantics—deprecated
+#        2	ISO/IEC 10646 semantics—deprecated
+#        3	Unicode 2.0 and onwards semantics, Unicode BMP only
+#        4	Unicode 2.0 and onwards semantics, Unicode full repertoire
+#        5	Unicode Variation Sequences—for use with subtable format 14
+#        6	Unicode full repertoire—for use with subtable format 13
+
+#        @enum(u16) IsoEncodingId <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#iso-platform-platform-id--2>
+#        0	7-bit ASCII
+#        1	ISO 10646
+#        2	ISO 8859-1
+#
+## The Windows platform supports several encodings. When creating fonts for Windows, Unicode 'cmap' subtables should always be used—platform ID 3 with encoding ID 1 or encoding ID 10. See below for additional details.
+#        @enum(u16) WindowsEncodingId <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#windows-platform-platform-id--3>
+#        0	Symbol
+#        1	Unicode BMP
+#        2	ShiftJIS
+#        3	PRC
+#        4	Big5
+#        5	Wansung
+#        6	Johab
+#        7	Reserved
+#        8	Reserved
+#        9	Reserved
+#        10	Unicode full repertoire
+
+{
+    @table Cmap0 <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table>
+        uint16	format	Format number is set to 0.
+        uint16	length	This is the length in bytes of the subtable.
+        uint16	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
+        uint8	glyphIdArray[256]	An array that maps character codes to glyph index values.
+}
+
+{
+    @table Cmap2 <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-2-high-byte-mapping-through-table>
+        uint16	format	Format number is set to 2.
+        uint16	length	This is the length in bytes of the subtable.
+        uint16	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
+        uint16	subHeaderKeys[256]	Array that maps high bytes to subHeaders: value is subHeader index × 8.
+        SubHeader	subHeaders[ ]	Variable-length array of SubHeader records.
+        uint16	glyphIdArray[ ]	Variable-length array containing subarrays used for mapping the low byte of 2-byte characters.
+
+    @record SubHeader
+        uint16	firstCode	First valid low byte for this SubHeader.
+        uint16	entryCount	Number of valid low bytes for this SubHeader.
+        int16	idDelta	See text below.
+        uint16	idRangeOffset	See text below.
+}
+
+{
+    @table Cmap4 <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values>
+        uint16	format	Format number is set to 4.
+        uint16	length	This is the length in bytes of the subtable.
+        uint16	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
+        uint16	segCountX2	2 × segCount.
+        uint16	searchRange	Maximum power of 2 less than or equal to segCount, times 2 ((2**floor(log2(segCount))) * 2, where “**” is an exponentiation operator)
+        uint16	entrySelector	Log2 of the maximum power of 2 less than or equal to numTables (log2(searchRange/2), which is equal to floor(log2(segCount)))
+        uint16	rangeShift	segCount times 2, minus searchRange ((segCount * 2) - searchRange)
+        uint16	endCode[segCount]	End characterCode for each segment, last=0xFFFF.
+        uint16	reservedPad	Set to 0.
+        uint16	startCode[segCount]	Start character code for each segment.
+        int16	idDelta[segCount]	Delta for all character codes in segment.
+        uint16	idRangeOffsets[segCount]	Offsets into glyphIdArray or 0
+        uint16	glyphIdArray[ ]	Glyph index array (arbitrary length)
+}
+
+{
+    @table Cmap6 <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping>
+        uint16	format	Format number is set to 6.
+        uint16	length	This is the length in bytes of the subtable.
+        uint16	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
+        uint16	firstCode	First character code of subrange.
+        uint16	entryCount	Number of character codes in subrange.
+        uint16	glyphIdArray[entryCount]	Array of glyph index values for character codes in the range.
+
+}
+
+{
+    @table Cmap8 <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-8-mixed-16-bit-and-32-bit-coverage>
+        uint16	format	Subtable format; set to 8.
+        uint16	reserved	Reserved; set to 0
+        uint32	length	Byte length of this subtable (including the header)
+        uint32	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
+        uint8	is32[8192]	Tightly packed array of bits (8K bytes total) indicating whether the particular 16-bit (index) value is the start of a 32-bit character code
+        uint32	numGroups	Number of groupings which follow
+        SequentialMapGroup	groups[numGroups]	Array of SequentialMapGroup records.
+
+    @record SequentialMapGroup
+        uint32	startCharCode	First character code in this group; note that if this group is for one or more 16-bit character codes (which is determined from the is32 array), this 32-bit value will have the high 16-bits set to zero
+        uint32	endCharCode	Last character code in this group; same condition as listed above for the startCharCode
+        uint32	startGlyphID	Glyph index corresponding to the starting character code
+}
+
+{
+    @table Cmap10 <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array>
+        uint16	format	Subtable format; set to 10.
+        uint16	reserved	Reserved; set to 0
+        uint32	length	Byte length of this subtable (including the header)
+        uint32	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
+        uint32	startCharCode	First character code covered
+        uint32	numChars	Number of character codes covered
+        uint16	glyphIdArray[]	Array of glyph indices for the character codes covered
+}
+
+{
+    @table Cmap12 <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage>
+        uint16	format	Subtable format; set to 12.
+        uint16	reserved	Reserved; set to 0
+        uint32	length	Byte length of this subtable (including the header)
+        uint32	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
+        uint32	numGroups	Number of groupings which follow
+        SequentialMapGroup	groups[numGroups]	Array of SequentialMapGroup records.
+
+    @record SequentialMapGroup
+        uint32	startCharCode	First character code in this group
+        uint32	endCharCode	Last character code in this group
+        uint32	startGlyphID	Glyph index corresponding to the starting character code
+}
+
+{
+    @table Cmap13 <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-13-many-to-one-range-mappings>
+        uint16	format	Subtable format; set to 13.
+        uint16	reserved	Reserved; set to 0
+        uint32	length	Byte length of this subtable (including the header)
+        uint32	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
+        uint32	numGroups	Number of groupings which follow
+        ConstantMapGroup	groups[numGroups]	Array of ConstantMapGroup records.
+
+    @record ConstantMapGroup
+        uint32	startCharCode	First character code in this group
+        uint32	endCharCode	Last character code in this group
+        uint32	glyphID	Glyph index to be used for all the characters in the group’s range.
+
+}
+
+{
+    @table Cmap14 <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences>
+        uint16	format	Subtable format. Set to 14.
+        uint32	length	Byte length of this subtable (including this header)
+        uint32	numVarSelectorRecords	Number of variation Selector Records
+        VariationSelector	varSelector[numVarSelectorRecords]	Array of VariationSelector records.
+
+    @record VariationSelector
+        uint24	varSelector	Variation selector
+        Offset32	defaultUVSOffset	Offset from the start of the format 14 subtable to Default UVS Table. May be 0.
+        Offset32	nonDefaultUVSOffset	Offset from the start of the format 14 subtable to Non-Default UVS Table. May be 0.
+
+    @table DefaultUvs <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table>
+        uint32	numUnicodeValueRanges	Number of Unicode character ranges.
+        UnicodeRange	ranges[numUnicodeValueRanges]	Array of UnicodeRange records.
+
+    @record UVSMapping
+        uint24	unicodeValue	Base Unicode value of the UVS
+        uint16	glyphID	Glyph ID of the UVS
+
+    @record UnicodeRange
+        uint24	startUnicodeValue	First value in this range
+        uint8	additionalCount	Number of additional values in this range
+}

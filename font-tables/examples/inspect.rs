@@ -1,6 +1,10 @@
 //! Inspect a font, printing information about tables
 
-use font_tables::{tables::TableProvider, FontRef};
+use font_tables::{
+    tables::{self, TableProvider},
+    FontRef,
+};
+use font_types::{BigEndian, OffsetHost};
 
 fn main() {
     let path = std::env::args().nth(1).expect("missing path argument");
@@ -22,12 +26,36 @@ fn print_font_info(font: &FontRef) {
     }
 
     let head = font.head().expect("missing head");
+    print_head_info(&head);
+    if let Some(cmap) = font.cmap() {
+        print_cmap_info(&cmap);
+    }
+}
+
+fn print_head_info(head: &tables::head::Head) {
     println!(
         "\nhead version {}.{}",
         head.major_version, head.minor_version
     );
-    println!("revision {}", head.font_revision);
-    println!("upm {}", head.units_per_em);
-    println!("x/y min: {}, {}", head.x_min, head.y_min);
-    println!("x/y max: {}, {}", head.x_max, head.y_max);
+    println!("  revision {}", head.font_revision);
+    println!("  upm {}", head.units_per_em);
+    println!("  x/y min: {}, {}", head.x_min, head.y_min);
+    println!("  x/y max: {}, {}", head.x_max, head.y_max);
+}
+
+fn print_cmap_info(cmap: &tables::cmap::Cmap) {
+    println!(
+        "\ncmap version {}, {} tables",
+        cmap.version(),
+        cmap.num_tables()
+    );
+
+    for record in cmap.encoding_records() {
+        let platform_id = tables::cmap::PlatformId::new(record.platform_id());
+        let encoding_id = record.encoding_id();
+        let format: BigEndian<u16> = cmap
+            .resolve_offset(record.subtable_offset())
+            .expect("failed to resolve subtable");
+        println!("  ({:?}, {}) format {}", platform_id, encoding_id, format);
+    }
 }

@@ -1,5 +1,8 @@
 //! Font tables.
 
+pub mod cmap;
+pub mod head;
+
 use font_types::{FontRead, Tag};
 
 /// An interface for accessing tables from a font (or font-like object)
@@ -12,7 +15,8 @@ pub trait TableProvider {
     //fn maxp(&self) -> Option<maxp::Maxp05>;
     //fn loca(&self, is_32_bit: bool) -> Option<Loca>;
     //fn glyf(&self) -> Option<Glyf>;
-    //fn cmap(&self) -> Option<Cmap>;
+    fn cmap(&self) -> Option<cmap::Cmap> {
+        self.data_for_tag(Tag::new(b"cmap"))
+            .and_then(cmap::Cmap::read)
+    }
 }
-
-pub mod head;
