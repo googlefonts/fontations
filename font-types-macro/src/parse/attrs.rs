@@ -1,3 +1,4 @@
+use quote::ToTokens;
 use syn::spanned::Spanned;
 
 use super::{ArrayField, SingleField};
@@ -28,7 +29,13 @@ pub enum Count {
 #[derive(Default)]
 pub struct VariantAttrs {
     pub docs: Vec<syn::Attribute>,
-    pub version: Option<syn::Path>,
+    pub version: Option<Version>,
+}
+
+/// Used to specify the version/format specifier for an enum variant
+pub enum Version {
+    Lit(syn::LitInt),
+    Path(syn::Path),
 }
 
 #[derive(Default)]
@@ -180,14 +187,17 @@ impl VariantAttrs {
                     result.docs.push(attr.clone());
                 }
                 syn::Meta::List(list) if list.path.is_ident(VERSION) => {
-                    if let Some(syn::NestedMeta::Meta(syn::Meta::Path(p))) = list.nested.first() {
-                        result.version = Some(p.clone());
-                    } else {
-                        return Err(syn::Error::new(
-                            list.path.span(),
-                            "version attribute should have format version(path::to::CONST_VERSION)",
-                        ));
-                    }
+                    let item = expect_single_item_list(&list)?;
+                    result.version = match item {
+                        syn::NestedMeta::Meta(syn::Meta::Path(p)) => Some(Version::Path(p.clone())),
+                        syn::NestedMeta::Lit(syn::Lit::Int(lit)) => Some(Version::Lit(lit)),
+                        _ => {
+                            return Err(syn::Error::new(
+                                list.path.span(),
+                                "expected integer literal or path to constant",
+                            ))
+                        }
+                    };
                 }
                 other => return Err(syn::Error::new(other.span(), "unknown attribute")),
             }
@@ -248,5 +258,14 @@ fn expect_ident(meta: &syn::NestedMeta) -> Result<syn::Ident, syn::Error> {
             Ok(p.get_ident().unwrap().clone())
         }
         _ => Err(syn::Error::new(meta.span(), "expected ident")),
+    }
+}
+
+impl ToTokens for Version {
+    fn to_tokens(&self, stream: &mut proc_macro2::TokenStream) {
+        match self {
+            Version::Lit(lit) => lit.to_tokens(stream),
+            Version::Path(path) => path.to_tokens(stream),
+        }
     }
 }

@@ -59,7 +59,7 @@ pub struct RawVariant {
 pub struct Variant {
     pub docs: Vec<syn::Attribute>,
     pub name: syn::Ident,
-    pub version: syn::Path,
+    pub version: attrs::Version,
     pub typ: syn::Ident,
     pub typ_lifetime: Option<syn::Lifetime>,
 }
