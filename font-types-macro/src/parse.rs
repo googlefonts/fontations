@@ -26,6 +26,7 @@ pub enum Item {
 pub struct SingleItem {
     pub docs: Vec<syn::Attribute>,
     pub lifetime: Option<syn::Lifetime>,
+    pub offset_host: Option<syn::Path>,
     pub name: syn::Ident,
     pub fields: Vec<Field>,
 }
@@ -126,8 +127,8 @@ impl Parse for Item {
             let fields = fields.into_iter().collect();
             let item = SingleItem {
                 docs: attrs.docs,
+                offset_host: attrs.offset_host,
                 lifetime,
-                //attrs,
                 name,
                 fields,
             };

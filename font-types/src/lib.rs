@@ -30,7 +30,7 @@ pub use font_types_macro::tables;
 pub use fixed::{F2Dot14, Fixed};
 pub use fword::{FWord, UfWord};
 pub use longdatetime::LongDateTime;
-pub use offset::{Offset, Offset16, Offset24, Offset32};
+pub use offset::{Offset, Offset16, Offset24, Offset32, OffsetHost};
 pub use raw::{BigEndian, Scalar};
 pub use tag::Tag;
 pub use uint24::Uint24;
@@ -55,7 +55,7 @@ pub trait VarSized<'a>: FontRead<'a> {
     fn len(&self) -> usize;
 }
 
-impl<'a, T: zerocopy::FromBytes> FontRead<'a> for T {
+impl<'a, T: zerocopy::FromBytes + zerocopy::Unaligned> FontRead<'a> for T {
     fn read(bytes: &'a [u8]) -> Option<Self> {
         T::read_from_prefix(bytes)
     }

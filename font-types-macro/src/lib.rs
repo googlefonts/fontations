@@ -1,6 +1,6 @@
 use proc_macro::TokenStream;
 use quote::{quote, quote_spanned};
-use syn::parse_macro_input;
+use syn::{parse_macro_input, spanned::Spanned};
 
 mod parse;
 
@@ -228,7 +228,7 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
         let span = name.span();
 
         field_decls.push(field.view_field_decl());
-        used_field_names.push(field.name());
+        used_field_names.push(field.name().to_owned());
 
         if let Some(getter) = field.view_getter_fn() {
             getters.push(getter);
@@ -244,6 +244,23 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
         field_inits.push(quote! {
             #field_init
             #maybe_resolved_value
+        });
+    }
+
+    let mut offset_host_impl = None;
+    if let Some(attr) = item.offset_host.as_ref() {
+        let span = attr.span();
+        field_decls.push(quote_spanned!(span=> offset_bytes: &'a [u8]));
+        used_field_names.push(syn::Ident::new("offset_bytes", span));
+        // this needs to be the first item, otherwise offsets will be miscalculated,
+        // since 'bytes' is consumed as we init items
+        field_inits.insert(0, quote_spanned!(span=> let offset_bytes = bytes;));
+        offset_host_impl = Some(quote_spanned! {span=>
+            impl<'a> font_types::OffsetHost<'a> for #name<'a> {
+                fn bytes(&self) -> &'a [u8] {
+                    self.offset_bytes
+                }
+            }
         });
     }
 
@@ -266,6 +283,8 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
         impl<'a> #name<'a> {
             #( #getters )*
         }
+
+        #offset_host_impl
     }
 }
 

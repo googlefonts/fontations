@@ -8,5 +8,6 @@ fn tests() {
     t.pass("tests/enums.rs");
     t.compile_fail("tests/enum-bad-attrs.rs");
     t.compile_fail("tests/count-all-guard.rs");
+    t.pass("tests/offset_host.rs");
     //t.pass("tests/tuple-format-enum.rs");
 }

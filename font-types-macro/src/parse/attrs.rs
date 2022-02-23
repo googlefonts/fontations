@@ -35,6 +35,7 @@ pub struct VariantAttrs {
 pub struct ItemAttrs {
     pub docs: Vec<syn::Attribute>,
     pub format: Option<syn::Ident>,
+    pub offset_host: Option<syn::Path>,
     pub repr: Option<syn::Ident>,
 }
 
@@ -197,12 +198,16 @@ impl VariantAttrs {
 
 static FORMAT: &str = "format";
 static REPR: &str = "repr";
+static OFFSET_HOST: &str = "offset_host";
 
 impl ItemAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<ItemAttrs, syn::Error> {
         let mut result = ItemAttrs::default();
         for attr in attrs {
             match attr.parse_meta()? {
+                syn::Meta::Path(path) if path.is_ident(OFFSET_HOST) => {
+                    result.offset_host = Some(path)
+                }
                 syn::Meta::NameValue(value) if value.path.is_ident("doc") => {
                     result.docs.push(attr.clone());
                 }
