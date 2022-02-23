@@ -2,7 +2,7 @@
 use font_types::{BigEndian, Offset32, Uint24};
 
 font_types::tables! {
-    /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview>
+    /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
     #[offset_host]
     Cmap<'a> {
         /// Table version number (0).
@@ -13,7 +13,7 @@ font_types::tables! {
         encoding_records: [EncodingRecord],
     }
 
-    /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings>
+    /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
     EncodingRecord {
         /// Platform ID.
         platform_id: BigEndian<u16>,
@@ -60,7 +60,7 @@ font_types::tables! {
 }
 
 font_types::tables! {
-    /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table>
+    /// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
     Cmap0<'a> {
         /// Format number is set to 0.
         format: BigEndian<u16>,
@@ -76,7 +76,7 @@ font_types::tables! {
 }
 
 font_types::tables! {
-    /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-2-high-byte-mapping-through-table>
+    /// [cmap Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-2-high-byte-mapping-through-table): High-byte mapping through table
     Cmap2<'a> {
         /// Format number is set to 2.
         format: BigEndian<u16>,
@@ -100,6 +100,8 @@ font_types::tables! {
         //glyph_id_array: [BigEndian<u16>],
     }
 
+
+    /// Part of [Cmap2]
     SubHeader {
         /// First valid low byte for this SubHeader.
         first_code: BigEndian<u16>,
@@ -113,7 +115,7 @@ font_types::tables! {
 }
 
 font_types::tables! {
-    /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values>
+    /// [cmap Format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values): Segment mapping to delta values
     Cmap4<'a> {
         /// Format number is set to 4.
         format: BigEndian<u16>,
@@ -160,7 +162,7 @@ fn div_by_two(seg_count_x2: u16) -> usize {
 }
 
 font_types::tables! {
-    /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping>
+    /// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
     Cmap6<'a> {
         /// Format number is set to 6.
         format: BigEndian<u16>,
@@ -180,7 +182,7 @@ font_types::tables! {
 }
 
 font_types::tables! {
-    /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-8-mixed-16-bit-and-32-bit-coverage>
+/// [cmap Format 8](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-8-mixed-16-bit-and-32-bit-coverage): mixed 16-bit and 32-bit coverage
     Cmap8<'a> {
         /// Subtable format; set to 8.
         format: BigEndian<u16>,
@@ -204,6 +206,7 @@ font_types::tables! {
         groups: [SequentialMapGroup],
     }
 
+    /// Used in [Cmap8] and [Cmap12]
     SequentialMapGroup {
         /// First character code in this group; note that if this group is
         /// for one or more 16-bit character codes (which is determined
@@ -219,7 +222,7 @@ font_types::tables! {
 }
 
 font_types::tables! {
-    /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array>
+    /// [cmap Format 10](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array): Tr
     Cmap10<'a> {
         /// Subtable format; set to 10.
         format: BigEndian<u16>,
@@ -242,7 +245,7 @@ font_types::tables! {
 }
 
 font_types::tables! {
-    /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage>
+    /// [cmap Format 12](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage): Segmented coverage
     Cmap12<'a> {
         /// Subtable format; set to 12.
         format: BigEndian<u16>,
@@ -263,7 +266,7 @@ font_types::tables! {
 }
 
 font_types::tables! {
-    /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-13-many-to-one-range-mappings>
+    /// [cmap Format 13](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-13-many-to-one-range-mappings): Many-to-one range mappings
     Cmap13<'a> {
         /// Subtable format; set to 13.
         format: BigEndian<u16>,
@@ -282,6 +285,7 @@ font_types::tables! {
         groups: [ConstantMapGroup],
     }
 
+    /// Part of [Cmap13]
     ConstantMapGroup {
         /// First character code in this group
         start_char_code: BigEndian<u32>,
@@ -294,7 +298,7 @@ font_types::tables! {
 }
 
 font_types::tables! {
-    /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences>
+    /// [cmap Format 14](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences): Unicode Variation Sequences
     #[offset_host]
     Cmap14<'a> {
         /// Subtable format. Set to 14.
@@ -308,6 +312,7 @@ font_types::tables! {
         var_selector: [VariationSelector],
     }
 
+    /// Part of [Cmap14]
     VariationSelector {
         /// Variation selector
         var_selector: BigEndian<Uint24>,
@@ -319,7 +324,7 @@ font_types::tables! {
         non_default_uvs_offset: BigEndian<Offset32>,
     }
 
-    /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table>
+    /// [Default UVS table](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table)
     DefaultUvs<'a> {
         /// Number of Unicode character ranges.
         num_unicode_value_ranges: BigEndian<u32>,
@@ -328,6 +333,7 @@ font_types::tables! {
         ranges: [UnicodeRange],
     }
 
+    /// Part of [Cmap14]
     UVSMapping {
         /// Base Unicode value of the UVS
         unicode_value: BigEndian<Uint24>,
@@ -335,6 +341,7 @@ font_types::tables! {
         glyph_id: BigEndian<u16>,
     }
 
+    /// Part of [Cmap14]
     UnicodeRange {
         /// First value in this range
         start_unicode_value: BigEndian<Uint24>,

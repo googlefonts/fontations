@@ -8,14 +8,15 @@
 //!
 //! ```
 //! { // this is a 'group'
-//! @Gpos1_0
+//! /// an optional comment for each top-level item
+//! @table Gpos1_0
 //! uint16      majorVersion       Major version of the GPOS table, = 1
 //! uint16      minorVersion       Minor version of the GPOS table, = 0
 //! Offset16    scriptListOffset   Offset to ScriptList table, from beginning of GPOS table
 //! Offset16    featureListOffset  Offset to FeatureList table, from beginning of GPOS table
 //! Offset16    lookupListOffset   Offset to LookupList table, from beginning of GPOS table
 //!
-//! @Gpos1_1
+//! @table Gpos1_1
 //! uint16      majorVersion            Major version of the GPOS table, = 1
 //! uint16      minorVersion            Minor version of the GPOS table, = 1
 //! Offset16    scriptListOffset        Offset to ScriptList table, from beginning of GPOS table
@@ -105,16 +106,27 @@ fn generate_group<'a>(lines: impl Iterator<Item = Line<'a>>) -> Option<String> {
 /// if something goes wrong.
 fn generate_one_item<'a>(lines: impl Iterator<Item = Line<'a>>) -> Option<String> {
     let mut lines = lines.skip_while(|line| line.is_empty());
-
-    let decl = match lines.next() {
-        Some(line) if line.starts_with('@') => Decl::parse(line).unwrap(),
-        Some(line) => exit_with_msg!("expected table or record name", line),
-        None => return None,
+    let mut comments = Vec::new();
+    let decl = loop {
+        match lines.next() {
+            Some(line) if line.starts_with("///") => comments.push(line.text),
+            Some(line) if line.starts_with('@') => break Decl::parse(line).unwrap(),
+            Some(line) => exit_with_msg!("expected table or record name", line),
+            None => return None,
+        }
     };
 
-    match decl.kind {
+    let item = match decl.kind {
         DeclKind::RawEnum => generate_one_enum(decl, lines),
         DeclKind::Table | DeclKind::Record => generate_one_table(decl, lines),
+    }?;
+    let mut comments = comments.join("\n");
+    if comments.is_empty() {
+        Some(item)
+    } else {
+        comments.push('\n');
+        comments.push_str(&item);
+        Some(comments)
     }
 }
 
@@ -127,9 +139,6 @@ fn generate_one_table<'a>(decl: Decl, lines: impl Iterator<Item = Line<'a>>) -> 
         ""
     };
     let mut result = String::new();
-    if !decl.link.is_empty() {
-        writeln!(&mut result, "/// <{}>", decl.link).unwrap();
-    }
     writeln!(&mut result, "{}{} {{", decl.name, lifetime_str).unwrap();
     for line in &fields {
         writeln!(&mut result, "{}", line).unwrap();
@@ -141,9 +150,6 @@ fn generate_one_table<'a>(decl: Decl, lines: impl Iterator<Item = Line<'a>>) -> 
 fn generate_one_enum<'a>(decl: Decl, lines: impl Iterator<Item = Line<'a>>) -> Option<String> {
     let fields = lines.map_while(parse_field).collect::<Vec<_>>();
     let mut result = String::new();
-    if !decl.link.is_empty() {
-        writeln!(&mut result, "/// <{}>", decl.link).unwrap();
-    }
     writeln!(
         &mut result,
         "#[repr({})]\nenum {} {{",
@@ -167,7 +173,6 @@ struct Decl<'a> {
     kind: DeclKind,
     annotation: &'a str,
     name: &'a str,
-    link: &'a str,
 }
 
 impl<'a> Decl<'a> {
@@ -191,17 +196,10 @@ impl<'a> Decl<'a> {
             .next()
             .unwrap_or_else(|| exit_with_msg!("missing name", line));
 
-        let link = match decl.next() {
-            Some(text) if text.starts_with('<') => text.trim_matches(['<', '>'].as_slice()),
-            None => "",
-            Some(_) => exit_with_msg!("last line element not parsed as link", line),
-        };
-
         Some(Decl {
             kind,
             annotation,
             name,
-            link,
         })
     }
 }
