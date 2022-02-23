@@ -326,7 +326,11 @@ impl Field {
             Field::Single(scalar) => {
                 let typ = &scalar.typ;
                 let span = typ.span();
-                quote_spanned!(span=> #name: zerocopy::LayoutVerified<&'a [u8], #typ>)
+                let allow_dead = scalar.hidden.as_ref().map(|hidden| {
+                    let span = hidden.span();
+                    quote_spanned!(span=> #[allow(dead_code)])
+                });
+                quote_spanned!(span=> #allow_dead #name: zerocopy::LayoutVerified<&'a [u8], #typ>)
             }
             Field::Array(array) if array.variable_size.is_none() => {
                 let typ = &array.inner_typ;
