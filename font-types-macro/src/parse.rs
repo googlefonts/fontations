@@ -370,9 +370,14 @@ impl SingleField {
 }
 
 impl SingleItem {
+    /// `true` if this contains offsets or fields with lifetimes.
+    pub fn has_references(&self) -> bool {
+        self.offset_host.is_some() || self.fields.iter().any(|x| x.requires_lifetime())
+    }
+
     fn validate(&self) -> Result<(), syn::Error> {
         // check for lifetime
-        let needs_lifetime = self.fields.iter().any(|x| x.requires_lifetime());
+        let needs_lifetime = self.has_references();
         if needs_lifetime && self.lifetime.is_none() {
             let msg = format!(
                 "object containing array or offset requires lifetime param ({}<'a>)",

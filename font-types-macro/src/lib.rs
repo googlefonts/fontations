@@ -19,7 +19,7 @@ pub fn tables(input: TokenStream) -> TokenStream {
 }
 
 fn generate_item_code(item: &parse::SingleItem) -> proc_macro2::TokenStream {
-    if item.fields.iter().all(|x| x.is_single()) {
+    if !item.has_references() {
         generate_zerocopy_impls(item)
     } else {
         generate_view_impls(item)
