@@ -7,6 +7,15 @@
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Version16Dot16(u32);
 
+/// A type representing a major, minor version pair.
+///
+/// This is not part of the spec, but versions in the spec are frequently
+/// represented as a `major_version`, `minor_version` pair. This type encodes
+/// those as a single type, which is useful for some of the macro annotations
+/// which generate code that parses a version.
+#[derive(Copy, Clone, Debug, PartialEq, Eq)]
+pub struct MajorMinor(u16, u16);
+
 impl Version16Dot16 {
     /// Create a new version with the provided major and minor parts.
     ///
@@ -30,6 +39,29 @@ impl Version16Dot16 {
 }
 
 crate::newtype_scalar!(Version16Dot16, [u8; 4]);
+
+impl MajorMinor {
+    /// Create a new version with major and minor parts.
+    pub const fn new(major: u16, minor: u16) -> Self {
+        MajorMinor(major, minor)
+    }
+}
+
+impl crate::Scalar for MajorMinor {
+    type Raw = [u8; 4];
+
+    fn from_raw(raw: Self::Raw) -> Self {
+        let major = u16::from_be_bytes([raw[0], raw[1]]);
+        let minor = u16::from_be_bytes([raw[2], raw[3]]);
+        Self(major, minor)
+    }
+
+    fn to_raw(self) -> Self::Raw {
+        let [a, b] = self.0.to_be_bytes();
+        let [c, d] = self.1.to_be_bytes();
+        [a, b, c, d]
+    }
+}
 
 impl std::fmt::Debug for Version16Dot16 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {

@@ -20,7 +20,7 @@ mod raw;
 mod tag;
 mod uint24;
 mod var_array;
-mod version16dot16;
+mod version;
 
 #[doc(hidden)]
 pub mod test_helpers;
@@ -35,7 +35,7 @@ pub use raw::{BigEndian, Scalar};
 pub use tag::Tag;
 pub use uint24::Uint24;
 pub use var_array::VarArray;
-pub use version16dot16::Version16Dot16;
+pub use version::{MajorMinor, Version16Dot16};
 
 /// A type that can be read from some chunk of bytes.
 pub trait FontRead<'a>: Sized {
