@@ -20,6 +20,7 @@ pub enum Item {
     Single(SingleItem),
     Group(ItemGroup),
     RawEnum(RawEnum),
+    Flags(BitFlags),
 }
 
 /// A single concrete object, such as a particular table version or record format.
@@ -54,6 +55,14 @@ pub struct RawVariant {
     pub docs: Vec<syn::Attribute>,
     pub name: syn::Ident,
     pub value: syn::LitInt,
+}
+
+/// A set of bit-flags
+pub struct BitFlags {
+    pub docs: Vec<syn::Attribute>,
+    pub name: syn::Ident,
+    pub type_: syn::Ident,
+    pub variants: Vec<RawVariant>,
 }
 
 pub struct Variant {
@@ -122,6 +131,11 @@ impl Parse for Item {
             let variants = Punctuated::<Variant, Token![,]>::parse_terminated(&content)?;
             let variants = variants.into_iter().collect();
             ItemGroup::new(name, lifetime, variants, attrs).map(Self::Group)
+        } else if attrs.flags.is_some() {
+            let variants = Punctuated::<RawVariant, Token![,]>::parse_terminated(&content)?
+                .into_iter()
+                .collect();
+            BitFlags::new(name, variants, attrs).map(Self::Flags)
         } else {
             let fields = Punctuated::<Field, Token![,]>::parse_terminated(&content)?;
             let fields = fields.into_iter().collect();
@@ -226,10 +240,6 @@ impl Field {
 
     fn requires_lifetime(&self) -> bool {
         self.is_array()
-    }
-
-    pub fn is_single(&self) -> bool {
-        matches!(self, Field::Single(_))
     }
 
     pub fn docs(&self) -> &[syn::Attribute] {
@@ -467,6 +477,24 @@ impl RawEnum {
         Ok(RawEnum {
             docs: attrs.docs,
             repr,
+            variants,
+            name,
+        })
+    }
+}
+
+impl BitFlags {
+    fn new(
+        name: syn::Ident,
+        variants: Vec<RawVariant>,
+        attrs: ItemAttrs,
+    ) -> Result<Self, syn::Error> {
+        let type_ = attrs.flags.ok_or_else(|| {
+            syn::Error::new(name.span(), "flags require annotation like #[flags(u16)]")
+        })?;
+        Ok(BitFlags {
+            docs: attrs.docs,
+            type_,
             variants,
             name,
         })

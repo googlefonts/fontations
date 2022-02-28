@@ -11,6 +11,7 @@ pub fn tables(input: TokenStream) -> TokenStream {
         parse::Item::Single(item) => generate_item_code(item),
         parse::Item::Group(group) => generate_group(group),
         parse::Item::RawEnum(raw_enum) => generate_raw_enum(raw_enum),
+        parse::Item::Flags(flags) => generate_flags(flags),
     });
     quote! {
         #(#code)*
@@ -84,6 +85,43 @@ fn generate_group(group: &parse::ItemGroup) -> proc_macro2::TokenStream {
         }
 
         #font_read
+    }
+}
+
+fn generate_flags(raw: &parse::BitFlags) -> proc_macro2::TokenStream {
+    let name = &raw.name;
+    let docs = &raw.docs;
+    let type_ = &raw.type_;
+    let variants = raw.variants.iter().map(|variant| {
+        let name = &variant.name;
+        let value = &variant.value;
+        let docs = &variant.docs;
+        quote! {
+            #( #docs )*
+            const #name = #value;
+        }
+    });
+
+    quote! {
+        bitflags::bitflags! {
+            #( #docs )*
+            pub struct #name: #type_ {
+                #( #variants )*
+            }
+        }
+
+        impl font_types::Scalar for #name {
+            type Raw = <#type_ as font_types::Scalar>::Raw;
+
+            fn to_raw(self) -> Self::Raw {
+                self.bits().to_raw()
+            }
+
+            fn from_raw(raw: Self::Raw) -> Self {
+                let t = <#type_>::from_raw(raw);
+                Self::from_bits_truncate(t)
+            }
+        }
     }
 }
 

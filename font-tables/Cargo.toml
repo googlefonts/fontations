@@ -12,3 +12,4 @@ default = ["std"]
 [dependencies]
 font-types = { path = "../font-types" }
 zerocopy = { version = "0.6.1" }
+bitflags = "1.3"

@@ -44,6 +44,7 @@ pub struct ItemAttrs {
     pub format: Option<syn::Ident>,
     pub offset_host: Option<syn::Path>,
     pub repr: Option<syn::Ident>,
+    pub flags: Option<syn::Ident>,
 }
 
 impl FieldAttrs {
@@ -208,6 +209,7 @@ impl VariantAttrs {
 
 static FORMAT: &str = "format";
 static REPR: &str = "repr";
+static FLAGS: &str = "flags";
 static OFFSET_HOST: &str = "offset_host";
 
 impl ItemAttrs {
@@ -224,6 +226,10 @@ impl ItemAttrs {
                 syn::Meta::List(list) if list.path.is_ident(REPR) => {
                     let item = expect_single_item_list(&list)?;
                     result.repr = Some(expect_ident(&item)?);
+                }
+                syn::Meta::List(list) if list.path.is_ident(FLAGS) => {
+                    let item = expect_single_item_list(&list)?;
+                    result.flags = Some(expect_ident(&item)?);
                 }
                 syn::Meta::List(list) if list.path.is_ident(FORMAT) => {
                     if let Some(syn::NestedMeta::Meta(syn::Meta::Path(p))) = list.nested.first() {
