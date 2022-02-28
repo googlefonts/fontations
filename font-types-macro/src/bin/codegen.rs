@@ -119,6 +119,7 @@ fn generate_one_item<'a>(lines: impl Iterator<Item = Line<'a>>) -> Option<String
     let item = match decl.kind {
         DeclKind::RawEnum => generate_one_enum(decl, lines),
         DeclKind::Table | DeclKind::Record => generate_one_table(decl, lines),
+        DeclKind::Flags => generate_one_flags(decl, lines),
     }?;
     let mut comments = comments.join("\n");
     if comments.is_empty() {
@@ -163,10 +164,28 @@ fn generate_one_enum<'a>(decl: Decl, lines: impl Iterator<Item = Line<'a>>) -> O
     Some(result)
 }
 
+fn generate_one_flags<'a>(decl: Decl, lines: impl Iterator<Item = Line<'a>>) -> Option<String> {
+    let fields = lines.map_while(parse_field).collect::<Vec<_>>();
+    let mut result = String::new();
+    writeln!(
+        &mut result,
+        "#[flags({})]\n{} {{",
+        decl.annotation, decl.name
+    )
+    .unwrap();
+    for line in &fields {
+        format_comment(&mut result, "    ", line.comment).unwrap();
+        writeln!(&mut result, "    {} = {},", line.name, line.typ).unwrap();
+    }
+    result.push('}');
+    Some(result)
+}
+
 enum DeclKind {
     Table,
     Record,
     RawEnum,
+    Flags,
 }
 
 struct Decl<'a> {
@@ -182,13 +201,18 @@ impl<'a> Decl<'a> {
         let kind = match decl.next()? {
             "@table" => DeclKind::Table,
             "@record" => DeclKind::Record,
-            x if x.starts_with("@enum(") => {
-                let repr = x.trim_start_matches("@enum(").trim_end_matches(')');
+            x if x.starts_with("@enum(") || x.starts_with("@flags(") => {
+                let repr = x.split_once('(').unwrap().1.trim_end_matches(')');
+                //let repr = x.trim_start_matches("@enum(").trim_end_matches(')');
                 if !["u8", "u16"].contains(&repr) {
-                    exit_with_msg!(format!("unexpected enum repr '{}'", repr), line);
+                    exit_with_msg!(format!("unexpected enum/flag repr '{}'", repr), line);
                 }
                 annotation = repr;
-                DeclKind::RawEnum
+                if x.starts_with("@enum") {
+                    DeclKind::RawEnum
+                } else {
+                    DeclKind::Flags
+                }
             }
             other => exit_with_msg!(format!("unknown item kind '{}'", other), line),
         };
@@ -293,11 +317,7 @@ fn decamalize(input: &str) -> String {
     snake
 }
 
-fn format_comment(
-    f: &mut std::fmt::Formatter<'_>,
-    whitespace: &str,
-    input: &str,
-) -> std::fmt::Result {
+fn format_comment(f: &mut dyn std::fmt::Write, whitespace: &str, input: &str) -> std::fmt::Result {
     const LINE_LEN: usize = 72;
 
     let mut cur_len = 0;
