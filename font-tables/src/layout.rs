@@ -1,5 +1,5 @@
 //! [OpenType™ Layout Common Table Formats](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2)
-use font_types::{BigEndian, F2Dot14, Offset16, Offset32, Tag};
+use font_types::{BigEndian, F2Dot14, Offset16, Offset32, OffsetHost, Tag};
 
 font_types::tables! {
     /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
@@ -107,6 +107,15 @@ font_types::tables! {
     }
 }
 
+impl<'a> LookupList<'a> {
+    /// Iterate all of the [`Lookup`]s in this list.
+    pub fn iter_lookups(&self) -> impl Iterator<Item = Lookup<'a>> + '_ {
+        self.lookup_offsets()
+            .iter()
+            .filter_map(|off| self.resolve_offset(off.get()))
+    }
+}
+
 font_types::tables! {
     /// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
     #[offset_host]
@@ -154,11 +163,20 @@ font_types::tables! {
     /// Used in [CoverageFormat2]
     RangeRecord {
         /// First glyph ID in the range
-        start_glyph_i_d: BigEndian<u16>,
+        start_glyph_id: BigEndian<u16>,
         /// Last glyph ID in the range
-        end_glyph_i_d: BigEndian<u16>,
+        end_glyph_id: BigEndian<u16>,
         /// Coverage Index of first glyph ID in range
         start_coverage_index: BigEndian<u16>,
+    }
+
+    /// [Coverage Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-table)
+    #[format(u16)]
+    enum CoverageTable<'a> {
+        #[version(1)]
+        Format1(CoverageFormat1<'a>),
+        #[version(2)]
+        Format2(CoverageFormat2<'a>),
     }
 }
 
@@ -168,7 +186,7 @@ font_types::tables! {
         /// Format identifier — format = 1
         class_format: BigEndian<u16>,
         /// First glyph ID of the classValueArray
-        start_glyph_i_d: BigEndian<u16>,
+        start_glyph_id: BigEndian<u16>,
         /// Size of the classValueArray
         glyph_count: BigEndian<u16>,
         /// Array of Class Values — one per glyph ID
@@ -190,9 +208,9 @@ font_types::tables! {
     /// Used in [ClassDefFormat2]
     ClassRangeRecord {
         /// First glyph ID in the range
-        start_glyph_i_d: BigEndian<u16>,
+        start_glyph_id: BigEndian<u16>,
         /// Last glyph ID in the range
-        end_glyph_i_d: BigEndian<u16>,
+        end_glyph_id: BigEndian<u16>,
         /// Applied to all glyphs in the range
         class: BigEndian<u16>,
     }
