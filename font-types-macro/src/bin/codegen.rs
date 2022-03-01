@@ -7,7 +7,7 @@
 //!
 //!
 //! ```
-//! { // this is a 'group'
+//! { // braces can be used to group items into multiple macro invocations
 //! /// an optional comment for each top-level item
 //! @table Gpos1_0
 //! uint16      majorVersion       Major version of the GPOS table, = 1
@@ -81,15 +81,16 @@ fn main() {
 /// which will share a single macro invocation.
 fn generate_group<'a>(lines: impl Iterator<Item = Line<'a>>) -> Option<String> {
     let mut lines = lines.skip_while(|s| s.is_empty()).peekable();
-    let brace = lines.next()?;
+
+    // if this is an explicit group, discard the brace line
+    if lines.peek()?.starts_with('{') {
+        let _ = lines.next();
+    }
 
     let mut result = String::new();
 
-    if !brace.starts_with('{') {
-        exit_with_msg!("expected opening brace", brace);
-    }
-
-    let mut lines = lines.take_while(|line| !line.starts_with('}'));
+    // stop at closing brace if it exists; if it doesn't we just consume all items
+    let mut lines = lines.take_while(|line| !line.starts_with(&['{', '}']));
 
     while let Some(item) = generate_one_item(&mut lines) {
         if !result.is_empty() {
