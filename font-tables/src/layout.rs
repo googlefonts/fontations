@@ -214,6 +214,14 @@ font_types::tables! {
         /// Applied to all glyphs in the range
         class: BigEndian<u16>,
     }
+
+    #[format(u16)]
+    enum ClassDef<'a> {
+        #[version(1)]
+        Format1(ClassDefFormat1<'a>),
+        #[version(2)]
+        Format2(ClassDefFormat2<'a>),
+    }
 }
 
 font_types::tables! {

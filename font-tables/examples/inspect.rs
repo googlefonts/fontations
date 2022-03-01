@@ -1,6 +1,7 @@
 //! Inspect a font, printing information about tables
 
 use font_tables::{
+    layout::ClassDef,
     tables::{self, TableProvider},
     FontRef,
 };
@@ -93,6 +94,9 @@ fn print_font_info(font: &FontRef) {
     if let Some(stat) = font.stat() {
         print_stat_info(&stat);
     }
+    if let Some(gdef) = font.gdef() {
+        print_gdef_info(&gdef);
+    }
 }
 
 fn print_head_info(head: &tables::head::Head) {
@@ -178,5 +182,46 @@ fn print_cmap_info(cmap: &tables::cmap::Cmap) {
             .resolve_offset(record.subtable_offset())
             .expect("failed to resolve subtable");
         println!("  ({:?}, {}) format {}", platform_id, encoding_id, format);
+    }
+}
+
+fn print_gdef_info(gdef: &tables::gdef::Gdef) {
+    println!(
+        "\nGDEF version {}.{}",
+        gdef.major_version(),
+        gdef.minor_version()
+    );
+    if let Some(class_def) = gdef.glyph_class_def() {
+        let format = match class_def {
+            ClassDef::Format1(_) => 1,
+            ClassDef::Format2(_) => 2,
+        };
+        println!("   ClassDef format {}", format);
+    }
+
+    if let Some(attach_list) = gdef.attach_list() {
+        println!("  AttachList ({} glyphs)", attach_list.glyph_count());
+    }
+
+    if let Some(lig_caret_list) = gdef.lig_caret_list() {
+        println!(
+            "  LigCaretList ({} glyphs)",
+            lig_caret_list.lig_glyph_count()
+        );
+    }
+
+    if let Some(class_def) = gdef.mark_attach_class_def() {
+        let format = match class_def {
+            ClassDef::Format1(_) => 1,
+            ClassDef::Format2(_) => 2,
+        };
+        println!("   MarkAttach ClassDef format {}", format);
+    }
+
+    if let Some(glyph_sets) = gdef.mark_glyph_sets_def() {
+        println!(
+            "  MarkGlyphSets ({} glyphs)",
+            glyph_sets.mark_glyph_set_count()
+        );
     }
 }

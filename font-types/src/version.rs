@@ -56,6 +56,8 @@ impl MajorMinor {
     pub const VERSION_1_1: MajorMinor = MajorMinor::new(1, 1);
     /// Version 1.2
     pub const VERSION_1_2: MajorMinor = MajorMinor::new(1, 2);
+    /// Version 1.3
+    pub const VERSION_1_3: MajorMinor = MajorMinor::new(1, 3);
 
     /// Create a new version with major and minor parts.
     pub const fn new(major: u16, minor: u16) -> Self {
