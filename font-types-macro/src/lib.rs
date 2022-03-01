@@ -7,16 +7,26 @@ mod parse;
 #[proc_macro]
 pub fn tables(input: TokenStream) -> TokenStream {
     let input = parse_macro_input!(input as parse::Items);
-    let code = input.iter().map(|item| match item {
-        parse::Item::Single(item) => generate_item_code(item),
-        parse::Item::Group(group) => generate_group(group),
-        parse::Item::RawEnum(raw_enum) => generate_raw_enum(raw_enum),
-        parse::Item::Flags(flags) => generate_flags(flags),
-    });
-    quote! {
-        #(#code)*
+    match tables_impl(&input.0) {
+        Ok(tokens) => tokens.into(),
+        Err(e) => e.into_compile_error().into(),
     }
-    .into()
+}
+
+fn tables_impl(items: &[parse::Item]) -> Result<proc_macro2::TokenStream, syn::Error> {
+    let mut code = Vec::new();
+    for item in items {
+        let item_code = match item {
+            parse::Item::Single(item) => generate_item_code(item),
+            parse::Item::Group(group) => generate_group(group),
+            parse::Item::RawEnum(raw_enum) => generate_raw_enum(raw_enum),
+            parse::Item::Flags(flags) => generate_flags(flags),
+        };
+        code.push(item_code);
+    }
+    Ok(quote! {
+        #(#code)*
+    })
 }
 
 fn generate_item_code(item: &parse::SingleItem) -> proc_macro2::TokenStream {

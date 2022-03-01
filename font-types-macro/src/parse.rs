@@ -14,7 +14,7 @@ use attrs::{FieldAttrs, VariantAttrs};
 
 use self::attrs::ItemAttrs;
 
-pub struct Items(Vec<Item>);
+pub struct Items(pub Vec<Item>);
 
 pub enum Item {
     Single(SingleItem),
