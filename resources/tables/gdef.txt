@@ -1,4 +1,6 @@
-Gdef_1_0
+{
+/// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
+@table Gdef1_0
 uint16	majorVersion	Major version of the GDEF table, = 1
 uint16	minorVersion	Minor version of the GDEF table, = 0
 Offset16	glyphClassDefOffset	Offset to class definition table for glyph type, from beginning of GDEF header (may be NULL)
@@ -6,7 +8,8 @@ Offset16	attachListOffset	Offset to attachment point list table, from beginning 
 Offset16	ligCaretListOffset	Offset to ligature caret list table, from beginning of GDEF header (may be NULL)
 Offset16	markAttachClassDefOffset	Offset to class definition table for mark attachment type, from beginning of GDEF header (may be NULL)
 
-Gdef_1_2
+/// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.2
+@table Gdef1_2
 uint16	majorVersion	Major version of the GDEF table, = 1
 uint16	minorVersion	Minor version of the GDEF table, = 2
 Offset16	glyphClassDefOffset	Offset to class definition table for glyph type, from beginning of GDEF header (may be NULL)
@@ -15,7 +18,8 @@ Offset16	ligCaretListOffset	Offset to ligature caret list table, from beginning 
 Offset16	markAttachClassDefOffset	Offset to class definition table for mark attachment type, from beginning of GDEF header (may be NULL)
 Offset16	markGlyphSetsDefOffset	Offset to the table of mark glyph set definitions, from beginning of GDEF header (may be NULL)
 
-Gdef_1_3
+/// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.3
+@table Gdef1_3
 uint16	majorVersion	Major version of the GDEF table, = 1
 uint16	minorVersion	Minor version of the GDEF table, = 3
 Offset16	glyphClassDefOffset	Offset to class definition table for glyph type, from beginning of GDEF header (may be NULL)
@@ -24,39 +28,59 @@ Offset16	ligCaretListOffset	Offset to ligature caret list table, from beginning 
 Offset16	markAttachClassDefOffset	Offset to class definition table for mark attachment type, from beginning of GDEF header (may be NULL)
 Offset16	markGlyphSetsDefOffset	Offset to the table of mark glyph set definitions, from beginning of GDEF header (may be NULL)
 Offset32	itemVarStoreOffset	Offset to the Item Variation Store table, from beginning of GDEF header (may be NULL)
+}
 
-AttachList
+/// Used in the [Glyph Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#glyph-class-definition-table)
+@enum(u16) GlyphClassDef
+1	Base	Base glyph (single character, spacing glyph)
+2	Ligature	Ligature glyph (multiple character, spacing glyph)
+3	Mark	Mark glyph (non-spacing combining glyph)
+4	Component	Component glyph (part of single character, spacing glyph)
+
+/// [Attachment Point List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#attachment-point-list-table)
+@table AttachList
 Offset16	coverageOffset	Offset to Coverage table - from beginning of AttachList table
 uint16	glyphCount	Number of glyphs with attachment points
 Offset16	attachPointOffsets[glyphCount]	Array of offsets to AttachPoint tables-from beginning of AttachList table-in Coverage Index order
 
-AttachPoint
+/// Part of [AttachList]
+@table AttachPoint
 uint16	pointCount	Number of attachment points on this glyph
 uint16	pointIndices[pointCount]	Array of contour point indices -in increasing numerical order
 
-LigCaretList
+/// [Ligature Caret List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-caret-list-table)
+@table LigCaretList
 Offset16	coverageOffset	Offset to Coverage table - from beginning of LigCaretList table
 uint16	ligGlyphCount	Number of ligature glyphs
 Offset16	ligGlyphOffsets[ligGlyphCount]	Array of offsets to LigGlyph tables, from beginning of LigCaretList table —in Coverage Index order
 
-LigGlyph
+/// [Ligature Glyph Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-glyph-table)
+@table LigGlyph
 uint16	caretCount	Number of CaretValue tables for this ligature (components - 1)
 Offset16	caretValueOffsets[caretCount]	Array of offsets to CaretValue tables, from beginning of LigGlyph table — in increasing coordinate order
 
-CaretValueFormat1
+/// [Caret Value Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caret-value-tables)
+@table CaretValue
+fixme	please	pretty please
+
+/// [CaretValue Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-1)
+@table CaretValueFormat1
 uint16	caretValueFormat	Format identifier: format = 1
 int16	coordinate	X or Y value, in design units
 
-CaretValueFormat2
+/// [CaretValue Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-2)
+@table CaretValueFormat2
 uint16	caretValueFormat	Format identifier: format = 2
 uint16	caretValuePointIndex	Contour point index on glyph
 
-CaretValueFormat3
+/// [CaretValue Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-3)
+@table CaretValueFormat3
 uint16	caretValueFormat	Format identifier-format = 3
 int16	coordinate	X or Y value, in design units
 Offset16	deviceOffset	Offset to Device table (non-variable font) / Variation Index table (variable font) for X or Y value-from beginning of CaretValue table
 
-MarkGlyphSets
+/// [Mark Glyph Sets Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#mark-glyph-sets-table)
+@table MarkGlyphSets
 uint16	format	Format identifier == 1
 uint16	markGlyphSetCount	Number of mark glyph sets defined
 Offset32	coverageOffsets[markGlyphSetCount]	Array of offsets to mark glyph set coverage tables, from the start of the MarkGlyphSets table.
