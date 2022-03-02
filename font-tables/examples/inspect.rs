@@ -27,6 +27,9 @@ fn print_font_info(font: &FontRef) {
 
     let head = font.head().expect("missing head");
     print_head_info(&head);
+    if let Some(hhea) = font.hhea() {
+        print_hhea_info(&hhea);
+    }
     if let Some(maxp) = font.maxp() {
         print_maxp_info(&maxp);
     }
@@ -44,6 +47,20 @@ fn print_head_info(head: &tables::head::Head) {
     println!("  upm {}", head.units_per_em);
     println!("  x/y min: {}, {}", head.x_min, head.y_min);
     println!("  x/y max: {}, {}", head.x_max, head.y_max);
+}
+
+fn print_hhea_info(hhea: &tables::hhea::Hhea) {
+    println!(
+        "\nhhea version {}.{}",
+        hhea.major_version(),
+        hhea.minor_version()
+    );
+    println!("  ascender {}", hhea.ascender());
+    println!("  descender {}", hhea.descender());
+    println!("  line gap {}", hhea.line_gap());
+    println!("  max advance {}", hhea.advance_width_max());
+    println!("  min left sidebearing {}", hhea.min_left_side_bearing());
+    println!("  min right sidebearing {}", hhea.min_right_side_bearing());
 }
 
 fn print_maxp_info(maxp: &tables::maxp::Maxp) {
