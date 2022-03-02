@@ -7,6 +7,7 @@ pub mod hmtx;
 pub mod maxp;
 pub mod name;
 pub mod post;
+pub mod stat;
 
 use font_types::{FontRead, Tag};
 
@@ -42,6 +43,10 @@ pub trait TableProvider {
 
     fn post(&self) -> Option<post::Post> {
         self.data_for_tag(post::TAG).and_then(post::Post::read)
+    }
+
+    fn stat(&self) -> Option<stat::Stat> {
+        self.data_for_tag(stat::TAG).and_then(stat::Stat::read)
     }
 
     //fn loca(&self, is_32_bit: bool) -> Option<Loca>;
