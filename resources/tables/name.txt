@@ -1,0 +1,32 @@
+
+/// [Naming table version 0](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-0)
+@table Name0
+uint16	version	Table version number (=0).
+uint16	count	Number of name records.
+Offset16	storageOffset	Offset to start of string storage (from start of table).
+NameRecord	nameRecord[count]	The name records where count is the number of records.
+# uint8	storage[variable]	Storage for the actual string data.
+
+/// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
+@table Name1
+uint16	version	Table version number (=0).
+uint16	count	Number of name records.
+Offset16	storageOffset	Offset to start of string storage (from start of table).
+NameRecord	nameRecord[count]	The name records where count is the number of records.
+uint16	langTagCount	Number of language-tag records.
+LangTagRecord	langTagRecord[langTagCount]	The language-tag records where langTagCount is the number of records.
+#uint8	storage[variable]	Storage for the actual string data.
+
+/// Part of [Name1]
+@record LangTagRecord
+uint16	length	Language-tag string length (in bytes)
+Offset16	langTagOffset	Language-tag string offset from start of storage area (in bytes).
+
+///[Name Records](https://docs.microsoft.com/en-us/typography/opentype/spec/name#name-records)
+@record NameRecord
+uint16	platformID	Platform ID.
+uint16	encodingID	Platform-specific encoding ID.
+uint16	languageID	Language ID.
+uint16	nameID	Name ID.
+uint16	length	String length (in bytes).
+Offset16	stringOffset	String offset from start of storage area (in bytes).

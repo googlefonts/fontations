@@ -5,6 +5,7 @@ pub mod head;
 pub mod hhea;
 pub mod hmtx;
 pub mod maxp;
+pub mod name;
 
 use font_types::{FontRead, Tag};
 
@@ -15,6 +16,10 @@ pub trait TableProvider {
     fn head(&self) -> Option<head::Head> {
         self.data_for_tag(Tag::new(b"head"))
             .and_then(head::Head::read)
+    }
+
+    fn name(&self) -> Option<name::Name> {
+        self.data_for_tag(name::TAG).and_then(name::Name::read)
     }
 
     fn hhea(&self) -> Option<hhea::Hhea> {
