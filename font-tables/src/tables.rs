@@ -3,6 +3,7 @@
 pub mod cmap;
 pub mod head;
 pub mod hhea;
+pub mod hmtx;
 pub mod maxp;
 
 use font_types::{FontRead, Tag};
@@ -18,6 +19,15 @@ pub trait TableProvider {
 
     fn hhea(&self) -> Option<hhea::Hhea> {
         self.data_for_tag(hhea::TAG).and_then(hhea::Hhea::read)
+    }
+
+    fn hmtx(&self) -> Option<hmtx::Hmtx> {
+        //FIXME: should we make the user pass these in?
+        let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
+        let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_h_metrics())?;
+        self.data_for_tag(hmtx::TAG).and_then(|data| {
+            hmtx::Hmtx::read(data, num_glyphs as usize, number_of_h_metrics as usize)
+        })
     }
 
     fn maxp(&self) -> Option<maxp::Maxp> {
