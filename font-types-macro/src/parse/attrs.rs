@@ -44,6 +44,7 @@ pub struct ItemAttrs {
     pub format: Option<syn::Ident>,
     pub generate_getters: Option<syn::Path>,
     pub offset_host: Option<syn::Path>,
+    pub init: Vec<syn::Ident>,
     pub repr: Option<syn::Ident>,
     pub flags: Option<syn::Ident>,
 }
@@ -213,6 +214,7 @@ static REPR: &str = "repr";
 static FLAGS: &str = "flags";
 static OFFSET_HOST: &str = "offset_host";
 static GENERATE_GETTERS: &str = "generate_getters";
+static INIT: &str = "init";
 
 impl ItemAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<ItemAttrs, syn::Error> {
@@ -239,6 +241,13 @@ impl ItemAttrs {
                 syn::Meta::List(list) if list.path.is_ident(FORMAT) => {
                     let item = expect_single_item_list(&list)?;
                     result.format = Some(expect_ident(&item)?);
+                }
+                syn::Meta::List(list) if list.path.is_ident(INIT) => {
+                    result.init = list
+                        .nested
+                        .iter()
+                        .map(expect_ident)
+                        .collect::<Result<_, _>>()?;
                 }
                 other => return Err(syn::Error::new(other.span(), "unknown attribute")),
             }
