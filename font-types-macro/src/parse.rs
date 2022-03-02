@@ -39,6 +39,8 @@ pub struct ItemGroup {
     pub name: syn::Ident,
     pub lifetime: Option<syn::Lifetime>,
     pub format_typ: syn::Ident,
+    // the version attribute, if present. the actual version is stored in `format_typ`
+    pub generate_getters: Option<syn::Path>,
     pub variants: Vec<Variant>,
 }
 
@@ -101,12 +103,6 @@ impl Parse for Items {
             result.push(input.parse()?)
         }
         Ok(Self(result))
-    }
-}
-
-impl Items {
-    pub fn iter(&self) -> impl Iterator<Item = &Item> {
-        self.0.iter()
     }
 }
 
@@ -249,6 +245,14 @@ impl Field {
         }
     }
 
+    pub fn visible(&self) -> bool {
+        match self {
+            Field::Single(s) if s.hidden.is_some() => false,
+            Field::Array(a) if a.variable_size.is_some() => false,
+            _ => true,
+        }
+    }
+
     pub fn view_init_expr(&self) -> proc_macro2::TokenStream {
         let name = self.name();
         let span = name.span();
@@ -288,26 +292,23 @@ impl Field {
     }
 
     pub fn view_getter_fn(&self) -> Option<proc_macro2::TokenStream> {
+        if !self.visible() {
+            return None;
+        }
         let docs = self.docs();
         let name = self.name();
         let span = name.span();
-        match self {
-            Field::Single(s) if s.hidden.is_some() => None,
-            Field::Array(a) if a.variable_size.is_some() => None,
-            _ => {
-                let body = self.getter_body();
-                let return_type = self.getter_return_type();
-                Some(quote_spanned! {span=>
-                    #( #docs )*
-                    pub fn #name(&self) -> #return_type {
-                        #body
-                    }
-                })
+        let body = self.getter_body();
+        let return_type = self.getter_return_type();
+        Some(quote_spanned! {span=>
+            #( #docs )*
+            pub fn #name(&self) -> #return_type {
+                #body
             }
-        }
+        })
     }
 
-    fn getter_return_type(&self) -> proc_macro2::TokenStream {
+    pub fn getter_return_type(&self) -> proc_macro2::TokenStream {
         match self {
             Field::Single(field) => field.cooked_type_tokens(),
             Field::Array(array) => {
@@ -452,6 +453,7 @@ impl ItemGroup {
                 lifetime,
                 variants,
                 format_typ,
+                generate_getters: attrs.generate_getters,
             })
         } else {
             Err(syn::Error::new(

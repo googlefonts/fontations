@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use proc_macro::TokenStream;
 use quote::{quote, quote_spanned};
 use syn::{parse_macro_input, spanned::Spanned};
@@ -18,7 +20,7 @@ fn tables_impl(items: &[parse::Item]) -> Result<proc_macro2::TokenStream, syn::E
     for item in items {
         let item_code = match item {
             parse::Item::Single(item) => generate_item_code(item),
-            parse::Item::Group(group) => generate_group(group),
+            parse::Item::Group(group) => generate_group(group, items)?,
             parse::Item::RawEnum(raw_enum) => generate_raw_enum(raw_enum),
             parse::Item::Flags(flags) => generate_flags(flags),
         };
@@ -37,10 +39,18 @@ fn generate_item_code(item: &parse::SingleItem) -> proc_macro2::TokenStream {
     }
 }
 
-fn generate_group(group: &parse::ItemGroup) -> proc_macro2::TokenStream {
+fn generate_group(
+    group: &parse::ItemGroup,
+    all_items: &[parse::Item],
+) -> Result<proc_macro2::TokenStream, syn::Error> {
     let name = &group.name;
     let lifetime = group.lifetime.as_ref().map(|_| quote!(<'a>));
     let docs = &group.docs;
+    let shared_getter_impl = if group.generate_getters.is_some() {
+        Some(generate_group_getter_impl(group, all_items)?)
+    } else {
+        None
+    };
     let variants = group.variants.iter().map(|variant| {
         let name = &variant.name;
         let typ = &variant.typ;
@@ -88,14 +98,99 @@ fn generate_group(group: &parse::ItemGroup) -> proc_macro2::TokenStream {
         }
     };
 
-    quote! {
+    Ok(quote! {
         #( #docs )*
         pub enum #name #lifetime {
             #( #variants ),*
         }
 
         #font_read
+
+        #shared_getter_impl
+    })
+}
+
+fn generate_group_getter_impl(
+    group: &parse::ItemGroup,
+    all_items: &[parse::Item],
+) -> Result<proc_macro2::TokenStream, syn::Error> {
+    let items = group.variants.iter().map(|var|
+        all_items
+        .iter()
+        .find_map(|item|  match item {
+            parse::Item::Single(x) if x.name == var.typ => Some(x),
+            _ => None,
+        })
+        .ok_or_else(|| syn::Error::new(var.typ.span(), "type not in scope (#[generate_getters] requires all items in same macro block)")))
+        .collect::<Result<Vec<_>,_>>()?;
+
+    let mut fields = HashMap::new();
+    for item in &items {
+        for field in item.fields.iter().filter(|fld| fld.visible()) {
+            fields
+                .entry(field.name())
+                .or_insert_with(|| (field, Vec::new()))
+                .1
+                .push(&item.name);
+        }
     }
+
+    let match_left_sides = group
+        .variants
+        .iter()
+        .map(|var| {
+            let name = &var.name;
+            let span = name.span();
+            quote_spanned!(span=> Self::#name(_inner))
+        })
+        .collect::<Vec<_>>();
+
+    let n_variants = group.variants.len();
+    let mut getters = Vec::new();
+
+    for (field, variants) in fields.values() {
+        let field_name = field.name();
+        let docs = field.docs();
+        let (ret_type, match_right_sides) = if variants.len() == n_variants {
+            let match_right_sides = (0..n_variants)
+                .map(|_| quote!(_inner.#field_name()))
+                .collect::<Vec<_>>();
+            (field.getter_return_type(), match_right_sides)
+        } else {
+            let ret_type = field.getter_return_type();
+            let ret_type = quote!(Option<#ret_type>);
+            let match_right_sides = group
+                .variants
+                .iter()
+                .map(|var| {
+                    if variants.contains(&&var.typ) {
+                        quote!( Some(_inner.#field_name()) )
+                    } else {
+                        quote!(None)
+                    }
+                })
+                .collect();
+            (ret_type, match_right_sides)
+        };
+
+        getters.push(quote! {
+            #( #docs )*
+            pub fn #field_name(&self) -> #ret_type {
+                match self {
+                    #( #match_left_sides => #match_right_sides, )*
+                }
+            }
+        });
+    }
+
+    let name = &group.name;
+    let lifetime = group.lifetime.as_ref().map(|_| quote!(<'a>));
+
+    Ok(quote! {
+        impl #lifetime #name #lifetime {
+            #( #getters )*
+        }
+    })
 }
 
 fn generate_flags(raw: &parse::BitFlags) -> proc_macro2::TokenStream {

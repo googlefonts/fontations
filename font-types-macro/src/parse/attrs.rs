@@ -42,6 +42,7 @@ pub enum Version {
 pub struct ItemAttrs {
     pub docs: Vec<syn::Attribute>,
     pub format: Option<syn::Ident>,
+    pub generate_getters: Option<syn::Path>,
     pub offset_host: Option<syn::Path>,
     pub repr: Option<syn::Ident>,
     pub flags: Option<syn::Ident>,
@@ -211,6 +212,7 @@ static FORMAT: &str = "format";
 static REPR: &str = "repr";
 static FLAGS: &str = "flags";
 static OFFSET_HOST: &str = "offset_host";
+static GENERATE_GETTERS: &str = "generate_getters";
 
 impl ItemAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<ItemAttrs, syn::Error> {
@@ -219,6 +221,9 @@ impl ItemAttrs {
             match attr.parse_meta()? {
                 syn::Meta::Path(path) if path.is_ident(OFFSET_HOST) => {
                     result.offset_host = Some(path)
+                }
+                syn::Meta::Path(path) if path.is_ident(GENERATE_GETTERS) => {
+                    result.generate_getters = Some(path)
                 }
                 syn::Meta::NameValue(value) if value.path.is_ident("doc") => {
                     result.docs.push(attr.clone());
@@ -232,19 +237,10 @@ impl ItemAttrs {
                     result.flags = Some(expect_ident(&item)?);
                 }
                 syn::Meta::List(list) if list.path.is_ident(FORMAT) => {
-                    if let Some(syn::NestedMeta::Meta(syn::Meta::Path(p))) = list.nested.first() {
-                        if let Some(ident) = p.get_ident() {
-                            result.format = Some(ident.clone());
-                            continue;
-                        }
-                    }
-
-                    return Err(syn::Error::new(
-                        list.path.span(),
-                        "format attribute should  be in form 'version(Type)'",
-                    ));
+                    let item = expect_single_item_list(&list)?;
+                    result.format = Some(expect_ident(&item)?);
                 }
-                other => return Err(syn::Error::new(dbg!(other).span(), "unknown attribute")),
+                other => return Err(syn::Error::new(other.span(), "unknown attribute")),
             }
         }
         Ok(result)
