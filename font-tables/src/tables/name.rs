@@ -1,6 +1,5 @@
 //! The [name (Naming)](https://docs.microsoft.com/en-us/typography/opentype/spec/name) table
-//!
-//! [name]:
+
 use font_types::{BigEndian, Offset, Offset16, OffsetHost, Tag};
 
 /// 'name'
