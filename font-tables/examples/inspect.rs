@@ -32,6 +32,10 @@ fn print_font_info(font: &FontRef) {
         print_name_info(&name);
     }
 
+    if let Some(post) = font.post() {
+        print_post_info(&post);
+    }
+
     if let Some(hhea) = font.hhea() {
         print_hhea_info(&hhea);
     }
@@ -85,12 +89,21 @@ fn print_name_info(name: &tables::name::Name) {
             enc_id = record.encoding_id();
             println!("  platform {} encoding {}:", plat_id, enc_id);
         }
-        if let Some(entry) = name.resolve(&record) {
+        if let Some(entry) = name.resolve(record) {
             println!("    {}: '{}'", record.name_id(), entry);
         } else {
             println!("    {} (unknown encoding)", record.name_id());
         }
     }
+}
+
+fn print_post_info(post: &tables::post::Post) {
+    println!("\npost version {}", post.version());
+    println!("  num glyphs: {}", post.num_names());
+    println!("  italic angle {}", post.italic_angle());
+    println!("  underline position {}", post.underline_position());
+    println!("  underline thickness {}", post.underline_thickness());
+    println!("  fixed pitch: {}", post.is_fixed_pitch() > 0);
 }
 
 fn print_cmap_info(cmap: &tables::cmap::Cmap) {
