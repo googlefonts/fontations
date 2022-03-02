@@ -1,0 +1,10 @@
+
+/// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
+@table Hmtx
+longHorMetric	hMetrics[numberOfHMetrics]	Paired advance width and left side bearing values for each glyph. Records are indexed by glyph ID.
+int16	leftSideBearings[numGlyphs - numberOfHMetrics]	Left side bearings for glyph IDs greater than or equal to numberOfHMetrics.
+
+
+@record longHorMetric
+uint16	advanceWidth	Advance width, in font design units.
+int16	lsb	Glyph left side bearing, in font design units.
