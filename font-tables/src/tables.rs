@@ -2,6 +2,7 @@
 
 pub mod cmap;
 pub mod head;
+pub mod hhea;
 pub mod maxp;
 
 use font_types::{FontRead, Tag};
@@ -13,6 +14,10 @@ pub trait TableProvider {
     fn head(&self) -> Option<head::Head> {
         self.data_for_tag(Tag::new(b"head"))
             .and_then(head::Head::read)
+    }
+
+    fn hhea(&self) -> Option<hhea::Hhea> {
+        self.data_for_tag(hhea::TAG).and_then(hhea::Hhea::read)
     }
 
     fn maxp(&self) -> Option<maxp::Maxp> {
