@@ -171,7 +171,7 @@ font_types::tables! {
         /// be less than designAxisCount.
         axis_index: BigEndian<u16>,
         /// Flags — see below for details.
-        flags: BigEndian<u16>,
+        flags: BigEndian<AxisValueFlags>,
         /// The name ID for entries in the 'name' table that provide a
         /// display string for this attribute value.
         value_name_id: BigEndian<u16>,
@@ -188,7 +188,7 @@ font_types::tables! {
         /// be less than designAxisCount.
         axis_index: BigEndian<u16>,
         /// Flags — see below for details.
-        flags: BigEndian<u16>,
+        flags: BigEndian<AxisValueFlags>,
         /// The name ID for entries in the 'name' table that provide a
         /// display string for this attribute value.
         value_name_id: BigEndian<u16>,
@@ -211,7 +211,7 @@ font_types::tables! {
         /// be less than designAxisCount.
         axis_index: BigEndian<u16>,
         /// Flags — see below for details.
-        flags: BigEndian<u16>,
+        flags: BigEndian<AxisValueFlags>,
         /// The name ID for entries in the 'name' table that provide a
         /// display string for this attribute value.
         value_name_id: BigEndian<u16>,
@@ -229,7 +229,7 @@ font_types::tables! {
         /// combination.
         axis_count: BigEndian<u16>,
         /// Flags — see below for details.
-        flags: BigEndian<u16>,
+        flags: BigEndian<AxisValueFlags>,
         /// The name ID for entries in the 'name' table that provide a
         /// display string for this combination of axis values.
         value_name_id: BigEndian<u16>,
@@ -250,7 +250,7 @@ font_types::tables! {
 
     /// [Axis value table flags](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#flags).
 #[flags(u16)]
-    AxisValueTableFlags {
+    AxisValueFlags {
         /// If set, this axis value table provides axis value information
         /// that is applicable to other fonts within the same font family.
         /// This is used if the other fonts were released earlier and did
