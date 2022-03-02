@@ -28,6 +28,7 @@ pub struct SingleItem {
     pub docs: Vec<syn::Attribute>,
     pub lifetime: Option<syn::Lifetime>,
     pub offset_host: Option<syn::Path>,
+    pub init: Vec<syn::Ident>,
     pub name: syn::Ident,
     pub fields: Vec<Field>,
 }
@@ -138,6 +139,7 @@ impl Parse for Item {
             let item = SingleItem {
                 docs: attrs.docs,
                 offset_host: attrs.offset_host,
+                init: attrs.init,
                 lifetime,
                 name,
                 fields,
@@ -418,6 +420,7 @@ impl SingleItem {
                         "field must occur before it can be referenced",
                     ))
                 }
+                None if self.init.contains(ident) => (),
                 None => return Err(syn::Error::new(ident.span(), "unknown field")),
             }
         }

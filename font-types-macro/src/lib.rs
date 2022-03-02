@@ -407,22 +407,50 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
         });
     }
 
+    let init_body = quote! {
+        #( #field_inits )*
+        let _ = bytes;
+        Some(#name {
+            #( #used_field_names, )*
+        })
+    };
+
+    let init_impl = if item.init.is_empty() {
+        quote! {
+            impl<'a> font_types::FontRead<'a> for #name<'a> {
+                fn read(bytes: &'a [u8]) -> Option<Self> {
+                    #init_body
+                }
+            }
+        }
+    } else {
+        let init_args = item.init.iter().map(|arg| {
+            let span = arg.span();
+            quote_spanned!(span=> #arg: usize)
+        });
+        let init_aliases = item.init.iter().map(|arg| {
+            let span = arg.span();
+            let resolved = make_resolved_ident(arg);
+            quote_spanned!(span=> let #resolved = #arg;)
+        });
+
+        quote! {
+            impl<'a> #name<'a> {
+                pub fn read(bytes: &'a [u8], #( #init_args ),* ) -> Option<Self> {
+                    #( #init_aliases )*
+                    #init_body
+                }
+            }
+        }
+    };
+
     quote! {
         #( #docs )*
         pub struct #name<'a> {
             #( #field_decls ),*
         }
 
-        impl<'a> font_types::FontRead<'a> for #name<'a> {
-            fn read(bytes: &'a [u8]) -> Option<Self> {
-                #( #field_inits )*
-                let _ = bytes;
-                Some(#name {
-                    #( #used_field_names, )*
-                })
-            }
-        }
-
+        #init_impl
         impl<'a> #name<'a> {
             #( #getters )*
         }
