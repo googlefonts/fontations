@@ -27,6 +27,11 @@ fn print_font_info(font: &FontRef) {
 
     let head = font.head().expect("missing head");
     print_head_info(&head);
+
+    if let Some(name) = font.name() {
+        print_name_info(&name);
+    }
+
     if let Some(hhea) = font.hhea() {
         print_hhea_info(&hhea);
     }
@@ -66,6 +71,26 @@ fn print_hhea_info(hhea: &tables::hhea::Hhea) {
 fn print_maxp_info(maxp: &tables::maxp::Maxp) {
     println!("\nmaxp version {}", maxp.version());
     println!("  num_glyphs: {}", maxp.num_glyphs());
+}
+
+fn print_name_info(name: &tables::name::Name) {
+    println!("\nname version {}", name.version());
+    println!("  records: {}", name.count());
+
+    let mut plat_id = 101;
+    let mut enc_id = u16::MAX;
+    for record in name.name_record() {
+        if record.platform_id() != plat_id || record.encoding_id() != enc_id {
+            plat_id = record.platform_id();
+            enc_id = record.encoding_id();
+            println!("  platform {} encoding {}:", plat_id, enc_id);
+        }
+        if let Some(entry) = name.resolve(&record) {
+            println!("    {}: '{}'", record.name_id(), entry);
+        } else {
+            println!("    {} (unknown encoding)", record.name_id());
+        }
+    }
 }
 
 fn print_cmap_info(cmap: &tables::cmap::Cmap) {
