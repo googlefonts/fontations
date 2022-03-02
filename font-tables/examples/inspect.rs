@@ -27,6 +27,9 @@ fn print_font_info(font: &FontRef) {
 
     let head = font.head().expect("missing head");
     print_head_info(&head);
+    if let Some(maxp) = font.maxp() {
+        print_maxp_info(&maxp);
+    }
     if let Some(cmap) = font.cmap() {
         print_cmap_info(&cmap);
     }
@@ -41,6 +44,11 @@ fn print_head_info(head: &tables::head::Head) {
     println!("  upm {}", head.units_per_em);
     println!("  x/y min: {}, {}", head.x_min, head.y_min);
     println!("  x/y max: {}, {}", head.x_max, head.y_max);
+}
+
+fn print_maxp_info(maxp: &tables::maxp::Maxp) {
+    println!("\nmaxp version {}", maxp.version());
+    println!("  num_glyphs: {}", maxp.num_glyphs());
 }
 
 fn print_cmap_info(cmap: &tables::cmap::Cmap) {
