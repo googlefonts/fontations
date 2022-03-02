@@ -1,0 +1,52 @@
+
+STAT
+uint16	majorVersion	Major version number of the style attributes table — set to 1.
+uint16	minorVersion	Minor version number of the style attributes table — set to 2.
+uint16	designAxisSize	The size in bytes of each axis record.
+uint16	designAxisCount	The number of axis records. In a font with an 'fvar' table, this value must be greater than or equal to the axisCount value in the 'fvar' table. In all fonts, must be greater than zero if axisValueCount is greater than zero.
+Offset32	designAxesOffset	Offset in bytes from the beginning of the STAT table to the start of the design axes array. If designAxisCount is zero, set to zero; if designAxisCount is greater than zero, must be greater than zero.
+uint16	axisValueCount	The number of axis value tables.
+Offset32	offsetToAxisValueOffsets	Offset in bytes from the beginning of the STAT table to the start of the design axes value offsets array. If axisValueCount is zero, set to zero; if axisValueCount is greater than zero, must be greater than zero.
+uint16	elidedFallbackNameID	Name ID used as fallback when projection of names into a particular font model produces a subfamily name containing only elidable elements.
+AxisRecord	designAxes[designAxisCount]	The design-axes array.
+Offset16	axisValueOffsets[axisValueCount]	Array of offsets to axis value tables, in bytes from the start of the axis value offsets array.
+
+AxisRecord
+Tag	axisTag	A tag identifying the axis of design variation.
+uint16	axisNameID	The name ID for entries in the 'name' table that provide a display string for this axis.
+uint16	axisOrdering	A value that applications can use to determine primary sorting of face names, or for ordering of labels when composing family or face names.
+
+AxisValueFormat1
+uint16	format	Format identifier — set to 1.
+uint16	axisIndex	Zero-base index into the axis record array identifying the axis of design variation to which the axis value table applies. Must be less than designAxisCount.
+uint16	flags	Flags — see below for details.
+uint16	valueNameID	The name ID for entries in the 'name' table that provide a display string for this attribute value.
+Fixed	value	A numeric value for this attribute value.
+
+AxisValueFormat2
+uint16	format	Format identifier — set to 2.
+uint16	axisIndex	Zero-base index into the axis record array identifying the axis of design variation to which the axis value table applies. Must be less than designAxisCount.
+uint16	flags	Flags — see below for details.
+uint16	valueNameID	The name ID for entries in the 'name' table that provide a display string for this attribute value.
+Fixed	nominalValue	A nominal numeric value for this attribute value.
+Fixed	rangeMinValue	The minimum value for a range associated with the specified name ID.
+Fixed	rangeMaxValue	The maximum value for a range associated with the specified name ID.
+
+AxisValueFormat3
+uint16	format	Format identifier — set to 3.
+uint16	axisIndex	Zero-base index into the axis record array identifying the axis of design variation to which the axis value table applies. Must be less than designAxisCount.
+uint16	flags	Flags — see below for details.
+uint16	valueNameID	The name ID for entries in the 'name' table that provide a display string for this attribute value.
+Fixed	value	A numeric value for this attribute value.
+Fixed	linkedValue	The numeric value for a style-linked mapping from this value.
+
+AxisValueFormat4
+uint16	format	Format identifier — set to 4.
+uint16	axisCount	The total number of axes contributing to this axis-values combination.
+uint16	flags	Flags — see below for details.
+uint16	valueNameID	The name ID for entries in the 'name' table that provide a display string for this combination of axis values.
+AxisValue	axisValues[axisCount]	Array of AxisValue records that provide the combination of axis values, one for each contributing axis.
+
+AxisValue
+uint16	axisIndex	Zero-base index into the axis record array identifying the axis to which this value applies. Must be less than designAxisCount.
+Fixed	value	A numeric value for this attribute value.

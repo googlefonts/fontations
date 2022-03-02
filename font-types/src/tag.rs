@@ -1,17 +1,14 @@
 use std::{
     borrow::Borrow,
-    fmt::{Display, Formatter},
-    ops::Deref,
+    fmt::{Debug, Display, Formatter},
     str::FromStr,
 };
-
-use crate::{ExactSized, FromBeBytes};
 
 /// An OpenType tag.
 ///
 /// A tag is a 4-byte array where each byte is in the printable ascii range
 /// (0x20..=0x7E).
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Tag([u8; 4]);
 
 impl Tag {
@@ -35,7 +32,7 @@ impl Tag {
         let mut raw = [b' '; 4];
         let mut i = 0;
         while i < src.len() {
-            if i <= 0x20 || i > 0x7e {
+            if src[i] <= 0x20 || src[i] > 0x7e {
                 panic!("all bytes must be in range (0x20, 0x7E)");
             }
             raw[i] = src[i];
@@ -70,15 +67,21 @@ impl Tag {
         Ok(Tag(out))
     }
 
-    /// This tag as raw bytes.
-    pub fn as_bytes(&self) -> &[u8; 4] {
-        &self.0
+    // for symmetry with integer types / other things we encode/decode
+    /// Return the memory representation of this tag.
+    pub fn to_be_bytes(self) -> [u8; 4] {
+        self.0
     }
 
-    /// This tag as a `&str`.
-    pub fn as_str(&self) -> &str {
-        // safety: tag can only be constructed from valid utf-8
-        unsafe { std::str::from_utf8_unchecked(&self.0) }
+    /// Create a tag from raw big-endian bytes.
+    ///
+    /// Prefer to use [`Tag::new`] (in const contexts) or [`Tag::new_checked`]
+    /// when creating a `Tag`.
+    ///
+    /// This does not check the input, and is only intended to be used during
+    /// parsing, where invalid inputs are accepted.
+    pub fn from_be_bytes(bytes: [u8; 4]) -> Self {
+        Self(bytes)
     }
 }
 
@@ -97,40 +100,21 @@ impl FromStr for Tag {
     }
 }
 
-impl ExactSized for Tag {
-    const SIZE: usize = 4;
-}
+impl crate::raw::Scalar for Tag {
+    type Raw = [u8; 4];
 
-unsafe impl FromBeBytes<4> for Tag {
-    type Error = InvalidTag;
-    fn read(bytes: [u8; 4]) -> Result<Self, Self::Error> {
-        Tag::new_checked(&bytes)
+    fn to_raw(self) -> Self::Raw {
+        self.to_be_bytes()
     }
-}
 
-impl AsRef<str> for Tag {
-    fn as_ref(&self) -> &str {
-        self.as_str()
-    }
-}
-
-impl Deref for Tag {
-    type Target = str;
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { std::str::from_utf8_unchecked(&self.0) }
+    fn from_raw(raw: Self::Raw) -> Self {
+        Self::from_be_bytes(raw)
     }
 }
 
 impl Borrow<[u8; 4]> for Tag {
     fn borrow(&self) -> &[u8; 4] {
         &self.0
-    }
-}
-
-impl Borrow<str> for Tag {
-    fn borrow(&self) -> &str {
-        self.as_str()
     }
 }
 
@@ -142,7 +126,7 @@ impl PartialEq<[u8; 4]> for Tag {
 
 impl PartialEq<str> for Tag {
     fn eq(&self, other: &str) -> bool {
-        self.as_str() == other
+        self.0 == other.as_bytes()
     }
 }
 
@@ -160,7 +144,15 @@ impl PartialEq<&[u8]> for Tag {
 
 impl Display for Tag {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        write!(f, "{}", self.as_str())
+        Display::fmt(&String::from_utf8_lossy(&self.0), f)
+    }
+}
+
+impl Debug for Tag {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let mut dbg = f.debug_tuple("Tag");
+        dbg.field(&String::from_utf8_lossy(&self.0));
+        dbg.finish()
     }
 }
 
@@ -170,6 +162,7 @@ mod tests {
 
     #[test]
     fn smoke_test() {
+        Tag::new(b"head");
         assert!(Tag::new_checked(b"").is_err());
         assert!(Tag::new_checked(b"a").is_ok());
         assert!(Tag::new_checked(b"ab").is_ok());
@@ -182,5 +175,11 @@ mod tests {
         assert!(Tag::new_checked(&[0x20]).is_ok());
         assert!(Tag::new_checked(&[0x7E]).is_ok());
         assert!(Tag::new_checked(&[0x7F]).is_err());
+    }
+
+    #[test]
+    #[should_panic]
+    fn name() {
+        let _ = Tag::new(&[0x19, 0x69]);
     }
 }

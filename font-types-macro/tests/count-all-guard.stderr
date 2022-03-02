@@ -1,0 +1,5 @@
+error: #[count_all] only valid on last item
+ --> tests/count-all-guard.rs:4:11
+  |
+4 |         #[count_all]
+  |           ^^^^^^^^^

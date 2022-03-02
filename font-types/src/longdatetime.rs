@@ -7,6 +7,11 @@
 pub struct LongDateTime(i64);
 
 impl LongDateTime {
+    /// Create with a number of seconds relative to 1904-01-01 00:00.
+    pub fn new(secs: i64) -> Self {
+        Self(secs)
+    }
+
     /// The number of seconds since 00:00 1904-01-01, UTC.
     ///
     /// This can be a negative number, which presumably represents a date prior
@@ -16,5 +21,5 @@ impl LongDateTime {
     }
 }
 
-super::conversion::impl_from_be_by_proxy!(LongDateTime, 8);
+crate::newtype_scalar!(LongDateTime, [u8; 8]);
 //TODO: maybe a 'chrono' feature for constructing these sanely?

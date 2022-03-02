@@ -2,12 +2,24 @@
 
 /// 16-bit signed quantity in font design units.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Fword(super::int16);
+pub struct FWord(i16);
 
 /// 16-bit unsigned quantity in font design units.
 #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Ufword(super::uint16);
+pub struct UfWord(u16);
 
-super::conversion::impl_from_be_by_proxy!(Fword, 2);
-super::conversion::impl_from_be_by_proxy!(Ufword, 2);
+impl FWord {
+    pub fn new(raw: i16) -> Self {
+        Self(raw)
+    }
+}
+
+impl UfWord {
+    pub fn new(raw: u16) -> Self {
+        Self(raw)
+    }
+}
+
+crate::newtype_scalar!(FWord, [u8; 2]);
+crate::newtype_scalar!(UfWord, [u8; 2]);
 //TODO: we can add addition/etc as needed

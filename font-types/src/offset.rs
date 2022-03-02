@@ -1,101 +1,75 @@
 //! Offsets to tables
 
-use std::num::{NonZeroU16, NonZeroU32};
+use crate::Uint24;
 
-use crate::{ExactSized, FromBeBytes, Uint24};
+/// A trait for the different offset representations.
+pub trait Offset {
+    /// Returns this offsize as a `usize`, or `None` if it is `0`.
+    fn non_null(self) -> Option<usize>;
+}
+
+/// A type that contains data referenced by offsets.
+pub trait OffsetHost<'a> {
+    /// Return a slice of bytes from which offsets may be resolved.
+    ///
+    /// This should be relative to the start of the host.
+    fn bytes(&self) -> &'a [u8];
+
+    /// Return the bytes for a given offset
+    fn bytes_at_offset(&self, offset: impl Offset) -> &'a [u8] {
+        offset
+            .non_null()
+            .and_then(|off| self.bytes().get(off..))
+            .unwrap_or_default()
+    }
+
+    fn resolve_offset<T: crate::FontRead<'a>>(&self, offset: impl Offset) -> Option<T> {
+        crate::FontRead::read(self.bytes_at_offset(offset))
+    }
+}
 
 macro_rules! impl_offset {
-    ($name:ident, $bits:literal, $ty:ty, $rawty:ty) => {
+    ($name:ident, $bits:literal, $rawty:ty) => {
         #[doc = concat!("A", stringify!($bits), "-bit offset to a table.")]
         ///
-        /// Specific offset fields may or may not permit NULL values. For that
-        /// reason, you may specific a field as `Option<Offset>` and have the
-        /// `None` case represent NULL, or you can use a non-optional offset
-        /// and have NULL be treated as an error.
+        /// Specific offset fields may or may not permit NULL values; however we
+        /// assume that errors are possible, and expect the caller to handle
+        /// the `None` case.
         #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-        pub struct $name($ty);
+        pub struct $name($rawty);
 
         impl $name {
             /// Create a new offset.
-            pub fn new(raw: $rawty) -> Option<Self> {
-                <$ty>::new(raw).map(Self)
-            }
-
-            /// Return the raw integer value of this offset
-            pub fn to_raw(self) -> $rawty {
-                self.0.get()
+            pub fn new(raw: $rawty) -> Self {
+                Self(raw)
             }
         }
 
-        impl ExactSized for $name {
-            const SIZE: usize = $bits / 8;
-        }
+        impl crate::raw::Scalar for $name {
+            type Raw = <$rawty as crate::raw::Scalar>::Raw;
+            fn from_raw(raw: Self::Raw) -> Self {
+                let raw = <$rawty>::from_raw(raw);
+                $name::new(raw)
+            }
 
-        impl ExactSized for Option<$name> {
-            const SIZE: usize = $bits / 8;
-        }
-
-        unsafe impl FromBeBytes<{ $bits / 8 }> for $name {
-            type Error = NullOffset;
-            fn read(bytes: [u8; $bits / 8]) -> Result<Self, Self::Error> {
-                $name::new(FromBeBytes::read(bytes).unwrap()).ok_or(NullOffset)
+            fn to_raw(self) -> Self::Raw {
+                self.0.to_raw()
             }
         }
 
-        unsafe impl FromBeBytes<{ $bits / 8 }> for Option<$name> {
-            type Error = crate::Never;
-            fn read(bytes: [u8; $bits / 8]) -> Result<Self, Self::Error> {
-                FromBeBytes::read(bytes).map($name::new)
+        impl Offset for $name {
+            fn non_null(self) -> Option<usize> {
+                let raw: u32 = self.0.into();
+                if raw == 0 {
+                    None
+                } else {
+                    Some(raw as usize)
+                }
             }
         }
     };
 }
 
-impl_offset!(Offset16, 16, NonZeroU16, u16);
-impl_offset!(Offset32, 32, NonZeroU32, u32);
-
-/// A 24-bit offset to a table.
-///
-/// reason, you may specific a field as `Option<Offset>` and have the
-/// `None` case represent NULL, or you can use a non-optional offset
-/// and have NULL be treated as an error.
-#[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub struct Offset24(NonZeroU32);
-
-/// An error type representing an unexpected `NULL` offset.
-#[derive(Debug, Clone)]
-pub struct NullOffset;
-
-impl Offset24 {
-    /// Create a new offset.
-    pub fn new(raw: u32) -> Option<Self> {
-        NonZeroU32::new(raw).map(Self)
-    }
-
-    /// Return the raw integer value of this offset
-    pub fn to_raw(self) -> u32 {
-        self.0.get()
-    }
-}
-
-impl ExactSized for Option<Offset24> {
-    const SIZE: usize = 3;
-}
-
-impl ExactSized for Offset24 {
-    const SIZE: usize = 3;
-}
-
-unsafe impl FromBeBytes<3> for Offset24 {
-    type Error = NullOffset;
-    fn read(bytes: [u8; 3]) -> Result<Self, Self::Error> {
-        Offset24::new(Uint24::read(bytes).unwrap().into()).ok_or(NullOffset)
-    }
-}
-
-unsafe impl FromBeBytes<3> for Option<Offset24> {
-    type Error = crate::Never;
-    fn read(bytes: [u8; 3]) -> Result<Self, Self::Error> {
-        Uint24::read(bytes).map(|val| Offset24::new(val.into()))
-    }
-}
+impl_offset!(Offset16, 16, u16);
+impl_offset!(Offset24, 24, Uint24);
+impl_offset!(Offset32, 32, u32);

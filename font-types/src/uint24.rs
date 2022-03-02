@@ -1,5 +1,3 @@
-use crate::ExactSized;
-
 /// 24-bit unsigned integer.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Uint24(u32);
@@ -26,24 +24,20 @@ impl Uint24 {
             Some(Uint24(raw))
         }
     }
+
+    pub fn to_be_bytes(self) -> [u8; 3] {
+        let bytes = self.0.to_be_bytes();
+        [bytes[1], bytes[2], bytes[3]]
+    }
+
+    pub fn from_be_bytes(bytes: [u8; 3]) -> Self {
+        Uint24::new((bytes[0] as u32) << 16 | (bytes[1] as u32) << 8 | bytes[2] as u32)
+    }
 }
 
 impl From<Uint24> for u32 {
     fn from(src: Uint24) -> u32 {
         src.0
-    }
-}
-
-impl ExactSized for Uint24 {
-    const SIZE: usize = 3;
-}
-
-unsafe impl super::FromBeBytes<3> for super::Uint24 {
-    type Error = crate::Never;
-    fn read(raw: [u8; 3]) -> Result<Self, Self::Error> {
-        Ok(Self(
-            (raw[0] as u32) << 16 | (raw[1] as u32) << 8 | raw[2] as u32,
-        ))
     }
 }
 
@@ -55,5 +49,12 @@ mod tests {
     fn constructor() {
         assert_eq!(Uint24::MAX, Uint24::new(u32::MAX));
         assert!(Uint24::checked_new(u32::MAX).is_none())
+    }
+
+    #[test]
+    fn be_bytes() {
+        let bytes = [0xff, 0b10101010, 0b11001100];
+        let val = Uint24::from_be_bytes(bytes);
+        assert_eq!(val.to_be_bytes(), bytes);
     }
 }

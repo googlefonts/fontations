@@ -1,7 +1,7 @@
 [workspace]
 
 members = [
+    "font-tables",
     "font-types",
-    "toy-types-derive",
-    "toy-types",
+    "font-types-macro",
 ]
