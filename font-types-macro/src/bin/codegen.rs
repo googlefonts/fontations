@@ -215,6 +215,10 @@ impl<'a> Decl<'a> {
                     DeclKind::Flags
                 }
             }
+            "@enum" | "@flags" => exit_with_msg!(
+                "@enum/@flags requires explicit repr like: '@flags(u16)'",
+                line
+            ),
             other => exit_with_msg!(format!("unknown item kind '{}'", other), line),
         };
         let name = decl

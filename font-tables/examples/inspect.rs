@@ -45,6 +45,9 @@ fn print_font_info(font: &FontRef) {
     if let Some(cmap) = font.cmap() {
         print_cmap_info(&cmap);
     }
+    if let Some(stat) = font.stat() {
+        print_stat_info(&stat);
+    }
 }
 
 fn print_head_info(head: &tables::head::Head) {
@@ -104,6 +107,16 @@ fn print_post_info(post: &tables::post::Post) {
     println!("  underline position {}", post.underline_position());
     println!("  underline thickness {}", post.underline_thickness());
     println!("  fixed pitch: {}", post.is_fixed_pitch() > 0);
+}
+
+fn print_stat_info(stat: &tables::stat::Stat) {
+    println!(
+        "\nSTAT version {}.{}",
+        stat.major_version(),
+        stat.minor_version()
+    );
+    println!("  design axis count: {}", stat.design_axis_count());
+    println!("  axis value count: {}", stat.axis_value_count());
 }
 
 fn print_cmap_info(cmap: &tables::cmap::Cmap) {

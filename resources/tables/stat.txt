@@ -1,5 +1,6 @@
-
-STAT
+{
+/// [STAT](https://docs.microsoft.com/en-us/typography/opentype/spec/stat) (Style Attributes Table)
+@table Stat
 uint16	majorVersion	Major version number of the style attributes table — set to 1.
 uint16	minorVersion	Minor version number of the style attributes table — set to 2.
 uint16	designAxisSize	The size in bytes of each axis record.
@@ -11,19 +12,27 @@ uint16	elidedFallbackNameID	Name ID used as fallback when projection of names in
 AxisRecord	designAxes[designAxisCount]	The design-axes array.
 Offset16	axisValueOffsets[axisValueCount]	Array of offsets to axis value tables, in bytes from the start of the axis value offsets array.
 
-AxisRecord
+/// [Axis Records](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-records)
+@record AxisRecord
 Tag	axisTag	A tag identifying the axis of design variation.
 uint16	axisNameID	The name ID for entries in the 'name' table that provide a display string for this axis.
 uint16	axisOrdering	A value that applications can use to determine primary sorting of face names, or for ordering of labels when composing family or face names.
+}
 
-AxisValueFormat1
+/// [Axis Value Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-tables)
+@table AxisValue
+fake	fixme	TODO
+
+/// [Axis value table format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-1)
+@table AxisValueFormat1
 uint16	format	Format identifier — set to 1.
 uint16	axisIndex	Zero-base index into the axis record array identifying the axis of design variation to which the axis value table applies. Must be less than designAxisCount.
 uint16	flags	Flags — see below for details.
 uint16	valueNameID	The name ID for entries in the 'name' table that provide a display string for this attribute value.
 Fixed	value	A numeric value for this attribute value.
 
-AxisValueFormat2
+/// [Axis value table format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-2)
+@table AxisValueFormat2
 uint16	format	Format identifier — set to 2.
 uint16	axisIndex	Zero-base index into the axis record array identifying the axis of design variation to which the axis value table applies. Must be less than designAxisCount.
 uint16	flags	Flags — see below for details.
@@ -32,7 +41,8 @@ Fixed	nominalValue	A nominal numeric value for this attribute value.
 Fixed	rangeMinValue	The minimum value for a range associated with the specified name ID.
 Fixed	rangeMaxValue	The maximum value for a range associated with the specified name ID.
 
-AxisValueFormat3
+/// [Axis value table format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-3)
+@table AxisValueFormat3
 uint16	format	Format identifier — set to 3.
 uint16	axisIndex	Zero-base index into the axis record array identifying the axis of design variation to which the axis value table applies. Must be less than designAxisCount.
 uint16	flags	Flags — see below for details.
@@ -40,13 +50,20 @@ uint16	valueNameID	The name ID for entries in the 'name' table that provide a di
 Fixed	value	A numeric value for this attribute value.
 Fixed	linkedValue	The numeric value for a style-linked mapping from this value.
 
-AxisValueFormat4
+/// [Axis value table format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-4)
+@table AxisValueFormat4
 uint16	format	Format identifier — set to 4.
 uint16	axisCount	The total number of axes contributing to this axis-values combination.
 uint16	flags	Flags — see below for details.
 uint16	valueNameID	The name ID for entries in the 'name' table that provide a display string for this combination of axis values.
 AxisValue	axisValues[axisCount]	Array of AxisValue records that provide the combination of axis values, one for each contributing axis.
 
-AxisValue
+/// Part of [AxisValueFormat4]
+@record AxisValue
 uint16	axisIndex	Zero-base index into the axis record array identifying the axis to which this value applies. Must be less than designAxisCount.
 Fixed	value	A numeric value for this attribute value.
+
+/// [Axis value table flags](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#flags).
+@flags(u16) AxisValueTableFlags
+0x0001	OLDER_SIBLING_FONT_ATTRIBUTE	If set, this axis value table provides axis value information that is applicable to other fonts within the same font family. This is used if the other fonts were released earlier and did not include information about values for some axis. If newer versions of the other fonts include the information themselves and are present, then this table is ignored.
+0x0002	ELIDABLE_AXIS_VALUE_NAME	If set, it indicates that the axis value represents the “normal” value for the axis and may be omitted when composing name strings.

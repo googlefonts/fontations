@@ -50,6 +50,13 @@ impl Version16Dot16 {
 crate::newtype_scalar!(Version16Dot16, [u8; 4]);
 
 impl MajorMinor {
+    /// Version 1.0
+    pub const VERSION_1_0: MajorMinor = MajorMinor::new(1, 0);
+    /// Version 1.1
+    pub const VERSION_1_1: MajorMinor = MajorMinor::new(1, 1);
+    /// Version 1.2
+    pub const VERSION_1_2: MajorMinor = MajorMinor::new(1, 2);
+
     /// Create a new version with major and minor parts.
     pub const fn new(major: u16, minor: u16) -> Self {
         MajorMinor(major, minor)
