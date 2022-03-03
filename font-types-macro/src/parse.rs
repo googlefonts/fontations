@@ -300,7 +300,7 @@ impl Field {
         let docs = self.docs();
         let name = self.name();
         let span = name.span();
-        let body = self.getter_body();
+        let body = self.getter_body(true);
         let return_type = self.getter_return_type();
         Some(quote_spanned! {span=>
             #( #docs )*
@@ -312,7 +312,12 @@ impl Field {
 
     pub fn getter_return_type(&self) -> proc_macro2::TokenStream {
         match self {
-            Field::Single(field) => field.cooked_type_tokens(),
+            Field::Single(field) if field.is_be_wrapper() => field.cooked_type_tokens(),
+            Field::Single(field) => {
+                let typ = field.cooked_type_tokens();
+                let span = field.typ.span();
+                quote_spanned!(span=> &#typ)
+            }
             Field::Array(array) => {
                 let typ = &array.inner_typ;
                 let span = array.name.span();
@@ -321,14 +326,20 @@ impl Field {
         }
     }
 
-    fn getter_body(&self) -> proc_macro2::TokenStream {
+    /// used in view init methods, for resolving fields that are used as arguments
+    pub fn resolve_expr(&self) -> proc_macro2::TokenStream {
+        self.getter_body(false)
+    }
+
+    fn getter_body(&self, with_self: bool) -> proc_macro2::TokenStream {
         let span = self.name().span();
         let name = self.name();
+        let self_token = with_self.then(|| quote!(self.));
         match self {
             Field::Single(field) if field.is_be_wrapper() => {
-                quote_spanned!(span=> self.#name.read().get())
+                quote_spanned!(span=> #self_token #name.get())
             }
-            _ => quote_spanned!(span=> &self.#name),
+            _ => quote_spanned!(span=> &#self_token #name),
         }
     }
 
