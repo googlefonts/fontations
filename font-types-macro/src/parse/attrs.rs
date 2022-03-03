@@ -1,4 +1,4 @@
-use quote::ToTokens;
+use quote::{quote_spanned, ToTokens};
 use syn::spanned::Spanned;
 
 use super::{ArrayField, SingleField};
@@ -35,7 +35,10 @@ pub struct VariantAttrs {
 /// Used to specify the version/format specifier for an enum variant
 pub enum Version {
     Lit(syn::LitInt),
-    Path(syn::Path),
+    /// A path to a constant to be matched against
+    Const(syn::Path),
+    /// a path to a method which should return `true` for the first match
+    With(syn::Path),
 }
 
 #[derive(Default)]
@@ -181,6 +184,8 @@ impl Count {
 }
 
 static VERSION: &str = "version";
+static VERSION_WITH: &str = "version_with";
+
 impl VariantAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<VariantAttrs, syn::Error> {
         let mut result = VariantAttrs::default();
@@ -192,7 +197,9 @@ impl VariantAttrs {
                 syn::Meta::List(list) if list.path.is_ident(VERSION) => {
                     let item = expect_single_item_list(&list)?;
                     result.version = match item {
-                        syn::NestedMeta::Meta(syn::Meta::Path(p)) => Some(Version::Path(p.clone())),
+                        syn::NestedMeta::Meta(syn::Meta::Path(p)) => {
+                            Some(Version::Const(p.clone()))
+                        }
                         syn::NestedMeta::Lit(syn::Lit::Int(lit)) => Some(Version::Lit(lit)),
                         _ => {
                             return Err(syn::Error::new(
@@ -201,6 +208,14 @@ impl VariantAttrs {
                             ))
                         }
                     };
+                }
+                syn::Meta::List(list) if list.path.is_ident(VERSION_WITH) => {
+                    let inner = expect_single_item_list(&list)?;
+                    if let syn::NestedMeta::Meta(syn::Meta::Path(path)) = inner {
+                        result.version = Some(Version::With(path));
+                    } else {
+                        return Err(syn::Error::new(inner.span(), "expected path to method"));
+                    }
                 }
                 other => return Err(syn::Error::new(other.span(), "unknown attribute")),
             }
@@ -272,11 +287,24 @@ fn expect_ident(meta: &syn::NestedMeta) -> Result<syn::Ident, syn::Error> {
     }
 }
 
+impl Version {
+    pub fn const_version_tokens(&self) -> Option<&syn::Path> {
+        match self {
+            Version::Const(path) => Some(path),
+            _ => None,
+        }
+    }
+}
+
 impl ToTokens for Version {
     fn to_tokens(&self, stream: &mut proc_macro2::TokenStream) {
         match self {
             Version::Lit(lit) => lit.to_tokens(stream),
-            Version::Path(path) => path.to_tokens(stream),
+            Version::Const(path) => path.to_tokens(stream),
+            Version::With(path) => {
+                let span = path.span();
+                stream.extend(quote_spanned!(span=> v if #path(v)))
+            }
         }
     }
 }
