@@ -73,10 +73,13 @@ fn generate_group(
         }
     });
 
-    let var_versions = group.variants.iter().map(|v| &v.version);
+    let var_versions = group
+        .variants
+        .iter()
+        .filter_map(|v| v.version.const_version_tokens());
 
-    // make sure this is a constant and we aren't accidentally aliasing?
-    // I'm not sure if this is necessary.
+    // ensure that constants passed in as versions actually exist, and that we
+    // aren't just using them as bindings
     let validation_check = quote! {
         #( const _: #format = #var_versions; )*
     };
