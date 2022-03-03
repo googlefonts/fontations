@@ -296,10 +296,7 @@ fn generate_zerocopy_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream
         })
         .collect::<Vec<_>>();
 
-    let getters = item
-        .fields
-        .iter()
-        .map(|fld| generate_zc_getter(fld.as_single().unwrap()));
+    let getters = item.fields.iter().map(parse::Field::view_getter_fn);
 
     quote! {
         #( #docs )*
@@ -316,25 +313,6 @@ fn generate_zerocopy_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream
             )*
         }
 
-    }
-}
-
-fn generate_zc_getter(field: &parse::SingleField) -> proc_macro2::TokenStream {
-    let name = &field.name;
-    let cooked_type = field.cooked_type_tokens();
-    //FIXME: rewrite using getter_return_type and getter_body
-    if field.is_be_wrapper() {
-        quote! {
-            pub fn #name(&self) -> #cooked_type {
-                self.#name.get()
-            }
-        }
-    } else {
-        quote! {
-            pub fn #name(&self) -> &#cooked_type {
-                &self.#name
-            }
-        }
     }
 }
 
