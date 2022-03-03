@@ -312,12 +312,7 @@ impl Field {
 
     pub fn getter_return_type(&self) -> proc_macro2::TokenStream {
         match self {
-            Field::Single(field) if field.is_be_wrapper() => field.cooked_type_tokens(),
-            Field::Single(field) => {
-                let typ = field.cooked_type_tokens();
-                let span = field.typ.span();
-                quote_spanned!(span=> &#typ)
-            }
+            Field::Single(field) => field.cooked_type_tokens(),
             Field::Array(array) => {
                 let typ = &array.inner_typ;
                 let span = array.name.span();
@@ -373,9 +368,11 @@ impl SingleField {
 
     /// The return type of a getter of this type.
     ///
-    /// (this is about returning T for BigEndian<T>)
-    pub fn cooked_type_tokens(&self) -> proc_macro2::TokenStream {
+    /// this is about returning T for BigEndian<T>, but returning &T for some
+    /// non-scalar T.
+    fn cooked_type_tokens(&self) -> proc_macro2::TokenStream {
         let last = self.typ.segments.last().unwrap();
+        let span = self.typ.span();
         if last.ident == "BigEndian" {
             let args = match &last.arguments {
                 syn::PathArguments::AngleBracketed(args) => args,
@@ -383,13 +380,13 @@ impl SingleField {
             };
             let last_arg = args.args.last().unwrap();
             if let syn::GenericArgument::Type(inner) = last_arg {
-                return quote!(#inner);
+                return quote_spanned!(span=> #inner);
             }
             panic!("failed to find BigEndian generic type");
         }
 
         let typ = &self.typ;
-        quote!(#typ)
+        quote_spanned!(span=> &#typ)
     }
 }
 
