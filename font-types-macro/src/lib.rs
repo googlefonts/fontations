@@ -322,6 +322,7 @@ fn generate_zerocopy_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream
 fn generate_zc_getter(field: &parse::SingleField) -> proc_macro2::TokenStream {
     let name = &field.name;
     let cooked_type = field.cooked_type_tokens();
+    //FIXME: rewrite using getter_return_type and getter_body
     if field.is_be_wrapper() {
         quote! {
             pub fn #name(&self) -> #cooked_type {
@@ -331,7 +332,7 @@ fn generate_zc_getter(field: &parse::SingleField) -> proc_macro2::TokenStream {
     } else {
         quote! {
             pub fn #name(&self) -> &#cooked_type {
-                &self.name
+                &self.#name
             }
         }
     }
@@ -384,7 +385,8 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
         // if this field is used by another field, resolve it's current value
         let maybe_resolved_value = fields_used_as_inputs.contains(&name).then(|| {
             let resolved_ident = make_resolved_ident(name);
-            quote_spanned!(span=> let #resolved_ident = #name.read().get();)
+            let resolve_expr = field.resolve_expr();
+            quote_spanned!(span=> let #resolved_ident = #resolve_expr;)
         });
 
         field_inits.push(quote! {
