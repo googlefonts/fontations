@@ -5,6 +5,7 @@ pub mod glyf;
 pub mod head;
 pub mod hhea;
 pub mod hmtx;
+pub mod loca;
 pub mod maxp;
 pub mod name;
 pub mod post;
@@ -48,6 +49,11 @@ pub trait TableProvider {
 
     fn stat(&self) -> Option<stat::Stat> {
         self.data_for_tag(stat::TAG).and_then(stat::Stat::read)
+    }
+
+    fn loca(&self, num_glyphs: u16, is_long: bool) -> Option<loca::Loca> {
+        let bytes = self.data_for_tag(loca::TAG)?;
+        loca::Loca::read(bytes, num_glyphs, is_long)
     }
 
     fn glyf(&self) -> Option<glyf::Glyf> {
