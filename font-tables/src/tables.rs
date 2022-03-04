@@ -1,6 +1,7 @@
 //! Font tables.
 
 pub mod cmap;
+pub mod glyf;
 pub mod head;
 pub mod hhea;
 pub mod hmtx;
@@ -49,8 +50,10 @@ pub trait TableProvider {
         self.data_for_tag(stat::TAG).and_then(stat::Stat::read)
     }
 
-    //fn loca(&self, is_32_bit: bool) -> Option<Loca>;
-    //fn glyf(&self) -> Option<Glyf>;
+    fn glyf(&self) -> Option<glyf::Glyf> {
+        self.data_for_tag(glyf::TAG).and_then(glyf::Glyf::read)
+    }
+
     fn cmap(&self) -> Option<cmap::Cmap> {
         self.data_for_tag(Tag::new(b"cmap"))
             .and_then(cmap::Cmap::read)
