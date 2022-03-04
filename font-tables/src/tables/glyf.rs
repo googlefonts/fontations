@@ -257,12 +257,12 @@ impl<'a> Glyph<'a> {
 }
 
 impl<'a> SimpleGlyph<'a> {
-    pub fn iter_contours(&self) -> PointIter<'_> {
-        self.iter_contours_impl()
+    pub fn iter_points(&self) -> PointIter<'_> {
+        self.iter_points_impl()
             .unwrap_or_else(|| PointIter::new(&[], &[], &[], &[]))
     }
 
-    fn iter_contours_impl(&self) -> Option<PointIter<'_>> {
+    fn iter_points_impl(&self) -> Option<PointIter<'_>> {
         let end_points = self.end_pts_of_contours();
         let n_points = end_points.last()?.get().checked_add(1)?;
         let data = self.glyph_data();
