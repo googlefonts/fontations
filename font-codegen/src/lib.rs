@@ -462,11 +462,11 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
             }
         }
     } else {
-        let init_args = item.init.iter().map(|arg| {
+        let init_args = item.init.iter().map(|(arg, type_)| {
             let span = arg.span();
-            quote_spanned!(span=> #arg: usize)
+            quote_spanned!(span=> #arg: #type_)
         });
-        let init_aliases = item.init.iter().map(|arg| {
+        let init_aliases = item.init.iter().map(|(arg, _)| {
             let span = arg.span();
             let resolved = make_resolved_ident(arg);
             quote_spanned!(span=> let #resolved = #arg;)
