@@ -32,7 +32,7 @@ pub struct SingleItem {
     pub docs: Vec<syn::Attribute>,
     pub lifetime: Option<syn::Lifetime>,
     pub offset_host: Option<syn::Path>,
-    pub init: Vec<syn::Ident>,
+    pub init: Vec<(syn::Ident, syn::Type)>,
     pub name: syn::Ident,
     pub fields: Vec<Field>,
 }
@@ -442,7 +442,7 @@ impl SingleItem {
                         "field must occur before it can be referenced",
                     ))
                 }
-                None if self.init.contains(ident) => (),
+                None if self.init.iter().any(|field| &field.0 == ident) => (),
                 None => return Err(syn::Error::new(ident.span(), "unknown field")),
             }
         }

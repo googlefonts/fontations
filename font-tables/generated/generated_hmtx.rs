@@ -6,16 +6,16 @@ use font_types::*;
 
 /// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
 pub struct Hmtx<'a> {
-    h_metrics: zerocopy::LayoutVerified<&'a [u8], [longHorMetric]>,
+    h_metrics: zerocopy::LayoutVerified<&'a [u8], [LongHorMetric]>,
     left_side_bearings: zerocopy::LayoutVerified<&'a [u8], [BigEndian<i16>]>,
 }
 
 impl<'a> Hmtx<'a> {
-    pub fn read(bytes: &'a [u8], number_of_h_metrics: usize, num_glyphs: usize) -> Option<Self> {
+    pub fn read(bytes: &'a [u8], number_of_h_metrics: u16, num_glyphs: u16) -> Option<Self> {
         let __resolved_number_of_h_metrics = number_of_h_metrics;
         let __resolved_num_glyphs = num_glyphs;
         let (h_metrics, bytes) =
-            zerocopy::LayoutVerified::<_, [longHorMetric]>::new_slice_unaligned_from_prefix(
+            zerocopy::LayoutVerified::<_, [LongHorMetric]>::new_slice_unaligned_from_prefix(
                 bytes,
                 __resolved_number_of_h_metrics as usize,
             )?;
@@ -35,7 +35,7 @@ impl<'a> Hmtx<'a> {
 impl<'a> Hmtx<'a> {
     /// Paired advance width and left side bearing values for each
     /// glyph. Records are indexed by glyph ID.
-    pub fn h_metrics(&self) -> &[longHorMetric] {
+    pub fn h_metrics(&self) -> &[LongHorMetric] {
         &self.h_metrics
     }
 
@@ -48,14 +48,14 @@ impl<'a> Hmtx<'a> {
 
 #[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
 #[repr(C)]
-pub struct longHorMetric {
+pub struct LongHorMetric {
     /// Advance width, in font design units.
     pub advance_width: BigEndian<u16>,
     /// Glyph left side bearing, in font design units.
     pub lsb: BigEndian<i16>,
 }
 
-impl longHorMetric {
+impl LongHorMetric {
     /// Advance width, in font design units.
     pub fn advance_width(&self) -> u16 {
         self.advance_width.get()
@@ -67,6 +67,7 @@ impl longHorMetric {
     }
 }
 
-fn n_glyphs_less_n_metrics(num_glyphs: usize, num_metrics: usize) -> usize {
-    num_glyphs.saturating_sub(num_metrics)
+fn n_glyphs_less_n_metrics(num_glyphs: u16, num_metrics: u16) -> usize {
+    num_glyphs.saturating_sub(num_metrics) as usize
 }
+

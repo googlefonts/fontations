@@ -34,9 +34,8 @@ pub trait TableProvider {
         //FIXME: should we make the user pass these in?
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
         let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_h_metrics())?;
-        self.data_for_tag(hmtx::TAG).and_then(|data| {
-            hmtx::Hmtx::read(data, num_glyphs as usize, number_of_h_metrics as usize)
-        })
+        self.data_for_tag(hmtx::TAG)
+            .and_then(|data| hmtx::Hmtx::read(data, num_glyphs, number_of_h_metrics))
     }
 
     fn maxp(&self) -> Option<maxp::Maxp> {

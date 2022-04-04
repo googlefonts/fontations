@@ -1,5 +1,5 @@
 use quote::{quote_spanned, ToTokens};
-use syn::spanned::Spanned;
+use syn::{spanned::Spanned, Lit};
 
 use super::{ArrayField, SingleField};
 
@@ -47,7 +47,7 @@ pub struct ItemAttrs {
     pub format: Option<syn::Ident>,
     pub generate_getters: Option<syn::Path>,
     pub offset_host: Option<syn::Path>,
-    pub init: Vec<syn::Ident>,
+    pub init: Vec<(syn::Ident, syn::Type)>,
     pub repr: Option<syn::Ident>,
     pub flags: Option<syn::Ident>,
 }
@@ -261,7 +261,7 @@ impl ItemAttrs {
                     result.init = list
                         .nested
                         .iter()
-                        .map(expect_ident)
+                        .map(expect_init_arg)
                         .collect::<Result<_, _>>()?;
                 }
                 other => return Err(syn::Error::new(other.span(), "unknown attribute")),
@@ -275,6 +275,26 @@ fn expect_single_item_list(meta: &syn::MetaList) -> Result<syn::NestedMeta, syn:
     match meta.nested.first() {
         Some(item) if meta.nested.len() == 1 => Ok(item.clone()),
         _ => Err(syn::Error::new(meta.span(), "expected single item list")),
+    }
+}
+
+fn expect_init_arg(meta: &syn::NestedMeta) -> Result<(syn::Ident, syn::Type), syn::Error> {
+    match meta {
+        syn::NestedMeta::Meta(syn::Meta::NameValue(namevalue))
+            if namevalue.path.get_ident().is_some() =>
+        {
+            let name = namevalue.path.get_ident().unwrap();
+            if let Lit::Str(s) = &namevalue.lit {
+                let typ: syn::Type = syn::parse_str(s.value().trim_matches('"'))?;
+                Ok((name.clone(), typ))
+            } else {
+                Err(syn::Error::new(
+                    namevalue.lit.span(),
+                    "type must be a string literal (e.g.: 'name = \"usize\"')",
+                ))
+            }
+        }
+        _ => Err(syn::Error::new(meta.span(), "expected 'name = type'")),
     }
 }
 
