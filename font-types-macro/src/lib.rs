@@ -51,6 +51,7 @@ fn generate_group(
     } else {
         None
     };
+
     let variants = group.variants.iter().map(|variant| {
         let name = &variant.name;
         let typ = &variant.typ;
@@ -189,10 +190,26 @@ fn generate_group_getter_impl(
     let name = &group.name;
     let lifetime = group.lifetime.as_ref().map(|_| quote!(<'a>));
 
+    let offset_host_impl = if items.iter().all(|item| item.offset_host.is_some()) {
+        Some(quote! {
+            impl<'a> font_types::OffsetHost<'a> for #name #lifetime {
+                fn bytes(&self) -> &'a [u8] {
+                    match self {
+                        #( #match_left_sides => _inner.bytes(), )*
+                    }
+                }
+            }
+        })
+    } else {
+        None
+    };
+
     Ok(quote! {
         impl #lifetime #name #lifetime {
             #( #getters )*
         }
+
+        #offset_host_impl
     })
 }
 
