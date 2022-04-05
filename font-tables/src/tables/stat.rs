@@ -95,16 +95,6 @@ font_types::tables! {
     }
 }
 
-//FIXME: we should generate this automatically?
-impl<'a> OffsetHost<'a> for Stat<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        match self {
-            Stat::Version1_0(table) => table.bytes(),
-            Stat::Version1_2(table) => table.bytes(),
-        }
-    }
-}
-
 impl<'a> Stat<'a> {
     /// The design-axes array.
     pub fn design_axes(&self) -> impl Iterator<Item = AxisRecord> + '_ {

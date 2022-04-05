@@ -89,15 +89,6 @@ impl<'a> Name<'a> {
     }
 }
 
-impl<'a> OffsetHost<'a> for Name<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        match self {
-            Self::Version0(table) => table.bytes(),
-            Self::Version1(table) => table.bytes(),
-        }
-    }
-}
-
 //-- all this is from pinot https://github.com/dfrg/pinot/blob/eff5239018ca50290fb890a84da3dd51505da364/src/name.rs
 /// Entry for a name in the naming table.
 ///
