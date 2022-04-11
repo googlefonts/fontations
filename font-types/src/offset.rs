@@ -4,6 +4,9 @@ use crate::Uint24;
 
 /// A trait for the different offset representations.
 pub trait Offset {
+    /// The length in bytes of this offset type.
+    const SIZE: OffsetLen;
+
     /// Returns this offsize as a `usize`, or `None` if it is `0`.
     fn non_null(self) -> Option<usize>;
 }
@@ -25,6 +28,29 @@ pub trait OffsetHost<'a> {
 
     fn resolve_offset<T: crate::FontRead<'a>>(&self, offset: impl Offset) -> Option<T> {
         crate::FontRead::read(self.bytes_at_offset(offset))
+    }
+}
+
+/// The byte length of some offset.
+///
+/// This is sort of redundant, but it is useful during compilation to have
+/// some token type that represents a pending offset.
+#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[repr(u8)]
+pub enum OffsetLen {
+    Offset16 = 2,
+    Offset24 = 3,
+    Offset32 = 4,
+}
+
+impl OffsetLen {
+    /// The empty represntation of this offset
+    pub fn null_bytes(self) -> &'static [u8] {
+        match self {
+            Self::Offset16 => &[0, 0],
+            Self::Offset24 => &[0, 0, 0],
+            Self::Offset32 => &[0, 0, 0, 0],
+        }
     }
 }
 
@@ -58,6 +84,8 @@ macro_rules! impl_offset {
         }
 
         impl Offset for $name {
+            const SIZE: OffsetLen = OffsetLen::$name;
+
             fn non_null(self) -> Option<usize> {
                 let raw: u32 = self.0.into();
                 if raw == 0 {
