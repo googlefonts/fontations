@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use font_types::{Offset, OffsetLen, Uint24};
+use font_types::{FontWrite, Offset, OffsetLen, Uint24};
 
 mod cmap;
 mod graph;
@@ -21,7 +21,11 @@ pub trait Table {
 
 #[derive(Debug)]
 pub struct TableWriter {
+    /// Finished tables, associated with an ObjectId; duplicate tables share an id.
     tables: ObjectStore,
+    /// Tables currently being written.
+    ///
+    /// Tables are processed as they are encountered (as subtables)
     stack: Vec<TableData>,
 }
 
@@ -119,8 +123,9 @@ impl TableWriter {
         dump_impl(root, graph)
     }
 
-    pub fn write(&mut self, bytes: &[u8]) {
-        self.stack.last_mut().unwrap().write(bytes)
+    pub fn write(&mut self, item: impl FontWrite) {
+        let buf = self.stack.last_mut().unwrap();
+        item.write(&mut buf.bytes)
     }
 
     pub fn write_offset<T: Offset>(&mut self, obj: &dyn Table) {
@@ -216,16 +221,16 @@ mod tests {
 
     impl Table for Table2 {
         fn describe(&self, writer: &mut TableWriter) {
-            writer.write(&self.version.to_be_bytes());
-            writer.write(&self.bigness.to_be_bytes());
+            writer.write(self.version);
+            writer.write(self.bigness);
         }
     }
 
     impl Table for Table1 {
         fn describe(&self, writer: &mut TableWriter) {
-            writer.write(&self.version.to_be_bytes());
+            writer.write(self.version);
             for record in &self.records {
-                writer.write(&record.value.to_be_bytes());
+                writer.write(record.value);
                 writer.write_offset::<Offset16>(&record.offset);
             }
         }
@@ -233,7 +238,7 @@ mod tests {
 
     impl Table for Table0 {
         fn describe(&self, writer: &mut TableWriter) {
-            writer.write(&self.version.to_be_bytes());
+            writer.write(self.version);
             for offset in &self.offsets {
                 writer.write_offset::<Offset16>(offset);
             }
@@ -242,7 +247,7 @@ mod tests {
 
     impl Table for Table0a {
         fn describe(&self, writer: &mut TableWriter) {
-            writer.write(&self.version.to_be_bytes());
+            writer.write(self.version);
             writer.write_offset::<Offset16>(&self.offset);
         }
     }

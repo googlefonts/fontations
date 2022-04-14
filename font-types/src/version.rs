@@ -47,6 +47,11 @@ impl Version16Dot16 {
         let minor = ((self.0 & 0xFFFF) >> 12) as u16;
         (major, minor)
     }
+
+    /// The representation of this version as a big-endian byte array.
+    pub fn to_be_bytes(self) -> [u8; 4] {
+        self.0.to_be_bytes()
+    }
 }
 
 crate::newtype_scalar!(Version16Dot16, [u8; 4]);

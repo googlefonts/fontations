@@ -25,6 +25,8 @@ mod version;
 #[doc(hidden)]
 pub mod test_helpers;
 
+use std::io::Write;
+
 pub use fixed::{F2Dot14, Fixed};
 pub use fword::{FWord, UfWord};
 pub use longdatetime::LongDateTime;
@@ -43,6 +45,17 @@ pub trait FontRead<'a>: Sized {
     fn read(bytes: &'a [u8]) -> Option<Self>;
 }
 
+/// a type that can write itself into a buffer.
+///
+/// This is really just for scalars? As soon as we need to handle anything
+/// containing offsets we have to get fancy.
+//TODO: it would be nice if `Scalar` was a more general kind of 'be-convertable' trait?
+//and then it could also do this job? This probably requires complex generic constants
+// https://github.com/rust-lang/rust/issues/76560
+pub trait FontWrite {
+    fn write<W: Write>(&self, writer: &mut W);
+}
+
 //HACK: I'm not sure how this should work
 /// A trait for types with variable length.
 ///
@@ -56,5 +69,44 @@ pub trait VarSized<'a>: FontRead<'a> {
 impl<'a, T: zerocopy::FromBytes + zerocopy::Unaligned> FontRead<'a> for T {
     fn read(bytes: &'a [u8]) -> Option<Self> {
         T::read_from_prefix(bytes)
+    }
+}
+
+macro_rules! write_be_bytes {
+    ($ty:ty) => {
+        impl crate::FontWrite for $ty {
+            #[inline]
+            fn write<W: Write>(&self, writer: &mut W) {
+                writer.write_all(&self.to_be_bytes()).unwrap();
+            }
+        }
+    };
+}
+
+write_be_bytes!(u8);
+write_be_bytes!(i8);
+write_be_bytes!(u16);
+write_be_bytes!(i16);
+write_be_bytes!(u32);
+write_be_bytes!(i32);
+write_be_bytes!(i64);
+write_be_bytes!(Uint24);
+write_be_bytes!(F2Dot14);
+write_be_bytes!(Fixed);
+write_be_bytes!(LongDateTime);
+write_be_bytes!(Tag);
+write_be_bytes!(Version16Dot16);
+
+impl FontWrite for &'_ [u8] {
+    #[inline]
+    fn write<W: Write>(&self, writer: &mut W) {
+        writer.write_all(self).unwrap();
+    }
+}
+
+impl<const N: usize> FontWrite for [u8; N] {
+    #[inline]
+    fn write<W: Write>(&self, writer: &mut W) {
+        writer.write_all(self.as_slice()).unwrap();
     }
 }

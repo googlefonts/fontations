@@ -1,3 +1,7 @@
+//! types for working with raw big-endian bytes
+
+use super::FontWrite;
+
 /// A trait for font scalars.
 ///
 /// This is an internal trait for encoding and decoding big-endian bytes.
@@ -6,7 +10,7 @@
 /// detail of the [`BigEndian`] wrapper.
 pub trait Scalar {
     /// The raw byte representation of this type.
-    type Raw: Copy + zerocopy::Unaligned + zerocopy::FromBytes + zerocopy::AsBytes;
+    type Raw: Copy + FontWrite + zerocopy::Unaligned + zerocopy::FromBytes + zerocopy::AsBytes;
 
     /// The size of the raw type. Essentially an alias for `std::mem::size_of`.
     //TODO: remove this probably
@@ -96,5 +100,16 @@ impl<T: std::fmt::Debug + Scalar + Copy> std::fmt::Debug for BigEndian<T> {
 impl<T: std::fmt::Display + Scalar + Copy> std::fmt::Display for BigEndian<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         self.get().fmt(f)
+    }
+}
+
+impl<T> FontWrite for BigEndian<T>
+where
+    T: Scalar,
+    <T as Scalar>::Raw: FontWrite,
+{
+    #[inline]
+    fn write<W: std::io::Write>(&self, writer: &mut W) {
+        self.0.write(writer)
     }
 }

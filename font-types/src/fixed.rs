@@ -63,6 +63,11 @@ macro_rules! fixed_impl {
             pub fn saturating_sub(self, other: Self) -> Self {
                 Self(self.0.saturating_sub(other.0))
             }
+
+            /// The representation of this number as a big-endian byte array.
+            pub fn to_be_bytes(self) -> [u8; $bits / 8] {
+                self.0.to_be_bytes()
+            }
         }
 
         impl Add for $name {

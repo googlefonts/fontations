@@ -32,13 +32,12 @@ impl CmapBuilder {
     }
 
     pub fn build(mut self) -> Vec<u8> {
-        self.writer.write(&0u16.to_be_bytes());
+        self.writer.write(0u16);
         let len: u16 = self.records.len().try_into().unwrap();
-        self.writer.write(&len.to_be_bytes());
+        self.writer.write(len);
         for record in &self.records {
-            self.writer
-                .write(&(record.platform_id as u16).to_be_bytes());
-            self.writer.write(&record.encoding_id.to_be_bytes());
+            self.writer.write(record.platform_id as u16);
+            self.writer.write(record.encoding_id);
             self.writer.write_offset_marker(record.offset);
         }
 
@@ -52,11 +51,11 @@ struct FakeCmap0 {
 
 impl Table for FakeCmap0 {
     fn describe(&self, writer: &mut TableWriter) {
-        writer.write(&0u16.to_be_bytes());
+        writer.write(0u16);
         let length = std::mem::size_of::<u16>() as u16 * 3 + 256;
-        writer.write(&length.to_be_bytes());
-        writer.write(&69u16.to_be_bytes());
-        writer.write(&self.glyphs);
+        writer.write(length);
+        writer.write(69u16);
+        writer.write(self.glyphs.as_slice());
     }
 }
 
