@@ -4,6 +4,7 @@ use std::collections::HashMap;
 
 use font_types::{Offset, Offset16, OffsetLen, Uint24};
 
+mod cmap;
 mod graph;
 
 use graph::{ObjectId, ObjectStore};
@@ -20,6 +21,36 @@ pub trait Table {
 pub struct TableWriter {
     tables: ObjectStore,
     stack: Vec<TableData>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct OffsetMarker<T> {
+    object: ObjectId,
+    phantom: std::marker::PhantomData<T>,
+}
+
+impl<T: Offset> OffsetMarker<T> {
+    pub(crate) fn new(object: ObjectId) -> Self {
+        OffsetMarker {
+            object,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+pub struct OffsetMarker2<'a, T> {
+    object: &'a dyn Table,
+    phantom: std::marker::PhantomData<T>,
+}
+
+impl<'a, T: Offset> OffsetMarker2<'a, T> {
+    pub(crate) fn new(object: &'a dyn Table) -> Self {
+        OffsetMarker2 {
+            object,
+            phantom: std::marker::PhantomData,
+        }
+    }
 }
 
 pub fn dump_table<T: Table>(table: &T) -> Vec<u8> {
@@ -95,6 +126,24 @@ impl TableWriter {
         let data = self.stack.last_mut().unwrap();
         data.add_offset::<Offset16>(obj_id);
     }
+
+    pub fn write_offset<T: Offset>(&mut self, obj: &dyn Table) {
+        let obj_id = self.add_table(obj);
+        let data = self.stack.last_mut().unwrap();
+        data.add_offset::<T>(obj_id);
+    }
+
+    pub fn write_offset_marker<T: Offset>(&mut self, marker: OffsetMarker<T>) {
+        self.stack
+            .last_mut()
+            .unwrap()
+            .add_offset::<T>(marker.object);
+    }
+
+    pub fn write_offset_marker2<'a, T: Offset>(&mut self, marker: OffsetMarker2<'a, T>) {
+        self.write_offset::<T>(marker.object);
+        //self.stack.last_mut().unwrap().add_offset::<T>(marker.object);
+    }
 }
 
 /// The encoded data for a given table, along with info on included offsets
@@ -165,7 +214,7 @@ mod tests {
             writer.write(&self.version.to_be_bytes());
             for record in &self.records {
                 writer.write(&record.value.to_be_bytes());
-                writer.write_offset16(&record.offset);
+                writer.write_offset::<Offset16>(&record.offset);
             }
         }
     }

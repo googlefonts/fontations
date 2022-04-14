@@ -1,25 +1,24 @@
 //! A graph for resolving table offsets
 
 use super::TableData;
-use std::collections::{HashMap, VecDeque};
+use std::{
+    collections::{HashMap, VecDeque},
+    sync::atomic::AtomicUsize,
+};
 
-#[derive(Debug, Default)]
-struct Counter(usize);
-
-impl Counter {
-    fn next(&mut self) -> usize {
-        let val = self.0;
-        self.0 = self.0.wrapping_add(1);
-        val
-    }
-}
+static OBJECT_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
 pub(crate) struct ObjectId(usize);
 
+impl ObjectId {
+    pub fn next() -> Self {
+        ObjectId(OBJECT_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
+    }
+}
+
 #[derive(Debug, Default)]
 pub(crate) struct ObjectStore {
-    id_counter: Counter,
     objects: HashMap<TableData, ObjectId>,
 }
 
@@ -72,10 +71,7 @@ impl Graph {
 
 impl ObjectStore {
     pub(crate) fn add(&mut self, data: TableData) -> ObjectId {
-        *self
-            .objects
-            .entry(data)
-            .or_insert_with(|| ObjectId(self.id_counter.next()))
+        *self.objects.entry(data).or_insert_with(|| ObjectId::next())
     }
 
     pub(crate) fn into_graph(self) -> Graph {
