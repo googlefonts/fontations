@@ -2,12 +2,14 @@
 
 use std::collections::HashMap;
 
-use font_types::{Offset, Offset16, OffsetLen, Uint24};
+use font_types::{Offset, OffsetLen, Uint24};
 
 mod cmap;
 mod graph;
 
 use graph::{ObjectId, ObjectStore};
+
+use self::graph::Graph;
 
 #[cfg(test)]
 mod hex_diff;
@@ -17,7 +19,7 @@ pub trait Table {
     fn describe(&self, writer: &mut TableWriter);
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct TableWriter {
     tables: ObjectStore,
     stack: Vec<TableData>,
@@ -38,26 +40,14 @@ impl<T: Offset> OffsetMarker<T> {
     }
 }
 
-#[derive(Clone, Copy)]
-pub struct OffsetMarker2<'a, T> {
-    object: &'a dyn Table,
-    phantom: std::marker::PhantomData<T>,
-}
-
-impl<'a, T: Offset> OffsetMarker2<'a, T> {
-    pub(crate) fn new(object: &'a dyn Table) -> Self {
-        OffsetMarker2 {
-            object,
-            phantom: std::marker::PhantomData,
-        }
-    }
-}
-
 pub fn dump_table<T: Table>(table: &T) -> Vec<u8> {
     let mut writer = TableWriter::default();
-    let root = writer.add_table(table);
-    assert!(writer.stack.is_empty());
-    let graph = writer.tables.into_graph();
+    table.describe(&mut writer);
+    let (root, graph) = writer.finish();
+    dump_impl(root, graph)
+}
+
+fn dump_impl(root: ObjectId, graph: Graph) -> Vec<u8> {
     let sorted = graph.kahn_sort(root);
 
     let mut offsets = HashMap::new();
@@ -77,10 +67,11 @@ pub fn dump_table<T: Table>(table: &T) -> Vec<u8> {
     for id in &sorted {
         let node = graph.get_node(*id).unwrap();
         for offset in &node.offsets {
-            let resolved = *offsets.get(&offset.object).unwrap();
-            let pos = off + offset.pos as usize;
-            let write_over = out.get_mut(pos..).unwrap();
-            write_offset(write_over, offset.len, resolved).unwrap();
+            let abs_off = *offsets.get(&offset.object).unwrap();
+            let rel_off = abs_off - off as u32;
+            let buffer_pos = off + offset.pos as usize;
+            let write_over = out.get_mut(buffer_pos..).unwrap();
+            write_offset(write_over, offset.len, rel_off).unwrap();
         }
         off += node.bytes.len();
     }
@@ -109,22 +100,27 @@ fn write_offset(at: &mut [u8], len: OffsetLen, resolved: u32) -> Result<(), ()> 
 }
 
 impl TableWriter {
-    //fn add_table<T: Table + ?Sized>(&mut self, table: &T) -> ObjectId {
     fn add_table(&mut self, table: &dyn Table) -> ObjectId {
         self.stack.push(TableData::default());
         table.describe(self);
-        let data = self.stack.pop().unwrap();
-        self.tables.add(data)
+        self.tables.add(self.stack.pop().unwrap())
+    }
+
+    /// Finish this table, returning the root Id and the object graph.
+    fn finish(mut self) -> (ObjectId, Graph) {
+        // we start with one table which is only removed now
+        let id = self.tables.add(self.stack.pop().unwrap());
+        let graph = self.tables.into_graph();
+        (id, graph)
+    }
+
+    fn dump(self) -> Vec<u8> {
+        let (root, graph) = self.finish();
+        dump_impl(root, graph)
     }
 
     pub fn write(&mut self, bytes: &[u8]) {
         self.stack.last_mut().unwrap().write(bytes)
-    }
-
-    pub fn write_offset16(&mut self, obj: &dyn Table) {
-        let obj_id = self.add_table(obj);
-        let data = self.stack.last_mut().unwrap();
-        data.add_offset::<Offset16>(obj_id);
     }
 
     pub fn write_offset<T: Offset>(&mut self, obj: &dyn Table) {
@@ -139,10 +135,14 @@ impl TableWriter {
             .unwrap()
             .add_offset::<T>(marker.object);
     }
+}
 
-    pub fn write_offset_marker2<'a, T: Offset>(&mut self, marker: OffsetMarker2<'a, T>) {
-        self.write_offset::<T>(marker.object);
-        //self.stack.last_mut().unwrap().add_offset::<T>(marker.object);
+impl Default for TableWriter {
+    fn default() -> Self {
+        TableWriter {
+            tables: ObjectStore::default(),
+            stack: vec![TableData::default()],
+        }
     }
 }
 
@@ -183,6 +183,8 @@ impl TableData {
 #[cfg(test)]
 #[rustfmt::skip::macros(assert_hex_eq)]
 mod tests {
+    use font_types::Offset16;
+
     use crate::assert_hex_eq;
 
     use super::*;
@@ -194,6 +196,16 @@ mod tests {
 
     struct SomeRecord {
         value: u16,
+        offset: Table2,
+    }
+
+    struct Table0 {
+        version: u16,
+        offsets: Vec<Table0a>,
+    }
+
+    struct Table0a {
+        version: u16,
         offset: Table2,
     }
 
@@ -219,8 +231,24 @@ mod tests {
         }
     }
 
+    impl Table for Table0 {
+        fn describe(&self, writer: &mut TableWriter) {
+            writer.write(&self.version.to_be_bytes());
+            for offset in &self.offsets {
+                writer.write_offset::<Offset16>(offset);
+            }
+        }
+    }
+
+    impl Table for Table0a {
+        fn describe(&self, writer: &mut TableWriter) {
+            writer.write(&self.version.to_be_bytes());
+            writer.write_offset::<Offset16>(&self.offset);
+        }
+    }
+
     #[test]
-    fn weeeeee() {
+    fn simple_dedup() {
         let table = Table1 {
             version: 0xffff,
             records: vec![
@@ -263,6 +291,47 @@ mod tests {
 
             0x50, 0x50,
             0x60, 0x60,
+
+            0x20, 0x20,
+            0x30, 0x30,
+        ]);
+    }
+
+    #[test]
+    fn sibling_dedup() {
+        let table = Table0 {
+            version: 0xffff,
+            offsets: vec![
+                Table0a {
+                    version: 0xa1a1,
+                    offset: Table2 {
+                        version: 0x2020,
+                        bigness: 0x3030,
+                    },
+                },
+                Table0a {
+                    version: 0xa2a2,
+                    offset: Table2 {
+                        version: 0x2020,
+                        bigness: 0x3030,
+                    },
+                },
+            ],
+        };
+
+        let bytes = super::dump_table(&table);
+
+        assert_hex_eq!(bytes.as_slice(), &[
+            0xff, 0xff,
+
+            0x00, 0x06, // offset1: 6
+            0x00, 0x0a, // offset2: 10
+
+            0xa1, 0xa1, // 0a #1
+            0x00, 0x08, //8
+
+            0xa2, 0xa2, // 0a #2
+            0x00, 0x4, //4
 
             0x20, 0x20,
             0x30, 0x30,

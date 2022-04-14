@@ -71,7 +71,7 @@ impl Graph {
 
 impl ObjectStore {
     pub(crate) fn add(&mut self, data: TableData) -> ObjectId {
-        *self.objects.entry(data).or_insert_with(|| ObjectId::next())
+        *self.objects.entry(data).or_insert_with(ObjectId::next)
     }
 
     pub(crate) fn into_graph(self) -> Graph {
