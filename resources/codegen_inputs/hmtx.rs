@@ -1,5 +1,5 @@
 /// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
-#[init(number_of_h_metrics = "u16", num_glyphs = "u16")]
+#[read_args(number_of_h_metrics = "u16", num_glyphs = "u16")]
 Hmtx<'a> {
     /// Paired advance width and left side bearing values for each
     /// glyph. Records are indexed by glyph ID.

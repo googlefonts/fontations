@@ -294,7 +294,7 @@ static REPR: &str = "repr";
 static FLAGS: &str = "flags";
 static OFFSET_HOST: &str = "offset_host";
 static GENERATE_GETTERS: &str = "generate_getters";
-static INIT: &str = "init";
+static READ_ARGS: &str = "read_args";
 
 impl ItemAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<ItemAttrs, syn::Error> {
@@ -322,7 +322,7 @@ impl ItemAttrs {
                     let item = expect_single_item_list(&list)?;
                     result.format = Some(expect_ident(&item)?);
                 }
-                syn::Meta::List(list) if list.path.is_ident(INIT) => {
+                syn::Meta::List(list) if list.path.is_ident(READ_ARGS) => {
                     result.init = list
                         .nested
                         .iter()
