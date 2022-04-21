@@ -83,6 +83,7 @@ pub struct Variant {
 pub enum Field {
     Single(SingleField),
     Array(ArrayField),
+    CustomRead(CustomField),
 }
 
 pub struct SingleField {
@@ -100,6 +101,14 @@ pub struct ArrayField {
     pub count: Count,
     pub variable_size: Option<syn::Path>,
     pub no_getter: Option<syn::Path>,
+}
+
+pub struct CustomField {
+    pub docs: Vec<syn::Attribute>,
+    pub name: syn::Ident,
+    pub typ: syn::Path,
+    pub read: attrs::ArgList,
+    pub count: Option<Count>,
 }
 
 impl Parse for Items {
@@ -219,6 +228,10 @@ impl Parse for Field {
             let typ = content.parse::<syn::Path>()?;
             let lifetime = ensure_single_lifetime(&typ)?;
             attrs.into_array(name, typ, lifetime).map(Field::Array)
+        } else if attrs.read.is_some() {
+            attrs
+                .into_custom(name, input.parse()?)
+                .map(Field::CustomRead)
         } else {
             attrs.into_single(name, input.parse()?).map(Field::Single)
         }
@@ -230,35 +243,33 @@ impl Field {
         match self {
             Field::Array(v) => &v.name,
             Field::Single(v) => &v.name,
+            Field::CustomRead(v) => &v.name,
         }
     }
 
     pub fn as_single(&self) -> Option<&SingleField> {
         match self {
-            Field::Array(_) => None,
             Field::Single(v) => Some(v),
+            _ => None,
         }
     }
 
     pub fn as_array(&self) -> Option<&ArrayField> {
         match self {
             Field::Array(v) => Some(v),
-            Field::Single(_) => None,
+            _ => None,
         }
     }
 
-    fn is_array(&self) -> bool {
-        matches!(self, Field::Array(_))
-    }
-
-    fn requires_lifetime(&self) -> bool {
-        self.is_array()
+    fn is_zerocopy(&self) -> bool {
+        matches!(self, Field::Single(_))
     }
 
     pub fn docs(&self) -> &[syn::Attribute] {
         match self {
             Field::Array(v) => &v.docs,
             Field::Single(v) => &v.docs,
+            Field::CustomRead(v) => &v.docs,
         }
     }
 
@@ -270,33 +281,44 @@ impl Field {
         }
     }
 
+    pub fn input_fields<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a syn::Ident> + 'a>> {
+        match self {
+            Field::CustomRead(field) => {
+                return Some(Box::new(
+                    field.read.args.iter().chain(
+                        field
+                            .count
+                            .iter()
+                            .flat_map(|count| count.iter_input_fields()),
+                    ),
+                ));
+            }
+            Field::Array(array) => Some(Box::new(array.count.iter_input_fields())),
+            _ => None,
+        }
+    }
+
     pub fn view_init_expr(&self) -> proc_macro2::TokenStream {
         let name = self.name();
         let span = name.span();
         let init_fn = match self {
+            Field::CustomRead(value) => {
+                let args = value.read.args.iter().map(super::make_resolved_ident);
+                let args = if value.read.args.len() > 1 {
+                    quote_spanned!(span=> ( #( #args ),* ))
+                } else {
+                    quote_spanned!(span=> #( #args )* )
+                };
+                let count = value.count.as_ref().and_then(Count::tokens);
+                quote_spanned!(span=> font_types::FontReadWithArgs::read_with_args(bytes.get(..#count)?, &#args )?)
+            }
             Field::Single(value) => {
                 let typ = &value.typ;
                 quote_spanned!(span=> zerocopy::LayoutVerified::<_, #typ>::new_unaligned_from_prefix(bytes)?)
             }
             Field::Array(array) if array.variable_size.is_none() => {
                 let typ = &array.inner_typ;
-                let count = match &array.count {
-                    Count::Field(name) => {
-                        let span = name.span();
-                        let resolved_value = super::make_resolved_ident(name);
-                        Some(quote_spanned!(span=> #resolved_value as usize))
-                    }
-                    Count::Literal(lit) => {
-                        let span = lit.span();
-                        Some(quote_spanned!(span=> #lit))
-                    }
-                    Count::Function { fn_, args } => {
-                        let span = fn_.span();
-                        let args = args.iter().map(super::make_resolved_ident);
-                        Some(quote_spanned!(span=> #fn_( #( #args ),* )))
-                    }
-                    Count::All(_) => None,
-                };
+                let count = array.count.tokens();
                 if let Some(count) = count {
                     quote_spanned!(span=> zerocopy::LayoutVerified::<_, [#typ]>::new_slice_unaligned_from_prefix(bytes, #count as usize)?)
                 } else {
@@ -328,6 +350,11 @@ impl Field {
     pub fn getter_return_type(&self) -> proc_macro2::TokenStream {
         match self {
             Field::Single(field) => field.cooked_type_tokens(),
+            Field::CustomRead(field) => {
+                let typ = &field.typ;
+                let span = field.name.span();
+                quote_spanned!(span=> &#typ)
+            }
             Field::Array(array) => {
                 let typ = &array.inner_typ;
                 let span = array.name.span();
@@ -371,6 +398,12 @@ impl Field {
                 let span = typ.span();
                 quote_spanned!(span=> #name: zerocopy::LayoutVerified<&'a [u8], [#typ]>)
             }
+            Field::CustomRead(field) => {
+                let typ = &field.typ;
+                let span = typ.span();
+                quote_spanned!(span=> #name: #typ)
+            }
+
             _ => panic!("variable arrays are not handled yet, you shouldn't be calling this"),
         }
     }
@@ -406,14 +439,14 @@ impl SingleField {
 }
 
 impl SingleItem {
-    /// `true` if this contains offsets or fields with lifetimes.
-    pub fn has_references(&self) -> bool {
-        self.offset_host.is_some() || self.fields.iter().any(|x| x.requires_lifetime())
+    /// `true` if this type can be cast from a byteslice
+    pub fn is_zerocopy(&self) -> bool {
+        self.offset_host.is_none() && self.fields.iter().all(|x| x.is_zerocopy())
     }
 
     fn validate(&self) -> Result<(), syn::Error> {
         // check for lifetime
-        let needs_lifetime = self.has_references();
+        let needs_lifetime = !self.is_zerocopy();
         if needs_lifetime && self.lifetime.is_none() {
             let msg = format!(
                 "object containing array or offset requires lifetime param ({}<'a>)",

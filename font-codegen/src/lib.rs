@@ -58,7 +58,7 @@ pub fn codegen(items: &parse::Items) -> Result<proc_macro2::TokenStream, syn::Er
 }
 
 fn generate_item_code(item: &parse::SingleItem) -> proc_macro2::TokenStream {
-    if !item.has_references() {
+    if item.is_zerocopy() {
         generate_zerocopy_impls(item)
     } else {
         generate_view_impls(item)
@@ -374,8 +374,8 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
     let fields_used_as_inputs = item
         .fields
         .iter()
-        .filter_map(parse::Field::as_array)
-        .flat_map(|array| array.count.iter_input_fields())
+        .filter_map(parse::Field::input_fields)
+        .flatten()
         .collect::<Vec<_>>();
 
     // The fields in the declaration of the struct.
@@ -456,6 +456,7 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
             let span = arg.span();
             quote_spanned!(span=> #arg: #type_)
         });
+
         let init_aliases = item.init.iter().map(|(arg, _)| {
             let span = arg.span();
             let resolved = make_resolved_ident(arg);

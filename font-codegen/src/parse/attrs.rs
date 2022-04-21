@@ -1,7 +1,7 @@
 use quote::{quote_spanned, ToTokens};
 use syn::{spanned::Spanned, Lit};
 
-use super::{ArrayField, SingleField};
+use super::{ArrayField, CustomField, SingleField};
 
 /// All of the attrs that can be applied to a field.
 ///
@@ -13,10 +13,12 @@ pub struct FieldAttrs {
     hidden: Option<syn::Path>,
     no_getter: Option<syn::Path>,
     count: Option<Count>,
+    pub(crate) read: Option<ArgList>,
     variable_size: Option<syn::Path>,
 }
 
 /// Annotations for how to calculate the count of an array.
+#[derive(Debug, Clone)]
 pub enum Count {
     Field(syn::Ident),
     Literal(syn::LitInt),
@@ -25,6 +27,12 @@ pub enum Count {
         fn_: syn::Path,
         args: Vec<syn::Ident>,
     },
+}
+
+/// A list of arguments contained in an attribute
+pub struct ArgList {
+    attr: syn::Path,
+    pub args: Vec<syn::Ident>,
 }
 
 #[derive(Default)]
@@ -54,6 +62,7 @@ pub struct ItemAttrs {
 }
 
 const NO_GETTER: &str = "no_getter";
+const READ_WITH: &str = "read_with";
 
 impl FieldAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<FieldAttrs, syn::Error> {
@@ -108,6 +117,17 @@ impl FieldAttrs {
                         "count_with attribute should have format count_with(path::to::fn, arg1, arg2)",
                     ));
                 }
+                syn::Meta::List(list) if list.path.is_ident(READ_WITH) => {
+                    let args = list
+                        .nested
+                        .iter()
+                        .map(expect_ident)
+                        .collect::<Result<_, _>>()?;
+                    result.read = Some(ArgList {
+                        attr: list.path.clone(),
+                        args,
+                    })
+                }
                 other => {
                     return Err(syn::Error::new(other.span(), "unknown attribute"));
                 }
@@ -126,6 +146,12 @@ impl FieldAttrs {
             return Err(syn::Error::new(
                 path.span(),
                 "'hidden' is only valid on scalar fields",
+            ));
+        }
+        if let Some(read) = &self.read {
+            return Err(syn::Error::new(
+                read.attr.span(),
+                "'read_with' is not valid on array fields",
             ));
         }
         let count = self.count.ok_or_else(|| {
@@ -147,10 +173,12 @@ impl FieldAttrs {
 
     pub fn into_single(self, name: syn::Ident, typ: syn::Path) -> Result<SingleField, syn::Error> {
         if let Some(span) = self.count.as_ref().map(Count::span) {
-            return Err(syn::Error::new(
-                span,
-                "count/count_with attribute not valid on scalar fields",
-            ));
+            if self.read.is_none() {
+                return Err(syn::Error::new(
+                    span,
+                    "count/count_with attribute not valid on scalar fields",
+                ));
+            }
         }
         if let Some(token) = self.variable_size {
             return Err(syn::Error::new(token.span(), "not valid on scalar fields"));
@@ -163,6 +191,16 @@ impl FieldAttrs {
             hidden: self.hidden,
         })
     }
+
+    pub fn into_custom(self, name: syn::Ident, typ: syn::Path) -> Result<CustomField, syn::Error> {
+        Ok(CustomField {
+            docs: self.docs,
+            name,
+            typ,
+            read: self.read.expect("hi"),
+            count: self.count,
+        })
+    }
 }
 
 impl Count {
@@ -172,6 +210,26 @@ impl Count {
             Count::Field(ident) => ident.span(),
             Count::Function { fn_, .. } => fn_.span(),
             Count::Literal(lit) => lit.span(),
+        }
+    }
+
+    pub fn tokens(&self) -> Option<proc_macro2::TokenStream> {
+        match self {
+            Count::Field(name) => {
+                let span = name.span();
+                let resolved_value = crate::make_resolved_ident(name);
+                Some(quote_spanned!(span=> #resolved_value as usize))
+            }
+            Count::Literal(lit) => {
+                let span = lit.span();
+                Some(quote_spanned!(span=> #lit))
+            }
+            Count::Function { fn_, args } => {
+                let span = fn_.span();
+                let args = args.iter().map(crate::make_resolved_ident);
+                Some(quote_spanned!(span=> #fn_( #( #args ),* )))
+            }
+            Count::All(_) => None,
         }
     }
 
