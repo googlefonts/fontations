@@ -1,6 +1,6 @@
 use std::collections::BTreeMap;
 
-use quote::{quote, quote_spanned};
+use quote::{quote, quote_spanned, ToTokens};
 use syn::spanned::Spanned;
 
 mod error;
@@ -437,10 +437,10 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
 
     let init_body = quote! {
         #( #field_inits )*
-        let _ = bytes;
-        Some(#name {
+        let _bytes = bytes;
+        let result = #name {
             #( #used_field_names, )*
-        })
+        };
     };
 
     let init_impl = if item.init.is_empty() {
@@ -448,26 +448,41 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
             impl<'a> font_types::FontRead<'a> for #name<'a> {
                 fn read(bytes: &'a [u8]) -> Option<Self> {
                     #init_body
+                    Some(result)
                 }
             }
         }
     } else {
-        let init_args = item.init.iter().map(|(arg, type_)| {
-            let span = arg.span();
-            quote_spanned!(span=> #arg: #type_)
-        });
-
-        let init_aliases = item.init.iter().map(|(arg, _)| {
-            let span = arg.span();
-            let resolved = make_resolved_ident(arg);
-            quote_spanned!(span=> let #resolved = #arg;)
-        });
+        let (arg_type, init_args, init_aliases) = match item.init.as_slice() {
+            [(arg, typ)] => {
+                let span = arg.span();
+                let resolved = make_resolved_ident(&arg);
+                (
+                    typ.to_token_stream(),
+                    quote_spanned!(span=> #arg: &#typ),
+                    quote_spanned!(span=> let #resolved = #arg;),
+                )
+            }
+            slice => {
+                let types = slice.iter().map(|(_, typ)| typ);
+                let arg_type = quote!( ( #( #types ),* ) );
+                let args = quote!(  args: &#arg_type );
+                let aliases = slice.iter().enumerate().map(|(i, (arg, _))| {
+                    let span = arg.span();
+                    let resolved = make_resolved_ident(arg);
+                    let index = syn::Index::from(i);
+                    quote_spanned!(span=> let #resolved = args.#index;)
+                });
+                (arg_type, args, quote!( #(#aliases)* ))
+            }
+        };
 
         quote! {
-            impl<'a> #name<'a> {
-                pub fn read(bytes: &'a [u8], #( #init_args ),* ) -> Option<Self> {
-                    #( #init_aliases )*
+            impl<'a> font_types::FontReadWithArgs<'a, #arg_type> for #name<'a> {
+                fn read_with_args(bytes: &'a [u8], #init_args ) -> Option<(Self, &'a [u8])> {
+                    #init_aliases
                     #init_body
+                    Some((result, _bytes))
                 }
             }
         }

@@ -51,6 +51,8 @@ pub trait FontReadWithArgs<'a, Args>: Sized {
     /// used to construct it.
     ///
     /// If a type requires multiple arguments, they will be passed as a tuple.
+    //TODO: split up the 'takes args' and 'reports size' parts of this into
+    // separate traits
     fn read_with_args(bytes: &'a [u8], args: &Args) -> Option<(Self, &'a [u8])>;
 }
 

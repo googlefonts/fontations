@@ -12,7 +12,7 @@ pub mod name;
 pub mod post;
 pub mod stat;
 
-use font_types::{FontRead, Tag};
+use font_types::{FontRead, FontReadWithArgs, Tag};
 
 /// An interface for accessing tables from a font (or font-like object)
 pub trait TableProvider {
@@ -35,7 +35,8 @@ pub trait TableProvider {
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
         let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_h_metrics())?;
         self.data_for_tag(hmtx::TAG)
-            .and_then(|data| hmtx::Hmtx::read(data, num_glyphs, number_of_h_metrics))
+            .and_then(|data| hmtx::Hmtx::read_with_args(data, &(num_glyphs, number_of_h_metrics)))
+            .map(|(table, _)| table)
     }
 
     fn maxp(&self) -> Option<maxp::Maxp> {
