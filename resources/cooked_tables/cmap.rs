@@ -53,7 +53,7 @@ enum CmapSubtable<'a> {
     Format13(Cmap13<'a>),
     #[version(14)]
     Format14(Cmap14<'a>),
-    }
+}
 
 /// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
 Cmap0<'a> {
@@ -147,9 +147,9 @@ Cmap4<'a> {
     glyph_id_array: [BigEndian<u16>],
 }
 
-//fn div_by_two(seg_count_x2: u16) -> usize {
-//(seg_count_x2 / 2) as usize
-//}
+fn div_by_two(seg_count_x2: u16) -> usize {
+    (seg_count_x2 / 2) as usize
+}
 
 /// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
 Cmap6<'a> {
