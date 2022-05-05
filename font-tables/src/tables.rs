@@ -19,8 +19,7 @@ pub trait TableProvider {
     fn data_for_tag(&self, tag: Tag) -> Option<&[u8]>;
 
     fn head(&self) -> Option<head::Head> {
-        self.data_for_tag(Tag::new(b"head"))
-            .and_then(head::Head::read)
+        self.data_for_tag(head::TAG).and_then(head::Head::read)
     }
 
     fn name(&self) -> Option<name::Name> {

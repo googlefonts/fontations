@@ -1,0 +1,51 @@
+# each 'key' refers to a file in resources/cooked_tables
+
+clean = ["font-tables/generated"]
+
+[[generate]]
+source = "resources/cooked_tables/font.rs"
+target = "font-tables/generated/generated_font.rs"
+
+[[generate]]
+source = "resources/cooked_tables/layout.rs"
+target = "font-tables/generated/generated_layout.rs"
+
+[[generate]]
+source = "resources/cooked_tables/cmap.rs"
+target = "font-tables/generated/generated_cmap.rs"
+
+[[generate]]
+source = "resources/cooked_tables/head.rs"
+target = "font-tables/generated/generated_head.rs"
+
+[[generate]]
+source = "resources/cooked_tables/name.rs"
+target = "font-tables/generated/generated_name.rs"
+
+[[generate]]
+source = "resources/cooked_tables/post.rs"
+target = "font-tables/generated/generated_post.rs"
+
+[[generate]]
+source = "resources/cooked_tables/hhea.rs"
+target = "font-tables/generated/generated_hhea.rs"
+
+[[generate]]
+source = "resources/cooked_tables/hmtx.rs"
+target = "font-tables/generated/generated_hmtx.rs"
+
+[[generate]]
+source = "resources/cooked_tables/maxp.rs"
+target = "font-tables/generated/generated_maxp.rs"
+
+[[generate]]
+source = "resources/cooked_tables/stat.rs"
+target = "font-tables/generated/generated_stat.rs"
+
+[[generate]]
+source = "resources/cooked_tables/glyf.rs"
+target = "font-tables/generated/generated_glyf.rs"
+
+[[generate]]
+source = "resources/cooked_tables/gdef.rs"
+target = "font-tables/generated/generated_gdef.rs"

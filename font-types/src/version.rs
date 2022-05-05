@@ -17,6 +17,8 @@ pub struct Version16Dot16(u32);
 pub struct MajorMinor(u16, u16);
 
 impl Version16Dot16 {
+    /// Version 0.5
+    pub const VERSION_0_5: Version16Dot16 = Version16Dot16::new(0, 5);
     /// Version 1.0
     pub const VERSION_1_0: Version16Dot16 = Version16Dot16::new(1, 0);
     /// Version 2.0
