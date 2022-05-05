@@ -1,4 +1,4 @@
-{
+
 /// [STAT](https://docs.microsoft.com/en-us/typography/opentype/spec/stat) (Style Attributes Table)
 @table Stat
 uint16	majorVersion	Major version number of the style attributes table — set to 1.
@@ -17,7 +17,7 @@ Offset16	axisValueOffsets[axisValueCount]	Array of offsets to axis value tables,
 Tag	axisTag	A tag identifying the axis of design variation.
 uint16	axisNameID	The name ID for entries in the 'name' table that provide a display string for this axis.
 uint16	axisOrdering	A value that applications can use to determine primary sorting of face names, or for ordering of labels when composing family or face names.
-}
+
 
 /// [Axis Value Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-tables)
 @table AxisValue

@@ -1,25 +1,23 @@
 # input to the codgen binary tool
-{
-    @table Head <https://docs.microsoft.com/en-us/typography/opentype/spec/head>
-        uint16	majorVersion	Major version number of the font header table — set to 1.
-        uint16	minorVersion	Minor version number of the font header table — set to 0.
-        Fixed	fontRevision	Set by font manufacturer.
-        uint32	checksumAdjustment	To compute: set it to 0, sum the entire font as uint32, then store 0xB1B0AFBA - sum. If the font is used as a component in a font collection file, the value of this field will be invalidated by changes to the file structure and font table directory, and must be ignored.
-        uint32	magicNumber	Set to 0x5F0F3CF5.
-        uint16	flags See the flags enum
-        uint16	unitsPerEm	Set to a value from 16 to 16384. Any value in this range is valid. In fonts that have TrueType outlines, a power of 2 is recommended as this allows performance optimizations in some rasterizers.
-        LONGDATETIME	created	Number of seconds since 12:00 midnight that started January 1st 1904 in GMT/UTC time zone.
-        LONGDATETIME	modified	Number of seconds since 12:00 midnight that started January 1st 1904 in GMT/UTC time zone.
-        int16	xMin	Minimum x coordinate across all glyph bounding boxes.
-        int16	yMin	Minimum y coordinate across all glyph bounding boxes.
-        int16	xMax	Maximum x coordinate across all glyph bounding boxes.
-        int16	yMax	Maximum y coordinate across all glyph bounding boxes.
-        uint16	macStyle see somewhere else
-        uint16	lowestRecPPEM	Smallest readable size in pixels.
-        int16	fontDirectionHint	Deprecated (Set to 2).
-        int16	indexToLocFormat	0 for short offsets (Offset16), 1 for long (Offset32).
-        int16	glyphDataFormat	0 for current format.
-}
+@table Head <https://docs.microsoft.com/en-us/typography/opentype/spec/head>
+    uint16	majorVersion	Major version number of the font header table — set to 1.
+    uint16	minorVersion	Minor version number of the font header table — set to 0.
+    Fixed	fontRevision	Set by font manufacturer.
+    uint32	checksumAdjustment	To compute: set it to 0, sum the entire font as uint32, then store 0xB1B0AFBA - sum. If the font is used as a component in a font collection file, the value of this field will be invalidated by changes to the file structure and font table directory, and must be ignored.
+    uint32	magicNumber	Set to 0x5F0F3CF5.
+    uint16	flags See the flags enum
+    uint16	unitsPerEm	Set to a value from 16 to 16384. Any value in this range is valid. In fonts that have TrueType outlines, a power of 2 is recommended as this allows performance optimizations in some rasterizers.
+    LONGDATETIME	created	Number of seconds since 12:00 midnight that started January 1st 1904 in GMT/UTC time zone.
+    LONGDATETIME	modified	Number of seconds since 12:00 midnight that started January 1st 1904 in GMT/UTC time zone.
+    int16	xMin	Minimum x coordinate across all glyph bounding boxes.
+    int16	yMin	Minimum y coordinate across all glyph bounding boxes.
+    int16	xMax	Maximum x coordinate across all glyph bounding boxes.
+    int16	yMax	Maximum y coordinate across all glyph bounding boxes.
+    uint16	macStyle see somewhere else
+    uint16	lowestRecPPEM	Smallest readable size in pixels.
+    int16	fontDirectionHint	Deprecated (Set to 2).
+    int16	indexToLocFormat	0 for short offsets (Offset16), 1 for long (Offset32).
+    int16	glyphDataFormat	0 for current format.
 
 
 # flags

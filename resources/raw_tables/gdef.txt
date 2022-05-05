@@ -1,4 +1,3 @@
-{
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
 @table Gdef1_0
 uint16	majorVersion	Major version of the GDEF table, = 1
@@ -28,7 +27,6 @@ Offset16	ligCaretListOffset	Offset to ligature caret list table, from beginning 
 Offset16	markAttachClassDefOffset	Offset to class definition table for mark attachment type, from beginning of GDEF header (may be NULL)
 Offset16	markGlyphSetsDefOffset	Offset to the table of mark glyph set definitions, from beginning of GDEF header (may be NULL)
 Offset32	itemVarStoreOffset	Offset to the Item Variation Store table, from beginning of GDEF header (may be NULL)
-}
 
 /// Used in the [Glyph Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#glyph-class-definition-table)
 @enum(u16) GlyphClassDef

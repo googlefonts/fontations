@@ -3,35 +3,7 @@
 //! This reads a file containing table and record descriptions (from the spec)
 //! and converts them to the form that we use, writing the result to stdout.
 //!
-//! Input should be in the format:
-//!
-//!
-//! ```
-//! { // braces can be used to group items into multiple macro invocations
-//! /// an optional comment for each top-level item
-//! @table Gpos1_0
-//! uint16      majorVersion       Major version of the GPOS table, = 1
-//! uint16      minorVersion       Minor version of the GPOS table, = 0
-//! Offset16    scriptListOffset   Offset to ScriptList table, from beginning of GPOS table
-//! Offset16    featureListOffset  Offset to FeatureList table, from beginning of GPOS table
-//! Offset16    lookupListOffset   Offset to LookupList table, from beginning of GPOS table
-//!
-//! @table Gpos1_1
-//! uint16      majorVersion            Major version of the GPOS table, = 1
-//! uint16      minorVersion            Minor version of the GPOS table, = 1
-//! Offset16    scriptListOffset        Offset to ScriptList table, from beginning of GPOS table
-//! Offset16    featureListOffset       Offset to FeatureList table, from beginning of GPOS table
-//! Offset16    lookupListOffset        Offset to LookupList table, from beginning of GPOS table
-//! Offset32    featureVariationsOffset Offset to FeatureVariations table, from beginning of GPOS table (may be NULL)
-//! }
-//! ```
-//!
-//! - different records/tables are separated by newlines.
-//! - the first line should be a single word, used as the name of the type
-//! - other lines are just copy pasted
-//!
-//! *limitations:* this doesn't handle lifetimes, and doesn't generate annotations.
-//! You will need to clean up the output.
+//! For more information about how this works, see the README
 
 use std::{fmt::Write, ops::Deref};
 
@@ -42,8 +14,6 @@ macro_rules! exit_with_msg {
         std::process::exit(1);
     }};
 }
-
-static MACRO_CALL: &str = "font_types::tables!";
 
 /// a wrapper around a line, so we can report errors with line numbers
 struct Line<'a> {
@@ -70,35 +40,9 @@ fn main() {
         })
         .filter(|l| !l.starts_with('#'));
 
-    while let Some(group) = generate_group(&mut lines) {
-        println!("\n{} {{", MACRO_CALL);
-        println!("{}", group);
-        println!("}}");
-    }
-}
-
-/// Generate a group of items. This is multiple items within a pair of brackets,
-/// which will share a single macro invocation.
-fn generate_group<'a>(lines: impl Iterator<Item = Line<'a>>) -> Option<String> {
-    let mut lines = lines.skip_while(|s| s.is_empty()).peekable();
-
-    // if this is an explicit group, discard the brace line
-    if lines.peek()?.starts_with('{') {
-        let _ = lines.next();
-    }
-
-    let mut result = String::new();
-
-    // stop at closing brace if it exists; if it doesn't we just consume all items
-    let mut lines = lines.take_while(|line| !line.starts_with(&['{', '}']));
-
     while let Some(item) = generate_one_item(&mut lines) {
-        if !result.is_empty() {
-            result.push_str("\n\n");
-        }
-        result.push_str(&item);
+        println!("{}\n", item)
     }
-    Some(result)
 }
 
 /// parse a single enum, table or record.
