@@ -1,4 +1,4 @@
-{
+
  /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 @table ScriptList
 uint16	scriptCount	Number of ScriptRecords
@@ -8,9 +8,9 @@ ScriptRecord	scriptRecords[scriptCount]	Array of ScriptRecords, listed alphabeti
 @record ScriptRecord
 Tag	scriptTag	4-byte script tag identifier
 Offset16	scriptOffset	Offset to Script table, from beginning of ScriptList
-}
 
-{
+
+
  /// [Script Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-table-and-language-system-record)
 @table Script
 Offset16	defaultLangSysOffset	Offset to default LangSys table, from beginning of Script table — may be NULL
@@ -20,17 +20,17 @@ LangSysRecord	langSysRecords[langSysCount]	Array of LangSysRecords, listed alpha
 @record LangSysRecord
 Tag	langSysTag	4-byte LangSysTag identifier
 Offset16	langSysOffset	Offset to LangSys table, from beginning of Script table
-}
 
-{
+
+
 /// [Language System Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#language-system-table)
 @table LangSys
 Offset16	lookupOrderOffset	= NULL (reserved for an offset to a reordering table)
 uint16	requiredFeatureIndex	Index of a feature required for this language system; if no required features = 0xFFFF
 uint16	featureIndexCount	Number of feature index values for this language system — excludes the required feature
 uint16	featureIndices[featureIndexCount]	Array of indices into the FeatureList, in arbitrary order
-}
-{
+
+
 
 /// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
 @table FeatureList
@@ -41,23 +41,23 @@ FeatureRecord	featureRecords[featureCount]	Array of FeatureRecords — zero-base
 @record FeatureRecord
 Tag	featureTag	4-byte feature identification tag
 Offset16	featureOffset	Offset to Feature table, from beginning of FeatureList
-}
 
-{
+
+
 /// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
 @table Feature
 uint16	lookupIndexCount	Number of LookupList indices for this feature
 uint16	lookupListIndices[lookupIndexCount]	Array of indices into the LookupList — zero-based (first lookup is LookupListIndex = 0)
-}
 
-{
+
+
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
 @table LookupList
 uint16	lookupCount	Number of lookups in this table
 Offset16	lookupOffsets[lookupCount]	Array of offsets to Lookup tables, from beginning of LookupList — zero based (first lookup is Lookup index = 0)
-}
 
-{
+
+
 /// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
 @table Lookup
 uint16	lookupType	Different enumerations for GSUB and GPOS
@@ -74,9 +74,9 @@ uint16	markFilteringSet	Index (base 0) into GDEF mark glyph sets structure. This
 #0x0010	USE_MARK_FILTERING_SET	If set, indicates that the lookup table structure is followed by a MarkFilteringSet field. The layout engine skips over all mark glyphs not in the mark filtering set indicated.
 #0x00E0	reserved	For future use (Set to zero)
 #0xFF00	MARK_ATTACHMENT_TYPE_MASK	If not zero, skips over all marks of attachment type different from specified.
-}
 
-{
+
+
 /// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
 @table CoverageFormat1
 uint16	coverageFormat	Format identifier — format = 1
@@ -94,9 +94,9 @@ RangeRecord	rangeRecords[rangeCount]	Array of glyph ranges — ordered by startG
 uint16	startGlyphID	First glyph ID in the range
 uint16	endGlyphID	Last glyph ID in the range
 uint16	startCoverageIndex	Coverage Index of first glyph ID in range
-}
 
-{
+
+
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 @table ClassDefFormat1
 uint16	classFormat	Format identifier — format = 1
@@ -115,9 +115,9 @@ ClassRangeRecord	classRangeRecords[classRangeCount]	Array of ClassRangeRecords �
 uint16	startGlyphID	First glyph ID in the range
 uint16	endGlyphID	Last glyph ID in the range
 uint16	class	Applied to all glyphs in the range
-}
 
-{
+
+
 /// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
 @record SequenceLookupRecord
 uint16	sequenceIndex	Index (zero-based) into the input glyph sequence
@@ -230,9 +230,9 @@ uint16	lookaheadGlyphCount	Number of glyphs in the lookahead sequence
 Offset16	lookaheadCoverageOffsets[lookaheadGlyphCount]	Array of offsets to coverage tables for the lookahead sequence
 uint16	seqLookupCount	Number of SequenceLookupRecords
 SequenceLookupRecord	seqLookupRecords[seqLookupCount]	Array of SequenceLookupRecords
-}
 
-{
+
+
 #@flags DeltaFormat
 #0x0001	LOCAL_2_BIT_DELTAS	Signed 2-bit value, 8 values per uint16
 #0x0002	LOCAL_4_BIT_DELTAS	Signed 4-bit value, 4 values per uint16
@@ -251,9 +251,9 @@ uint16	deltaValue[ ]	Array of compressed data
 uint16	deltaSetOuterIndex	A delta-set outer index — used to select an item variation data subtable within the item variation store.
 uint16	deltaSetInnerIndex	A delta-set inner index — used to select a delta-set row within an item variation data subtable.
 uint16	deltaFormat	Format, = 0x8000
-}
 
-{
+
+
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
 @table FeatureVariations
 uint16	majorVersion	Major version of the FeatureVariations table — set to 1.
@@ -265,9 +265,8 @@ FeatureVariationRecord	featureVariationRecords[featureVariationRecordCount]	Arra
 @record FeatureVariationRecord
 Offset32	conditionSetOffset	Offset to a condition set table, from beginning of FeatureVariations table.
 Offset32	featureTableSubstitutionOffset	Offset to a feature table substitution table, from beginning of the FeatureVariations table.
-}
 
-{
+
 /// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
 @table ConditionSet
 uint16	conditionCount	Number of conditions for this condition set.
@@ -295,6 +294,5 @@ FeatureTableSubstitutionRecord	substitutions[substitutionCount]	Array of feature
 @record FeatureTableSubstitutionRecord
 uint16	featureIndex	The feature table index to match.
 Offset32	alternateFeatureOffset	Offset to an alternate feature table, from start of the FeatureTableSubstitution table.
-}
 
 

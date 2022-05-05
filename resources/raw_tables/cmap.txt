@@ -1,25 +1,23 @@
-{
-    /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
-    @table Cmap
-        uint16	version	Table version number (0).
-        uint16	numTables	Number of encoding tables that follow.
-        EncodingRecord	encodingRecords[numTables]
+/// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
+@table Cmap
+    uint16	version	Table version number (0).
+    uint16	numTables	Number of encoding tables that follow.
+    EncodingRecord	encodingRecords[numTables]
 
-    /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
-    @record EncodingRecord
-        uint16	platformId	Platform ID.
-        uint16	encodingId	Platform-specific encoding ID.
-        Offset32	subtableOffset	Byte offset from beginning of table to the subtable for this encoding.
+/// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
+@record EncodingRecord
+    uint16	platformId	Platform ID.
+    uint16	encodingId	Platform-specific encoding ID.
+    Offset32	subtableOffset	Byte offset from beginning of table to the subtable for this encoding.
 
-    /// [Platform ID](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#platform-ids)
-        @enum(u16) PlatformId
-        0	Unicode	Various
-        1	Macintosh	Script manager code
-        2	ISO [deprecated]	ISO encoding [deprecated]
-        3	Windows	Windows encoding
-        4	Custom	Custom
+/// [Platform ID](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#platform-ids)
+    @enum(u16) PlatformId
+    0	Unicode	Various
+    1	Macintosh	Script manager code
+    2	ISO [deprecated]	ISO encoding [deprecated]
+    3	Windows	Windows encoding
+    4	Custom	Custom
 
-}
 
 # skipping these for now, not sure what the actual desired API is going to be:
 
@@ -51,34 +49,29 @@
 #        9	Reserved
 #        10	Unicode full repertoire
 
-{
 /// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
-    @table Cmap0
-        uint16	format	Format number is set to 0.
-        uint16	length	This is the length in bytes of the subtable.
-        uint16	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
-        uint8	glyphIdArray[256]	An array that maps character codes to glyph index values.
-}
+@table Cmap0
+    uint16	format	Format number is set to 0.
+    uint16	length	This is the length in bytes of the subtable.
+    uint16	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
+    uint8	glyphIdArray[256]	An array that maps character codes to glyph index values.
 
-{
 /// [cmap Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-2-high-byte-mapping-through-table): High-byte mapping through table
-    @table Cmap2
-        uint16	format	Format number is set to 2.
-        uint16	length	This is the length in bytes of the subtable.
-        uint16	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
-        uint16	subHeaderKeys[256]	Array that maps high bytes to subHeaders: value is subHeader index × 8.
-        SubHeader	subHeaders[ ]	Variable-length array of SubHeader records.
-        uint16	glyphIdArray[ ]	Variable-length array containing subarrays used for mapping the low byte of 2-byte characters.
+@table Cmap2
+    uint16	format	Format number is set to 2.
+    uint16	length	This is the length in bytes of the subtable.
+    uint16	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
+    uint16	subHeaderKeys[256]	Array that maps high bytes to subHeaders: value is subHeader index × 8.
+    SubHeader	subHeaders[ ]	Variable-length array of SubHeader records.
+    uint16	glyphIdArray[ ]	Variable-length array containing subarrays used for mapping the low byte of 2-byte characters.
 
-    /// Part of [Cmap2]
-    @record SubHeader
-        uint16	firstCode	First valid low byte for this SubHeader.
-        uint16	entryCount	Number of valid low bytes for this SubHeader.
-        int16	idDelta	See text below.
-        uint16	idRangeOffset	See text below.
-}
+/// Part of [Cmap2]
+@record SubHeader
+    uint16	firstCode	First valid low byte for this SubHeader.
+    uint16	entryCount	Number of valid low bytes for this SubHeader.
+    int16	idDelta	See text below.
+    uint16	idRangeOffset	See text below.
 
-{
 /// [cmap Format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values): Segment mapping to delta values
     @table Cmap4
         uint16	format	Format number is set to 4.
@@ -94,111 +87,98 @@
         int16	idDelta[segCount]	Delta for all character codes in segment.
         uint16	idRangeOffsets[segCount]	Offsets into glyphIdArray or 0
         uint16	glyphIdArray[ ]	Glyph index array (arbitrary length)
-}
 
-{
-    /// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
-    @table Cmap6
-        uint16	format	Format number is set to 6.
-        uint16	length	This is the length in bytes of the subtable.
-        uint16	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
-        uint16	firstCode	First character code of subrange.
-        uint16	entryCount	Number of character codes in subrange.
-        uint16	glyphIdArray[entryCount]	Array of glyph index values for character codes in the range.
+/// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
+@table Cmap6
+    uint16	format	Format number is set to 6.
+    uint16	length	This is the length in bytes of the subtable.
+    uint16	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
+    uint16	firstCode	First character code of subrange.
+    uint16	entryCount	Number of character codes in subrange.
+    uint16	glyphIdArray[entryCount]	Array of glyph index values for character codes in the range.
 
-}
 
-{
 /// [cmap Format 8](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-8-mixed-16-bit-and-32-bit-coverage): mixed 16-bit and 32-bit coverage
-    @table Cmap8
-        uint16	format	Subtable format; set to 8.
-        uint16	reserved	Reserved; set to 0
-        uint32	length	Byte length of this subtable (including the header)
-        uint32	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
-        uint8	is32[8192]	Tightly packed array of bits (8K bytes total) indicating whether the particular 16-bit (index) value is the start of a 32-bit character code
-        uint32	numGroups	Number of groupings which follow
-        SequentialMapGroup	groups[numGroups]	Array of SequentialMapGroup records.
+@table Cmap8
+    uint16	format	Subtable format; set to 8.
+    uint16	reserved	Reserved; set to 0
+    uint32	length	Byte length of this subtable (including the header)
+    uint32	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
+    uint8	is32[8192]	Tightly packed array of bits (8K bytes total) indicating whether the particular 16-bit (index) value is the start of a 32-bit character code
+    uint32	numGroups	Number of groupings which follow
+    SequentialMapGroup	groups[numGroups]	Array of SequentialMapGroup records.
 
-    /// Part of [Cmap8]
-    @record SequentialMapGroup
-        uint32	startCharCode	First character code in this group; note that if this group is for one or more 16-bit character codes (which is determined from the is32 array), this 32-bit value will have the high 16-bits set to zero
-        uint32	endCharCode	Last character code in this group; same condition as listed above for the startCharCode
-        uint32	startGlyphID	Glyph index corresponding to the starting character code
-}
+/// Part of [Cmap8]
+@record SequentialMapGroup
+    uint32	startCharCode	First character code in this group; note that if this group is for one or more 16-bit character codes (which is determined from the is32 array), this 32-bit value will have the high 16-bits set to zero
+    uint32	endCharCode	Last character code in this group; same condition as listed above for the startCharCode
+    uint32	startGlyphID	Glyph index corresponding to the starting character code
 
-{
 /// [cmap Format 10](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array): Trimmed array
-    @table Cmap10
-        uint16	format	Subtable format; set to 10.
-        uint16	reserved	Reserved; set to 0
-        uint32	length	Byte length of this subtable (including the header)
-        uint32	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
-        uint32	startCharCode	First character code covered
-        uint32	numChars	Number of character codes covered
-        uint16	glyphIdArray[]	Array of glyph indices for the character codes covered
-}
+@table Cmap10
+    uint16	format	Subtable format; set to 10.
+    uint16	reserved	Reserved; set to 0
+    uint32	length	Byte length of this subtable (including the header)
+    uint32	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
+    uint32	startCharCode	First character code covered
+    uint32	numChars	Number of character codes covered
+    uint16	glyphIdArray[]	Array of glyph indices for the character codes covered
 
-{
 /// [cmap Format 12](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage): Segmented coverage
-    @table Cmap12
-        uint16	format	Subtable format; set to 12.
-        uint16	reserved	Reserved; set to 0
-        uint32	length	Byte length of this subtable (including the header)
-        uint32	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
-        uint32	numGroups	Number of groupings which follow
-        SequentialMapGroup	groups[numGroups]	Array of SequentialMapGroup records.
+@table Cmap12
+    uint16	format	Subtable format; set to 12.
+    uint16	reserved	Reserved; set to 0
+    uint32	length	Byte length of this subtable (including the header)
+    uint32	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
+    uint32	numGroups	Number of groupings which follow
+    SequentialMapGroup	groups[numGroups]	Array of SequentialMapGroup records.
 
-    /// Part of [Cmap12]
-    @record SequentialMapGroup
-        uint32	startCharCode	First character code in this group
-        uint32	endCharCode	Last character code in this group
-        uint32	startGlyphID	Glyph index corresponding to the starting character code
-}
+/// Part of [Cmap12]
+@record SequentialMapGroup
+    uint32	startCharCode	First character code in this group
+    uint32	endCharCode	Last character code in this group
+    uint32	startGlyphID	Glyph index corresponding to the starting character code
 
-{
 /// [cmap Format 13](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-13-many-to-one-range-mappings): Many-to-one range mappings
-    @table Cmap13
-        uint16	format	Subtable format; set to 13.
-        uint16	reserved	Reserved; set to 0
-        uint32	length	Byte length of this subtable (including the header)
-        uint32	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
-        uint32	numGroups	Number of groupings which follow
-        ConstantMapGroup	groups[numGroups]	Array of ConstantMapGroup records.
+@table Cmap13
+    uint16	format	Subtable format; set to 13.
+    uint16	reserved	Reserved; set to 0
+    uint32	length	Byte length of this subtable (including the header)
+    uint32	language	For requirements on use of the language field, see “Use of the language field in 'cmap' subtables” in this document.
+    uint32	numGroups	Number of groupings which follow
+    ConstantMapGroup	groups[numGroups]	Array of ConstantMapGroup records.
 
-    /// Part of [Cmap13]
-    @record ConstantMapGroup
-        uint32	startCharCode	First character code in this group
-        uint32	endCharCode	Last character code in this group
-        uint32	glyphID	Glyph index to be used for all the characters in the group’s range.
+/// Part of [Cmap13]
+@record ConstantMapGroup
+    uint32	startCharCode	First character code in this group
+    uint32	endCharCode	Last character code in this group
+    uint32	glyphID	Glyph index to be used for all the characters in the group’s range.
 
-}
 
-{
 /// [cmap Format 14](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences): Unicode Variation Sequences
-    @table Cmap14
-        uint16	format	Subtable format. Set to 14.
-        uint32	length	Byte length of this subtable (including this header)
-        uint32	numVarSelectorRecords	Number of variation Selector Records
-        VariationSelector	varSelector[numVarSelectorRecords]	Array of VariationSelector records.
+@table Cmap14
+    uint16	format	Subtable format. Set to 14.
+    uint32	length	Byte length of this subtable (including this header)
+    uint32	numVarSelectorRecords	Number of variation Selector Records
+    VariationSelector	varSelector[numVarSelectorRecords]	Array of VariationSelector records.
 
-    /// Part of [Cmap14]
-    @record VariationSelector
-        uint24	varSelector	Variation selector
-        Offset32	defaultUVSOffset	Offset from the start of the format 14 subtable to Default UVS Table. May be 0.
-        Offset32	nonDefaultUVSOffset	Offset from the start of the format 14 subtable to Non-Default UVS Table. May be 0.
+/// Part of [Cmap14]
+@record VariationSelector
+    uint24	varSelector	Variation selector
+    Offset32	defaultUVSOffset	Offset from the start of the format 14 subtable to Default UVS Table. May be 0.
+    Offset32	nonDefaultUVSOffset	Offset from the start of the format 14 subtable to Non-Default UVS Table. May be 0.
 
-    /// Part of [Cmap14]
-    @table DefaultUvs <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table>
-        uint32	numUnicodeValueRanges	Number of Unicode character ranges.
-        UnicodeRange	ranges[numUnicodeValueRanges]	Array of UnicodeRange records.
+/// Part of [Cmap14]
+@table DefaultUvs <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table>
+    uint32	numUnicodeValueRanges	Number of Unicode character ranges.
+    UnicodeRange	ranges[numUnicodeValueRanges]	Array of UnicodeRange records.
 
-    /// Part of [Cmap14]
-    @record UVSMapping
-        uint24	unicodeValue	Base Unicode value of the UVS
-        uint16	glyphID	Glyph ID of the UVS
+/// Part of [Cmap14]
+@record UVSMapping
+    uint24	unicodeValue	Base Unicode value of the UVS
+    uint16	glyphID	Glyph ID of the UVS
 
-    /// Part of [Cmap14]
-    @record UnicodeRange
-        uint24	startUnicodeValue	First value in this range
-        uint8	additionalCount	Number of additional values in this range
-}
+/// Part of [Cmap14]
+@record UnicodeRange
+    uint24	startUnicodeValue	First value in this range
+    uint8	additionalCount	Number of additional values in this range
