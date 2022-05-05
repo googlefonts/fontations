@@ -12,4 +12,3 @@ default = ["std"]
 
 [dependencies]
 zerocopy = "0.6"
-#font-types-macro = { path = "../font-types-macro" }

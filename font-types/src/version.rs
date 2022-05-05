@@ -11,8 +11,8 @@ pub struct Version16Dot16(u32);
 ///
 /// This is not part of the spec, but versions in the spec are frequently
 /// represented as a `major_version`, `minor_version` pair. This type encodes
-/// those as a single type, which is useful for some of the macro annotations
-/// which generate code that parses a version.
+/// those as a single type, which is useful for some of the generated code that
+/// parses out a version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
 pub struct MajorMinor(u16, u16);
 
