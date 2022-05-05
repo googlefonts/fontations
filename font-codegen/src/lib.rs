@@ -119,8 +119,9 @@ fn generate_group(
                 match version.get() {
                     #( #match_arms ),*
 
-                        other => {
-                            eprintln!("unknown enum variant {:?}", version);
+                        _other => {
+                            #[cfg(feature = "std")]
+                            { eprintln!("unknown enum variant {:?}", version); }
                             None
                         }
                 }

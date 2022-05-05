@@ -13,10 +13,15 @@ extern crate std;
 #[macro_use]
 extern crate core as std;
 
-use font_types::{BigEndian, FontRead, Offset, Offset32, Tag};
+use font_types::{FontRead, Offset, Tag};
 
 pub mod layout;
 pub mod tables;
+
+#[path = "../generated/generated_font.rs"]
+mod generated;
+
+pub use generated::*;
 
 /// A temporary type for accessing tables
 pub struct FontRef<'a> {
@@ -56,29 +61,5 @@ impl<'a> FontRef<'a> {
 impl tables::TableProvider for FontRef<'_> {
     fn data_for_tag(&self, tag: Tag) -> Option<&[u8]> {
         self.table_data(tag)
-    }
-}
-
-font_types::tables! {
-    TableDirectory<'a> {
-        sfnt_version: BigEndian<u32>,
-        num_tables: BigEndian<u16>,
-        search_range: BigEndian<u16>,
-        entry_selector: BigEndian<u16>,
-        range_shift: BigEndian<u16>,
-        #[count(num_tables)]
-        table_records: [ TableRecord ],
-    }
-
-    /// Record for a table in a font.
-    TableRecord {
-        /// Table identifier.
-        tag: BigEndian<Tag>,
-        /// Checksum for the table.
-        checksum: BigEndian<u32>,
-        /// Offset from the beginning of the font data.
-        offset: BigEndian<Offset32>,
-        /// Length of the table.
-        len: BigEndian<u32>,
     }
 }
