@@ -4,5 +4,4 @@ members = [
     "font-tables",
     "font-types",
     "font-codegen",
-    #"font-types-macro",
 ]

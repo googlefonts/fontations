@@ -25,8 +25,6 @@ mod version;
 #[doc(hidden)]
 pub mod test_helpers;
 
-//pub use font_types_macro::tables;
-
 pub use fixed::{F2Dot14, Fixed};
 pub use fword::{FWord, UfWord};
 pub use longdatetime::LongDateTime;

@@ -5,7 +5,11 @@ edition = "2021"
 license = "MIT/Apache-2.0"
 autotests = false
 publish = false
-default-run = "font-codegen"
+default-run = "codegen"
+
+[[bin]]
+name = "codegen"
+path = "src/main.rs"
 
 [dependencies]
 rustfmt-wrapper = "0.1"

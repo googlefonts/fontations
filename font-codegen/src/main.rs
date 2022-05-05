@@ -29,7 +29,7 @@ fn main() -> miette::Result<()> {
 
 fn run_plan(path: &Path) -> miette::Result<()> {
     ensure_correct_working_directory()?;
-    let contents = read_contents(&path)?;
+    let contents = read_contents(path)?;
     let plan: CodegenPlan =
         toml::from_str(&contents).map_err(|e| miette!("failed to parse plan: '{}'", e))?;
 
@@ -91,5 +91,5 @@ fn read_contents(path: &Path) -> miette::Result<String> {
 fn run_for_path(path: &Path) -> miette::Result<String> {
     let contents = read_contents(path)?;
     font_codegen::generate_code(&contents)
-        .map_err(|e| ErrorReport::from_error_src(&e, &path, contents).into())
+        .map_err(|e| ErrorReport::from_error_src(&e, path, contents).into())
 }
