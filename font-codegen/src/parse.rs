@@ -14,7 +14,11 @@ use attrs::{FieldAttrs, VariantAttrs};
 
 use self::attrs::ItemAttrs;
 
-pub struct Items(pub Vec<Item>);
+pub struct Items {
+    pub docs: Vec<syn::Attribute>,
+    pub items: Vec<Item>,
+    pub helpers: Vec<syn::ItemFn>,
+}
 
 pub enum Item {
     Single(SingleItem),
@@ -99,11 +103,21 @@ pub struct ArrayField {
 
 impl Parse for Items {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        let mut result = Vec::new();
+        let docs = get_optional_module_docs(input)?;
+        let mut items = Vec::new();
+        let mut helpers = Vec::new();
         while !input.is_empty() {
-            result.push(input.parse()?)
+            if input.peek(Token![fn]) {
+                helpers.push(input.parse()?);
+            } else {
+                items.push(input.parse()?);
+            }
         }
-        Ok(Self(result))
+        Ok(Self {
+            docs,
+            items,
+            helpers,
+        })
     }
 }
 
@@ -519,6 +533,26 @@ fn get_optional_attributes(input: ParseStream) -> Result<Vec<syn::Attribute>, sy
     while input.lookahead1().peek(Token![#]) {
         result.extend(Attribute::parse_outer(input)?);
     }
+    Ok(result)
+}
+
+fn get_optional_module_docs(input: ParseStream) -> Result<Vec<syn::Attribute>, syn::Error> {
+    let mut result = Vec::new();
+    while input.peek(Token![#]) && input.peek2(Token![!]) {
+        let item = Attribute::parse_inner(input).map_err(|e| {
+            syn::Error::new(e.span(), format!("error parsing inner attribute: '{}'", e))
+        })?;
+        for attr in &item {
+            if !attr.path.is_ident("doc") {
+                return Err(syn::Error::new_spanned(
+                    attr,
+                    "only doc attributes are supported",
+                ));
+            }
+        }
+        result.extend(item);
+    }
+
     Ok(result)
 }
 
