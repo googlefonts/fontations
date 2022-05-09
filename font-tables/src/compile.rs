@@ -44,6 +44,18 @@ impl<T: Offset> OffsetMarker<T> {
     }
 }
 
+/// Only implemenated by offset hosts
+pub trait ToOwnedTable {
+    type Owned;
+    fn to_owned_table(&self) -> Self::Owned;
+}
+
+/// public but essentially internal?
+pub trait ToOwnedImpl {
+    type Owned;
+    fn to_owned_impl(&self, offset_data: &[u8]) -> Option<Self::Owned>;
+}
+
 pub fn dump_table<T: Table>(table: &T) -> Vec<u8> {
     let mut writer = TableWriter::default();
     table.describe(&mut writer);

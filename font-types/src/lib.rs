@@ -17,7 +17,6 @@ mod fword;
 mod longdatetime;
 mod offset;
 mod raw;
-pub mod serialize;
 mod tag;
 mod uint24;
 mod var_array;
@@ -37,6 +36,9 @@ pub use tag::Tag;
 pub use uint24::Uint24;
 pub use var_array::VarArray;
 pub use version::{MajorMinor, Version16Dot16};
+
+//TODO: make me a struct
+pub type GlyphId = u16;
 
 /// A type that can be read from some chunk of bytes.
 pub trait FontRead<'a>: Sized {

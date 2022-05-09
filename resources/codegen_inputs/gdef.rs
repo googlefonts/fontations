@@ -91,6 +91,7 @@ enum GlyphClassDef {
 }
 
 /// [Attachment Point List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#attachment-point-list-table)
+#[offset_host]
 AttachList<'a> {
     /// Offset to Coverage table - from beginning of AttachList table
     coverage_offset: BigEndian<Offset16>,
@@ -112,6 +113,7 @@ AttachPoint<'a> {
 }
 
 /// [Ligature Caret List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-caret-list-table)
+#[offset_host]
 LigCaretList<'a> {
     /// Offset to Coverage table - from beginning of LigCaretList table
     coverage_offset: BigEndian<Offset16>,
@@ -124,6 +126,7 @@ LigCaretList<'a> {
 }
 
 /// [Ligature Glyph Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-glyph-table)
+#[offset_host]
 LigGlyph<'a> {
     /// Number of CaretValue tables for this ligature (components - 1)
     caret_count: BigEndian<u16>,
@@ -173,6 +176,7 @@ CaretValueFormat3 {
 }
 
 /// [Mark Glyph Sets Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#mark-glyph-sets-table)
+#[offset_host]
 MarkGlyphSets<'a> {
     /// Format identifier == 1
     format: BigEndian<u16>,

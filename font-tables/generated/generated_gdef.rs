@@ -425,10 +425,12 @@ pub struct AttachList<'a> {
     coverage_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
     glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
     attach_point_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
+    offset_bytes: &'a [u8],
 }
 
 impl<'a> font_types::FontRead<'a> for AttachList<'a> {
     fn read(bytes: &'a [u8]) -> Option<Self> {
+        let offset_bytes = bytes;
         let (coverage_offset, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
         let (glyph_count, bytes) =
@@ -444,6 +446,7 @@ impl<'a> font_types::FontRead<'a> for AttachList<'a> {
             coverage_offset,
             glyph_count,
             attach_point_offsets,
+            offset_bytes,
         })
     }
 }
@@ -463,6 +466,12 @@ impl<'a> AttachList<'a> {
     /// AttachList table-in Coverage Index order
     pub fn attach_point_offsets(&self) -> &[BigEndian<Offset16>] {
         &self.attach_point_offsets
+    }
+}
+
+impl<'a> font_types::OffsetHost<'a> for AttachList<'a> {
+    fn bytes(&self) -> &'a [u8] {
+        self.offset_bytes
     }
 }
 
@@ -507,10 +516,12 @@ pub struct LigCaretList<'a> {
     coverage_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
     lig_glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
     lig_glyph_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
+    offset_bytes: &'a [u8],
 }
 
 impl<'a> font_types::FontRead<'a> for LigCaretList<'a> {
     fn read(bytes: &'a [u8]) -> Option<Self> {
+        let offset_bytes = bytes;
         let (coverage_offset, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
         let (lig_glyph_count, bytes) =
@@ -526,6 +537,7 @@ impl<'a> font_types::FontRead<'a> for LigCaretList<'a> {
             coverage_offset,
             lig_glyph_count,
             lig_glyph_offsets,
+            offset_bytes,
         })
     }
 }
@@ -548,14 +560,22 @@ impl<'a> LigCaretList<'a> {
     }
 }
 
+impl<'a> font_types::OffsetHost<'a> for LigCaretList<'a> {
+    fn bytes(&self) -> &'a [u8] {
+        self.offset_bytes
+    }
+}
+
 /// [Ligature Glyph Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-glyph-table)
 pub struct LigGlyph<'a> {
     caret_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
     caret_value_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
+    offset_bytes: &'a [u8],
 }
 
 impl<'a> font_types::FontRead<'a> for LigGlyph<'a> {
     fn read(bytes: &'a [u8]) -> Option<Self> {
+        let offset_bytes = bytes;
         let (caret_count, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
         let __resolved_caret_count = caret_count.get();
@@ -568,6 +588,7 @@ impl<'a> font_types::FontRead<'a> for LigGlyph<'a> {
         Some(LigGlyph {
             caret_count,
             caret_value_offsets,
+            offset_bytes,
         })
     }
 }
@@ -582,6 +603,12 @@ impl<'a> LigGlyph<'a> {
     /// LigGlyph table — in increasing coordinate order
     pub fn caret_value_offsets(&self) -> &[BigEndian<Offset16>] {
         &self.caret_value_offsets
+    }
+}
+
+impl<'a> font_types::OffsetHost<'a> for LigGlyph<'a> {
+    fn bytes(&self) -> &'a [u8] {
+        self.offset_bytes
     }
 }
 
@@ -692,10 +719,12 @@ pub struct MarkGlyphSets<'a> {
     format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
     mark_glyph_set_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
     coverage_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset32>]>,
+    offset_bytes: &'a [u8],
 }
 
 impl<'a> font_types::FontRead<'a> for MarkGlyphSets<'a> {
     fn read(bytes: &'a [u8]) -> Option<Self> {
+        let offset_bytes = bytes;
         let (format, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
         let (mark_glyph_set_count, bytes) =
@@ -711,6 +740,7 @@ impl<'a> font_types::FontRead<'a> for MarkGlyphSets<'a> {
             format,
             mark_glyph_set_count,
             coverage_offsets,
+            offset_bytes,
         })
     }
 }
@@ -730,5 +760,11 @@ impl<'a> MarkGlyphSets<'a> {
     /// start of the MarkGlyphSets table.
     pub fn coverage_offsets(&self) -> &[BigEndian<Offset32>] {
         &self.coverage_offsets
+    }
+}
+
+impl<'a> font_types::OffsetHost<'a> for MarkGlyphSets<'a> {
+    fn bytes(&self) -> &'a [u8] {
+        self.offset_bytes
     }
 }
