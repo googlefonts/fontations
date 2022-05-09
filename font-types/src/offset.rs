@@ -3,12 +3,17 @@
 use crate::Uint24;
 
 /// A trait for the different offset representations.
-pub trait Offset {
+pub trait Offset: Sized {
     /// The length in bytes of this offset type.
     const SIZE: OffsetLen;
 
     /// Returns this offsize as a `usize`, or `None` if it is `0`.
     fn non_null(self) -> Option<usize>;
+    fn read<'a, T: crate::FontRead<'a>>(self, bytes: &'a [u8]) -> Option<T> {
+        self.non_null()
+            .and_then(|off| bytes.get(off..))
+            .and_then(T::read)
+    }
 }
 
 /// A type that contains data referenced by offsets.

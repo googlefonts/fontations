@@ -10,7 +10,12 @@ use super::FontWrite;
 /// detail of the [`BigEndian`] wrapper.
 pub trait Scalar {
     /// The raw byte representation of this type.
-    type Raw: Copy + FontWrite + zerocopy::Unaligned + zerocopy::FromBytes + zerocopy::AsBytes;
+    type Raw: Copy
+        + FontWrite
+        + zerocopy::Unaligned
+        + zerocopy::FromBytes
+        + zerocopy::AsBytes
+        + AsRef<[u8]>;
 
     /// The size of the raw type. Essentially an alias for `std::mem::size_of`.
     //TODO: remove this probably
@@ -25,7 +30,7 @@ pub trait Scalar {
 /// A wrapper around raw big-endian bytes for some type.
 #[derive(Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
 #[repr(transparent)]
-pub struct BigEndian<T: Scalar>(T::Raw);
+pub struct BigEndian<T: Scalar>(pub(crate) T::Raw);
 
 impl<T: Scalar> BigEndian<T> {
     /// Read a copy of this type from raw bytes.

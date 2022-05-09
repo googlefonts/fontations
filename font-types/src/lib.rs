@@ -17,6 +17,7 @@ mod fword;
 mod longdatetime;
 mod offset;
 mod raw;
+pub mod serialize;
 mod tag;
 mod uint24;
 mod var_array;
