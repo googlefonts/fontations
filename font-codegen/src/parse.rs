@@ -9,7 +9,7 @@ use syn::{
 
 mod attrs;
 
-pub use attrs::Count;
+pub use attrs::{Count, Offset};
 use attrs::{FieldAttrs, VariantAttrs};
 
 use self::attrs::ItemAttrs;
@@ -90,6 +90,7 @@ pub struct SingleField {
     pub name: syn::Ident,
     pub typ: syn::Path,
     pub hidden: Option<syn::Path>,
+    pub offset: Option<Offset>,
 }
 
 pub struct ArrayField {

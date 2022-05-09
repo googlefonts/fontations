@@ -12,6 +12,7 @@ pub struct FieldAttrs {
     docs: Vec<syn::Attribute>,
     hidden: Option<syn::Path>,
     count: Option<Count>,
+    offset: Option<Offset>,
     variable_size: Option<syn::Path>,
 }
 
@@ -24,6 +25,10 @@ pub enum Count {
         fn_: syn::Path,
         args: Vec<syn::Ident>,
     },
+}
+
+pub struct Offset {
+    pub target: syn::Path,
 }
 
 #[derive(Default)]
@@ -51,6 +56,8 @@ pub struct ItemAttrs {
     pub repr: Option<syn::Ident>,
     pub flags: Option<syn::Ident>,
 }
+
+static OFFSET: &str = "offset";
 
 impl FieldAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<FieldAttrs, syn::Error> {
@@ -101,6 +108,17 @@ impl FieldAttrs {
                         "count_with attribute should have format count_with(path::to::fn, arg1, arg2)",
                     ));
                 }
+                syn::Meta::List(list) if list.path.is_ident(OFFSET) => {
+                    let inner = expect_single_item_list(&list)?;
+                    if let syn::NestedMeta::Meta(syn::Meta::Path(target)) = inner {
+                        result.offset = Some(Offset { target });
+                    } else {
+                        return Err(syn::Error::new(
+                            inner.span(),
+                            "expected path to offset target type",
+                        ));
+                    }
+                }
                 other => {
                     return Err(syn::Error::new(other.span(), "unknown attribute"));
                 }
@@ -119,6 +137,12 @@ impl FieldAttrs {
             return Err(syn::Error::new(
                 path.span(),
                 "'hidden' is only valid on scalar fields",
+            ));
+        }
+        if let Some(offset) = self.offset {
+            return Err(syn::Error::new(
+                offset.target.span(),
+                "'offset' is not valid on arrays",
             ));
         }
         let count = self.count.ok_or_else(|| {
@@ -154,6 +178,7 @@ impl FieldAttrs {
             name,
             typ,
             hidden: self.hidden,
+            offset: self.offset,
         })
     }
 }
