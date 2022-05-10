@@ -100,16 +100,16 @@ write_be_bytes!(LongDateTime);
 write_be_bytes!(Tag);
 write_be_bytes!(Version16Dot16);
 
-impl FontWrite for &'_ [u8] {
-    #[inline]
-    fn write<W: Write>(&self, writer: &mut W) {
-        writer.write_all(self).unwrap();
-    }
-}
-
 impl<const N: usize> FontWrite for [u8; N] {
     #[inline]
     fn write<W: Write>(&self, writer: &mut W) {
         writer.write_all(self.as_slice()).unwrap();
+    }
+}
+
+impl<T: FontWrite> FontWrite for &'_ [T] {
+    #[inline]
+    fn write<W: Write>(&self, writer: &mut W) {
+        self.iter().for_each(|x| x.write(writer))
     }
 }

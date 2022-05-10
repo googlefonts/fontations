@@ -44,10 +44,14 @@ impl<T: Offset> OffsetMarker<T> {
     }
 }
 
-/// Only implemenated by offset hosts
-pub trait ToOwnedTable {
-    type Owned;
-    fn to_owned_table(&self) -> Self::Owned;
+/// A trait for types that can fully resolve themselves.
+///
+/// This means that any offsets held in this type are resolved relative to the
+/// start of the table itself (and not some parent table)
+pub trait ToOwnedTable: ToOwnedImpl {
+    fn to_owned_table(&self) -> Option<Self::Owned> {
+        ToOwnedImpl::to_owned_impl(self, &[])
+    }
 }
 
 /// public but essentially internal?
@@ -160,6 +164,12 @@ impl Default for TableWriter {
             tables: ObjectStore::default(),
             stack: vec![TableData::default()],
         }
+    }
+}
+
+impl Table for Box<dyn Table> {
+    fn describe(&self, writer: &mut TableWriter) {
+        (**self).describe(writer)
     }
 }
 

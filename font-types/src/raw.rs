@@ -44,6 +44,13 @@ impl<T: Scalar> BigEndian<T> {
     }
 }
 
+impl<T: Scalar> From<T> for BigEndian<T> {
+    #[inline]
+    fn from(val: T) -> Self {
+        BigEndian(val.to_raw())
+    }
+}
+
 /// An internal macro for implementing the `RawType` trait.
 #[macro_export]
 macro_rules! newtype_scalar {
