@@ -102,7 +102,7 @@ pub mod compile {
     use font_types::GlyphId;
     use std::collections::BTreeMap;
 
-    use crate::compile::Table;
+    use crate::compile::FontWrite;
 
     pub struct ClassDef {
         pub items: BTreeMap<GlyphId, u16>,
@@ -149,38 +149,38 @@ pub mod compile {
         }
     }
 
-    impl Table for ClassDefFormat1Writer<'_> {
-        fn describe(&self, writer: &mut crate::compile::TableWriter) {
-            writer.write(1u16);
-            writer.write(*self.0.items.keys().next().expect("no empty classdefs"));
-            writer.write(self.0.items.len() as u16);
-            self.0.items.values().for_each(|val| writer.write(*val));
+    impl FontWrite for ClassDefFormat1Writer<'_> {
+        fn write_into(&self, writer: &mut crate::compile::TableWriter) {
+            1u16.write_into(writer);
+            (*self.0.items.keys().next().expect("no empty classdefs")).write_into(writer);
+            (self.0.items.len() as u16).write_into(writer);
+            self.0.items.values().for_each(|val| val.write_into(writer));
         }
     }
 
-    impl Table for ClassDefFormat2Writer<'_> {
-        fn describe(&self, writer: &mut crate::compile::TableWriter) {
-            writer.write(2u16);
-            writer.write(iter_class_ranges(&self.0.items).count() as u16);
+    impl FontWrite for ClassDefFormat2Writer<'_> {
+        fn write_into(&self, writer: &mut crate::compile::TableWriter) {
+            2u16.write_into(writer);
+            (iter_class_ranges(&self.0.items).count() as u16).write_into(writer);
             iter_class_ranges(&self.0.items).for_each(|obj| {
-                writer.write(obj.start_glyph_id);
-                writer.write(obj.end_glyph_id);
-                writer.write(obj.class);
+                obj.start_glyph_id.write_into(writer);
+                obj.end_glyph_id.write_into(writer);
+                obj.class.write_into(writer);
             })
         }
     }
 
-    impl Table for ClassDef {
-        fn describe(&self, writer: &mut crate::compile::TableWriter) {
+    impl FontWrite for ClassDef {
+        fn write_into(&self, writer: &mut crate::compile::TableWriter) {
             let is_contiguous = self
                 .items
                 .keys()
                 .zip(self.items.keys().skip(1))
                 .all(|(a, b)| *b - *a == 1);
             if is_contiguous {
-                ClassDefFormat1Writer(self).describe(writer)
+                ClassDefFormat1Writer(self).write_into(writer)
             } else {
-                ClassDefFormat2Writer(self).describe(writer)
+                ClassDefFormat2Writer(self).write_into(writer)
             }
         }
     }
@@ -218,32 +218,32 @@ pub mod compile {
         })
     }
 
-    impl Table for CoverageTable {
-        fn describe(&self, writer: &mut crate::compile::TableWriter) {
+    impl FontWrite for CoverageTable {
+        fn write_into(&self, writer: &mut crate::compile::TableWriter) {
             if should_choose_coverage_format_2(&self.glyphs) {
-                CoverageTableFormat2Writer(self).describe(writer);
+                CoverageTableFormat2Writer(self).write_into(writer);
             } else {
-                CoverageTableFormat1Writer(self).describe(writer);
+                CoverageTableFormat1Writer(self).write_into(writer);
             }
         }
     }
 
-    impl Table for CoverageTableFormat1Writer<'_> {
-        fn describe(&self, writer: &mut crate::compile::TableWriter) {
-            writer.write(1u16);
-            writer.write(self.0.glyphs.len() as u16);
-            writer.write(self.0.glyphs.as_slice());
+    impl FontWrite for CoverageTableFormat1Writer<'_> {
+        fn write_into(&self, writer: &mut crate::compile::TableWriter) {
+            1u16.write_into(writer);
+            (self.0.glyphs.len() as u16).write_into(writer);
+            self.0.glyphs.as_slice().write_into(writer);
         }
     }
 
-    impl Table for CoverageTableFormat2Writer<'_> {
-        fn describe(&self, writer: &mut crate::compile::TableWriter) {
-            writer.write(2u16);
-            writer.write(iter_ranges(&self.0.glyphs).count() as u16);
+    impl FontWrite for CoverageTableFormat2Writer<'_> {
+        fn write_into(&self, writer: &mut crate::compile::TableWriter) {
+            2u16.write_into(writer);
+            (iter_ranges(&self.0.glyphs).count() as u16).write_into(writer);
             for range in iter_ranges(&self.0.glyphs) {
-                writer.write(range.start_glyph_id);
-                writer.write(range.end_glyph_id);
-                writer.write(range.start_coverage_index);
+                range.start_glyph_id.write_into(writer);
+                range.end_glyph_id.write_into(writer);
+                range.start_coverage_index.write_into(writer);
             }
         }
     }

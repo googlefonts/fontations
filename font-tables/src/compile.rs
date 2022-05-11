@@ -2,7 +2,7 @@
 
 use std::collections::HashMap;
 
-use font_types::{FontWrite, Offset, OffsetLen, Uint24};
+use font_types::{BigEndian, Offset, OffsetLen, Scalar, Uint24};
 
 mod cmap;
 mod graph;
@@ -11,9 +11,13 @@ use graph::{ObjectId, ObjectStore};
 
 use self::graph::Graph;
 
-pub trait Table {
+/// A type that that can be written out as part of a font file.
+///
+/// This both handles writing big-endian bytes as well as describing the
+/// relationship between tables and their subtables.
+pub trait FontWrite {
     /// Write our data and information about offsets into this [TableWriter].
-    fn describe(&self, writer: &mut TableWriter);
+    fn write_into(&self, writer: &mut TableWriter);
 }
 
 #[derive(Debug)]
@@ -57,9 +61,9 @@ pub trait ToOwnedImpl {
     fn to_owned_impl(&self, offset_data: &[u8]) -> Option<Self::Owned>;
 }
 
-pub fn dump_table<T: Table>(table: &T) -> Vec<u8> {
+pub fn dump_table<T: FontWrite>(table: &T) -> Vec<u8> {
     let mut writer = TableWriter::default();
-    table.describe(&mut writer);
+    table.write_into(&mut writer);
     let (root, graph) = writer.finish();
     dump_impl(root, graph)
 }
@@ -117,9 +121,9 @@ fn write_offset(at: &mut [u8], len: OffsetLen, resolved: u32) -> Result<(), ()> 
 }
 
 impl TableWriter {
-    fn add_table(&mut self, table: &dyn Table) -> ObjectId {
+    fn add_table(&mut self, table: &dyn FontWrite) -> ObjectId {
         self.stack.push(TableData::default());
-        table.describe(self);
+        table.write_into(self);
         self.tables.add(self.stack.pop().unwrap())
     }
 
@@ -136,12 +140,16 @@ impl TableWriter {
         dump_impl(root, graph)
     }
 
-    pub fn write(&mut self, item: impl FontWrite) {
-        let buf = self.stack.last_mut().unwrap();
-        item.write(&mut buf.bytes)
+    #[inline]
+    pub fn write_slice(&mut self, bytes: &[u8]) {
+        self.stack
+            .last_mut()
+            .unwrap()
+            .bytes
+            .extend_from_slice(bytes)
     }
 
-    pub fn write_offset<T: Offset>(&mut self, obj: &dyn Table) {
+    pub fn write_offset<T: Offset>(&mut self, obj: &dyn FontWrite) {
         let obj_id = self.add_table(obj);
         let data = self.stack.last_mut().unwrap();
         data.add_offset::<T>(obj_id);
@@ -164,9 +172,9 @@ impl Default for TableWriter {
     }
 }
 
-impl Table for Box<dyn Table> {
-    fn describe(&self, writer: &mut TableWriter) {
-        (**self).describe(writer)
+impl FontWrite for Box<dyn FontWrite> {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (**self).write_into(writer)
     }
 }
 
@@ -204,6 +212,44 @@ impl TableData {
     }
 }
 
+macro_rules! write_be_bytes {
+    ($ty:ty) => {
+        impl FontWrite for $ty {
+            #[inline]
+            fn write_into(&self, writer: &mut TableWriter) {
+                writer.write_slice(&self.to_be_bytes())
+            }
+        }
+    };
+}
+
+//NOTE: not implemented for offsets! it would be too easy to accidentally write them.
+write_be_bytes!(u8);
+write_be_bytes!(i8);
+write_be_bytes!(u16);
+write_be_bytes!(i16);
+write_be_bytes!(u32);
+write_be_bytes!(i32);
+write_be_bytes!(i64);
+write_be_bytes!(font_types::Uint24);
+write_be_bytes!(font_types::F2Dot14);
+write_be_bytes!(font_types::Fixed);
+write_be_bytes!(font_types::LongDateTime);
+write_be_bytes!(font_types::Tag);
+write_be_bytes!(font_types::Version16Dot16);
+
+impl<T: Scalar + FontWrite> FontWrite for BigEndian<T> {
+    fn write_into(&self, writer: &mut TableWriter) {
+        writer.write_slice(self.be_bytes())
+    }
+}
+
+impl<T: FontWrite> FontWrite for &'_ [T] {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.iter().for_each(|item| item.write_into(writer))
+    }
+}
+
 #[cfg(test)]
 #[rustfmt::skip::macros(assert_hex_eq)]
 mod tests {
@@ -238,35 +284,35 @@ mod tests {
         bigness: u16,
     }
 
-    impl Table for Table2 {
-        fn describe(&self, writer: &mut TableWriter) {
-            writer.write(self.version);
-            writer.write(self.bigness);
+    impl FontWrite for Table2 {
+        fn write_into(&self, writer: &mut TableWriter) {
+            (self.version).write_into(writer);
+            (self.bigness).write_into(writer);
         }
     }
 
-    impl Table for Table1 {
-        fn describe(&self, writer: &mut TableWriter) {
-            writer.write(self.version);
+    impl FontWrite for Table1 {
+        fn write_into(&self, writer: &mut TableWriter) {
+            (self.version).write_into(writer);
             for record in &self.records {
-                writer.write(record.value);
+                (record.value).write_into(writer);
                 writer.write_offset::<Offset16>(&record.offset);
             }
         }
     }
 
-    impl Table for Table0 {
-        fn describe(&self, writer: &mut TableWriter) {
-            writer.write(self.version);
+    impl FontWrite for Table0 {
+        fn write_into(&self, writer: &mut TableWriter) {
+            (self.version).write_into(writer);
             for offset in &self.offsets {
                 writer.write_offset::<Offset16>(offset);
             }
         }
     }
 
-    impl Table for Table0a {
-        fn describe(&self, writer: &mut TableWriter) {
-            writer.write(self.version);
+    impl FontWrite for Table0a {
+        fn write_into(&self, writer: &mut TableWriter) {
+            (self.version).write_into(writer);
             writer.write_offset::<Offset16>(&self.offset);
         }
     }

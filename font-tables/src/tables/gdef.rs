@@ -256,7 +256,7 @@ mod compile {
 
     use std::collections::BTreeMap;
 
-    use crate::compile::{Table, TableWriter, ToOwnedImpl};
+    use crate::compile::{FontWrite, TableWriter, ToOwnedImpl};
     use crate::layout::compile::{ClassDef, CoverageTable};
     use font_types::{FontRead, GlyphId, Offset, Offset16, Offset32};
 
@@ -327,39 +327,40 @@ mod compile {
     //item_var_store: Option<ItemVariationStore>,
     //}
 
-    impl Table for Gdef {
-        fn describe(&self, writer: &mut TableWriter) {
+    impl FontWrite for Gdef {
+        fn write_into(&self, writer: &mut TableWriter) {
             // version
             let minor_version = if self.mark_glyph_sets_def.is_some() {
-                2
+                2u16
             } else {
                 0
             };
-            writer.write([1u16, minor_version].as_slice());
+            1u16.write_into(writer);
+            minor_version.write_into(writer);
             match &self.glyph_class_def {
                 Some(obj) => writer.write_offset::<Offset16>(obj),
-                None => writer.write(0u16),
+                None => 0u16.write_into(writer),
             }
 
             match &self.attach_list {
                 Some(obj) => writer.write_offset::<Offset16>(obj),
-                None => writer.write(0u16),
+                None => 0u16.write_into(writer),
             }
 
             match &self.lig_caret_list {
                 Some(obj) => writer.write_offset::<Offset16>(obj),
-                None => writer.write(0u16),
+                None => 0u16.write_into(writer),
             }
 
             match &self.mark_attach_class_def {
                 Some(obj) => writer.write_offset::<Offset16>(obj),
-                None => writer.write(0u16),
+                None => 0u16.write_into(writer),
             }
 
             if minor_version >= 2 {
                 match &self.mark_glyph_sets_def {
                     Some(obj) => writer.write_offset::<Offset16>(obj),
-                    None => writer.write(0u16),
+                    None => 0u16.write_into(writer),
                 }
             }
         }
@@ -369,11 +370,11 @@ mod compile {
         pub items: BTreeMap<GlyphId, Vec<u16>>,
     }
 
-    impl Table for AttachList {
-        fn describe(&self, writer: &mut TableWriter) {
+    impl FontWrite for AttachList {
+        fn write_into(&self, writer: &mut TableWriter) {
             let coverage = self.items.keys().copied().collect::<CoverageTable>();
             writer.write_offset::<Offset16>(&coverage);
-            writer.write(self.items.len() as u16);
+            (self.items.len() as u16).write_into(writer);
             for points in self.items.values() {
                 writer.write_offset::<Offset16>(&AttachPointTemp { points })
             }
@@ -384,10 +385,10 @@ mod compile {
         points: &'a [u16],
     }
 
-    impl Table for AttachPointTemp<'_> {
-        fn describe(&self, writer: &mut TableWriter) {
-            writer.write(self.points.len() as u16);
-            writer.write(self.points);
+    impl FontWrite for AttachPointTemp<'_> {
+        fn write_into(&self, writer: &mut TableWriter) {
+            (self.points.len() as u16).write_into(writer);
+            self.points.write_into(writer);
         }
     }
 
@@ -405,11 +406,11 @@ mod compile {
         pub items: BTreeMap<GlyphId, Vec<CaretValue>>,
     }
 
-    impl Table for LigCaretList {
-        fn describe(&self, writer: &mut TableWriter) {
+    impl FontWrite for LigCaretList {
+        fn write_into(&self, writer: &mut TableWriter) {
             let coverage = self.items.keys().copied().collect::<CoverageTable>();
             writer.write_offset::<Offset16>(&coverage);
-            writer.write(self.items.len() as u16);
+            (self.items.len() as u16).write_into(writer);
             for carets in self.items.values() {
                 writer.write_offset::<Offset16>(&LigGlyphTemp { carets });
             }
@@ -420,9 +421,9 @@ mod compile {
         carets: &'a [CaretValue],
     }
 
-    impl Table for LigGlyphTemp<'_> {
-        fn describe(&self, writer: &mut TableWriter) {
-            writer.write(self.carets.len() as u16);
+    impl FontWrite for LigGlyphTemp<'_> {
+        fn write_into(&self, writer: &mut TableWriter) {
+            (self.carets.len() as u16).write_into(writer);
             for caret in self.carets {
                 writer.write_offset::<Offset16>(caret);
             }
@@ -442,10 +443,10 @@ mod compile {
         pub tables: Vec<CoverageTable>,
     }
 
-    impl Table for MarkGlyphSets {
-        fn describe(&self, writer: &mut TableWriter) {
-            writer.write(1u16);
-            writer.write(self.tables.len() as u16);
+    impl FontWrite for MarkGlyphSets {
+        fn write_into(&self, writer: &mut TableWriter) {
+            1u16.write_into(writer);
+            (self.tables.len() as u16).write_into(writer);
             for table in &self.tables {
                 writer.write_offset::<Offset32>(table);
             }
@@ -472,26 +473,26 @@ mod compile {
         },
         Format3 {
             coordinate: i16,
-            device: Box<dyn Table>,
+            device: Box<dyn FontWrite>,
         },
     }
 
-    impl Table for CaretValue {
-        fn describe(&self, writer: &mut TableWriter) {
+    impl FontWrite for CaretValue {
+        fn write_into(&self, writer: &mut TableWriter) {
             match self {
                 Self::Format1 { coordinate } => {
-                    writer.write(1u16);
-                    writer.write(*coordinate);
+                    1u16.write_into(writer);
+                    coordinate.write_into(writer);
                 }
                 Self::Format2 {
                     caret_value_point_index,
                 } => {
-                    writer.write(2u16);
-                    writer.write(*caret_value_point_index);
+                    2u16.write_into(writer);
+                    caret_value_point_index.write_into(writer);
                 }
                 Self::Format3 { coordinate, device } => {
-                    writer.write(3u16);
-                    writer.write(*coordinate);
+                    3u16.write_into(writer);
+                    coordinate.write_into(writer);
                     writer.write_offset::<Offset16>(device);
                 }
             }
