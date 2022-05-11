@@ -356,8 +356,8 @@ mod compile {
                 None => writer.write(0u16),
             }
 
-            if minor_version == 2 {
-                match &self.mark_attach_class_def {
+            if minor_version >= 2 {
+                match &self.mark_glyph_sets_def {
                     Some(obj) => writer.write_offset::<Offset16>(obj),
                     None => writer.write(0u16),
                 }
@@ -440,6 +440,16 @@ mod compile {
 
     pub struct MarkGlyphSets {
         pub tables: Vec<CoverageTable>,
+    }
+
+    impl Table for MarkGlyphSets {
+        fn describe(&self, writer: &mut TableWriter) {
+            writer.write(1u16);
+            writer.write(self.tables.len() as u16);
+            for table in &self.tables {
+                writer.write_offset::<Offset32>(table);
+            }
+        }
     }
 
     //impl LigCaretList {

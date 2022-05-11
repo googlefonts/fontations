@@ -97,10 +97,20 @@ pub mod compile {
         pub items: BTreeMap<GlyphId, u16>,
     }
 
+    // represent the format choice as a type. this would let us provide API
+    // such that the user could manually decide which format to use, if wished
+    pub struct ClassDefFormat1Writer<'a>(&'a ClassDef);
+
+    pub struct ClassDefFormat2Writer<'a>(&'a ClassDef);
+
     pub struct CoverageTable {
         // invariant: is always sorted
         glyphs: Vec<GlyphId>,
     }
+
+    pub struct CoverageTableFormat1Writer<'a>(&'a CoverageTable);
+
+    pub struct CoverageTableFormat2Writer<'a>(&'a CoverageTable);
 
     impl FromIterator<GlyphId> for CoverageTable {
         fn from_iter<T: IntoIterator<Item = GlyphId>>(iter: T) -> Self {
@@ -128,28 +138,20 @@ pub mod compile {
         }
     }
 
-    pub struct ClassDefFormat1Writer<'a> {
-        inner: &'a ClassDef,
-    }
-
     impl Table for ClassDefFormat1Writer<'_> {
         fn describe(&self, writer: &mut crate::compile::TableWriter) {
             writer.write(1u16);
-            writer.write(*self.inner.items.keys().next().expect("no empty classdefs"));
-            writer.write(self.inner.items.len() as u16);
-            self.inner.items.values().for_each(|val| writer.write(*val));
+            writer.write(*self.0.items.keys().next().expect("no empty classdefs"));
+            writer.write(self.0.items.len() as u16);
+            self.0.items.values().for_each(|val| writer.write(*val));
         }
-    }
-
-    pub struct ClassDefFormat2Writer<'a> {
-        inner: &'a ClassDef,
     }
 
     impl Table for ClassDefFormat2Writer<'_> {
         fn describe(&self, writer: &mut crate::compile::TableWriter) {
             writer.write(2u16);
-            writer.write(iter_class_ranges(&self.inner.items).count() as u16);
-            iter_class_ranges(&self.inner.items).for_each(|obj| {
+            writer.write(iter_class_ranges(&self.0.items).count() as u16);
+            iter_class_ranges(&self.0.items).for_each(|obj| {
                 writer.write(obj.start_glyph_id);
                 writer.write(obj.end_glyph_id);
                 writer.write(obj.class);
@@ -165,9 +167,9 @@ pub mod compile {
                 .zip(self.items.keys().skip(1))
                 .all(|(a, b)| *b - *a == 1);
             if is_contiguous {
-                ClassDefFormat1Writer { inner: self }.describe(writer)
+                ClassDefFormat1Writer(self).describe(writer)
             } else {
-                ClassDefFormat2Writer { inner: self }.describe(writer)
+                ClassDefFormat2Writer(self).describe(writer)
             }
         }
     }
@@ -207,10 +209,72 @@ pub mod compile {
 
     impl Table for CoverageTable {
         fn describe(&self, writer: &mut crate::compile::TableWriter) {
-            //TODO: use some heuristic to decide we should format2 sometimes
-            writer.write(1u16);
-            writer.write(self.glyphs.len() as u16);
-            writer.write(self.glyphs.as_slice());
+            if should_choose_coverage_format_2(&self.glyphs) {
+                CoverageTableFormat2Writer(self).describe(writer);
+            } else {
+                CoverageTableFormat1Writer(self).describe(writer);
+            }
         }
+    }
+
+    impl Table for CoverageTableFormat1Writer<'_> {
+        fn describe(&self, writer: &mut crate::compile::TableWriter) {
+            writer.write(1u16);
+            writer.write(self.0.glyphs.len() as u16);
+            writer.write(self.0.glyphs.as_slice());
+        }
+    }
+
+    impl Table for CoverageTableFormat2Writer<'_> {
+        fn describe(&self, writer: &mut crate::compile::TableWriter) {
+            writer.write(2u16);
+            writer.write(iter_ranges(&self.0.glyphs).count() as u16);
+            for range in iter_ranges(&self.0.glyphs) {
+                writer.write(range.start_glyph_id);
+                writer.write(range.end_glyph_id);
+                writer.write(range.start_coverage_index);
+            }
+        }
+    }
+
+    //TODO: this can be fancier; we probably want to do something like find the
+    // percentage of glyphs that are in contiguous ranges, or something?
+    fn should_choose_coverage_format_2(glyphs: &[GlyphId]) -> bool {
+        glyphs.len() > 3
+            && glyphs
+                .iter()
+                .zip(glyphs.iter().skip(1))
+                .all(|(a, b)| b - a == 1)
+    }
+
+    fn iter_ranges(glyphs: &[GlyphId]) -> impl Iterator<Item = super::RangeRecord> + '_ {
+        let mut cur_range = glyphs.first().copied().map(|g| (g, g));
+        let mut len = 0u16;
+        let mut iter = glyphs.iter().skip(1).copied();
+
+        #[allow(clippy::while_let_on_iterator)]
+        std::iter::from_fn(move || {
+            while let Some(glyph) = iter.next() {
+                match cur_range {
+                    None => return None,
+                    Some((a, b)) if glyph - b == 1 => cur_range = Some((a, glyph)),
+                    Some((a, b)) => {
+                        let result = super::RangeRecord {
+                            start_glyph_id: a.into(),
+                            end_glyph_id: b.into(),
+                            start_coverage_index: len.into(),
+                        };
+                        cur_range = Some((glyph, glyph));
+                        len += 1 + b - a;
+                        return Some(result);
+                    }
+                }
+            }
+            cur_range.take().map(|(start, end)| super::RangeRecord {
+                start_glyph_id: start.into(),
+                end_glyph_id: end.into(),
+                start_coverage_index: len.into(),
+            })
+        })
     }
 }
