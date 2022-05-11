@@ -2,12 +2,17 @@
 
 use std::collections::HashMap;
 
-use font_types::{BigEndian, Offset, OffsetLen, Scalar, Uint24};
+use font_types::{BigEndian, Offset as AnyOffset, OffsetLen, Scalar, Uint24};
 
-mod cmap;
+//mod cmap;
 mod graph;
+mod offsets;
 
 use graph::{ObjectId, ObjectStore};
+pub use offsets::{
+    NullableOffsetMarker16, NullableOffsetMarker24, NullableOffsetMarker32, OffsetMarker16,
+    OffsetMarker24, OffsetMarker32,
+};
 
 use self::graph::Graph;
 
@@ -28,21 +33,6 @@ pub struct TableWriter {
     ///
     /// Tables are processed as they are encountered (as subtables)
     stack: Vec<TableData>,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct OffsetMarker<T> {
-    object: ObjectId,
-    phantom: std::marker::PhantomData<T>,
-}
-
-impl<T: Offset> OffsetMarker<T> {
-    pub(crate) fn new(object: ObjectId) -> Self {
-        OffsetMarker {
-            object,
-            phantom: std::marker::PhantomData,
-        }
-    }
 }
 
 /// A trait for types that can fully resolve themselves.
@@ -149,17 +139,10 @@ impl TableWriter {
             .extend_from_slice(bytes)
     }
 
-    pub fn write_offset<T: Offset>(&mut self, obj: &dyn FontWrite) {
+    pub fn write_offset<T: AnyOffset>(&mut self, obj: &dyn FontWrite) {
         let obj_id = self.add_table(obj);
         let data = self.stack.last_mut().unwrap();
         data.add_offset::<T>(obj_id);
-    }
-
-    pub fn write_offset_marker<T: Offset>(&mut self, marker: OffsetMarker<T>) {
-        self.stack
-            .last_mut()
-            .unwrap()
-            .add_offset::<T>(marker.object);
     }
 }
 
@@ -197,7 +180,7 @@ struct OffsetRecord {
 }
 
 impl TableData {
-    fn add_offset<T: Offset>(&mut self, object: ObjectId) {
+    fn add_offset<T: AnyOffset>(&mut self, object: ObjectId) {
         self.offsets.push(OffsetRecord {
             pos: self.bytes.len() as u32,
             len: T::SIZE,
@@ -244,7 +227,13 @@ impl<T: Scalar + FontWrite> FontWrite for BigEndian<T> {
     }
 }
 
-impl<T: FontWrite> FontWrite for &'_ [T] {
+//impl<T: FontWrite> FontWrite for &'_ [T] {
+//fn write_into(&self, writer: &mut TableWriter) {
+//self.iter().for_each(|item| item.write_into(writer))
+//}
+//}
+
+impl<T: FontWrite> FontWrite for [T] {
     fn write_into(&self, writer: &mut TableWriter) {
         self.iter().for_each(|item| item.write_into(writer))
     }

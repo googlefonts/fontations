@@ -256,7 +256,7 @@ mod compile {
 
     use std::collections::BTreeMap;
 
-    use crate::compile::{FontWrite, TableWriter, ToOwnedImpl};
+    use crate::compile::{FontWrite, OffsetMarker32, TableWriter, ToOwnedImpl};
     use crate::layout::compile::{ClassDef, CoverageTable};
     use font_types::{FontRead, GlyphId, Offset, Offset16, Offset32};
 
@@ -450,6 +450,18 @@ mod compile {
             for table in &self.tables {
                 writer.write_offset::<Offset32>(table);
             }
+        }
+    }
+
+    pub struct MarkGlyphSetsNEXT {
+        pub tables: Vec<OffsetMarker32<CoverageTable>>,
+    }
+
+    impl FontWrite for MarkGlyphSetsNEXT {
+        fn write_into(&self, writer: &mut TableWriter) {
+            1u16.write_into(writer);
+            (self.tables.len() as u16).write_into(writer);
+            self.tables.write_into(writer);
         }
     }
 
