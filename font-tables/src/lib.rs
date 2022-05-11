@@ -20,6 +20,10 @@ pub mod compile;
 pub mod layout;
 pub mod tables;
 
+#[cfg(any(test, feature = "diagnostics"))]
+#[cfg_attr(any(test, feature = "diagnostics"), doc(hidden))]
+pub mod hex_diff;
+
 #[path = "../generated/generated_font.rs"]
 mod generated;
 

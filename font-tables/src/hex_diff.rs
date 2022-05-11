@@ -17,7 +17,7 @@ macro_rules! assert_hex_eq {
         $crate::assert_hex_eq!(@ $left, $right, ": ", $($arg)+);
     });
     (@ $left:expr, $right:expr, $maybe_semicolon:expr, $($arg:tt)*) => ({
-        let to_diff = $crate::compile::hex_diff::ToDiff { left: $left, right: $right };
+        let to_diff = $crate::hex_diff::ToDiff { left: $left, right: $right };
         if (to_diff.left != to_diff.right) {
             ::std::panic!("assertion failed: `(left == right)`{}{}\
                \n\
@@ -31,15 +31,9 @@ macro_rules! assert_hex_eq {
     });
 }
 
-//macro_rules! paint {
-//($f:expr, $colour:expr, $fmt:expr, $($args:tt)*) => (
-//write!($f, "{}", $colour.paint(format!($fmt, $($args)*)))
-//)
-//}
-
-pub(crate) struct ToDiff<'a> {
-    pub(crate) left: &'a [u8],
-    pub(crate) right: &'a [u8],
+pub struct ToDiff<'a> {
+    pub left: &'a [u8],
+    pub right: &'a [u8],
 }
 
 impl std::fmt::Display for ToDiff<'_> {
@@ -81,6 +75,14 @@ impl ToDiff<'_> {
                 diff::Result::Right(byte) => right.push(DiffItem::Different(*byte)),
             }
         }
+
+        while left.len() < right.len() {
+            left.push(DiffItem::Blank);
+        }
+        while right.len() < left.len() {
+            right.push(DiffItem::Blank);
+        }
+
         DiffResult { left, right }
     }
 }

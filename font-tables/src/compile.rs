@@ -11,9 +11,6 @@ use graph::{ObjectId, ObjectStore};
 
 use self::graph::Graph;
 
-#[cfg(test)]
-mod hex_diff;
-
 pub trait Table {
     /// Write our data and information about offsets into this [TableWriter].
     fn describe(&self, writer: &mut TableWriter);

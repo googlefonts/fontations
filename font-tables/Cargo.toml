@@ -8,13 +8,20 @@ license = "MIT/Apache-2.0"
 [features]
 std = []
 compile = ["std"]
+diagnostics = ["diff", "ansi_term"]
 default = ["compile"]
 
 [dependencies]
 font-types = { path = "../font-types" }
 zerocopy = { version = "0.6.1" }
 bitflags = "1.3"
+diff = { version = "0.1.12", optional = true }
+ansi_term = { version = "0.12.1", optional = true }
 
 [dev-dependencies]
 diff = "0.1.12"
 ansi_term = "0.12.1"
+
+[[example]]
+name = "gdef_check"
+required-features = ["compile", "diagnostics"]

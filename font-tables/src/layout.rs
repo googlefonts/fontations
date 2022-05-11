@@ -59,6 +59,17 @@ impl ClassDefFormat2<'_> {
     }
 }
 
+impl ClassDef<'_> {
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
+        let (one, two) = match self {
+            Self::Format1(table) => (Some(table.iter()), None),
+            Self::Format2(table) => (None, Some(table.iter())),
+        };
+
+        one.into_iter().flatten().chain(two.into_iter().flatten())
+    }
+}
+
 #[cfg(feature = "compile")]
 impl ToOwnedImpl for ClassDef<'_> {
     type Owned = compile::ClassDef;
