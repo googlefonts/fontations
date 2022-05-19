@@ -16,6 +16,7 @@ use self::attrs::ItemAttrs;
 
 pub struct Items {
     pub docs: Vec<syn::Attribute>,
+    pub use_stmts: Vec<SimpleUse>,
     pub items: Vec<Item>,
     pub helpers: Vec<syn::ItemFn>,
 }
@@ -102,9 +103,34 @@ pub struct ArrayField {
     pub variable_size: Option<syn::Path>,
 }
 
+/// A simple 'use' statement consisting of a single path.
+pub struct SimpleUse(syn::Path);
+
+impl Parse for SimpleUse {
+    fn parse(input: ParseStream) -> Result<Self, syn::Error> {
+        let _use_token = input.parse::<Token![use]>()?;
+        let path: syn::Path = input.parse().map_err(|_| {
+            syn::Error::new(
+                _use_token.span(),
+                "only simple/single use statements of form 'use path::to::Item' are supported",
+            )
+        })?;
+        input.parse::<Token![;]>()?;
+        Ok(SimpleUse(path))
+    }
+}
+
+impl ToTokens for SimpleUse {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        let path = &self.0;
+        tokens.extend(quote!(use #path;))
+    }
+}
+
 impl Parse for Items {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
         let docs = get_optional_module_docs(input)?;
+        let use_stmts = get_use_statements(input)?;
         let mut items = Vec::new();
         let mut helpers = Vec::new();
         while !input.is_empty() {
@@ -115,6 +141,7 @@ impl Parse for Items {
             }
         }
         Ok(Self {
+            use_stmts,
             docs,
             items,
             helpers,
@@ -533,6 +560,15 @@ fn get_optional_attributes(input: ParseStream) -> Result<Vec<syn::Attribute>, sy
     let mut result = Vec::new();
     while input.lookahead1().peek(Token![#]) {
         result.extend(Attribute::parse_outer(input)?);
+    }
+    Ok(result)
+}
+
+fn get_use_statements(input: ParseStream) -> Result<Vec<SimpleUse>, syn::Error> {
+    let mut result = Vec::new();
+    while input.peek(Token![use]) {
+        let item = SimpleUse::parse(input)?;
+        result.push(item);
     }
     Ok(result)
 }
