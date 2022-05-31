@@ -120,7 +120,7 @@ impl Parse for SimpleUse {
     }
 }
 
-impl ToTokens for SimpleUse {
+impl quote::ToTokens for SimpleUse {
     fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
         let path = &self.0;
         tokens.extend(quote!(use #path;))

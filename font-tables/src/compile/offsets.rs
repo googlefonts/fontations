@@ -2,7 +2,7 @@
 
 use font_types::{Offset, Offset16, Offset24, Offset32};
 
-use super::{FontWrite, ToOwnedImpl};
+use super::FontWrite;
 
 /// An offset subtable.
 pub struct OffsetMarker<W, T> {

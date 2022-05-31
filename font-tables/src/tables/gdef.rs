@@ -9,7 +9,7 @@ pub use generated::*;
 
 #[cfg(feature = "compile")]
 use crate::{
-    compile::{ToOwnedImpl, ToOwnedTable},
+    compile::{FromObjRef, ToOwnedTable},
     layout::CoverageTable,
 };
 #[cfg(feature = "compile")]
@@ -45,16 +45,15 @@ impl<'a> Gdef<'a> {
 }
 
 #[cfg(feature = "compile")]
-impl ToOwnedImpl for Gdef1_0<'_> {
-    type Owned = compile::Gdef;
-    fn to_owned_impl(&self, _offset_data: &[u8]) -> Option<Self::Owned> {
-        let offset_data = self.bytes();
+impl FromObjRef<Gdef1_0<'_>> for compile::Gdef {
+    fn from_obj(obj: &Gdef1_0<'_>, _offset_data: &[u8]) -> Option<Self> {
+        let offset_data = obj.bytes();
         compile::Gdef::new(
             offset_data,
-            self.glyph_class_def_offset(),
-            self.attach_list_offset(),
-            self.lig_caret_list_offset(),
-            self.mark_attach_class_def_offset(),
+            obj.glyph_class_def_offset(),
+            obj.attach_list_offset(),
+            obj.lig_caret_list_offset(),
+            obj.mark_attach_class_def_offset(),
             None,
             None,
         )
@@ -62,70 +61,72 @@ impl ToOwnedImpl for Gdef1_0<'_> {
 }
 
 #[cfg(feature = "compile")]
-impl ToOwnedImpl for Gdef1_2<'_> {
-    type Owned = compile::Gdef;
-    fn to_owned_impl(&self, _offset_data: &[u8]) -> Option<Self::Owned> {
-        let offset_data = self.bytes();
+impl FromObjRef<Gdef1_2<'_>> for compile::Gdef {
+    fn from_obj(obj: &Gdef1_2<'_>, _offset_data: &[u8]) -> Option<Self> {
+        let offset_data = obj.bytes();
         compile::Gdef::new(
             offset_data,
-            self.glyph_class_def_offset(),
-            self.attach_list_offset(),
-            self.lig_caret_list_offset(),
-            self.mark_attach_class_def_offset(),
-            Some(self.mark_glyph_sets_def_offset()),
+            obj.glyph_class_def_offset(),
+            obj.attach_list_offset(),
+            obj.lig_caret_list_offset(),
+            obj.mark_attach_class_def_offset(),
+            Some(obj.mark_glyph_sets_def_offset()),
             None,
         )
     }
 }
 
 #[cfg(feature = "compile")]
-impl ToOwnedImpl for Gdef1_3<'_> {
-    type Owned = compile::Gdef;
-    fn to_owned_impl(&self, _offset_data: &[u8]) -> Option<Self::Owned> {
-        let offset_data = self.bytes();
+impl FromObjRef<Gdef1_3<'_>> for compile::Gdef {
+    fn from_obj(obj: &Gdef1_3, _offset_data: &[u8]) -> Option<Self> {
+        let offset_data = obj.bytes();
         compile::Gdef::new(
             offset_data,
-            self.glyph_class_def_offset(),
-            self.attach_list_offset(),
-            self.lig_caret_list_offset(),
-            self.mark_attach_class_def_offset(),
-            Some(self.mark_glyph_sets_def_offset()),
-            Some(self.item_var_store_offset()),
+            obj.glyph_class_def_offset(),
+            obj.attach_list_offset(),
+            obj.lig_caret_list_offset(),
+            obj.mark_attach_class_def_offset(),
+            Some(obj.mark_glyph_sets_def_offset()),
+            Some(obj.item_var_store_offset()),
         )
     }
 }
 
 #[cfg(feature = "compile")]
-impl ToOwnedImpl for Gdef<'_> {
-    type Owned = compile::Gdef;
-
-    fn to_owned_impl(&self, data: &[u8]) -> Option<Self::Owned> {
-        match self {
-            Self::Gdef1_0(t) => t.to_owned_impl(data),
-            Self::Gdef1_2(t) => t.to_owned_impl(data),
-            Self::Gdef1_3(t) => t.to_owned_impl(data),
+impl FromObjRef<Gdef<'_>> for compile::Gdef {
+    fn from_obj(obj: &Gdef<'_>, offset_data: &[u8]) -> Option<Self> {
+        match obj {
+            Gdef::Gdef1_0(t) => Self::from_obj(t, offset_data),
+            Gdef::Gdef1_2(t) => Self::from_obj(t, offset_data),
+            Gdef::Gdef1_3(t) => Self::from_obj(t, offset_data),
         }
     }
 }
 
 #[cfg(feature = "compile")]
-impl ToOwnedTable for Gdef1_0<'_> {}
+impl ToOwnedTable for Gdef1_0<'_> {
+    type Owned = compile::Gdef;
+}
 #[cfg(feature = "compile")]
-impl ToOwnedTable for Gdef1_2<'_> {}
+impl ToOwnedTable for Gdef1_2<'_> {
+    type Owned = compile::Gdef;
+}
 #[cfg(feature = "compile")]
-impl ToOwnedTable for Gdef1_3<'_> {}
+impl ToOwnedTable for Gdef1_3<'_> {
+    type Owned = compile::Gdef;
+}
 #[cfg(feature = "compile")]
-impl ToOwnedTable for Gdef<'_> {}
+impl ToOwnedTable for Gdef<'_> {
+    type Owned = compile::Gdef;
+}
 
 #[cfg(feature = "compile")]
-impl ToOwnedImpl for AttachList<'_> {
-    type Owned = compile::AttachList;
+impl FromObjRef<AttachList<'_>> for compile::AttachList {
+    fn from_obj(obj: &AttachList<'_>, _offset_data: &[u8]) -> Option<Self> {
+        let offset_data = obj.bytes();
+        let coverage = obj.coverage_offset().read::<CoverageTable>(offset_data)?;
 
-    fn to_owned_impl(&self, _offset_data: &[u8]) -> Option<Self::Owned> {
-        let offset_data = self.bytes();
-        let coverage = self.coverage_offset().read::<CoverageTable>(offset_data)?;
-
-        let attach_points = self.attach_point_offsets().iter().map(|off| {
+        let attach_points = obj.attach_point_offsets().iter().map(|off| {
             off.get()
                 .read::<AttachPoint>(offset_data)
                 .map(|x| {
@@ -143,7 +144,9 @@ impl ToOwnedImpl for AttachList<'_> {
 }
 
 #[cfg(feature = "compile")]
-impl ToOwnedTable for AttachList<'_> {}
+impl ToOwnedTable for AttachList<'_> {
+    type Owned = compile::AttachList;
+}
 
 impl LigGlyph<'_> {
     fn caret_values(&self) -> impl Iterator<Item = CaretValue> + '_ {
@@ -155,19 +158,17 @@ impl LigGlyph<'_> {
 }
 
 #[cfg(feature = "compile")]
-impl ToOwnedImpl for LigCaretList<'_> {
-    type Owned = compile::LigCaretList;
+impl FromObjRef<LigCaretList<'_>> for compile::LigCaretList {
+    fn from_obj(obj: &LigCaretList<'_>, _offset_data: &[u8]) -> Option<Self> {
+        let offset_data = obj.bytes();
+        let coverage = obj.coverage_offset().read::<CoverageTable>(offset_data)?;
 
-    fn to_owned_impl(&self, _offset_data: &[u8]) -> Option<Self::Owned> {
-        let offset_data = self.bytes();
-        let coverage = self.coverage_offset().read::<CoverageTable>(offset_data)?;
-
-        let attach_points = self.lig_glyph_offsets().iter().map(|off| {
+        let attach_points = obj.lig_glyph_offsets().iter().map(|off| {
             off.get()
                 .read::<LigGlyph>(offset_data)
                 .map(|x| {
                     x.caret_values()
-                        .flat_map(|car| car.to_owned_impl(x.bytes()))
+                        .flat_map(|car| FromObjRef::from_obj(&car, x.bytes()))
                         .collect::<Vec<_>>()
                 })
                 .unwrap_or_default()
@@ -179,14 +180,14 @@ impl ToOwnedImpl for LigCaretList<'_> {
 }
 
 #[cfg(feature = "compile")]
-impl ToOwnedTable for LigCaretList<'_> {}
+impl ToOwnedTable for LigCaretList<'_> {
+    type Owned = compile::LigCaretList;
+}
 
 #[cfg(feature = "compile")]
-impl ToOwnedImpl for CaretValue {
-    type Owned = compile::CaretValue;
-
-    fn to_owned_impl(&self, _offset_data: &[u8]) -> Option<Self::Owned> {
-        let caret = match self {
+impl FromObjRef<CaretValue> for compile::CaretValue {
+    fn from_obj(obj: &CaretValue, _offset_data: &[u8]) -> Option<Self> {
+        let caret = match obj {
             CaretValue::Format1(caret) => compile::CaretValue::Format1 {
                 coordinate: caret.coordinate(),
             },
@@ -200,17 +201,15 @@ impl ToOwnedImpl for CaretValue {
 }
 
 #[cfg(feature = "compile")]
-impl ToOwnedImpl for MarkGlyphSets<'_> {
-    type Owned = compile::MarkGlyphSets;
-
-    fn to_owned_impl(&self, _offset_data: &[u8]) -> Option<Self::Owned> {
-        let tables = self
+impl FromObjRef<MarkGlyphSets<'_>> for compile::MarkGlyphSets {
+    fn from_obj(obj: &MarkGlyphSets<'_>, _offset_data: &[u8]) -> Option<Self> {
+        let tables = obj
             .coverage_offsets()
             .iter()
             .flat_map(|off| {
                 off.get()
-                    .read::<CoverageTable>(self.bytes())
-                    .and_then(|cov| cov.to_owned_impl(self.bytes()))
+                    .read::<CoverageTable>(obj.bytes())
+                    .and_then(|cov| FromObjRef::from_obj(&cov, obj.bytes()))
             })
             .collect::<Vec<_>>();
         Some(compile::MarkGlyphSets { tables })
@@ -218,7 +217,10 @@ impl ToOwnedImpl for MarkGlyphSets<'_> {
 }
 
 #[cfg(feature = "compile")]
-impl ToOwnedTable for MarkGlyphSets<'_> {}
+impl ToOwnedTable for MarkGlyphSets<'_> {
+    type Owned = compile::MarkGlyphSets;
+}
+
 //impl ToOwnedImpl for AttachList<'_> {
 //type Owned = compile::AttachListAlt;
 
@@ -256,7 +258,7 @@ mod compile {
 
     use std::collections::BTreeMap;
 
-    use crate::compile::{FontWrite, OffsetMarker32, TableWriter, ToOwnedImpl};
+    use crate::compile::{FontWrite, FromObjRef, OffsetMarker32, TableWriter};
     use crate::layout::compile::{ClassDef, CoverageTable};
     use font_types::{FontRead, GlyphId, Offset, Offset16, Offset32};
 
@@ -279,12 +281,13 @@ mod compile {
             mark_glyph_sets_off: Option<Offset16>,
             _item_var_store_off: Option<Offset32>,
         ) -> Option<Self> {
-            let glyph_class_def = resolve_owned::<_, super::ClassDef>(glyph_class_off, bytes);
-            let attach_list = resolve_owned::<_, super::AttachList>(attach_list_off, bytes);
-            let lig_caret_list = resolve_owned::<_, super::LigCaretList>(lig_caret_off, bytes);
-            let mark_attach_class_def = resolve_owned::<_, super::ClassDef>(mark_attach_off, bytes);
+            let glyph_class_def = resolve_owned::<_, super::ClassDef, _>(glyph_class_off, bytes);
+            let attach_list = resolve_owned::<_, super::AttachList, _>(attach_list_off, bytes);
+            let lig_caret_list = resolve_owned::<_, super::LigCaretList, _>(lig_caret_off, bytes);
+            let mark_attach_class_def =
+                resolve_owned::<_, super::ClassDef, _>(mark_attach_off, bytes);
             let mark_glyph_sets_def = mark_glyph_sets_off
-                .and_then(|off| resolve_owned::<_, super::MarkGlyphSets>(off, bytes));
+                .and_then(|off| resolve_owned::<_, super::MarkGlyphSets, _>(off, bytes));
 
             Some(Gdef {
                 glyph_class_def,
@@ -296,11 +299,14 @@ mod compile {
         }
     }
 
-    fn resolve_owned<'a, O: Offset, T: FontRead<'a> + ToOwnedImpl>(
-        off: O,
-        bytes: &'a [u8],
-    ) -> Option<T::Owned> {
-        off.read::<T>(bytes).and_then(|t| t.to_owned_impl(bytes))
+    fn resolve_owned<'a, O, A, B>(off: O, bytes: &'a [u8]) -> Option<B>
+    where
+        O: Offset,
+        A: FontRead<'a>,
+        B: FromObjRef<A>,
+    {
+        let obj: A = off.read(bytes)?;
+        B::from_obj(&obj, bytes)
     }
 
     //pub struct Gdef1_0 {
