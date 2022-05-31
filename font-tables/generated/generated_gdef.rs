@@ -613,13 +613,13 @@ impl<'a> font_types::OffsetHost<'a> for LigGlyph<'a> {
 }
 
 /// [Caret Value Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caret-value-tables)
-pub enum CaretValue {
+pub enum CaretValue<'a> {
     Format1(CaretValueFormat1),
     Format2(CaretValueFormat2),
-    Format3(CaretValueFormat3),
+    Format3(CaretValueFormat3<'a>),
 }
 
-impl<'a> font_types::FontRead<'a> for CaretValue {
+impl<'a> font_types::FontRead<'a> for CaretValue<'a> {
     fn read(bytes: &'a [u8]) -> Option<Self> {
         let version: BigEndian<u16> = font_types::FontRead::read(bytes)?;
         match version.get() {
@@ -682,20 +682,33 @@ impl CaretValueFormat2 {
 }
 
 /// [CaretValue Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-3)
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
-#[repr(C)]
-pub struct CaretValueFormat3 {
-    /// Format identifier-format = 3
-    pub caret_value_format: BigEndian<u16>,
-    /// X or Y value, in design units
-    pub coordinate: BigEndian<i16>,
-    /// Offset to Device table (non-variable font) / Variation Index
-    /// table (variable font) for X or Y value-from beginning of
-    /// CaretValue table
-    pub device_offset: BigEndian<Offset16>,
+pub struct CaretValueFormat3<'a> {
+    caret_value_format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
+    coordinate: zerocopy::LayoutVerified<&'a [u8], BigEndian<i16>>,
+    device_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
+    offset_bytes: &'a [u8],
 }
 
-impl CaretValueFormat3 {
+impl<'a> font_types::FontRead<'a> for CaretValueFormat3<'a> {
+    fn read(bytes: &'a [u8]) -> Option<Self> {
+        let offset_bytes = bytes;
+        let (caret_value_format, bytes) =
+            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
+        let (coordinate, bytes) =
+            zerocopy::LayoutVerified::<_, BigEndian<i16>>::new_unaligned_from_prefix(bytes)?;
+        let (device_offset, bytes) =
+            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
+        let _ = bytes;
+        Some(CaretValueFormat3 {
+            caret_value_format,
+            coordinate,
+            device_offset,
+            offset_bytes,
+        })
+    }
+}
+
+impl<'a> CaretValueFormat3<'a> {
     /// Format identifier-format = 3
     pub fn caret_value_format(&self) -> u16 {
         self.caret_value_format.get()
@@ -711,6 +724,12 @@ impl CaretValueFormat3 {
     /// CaretValue table
     pub fn device_offset(&self) -> Offset16 {
         self.device_offset.get()
+    }
+}
+
+impl<'a> font_types::OffsetHost<'a> for CaretValueFormat3<'a> {
+    fn bytes(&self) -> &'a [u8] {
+        self.offset_bytes
     }
 }
 

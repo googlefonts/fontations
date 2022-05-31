@@ -130,7 +130,7 @@ impl FieldAttrs {
     pub fn into_array(
         self,
         name: syn::Ident,
-        inner_typ: syn::Path,
+        inner_typ: super::FieldType,
         inner_lifetime: Option<syn::Lifetime>,
     ) -> Result<ArrayField, syn::Error> {
         if let Some(path) = &self.hidden {
@@ -162,7 +162,11 @@ impl FieldAttrs {
         })
     }
 
-    pub fn into_single(self, name: syn::Ident, typ: syn::Path) -> Result<SingleField, syn::Error> {
+    pub fn into_single(
+        self,
+        name: syn::Ident,
+        typ: super::FieldType,
+    ) -> Result<SingleField, syn::Error> {
         if let Some(span) = self.count.as_ref().map(Count::span) {
             return Err(syn::Error::new(
                 span,

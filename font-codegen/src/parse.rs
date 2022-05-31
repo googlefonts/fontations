@@ -1,4 +1,4 @@
-use quote::{quote, quote_spanned};
+use quote::{quote, quote_spanned, ToTokens};
 use syn::{
     braced, bracketed, parenthesized,
     parse::{Parse, ParseStream},
@@ -89,15 +89,28 @@ pub enum Field {
 pub struct SingleField {
     pub docs: Vec<syn::Attribute>,
     pub name: syn::Ident,
-    pub typ: syn::Path,
+    pub typ: FieldType,
     pub hidden: Option<syn::Path>,
     pub offset: Option<Offset>,
+}
+
+pub enum FieldType {
+    Offset {
+        offset_type: syn::Ident,
+        target_type: Option<syn::Ident>,
+    },
+    Scalar {
+        typ: syn::Ident,
+    },
+    Other {
+        typ: syn::Path,
+    },
 }
 
 pub struct ArrayField {
     pub docs: Vec<syn::Attribute>,
     pub name: syn::Ident,
-    pub inner_typ: syn::Path,
+    pub inner_typ: FieldType,
     pub inner_lifetime: Option<syn::Lifetime>,
     pub count: Count,
     pub variable_size: Option<syn::Path>,
@@ -245,9 +258,11 @@ impl Parse for Field {
             bracketed!(content in input);
             let typ = content.parse::<syn::Path>()?;
             let lifetime = ensure_single_lifetime(&typ)?;
+            let typ = parse_field_type(&typ)?;
             attrs.into_array(name, typ, lifetime).map(Field::Array)
         } else {
-            attrs.into_single(name, input.parse()?).map(Field::Single)
+            let typ = parse_field_type(&input.parse()?)?;
+            attrs.into_single(name, typ).map(Field::Single)
         }
     }
 }
@@ -302,11 +317,11 @@ impl Field {
         let span = name.span();
         let init_fn = match self {
             Field::Single(value) => {
-                let typ = &value.typ;
+                let typ = value.typ.view_field_tokens();
                 quote_spanned!(span=> zerocopy::LayoutVerified::<_, #typ>::new_unaligned_from_prefix(bytes)?)
             }
             Field::Array(array) if array.variable_size.is_none() => {
-                let typ = &array.inner_typ;
+                let typ = array.inner_typ.view_field_tokens();
                 let count = match &array.count {
                     Count::Field(name) => {
                         let span = name.span();
@@ -356,7 +371,7 @@ impl Field {
         match self {
             Field::Single(field) => field.cooked_type_tokens(),
             Field::Array(array) => {
-                let typ = &array.inner_typ;
+                let typ = array.inner_typ.view_field_tokens();
                 let span = array.name.span();
                 quote_spanned!(span=> &[#typ])
             }
@@ -384,17 +399,17 @@ impl Field {
     pub fn view_field_decl(&self) -> proc_macro2::TokenStream {
         let name = self.name();
         match self {
-            Field::Single(scalar) => {
-                let typ = &scalar.typ;
+            Field::Single(item) => {
+                let typ = item.typ.view_field_tokens();
                 let span = typ.span();
-                let allow_dead = scalar.hidden.as_ref().map(|hidden| {
+                let allow_dead = item.hidden.as_ref().map(|hidden| {
                     let span = hidden.span();
                     quote_spanned!(span=> #[allow(dead_code)])
                 });
                 quote_spanned!(span=> #allow_dead #name: zerocopy::LayoutVerified<&'a [u8], #typ>)
             }
             Field::Array(array) if array.variable_size.is_none() => {
-                let typ = &array.inner_typ;
+                let typ = array.inner_typ.view_field_tokens();
                 let span = typ.span();
                 quote_spanned!(span=> #name: zerocopy::LayoutVerified<&'a [u8], [#typ]>)
             }
@@ -403,9 +418,26 @@ impl Field {
     }
 }
 
+impl FieldType {
+    pub fn view_field_tokens(&self) -> proc_macro2::TokenStream {
+        match self {
+            Self::Offset {
+                offset_type,
+                target_type,
+            } => match target_type {
+                //Some(target) => quote!(BigEndian<#offset_type<#target<'a>>>),
+                Some(_) => quote!(BigEndian<#offset_type>),
+                None => quote!(BigEndian<#offset_type>),
+            },
+            Self::Other { typ } => typ.to_token_stream(),
+            Self::Scalar { typ } => quote!(BigEndian<#typ>),
+        }
+    }
+}
+
 impl SingleField {
     pub fn is_be_wrapper(&self) -> bool {
-        matches!(self.typ.segments.last(), Some(seg) if seg.ident == "BigEndian")
+        !matches!(&self.typ, FieldType::Other { .. })
     }
 
     /// The return type of a getter of this type.
@@ -413,22 +445,15 @@ impl SingleField {
     /// this is about returning T for BigEndian<T>, but returning &T for some
     /// non-scalar T.
     fn cooked_type_tokens(&self) -> proc_macro2::TokenStream {
-        let last = self.typ.segments.last().unwrap();
-        let span = self.typ.span();
-        if last.ident == "BigEndian" {
-            let args = match &last.arguments {
-                syn::PathArguments::AngleBracketed(args) => args,
-                _ => panic!("BigEndian type should always have generic params"),
-            };
-            let last_arg = args.args.last().unwrap();
-            if let syn::GenericArgument::Type(inner) = last_arg {
-                return quote_spanned!(span=> #inner);
-            }
-            panic!("failed to find BigEndian generic type");
+        match &self.typ {
+            //FieldType::Offset {
+            //offset_type,
+            //target_type: Some(targ),
+            //} => quote!(#offset_type<#targ>),
+            FieldType::Offset { offset_type, .. } => quote!(#offset_type),
+            FieldType::Scalar { typ, .. } => quote!(#typ),
+            FieldType::Other { typ } => quote!(&#typ),
         }
-
-        let typ = &self.typ;
-        quote_spanned!(span=> &#typ)
     }
 }
 
@@ -593,6 +618,47 @@ fn get_optional_module_docs(input: ParseStream) -> Result<Vec<syn::Attribute>, s
     Ok(result)
 }
 
+fn parse_field_type(input: &syn::Path) -> Result<FieldType, syn::Error> {
+    let last = input.segments.last().expect("do zero-length paths exist?");
+    if last.ident != "BigEndian" {
+        return Ok(FieldType::Other { typ: input.clone() });
+    }
+    let inner = get_single_generic_type_arg(&last.arguments).ok_or_else(|| {
+        syn::Error::new(last.ident.span(), "expected single generic type argument")
+    })?;
+    let last = inner.segments.last().unwrap();
+    if ["Offset16", "Offset24", "Offset32"].contains(&last.ident.to_string().as_str()) {
+        let target_type = get_single_generic_type_arg(&last.arguments)
+            .map(|p| p.segments.last().unwrap().ident.clone());
+        return Ok(FieldType::Offset {
+            target_type,
+            offset_type: last.ident.clone(),
+        });
+    }
+    if last.arguments.is_empty() {
+        Ok(FieldType::Scalar {
+            typ: last.ident.clone(),
+        })
+    } else {
+        Err(syn::Error::new(last.span(), "unexpected arguments"))
+    }
+}
+
+fn get_single_generic_type_arg(input: &syn::PathArguments) -> Option<syn::Path> {
+    match input {
+        syn::PathArguments::AngleBracketed(args) if args.args.len() == 1 => {
+            let arg = args.args.last().unwrap();
+            if let syn::GenericArgument::Type(syn::Type::Path(path)) = arg {
+                if path.qself.is_none() && path.path.segments.len() == 1 {
+                    return Some(path.path.clone());
+                }
+            }
+            None
+        }
+        _ => None,
+    }
+}
+
 fn ensure_single_lifetime(input: &syn::Path) -> Result<Option<syn::Lifetime>, syn::Error> {
     match input.segments.last().map(|seg| &seg.arguments) {
         Some(syn::PathArguments::AngleBracketed(args)) => {
@@ -637,3 +703,17 @@ fn validate_lifetime(input: ParseStream) -> Result<Option<syn::Lifetime>, syn::E
     let result = generics.lifetimes().next().map(|lt| &lt.lifetime).cloned();
     Ok(result)
 }
+
+//impl ToTokens for FieldType {
+//fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+//match self {
+//FieldType::Offset {
+//offset_type,
+//target_type: Some(targ),
+//} => tokens.extend(quote!(BigEndian<#offset_type<#targ>>)),
+//FieldType::Offset { offset_type, .. } => tokens.extend(quote!(BigEndian<#offset_type>)),
+//FieldType::Scalar { typ } => tokens.extend(quote!(BigEndian<#typ>)),
+//FieldType::Other { typ } => typ.to_tokens(tokens),
+//}
+//}
+//}

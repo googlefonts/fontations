@@ -332,7 +332,7 @@ fn generate_zerocopy_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream
     let field_types = item
         .fields
         .iter()
-        .map(|field| &field.as_single().unwrap().typ);
+        .map(|field| field.as_single().unwrap().typ.view_field_tokens());
     let field_docs = item
         .fields
         .iter()

@@ -7,16 +7,16 @@ Gdef1_0<'a> {
     minor_version: BigEndian<u16>,
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
-    glyph_class_def_offset: BigEndian<Offset16>,
+    glyph_class_def_offset: BigEndian<Offset16<ClassDef>>,
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
-    attach_list_offset: BigEndian<Offset16>,
+    attach_list_offset: BigEndian<Offset16<AttachList>>,
     /// Offset to ligature caret list table, from beginning of GDEF
     /// header (may be NULL)
-    lig_caret_list_offset: BigEndian<Offset16>,
+    lig_caret_list_offset: BigEndian<Offset16<LigCaretList>>,
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
-    mark_attach_class_def_offset: BigEndian<Offset16>,
+    mark_attach_class_def_offset: BigEndian<Offset16<ClassDef>>,
 }
 
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.2
@@ -28,19 +28,19 @@ Gdef1_2<'a> {
     minor_version: BigEndian<u16>,
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
-    glyph_class_def_offset: BigEndian<Offset16>,
+    glyph_class_def_offset: BigEndian<Offset16<ClassDef>>,
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
-    attach_list_offset: BigEndian<Offset16>,
+    attach_list_offset: BigEndian<Offset16<AttachList>>,
     /// Offset to ligature caret list table, from beginning of GDEF
     /// header (may be NULL)
-    lig_caret_list_offset: BigEndian<Offset16>,
+    lig_caret_list_offset: BigEndian<Offset16<LigCaretList>>,
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
-    mark_attach_class_def_offset: BigEndian<Offset16>,
+    mark_attach_class_def_offset: BigEndian<Offset16<ClassDef>>,
     /// Offset to the table of mark glyph set definitions, from
     /// beginning of GDEF header (may be NULL)
-    mark_glyph_sets_def_offset: BigEndian<Offset16>,
+    mark_glyph_sets_def_offset: BigEndian<Offset16<MarkGlyphSets>>,
 }
 
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.3
@@ -52,19 +52,19 @@ Gdef1_3<'a> {
     minor_version: BigEndian<u16>,
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
-    glyph_class_def_offset: BigEndian<Offset16>,
+    glyph_class_def_offset: BigEndian<Offset16<ClassDef>>,
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
-    attach_list_offset: BigEndian<Offset16>,
+    attach_list_offset: BigEndian<Offset16<AttachList>>,
     /// Offset to ligature caret list table, from beginning of GDEF
     /// header (may be NULL)
-    lig_caret_list_offset: BigEndian<Offset16>,
+    lig_caret_list_offset: BigEndian<Offset16<LigCaretList>>,
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
-    mark_attach_class_def_offset: BigEndian<Offset16>,
+    mark_attach_class_def_offset: BigEndian<Offset16<ClassDef>>,
     /// Offset to the table of mark glyph set definitions, from
     /// beginning of GDEF header (may be NULL)
-    mark_glyph_sets_def_offset: BigEndian<Offset16>,
+    mark_glyph_sets_def_offset: BigEndian<Offset16<MarkGlyphSets>>,
     /// Offset to the Item Variation Store table, from beginning of
     /// GDEF header (may be NULL)
     item_var_store_offset: BigEndian<Offset32>,
@@ -94,13 +94,13 @@ enum GlyphClassDef {
 #[offset_host]
 AttachList<'a> {
     /// Offset to Coverage table - from beginning of AttachList table
-    coverage_offset: BigEndian<Offset16>,
+    coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Number of glyphs with attachment points
     glyph_count: BigEndian<u16>,
     /// Array of offsets to AttachPoint tables-from beginning of
     /// AttachList table-in Coverage Index order
     #[count(glyph_count)]
-    attach_point_offsets: [BigEndian<Offset16>],
+    attach_point_offsets: [BigEndian<Offset16<AttachPoint>>],
 }
 
 /// Part of [AttachList]
@@ -116,13 +116,13 @@ AttachPoint<'a> {
 #[offset_host]
 LigCaretList<'a> {
     /// Offset to Coverage table - from beginning of LigCaretList table
-    coverage_offset: BigEndian<Offset16>,
+    coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Number of ligature glyphs
     lig_glyph_count: BigEndian<u16>,
     /// Array of offsets to LigGlyph tables, from beginning of
     /// LigCaretList table —in Coverage Index order
     #[count(lig_glyph_count)]
-    lig_glyph_offsets: [BigEndian<Offset16>],
+    lig_glyph_offsets: [BigEndian<Offset16<LigGlyph>>],
 }
 
 /// [Ligature Glyph Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-glyph-table)
@@ -133,18 +133,18 @@ LigGlyph<'a> {
     /// Array of offsets to CaretValue tables, from beginning of
     /// LigGlyph table — in increasing coordinate order
     #[count(caret_count)]
-    caret_value_offsets: [BigEndian<Offset16>],
+    caret_value_offsets: [BigEndian<Offset16<CaretValue>>],
 }
 
 /// [Caret Value Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caret-value-tables)
 #[format(u16)]
-enum CaretValue {
+enum CaretValue<'a> {
     #[version(1)]
     Format1(CaretValueFormat1),
     #[version(2)]
     Format2(CaretValueFormat2),
     #[version(3)]
-    Format3(CaretValueFormat3),
+    Format3(CaretValueFormat3<'a>),
 }
 
 /// [CaretValue Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-1)
@@ -164,7 +164,8 @@ CaretValueFormat2 {
 }
 
 /// [CaretValue Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-3)
-CaretValueFormat3 {
+#[offset_host]
+CaretValueFormat3<'a> {
     /// Format identifier-format = 3
     caret_value_format: BigEndian<u16>,
     /// X or Y value, in design units

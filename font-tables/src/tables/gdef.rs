@@ -185,8 +185,8 @@ impl ToOwnedTable for LigCaretList<'_> {
 }
 
 #[cfg(feature = "compile")]
-impl FromObjRef<CaretValue> for compile::CaretValue {
-    fn from_obj(obj: &CaretValue, _offset_data: &[u8]) -> Option<Self> {
+impl FromObjRef<CaretValue<'_>> for compile::CaretValue {
+    fn from_obj(obj: &CaretValue<'_>, _offset_data: &[u8]) -> Option<Self> {
         let caret = match obj {
             CaretValue::Format1(caret) => compile::CaretValue::Format1 {
                 coordinate: caret.coordinate(),
