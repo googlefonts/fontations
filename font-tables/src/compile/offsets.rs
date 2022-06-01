@@ -43,6 +43,16 @@ impl<W, T> OffsetMarker<W, T> {
     }
 }
 
+impl<W: Offset, T> OffsetMarker<W, T> {
+    /// Create a new marker.
+    pub fn new(obj: T) -> Self {
+        OffsetMarker {
+            width: std::marker::PhantomData,
+            obj: Some(obj),
+        }
+    }
+}
+
 impl<W, T> NullableOffsetMarker<W, T> {
     //TODO: how do we handle malformed inputs? do we error earlier than this?
     /// Get the object, if it exists.

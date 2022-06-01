@@ -12,7 +12,7 @@ pub use error::ErrorReport;
 pub fn generate_code(code_str: &str) -> Result<String, syn::Error> {
     let parsed: parse::Items = syn::parse_str(code_str)?;
 
-    let tables = codegen(&parsed).unwrap();
+    let tables = codegen(&parsed)?;
 
     let source_str = rustfmt_wrapper::rustfmt(tables).unwrap();
     // convert doc comment attributes into normal doc comments
@@ -51,11 +51,9 @@ pub fn codegen(items: &parse::Items) -> Result<proc_macro2::TokenStream, syn::Er
 
     let compile_mod = compile_types::generate_compile_module(items)?;
     let module_docs = &items.docs;
-    let use_stmts = &items.use_stmts;
     let helpers = &items.helpers;
     Ok(quote! {
         #(#module_docs)*
-        #(#use_stmts)*
         use font_types::*;
         #(#code)*
         #(#helpers)*

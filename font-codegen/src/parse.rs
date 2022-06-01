@@ -10,9 +10,7 @@ use syn::{
 mod attrs;
 
 pub use attrs::{Compute, Count, Offset};
-use attrs::{FieldAttrs, VariantAttrs};
-
-use self::attrs::ItemAttrs;
+use attrs::{FieldAttrs, ItemAttrs, VariantAttrs};
 
 pub struct Items {
     pub docs: Vec<syn::Attribute>,
@@ -33,6 +31,7 @@ pub struct SingleItem {
     pub docs: Vec<syn::Attribute>,
     pub lifetime: Option<syn::Lifetime>,
     pub offset_host: Option<syn::Path>,
+    pub skip_from_obj: Option<syn::Path>,
     pub init: Vec<syn::Ident>,
     pub name: syn::Ident,
     pub fields: Vec<Field>,
@@ -195,6 +194,7 @@ impl Parse for Item {
             let item = SingleItem {
                 docs: attrs.docs,
                 offset_host: attrs.offset_host,
+                skip_from_obj: attrs.skip_from_obj,
                 init: attrs.init,
                 lifetime,
                 name,
@@ -441,9 +441,57 @@ impl Field {
             _ => panic!("variable arrays are not handled yet, you shouldn't be calling this"),
         }
     }
+
+    pub fn from_obj_expr(&self) -> Result<proc_macro2::TokenStream, syn::Error> {
+        let name = self.name();
+        match self {
+            Field::Single(field) => match &field.typ {
+                FieldType::Scalar { .. } => Ok(quote!(obj.#name())),
+                FieldType::Other { typ } => Ok(quote!(#typ.from_obj(obj.#name(), offset_data)?)),
+                FieldType::Offset {
+                    offset_type,
+                    target_type,
+                } => match &target_type {
+                    Some(target_type) => Ok(
+                        quote!(OffsetMarker::new(#target_type::from_obj(&obj.#name().read(offset_data)?, offset_data)?)),
+                    ),
+                    None => Err(syn::Error::new(
+                        offset_type.span(),
+                        "offsets with unknown types require custom FromObjRef impls",
+                    )),
+                },
+            },
+            Field::Array(field) => {
+                let map_impl = match &field.inner_typ {
+                    FieldType::Scalar { .. } => quote!(Some(item.get())),
+                    FieldType::Other { typ } => quote!(#typ.from_obj(item, offset_data)),
+                    FieldType::Offset {
+                        target_type: Some(target_type),
+                        ..
+                    } => {
+                        quote!(#target_type::from_obj(&item.get().read(offset_data)?, offset_data).map(|obj| OffsetMarker::new(obj)))
+                    }
+                    FieldType::Offset { offset_type, .. } => {
+                        return Err(syn::Error::new(
+                            offset_type.span(),
+                            "offsets with unknown types require custom FromObjRef impls",
+                        ))
+                    }
+                };
+
+                Ok(quote! {
+                    obj.#name().iter().map(|item| #map_impl).collect::<Option<Vec<_>>>()?
+                })
+            }
+        }
+    }
 }
 
 impl FieldType {
+    pub fn is_offset(&self) -> bool {
+        matches!(self, FieldType::Offset { .. })
+    }
+
     pub fn view_field_tokens(&self) -> proc_macro2::TokenStream {
         match self {
             Self::Offset {

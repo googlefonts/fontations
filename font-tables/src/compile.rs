@@ -10,8 +10,8 @@ mod offsets;
 
 use graph::{ObjectId, ObjectStore};
 pub use offsets::{
-    NullableOffsetMarker16, NullableOffsetMarker24, NullableOffsetMarker32, OffsetMarker16,
-    OffsetMarker24, OffsetMarker32,
+    NullableOffsetMarker16, NullableOffsetMarker24, NullableOffsetMarker32, OffsetMarker,
+    OffsetMarker16, OffsetMarker24, OffsetMarker32,
 };
 
 use self::graph::Graph;

@@ -64,6 +64,7 @@ pub struct ItemAttrs {
     pub init: Vec<syn::Ident>,
     pub repr: Option<syn::Ident>,
     pub flags: Option<syn::Ident>,
+    pub skip_from_obj: Option<syn::Path>,
 }
 
 static OFFSET: &str = "offset";
@@ -285,6 +286,7 @@ static FLAGS: &str = "flags";
 static OFFSET_HOST: &str = "offset_host";
 static GENERATE_GETTERS: &str = "generate_getters";
 static INIT: &str = "init";
+static SKIP_FROM_OBJ: &str = "skip_from_obj";
 
 impl ItemAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<ItemAttrs, syn::Error> {
@@ -293,6 +295,9 @@ impl ItemAttrs {
             match attr.parse_meta()? {
                 syn::Meta::Path(path) if path.is_ident(OFFSET_HOST) => {
                     result.offset_host = Some(path)
+                }
+                syn::Meta::Path(path) if path.is_ident(SKIP_FROM_OBJ) => {
+                    result.skip_from_obj = Some(path)
                 }
                 syn::Meta::Path(path) if path.is_ident(GENERATE_GETTERS) => {
                     result.generate_getters = Some(path)

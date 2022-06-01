@@ -1,9 +1,14 @@
+use crate::layout::ClassDef;
+use crate::layout::CoverageTable;
+
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
 #[offset_host]
 Gdef1_0<'a> {
     /// Major version of the GDEF table, = 1
+    #[compute(1)]
     major_version: BigEndian<u16>,
     /// Minor version of the GDEF table, = 0
+    #[compute(0)]
     minor_version: BigEndian<u16>,
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
@@ -23,8 +28,10 @@ Gdef1_0<'a> {
 #[offset_host]
 Gdef1_2<'a> {
     /// Major version of the GDEF table, = 1
+    #[compute(1)]
     major_version: BigEndian<u16>,
     /// Minor version of the GDEF table, = 2
+    #[compute(2)]
     minor_version: BigEndian<u16>,
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
@@ -47,8 +54,10 @@ Gdef1_2<'a> {
 #[offset_host]
 Gdef1_3<'a> {
     /// Major version of the GDEF table, = 1
+    #[compute(1)]
     major_version: BigEndian<u16>,
     /// Minor version of the GDEF table, = 3
+    #[compute(3)]
     minor_version: BigEndian<u16>,
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
@@ -67,7 +76,8 @@ Gdef1_3<'a> {
     mark_glyph_sets_def_offset: BigEndian<Offset16<MarkGlyphSets>>,
     /// Offset to the Item Variation Store table, from beginning of
     /// GDEF header (may be NULL)
-    item_var_store_offset: BigEndian<Offset32>,
+    //FIXME
+    item_var_store_offset: BigEndian<Offset32<ClassDef>>,
 }
 
 #[format(MajorMinor)]
@@ -96,6 +106,7 @@ AttachList<'a> {
     /// Offset to Coverage table - from beginning of AttachList table
     coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Number of glyphs with attachment points
+    #[compute_count(attach_point_offsets)]
     glyph_count: BigEndian<u16>,
     /// Array of offsets to AttachPoint tables-from beginning of
     /// AttachList table-in Coverage Index order
@@ -106,6 +117,7 @@ AttachList<'a> {
 /// Part of [AttachList]
 AttachPoint<'a> {
     /// Number of attachment points on this glyph
+    #[compute_count(point_indices)]
     point_count: BigEndian<u16>,
     /// Array of contour point indices -in increasing numerical order
     #[count(point_count)]
@@ -118,6 +130,7 @@ LigCaretList<'a> {
     /// Offset to Coverage table - from beginning of LigCaretList table
     coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Number of ligature glyphs
+    #[compute_count(lig_glyph_offsets)]
     lig_glyph_count: BigEndian<u16>,
     /// Array of offsets to LigGlyph tables, from beginning of
     /// LigCaretList table —in Coverage Index order
@@ -129,6 +142,7 @@ LigCaretList<'a> {
 #[offset_host]
 LigGlyph<'a> {
     /// Number of CaretValue tables for this ligature (components - 1)
+    #[compute_count(caret_value_offsets)]
     caret_count: BigEndian<u16>,
     /// Array of offsets to CaretValue tables, from beginning of
     /// LigGlyph table — in increasing coordinate order
@@ -150,6 +164,7 @@ enum CaretValue<'a> {
 /// [CaretValue Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-1)
 CaretValueFormat1 {
     /// Format identifier: format = 1
+    #[compute(1)]
     caret_value_format: BigEndian<u16>,
     /// X or Y value, in design units
     coordinate: BigEndian<i16>,
@@ -158,6 +173,7 @@ CaretValueFormat1 {
 /// [CaretValue Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-2)
 CaretValueFormat2 {
     /// Format identifier: format = 2
+    #[compute(2)]
     caret_value_format: BigEndian<u16>,
     /// Contour point index on glyph
     caret_value_point_index: BigEndian<u16>,
@@ -165,8 +181,10 @@ CaretValueFormat2 {
 
 /// [CaretValue Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-3)
 #[offset_host]
+#[skip_from_obj]
 CaretValueFormat3<'a> {
     /// Format identifier-format = 3
+    #[compute(3)]
     caret_value_format: BigEndian<u16>,
     /// X or Y value, in design units
     coordinate: BigEndian<i16>,
@@ -180,11 +198,13 @@ CaretValueFormat3<'a> {
 #[offset_host]
 MarkGlyphSets<'a> {
     /// Format identifier == 1
+    #[compute(1)]
     format: BigEndian<u16>,
     /// Number of mark glyph sets defined
+    #[compute_count(coverage_offsets)]
     mark_glyph_set_count: BigEndian<u16>,
     /// Array of offsets to mark glyph set coverage tables, from the
     /// start of the MarkGlyphSets table.
     #[count(mark_glyph_set_count)]
-    coverage_offsets: [BigEndian<Offset32>],
+    coverage_offsets: [BigEndian<Offset32<CoverageTable>>],
 }
