@@ -14,6 +14,7 @@ pub struct FieldAttrs {
     count: Option<Count>,
     offset: Option<Offset>,
     variable_size: Option<syn::Path>,
+    compute: Option<Compute>,
 }
 
 /// Annotations for how to calculate the count of an array.
@@ -27,8 +28,16 @@ pub enum Count {
     },
 }
 
+//TODO: remove me?
 pub struct Offset {
     pub target: syn::Path,
+}
+
+/// Annotations for how to calculate certain fields
+pub enum Compute {
+    /// computed from length of a given collection
+    Len(syn::Ident),
+    Literal(syn::Lit),
 }
 
 #[derive(Default)]
@@ -58,6 +67,8 @@ pub struct ItemAttrs {
 }
 
 static OFFSET: &str = "offset";
+static COMPUTE_LEN: &str = "compute_count";
+static COMPUTE: &str = "compute";
 
 impl FieldAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<FieldAttrs, syn::Error> {
@@ -119,6 +130,14 @@ impl FieldAttrs {
                         ));
                     }
                 }
+                syn::Meta::List(list) if list.path.is_ident(COMPUTE) => {
+                    let inner = expect_single_item_list(&list)?;
+                    result.compute = Some(Compute::Literal(expect_lit(&inner)?))
+                }
+                syn::Meta::List(list) if list.path.is_ident(COMPUTE_LEN) => {
+                    let inner = expect_single_item_list(&list)?;
+                    result.compute = Some(Compute::Len(expect_ident(&inner)?));
+                }
                 other => {
                     return Err(syn::Error::new(other.span(), "unknown attribute"));
                 }
@@ -143,6 +162,12 @@ impl FieldAttrs {
             return Err(syn::Error::new(
                 offset.target.span(),
                 "'offset' is not valid on arrays",
+            ));
+        }
+        if self.compute.is_some() {
+            return Err(syn::Error::new(
+                name.span(),
+                "value/compute not valid on arrays",
             ));
         }
         let count = self.count.ok_or_else(|| {
@@ -183,6 +208,7 @@ impl FieldAttrs {
             typ,
             hidden: self.hidden,
             offset: self.offset,
+            compute: self.compute,
         })
     }
 }
@@ -313,6 +339,13 @@ fn expect_ident(meta: &syn::NestedMeta) -> Result<syn::Ident, syn::Error> {
             Ok(p.get_ident().unwrap().clone())
         }
         _ => Err(syn::Error::new(meta.span(), "expected ident")),
+    }
+}
+
+fn expect_lit(meta: &syn::NestedMeta) -> Result<syn::Lit, syn::Error> {
+    match meta {
+        syn::NestedMeta::Lit(lit) => Ok(lit.clone()),
+        _ => Err(syn::Error::new(meta.span(), "expected literal")),
     }
 }
 

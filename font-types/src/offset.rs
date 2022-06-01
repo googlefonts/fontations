@@ -59,6 +59,16 @@ impl OffsetLen {
     }
 }
 
+impl std::fmt::Display for OffsetLen {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            Self::Offset16 => write!(f, "Offset16"),
+            Self::Offset24 => write!(f, "Offset24"),
+            Self::Offset32 => write!(f, "Offset32"),
+        }
+    }
+}
+
 macro_rules! impl_offset {
     ($name:ident, $bits:literal, $rawty:ty) => {
         #[doc = concat!("A", stringify!($bits), "-bit offset to a table.")]

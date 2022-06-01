@@ -69,3 +69,23 @@ impl<W: Offset, T: FontWrite> FontWrite for NullableOffsetMarker<W, T> {
         }
     }
 }
+
+impl<W, T> Default for OffsetMarker<W, T> {
+    fn default() -> Self {
+        OffsetMarker {
+            width: std::marker::PhantomData,
+            obj: None,
+        }
+    }
+}
+
+impl<W: Offset, T> std::fmt::Debug for OffsetMarker<W, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(
+            f,
+            "OffsetMarker({}, {})",
+            W::SIZE,
+            self.obj.is_some().then(|| "Some").unwrap_or("None")
+        )
+    }
+}

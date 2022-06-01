@@ -3,6 +3,7 @@ use std::collections::BTreeMap;
 use quote::{quote, quote_spanned};
 use syn::spanned::Spanned;
 
+mod compile_types;
 mod error;
 mod parse;
 
@@ -19,8 +20,8 @@ pub fn generate_code(code_str: &str) -> Result<String, syn::Error> {
     let source_str = mod_comments.replace_all(&source_str, "//!$1");
     let doc_comments = regex::Regex::new(r#"#\[doc = "(.*)"\]"#).unwrap();
     let source_str = doc_comments.replace_all(&source_str, "///$1");
-    let newlines_before_docs = regex::Regex::new(r#"([;\}])\n( *)///"#).unwrap();
-    let source_str = newlines_before_docs.replace_all(&source_str, "$1\n\n$2///");
+    let newlines_before_docs = regex::Regex::new(r#"([;\}])\n( *)(///|pub|impl|#)"#).unwrap();
+    let source_str = newlines_before_docs.replace_all(&source_str, "$1\n\n$2$3");
 
     // add newlines after top-level items
     let re2 = regex::Regex::new(r"\n\}").unwrap();
@@ -47,6 +48,8 @@ pub fn codegen(items: &parse::Items) -> Result<proc_macro2::TokenStream, syn::Er
         };
         code.push(item_code);
     }
+
+    let compile_mod = compile_types::generate_compile_module(items)?;
     let module_docs = &items.docs;
     let use_stmts = &items.use_stmts;
     let helpers = &items.helpers;
@@ -56,6 +59,8 @@ pub fn codegen(items: &parse::Items) -> Result<proc_macro2::TokenStream, syn::Er
         use font_types::*;
         #(#code)*
         #(#helpers)*
+
+        #compile_mod
     })
 }
 

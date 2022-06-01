@@ -9,7 +9,7 @@ use syn::{
 
 mod attrs;
 
-pub use attrs::{Count, Offset};
+pub use attrs::{Compute, Count, Offset};
 use attrs::{FieldAttrs, VariantAttrs};
 
 use self::attrs::ItemAttrs;
@@ -92,6 +92,7 @@ pub struct SingleField {
     pub typ: FieldType,
     pub hidden: Option<syn::Path>,
     pub offset: Option<Offset>,
+    pub compute: Option<Compute>,
 }
 
 pub enum FieldType {
@@ -293,6 +294,14 @@ impl Field {
         matches!(self, Field::Array(_))
     }
 
+    /// true if this is an offset or an array of offsets
+    fn is_offset(&self) -> bool {
+        match self {
+            Field::Single(fld) => matches!(fld.typ, FieldType::Offset { .. }),
+            Field::Array(fld) => matches!(fld.inner_typ, FieldType::Offset { .. }),
+        }
+    }
+
     fn requires_lifetime(&self) -> bool {
         self.is_array()
     }
@@ -310,6 +319,22 @@ impl Field {
             Field::Array(a) if a.variable_size.is_some() => false,
             _ => true,
         }
+    }
+
+    pub fn compile_type(&self) -> proc_macro2::TokenStream {
+        match self {
+            Field::Single(fld) => fld.typ.compile_type(),
+            Field::Array(fld) => {
+                let inner = fld.inner_typ.compile_type();
+                quote!(Vec<#inner>)
+            }
+        }
+    }
+
+    pub fn is_computed(&self) -> bool {
+        self.as_single()
+            .map(|fld| fld.compute.is_some())
+            .unwrap_or(false)
     }
 
     pub fn view_init_expr(&self) -> proc_macro2::TokenStream {
@@ -433,6 +458,32 @@ impl FieldType {
             Self::Scalar { typ } => quote!(BigEndian<#typ>),
         }
     }
+
+    fn compile_type(&self) -> proc_macro2::TokenStream {
+        match self {
+            FieldType::Scalar { typ } => typ.into_token_stream(),
+            FieldType::Other { typ } => typ.into_token_stream(),
+            FieldType::Offset {
+                offset_type,
+                target_type,
+            } => {
+                let target = target_type
+                    .as_ref()
+                    .map(|t| t.into_token_stream())
+                    .unwrap_or_else(|| quote!(Box<dyn FontWrite>));
+                let offset = if offset_type == "Offset16" {
+                    syn::Ident::new("OffsetMarker16", offset_type.span())
+                } else if offset_type == "Offset24" {
+                    syn::Ident::new("OffsetMarker24", offset_type.span())
+                } else if offset_type == "Offset32" {
+                    syn::Ident::new("OffsetMarker32", offset_type.span())
+                } else {
+                    panic!("this should already be validated?");
+                };
+                quote!(#offset<#target>)
+            }
+        }
+    }
 }
 
 impl SingleField {
@@ -461,6 +512,10 @@ impl SingleItem {
     /// `true` if this contains offsets or fields with lifetimes.
     pub fn has_references(&self) -> bool {
         self.offset_host.is_some() || self.fields.iter().any(|x| x.requires_lifetime())
+    }
+
+    pub fn contains_offsets(&self) -> bool {
+        self.fields.iter().any(Field::is_offset)
     }
 
     fn validate(&self) -> Result<(), syn::Error> {
@@ -578,6 +633,18 @@ impl BitFlags {
             variants,
             name,
         })
+    }
+}
+
+impl SimpleUse {
+    pub fn compile_use_stmt(&self) -> syn::Path {
+        let len = self.0.segments.len();
+        let mut path = self.0.clone();
+        path.segments.insert(
+            len - 1,
+            syn::PathSegment::from(syn::Ident::new("compile", path.span())),
+        );
+        path
     }
 }
 
