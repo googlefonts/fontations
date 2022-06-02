@@ -46,6 +46,7 @@ pub struct ItemGroup {
     pub format_typ: syn::Ident,
     // the version attribute, if present. the actual version is stored in `format_typ`
     pub generate_getters: Option<syn::Path>,
+    pub offset_host: Option<syn::Path>,
     pub variants: Vec<Variant>,
 }
 
@@ -559,7 +560,11 @@ impl SingleField {
 impl SingleItem {
     /// `true` if this contains offsets or fields with lifetimes.
     pub fn has_references(&self) -> bool {
-        self.offset_host.is_some() || self.fields.iter().any(|x| x.requires_lifetime())
+        self.offset_host.is_some() || self.has_field_with_lifetime()
+    }
+
+    pub fn has_field_with_lifetime(&self) -> bool {
+        self.fields.iter().any(|x| x.requires_lifetime())
     }
 
     pub fn contains_offsets(&self) -> bool {
@@ -635,6 +640,7 @@ impl ItemGroup {
                 variants,
                 format_typ,
                 generate_getters: attrs.generate_getters,
+                offset_host: attrs.offset_host,
             })
         } else {
             Err(syn::Error::new(

@@ -20,7 +20,7 @@ pub fn generate_compile_module(
         #[cfg(feature = "compile")]
         pub mod compile {
             use crate::compile::*;
-            use font_types::Offset as _;
+            use font_types::{Offset as _, OffsetHost as _};
             #(use #use_paths;)*
 
             #(#items)*
@@ -67,6 +67,10 @@ fn generate_single_item(item: &parse::SingleItem) -> Result<proc_macro2::TokenSt
 fn item_from_obj(item: &parse::SingleItem) -> Result<proc_macro2::TokenStream, syn::Error> {
     let name = &item.name;
     let lifetime = item.lifetime.is_some().then(|| quote!(<'_>));
+    let set_offset_bytes = item
+        .offset_host
+        .is_some()
+        .then(|| quote!(let offset_data = obj.bytes();));
     let field_inits = item
         .fields
         .iter()
@@ -78,14 +82,28 @@ fn item_from_obj(item: &parse::SingleItem) -> Result<proc_macro2::TokenStream, s
         })
         .collect::<Result<Vec<_>, _>>()?;
 
+    let impl_to_owned_table = item.offset_host.is_some().then(|| {
+        quote! {
+            impl ToOwnedTable for super:: #name #lifetime {
+                type Owned = #name;
+            }
+        }
+    });
+    let allow_dead = (item.offset_host.is_some() || !item.has_field_with_lifetime())
+        .then(|| quote!(#[allow(unused_variables)]));
+
     Ok(quote! {
         impl FromObjRef<super::#name #lifetime> for #name {
+            #allow_dead
             fn from_obj(obj: &super::#name #lifetime, offset_data: &[u8]) -> Option<Self> {
+                #set_offset_bytes
                 Some(#name {
                     #(#field_inits,)*
                 })
             }
         }
+
+        #impl_to_owned_table
     })
 }
 
@@ -130,6 +148,14 @@ fn group_from_obj(group: &parse::ItemGroup) -> Result<proc_macro2::TokenStream, 
         quote!(super::#name::#var_name(item) => Self::#var_name(FromObjRef::from_obj(item, offset_data)?))
     });
 
+    let impl_to_owned_table = group.offset_host.is_some().then(|| {
+        quote! {
+            impl ToOwnedTable for super:: #name #lifetime {
+                type Owned = #name;
+            }
+        }
+    });
+
     Ok(quote! {
         impl FromObjRef<super::#name #lifetime> for #name {
             fn from_obj(obj: &super::#name #lifetime, offset_data: &[u8]) -> Option<Self> {
@@ -138,5 +164,7 @@ fn group_from_obj(group: &parse::ItemGroup) -> Result<proc_macro2::TokenStream, 
                 })
             }
         }
+
+        #impl_to_owned_table
     })
 }
