@@ -70,32 +70,30 @@ fn item_from_obj(item: &parse::SingleItem) -> Result<proc_macro2::TokenStream, s
     let set_offset_bytes = item
         .offset_host
         .is_some()
-        .then(|| quote!(let offset_data = obj.bytes();));
+        .then(|| quote!(let offset_data = self.bytes();));
     let field_inits = item
         .fields
         .iter()
         .filter(|fld| !fld.is_computed())
         .map(|fld| {
             let name = fld.name();
-            let expr = fld.from_obj_expr();
+            let expr = fld.to_owned_expr();
             expr.map(|expr| quote!(#name: #expr))
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let impl_to_owned_table = item.offset_host.is_some().then(|| {
-        quote! {
-            impl ToOwnedTable for super:: #name #lifetime {
-                type Owned = #name;
-            }
-        }
-    });
+    let impl_to_owned_table = item
+        .offset_host
+        .is_some()
+        .then(|| quote!(impl ToOwnedTable for super:: #name #lifetime {}));
     let allow_dead = (item.offset_host.is_some() || !item.has_field_with_lifetime())
         .then(|| quote!(#[allow(unused_variables)]));
 
     Ok(quote! {
-        impl FromObjRef<super::#name #lifetime> for #name {
+        impl ToOwnedObj for super::#name #lifetime {
+            type Owned = #name;
             #allow_dead
-            fn from_obj(obj: &super::#name #lifetime, offset_data: &[u8]) -> Option<Self> {
+            fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
                 #set_offset_bytes
                 Some(#name {
                     #(#field_inits,)*
@@ -122,7 +120,7 @@ fn generate_group(group: &parse::ItemGroup) -> Result<proc_macro2::TokenStream, 
         .ok_or_else(|| syn::Error::new(name.span(), "empty enums are not allowed"))?
         .name;
 
-    let impl_from_obj = group_from_obj(group)?;
+    let impl_from_obj = group_to_owned(group)?;
 
     Ok(quote! {
         #[derive(Debug)]
@@ -140,26 +138,24 @@ fn generate_group(group: &parse::ItemGroup) -> Result<proc_macro2::TokenStream, 
     })
 }
 
-fn group_from_obj(group: &parse::ItemGroup) -> Result<proc_macro2::TokenStream, syn::Error> {
+fn group_to_owned(group: &parse::ItemGroup) -> Result<proc_macro2::TokenStream, syn::Error> {
     let name = &group.name;
     let lifetime = group.lifetime.is_some().then(|| quote!(<'_>));
     let match_arms = group.variants.iter().map(|variant| {
         let var_name = &variant.name;
-        quote!(super::#name::#var_name(item) => Self::#var_name(FromObjRef::from_obj(item, offset_data)?))
+        quote!(super::#name::#var_name(item) => #name::#var_name(item.to_owned_obj(offset_data)?))
     });
 
-    let impl_to_owned_table = group.offset_host.is_some().then(|| {
-        quote! {
-            impl ToOwnedTable for super:: #name #lifetime {
-                type Owned = #name;
-            }
-        }
-    });
+    let impl_to_owned_table = group
+        .offset_host
+        .is_some()
+        .then(|| quote!(impl ToOwnedTable for super:: #name #lifetime {}));
 
     Ok(quote! {
-        impl FromObjRef<super::#name #lifetime> for #name {
-            fn from_obj(obj: &super::#name #lifetime, offset_data: &[u8]) -> Option<Self> {
-                Some(match obj {
+        impl ToOwnedObj for super::#name #lifetime {
+            type Owned = #name;
+            fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
+                Some(match self {
                     #(#match_arms,)*
                 })
             }

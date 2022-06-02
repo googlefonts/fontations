@@ -82,6 +82,7 @@ Gdef1_3<'a> {
 
 #[format(MajorMinor)]
 #[generate_getters]
+#[offset_host]
 enum Gdef<'a> {
     #[version(MajorMinor::VERSION_1_0)]
     Gdef1_0(Gdef1_0<'a>),

@@ -38,14 +38,15 @@ impl<'a> Gdef<'a> {
 
 #[cfg(feature = "compile")]
 pub mod compile {
-    use crate::compile::FromObjRef;
+    use crate::compile::ToOwnedObj;
 
     pub use super::generated::compile::*;
 
-    impl FromObjRef<super::CaretValueFormat3<'_>> for CaretValueFormat3 {
-        fn from_obj(obj: &super::CaretValueFormat3<'_>, _offset_data: &[u8]) -> Option<Self> {
+    impl ToOwnedObj for super::CaretValueFormat3<'_> {
+        type Owned = CaretValueFormat3;
+        fn to_owned_obj(&self, _offset_data: &[u8]) -> Option<Self::Owned> {
             Some(CaretValueFormat3 {
-                coordinate: obj.coordinate(),
+                coordinate: self.coordinate(),
                 device_offset: Default::default(),
             })
         }

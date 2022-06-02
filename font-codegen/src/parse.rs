@@ -443,18 +443,19 @@ impl Field {
         }
     }
 
-    pub fn from_obj_expr(&self) -> Result<proc_macro2::TokenStream, syn::Error> {
+    pub fn to_owned_expr(&self) -> Result<proc_macro2::TokenStream, syn::Error> {
         let name = self.name();
         match self {
             Field::Single(field) => match &field.typ {
-                FieldType::Scalar { .. } => Ok(quote!(obj.#name())),
-                FieldType::Other { typ } => Ok(quote!(#typ.from_obj(obj.#name(), offset_data)?)),
+                FieldType::Scalar { .. } => Ok(quote!(self.#name())),
+                FieldType::Other { .. } => Ok(quote!(self.#name().to_owned_obj(offset_data)?)),
                 FieldType::Offset {
                     offset_type,
                     target_type,
                 } => match &target_type {
                     Some(target_type) => Ok(
-                        quote!(OffsetMarker::new(#target_type::from_obj(&obj.#name().read(offset_data)?, offset_data)?)),
+                        //TODO: this is where we want a 'from' type.
+                        quote!(self.#name().read::<super::#target_type>(offset_data).and_then(|obj| obj.to_owned_obj(offset_data)).map(OffsetMarker::new)?),
                     ),
                     None => Err(syn::Error::new(
                         offset_type.span(),
@@ -465,12 +466,13 @@ impl Field {
             Field::Array(field) => {
                 let map_impl = match &field.inner_typ {
                     FieldType::Scalar { .. } => quote!(Some(item.get())),
-                    FieldType::Other { typ } => quote!(#typ.from_obj(item, offset_data)),
+                    FieldType::Other { .. } => quote!(item.to_owned_obj(offset_data)),
+                    //TODO: also a from type here
                     FieldType::Offset {
                         target_type: Some(target_type),
                         ..
                     } => {
-                        quote!(#target_type::from_obj(&item.get().read(offset_data)?, offset_data).map(|obj| OffsetMarker::new(obj)))
+                        quote!(item.get().read::<super::#target_type>(offset_data).and_then(|obj| obj.to_owned_obj(offset_data)).map(OffsetMarker::new))
                     }
                     FieldType::Offset { offset_type, .. } => {
                         return Err(syn::Error::new(
@@ -481,7 +483,7 @@ impl Field {
                 };
 
                 Ok(quote! {
-                    obj.#name().iter().map(|item| #map_impl).collect::<Option<Vec<_>>>()?
+                    self.#name().iter().map(|item| #map_impl).collect::<Option<Vec<_>>>()?
                 })
             }
         }

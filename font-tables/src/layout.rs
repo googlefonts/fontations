@@ -8,7 +8,7 @@ mod generated;
 pub use generated::*;
 
 #[cfg(feature = "compile")]
-use crate::compile::{FromObjRef, ToOwnedTable};
+use crate::compile::{ToOwnedObj, ToOwnedTable};
 
 impl<'a> LookupList<'a> {
     /// Iterate all of the [`Lookup`]s in this list.
@@ -71,9 +71,10 @@ impl ClassDef<'_> {
 }
 
 #[cfg(feature = "compile")]
-impl FromObjRef<ClassDef<'_>> for compile::ClassDef {
-    fn from_obj(obj: &ClassDef<'_>, _offset_data: &[u8]) -> Option<Self> {
-        let items = match obj {
+impl ToOwnedObj for ClassDef<'_> {
+    type Owned = compile::ClassDef;
+    fn to_owned_obj(&self, _offset_data: &[u8]) -> Option<Self::Owned> {
+        let items = match self {
             ClassDef::Format1(t) => t.iter().collect(),
             ClassDef::Format2(t) => t.iter().collect(),
         };
@@ -83,21 +84,18 @@ impl FromObjRef<ClassDef<'_>> for compile::ClassDef {
 }
 
 #[cfg(feature = "compile")]
-impl ToOwnedTable for ClassDef<'_> {
-    type Owned = compile::ClassDef;
-}
+impl ToOwnedTable for ClassDef<'_> {}
 
 #[cfg(feature = "compile")]
-impl FromObjRef<CoverageTable<'_>> for compile::CoverageTable {
-    fn from_obj(obj: &CoverageTable<'_>, _offset_data: &[u8]) -> Option<Self> {
-        Some(obj.iter().collect())
+impl ToOwnedObj for CoverageTable<'_> {
+    type Owned = compile::CoverageTable;
+    fn to_owned_obj(&self, _offset_data: &[u8]) -> Option<Self::Owned> {
+        Some(self.iter().collect())
     }
 }
 
 #[cfg(feature = "compile")]
-impl ToOwnedTable for CoverageTable<'_> {
-    type Owned = compile::CoverageTable;
-}
+impl ToOwnedTable for CoverageTable<'_> {}
 
 #[cfg(feature = "compile")]
 pub mod compile {

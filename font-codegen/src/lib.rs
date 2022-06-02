@@ -51,9 +51,11 @@ pub fn codegen(items: &parse::Items) -> Result<proc_macro2::TokenStream, syn::Er
 
     let compile_mod = compile_types::generate_compile_module(items)?;
     let module_docs = &items.docs;
+    let use_stmts = &items.use_stmts;
     let helpers = &items.helpers;
     Ok(quote! {
         #(#module_docs)*
+        #(#use_stmts)*
         use font_types::*;
         #(#code)*
         #(#helpers)*

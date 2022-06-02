@@ -39,20 +39,19 @@ pub struct TableWriter {
 ///
 /// This means that any offsets held in this type are resolved relative to the
 /// start of the table itself (and not some parent table)
-pub trait ToOwnedTable: Sized {
-    type Owned: FromObjRef<Self>;
+pub trait ToOwnedTable: ToOwnedObj {
     fn to_owned_table(&self) -> Option<Self::Owned> {
-        Self::Owned::from_obj(self, &[])
+        self.to_owned_obj(&[])
     }
 }
 
-/// A trait for types that can be built from another type, with offset data.
+/// A trait for types that can resolve themselves when provided data to resolve offsets.
 ///
-/// This is implemented by compile types, where `T` is the corresponding parse
-/// type. Some parse types contain offests that are relative to a parent, and so
-/// the offset data must be passed in from above.
-pub trait FromObjRef<T>: Sized {
-    fn from_obj(obj: &T, offset_data: &[u8]) -> Option<Self>;
+/// This is implemented for the majority of parse types. Those that are the base
+/// for offset data the provided data and use their own.
+pub trait ToOwnedObj {
+    type Owned;
+    fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned>;
 }
 
 pub fn dump_table<T: FontWrite>(table: &T) -> Vec<u8> {
