@@ -14,7 +14,12 @@ pub fn generate_code(code_str: &str) -> Result<String, syn::Error> {
 
     let tables = codegen(&parsed)?;
 
-    let source_str = rustfmt_wrapper::rustfmt(tables).unwrap();
+    // if this is not valid code just pass it through directly, and then we
+    // can see the compiler errors
+    let source_str = match rustfmt_wrapper::rustfmt(&tables) {
+        Ok(s) => s,
+        Err(_) => return Ok(tables.to_string()),
+    };
     // convert doc comment attributes into normal doc comments
     let mod_comments = regex::Regex::new(r#"#!\[doc = "(.*)"\]"#).unwrap();
     let source_str = mod_comments.replace_all(&source_str, "//!$1");

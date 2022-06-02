@@ -42,10 +42,13 @@ fn generate_single_item(item: &parse::SingleItem) -> Result<proc_macro2::TokenSt
         field_decls.push(quote!(pub #name: #typ));
     }
 
-    let impl_from_obj = item
-        .skip_from_obj
-        .is_none()
-        .then(|| item_from_obj(item))
+    let generate_compile_traits = item.skip_from_obj.is_none();
+    let impl_to_owned = generate_compile_traits
+        .then(|| item_to_owned(item))
+        .transpose()?;
+
+    let impl_font_write = generate_compile_traits
+        .then(|| item_font_write(item))
         .transpose()?;
 
     Ok(quote! {
@@ -54,7 +57,9 @@ fn generate_single_item(item: &parse::SingleItem) -> Result<proc_macro2::TokenSt
             #(#field_decls,)*
         }
 
-        #impl_from_obj
+        #impl_to_owned
+
+        #impl_font_write
 
         impl #name {
             pub fn new() -> Self {
@@ -64,7 +69,7 @@ fn generate_single_item(item: &parse::SingleItem) -> Result<proc_macro2::TokenSt
     })
 }
 
-fn item_from_obj(item: &parse::SingleItem) -> Result<proc_macro2::TokenStream, syn::Error> {
+fn item_to_owned(item: &parse::SingleItem) -> Result<proc_macro2::TokenStream, syn::Error> {
     let name = &item.name;
     let lifetime = item.lifetime.is_some().then(|| quote!(<'_>));
     let set_offset_bytes = item
@@ -105,6 +110,22 @@ fn item_from_obj(item: &parse::SingleItem) -> Result<proc_macro2::TokenStream, s
     })
 }
 
+fn item_font_write(item: &parse::SingleItem) -> Result<proc_macro2::TokenStream, syn::Error> {
+    let name = &item.name;
+
+    let field_exprs = item.fields.iter().map(|fld| fld.font_write_expr());
+
+    Ok(quote! {
+        impl FontWrite for #name {
+            fn write_into(&self, writer: &mut TableWriter) {
+                #(#field_exprs;)*
+
+            }
+        }
+
+    })
+}
+
 fn generate_group(group: &parse::ItemGroup) -> Result<proc_macro2::TokenStream, syn::Error> {
     let name = &group.name;
     let variants = group.variants.iter().map(|variant| {
@@ -120,7 +141,8 @@ fn generate_group(group: &parse::ItemGroup) -> Result<proc_macro2::TokenStream, 
         .ok_or_else(|| syn::Error::new(name.span(), "empty enums are not allowed"))?
         .name;
 
-    let impl_from_obj = group_to_owned(group)?;
+    let impl_to_owned = group_to_owned(group)?;
+    let impl_font_write = group_font_write(group)?;
 
     Ok(quote! {
         #[derive(Debug)]
@@ -128,7 +150,9 @@ fn generate_group(group: &parse::ItemGroup) -> Result<proc_macro2::TokenStream, 
             #(#variants),*
         }
 
-        #impl_from_obj
+        #impl_to_owned
+
+        #impl_font_write
 
         impl Default for #name {
             fn default() -> Self {
@@ -162,5 +186,23 @@ fn group_to_owned(group: &parse::ItemGroup) -> Result<proc_macro2::TokenStream, 
         }
 
         #impl_to_owned_table
+    })
+}
+
+fn group_font_write(group: &parse::ItemGroup) -> Result<proc_macro2::TokenStream, syn::Error> {
+    let name = &group.name;
+    let match_arms = group.variants.iter().map(|variant| {
+        let var_name = &variant.name;
+        quote!( Self::#var_name(item) => item.write_into(writer), )
+    });
+
+    Ok(quote! {
+        impl FontWrite for #name {
+            fn write_into(&self, writer: &mut TableWriter) {
+                match self {
+                    #(#match_arms)*
+                }
+            }
+        }
     })
 }

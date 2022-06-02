@@ -38,7 +38,7 @@ impl<'a> Gdef<'a> {
 
 #[cfg(feature = "compile")]
 pub mod compile {
-    use crate::compile::ToOwnedObj;
+    use crate::compile::{FontWrite, ToOwnedObj};
 
     pub use super::generated::compile::*;
 
@@ -49,6 +49,13 @@ pub mod compile {
                 coordinate: self.coordinate(),
                 device_offset: Default::default(),
             })
+        }
+    }
+
+    impl FontWrite for CaretValueFormat3 {
+        fn write_into(&self, writer: &mut crate::compile::TableWriter) {
+            self.coordinate.write_into(writer);
+            self.device_offset.write_into(writer);
         }
     }
 }

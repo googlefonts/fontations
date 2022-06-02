@@ -51,6 +51,17 @@ impl<W: Offset, T> OffsetMarker<W, T> {
             obj: Some(obj),
         }
     }
+
+    /// Creates a new marker with an object that may be null.
+    //TODO: figure out how we're actually handling null offsets. Some offsets
+    //are allowed to be null, but even offsets that aren't *may* be null,
+    //and we should handle this.
+    pub fn new_maybe_null(obj: Option<T>) -> Self {
+        OffsetMarker {
+            width: std::marker::PhantomData,
+            obj,
+        }
+    }
 }
 
 impl<W, T> NullableOffsetMarker<W, T> {
@@ -67,7 +78,13 @@ impl<W, T> NullableOffsetMarker<W, T> {
 
 impl<W: Offset, T: FontWrite> FontWrite for OffsetMarker<W, T> {
     fn write_into(&self, writer: &mut super::TableWriter) {
-        writer.write_offset::<W>(self.obj.as_ref().expect("this offset cannot be null"));
+        match self.obj.as_ref() {
+            Some(obj) => writer.write_offset::<W>(obj),
+            None => {
+                eprintln!("warning: unexpected null OffsetMarker");
+                writer.write_slice(W::SIZE.null_bytes());
+            }
+        }
     }
 }
 

@@ -444,48 +444,16 @@ impl Field {
     }
 
     pub fn to_owned_expr(&self) -> Result<proc_macro2::TokenStream, syn::Error> {
-        let name = self.name();
         match self {
-            Field::Single(field) => match &field.typ {
-                FieldType::Scalar { .. } => Ok(quote!(self.#name())),
-                FieldType::Other { .. } => Ok(quote!(self.#name().to_owned_obj(offset_data)?)),
-                FieldType::Offset {
-                    offset_type,
-                    target_type,
-                } => match &target_type {
-                    Some(target_type) => Ok(
-                        //TODO: this is where we want a 'from' type.
-                        quote!(self.#name().read::<super::#target_type>(offset_data).and_then(|obj| obj.to_owned_obj(offset_data)).map(OffsetMarker::new)?),
-                    ),
-                    None => Err(syn::Error::new(
-                        offset_type.span(),
-                        "offsets with unknown types require custom FromObjRef impls",
-                    )),
-                },
-            },
-            Field::Array(field) => {
-                let map_impl = match &field.inner_typ {
-                    FieldType::Scalar { .. } => quote!(Some(item.get())),
-                    FieldType::Other { .. } => quote!(item.to_owned_obj(offset_data)),
-                    //TODO: also a from type here
-                    FieldType::Offset {
-                        target_type: Some(target_type),
-                        ..
-                    } => {
-                        quote!(item.get().read::<super::#target_type>(offset_data).and_then(|obj| obj.to_owned_obj(offset_data)).map(OffsetMarker::new))
-                    }
-                    FieldType::Offset { offset_type, .. } => {
-                        return Err(syn::Error::new(
-                            offset_type.span(),
-                            "offsets with unknown types require custom FromObjRef impls",
-                        ))
-                    }
-                };
+            Field::Single(field) => field.to_owned_expr(),
+            Field::Array(field) => field.to_owned_expr(),
+        }
+    }
 
-                Ok(quote! {
-                    self.#name().iter().map(|item| #map_impl).collect::<Option<Vec<_>>>()?
-                })
-            }
+    pub fn font_write_expr(&self) -> proc_macro2::TokenStream {
+        match self {
+            Field::Single(field) => field.font_write_expr(),
+            Field::Array(field) => field.font_write_expr(),
         }
     }
 }
@@ -557,8 +525,74 @@ impl SingleField {
             FieldType::Other { typ } => quote!(&#typ),
         }
     }
+
+    fn to_owned_expr(&self) -> Result<proc_macro2::TokenStream, syn::Error> {
+        let name = &self.name;
+        match &self.typ {
+            FieldType::Scalar { .. } => Ok(quote!(self.#name())),
+            FieldType::Other { .. } => Ok(quote!(self.#name().to_owned_obj(offset_data)?)),
+            FieldType::Offset {
+                offset_type,
+                target_type,
+            } => match &target_type {
+                Some(target_type) => Ok(
+                    //TODO: this is where we want a 'from' type.
+                    quote!(OffsetMarker::new_maybe_null(self.#name().read::<super::#target_type>(offset_data).and_then(|obj| obj.to_owned_obj(offset_data)))),
+                ),
+                None => Err(syn::Error::new(
+                    offset_type.span(),
+                    "offsets with unknown types require custom FromObjRef impls",
+                )),
+            },
+        }
+    }
+
+    pub fn font_write_expr(&self) -> proc_macro2::TokenStream {
+        let name = &self.name;
+        match &self.typ {
+            FieldType::Scalar { typ } => match &self.compute {
+                None => quote!(self.#name.write_into(writer)),
+                Some(Compute::Len(fld)) => quote!(#typ::try_from(self.#fld.len()).unwrap()),
+                Some(Compute::Literal(lit)) => quote!( (#lit as #typ).write_into(writer)),
+            },
+            _ => quote!(self.#name.write_into(writer)),
+        }
+    }
 }
 
+impl ArrayField {
+    pub fn to_owned_expr(&self) -> Result<proc_macro2::TokenStream, syn::Error> {
+        let name = &self.name;
+        let map_impl = match &self.inner_typ {
+            FieldType::Scalar { .. } => quote!(Some(item.get())),
+            FieldType::Other { .. } => quote!(item.to_owned_obj(offset_data)),
+            //TODO: also a from type here
+            FieldType::Offset {
+                target_type: Some(target_type),
+                ..
+            } => {
+                quote!(Some(OffsetMarker::new_maybe_null(item.get().read::<super::#target_type>(offset_data).and_then(|obj| obj.to_owned_obj(offset_data)))))
+            }
+            FieldType::Offset { offset_type, .. } => {
+                return Err(syn::Error::new(
+                    offset_type.span(),
+                    "offsets with unknown types require custom FromObjRef impls",
+                ))
+            }
+        };
+
+        Ok(quote! {
+            self.#name().iter().map(|item| #map_impl).collect::<Option<Vec<_>>>()?
+        })
+    }
+
+    pub fn font_write_expr(&self) -> proc_macro2::TokenStream {
+        let name = &self.name;
+        quote!(self.#name.write_into(writer))
+        //match &self.inner_typ {
+        //}
+    }
+}
 impl SingleItem {
     /// `true` if this contains offsets or fields with lifetimes.
     pub fn has_references(&self) -> bool {
