@@ -9,19 +9,29 @@ pub fn generate_compile_module(
         .items
         .iter()
         .flat_map(|item| match item {
-            parse::Item::Single(item) => Some(generate_single_item(item)),
+            parse::Item::Single(item) if item.manual_compile_type.is_none() => {
+                Some(generate_single_item(item))
+            }
             parse::Item::Group(item) => Some(generate_group(item)),
             _ => None,
         })
         .collect::<Result<Vec<_>, _>>()?;
 
     let use_paths = parsed.use_stmts.iter().map(|stmt| stmt.compile_use_stmt());
+    let use_manual_impls = parsed.items.iter().filter_map(|item| match item {
+        parse::Item::Single(item) if item.manual_compile_type.is_some() => {
+            let name = &item.name;
+            Some(quote!(super::super::compile::#name))
+        }
+        _ => None,
+    });
     Ok(quote! {
         #[cfg(feature = "compile")]
         pub mod compile {
             use crate::compile::*;
             use font_types::{Offset as _, OffsetHost as _};
             #(use #use_paths;)*
+            #(use #use_manual_impls;)*
 
             #(#items)*
         }
@@ -42,7 +52,7 @@ fn generate_single_item(item: &parse::SingleItem) -> Result<proc_macro2::TokenSt
         field_decls.push(quote!(pub #name: #typ));
     }
 
-    let generate_compile_traits = item.skip_from_obj.is_none();
+    let generate_compile_traits = item.manual_compile_type.is_none();
     let impl_to_owned = generate_compile_traits
         .then(|| item_to_owned(item))
         .transpose()?;

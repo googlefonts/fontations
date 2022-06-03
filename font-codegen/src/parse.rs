@@ -31,7 +31,7 @@ pub struct SingleItem {
     pub docs: Vec<syn::Attribute>,
     pub lifetime: Option<syn::Lifetime>,
     pub offset_host: Option<syn::Path>,
-    pub skip_from_obj: Option<syn::Path>,
+    pub manual_compile_type: Option<syn::Path>,
     pub init: Vec<syn::Ident>,
     pub name: syn::Ident,
     pub fields: Vec<Field>,
@@ -195,7 +195,7 @@ impl Parse for Item {
             let item = SingleItem {
                 docs: attrs.docs,
                 offset_host: attrs.offset_host,
-                skip_from_obj: attrs.skip_from_obj,
+                manual_compile_type: attrs.manual_compile,
                 init: attrs.init,
                 lifetime,
                 name,

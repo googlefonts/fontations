@@ -103,6 +103,7 @@ enum GlyphClassDef {
 
 /// [Attachment Point List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#attachment-point-list-table)
 #[offset_host]
+#[manual_compile_type]
 AttachList<'a> {
     /// Offset to Coverage table - from beginning of AttachList table
     coverage_offset: BigEndian<Offset16<CoverageTable>>,
@@ -182,7 +183,7 @@ CaretValueFormat2 {
 
 /// [CaretValue Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-3)
 #[offset_host]
-#[skip_from_obj]
+#[manual_compile_type]
 CaretValueFormat3<'a> {
     /// Format identifier-format = 3
     #[compute(3)]
