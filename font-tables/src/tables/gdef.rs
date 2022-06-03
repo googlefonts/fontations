@@ -54,6 +54,7 @@ pub mod compile {
 
     impl FontWrite for CaretValueFormat3 {
         fn write_into(&self, writer: &mut crate::compile::TableWriter) {
+            (3 as u16).write_into(writer);
             self.coordinate.write_into(writer);
             self.device_offset.write_into(writer);
         }

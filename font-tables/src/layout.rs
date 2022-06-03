@@ -104,6 +104,7 @@ pub mod compile {
 
     use crate::compile::FontWrite;
 
+    #[derive(Debug, PartialEq)]
     pub struct ClassDef {
         pub items: BTreeMap<GlyphId, u16>,
     }
@@ -114,6 +115,7 @@ pub mod compile {
 
     pub struct ClassDefFormat2Writer<'a>(&'a ClassDef);
 
+    #[derive(Debug, PartialEq)]
     pub struct CoverageTable {
         // invariant: is always sorted
         glyphs: Vec<GlyphId>,

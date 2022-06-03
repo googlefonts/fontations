@@ -106,13 +106,14 @@ impl<W, T> Default for OffsetMarker<W, T> {
     }
 }
 
-impl<W: Offset, T> std::fmt::Debug for OffsetMarker<W, T> {
+impl<W, T: PartialEq> PartialEq for OffsetMarker<W, T> {
+    fn eq(&self, other: &Self) -> bool {
+        self.obj == other.obj
+    }
+}
+
+impl<W: Offset, T: std::fmt::Debug> std::fmt::Debug for OffsetMarker<W, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "OffsetMarker({}, {})",
-            W::SIZE,
-            self.obj.is_some().then(|| "Some").unwrap_or("None")
-        )
+        write!(f, "OffsetMarker({}, {:?})", W::SIZE, self.obj.as_ref(),)
     }
 }

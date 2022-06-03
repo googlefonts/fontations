@@ -552,7 +552,9 @@ impl SingleField {
         match &self.typ {
             FieldType::Scalar { typ } => match &self.compute {
                 None => quote!(self.#name.write_into(writer)),
-                Some(Compute::Len(fld)) => quote!(#typ::try_from(self.#fld.len()).unwrap()),
+                Some(Compute::Len(fld)) => {
+                    quote!(#typ::try_from(self.#fld.len()).unwrap().write_into(writer))
+                }
                 Some(Compute::Literal(lit)) => quote!( (#lit as #typ).write_into(writer)),
             },
             _ => quote!(self.#name.write_into(writer)),

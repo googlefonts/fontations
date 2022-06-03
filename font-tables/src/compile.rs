@@ -242,6 +242,22 @@ impl<T: FontWrite> FontWrite for [T] {
     }
 }
 
+// expensive fallback eq implementation
+impl PartialEq for Box<dyn FontWrite> {
+    fn eq(&self, other: &Self) -> bool {
+        let mut writer = TableWriter::default();
+        let one = writer.add_table(self);
+        let two = writer.add_table(other);
+        one == two
+    }
+}
+
+impl std::fmt::Debug for Box<dyn FontWrite> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Box<dyn FontWrite>")
+    }
+}
+
 #[cfg(test)]
 #[rustfmt::skip::macros(assert_hex_eq)]
 mod tests {

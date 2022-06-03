@@ -52,7 +52,7 @@ fn generate_single_item(item: &parse::SingleItem) -> Result<proc_macro2::TokenSt
         .transpose()?;
 
     Ok(quote! {
-        #[derive(Debug, Default)]
+        #[derive(Debug, Default, PartialEq)]
         pub struct #name {
             #(#field_decls,)*
         }
@@ -145,7 +145,7 @@ fn generate_group(group: &parse::ItemGroup) -> Result<proc_macro2::TokenStream, 
     let impl_font_write = group_font_write(group)?;
 
     Ok(quote! {
-        #[derive(Debug)]
+        #[derive(Debug, PartialEq)]
         pub enum #name {
             #(#variants),*
         }
