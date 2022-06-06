@@ -1,37 +1,39 @@
-/// An array with members of different sizes
-pub struct VarArray<'a, T> {
+use crate::FontReadWithArgs;
+
+/// An array whose items size is not known at compile time.
+///
+/// At runtime, `Args` are provided which will be used to compute the size
+/// of each item.
+pub struct DynSizedArray<'a, Args, T> {
     bytes: &'a [u8],
-    _t: std::marker::PhantomData<T>,
+    args: Args,
+    phantom: std::marker::PhantomData<T>,
 }
 
-impl<'a, T> VarArray<'a, T> {}
-
-impl<'a, T: super::VarSized<'a>> VarArray<'a, T> {
-    pub fn new(bytes: &'a [u8]) -> Self {
-        Self {
-            bytes,
-            _t: std::marker::PhantomData,
-        }
+impl<'a, Args: Copy, T> FontReadWithArgs<'a, Args> for DynSizedArray<'a, Args, T> {
+    fn read_with_args(bytes: &'a [u8], args: &Args) -> Option<(Self, &'a [u8])> {
+        Some((
+            DynSizedArray {
+                bytes,
+                args: *args,
+                phantom: std::marker::PhantomData,
+            },
+            &[],
+        ))
     }
+}
 
-    pub fn get(&self, idx: usize) -> Option<T> {
-        let mut offset = 0;
-
-        for _ in 0..idx {
-            let nxt = self.bytes.get(offset..).and_then(T::read)?;
-            offset += nxt.len();
-        }
-        self.bytes.get(offset..).and_then(T::read)
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = T> + 'a {
-        let mut offset = 0;
-        let bytes = self.bytes;
+impl<'a, Args, T> DynSizedArray<'a, Args, T>
+where
+    T: FontReadWithArgs<'a, Args>,
+{
+    pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = T> + 'b {
+        let args = &self.args;
+        let mut bytes = self.bytes;
         std::iter::from_fn(move || {
-            //let blob = blob.get(offset..blob.len())?;
-            let nxt = bytes.get(offset..).and_then(T::read)?;
-            offset += nxt.len();
-            Some(nxt)
+            let (next, remaining_bytes) = T::read_with_args(bytes, args)?;
+            bytes = remaining_bytes;
+            Some(next)
         })
     }
 }

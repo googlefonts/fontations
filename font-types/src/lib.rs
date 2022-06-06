@@ -32,7 +32,7 @@ pub use offset::{Offset, Offset16, Offset24, Offset32, OffsetHost, OffsetLen};
 pub use raw::{BigEndian, Scalar};
 pub use tag::Tag;
 pub use uint24::Uint24;
-pub use var_array::VarArray;
+pub use var_array::DynSizedArray;
 pub use version::{MajorMinor, Version16Dot16};
 
 //TODO: make me a struct
@@ -46,14 +46,17 @@ pub trait FontRead<'a>: Sized {
     fn read(bytes: &'a [u8]) -> Option<Self>;
 }
 
-//HACK: I'm not sure how this should work
-/// A trait for types with variable length.
-///
-/// Currently we implement this by hand where necessary; it is only necessary
-/// if these types occur in an array?
-#[allow(clippy::len_without_is_empty)]
-pub trait VarSized<'a>: FontRead<'a> {
-    fn len(&self) -> usize;
+/// A trait for types that require external data in order to be constructed.
+pub trait FontReadWithArgs<'a, Args>: Sized {
+    /// read an item, using the provided args.
+    ///
+    /// If successful, returns a new item of this type, and the number of bytes
+    /// used to construct it.
+    ///
+    /// If a type requires multiple arguments, they will be passed as a tuple.
+    //TODO: split up the 'takes args' and 'reports size' parts of this into
+    // separate traits
+    fn read_with_args(bytes: &'a [u8], args: &Args) -> Option<(Self, &'a [u8])>;
 }
 
 impl<'a, T: zerocopy::FromBytes + zerocopy::Unaligned> FontRead<'a> for T {

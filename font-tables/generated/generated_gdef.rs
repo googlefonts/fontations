@@ -32,8 +32,8 @@ impl<'a> font_types::FontRead<'a> for Gdef1_0<'a> {
             zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
         let (mark_attach_class_def_offset, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let _ = bytes;
-        Some(Gdef1_0 {
+        let _bytes = bytes;
+        let result = Gdef1_0 {
             major_version,
             minor_version,
             glyph_class_def_offset,
@@ -41,7 +41,8 @@ impl<'a> font_types::FontRead<'a> for Gdef1_0<'a> {
             lig_caret_list_offset,
             mark_attach_class_def_offset,
             offset_bytes,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -116,8 +117,8 @@ impl<'a> font_types::FontRead<'a> for Gdef1_2<'a> {
             zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
         let (mark_glyph_sets_def_offset, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let _ = bytes;
-        Some(Gdef1_2 {
+        let _bytes = bytes;
+        let result = Gdef1_2 {
             major_version,
             minor_version,
             glyph_class_def_offset,
@@ -126,7 +127,8 @@ impl<'a> font_types::FontRead<'a> for Gdef1_2<'a> {
             mark_attach_class_def_offset,
             mark_glyph_sets_def_offset,
             offset_bytes,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -210,8 +212,8 @@ impl<'a> font_types::FontRead<'a> for Gdef1_3<'a> {
             zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
         let (item_var_store_offset, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<Offset32>>::new_unaligned_from_prefix(bytes)?;
-        let _ = bytes;
-        Some(Gdef1_3 {
+        let _bytes = bytes;
+        let result = Gdef1_3 {
             major_version,
             minor_version,
             glyph_class_def_offset,
@@ -221,7 +223,8 @@ impl<'a> font_types::FontRead<'a> for Gdef1_3<'a> {
             mark_glyph_sets_def_offset,
             item_var_store_offset,
             offset_bytes,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -298,7 +301,11 @@ impl<'a> font_types::FontRead<'a> for Gdef<'a> {
             _other => {
                 #[cfg(feature = "std")]
                 {
-                    eprintln!("unknown enum variant {:?}", version);
+                    eprintln!(
+                        "unknown enum variant {:?} (table {})",
+                        version,
+                        stringify!(Gdef)
+                    );
                 }
                 None
             }
@@ -441,15 +448,16 @@ impl<'a> font_types::FontRead<'a> for AttachList<'a> {
         let (attach_point_offsets, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
                 bytes,
-                __resolved_glyph_count as usize,
+                __resolved_glyph_count as usize as usize,
             )?;
-        let _ = bytes;
-        Some(AttachList {
+        let _bytes = bytes;
+        let result = AttachList {
             coverage_offset,
             glyph_count,
             attach_point_offsets,
             offset_bytes,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -491,13 +499,14 @@ impl<'a> font_types::FontRead<'a> for AttachPoint<'a> {
         let (point_indices, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
                 bytes,
-                __resolved_point_count as usize,
+                __resolved_point_count as usize as usize,
             )?;
-        let _ = bytes;
-        Some(AttachPoint {
+        let _bytes = bytes;
+        let result = AttachPoint {
             point_count,
             point_indices,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -532,15 +541,16 @@ impl<'a> font_types::FontRead<'a> for LigCaretList<'a> {
         let (lig_glyph_offsets, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
                 bytes,
-                __resolved_lig_glyph_count as usize,
+                __resolved_lig_glyph_count as usize as usize,
             )?;
-        let _ = bytes;
-        Some(LigCaretList {
+        let _bytes = bytes;
+        let result = LigCaretList {
             coverage_offset,
             lig_glyph_count,
             lig_glyph_offsets,
             offset_bytes,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -584,14 +594,15 @@ impl<'a> font_types::FontRead<'a> for LigGlyph<'a> {
         let (caret_value_offsets, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
                 bytes,
-                __resolved_caret_count as usize,
+                __resolved_caret_count as usize as usize,
             )?;
-        let _ = bytes;
-        Some(LigGlyph {
+        let _bytes = bytes;
+        let result = LigGlyph {
             caret_count,
             caret_value_offsets,
             offset_bytes,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -631,7 +642,11 @@ impl<'a> font_types::FontRead<'a> for CaretValue<'a> {
             _other => {
                 #[cfg(feature = "std")]
                 {
-                    eprintln!("unknown enum variant {:?}", version);
+                    eprintln!(
+                        "unknown enum variant {:?} (table {})",
+                        version,
+                        stringify!(CaretValue)
+                    );
                 }
                 None
             }
@@ -700,13 +715,14 @@ impl<'a> font_types::FontRead<'a> for CaretValueFormat3<'a> {
             zerocopy::LayoutVerified::<_, BigEndian<i16>>::new_unaligned_from_prefix(bytes)?;
         let (device_offset, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let _ = bytes;
-        Some(CaretValueFormat3 {
+        let _bytes = bytes;
+        let result = CaretValueFormat3 {
             caret_value_format,
             coordinate,
             device_offset,
             offset_bytes,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -754,15 +770,16 @@ impl<'a> font_types::FontRead<'a> for MarkGlyphSets<'a> {
         let (coverage_offsets, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<Offset32>]>::new_slice_unaligned_from_prefix(
                 bytes,
-                __resolved_mark_glyph_set_count as usize,
+                __resolved_mark_glyph_set_count as usize as usize,
             )?;
-        let _ = bytes;
-        Some(MarkGlyphSets {
+        let _bytes = bytes;
+        let result = MarkGlyphSets {
             format,
             mark_glyph_set_count,
             coverage_offsets,
             offset_bytes,
-        })
+        };
+        Some(result)
     }
 }
 

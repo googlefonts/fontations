@@ -10,25 +10,27 @@ pub struct Hmtx<'a> {
     left_side_bearings: zerocopy::LayoutVerified<&'a [u8], [BigEndian<i16>]>,
 }
 
-impl<'a> Hmtx<'a> {
-    pub fn read(bytes: &'a [u8], number_of_h_metrics: u16, num_glyphs: u16) -> Option<Self> {
-        let __resolved_number_of_h_metrics = number_of_h_metrics;
-        let __resolved_num_glyphs = num_glyphs;
+impl<'a> font_types::FontReadWithArgs<'a, (u16, u16)> for Hmtx<'a> {
+    fn read_with_args(bytes: &'a [u8], args: &(u16, u16)) -> Option<(Self, &'a [u8])> {
+        let __resolved_number_of_h_metrics = args.0;
+        let __resolved_num_glyphs = args.1;
         let (h_metrics, bytes) =
             zerocopy::LayoutVerified::<_, [LongHorMetric]>::new_slice_unaligned_from_prefix(
                 bytes,
-                __resolved_number_of_h_metrics as usize,
+                __resolved_number_of_h_metrics as usize as usize,
             )?;
         let (left_side_bearings, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<i16>]>::new_slice_unaligned_from_prefix(
                 bytes,
-                n_glyphs_less_n_metrics(__resolved_num_glyphs, __resolved_number_of_h_metrics),
+                n_glyphs_less_n_metrics(__resolved_num_glyphs, __resolved_number_of_h_metrics)
+                    as usize,
             )?;
-        let _ = bytes;
-        Some(Hmtx {
+        let _bytes = bytes;
+        let result = Hmtx {
             h_metrics,
             left_side_bearings,
-        })
+        };
+        Some((result, _bytes))
     }
 }
 

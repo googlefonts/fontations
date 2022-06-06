@@ -1,7 +1,7 @@
 use quote::{quote_spanned, ToTokens};
 use syn::{spanned::Spanned, Lit};
 
-use super::{ArrayField, SingleField};
+use super::{ArrayField, CustomField, SingleField};
 
 /// All of the attrs that can be applied to a field.
 ///
@@ -11,13 +11,16 @@ use super::{ArrayField, SingleField};
 pub struct FieldAttrs {
     docs: Vec<syn::Attribute>,
     hidden: Option<syn::Path>,
+    no_getter: Option<syn::Path>,
     count: Option<Count>,
     offset: Option<Offset>,
+    pub(crate) read: Option<ArgList>,
     variable_size: Option<syn::Path>,
     compute: Option<Compute>,
 }
 
 /// Annotations for how to calculate the count of an array.
+#[derive(Debug, Clone)]
 pub enum Count {
     Field(syn::Ident),
     Literal(syn::LitInt),
@@ -26,6 +29,12 @@ pub enum Count {
         fn_: syn::Path,
         args: Vec<syn::Ident>,
     },
+}
+
+/// A list of arguments contained in an attribute
+pub struct ArgList {
+    attr: syn::Path,
+    pub args: Vec<syn::Ident>,
 }
 
 //TODO: remove me?
@@ -72,6 +81,8 @@ static OFFSET: &str = "offset";
 static COMPUTE_LEN: &str = "compute_count";
 static COMPUTE: &str = "compute";
 static COMPUTE_WITH: &str = "compute_with";
+const NO_GETTER: &str = "no_getter";
+const READ_WITH: &str = "read_with";
 
 impl FieldAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<FieldAttrs, syn::Error> {
@@ -84,6 +95,10 @@ impl FieldAttrs {
                 syn::Meta::Path(path) if path.is_ident("hidden") => {
                     result.hidden = Some(path.clone())
                 }
+                syn::Meta::Path(path) if path.is_ident(NO_GETTER) => {
+                    result.no_getter = Some(path.clone())
+                }
+
                 syn::Meta::Path(path) if path.is_ident("variable_size") => {
                     result.variable_size = Some(path.clone())
                 }
@@ -121,6 +136,17 @@ impl FieldAttrs {
                         list.path.span(),
                         "count_with attribute should have format count_with(path::to::fn, arg1, arg2)",
                     ));
+                }
+                syn::Meta::List(list) if list.path.is_ident(READ_WITH) => {
+                    let args = list
+                        .nested
+                        .iter()
+                        .map(expect_ident)
+                        .collect::<Result<_, _>>()?;
+                    result.read = Some(ArgList {
+                        attr: list.path.clone(),
+                        args,
+                    })
                 }
                 syn::Meta::List(list) if list.path.is_ident(OFFSET) => {
                     let inner = expect_single_item_list(&list)?;
@@ -165,6 +191,12 @@ impl FieldAttrs {
                 "'hidden' is only valid on scalar fields",
             ));
         }
+        if let Some(read) = &self.read {
+            return Err(syn::Error::new(
+                read.attr.span(),
+                "'read_with' is not valid on array fields",
+            ));
+        }
         if let Some(offset) = self.offset {
             return Err(syn::Error::new(
                 offset.target.span(),
@@ -183,14 +215,14 @@ impl FieldAttrs {
                 "array types require 'count' or 'count_with' attribute",
             )
         })?;
-        let variable_size = self.variable_size;
         Ok(ArrayField {
             docs: self.docs,
             name,
             inner_typ,
             inner_lifetime,
             count,
-            variable_size,
+            variable_size: self.variable_size,
+            no_getter: self.no_getter,
         })
     }
 
@@ -200,10 +232,12 @@ impl FieldAttrs {
         typ: super::FieldType,
     ) -> Result<SingleField, syn::Error> {
         if let Some(span) = self.count.as_ref().map(Count::span) {
-            return Err(syn::Error::new(
-                span,
-                "count/count_with attribute not valid on scalar fields",
-            ));
+            if self.read.is_none() {
+                return Err(syn::Error::new(
+                    span,
+                    "count/count_with attribute not valid on scalar fields",
+                ));
+            }
         }
         if let Some(token) = self.variable_size {
             return Err(syn::Error::new(token.span(), "not valid on scalar fields"));
@@ -218,6 +252,16 @@ impl FieldAttrs {
             compute: self.compute,
         })
     }
+
+    pub fn into_custom(self, name: syn::Ident, typ: syn::Path) -> Result<CustomField, syn::Error> {
+        Ok(CustomField {
+            docs: self.docs,
+            name,
+            typ,
+            read: self.read.expect("hi"),
+            count: self.count,
+        })
+    }
 }
 
 impl Count {
@@ -227,6 +271,26 @@ impl Count {
             Count::Field(ident) => ident.span(),
             Count::Function { fn_, .. } => fn_.span(),
             Count::Literal(lit) => lit.span(),
+        }
+    }
+
+    pub fn tokens(&self) -> Option<proc_macro2::TokenStream> {
+        match self {
+            Count::Field(name) => {
+                let span = name.span();
+                let resolved_value = crate::make_resolved_ident(name);
+                Some(quote_spanned!(span=> #resolved_value as usize))
+            }
+            Count::Literal(lit) => {
+                let span = lit.span();
+                Some(quote_spanned!(span=> #lit))
+            }
+            Count::Function { fn_, args } => {
+                let span = fn_.span();
+                let args = args.iter().map(crate::make_resolved_ident);
+                Some(quote_spanned!(span=> #fn_( #( #args ),* )))
+            }
+            Count::All(_) => None,
         }
     }
 
@@ -291,7 +355,7 @@ static REPR: &str = "repr";
 static FLAGS: &str = "flags";
 static OFFSET_HOST: &str = "offset_host";
 static GENERATE_GETTERS: &str = "generate_getters";
-static INIT: &str = "init";
+static READ_ARGS: &str = "read_args";
 static MANUAL_COMPILE: &str = "manual_compile_type";
 
 impl ItemAttrs {
@@ -323,7 +387,7 @@ impl ItemAttrs {
                     let item = expect_single_item_list(&list)?;
                     result.format = Some(expect_ident(&item)?);
                 }
-                syn::Meta::List(list) if list.path.is_ident(INIT) => {
+                syn::Meta::List(list) if list.path.is_ident(READ_ARGS) => {
                     result.init = list
                         .nested
                         .iter()

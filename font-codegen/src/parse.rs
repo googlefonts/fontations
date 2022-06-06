@@ -84,6 +84,7 @@ pub struct Variant {
 pub enum Field {
     Single(SingleField),
     Array(ArrayField),
+    CustomRead(CustomField),
 }
 
 pub struct SingleField {
@@ -115,6 +116,15 @@ pub struct ArrayField {
     pub inner_lifetime: Option<syn::Lifetime>,
     pub count: Count,
     pub variable_size: Option<syn::Path>,
+    pub no_getter: Option<syn::Path>,
+}
+
+pub struct CustomField {
+    pub docs: Vec<syn::Attribute>,
+    pub name: syn::Ident,
+    pub typ: syn::Path,
+    pub read: attrs::ArgList,
+    pub count: Option<Count>,
 }
 
 /// A simple 'use' statement consisting of a single path.
@@ -262,6 +272,10 @@ impl Parse for Field {
             let lifetime = ensure_single_lifetime(&typ)?;
             let typ = parse_field_type(&typ)?;
             attrs.into_array(name, typ, lifetime).map(Field::Array)
+        } else if attrs.read.is_some() {
+            attrs
+                .into_custom(name, input.parse()?)
+                .map(Field::CustomRead)
         } else {
             let typ = parse_field_type(&input.parse()?)?;
             attrs.into_single(name, typ).map(Field::Single)
@@ -274,20 +288,21 @@ impl Field {
         match self {
             Field::Array(v) => &v.name,
             Field::Single(v) => &v.name,
+            Field::CustomRead(v) => &v.name,
         }
     }
 
     pub fn as_single(&self) -> Option<&SingleField> {
         match self {
-            Field::Array(_) => None,
             Field::Single(v) => Some(v),
+            _ => None,
         }
     }
 
     pub fn as_array(&self) -> Option<&ArrayField> {
         match self {
             Field::Array(v) => Some(v),
-            Field::Single(_) => None,
+            _ => None,
         }
     }
 
@@ -300,6 +315,7 @@ impl Field {
         match self {
             Field::Single(fld) => matches!(fld.typ, FieldType::Offset { .. }),
             Field::Array(fld) => matches!(fld.inner_typ, FieldType::Offset { .. }),
+            Field::CustomRead(_) => false,
         }
     }
 
@@ -311,14 +327,32 @@ impl Field {
         match self {
             Field::Array(v) => &v.docs,
             Field::Single(v) => &v.docs,
+            Field::CustomRead(v) => &v.docs,
         }
     }
 
     pub fn visible(&self) -> bool {
         match self {
             Field::Single(s) if s.hidden.is_some() => false,
-            Field::Array(a) if a.variable_size.is_some() => false,
+            Field::Array(a) if a.variable_size.is_some() | a.no_getter.is_some() => false,
             _ => true,
+        }
+    }
+
+    pub fn input_fields<'a>(&'a self) -> Option<Box<dyn Iterator<Item = &'a syn::Ident> + 'a>> {
+        match self {
+            Field::CustomRead(field) => {
+                return Some(Box::new(
+                    field.read.args.iter().chain(
+                        field
+                            .count
+                            .iter()
+                            .flat_map(|count| count.iter_input_fields()),
+                    ),
+                ));
+            }
+            Field::Array(array) => Some(Box::new(array.count.iter_input_fields())),
+            _ => None,
         }
     }
 
@@ -328,6 +362,9 @@ impl Field {
             Field::Array(fld) => {
                 let inner = fld.inner_typ.compile_type();
                 quote!(Vec<#inner>)
+            }
+            Field::CustomRead(_) => {
+                quote!(compile_error!("missing compile type for custom read type"))
             }
         }
     }
@@ -342,36 +379,30 @@ impl Field {
         let name = self.name();
         let span = name.span();
         let init_fn = match self {
+            Field::CustomRead(value) => {
+                let args = value.read.args.iter().map(super::make_resolved_ident);
+                let args = if value.read.args.len() > 1 {
+                    quote_spanned!(span=> ( #( #args ),* ))
+                } else {
+                    quote_spanned!(span=> #( #args )* )
+                };
+                let count = value.count.as_ref().and_then(Count::tokens);
+                quote_spanned!(span=> font_types::FontReadWithArgs::read_with_args(bytes.get(..#count)?, &#args )?)
+            }
             Field::Single(value) => {
                 let typ = value.typ.view_field_tokens();
                 quote_spanned!(span=> zerocopy::LayoutVerified::<_, #typ>::new_unaligned_from_prefix(bytes)?)
             }
             Field::Array(array) if array.variable_size.is_none() => {
                 let typ = array.inner_typ.view_field_tokens();
-                let count = match &array.count {
-                    Count::Field(name) => {
-                        let span = name.span();
-                        let resolved_value = super::make_resolved_ident(name);
-                        Some(quote_spanned!(span=> #resolved_value as usize))
-                    }
-                    Count::Literal(lit) => {
-                        let span = lit.span();
-                        Some(quote_spanned!(span=> #lit))
-                    }
-                    Count::Function { fn_, args } => {
-                        let span = fn_.span();
-                        let args = args.iter().map(super::make_resolved_ident);
-                        Some(quote_spanned!(span=> #fn_( #( #args ),* )))
-                    }
-                    Count::All(_) => None,
-                };
+                let count = array.count.tokens();
                 if let Some(count) = count {
-                    quote_spanned!(span=> zerocopy::LayoutVerified::<_, [#typ]>::new_slice_unaligned_from_prefix(bytes, #count)?)
+                    quote_spanned!(span=> zerocopy::LayoutVerified::<_, [#typ]>::new_slice_unaligned_from_prefix(bytes, #count as usize)?)
                 } else {
                     quote_spanned!(span => (zerocopy::LayoutVerified::<_, [#typ]>::new_slice_unaligned(bytes)?, 0))
                 }
             }
-            _ => quote_spanned!(span=> compile_errror!("we don't init this type yet")),
+            _ => quote_spanned!(span=> compile_error!("we don't init this type yet")),
         };
         quote_spanned!(span=> let (#name, bytes) = #init_fn;)
     }
@@ -396,6 +427,11 @@ impl Field {
     pub fn getter_return_type(&self) -> proc_macro2::TokenStream {
         match self {
             Field::Single(field) => field.cooked_type_tokens(),
+            Field::CustomRead(field) => {
+                let typ = &field.typ;
+                let span = field.name.span();
+                quote_spanned!(span=> &#typ)
+            }
             Field::Array(array) => {
                 let typ = array.inner_typ.view_field_tokens();
                 let span = array.name.span();
@@ -439,6 +475,12 @@ impl Field {
                 let span = typ.span();
                 quote_spanned!(span=> #name: zerocopy::LayoutVerified<&'a [u8], [#typ]>)
             }
+            Field::CustomRead(field) => {
+                let typ = &field.typ;
+                let span = typ.span();
+                quote_spanned!(span=> #name: #typ)
+            }
+
             _ => panic!("variable arrays are not handled yet, you shouldn't be calling this"),
         }
     }
@@ -447,6 +489,9 @@ impl Field {
         match self {
             Field::Single(field) => field.to_owned_expr(),
             Field::Array(field) => field.to_owned_expr(),
+            Field::CustomRead(_) => Ok(quote!(compile_error!(
+                "missing ToOwndObj for custom read type"
+            ))),
         }
     }
 
@@ -454,6 +499,9 @@ impl Field {
         match self {
             Field::Single(field) => field.font_write_expr(),
             Field::Array(field) => field.font_write_expr(),
+            Field::CustomRead(_) => {
+                quote!(compile_error!("missing fontwrite for custom read type"))
+            }
         }
     }
 }
@@ -597,6 +645,7 @@ impl ArrayField {
         quote!(self.#name.write_into(writer);)
     }
 }
+
 impl SingleItem {
     /// `true` if this contains offsets or fields with lifetimes.
     pub fn has_references(&self) -> bool {
