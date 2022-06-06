@@ -121,7 +121,9 @@ fn generate_group(
 
                         _other => {
                             #[cfg(feature = "std")]
-                            { eprintln!("unknown enum variant {:?}", version); }
+                            {
+                            eprintln!("unknown enum variant {:?} (table {})", version, stringify!(#name));
+                            }
                             None
                         }
                 }

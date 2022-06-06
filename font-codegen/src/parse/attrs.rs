@@ -11,6 +11,7 @@ use super::{ArrayField, SingleField};
 pub struct FieldAttrs {
     docs: Vec<syn::Attribute>,
     hidden: Option<syn::Path>,
+    no_getter: Option<syn::Path>,
     count: Option<Count>,
     variable_size: Option<syn::Path>,
 }
@@ -52,6 +53,8 @@ pub struct ItemAttrs {
     pub flags: Option<syn::Ident>,
 }
 
+const NO_GETTER: &str = "no_getter";
+
 impl FieldAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<FieldAttrs, syn::Error> {
         let mut result = FieldAttrs::default();
@@ -63,6 +66,10 @@ impl FieldAttrs {
                 syn::Meta::Path(path) if path.is_ident("hidden") => {
                     result.hidden = Some(path.clone())
                 }
+                syn::Meta::Path(path) if path.is_ident(NO_GETTER) => {
+                    result.no_getter = Some(path.clone())
+                }
+
                 syn::Meta::Path(path) if path.is_ident("variable_size") => {
                     result.variable_size = Some(path.clone())
                 }
@@ -127,14 +134,14 @@ impl FieldAttrs {
                 "array types require 'count' or 'count_with' attribute",
             )
         })?;
-        let variable_size = self.variable_size;
         Ok(ArrayField {
             docs: self.docs,
             name,
             inner_typ,
             inner_lifetime,
             count,
-            variable_size,
+            variable_size: self.variable_size,
+            no_getter: self.no_getter,
         })
     }
 
