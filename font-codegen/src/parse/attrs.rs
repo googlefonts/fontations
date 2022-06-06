@@ -38,6 +38,7 @@ pub enum Compute {
     /// computed from length of a given collection
     Len(syn::Ident),
     Literal(syn::Lit),
+    With(syn::Path),
 }
 
 #[derive(Default)]
@@ -70,6 +71,7 @@ pub struct ItemAttrs {
 static OFFSET: &str = "offset";
 static COMPUTE_LEN: &str = "compute_count";
 static COMPUTE: &str = "compute";
+static COMPUTE_WITH: &str = "compute_with";
 
 impl FieldAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<FieldAttrs, syn::Error> {
@@ -138,6 +140,10 @@ impl FieldAttrs {
                 syn::Meta::List(list) if list.path.is_ident(COMPUTE_LEN) => {
                     let inner = expect_single_item_list(&list)?;
                     result.compute = Some(Compute::Len(expect_ident(&inner)?));
+                }
+                syn::Meta::List(list) if list.path.is_ident(COMPUTE_WITH) => {
+                    let inner = expect_single_item_list(&list)?;
+                    result.compute = Some(Compute::With(expect_path(&inner)?));
                 }
                 other => {
                     return Err(syn::Error::new(other.span(), "unknown attribute"));
@@ -344,6 +350,13 @@ fn expect_ident(meta: &syn::NestedMeta) -> Result<syn::Ident, syn::Error> {
             Ok(p.get_ident().unwrap().clone())
         }
         _ => Err(syn::Error::new(meta.span(), "expected ident")),
+    }
+}
+
+fn expect_path(meta: &syn::NestedMeta) -> Result<syn::Path, syn::Error> {
+    match meta {
+        syn::NestedMeta::Meta(syn::Meta::Path(p)) => Ok(p.clone()),
+        _ => Err(syn::Error::new(meta.span(), "expected path")),
     }
 }
 

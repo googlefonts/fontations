@@ -551,13 +551,17 @@ impl SingleField {
         let name = &self.name;
         match &self.typ {
             FieldType::Scalar { typ } => match &self.compute {
-                None => quote!(self.#name.write_into(writer)),
+                None => quote!(self.#name.write_into(writer);),
                 Some(Compute::Len(fld)) => {
-                    quote!(#typ::try_from(self.#fld.len()).unwrap().write_into(writer))
+                    quote!(#typ::try_from(self.#fld.len()).unwrap().write_into(writer); )
                 }
-                Some(Compute::Literal(lit)) => quote!( (#lit as #typ).write_into(writer)),
+                Some(Compute::Literal(lit)) => quote!( (#lit as #typ).write_into(writer); ),
+                Some(Compute::With(path)) => quote! {
+                    let #name: #typ = #path(self);
+                    #name.write_into(writer);
+                },
             },
-            _ => quote!(self.#name.write_into(writer)),
+            _ => quote!(self.#name.write_into(writer);),
         }
     }
 }
@@ -590,9 +594,7 @@ impl ArrayField {
 
     pub fn font_write_expr(&self) -> proc_macro2::TokenStream {
         let name = &self.name;
-        quote!(self.#name.write_into(writer))
-        //match &self.inner_typ {
-        //}
+        quote!(self.#name.write_into(writer);)
     }
 }
 impl SingleItem {

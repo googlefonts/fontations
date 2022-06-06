@@ -128,7 +128,7 @@ fn item_font_write(item: &parse::SingleItem) -> Result<proc_macro2::TokenStream,
     Ok(quote! {
         impl FontWrite for #name {
             fn write_into(&self, writer: &mut TableWriter) {
-                #(#field_exprs;)*
+                #(#field_exprs)*
 
             }
         }
