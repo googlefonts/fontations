@@ -75,7 +75,7 @@ pub struct ItemAttrs {
     pub init: Vec<(syn::Ident, syn::Type)>,
     pub repr: Option<syn::Ident>,
     pub flags: Option<syn::Ident>,
-    pub manual_compile: Option<syn::Path>,
+    pub no_compile: Option<syn::Path>,
 }
 
 static OFFSET: &str = "offset";
@@ -369,7 +369,7 @@ static FLAGS: &str = "flags";
 static OFFSET_HOST: &str = "offset_host";
 static GENERATE_GETTERS: &str = "generate_getters";
 static READ_ARGS: &str = "read_args";
-static MANUAL_COMPILE: &str = "manual_compile_type";
+static NO_COMPILE: &str = "no_compile";
 
 impl ItemAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<ItemAttrs, syn::Error> {
@@ -379,8 +379,8 @@ impl ItemAttrs {
                 syn::Meta::Path(path) if path.is_ident(OFFSET_HOST) => {
                     result.offset_host = Some(path)
                 }
-                syn::Meta::Path(path) if path.is_ident(MANUAL_COMPILE) => {
-                    result.manual_compile = Some(path)
+                syn::Meta::Path(path) if path.is_ident(NO_COMPILE) => {
+                    result.no_compile = Some(path);
                 }
                 syn::Meta::Path(path) if path.is_ident(GENERATE_GETTERS) => {
                     result.generate_getters = Some(path)

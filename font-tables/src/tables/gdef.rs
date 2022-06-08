@@ -38,21 +38,14 @@ impl<'a> Gdef<'a> {
 
 #[cfg(feature = "compile")]
 pub mod compile {
-    use font_types::{GlyphId, Offset, Offset16, OffsetHost};
-    use std::collections::BTreeMap;
+    use font_types::{Offset, Offset16, OffsetHost};
 
     use crate::{
-        compile::{FontWrite, OffsetMarker16, TableWriter, ToOwnedObj},
-        layout::{compile::CoverageTable, CoverageTable as CoverageTableRef},
+        compile::{FontWrite, TableWriter, ToOwnedObj},
+        layout::{compile::CoverageTableBuilder, CoverageTable as CoverageTableRef},
     };
 
     pub use super::generated::compile::*;
-
-    // a more ergonimic representation
-    #[derive(Debug, Default, PartialEq)]
-    pub struct AttachList {
-        pub items: BTreeMap<GlyphId, Vec<u16>>,
-    }
 
     impl ToOwnedObj for super::AttachList<'_> {
         type Owned = AttachList;
@@ -82,7 +75,7 @@ pub mod compile {
 
     impl FontWrite for AttachList {
         fn write_into(&self, writer: &mut TableWriter) {
-            let coverage = self.items.keys().copied().collect::<CoverageTable>();
+            let coverage = self.items.keys().copied().collect::<CoverageTableBuilder>();
             writer.write_offset::<Offset16>(&coverage);
             (self.items.len() as u16).write_into(writer);
             for points in self.items.values() {
@@ -100,11 +93,6 @@ pub mod compile {
             (self.points.len() as u16).write_into(writer);
             self.points.write_into(writer);
         }
-    }
-    #[derive(Debug, Default, PartialEq)]
-    pub struct CaretValueFormat3 {
-        pub coordinate: i16,
-        pub device_offset: OffsetMarker16<Box<dyn FontWrite>>,
     }
 
     impl ToOwnedObj for super::CaretValueFormat3<'_> {

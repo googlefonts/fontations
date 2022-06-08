@@ -809,14 +809,25 @@ impl<'a> font_types::OffsetHost<'a> for MarkGlyphSets<'a> {
 
 #[cfg(feature = "compile")]
 pub mod compile {
-    use super::super::compile::AttachList;
-    use super::super::compile::CaretValueFormat3;
+    use super::GlyphClassDef;
     use crate::compile::*;
     use crate::layout::compile::ClassDef;
     use crate::layout::compile::CoverageTable;
-    use font_types::{Offset as _, OffsetHost as _};
+    use font_types::*;
+    use std::collections::BTreeMap;
 
     #[derive(Debug, Default, PartialEq)]
+    pub struct AttachList {
+        pub items: BTreeMap<GlyphId, Vec<u16>>,
+    }
+
+    #[derive(Debug, Default, PartialEq)]
+    pub struct CaretValueFormat3 {
+        pub coordinate: i16,
+        pub device_offset: OffsetMarker16<Box<dyn FontWrite>>,
+    }
+
+    #[derive(Debug, PartialEq)]
     pub struct Gdef1_0 {
         pub glyph_class_def_offset: OffsetMarker16<ClassDef>,
         pub attach_list_offset: OffsetMarker16<AttachList>,
@@ -859,8 +870,10 @@ pub mod compile {
 
     impl FontWrite for Gdef1_0 {
         fn write_into(&self, writer: &mut TableWriter) {
-            (1 as u16).write_into(writer);
-            (0 as u16).write_into(writer);
+            let major_version: u16 = 1;
+            major_version.write_into(writer);
+            let minor_version: u16 = 0;
+            minor_version.write_into(writer);
             self.glyph_class_def_offset.write_into(writer);
             self.attach_list_offset.write_into(writer);
             self.lig_caret_list_offset.write_into(writer);
@@ -868,13 +881,7 @@ pub mod compile {
         }
     }
 
-    impl Gdef1_0 {
-        pub fn new() -> Self {
-            Default::default()
-        }
-    }
-
-    #[derive(Debug, Default, PartialEq)]
+    #[derive(Debug, PartialEq)]
     pub struct Gdef1_2 {
         pub glyph_class_def_offset: OffsetMarker16<ClassDef>,
         pub attach_list_offset: OffsetMarker16<AttachList>,
@@ -923,8 +930,10 @@ pub mod compile {
 
     impl FontWrite for Gdef1_2 {
         fn write_into(&self, writer: &mut TableWriter) {
-            (1 as u16).write_into(writer);
-            (2 as u16).write_into(writer);
+            let major_version: u16 = 1;
+            major_version.write_into(writer);
+            let minor_version: u16 = 2;
+            minor_version.write_into(writer);
             self.glyph_class_def_offset.write_into(writer);
             self.attach_list_offset.write_into(writer);
             self.lig_caret_list_offset.write_into(writer);
@@ -933,13 +942,7 @@ pub mod compile {
         }
     }
 
-    impl Gdef1_2 {
-        pub fn new() -> Self {
-            Default::default()
-        }
-    }
-
-    #[derive(Debug, Default, PartialEq)]
+    #[derive(Debug, PartialEq)]
     pub struct Gdef1_3 {
         pub glyph_class_def_offset: OffsetMarker16<ClassDef>,
         pub attach_list_offset: OffsetMarker16<AttachList>,
@@ -994,20 +997,16 @@ pub mod compile {
 
     impl FontWrite for Gdef1_3 {
         fn write_into(&self, writer: &mut TableWriter) {
-            (1 as u16).write_into(writer);
-            (3 as u16).write_into(writer);
+            let major_version: u16 = 1;
+            major_version.write_into(writer);
+            let minor_version: u16 = 3;
+            minor_version.write_into(writer);
             self.glyph_class_def_offset.write_into(writer);
             self.attach_list_offset.write_into(writer);
             self.lig_caret_list_offset.write_into(writer);
             self.mark_attach_class_def_offset.write_into(writer);
             self.mark_glyph_sets_def_offset.write_into(writer);
             self.item_var_store_offset.write_into(writer);
-        }
-    }
-
-    impl Gdef1_3 {
-        pub fn new() -> Self {
-            Default::default()
         }
     }
 
@@ -1041,13 +1040,7 @@ pub mod compile {
         }
     }
 
-    impl Default for Gdef {
-        fn default() -> Self {
-            Self::Gdef1_0(Default::default())
-        }
-    }
-
-    #[derive(Debug, Default, PartialEq)]
+    #[derive(Debug, PartialEq)]
     pub struct AttachPoint {
         pub point_indices: Vec<u16>,
     }
@@ -1074,13 +1067,7 @@ pub mod compile {
         }
     }
 
-    impl AttachPoint {
-        pub fn new() -> Self {
-            Default::default()
-        }
-    }
-
-    #[derive(Debug, Default, PartialEq)]
+    #[derive(Debug, PartialEq)]
     pub struct LigCaretList {
         pub coverage_offset: OffsetMarker16<CoverageTable>,
         pub lig_glyph_offsets: Vec<OffsetMarker16<LigGlyph>>,
@@ -1125,13 +1112,7 @@ pub mod compile {
         }
     }
 
-    impl LigCaretList {
-        pub fn new() -> Self {
-            Default::default()
-        }
-    }
-
-    #[derive(Debug, Default, PartialEq)]
+    #[derive(Debug, PartialEq)]
     pub struct LigGlyph {
         pub caret_value_offsets: Vec<OffsetMarker16<CaretValue>>,
     }
@@ -1169,12 +1150,6 @@ pub mod compile {
         }
     }
 
-    impl LigGlyph {
-        pub fn new() -> Self {
-            Default::default()
-        }
-    }
-
     #[derive(Debug, PartialEq)]
     pub enum CaretValue {
         Format1(CaretValueFormat1),
@@ -1209,13 +1184,7 @@ pub mod compile {
         }
     }
 
-    impl Default for CaretValue {
-        fn default() -> Self {
-            Self::Format1(Default::default())
-        }
-    }
-
-    #[derive(Debug, Default, PartialEq)]
+    #[derive(Debug, PartialEq)]
     pub struct CaretValueFormat1 {
         pub coordinate: i16,
     }
@@ -1233,18 +1202,13 @@ pub mod compile {
 
     impl FontWrite for CaretValueFormat1 {
         fn write_into(&self, writer: &mut TableWriter) {
-            (1 as u16).write_into(writer);
+            let caret_value_format: u16 = 1;
+            caret_value_format.write_into(writer);
             self.coordinate.write_into(writer);
         }
     }
 
-    impl CaretValueFormat1 {
-        pub fn new() -> Self {
-            Default::default()
-        }
-    }
-
-    #[derive(Debug, Default, PartialEq)]
+    #[derive(Debug, PartialEq)]
     pub struct CaretValueFormat2 {
         pub caret_value_point_index: u16,
     }
@@ -1262,18 +1226,13 @@ pub mod compile {
 
     impl FontWrite for CaretValueFormat2 {
         fn write_into(&self, writer: &mut TableWriter) {
-            (2 as u16).write_into(writer);
+            let caret_value_format: u16 = 2;
+            caret_value_format.write_into(writer);
             self.caret_value_point_index.write_into(writer);
         }
     }
 
-    impl CaretValueFormat2 {
-        pub fn new() -> Self {
-            Default::default()
-        }
-    }
-
-    #[derive(Debug, Default, PartialEq)]
+    #[derive(Debug, PartialEq)]
     pub struct MarkGlyphSets {
         pub coverage_offsets: Vec<OffsetMarker32<CoverageTable>>,
     }
@@ -1304,17 +1263,12 @@ pub mod compile {
 
     impl FontWrite for MarkGlyphSets {
         fn write_into(&self, writer: &mut TableWriter) {
-            (1 as u16).write_into(writer);
+            let format: u16 = 1;
+            format.write_into(writer);
             u16::try_from(self.coverage_offsets.len())
                 .unwrap()
                 .write_into(writer);
             self.coverage_offsets.write_into(writer);
-        }
-    }
-
-    impl MarkGlyphSets {
-        pub fn new() -> Self {
-            Default::default()
         }
     }
 }

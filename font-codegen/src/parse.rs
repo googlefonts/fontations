@@ -17,6 +17,7 @@ pub struct Items {
     pub use_stmts: Vec<SimpleUse>,
     pub items: Vec<Item>,
     pub helpers: Vec<syn::ItemFn>,
+    pub compile_types: Vec<syn::Item>,
 }
 
 pub enum Item {
@@ -31,7 +32,7 @@ pub struct SingleItem {
     pub docs: Vec<syn::Attribute>,
     pub lifetime: Option<syn::Lifetime>,
     pub offset_host: Option<syn::Path>,
-    pub manual_compile_type: Option<syn::Path>,
+    pub no_compile: Option<syn::Path>,
     pub init: Vec<(syn::Ident, syn::Type)>,
     pub name: syn::Ident,
     pub fields: Vec<Field>,
@@ -159,9 +160,12 @@ impl Parse for Items {
         let use_stmts = get_use_statements(input)?;
         let mut items = Vec::new();
         let mut helpers = Vec::new();
+        let mut compile_types = Vec::new();
         while !input.is_empty() {
             if input.peek(Token![fn]) {
                 helpers.push(input.parse()?);
+            } else if input.peek(Token![mod]) {
+                compile_types.extend(parse_compile_types(input)?);
             } else {
                 items.push(input.parse()?);
             }
@@ -170,8 +174,28 @@ impl Parse for Items {
             use_stmts,
             docs,
             items,
+            compile_types,
             helpers,
         })
+    }
+}
+
+static COMPILE_MOD: &str = "compile";
+
+fn parse_compile_types(input: ParseStream) -> Result<Vec<syn::Item>, syn::Error> {
+    let parse_mod = input.parse::<syn::ItemMod>()?;
+    if parse_mod.ident != COMPILE_MOD {
+        return Err(syn::Error::new(
+            parse_mod.ident.span(),
+            "only allowed module name is '{COMPILE_MOD}'",
+        ));
+    }
+    match parse_mod.content {
+        None => Err(syn::Error::new(
+            parse_mod.mod_token.span(),
+            "module must have { body }",
+        )),
+        Some((_, body)) => Ok(body),
     }
 }
 
@@ -207,7 +231,7 @@ impl Parse for Item {
             let item = SingleItem {
                 docs: attrs.docs,
                 offset_host: attrs.offset_host,
-                manual_compile_type: attrs.manual_compile,
+                no_compile: attrs.no_compile,
                 init: attrs.init,
                 lifetime,
                 name,
@@ -504,7 +528,6 @@ impl Field {
         }
     }
 
-    //#[hello(Vec<u16>)]
     pub fn font_write_expr(&self) -> proc_macro2::TokenStream {
         match self {
             Field::Single(field) => field.font_write_expr(),

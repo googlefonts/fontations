@@ -1,6 +1,22 @@
 use crate::layout::ClassDef;
 use crate::layout::CoverageTable;
 
+mod compile {
+    use std::collections::BTreeMap;
+
+    // a more ergonimic representation
+    #[derive(Debug, Default, PartialEq)]
+    pub struct AttachList {
+        pub items: BTreeMap<GlyphId, Vec<u16>>,
+    }
+
+    #[derive(Debug, Default, PartialEq)]
+    pub struct CaretValueFormat3 {
+        pub coordinate: i16,
+        pub device_offset: OffsetMarker16<Box<dyn FontWrite>>,
+    }
+}
+
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
 #[offset_host]
 Gdef1_0<'a> {
@@ -103,7 +119,7 @@ enum GlyphClassDef {
 
 /// [Attachment Point List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#attachment-point-list-table)
 #[offset_host]
-#[manual_compile_type]
+#[no_compile]
 AttachList<'a> {
     /// Offset to Coverage table - from beginning of AttachList table
     coverage_offset: BigEndian<Offset16<CoverageTable>>,
@@ -183,7 +199,7 @@ CaretValueFormat2 {
 
 /// [CaretValue Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-3)
 #[offset_host]
-#[manual_compile_type]
+#[no_compile]
 CaretValueFormat3<'a> {
     /// Format identifier-format = 3
     #[compute(3)]
