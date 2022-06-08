@@ -448,7 +448,7 @@ impl<'a> font_types::FontRead<'a> for AttachList<'a> {
         let (attach_point_offsets, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
                 bytes,
-                __resolved_glyph_count as usize as usize,
+                __resolved_glyph_count as usize,
             )?;
         let _bytes = bytes;
         let result = AttachList {
@@ -499,7 +499,7 @@ impl<'a> font_types::FontRead<'a> for AttachPoint<'a> {
         let (point_indices, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
                 bytes,
-                __resolved_point_count as usize as usize,
+                __resolved_point_count as usize,
             )?;
         let _bytes = bytes;
         let result = AttachPoint {
@@ -541,7 +541,7 @@ impl<'a> font_types::FontRead<'a> for LigCaretList<'a> {
         let (lig_glyph_offsets, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
                 bytes,
-                __resolved_lig_glyph_count as usize as usize,
+                __resolved_lig_glyph_count as usize,
             )?;
         let _bytes = bytes;
         let result = LigCaretList {
@@ -594,7 +594,7 @@ impl<'a> font_types::FontRead<'a> for LigGlyph<'a> {
         let (caret_value_offsets, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
                 bytes,
-                __resolved_caret_count as usize as usize,
+                __resolved_caret_count as usize,
             )?;
         let _bytes = bytes;
         let result = LigGlyph {
@@ -770,7 +770,7 @@ impl<'a> font_types::FontRead<'a> for MarkGlyphSets<'a> {
         let (coverage_offsets, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<Offset32>]>::new_slice_unaligned_from_prefix(
                 bytes,
-                __resolved_mark_glyph_set_count as usize as usize,
+                __resolved_mark_glyph_set_count as usize,
             )?;
         let _bytes = bytes;
         let result = MarkGlyphSets {
@@ -1047,6 +1047,8 @@ pub mod compile {
 
     impl ToOwnedObj for super::AttachPoint<'_> {
         type Owned = AttachPoint;
+
+        #[allow(unused_variables)]
         fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
             Some(AttachPoint {
                 point_indices: self

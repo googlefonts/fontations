@@ -7,9 +7,6 @@ mod generated;
 
 pub use generated::*;
 
-#[cfg(feature = "compile")]
-use crate::compile::{ToOwnedObj, ToOwnedTable};
-
 impl<'a> LookupList<'a> {
     /// Iterate all of the [`Lookup`]s in this list.
     pub fn iter_lookups(&self) -> impl Iterator<Item = Lookup<'a>> + '_ {
@@ -71,69 +68,44 @@ impl ClassDef<'_> {
 }
 
 #[cfg(feature = "compile")]
-impl ToOwnedObj for ClassDef<'_> {
-    type Owned = compile::ClassDef;
-    fn to_owned_obj(&self, _offset_data: &[u8]) -> Option<Self::Owned> {
-        let items = match self {
-            ClassDef::Format1(t) => t.iter().collect(),
-            ClassDef::Format2(t) => t.iter().collect(),
-        };
-
-        Some(compile::ClassDef { items })
-    }
-}
-
-#[cfg(feature = "compile")]
-impl ToOwnedTable for ClassDef<'_> {}
-
-#[cfg(feature = "compile")]
-impl ToOwnedObj for CoverageTable<'_> {
-    type Owned = compile::CoverageTable;
-    fn to_owned_obj(&self, _offset_data: &[u8]) -> Option<Self::Owned> {
-        Some(self.iter().collect())
-    }
-}
-
-#[cfg(feature = "compile")]
-impl ToOwnedTable for CoverageTable<'_> {}
-
-#[cfg(feature = "compile")]
 pub mod compile {
     use font_types::GlyphId;
     use std::collections::BTreeMap;
 
     use crate::compile::FontWrite;
 
+    pub use super::generated::compile::*;
+
     #[derive(Debug, PartialEq)]
-    pub struct ClassDef {
+    pub struct ClassDefBuilder {
         pub items: BTreeMap<GlyphId, u16>,
     }
 
     // represent the format choice as a type. this would let us provide API
     // such that the user could manually decide which format to use, if wished
-    pub struct ClassDefFormat1Writer<'a>(&'a ClassDef);
+    pub struct ClassDefFormat1Writer<'a>(&'a ClassDefBuilder);
 
-    pub struct ClassDefFormat2Writer<'a>(&'a ClassDef);
+    pub struct ClassDefFormat2Writer<'a>(&'a ClassDefBuilder);
 
     #[derive(Debug, PartialEq)]
-    pub struct CoverageTable {
+    pub struct CoverageTableBuilder {
         // invariant: is always sorted
         glyphs: Vec<GlyphId>,
     }
 
-    pub struct CoverageTableFormat1Writer<'a>(&'a CoverageTable);
+    pub struct CoverageTableFormat1Writer<'a>(&'a CoverageTableBuilder);
 
-    pub struct CoverageTableFormat2Writer<'a>(&'a CoverageTable);
+    pub struct CoverageTableFormat2Writer<'a>(&'a CoverageTableBuilder);
 
-    impl FromIterator<GlyphId> for CoverageTable {
+    impl FromIterator<GlyphId> for CoverageTableBuilder {
         fn from_iter<T: IntoIterator<Item = GlyphId>>(iter: T) -> Self {
             let mut glyphs = iter.into_iter().collect::<Vec<_>>();
             glyphs.sort_unstable();
-            CoverageTable { glyphs }
+            CoverageTableBuilder { glyphs }
         }
     }
 
-    impl CoverageTable {
+    impl CoverageTableBuilder {
         /// Add a `GlyphId` to this coverage table.
         ///
         /// Returns the coverage index of the added glyph.
@@ -172,7 +144,7 @@ pub mod compile {
         }
     }
 
-    impl FontWrite for ClassDef {
+    impl FontWrite for ClassDefBuilder {
         fn write_into(&self, writer: &mut crate::compile::TableWriter) {
             let is_contiguous = self
                 .items
@@ -220,7 +192,7 @@ pub mod compile {
         })
     }
 
-    impl FontWrite for CoverageTable {
+    impl FontWrite for CoverageTableBuilder {
         fn write_into(&self, writer: &mut crate::compile::TableWriter) {
             if should_choose_coverage_format_2(&self.glyphs) {
                 CoverageTableFormat2Writer(self).write_into(writer);

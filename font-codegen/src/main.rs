@@ -22,7 +22,7 @@ fn main() -> miette::Result<()> {
     }
 
     let generated_code = run_for_path(&path)?;
-    println!("{generated_code}");
+    print!("{generated_code}");
 
     Ok(())
 }
