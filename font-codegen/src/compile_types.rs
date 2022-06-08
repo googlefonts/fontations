@@ -60,7 +60,7 @@ fn generate_single_item(item: &parse::SingleItem) -> Result<proc_macro2::TokenSt
     let impl_font_write = item_font_write(item)?;
 
     Ok(quote! {
-        #[derive(Debug, Default, PartialEq)]
+        #[derive(Debug, PartialEq)]
         pub struct #name {
             #(#field_decls,)*
         }
@@ -68,12 +68,6 @@ fn generate_single_item(item: &parse::SingleItem) -> Result<proc_macro2::TokenSt
         #impl_to_owned
 
         #impl_font_write
-
-        impl #name {
-            pub fn new() -> Self {
-                Default::default()
-            }
-        }
     })
 }
 
@@ -142,13 +136,6 @@ fn generate_group(group: &parse::ItemGroup) -> Result<proc_macro2::TokenStream, 
         quote!(#name(#typ))
     });
 
-    let first_variant = &group
-        .variants
-        .iter()
-        .next()
-        .ok_or_else(|| syn::Error::new(name.span(), "empty enums are not allowed"))?
-        .name;
-
     let impl_to_owned = group_to_owned(group)?;
     let impl_font_write = group_font_write(group)?;
 
@@ -162,11 +149,6 @@ fn generate_group(group: &parse::ItemGroup) -> Result<proc_macro2::TokenStream, 
 
         #impl_font_write
 
-        impl Default for #name {
-            fn default() -> Self {
-                Self::#first_variant(Default::default())
-            }
-        }
     })
 }
 
