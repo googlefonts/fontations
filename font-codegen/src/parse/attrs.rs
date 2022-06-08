@@ -47,8 +47,8 @@ pub struct Offset {
 pub enum Compute {
     /// computed from length of a given collection
     Len(syn::Ident),
-    Literal(syn::Lit),
-    With(syn::Path),
+    /// Any expression that resolves to the appropriate type (constant, function, etc)
+    Expr(syn::Expr),
 }
 
 #[derive(Default)]
@@ -81,7 +81,6 @@ pub struct ItemAttrs {
 static OFFSET: &str = "offset";
 static COMPUTE_LEN: &str = "compute_count";
 static COMPUTE: &str = "compute";
-static COMPUTE_WITH: &str = "compute_with";
 const NO_GETTER: &str = "no_getter";
 const READ_WITH: &str = "read_with";
 static COMPILE_TYPE: &str = "compile_type";
@@ -92,6 +91,9 @@ impl FieldAttrs {
         for attr in attrs {
             if attr.path.is_ident(COMPILE_TYPE) {
                 result.compile_type = Some(attr.parse_args()?);
+                continue;
+            } else if attr.path.is_ident(COMPUTE) {
+                result.compute = Some(Compute::Expr(attr.parse_args()?));
                 continue;
             }
             match attr.parse_meta()? {
@@ -165,17 +167,9 @@ impl FieldAttrs {
                         ));
                     }
                 }
-                syn::Meta::List(list) if list.path.is_ident(COMPUTE) => {
-                    let inner = expect_single_item_list(&list)?;
-                    result.compute = Some(Compute::Literal(expect_lit(&inner)?))
-                }
                 syn::Meta::List(list) if list.path.is_ident(COMPUTE_LEN) => {
                     let inner = expect_single_item_list(&list)?;
                     result.compute = Some(Compute::Len(expect_ident(&inner)?));
-                }
-                syn::Meta::List(list) if list.path.is_ident(COMPUTE_WITH) => {
-                    let inner = expect_single_item_list(&list)?;
-                    result.compute = Some(Compute::With(expect_path(&inner)?));
                 }
                 other => {
                     return Err(syn::Error::new(other.span(), "unknown attribute"));
@@ -447,20 +441,6 @@ fn expect_ident(meta: &syn::NestedMeta) -> Result<syn::Ident, syn::Error> {
             Ok(p.get_ident().unwrap().clone())
         }
         _ => Err(syn::Error::new(meta.span(), "expected ident")),
-    }
-}
-
-fn expect_path(meta: &syn::NestedMeta) -> Result<syn::Path, syn::Error> {
-    match meta {
-        syn::NestedMeta::Meta(syn::Meta::Path(p)) => Ok(p.clone()),
-        _ => Err(syn::Error::new(meta.span(), "expected path")),
-    }
-}
-
-fn expect_lit(meta: &syn::NestedMeta) -> Result<syn::Lit, syn::Error> {
-    match meta {
-        syn::NestedMeta::Lit(lit) => Ok(lit.clone()),
-        _ => Err(syn::Error::new(meta.span(), "expected literal")),
     }
 }
 

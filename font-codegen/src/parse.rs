@@ -628,19 +628,16 @@ impl SingleField {
 
     pub fn font_write_expr(&self) -> proc_macro2::TokenStream {
         let name = &self.name;
-        match &self.typ {
-            FieldType::Scalar { typ } => match &self.compute {
-                None => quote!(self.#name.write_into(writer);),
-                Some(Compute::Len(fld)) => {
-                    quote!(#typ::try_from(self.#fld.len()).unwrap().write_into(writer); )
-                }
-                Some(Compute::Literal(lit)) => quote!( (#lit as #typ).write_into(writer); ),
-                Some(Compute::With(path)) => quote! {
-                    let #name: #typ = #path(self);
-                    #name.write_into(writer);
-                },
+        let compile_type = self.typ.compile_type();
+        match &self.compute {
+            Some(Compute::Len(fld)) => {
+                quote!(#compile_type::try_from(self.#fld.len()).unwrap().write_into(writer); )
+            }
+            Some(Compute::Expr(lit)) => quote! {
+                let #name: #compile_type = #lit;
+                #name.write_into(writer);
             },
-            _ => quote!(self.#name.write_into(writer);),
+            None => quote!(self.#name.write_into(writer);),
         }
     }
 }
