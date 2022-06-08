@@ -421,7 +421,11 @@ impl Field {
                 } else {
                     quote_spanned!(span=> #( #args )* )
                 };
-                let count = value.count.as_ref().and_then(Count::tokens);
+                let count = value
+                    .count
+                    .as_ref()
+                    .and_then(Count::tokens)
+                    .map(|count| quote!(#count as usize));
                 quote_spanned!(span=> font_types::FontReadWithArgs::read_with_args(bytes.get(..#count)?, &#args )?)
             }
             Field::Single(value) => {
@@ -569,16 +573,7 @@ impl FieldType {
                     .as_ref()
                     .map(|t| t.into_token_stream())
                     .unwrap_or_else(|| quote!(Box<dyn FontWrite>));
-                let offset = if offset_type == "Offset16" {
-                    syn::Ident::new("OffsetMarker16", offset_type.span())
-                } else if offset_type == "Offset24" {
-                    syn::Ident::new("OffsetMarker24", offset_type.span())
-                } else if offset_type == "Offset32" {
-                    syn::Ident::new("OffsetMarker32", offset_type.span())
-                } else {
-                    panic!("this should already be validated?");
-                };
-                quote!(#offset<#target>)
+                quote!(OffsetMarker<#offset_type, #target>)
             }
         }
     }
@@ -595,10 +590,6 @@ impl SingleField {
     /// non-scalar T.
     fn cooked_type_tokens(&self) -> proc_macro2::TokenStream {
         match &self.typ {
-            //FieldType::Offset {
-            //offset_type,
-            //target_type: Some(targ),
-            //} => quote!(#offset_type<#targ>),
             FieldType::Offset { offset_type, .. } => quote!(#offset_type),
             FieldType::Scalar { typ, .. } => quote!(#typ),
             FieldType::Other { typ } => quote!(&#typ),
