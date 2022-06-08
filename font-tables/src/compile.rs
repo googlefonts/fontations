@@ -2,7 +2,9 @@
 
 use std::collections::HashMap;
 
-use font_types::{BigEndian, Offset as AnyOffset, OffsetLen, Scalar, Uint24};
+use font_types::{
+    BigEndian, DynSizedArray, FontReadWithArgs, Offset as AnyOffset, OffsetLen, Scalar, Uint24,
+};
 
 //mod cmap;
 mod graph;
@@ -239,6 +241,20 @@ impl<T: Scalar + FontWrite> FontWrite for BigEndian<T> {
 impl<T: FontWrite> FontWrite for [T] {
     fn write_into(&self, writer: &mut TableWriter) {
         self.iter().for_each(|item| item.write_into(writer))
+    }
+}
+
+impl<'a, Args, T> ToOwnedObj for DynSizedArray<'a, Args, T>
+where
+    Args: Copy + 'static,
+    T: FontReadWithArgs<'a, Args> + ToOwnedObj + 'a,
+{
+    type Owned = Vec<T::Owned>;
+
+    fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
+        self.iter()
+            .map(|item| item.to_owned_obj(offset_data))
+            .collect::<Option<_>>()
     }
 }
 

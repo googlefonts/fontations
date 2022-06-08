@@ -13,6 +13,7 @@ pub fn generate_compile_module(
                 Some(generate_single_item(item))
             }
             parse::Item::Group(item) => Some(generate_group(item)),
+            parse::Item::Flags(item) => Some(generate_flags(item)),
             _ => None,
         })
         .collect::<Result<Vec<_>, _>>()?;
@@ -23,6 +24,8 @@ pub fn generate_compile_module(
             let name = &item.name;
             Some(quote!(super::super::compile::#name))
         }
+        parse::Item::RawEnum(parse::RawEnum { name, .. })
+        | parse::Item::Flags(parse::BitFlags { name, .. }) => Some(quote!(super::#name)),
         _ => None,
     });
     Ok(quote! {
@@ -212,6 +215,17 @@ fn group_font_write(group: &parse::ItemGroup) -> Result<proc_macro2::TokenStream
                 match self {
                     #(#match_arms)*
                 }
+            }
+        }
+    })
+}
+
+fn generate_flags(item: &parse::BitFlags) -> Result<proc_macro2::TokenStream, syn::Error> {
+    let name = &item.name;
+    Ok(quote! {
+        impl FontWrite for #name {
+            fn write_into(&self, writer: &mut TableWriter) {
+                self.bits().write_into(writer)
             }
         }
     })

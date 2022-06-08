@@ -123,6 +123,8 @@ pub struct CustomField {
     pub docs: Vec<syn::Attribute>,
     pub name: syn::Ident,
     pub typ: syn::Path,
+    pub inner_lifetime: Option<syn::Lifetime>,
+    pub compile_type: Option<syn::Path>,
     pub read: attrs::ArgList,
     pub count: Option<Count>,
 }
@@ -273,8 +275,10 @@ impl Parse for Field {
             let typ = parse_field_type(&typ)?;
             attrs.into_array(name, typ, lifetime).map(Field::Array)
         } else if attrs.read.is_some() {
+            let typ = input.parse::<syn::Path>()?;
+            let lifetime = ensure_single_lifetime(&typ)?;
             attrs
-                .into_custom(name, input.parse()?)
+                .into_custom(name, typ, lifetime)
                 .map(Field::CustomRead)
         } else {
             let typ = parse_field_type(&input.parse()?)?;
@@ -320,7 +324,11 @@ impl Field {
     }
 
     fn requires_lifetime(&self) -> bool {
-        self.is_array()
+        match self {
+            Field::Array(_) => true,
+            Field::CustomRead(field) => field.inner_lifetime.is_some(),
+            _ => false,
+        }
     }
 
     pub fn docs(&self) -> &[syn::Attribute] {
@@ -363,9 +371,12 @@ impl Field {
                 let inner = fld.inner_typ.compile_type();
                 quote!(Vec<#inner>)
             }
-            Field::CustomRead(_) => {
-                quote!(compile_error!("missing compile type for custom read type"))
-            }
+            Field::CustomRead(CustomField {
+                typ, compile_type, ..
+            }) => match &compile_type {
+                Some(custom) => custom.to_token_stream(),
+                None => typ.to_token_stream(),
+            },
         }
     }
 
@@ -489,19 +500,16 @@ impl Field {
         match self {
             Field::Single(field) => field.to_owned_expr(),
             Field::Array(field) => field.to_owned_expr(),
-            Field::CustomRead(_) => Ok(quote!(compile_error!(
-                "missing ToOwndObj for custom read type"
-            ))),
+            Field::CustomRead(field) => field.to_owned_expr(),
         }
     }
 
+    //#[hello(Vec<u16>)]
     pub fn font_write_expr(&self) -> proc_macro2::TokenStream {
         match self {
             Field::Single(field) => field.font_write_expr(),
             Field::Array(field) => field.font_write_expr(),
-            Field::CustomRead(_) => {
-                quote!(compile_error!("missing fontwrite for custom read type"))
-            }
+            Field::CustomRead(field) => field.font_write_expr(),
         }
     }
 }
@@ -645,8 +653,31 @@ impl ArrayField {
         quote!(self.#name.write_into(writer);)
     }
 }
+impl CustomField {
+    fn to_owned_expr(&self) -> Result<proc_macro2::TokenStream, syn::Error> {
+        let name = &self.name;
+        match &self.compile_type {
+            //Some(_typ) => Ok(quote!(From::from(&self.#name))),
+            Some(_) => Ok(quote!(self.#name.to_owned_obj(offset_data)?)),
+            None => Ok(quote!(self.#name.to_owned_obj(offset_data)?)),
+        }
+    }
+
+    fn font_write_expr(&self) -> proc_macro2::TokenStream {
+        let name = &self.name;
+        quote!(self.#name.write_into(writer);)
+    }
+}
 
 impl SingleItem {
+    pub fn gets_zerocopy_impl(&self) -> bool {
+        !self.has_references()
+            && !self
+                .fields
+                .iter()
+                .any(|x| matches!(x, Field::CustomRead(_)))
+    }
+
     /// `true` if this contains offsets or fields with lifetimes.
     pub fn has_references(&self) -> bool {
         self.offset_host.is_some() || self.has_field_with_lifetime()

@@ -17,6 +17,7 @@ pub struct FieldAttrs {
     pub(crate) read: Option<ArgList>,
     variable_size: Option<syn::Path>,
     compute: Option<Compute>,
+    compile_type: Option<syn::Path>,
 }
 
 /// Annotations for how to calculate the count of an array.
@@ -83,11 +84,16 @@ static COMPUTE: &str = "compute";
 static COMPUTE_WITH: &str = "compute_with";
 const NO_GETTER: &str = "no_getter";
 const READ_WITH: &str = "read_with";
+static COMPILE_TYPE: &str = "compile_type";
 
 impl FieldAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<FieldAttrs, syn::Error> {
         let mut result = FieldAttrs::default();
         for attr in attrs {
+            if attr.path.is_ident(COMPILE_TYPE) {
+                result.compile_type = Some(attr.parse_args()?);
+                continue;
+            }
             match attr.parse_meta()? {
                 syn::Meta::NameValue(value) if value.path.is_ident("doc") => {
                     result.docs.push(attr.clone());
@@ -253,13 +259,20 @@ impl FieldAttrs {
         })
     }
 
-    pub fn into_custom(self, name: syn::Ident, typ: syn::Path) -> Result<CustomField, syn::Error> {
+    pub fn into_custom(
+        self,
+        name: syn::Ident,
+        typ: syn::Path,
+        lifetime: Option<syn::Lifetime>,
+    ) -> Result<CustomField, syn::Error> {
         Ok(CustomField {
             docs: self.docs,
             name,
             typ,
             read: self.read.expect("hi"),
             count: self.count,
+            compile_type: self.compile_type,
+            inner_lifetime: lifetime,
         })
     }
 }

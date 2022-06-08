@@ -25,13 +25,14 @@ impl<'a, Args: Copy, T> FontReadWithArgs<'a, Args> for DynSizedArray<'a, Args, T
 
 impl<'a, Args, T> DynSizedArray<'a, Args, T>
 where
+    Args: Copy + 'static,
     T: FontReadWithArgs<'a, Args>,
 {
-    pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = T> + 'b {
-        let args = &self.args;
+    pub fn iter(&self) -> impl Iterator<Item = T> + 'a {
+        let args = self.args;
         let mut bytes = self.bytes;
         std::iter::from_fn(move || {
-            let (next, remaining_bytes) = T::read_with_args(bytes, args)?;
+            let (next, remaining_bytes) = T::read_with_args(bytes, &args)?;
             bytes = remaining_bytes;
             Some(next)
         })

@@ -70,7 +70,7 @@ pub fn codegen(items: &parse::Items) -> Result<proc_macro2::TokenStream, syn::Er
 }
 
 fn generate_item_code(item: &parse::SingleItem) -> proc_macro2::TokenStream {
-    if !item.has_references() {
+    if item.gets_zerocopy_impl() {
         generate_zerocopy_impls(item)
     } else {
         generate_view_impls(item)
@@ -376,6 +376,7 @@ fn generate_zerocopy_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream
 fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
     let name = &item.name;
     let docs = &item.docs;
+    let lifetime = item.lifetime.is_some().then(|| quote!(<'a>));
 
     // these are fields which are inputs to the size calculations of *other fields.
     // For each of these field, we generate a 'resolved' identifier, and we assign the
@@ -439,7 +440,7 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
         // since 'bytes' is consumed as we init items
         field_inits.insert(0, quote_spanned!(span=> let offset_bytes = bytes;));
         offset_host_impl = Some(quote_spanned! {span=>
-            impl<'a> font_types::OffsetHost<'a> for #name<'a> {
+            impl<'a> font_types::OffsetHost<'a> for #name #lifetime {
                 fn bytes(&self) -> &'a [u8] {
                     self.offset_bytes
                 }
@@ -457,7 +458,7 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
 
     let init_impl = if item.init.is_empty() {
         quote! {
-            impl<'a> font_types::FontRead<'a> for #name<'a> {
+            impl<'a> font_types::FontRead<'a> for #name #lifetime {
                 fn read(bytes: &'a [u8]) -> Option<Self> {
                     #init_body
                     Some(result)
@@ -472,7 +473,7 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
                 (
                     typ.to_token_stream(),
                     quote_spanned!(span=> #arg: &#typ),
-                    quote_spanned!(span=> let #resolved = #arg;),
+                    quote_spanned!(span=> let #resolved = *#arg;),
                 )
             }
             slice => {
@@ -490,7 +491,7 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
         };
 
         quote! {
-            impl<'a> font_types::FontReadWithArgs<'a, #arg_type> for #name<'a> {
+            impl<'a> font_types::FontReadWithArgs<'a, #arg_type> for #name #lifetime {
                 fn read_with_args(bytes: &'a [u8], #init_args ) -> Option<(Self, &'a [u8])> {
                     #init_aliases
                     #init_body
@@ -502,12 +503,12 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
 
     quote! {
         #( #docs )*
-        pub struct #name<'a> {
+        pub struct #name #lifetime {
             #( #field_decls ),*
         }
 
         #init_impl
-        impl<'a> #name<'a> {
+        impl #lifetime #name #lifetime {
             #( #getters )*
         }
 

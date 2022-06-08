@@ -17,7 +17,7 @@ pub trait Scalar {
 }
 
 /// A wrapper around raw big-endian bytes for some type.
-#[derive(Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
+#[derive(Clone, Copy, PartialEq, Eq, zerocopy::Unaligned, zerocopy::FromBytes)]
 #[repr(transparent)]
 pub struct BigEndian<T: Scalar>(pub(crate) T::Raw);
 
@@ -42,6 +42,12 @@ impl<T: Scalar> From<T> for BigEndian<T> {
     #[inline]
     fn from(val: T) -> Self {
         BigEndian(val.to_raw())
+    }
+}
+
+impl<T: Scalar + Default> Default for BigEndian<T> {
+    fn default() -> Self {
+        Self::from(T::default())
     }
 }
 
