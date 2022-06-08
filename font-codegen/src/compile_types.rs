@@ -93,13 +93,11 @@ fn item_to_owned(item: &parse::SingleItem) -> Result<proc_macro2::TokenStream, s
         .offset_host
         .is_some()
         .then(|| quote!(impl ToOwnedTable for super:: #name #lifetime {}));
-    let allow_dead = (item.offset_host.is_some() || !item.has_field_with_lifetime())
-        .then(|| quote!(#[allow(unused_variables)]));
 
     Ok(quote! {
         impl ToOwnedObj for super::#name #lifetime {
             type Owned = #name;
-            #allow_dead
+            #[allow(unused_variables)]
             fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
                 #set_offset_bytes
                 Some(#name {

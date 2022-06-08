@@ -286,7 +286,7 @@ impl Count {
             Count::Field(name) => {
                 let span = name.span();
                 let resolved_value = crate::make_resolved_ident(name);
-                Some(quote_spanned!(span=> #resolved_value as usize))
+                Some(quote_spanned!(span=> #resolved_value))
             }
             Count::Literal(lit) => {
                 let span = lit.span();
