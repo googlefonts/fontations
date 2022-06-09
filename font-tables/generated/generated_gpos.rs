@@ -7,7 +7,6 @@ use crate::layout::CoverageTable;
 use crate::layout::FeatureList;
 use crate::layout::FeatureVariations;
 use crate::layout::ScriptList;
-use crate::tables::gpos::BaseArray;
 use crate::tables::gpos::PairValueRecord;
 use crate::tables::gpos::PositionLookupList;
 use crate::tables::gpos::ValueRecord;
@@ -1204,6 +1203,85 @@ impl<'a> font_types::OffsetHost<'a> for MarkBasePosFormat1<'a> {
     }
 }
 
+/// Part of [MarkBasePosFormat1]
+pub struct BaseArray<'a> {
+    base_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
+    base_records: DynSizedArray<'a, u16, BaseRecord<'a>>,
+    offset_bytes: &'a [u8],
+}
+
+impl<'a> font_types::FontReadWithArgs<'a, u16> for BaseArray<'a> {
+    fn read_with_args(bytes: &'a [u8], mark_class_count: &u16) -> Option<(Self, &'a [u8])> {
+        let __resolved_mark_class_count = *mark_class_count;
+        let offset_bytes = bytes;
+        let (base_count, bytes) =
+            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
+        let __resolved_base_count = base_count.get();
+        let (base_records, bytes) = font_types::FontReadWithArgs::read_with_args(
+            bytes.get(
+                ..nested_offset_array_len(__resolved_base_count, __resolved_mark_class_count)
+                    as usize,
+            )?,
+            &__resolved_mark_class_count,
+        )?;
+        let _bytes = bytes;
+        let result = BaseArray {
+            base_count,
+            base_records,
+            offset_bytes,
+        };
+        Some((result, _bytes))
+    }
+}
+
+impl<'a> BaseArray<'a> {
+    /// Number of BaseRecords
+    pub fn base_count(&self) -> u16 {
+        self.base_count.get()
+    }
+
+    /// Array of BaseRecords, in order of baseCoverage Index.
+    pub fn base_records(&self) -> &DynSizedArray<'a, u16, BaseRecord<'a>> {
+        &self.base_records
+    }
+}
+
+impl<'a> font_types::OffsetHost<'a> for BaseArray<'a> {
+    fn bytes(&self) -> &'a [u8] {
+        self.offset_bytes
+    }
+}
+
+/// Part of [BaseArray]
+pub struct BaseRecord<'a> {
+    base_anchor_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
+}
+
+impl<'a> font_types::FontReadWithArgs<'a, u16> for BaseRecord<'a> {
+    fn read_with_args(bytes: &'a [u8], mark_class_count: &u16) -> Option<(Self, &'a [u8])> {
+        let __resolved_mark_class_count = *mark_class_count;
+        let (base_anchor_offsets, bytes) =
+            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
+                bytes,
+                __resolved_mark_class_count as usize,
+            )?;
+        let _bytes = bytes;
+        let result = BaseRecord {
+            base_anchor_offsets,
+        };
+        Some((result, _bytes))
+    }
+}
+
+impl<'a> BaseRecord<'a> {
+    /// Array of offsets (one per mark class) to Anchor tables. Offsets
+    /// are from beginning of BaseArray table, ordered by class
+    /// (offsets may be NULL).
+    pub fn base_anchor_offsets(&self) -> &[BigEndian<Offset16>] {
+        &self.base_anchor_offsets
+    }
+}
+
 /// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
 pub struct MarkLigPosFormat1<'a> {
     pos_format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
@@ -1656,7 +1734,6 @@ pub mod compile {
     use crate::layout::compile::FeatureList;
     use crate::layout::compile::FeatureVariations;
     use crate::layout::compile::ScriptList;
-    use crate::tables::gpos::compile::BaseArray;
     use crate::tables::gpos::compile::PairValueRecord;
     use crate::tables::gpos::compile::PositionLookupList;
     use crate::tables::gpos::compile::ValueRecord;
@@ -2450,6 +2527,66 @@ pub mod compile {
             self.mark_class_count.write_into(writer);
             self.mark_array_offset.write_into(writer);
             self.base_array_offset.write_into(writer);
+        }
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct BaseArray {
+        pub base_records: Vec<BaseRecord>,
+    }
+
+    impl ToOwnedObj for super::BaseArray<'_> {
+        type Owned = BaseArray;
+
+        #[allow(unused_variables)]
+        fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
+            let offset_data = self.bytes();
+            Some(BaseArray {
+                base_records: self.base_records.to_owned_obj(offset_data)?,
+            })
+        }
+    }
+
+    impl ToOwnedTable for super::BaseArray<'_> {}
+
+    impl FontWrite for BaseArray {
+        fn write_into(&self, writer: &mut TableWriter) {
+            u16::try_from(self.base_records.len())
+                .unwrap()
+                .write_into(writer);
+            self.base_records.write_into(writer);
+        }
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub struct BaseRecord {
+        pub base_anchor_offsets: Vec<OffsetMarker<Offset16, AnchorTable>>,
+    }
+
+    impl ToOwnedObj for super::BaseRecord<'_> {
+        type Owned = BaseRecord;
+
+        #[allow(unused_variables)]
+        fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
+            Some(BaseRecord {
+                base_anchor_offsets: self
+                    .base_anchor_offsets()
+                    .iter()
+                    .map(|item| {
+                        Some(OffsetMarker::new_maybe_null(
+                            item.get()
+                                .read::<super::AnchorTable>(offset_data)
+                                .and_then(|obj| obj.to_owned_obj(offset_data)),
+                        ))
+                    })
+                    .collect::<Option<Vec<_>>>()?,
+            })
+        }
+    }
+
+    impl FontWrite for BaseRecord {
+        fn write_into(&self, writer: &mut TableWriter) {
+            self.base_anchor_offsets.write_into(writer);
         }
     }
 

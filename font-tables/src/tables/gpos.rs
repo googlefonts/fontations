@@ -7,7 +7,7 @@ mod generated;
 
 pub use generated::*;
 
-use font_types::{BigEndian, FontRead, FontReadWithArgs, Offset16, Tag};
+use font_types::{BigEndian, FontRead, FontReadWithArgs, Tag};
 
 use crate::layout::{Lookup, LookupList};
 
@@ -135,48 +135,6 @@ impl<'a> FontReadWithArgs<'a, (ValueFormat, ValueFormat)> for PairValueRecord {
     }
 }
 
-//TODO: can we get rid of this, like with LigatureArray?
-pub struct BaseArray<'a> {
-    // passed in from above
-    mark_class_count: u16,
-    pub base_count: BigEndian<u16>,
-    base_records: &'a [BigEndian<Offset16>],
-}
-
-impl<'a> FontReadWithArgs<'a, u16> for BaseArray<'a> {
-    fn read_with_args(bytes: &'a [u8], args: &u16) -> Option<(Self, &'a [u8])> {
-        let mark_class_count = *args;
-        let (base_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (base_records, bytes) = zerocopy::LayoutVerified::new_slice_unaligned_from_prefix(
-            bytes,
-            mark_class_count as usize * base_count.get() as usize,
-        )?;
-        Some((
-            BaseArray {
-                base_count: base_count.read(),
-                mark_class_count,
-                base_records: base_records.into_slice(),
-            },
-            bytes,
-        ))
-    }
-}
-
-pub struct BaseRecord<'a> {
-    pub base_anchor_offsets: &'a [BigEndian<Offset16>],
-}
-
-impl<'a> BaseArray<'a> {
-    pub fn base_records(&self) -> impl Iterator<Item = BaseRecord<'a>> + '_ {
-        self.base_records
-            .chunks(self.mark_class_count as usize)
-            .map(|base_anchor_offsets| BaseRecord {
-                base_anchor_offsets,
-            })
-    }
-}
-
 #[cfg(feature = "compile")]
 pub mod compile {
 
@@ -250,62 +208,6 @@ pub mod compile {
                 .mark2_array_offset()
                 .read_with_args::<_, super::Mark2Array>(self.bytes(), &self.mark_class_count())?;
             Some(OffsetMarker::new_maybe_null(mark2array.to_owned_table()))
-        }
-    }
-
-    #[derive(Debug, PartialEq)]
-    pub struct BaseArray {
-        pub base_records: Vec<BaseRecord>,
-    }
-
-    #[derive(Debug, PartialEq)]
-    pub struct BaseRecord {
-        pub base_anchor_offsets: Vec<OffsetMarker<Offset16, AnchorTable>>,
-    }
-
-    impl ToOwnedObj for super::BaseRecord<'_> {
-        type Owned = BaseRecord;
-
-        fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
-            let base_anchor_offsets = self
-                .base_anchor_offsets
-                .iter()
-                .map(|off| {
-                    off.get()
-                        .read::<super::AnchorTable>(offset_data)
-                        .and_then(|x| x.to_owned_obj(offset_data))
-                        .map(OffsetMarker::new)
-                })
-                .collect::<Option<_>>()?;
-            Some(BaseRecord {
-                base_anchor_offsets,
-            })
-        }
-    }
-
-    impl ToOwnedObj for super::BaseArray<'_> {
-        type Owned = BaseArray;
-
-        fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
-            self.base_records()
-                .map(|x| x.to_owned_obj(offset_data))
-                .collect::<Option<Vec<_>>>()
-                .map(|base_records| BaseArray { base_records })
-        }
-    }
-
-    impl FontWrite for BaseRecord {
-        fn write_into(&self, writer: &mut crate::compile::TableWriter) {
-            self.base_anchor_offsets.write_into(writer);
-        }
-    }
-
-    impl FontWrite for BaseArray {
-        fn write_into(&self, writer: &mut crate::compile::TableWriter) {
-            u16::try_from(self.base_records.len())
-                .unwrap()
-                .write_into(writer);
-            self.base_records.write_into(writer)
         }
     }
 

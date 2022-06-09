@@ -6,7 +6,6 @@ use crate::layout::FeatureVariations;
 use crate::tables::gpos::ValueRecord;
 use crate::tables::gpos::PairValueRecord;
 use crate::tables::gpos::PositionLookupList;
-use crate::tables::gpos::BaseArray;
 
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 #[offset_host]
@@ -242,19 +241,6 @@ PairPosFormat1<'a> {
     pair_set_offsets: [BigEndian<Offset16<PairSet>>],
 }
 
-//mod compile {
-    //impl super::PairPosFormat1<'_> {
-        //fn pair_sets_to_owned(&self) -> Option<Vec<OffsetMarker<Offset16, PairSet>>> {
-            //let offset_bytes = self.bytes();
-            //let format1 = self.value_format1();
-            //let format2 = self.value_format2();
-            //self.pair_set_offsets()
-                //.iter()
-                //.map(|off| off.get().read_with_args::<_, super::PairSet>(offset_bytes, &(format1, format2))).collect()
-        //}
-    //}
-//}
-
 /// Part of [PairPosFormat1]
 #[read_args(value_format1 = "ValueFormat", value_format2 = "ValueFormat")]
 PairSet<'a> {
@@ -402,29 +388,29 @@ MarkBasePosFormat1<'a> {
     base_array_offset: BigEndian<Offset16<BaseArray>>,
 }
 
-///// Part of [MarkBasePosFormat1]
-//#[read_args(mark_class_count = "u16")]
-//#[offset_host]
-//BaseArray<'a> {
-    ///// Number of BaseRecords
-    //#[compute_count(base_records)]
-    //base_count: BigEndian<u16>,
-    ///// Array of BaseRecords, in order of baseCoverage Index.
-    //#[count_with(nested_offset_array_len, base_count, mark_class_count)]
-    //#[read_with(mark_class_count)]
-    //#[compile_type(Vec<BaseRecord>)]
-    //base_records: DynSizedArray<'a, u16, BaseRecord<'a>>,
-//}
+/// Part of [MarkBasePosFormat1]
+#[read_args(mark_class_count = "u16")]
+#[offset_host]
+BaseArray<'a> {
+    /// Number of BaseRecords
+    #[compute_count(base_records)]
+    base_count: BigEndian<u16>,
+    /// Array of BaseRecords, in order of baseCoverage Index.
+    #[count_with(nested_offset_array_len, base_count, mark_class_count)]
+    #[read_with(mark_class_count)]
+    #[compile_type(Vec<BaseRecord>)]
+    base_records: DynSizedArray<'a, u16, BaseRecord<'a>>,
+}
 
-///// Part of [BaseArray]
-//#[read_args(mark_class_count = "u16")]
-//BaseRecord<'a> {
-    ///// Array of offsets (one per mark class) to Anchor tables. Offsets
-    ///// are from beginning of BaseArray table, ordered by class
-    ///// (offsets may be NULL).
-    //#[count(mark_class_count)]
-    //base_anchor_offsets: [BigEndian<Offset16<AnchorTable>>],
-//}
+/// Part of [BaseArray]
+#[read_args(mark_class_count = "u16")]
+BaseRecord<'a> {
+    /// Array of offsets (one per mark class) to Anchor tables. Offsets
+    /// are from beginning of BaseArray table, ordered by class
+    /// (offsets may be NULL).
+    #[count(mark_class_count)]
+    base_anchor_offsets: [BigEndian<Offset16<AnchorTable>>],
+}
 
 /// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
 #[offset_host]
