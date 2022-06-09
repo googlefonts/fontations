@@ -63,10 +63,18 @@ impl<'a> Gdef1_0<'a> {
         self.glyph_class_def_offset.get()
     }
 
+    pub fn glyph_class_def(&self) -> Option<ClassDef> {
+        self.glyph_class_def_offset().read(self.bytes())
+    }
+
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
     pub fn attach_list_offset(&self) -> Offset16 {
         self.attach_list_offset.get()
+    }
+
+    pub fn attach_list(&self) -> Option<AttachList> {
+        self.attach_list_offset().read(self.bytes())
     }
 
     /// Offset to ligature caret list table, from beginning of GDEF
@@ -75,10 +83,18 @@ impl<'a> Gdef1_0<'a> {
         self.lig_caret_list_offset.get()
     }
 
+    pub fn lig_caret_list(&self) -> Option<LigCaretList> {
+        self.lig_caret_list_offset().read(self.bytes())
+    }
+
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
     pub fn mark_attach_class_def_offset(&self) -> Offset16 {
         self.mark_attach_class_def_offset.get()
+    }
+
+    pub fn mark_attach_class_def(&self) -> Option<ClassDef> {
+        self.mark_attach_class_def_offset().read(self.bytes())
     }
 }
 
@@ -149,10 +165,18 @@ impl<'a> Gdef1_2<'a> {
         self.glyph_class_def_offset.get()
     }
 
+    pub fn glyph_class_def(&self) -> Option<ClassDef> {
+        self.glyph_class_def_offset().read(self.bytes())
+    }
+
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
     pub fn attach_list_offset(&self) -> Offset16 {
         self.attach_list_offset.get()
+    }
+
+    pub fn attach_list(&self) -> Option<AttachList> {
+        self.attach_list_offset().read(self.bytes())
     }
 
     /// Offset to ligature caret list table, from beginning of GDEF
@@ -161,16 +185,28 @@ impl<'a> Gdef1_2<'a> {
         self.lig_caret_list_offset.get()
     }
 
+    pub fn lig_caret_list(&self) -> Option<LigCaretList> {
+        self.lig_caret_list_offset().read(self.bytes())
+    }
+
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
     pub fn mark_attach_class_def_offset(&self) -> Offset16 {
         self.mark_attach_class_def_offset.get()
     }
 
+    pub fn mark_attach_class_def(&self) -> Option<ClassDef> {
+        self.mark_attach_class_def_offset().read(self.bytes())
+    }
+
     /// Offset to the table of mark glyph set definitions, from
     /// beginning of GDEF header (may be NULL)
     pub fn mark_glyph_sets_def_offset(&self) -> Offset16 {
         self.mark_glyph_sets_def_offset.get()
+    }
+
+    pub fn mark_glyph_sets_def(&self) -> Option<MarkGlyphSets> {
+        self.mark_glyph_sets_def_offset().read(self.bytes())
     }
 }
 
@@ -245,10 +281,18 @@ impl<'a> Gdef1_3<'a> {
         self.glyph_class_def_offset.get()
     }
 
+    pub fn glyph_class_def(&self) -> Option<ClassDef> {
+        self.glyph_class_def_offset().read(self.bytes())
+    }
+
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
     pub fn attach_list_offset(&self) -> Offset16 {
         self.attach_list_offset.get()
+    }
+
+    pub fn attach_list(&self) -> Option<AttachList> {
+        self.attach_list_offset().read(self.bytes())
     }
 
     /// Offset to ligature caret list table, from beginning of GDEF
@@ -257,10 +301,18 @@ impl<'a> Gdef1_3<'a> {
         self.lig_caret_list_offset.get()
     }
 
+    pub fn lig_caret_list(&self) -> Option<LigCaretList> {
+        self.lig_caret_list_offset().read(self.bytes())
+    }
+
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
     pub fn mark_attach_class_def_offset(&self) -> Offset16 {
         self.mark_attach_class_def_offset.get()
+    }
+
+    pub fn mark_attach_class_def(&self) -> Option<ClassDef> {
+        self.mark_attach_class_def_offset().read(self.bytes())
     }
 
     /// Offset to the table of mark glyph set definitions, from
@@ -269,10 +321,18 @@ impl<'a> Gdef1_3<'a> {
         self.mark_glyph_sets_def_offset.get()
     }
 
+    pub fn mark_glyph_sets_def(&self) -> Option<MarkGlyphSets> {
+        self.mark_glyph_sets_def_offset().read(self.bytes())
+    }
+
     /// Offset to the Item Variation Store table, from beginning of
     /// GDEF header (may be NULL)
     pub fn item_var_store_offset(&self) -> Offset32 {
         self.item_var_store_offset.get()
+    }
+
+    pub fn item_var_store(&self) -> Option<ClassDef> {
+        self.item_var_store_offset().read(self.bytes())
     }
 }
 
@@ -467,6 +527,10 @@ impl<'a> AttachList<'a> {
         self.coverage_offset.get()
     }
 
+    pub fn coverage(&self) -> Option<CoverageTable> {
+        self.coverage_offset().read(self.bytes())
+    }
+
     /// Number of glyphs with attachment points
     pub fn glyph_count(&self) -> u16 {
         self.glyph_count.get()
@@ -476,6 +540,12 @@ impl<'a> AttachList<'a> {
     /// AttachList table-in Coverage Index order
     pub fn attach_point_offsets(&self) -> &[BigEndian<Offset16>] {
         &self.attach_point_offsets
+    }
+
+    pub fn attach_point(&self) -> impl Iterator<Item = Option<AttachPoint>> + '_ {
+        self.attach_point_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
     }
 }
 
@@ -560,6 +630,10 @@ impl<'a> LigCaretList<'a> {
         self.coverage_offset.get()
     }
 
+    pub fn coverage(&self) -> Option<CoverageTable> {
+        self.coverage_offset().read(self.bytes())
+    }
+
     /// Number of ligature glyphs
     pub fn lig_glyph_count(&self) -> u16 {
         self.lig_glyph_count.get()
@@ -569,6 +643,12 @@ impl<'a> LigCaretList<'a> {
     /// LigCaretList table —in Coverage Index order
     pub fn lig_glyph_offsets(&self) -> &[BigEndian<Offset16>] {
         &self.lig_glyph_offsets
+    }
+
+    pub fn lig_glyph(&self) -> impl Iterator<Item = Option<LigGlyph>> + '_ {
+        self.lig_glyph_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
     }
 }
 
@@ -616,6 +696,12 @@ impl<'a> LigGlyph<'a> {
     /// LigGlyph table — in increasing coordinate order
     pub fn caret_value_offsets(&self) -> &[BigEndian<Offset16>] {
         &self.caret_value_offsets
+    }
+
+    pub fn caret_value(&self) -> impl Iterator<Item = Option<CaretValue>> + '_ {
+        self.caret_value_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
     }
 }
 
@@ -799,6 +885,12 @@ impl<'a> MarkGlyphSets<'a> {
     pub fn coverage_offsets(&self) -> &[BigEndian<Offset32>] {
         &self.coverage_offsets
     }
+
+    pub fn coverage(&self) -> impl Iterator<Item = Option<CoverageTable>> + '_ {
+        self.coverage_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
+    }
 }
 
 impl<'a> font_types::OffsetHost<'a> for MarkGlyphSets<'a> {
@@ -829,10 +921,10 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct Gdef1_0 {
-        pub glyph_class_def_offset: OffsetMarker16<ClassDef>,
-        pub attach_list_offset: OffsetMarker16<AttachList>,
-        pub lig_caret_list_offset: OffsetMarker16<LigCaretList>,
-        pub mark_attach_class_def_offset: OffsetMarker16<ClassDef>,
+        pub glyph_class_def_offset: OffsetMarker<Offset16, ClassDef>,
+        pub attach_list_offset: OffsetMarker<Offset16, AttachList>,
+        pub lig_caret_list_offset: OffsetMarker<Offset16, LigCaretList>,
+        pub mark_attach_class_def_offset: OffsetMarker<Offset16, ClassDef>,
     }
 
     impl ToOwnedObj for super::Gdef1_0<'_> {
@@ -883,11 +975,11 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct Gdef1_2 {
-        pub glyph_class_def_offset: OffsetMarker16<ClassDef>,
-        pub attach_list_offset: OffsetMarker16<AttachList>,
-        pub lig_caret_list_offset: OffsetMarker16<LigCaretList>,
-        pub mark_attach_class_def_offset: OffsetMarker16<ClassDef>,
-        pub mark_glyph_sets_def_offset: OffsetMarker16<MarkGlyphSets>,
+        pub glyph_class_def_offset: OffsetMarker<Offset16, ClassDef>,
+        pub attach_list_offset: OffsetMarker<Offset16, AttachList>,
+        pub lig_caret_list_offset: OffsetMarker<Offset16, LigCaretList>,
+        pub mark_attach_class_def_offset: OffsetMarker<Offset16, ClassDef>,
+        pub mark_glyph_sets_def_offset: OffsetMarker<Offset16, MarkGlyphSets>,
     }
 
     impl ToOwnedObj for super::Gdef1_2<'_> {
@@ -944,12 +1036,12 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct Gdef1_3 {
-        pub glyph_class_def_offset: OffsetMarker16<ClassDef>,
-        pub attach_list_offset: OffsetMarker16<AttachList>,
-        pub lig_caret_list_offset: OffsetMarker16<LigCaretList>,
-        pub mark_attach_class_def_offset: OffsetMarker16<ClassDef>,
-        pub mark_glyph_sets_def_offset: OffsetMarker16<MarkGlyphSets>,
-        pub item_var_store_offset: OffsetMarker32<ClassDef>,
+        pub glyph_class_def_offset: OffsetMarker<Offset16, ClassDef>,
+        pub attach_list_offset: OffsetMarker<Offset16, AttachList>,
+        pub lig_caret_list_offset: OffsetMarker<Offset16, LigCaretList>,
+        pub mark_attach_class_def_offset: OffsetMarker<Offset16, ClassDef>,
+        pub mark_glyph_sets_def_offset: OffsetMarker<Offset16, MarkGlyphSets>,
+        pub item_var_store_offset: OffsetMarker<Offset32, ClassDef>,
     }
 
     impl ToOwnedObj for super::Gdef1_3<'_> {
@@ -1071,8 +1163,8 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct LigCaretList {
-        pub coverage_offset: OffsetMarker16<CoverageTable>,
-        pub lig_glyph_offsets: Vec<OffsetMarker16<LigGlyph>>,
+        pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+        pub lig_glyph_offsets: Vec<OffsetMarker<Offset16, LigGlyph>>,
     }
 
     impl ToOwnedObj for super::LigCaretList<'_> {
@@ -1116,7 +1208,7 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct LigGlyph {
-        pub caret_value_offsets: Vec<OffsetMarker16<CaretValue>>,
+        pub caret_value_offsets: Vec<OffsetMarker<Offset16, CaretValue>>,
     }
 
     impl ToOwnedObj for super::LigGlyph<'_> {
@@ -1236,7 +1328,7 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct MarkGlyphSets {
-        pub coverage_offsets: Vec<OffsetMarker32<CoverageTable>>,
+        pub coverage_offsets: Vec<OffsetMarker<Offset32, CoverageTable>>,
     }
 
     impl ToOwnedObj for super::MarkGlyphSets<'_> {

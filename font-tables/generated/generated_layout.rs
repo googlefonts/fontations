@@ -112,6 +112,10 @@ impl<'a> Script<'a> {
         self.default_lang_sys_offset.get()
     }
 
+    pub fn default_lang_sys(&self) -> Option<LangSys> {
+        self.default_lang_sys_offset().read(self.bytes())
+    }
+
     /// Number of LangSysRecords for this script — excluding the
     /// default LangSys
     pub fn lang_sys_count(&self) -> u16 {
@@ -808,6 +812,10 @@ impl<'a> SequenceContextFormat1<'a> {
         self.coverage_offset.get()
     }
 
+    pub fn coverage(&self) -> Option<CoverageTable> {
+        self.coverage_offset().read(self.bytes())
+    }
+
     /// Number of SequenceRuleSet tables
     pub fn seq_rule_set_count(&self) -> u16 {
         self.seq_rule_set_count.get()
@@ -817,6 +825,12 @@ impl<'a> SequenceContextFormat1<'a> {
     /// SequenceContextFormat1 table (offsets may be NULL)
     pub fn seq_rule_set_offsets(&self) -> &[BigEndian<Offset16>] {
         &self.seq_rule_set_offsets
+    }
+
+    pub fn seq_rule_set(&self) -> impl Iterator<Item = Option<SequenceRuleSet>> + '_ {
+        self.seq_rule_set_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
     }
 }
 
@@ -864,6 +878,12 @@ impl<'a> SequenceRuleSet<'a> {
     /// SequenceRuleSet table
     pub fn seq_rule_offsets(&self) -> &[BigEndian<Offset16>] {
         &self.seq_rule_offsets
+    }
+
+    pub fn seq_rule(&self) -> impl Iterator<Item = Option<SequenceRule>> + '_ {
+        self.seq_rule_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
     }
 }
 
@@ -984,10 +1004,18 @@ impl<'a> SequenceContextFormat2<'a> {
         self.coverage_offset.get()
     }
 
+    pub fn coverage(&self) -> Option<CoverageTable> {
+        self.coverage_offset().read(self.bytes())
+    }
+
     /// Offset to ClassDef table, from beginning of
     /// SequenceContextFormat2 table
     pub fn class_def_offset(&self) -> Offset16 {
         self.class_def_offset.get()
+    }
+
+    pub fn class_def(&self) -> Option<ClassDef> {
+        self.class_def_offset().read(self.bytes())
     }
 
     /// Number of ClassSequenceRuleSet tables
@@ -999,6 +1027,12 @@ impl<'a> SequenceContextFormat2<'a> {
     /// of SequenceContextFormat2 table (may be NULL)
     pub fn class_seq_rule_set_offsets(&self) -> &[BigEndian<Offset16>] {
         &self.class_seq_rule_set_offsets
+    }
+
+    pub fn class_seq_rule_set(&self) -> impl Iterator<Item = Option<ClassSequenceRuleSet>> + '_ {
+        self.class_seq_rule_set_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
     }
 }
 
@@ -1046,6 +1080,12 @@ impl<'a> ClassSequenceRuleSet<'a> {
     /// ClassSequenceRuleSet table
     pub fn class_seq_rule_offsets(&self) -> &[BigEndian<Offset16>] {
         &self.class_seq_rule_offsets
+    }
+
+    pub fn class_seq_rule(&self) -> impl Iterator<Item = Option<ClassSequenceRule>> + '_ {
+        self.class_seq_rule_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
     }
 }
 
@@ -1181,6 +1221,12 @@ impl<'a> SequenceContextFormat3<'a> {
         &self.coverage_offsets
     }
 
+    pub fn coverage(&self) -> impl Iterator<Item = Option<CoverageTable>> + '_ {
+        self.coverage_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
+    }
+
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &[SequenceLookupRecord] {
         &self.seq_lookup_records
@@ -1269,6 +1315,10 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
         self.coverage_offset.get()
     }
 
+    pub fn coverage(&self) -> Option<CoverageTable> {
+        self.coverage_offset().read(self.bytes())
+    }
+
     /// Number of ChainedSequenceRuleSet tables
     pub fn chained_seq_rule_set_count(&self) -> u16 {
         self.chained_seq_rule_set_count.get()
@@ -1278,6 +1328,14 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     /// ChainedSequenceContextFormat1 table (may be NULL)
     pub fn chained_seq_rule_set_offsets(&self) -> &[BigEndian<Offset16>] {
         &self.chained_seq_rule_set_offsets
+    }
+
+    pub fn chained_seq_rule_set(
+        &self,
+    ) -> impl Iterator<Item = Option<ChainedSequenceRuleSet>> + '_ {
+        self.chained_seq_rule_set_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
     }
 }
 
@@ -1325,6 +1383,12 @@ impl<'a> ChainedSequenceRuleSet<'a> {
     /// of ChainedSequenceRuleSet table
     pub fn chained_seq_rule_offsets(&self) -> &[BigEndian<Offset16>] {
         &self.chained_seq_rule_offsets
+    }
+
+    pub fn chained_seq_rule(&self) -> impl Iterator<Item = Option<ChainedSequenceRule>> + '_ {
+        self.chained_seq_rule_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
     }
 }
 
@@ -1497,10 +1561,18 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
         self.coverage_offset.get()
     }
 
+    pub fn coverage(&self) -> Option<CoverageTable> {
+        self.coverage_offset().read(self.bytes())
+    }
+
     /// Offset to ClassDef table containing backtrack sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
     pub fn backtrack_class_def_offset(&self) -> Offset16 {
         self.backtrack_class_def_offset.get()
+    }
+
+    pub fn backtrack_class_def(&self) -> Option<ClassDef> {
+        self.backtrack_class_def_offset().read(self.bytes())
     }
 
     /// Offset to ClassDef table containing input sequence context,
@@ -1509,10 +1581,18 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
         self.input_class_def_offset.get()
     }
 
+    pub fn input_class_def(&self) -> Option<ClassDef> {
+        self.input_class_def_offset().read(self.bytes())
+    }
+
     /// Offset to ClassDef table containing lookahead sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
     pub fn lookahead_class_def_offset(&self) -> Offset16 {
         self.lookahead_class_def_offset.get()
+    }
+
+    pub fn lookahead_class_def(&self) -> Option<ClassDef> {
+        self.lookahead_class_def_offset().read(self.bytes())
     }
 
     /// Number of ChainedClassSequenceRuleSet tables
@@ -1524,6 +1604,14 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// beginning of ChainedSequenceContextFormat2 table (may be NULL)
     pub fn chained_class_seq_rule_set_offsets(&self) -> &[BigEndian<Offset16>] {
         &self.chained_class_seq_rule_set_offsets
+    }
+
+    pub fn chained_class_seq_rule_set(
+        &self,
+    ) -> impl Iterator<Item = Option<ChainedClassSequenceRuleSet>> + '_ {
+        self.chained_class_seq_rule_set_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
     }
 }
 
@@ -1571,6 +1659,14 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
     /// beginning of ChainedClassSequenceRuleSet
     pub fn chained_class_seq_rule_offsets(&self) -> &[BigEndian<Offset16>] {
         &self.chained_class_seq_rule_offsets
+    }
+
+    pub fn chained_class_seq_rule(
+        &self,
+    ) -> impl Iterator<Item = Option<ChainedClassSequenceRule>> + '_ {
+        self.chained_class_seq_rule_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
     }
 }
 
@@ -1768,6 +1864,12 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
         &self.backtrack_coverage_offsets
     }
 
+    pub fn backtrack_coverage(&self) -> impl Iterator<Item = Option<CoverageTable>> + '_ {
+        self.backtrack_coverage_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
+    }
+
     /// Number of glyphs in the input sequence
     pub fn input_glyph_count(&self) -> u16 {
         self.input_glyph_count.get()
@@ -1778,6 +1880,12 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
         &self.input_coverage_offsets
     }
 
+    pub fn input_coverage(&self) -> impl Iterator<Item = Option<CoverageTable>> + '_ {
+        self.input_coverage_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
+    }
+
     /// Number of glyphs in the lookahead sequence
     pub fn lookahead_glyph_count(&self) -> u16 {
         self.lookahead_glyph_count.get()
@@ -1786,6 +1894,12 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Array of offsets to coverage tables for the lookahead sequence
     pub fn lookahead_coverage_offsets(&self) -> &[BigEndian<Offset16>] {
         &self.lookahead_coverage_offsets
+    }
+
+    pub fn lookahead_coverage(&self) -> impl Iterator<Item = Option<CoverageTable>> + '_ {
+        self.lookahead_coverage_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
     }
 
     /// Number of SequenceLookupRecords
@@ -2049,6 +2163,12 @@ impl<'a> ConditionSet<'a> {
     /// ConditionSet table.
     pub fn condition_offsets(&self) -> &[BigEndian<Offset32>] {
         &self.condition_offsets
+    }
+
+    pub fn condition(&self) -> impl Iterator<Item = Option<ConditionFormat1>> + '_ {
+        self.condition_offsets()
+            .iter()
+            .map(|item| item.get().read(self.bytes()))
     }
 }
 

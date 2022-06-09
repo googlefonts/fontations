@@ -238,6 +238,7 @@ PairPosFormat1<'a> {
     /// of PairPos subtable, ordered by Coverage Index.
     #[count(pair_set_count)]
     #[to_owned(self.pair_sets_to_owned())]
+    #[read_with(value_format1, value_format2)]
     pair_set_offsets: [BigEndian<Offset16<PairSet>>],
 }
 
@@ -385,6 +386,7 @@ MarkBasePosFormat1<'a> {
     /// Offset to BaseArray table, from beginning of MarkBasePos
     /// subtable.
     #[to_owned(self.base_array_to_owned())]
+    #[read_with(mark_class_count)]
     base_array_offset: BigEndian<Offset16<BaseArray>>,
 }
 
@@ -432,6 +434,7 @@ MarkLigPosFormat1<'a> {
     /// Offset to LigatureArray table, from beginning of MarkLigPos
     /// subtable.
     #[to_owned(self.ligature_array_to_owned())]
+    #[read_with(mark_class_count)]
     ligature_array_offset: BigEndian<Offset16<LigatureArray>>,
 }
 
@@ -447,6 +450,7 @@ LigatureArray<'a> {
     /// beginning of LigatureArray table, ordered by ligatureCoverage
     /// index.
     #[count(ligature_count)]
+    #[skip_offset_getter]
     ligature_attach_offsets: [BigEndian<Offset16<LigatureAttach>>],
 }
 
@@ -501,6 +505,7 @@ MarkMarkPosFormat1<'a> {
     /// Offset to Mark2Array table for mark2, from beginning of
     /// MarkMarkPos subtable.
     #[to_owned(self.mark2_array_to_owned())]
+    #[read_with(mark_class_count)]
     mark2_array_offset: BigEndian<Offset16<Mark2Array>>,
 }
 

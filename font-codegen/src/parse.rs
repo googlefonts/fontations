@@ -97,6 +97,7 @@ pub struct SingleField {
     pub offset: Option<Offset>,
     pub compute: Option<Compute>,
     pub to_owned: Option<syn::Expr>,
+    pub read: Option<attrs::ArgList>,
 }
 
 pub enum FieldType {
@@ -121,6 +122,8 @@ pub struct ArrayField {
     pub variable_size: Option<syn::Path>,
     pub no_getter: Option<syn::Path>,
     pub to_owned: Option<syn::Expr>,
+    pub read: Option<attrs::ArgList>,
+    pub skip_offset_getter: Option<syn::Path>,
 }
 
 pub struct CustomField {
@@ -302,15 +305,17 @@ impl Parse for Field {
             let lifetime = ensure_single_lifetime(&typ)?;
             let typ = parse_field_type(&typ)?;
             attrs.into_array(name, typ, lifetime).map(Field::Array)
-        } else if attrs.read.is_some() {
-            let typ = input.parse::<syn::Path>()?;
-            let lifetime = ensure_single_lifetime(&typ)?;
-            attrs
-                .into_custom(name, typ, lifetime)
-                .map(Field::CustomRead)
         } else {
             let typ = parse_field_type(&input.parse()?)?;
-            attrs.into_single(name, typ).map(Field::Single)
+            match typ {
+                FieldType::Other { typ } if attrs.read.is_some() => {
+                    let lifetime = ensure_single_lifetime(&typ)?;
+                    attrs
+                        .into_custom(name, typ, lifetime)
+                        .map(Field::CustomRead)
+                }
+                _ => attrs.into_single(name, typ).map(Field::Single),
+            }
         }
     }
 }
@@ -348,6 +353,26 @@ impl Field {
             Field::Single(fld) => matches!(fld.typ, FieldType::Offset { .. }),
             Field::Array(fld) => matches!(fld.inner_typ, FieldType::Offset { .. }),
             Field::CustomRead(_) => false,
+        }
+    }
+
+    pub(crate) fn is_offset_with_target(&self) -> bool {
+        match self {
+            Field::Single(fld) => matches!(
+                fld.typ,
+                FieldType::Offset {
+                    target_type: Some(_),
+                    ..
+                }
+            ),
+            Field::Array(fld) if fld.skip_offset_getter.is_none() => matches!(
+                fld.inner_typ,
+                FieldType::Offset {
+                    target_type: Some(_),
+                    ..
+                }
+            ),
+            _ => false,
         }
     }
 
@@ -459,12 +484,78 @@ impl Field {
         let span = name.span();
         let body = self.getter_body(true);
         let return_type = self.getter_return_type();
+
         Some(quote_spanned! {span=>
             #( #docs )*
             pub fn #name(&self) -> #return_type {
                 #body
             }
         })
+    }
+
+    pub(crate) fn typed_offset_getter_fn(&self) -> Option<proc_macro2::TokenStream> {
+        let name = self.name();
+        let getter_name = self.offset_getter_name()?;
+        assert_ne!(name, &getter_name);
+        match self {
+            Field::Single(SingleField {
+                typ:
+                    FieldType::Offset {
+                        target_type: Some(target),
+                        ..
+                    },
+                read,
+                ..
+            }) => {
+                let read_fn = match &read {
+                    Some(args) => {
+                        let args = args.for_read_with_args();
+                        quote!(self.#name().read_with_args::<_, #target>(self.bytes(), #args))
+                    }
+                    None => quote!(self.#name().read(self.bytes())),
+                };
+
+                Some(quote! {
+                    pub fn #getter_name(&self) -> Option<#target> {
+                        #read_fn
+                    }
+                })
+            }
+            Field::Array(ArrayField {
+                inner_typ:
+                    FieldType::Offset {
+                        target_type: Some(target),
+                        ..
+                    },
+                read,
+                ..
+            }) => {
+                let map_fn = match &read {
+                    Some(args) => {
+                        let args = args.for_read_with_args();
+                        quote!(item.get().read_with_args::<_, #target>(self.bytes(), #args))
+                    }
+                    None => quote!(item.get().read(self.bytes())),
+                };
+                Some(quote! {
+                    pub fn #getter_name(&self) -> impl Iterator<Item=Option<#target>> + '_ {
+                        self.#name().iter().map(|item| #map_fn)
+                    }
+                })
+            }
+            _ => None,
+        }
+    }
+
+    pub(crate) fn offset_getter_name(&self) -> Option<syn::Ident> {
+        if !self.is_offset_with_target() {
+            return None;
+        }
+        let name_string = self.name().to_string();
+        let name_string = name_string
+            .trim_end_matches("_offsets")
+            .trim_end_matches("_offset");
+        Some(syn::Ident::new(name_string, self.name().span()))
     }
 
     pub fn getter_return_type(&self) -> proc_macro2::TokenStream {

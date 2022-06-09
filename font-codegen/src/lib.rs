@@ -416,6 +416,9 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
         if let Some(getter) = field.view_getter_fn() {
             getters.push(getter);
         }
+        if item.offset_host.is_some() {
+            getters.extend(field.typed_offset_getter_fn());
+        }
 
         let field_init = field.view_init_expr();
         // if this field is used by another field, resolve it's current value

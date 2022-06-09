@@ -64,14 +64,26 @@ impl<'a> Gpos1_0<'a> {
         self.script_list_offset.get()
     }
 
+    pub fn script_list(&self) -> Option<ScriptList> {
+        self.script_list_offset().read(self.bytes())
+    }
+
     /// Offset to FeatureList table, from beginning of GPOS table
     pub fn feature_list_offset(&self) -> Offset16 {
         self.feature_list_offset.get()
     }
 
+    pub fn feature_list(&self) -> Option<FeatureList> {
+        self.feature_list_offset().read(self.bytes())
+    }
+
     /// Offset to LookupList table, from beginning of GPOS table
     pub fn lookup_list_offset(&self) -> Offset16 {
         self.lookup_list_offset.get()
+    }
+
+    pub fn lookup_list(&self) -> Option<PositionLookupList> {
+        self.lookup_list_offset().read(self.bytes())
     }
 }
 
@@ -137,9 +149,17 @@ impl<'a> Gpos1_1<'a> {
         self.script_list_offset.get()
     }
 
+    pub fn script_list(&self) -> Option<ScriptList> {
+        self.script_list_offset().read(self.bytes())
+    }
+
     /// Offset to FeatureList table, from beginning of GPOS table
     pub fn feature_list_offset(&self) -> Offset16 {
         self.feature_list_offset.get()
+    }
+
+    pub fn feature_list(&self) -> Option<FeatureList> {
+        self.feature_list_offset().read(self.bytes())
     }
 
     /// Offset to LookupList table, from beginning of GPOS table
@@ -147,10 +167,18 @@ impl<'a> Gpos1_1<'a> {
         self.lookup_list_offset.get()
     }
 
+    pub fn lookup_list(&self) -> Option<PositionLookupList> {
+        self.lookup_list_offset().read(self.bytes())
+    }
+
     /// Offset to FeatureVariations table, from beginning of GPOS table
     /// (may be NULL)
     pub fn feature_variations_offset(&self) -> Offset32 {
         self.feature_variations_offset.get()
+    }
+
+    pub fn feature_variations(&self) -> Option<FeatureVariations> {
+        self.feature_variations_offset().read(self.bytes())
     }
 }
 
@@ -425,11 +453,19 @@ impl<'a> AnchorFormat3<'a> {
         self.x_device_offset.get()
     }
 
+    pub fn x_device(&self) -> Option<FakeDeviceTable> {
+        self.x_device_offset().read(self.bytes())
+    }
+
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for Y coordinate, from beginning of
     /// Anchor table (may be NULL)
     pub fn y_device_offset(&self) -> Offset16 {
         self.y_device_offset.get()
+    }
+
+    pub fn y_device(&self) -> Option<FakeDeviceTable> {
+        self.y_device_offset().read(self.bytes())
     }
 }
 
@@ -572,6 +608,10 @@ impl<'a> SinglePosFormat1<'a> {
         self.coverage_offset.get()
     }
 
+    pub fn coverage(&self) -> Option<CoverageTable> {
+        self.coverage_offset().read(self.bytes())
+    }
+
     /// Defines the types of data in the ValueRecord.
     pub fn value_format(&self) -> ValueFormat {
         self.value_format.get()
@@ -643,6 +683,10 @@ impl<'a> SinglePosFormat2<'a> {
     /// Offset to Coverage table, from beginning of SinglePos subtable.
     pub fn coverage_offset(&self) -> Offset16 {
         self.coverage_offset.get()
+    }
+
+    pub fn coverage(&self) -> Option<CoverageTable> {
+        self.coverage_offset().read(self.bytes())
     }
 
     /// Defines the types of data in the ValueRecords.
@@ -754,6 +798,10 @@ impl<'a> PairPosFormat1<'a> {
         self.coverage_offset.get()
     }
 
+    pub fn coverage(&self) -> Option<CoverageTable> {
+        self.coverage_offset().read(self.bytes())
+    }
+
     /// Defines the types of data in valueRecord1 — for the first
     /// glyph in the pair (may be zero).
     pub fn value_format1(&self) -> ValueFormat {
@@ -775,6 +823,15 @@ impl<'a> PairPosFormat1<'a> {
     /// of PairPos subtable, ordered by Coverage Index.
     pub fn pair_set_offsets(&self) -> &[BigEndian<Offset16>] {
         &self.pair_set_offsets
+    }
+
+    pub fn pair_set(&self) -> impl Iterator<Item = Option<PairSet>> + '_ {
+        self.pair_set_offsets().iter().map(|item| {
+            item.get().read_with_args::<_, PairSet>(
+                self.bytes(),
+                &(self.value_format1(), self.value_format2()),
+            )
+        })
     }
 }
 
@@ -911,6 +968,10 @@ impl<'a> PairPosFormat2<'a> {
         self.coverage_offset.get()
     }
 
+    pub fn coverage(&self) -> Option<CoverageTable> {
+        self.coverage_offset().read(self.bytes())
+    }
+
     /// ValueRecord definition — for the first glyph of the pair (may
     /// be zero).
     pub fn value_format1(&self) -> ValueFormat {
@@ -929,10 +990,18 @@ impl<'a> PairPosFormat2<'a> {
         self.class_def1_offset.get()
     }
 
+    pub fn class_def1(&self) -> Option<ClassDef> {
+        self.class_def1_offset().read(self.bytes())
+    }
+
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the second glyph of the pair.
     pub fn class_def2_offset(&self) -> Offset16 {
         self.class_def2_offset.get()
+    }
+
+    pub fn class_def2(&self) -> Option<ClassDef> {
+        self.class_def2_offset().read(self.bytes())
     }
 
     /// Number of classes in classDef1 table — includes Class 0.
@@ -1078,6 +1147,10 @@ impl<'a> CursivePosFormat1<'a> {
         self.coverage_offset.get()
     }
 
+    pub fn coverage(&self) -> Option<CoverageTable> {
+        self.coverage_offset().read(self.bytes())
+    }
+
     /// Number of EntryExit records
     pub fn entry_exit_count(&self) -> u16 {
         self.entry_exit_count.get()
@@ -1173,10 +1246,18 @@ impl<'a> MarkBasePosFormat1<'a> {
         self.mark_coverage_offset.get()
     }
 
+    pub fn mark_coverage(&self) -> Option<CoverageTable> {
+        self.mark_coverage_offset().read(self.bytes())
+    }
+
     /// Offset to baseCoverage table, from beginning of MarkBasePos
     /// subtable.
     pub fn base_coverage_offset(&self) -> Offset16 {
         self.base_coverage_offset.get()
+    }
+
+    pub fn base_coverage(&self) -> Option<CoverageTable> {
+        self.base_coverage_offset().read(self.bytes())
     }
 
     /// Number of classes defined for marks
@@ -1190,10 +1271,19 @@ impl<'a> MarkBasePosFormat1<'a> {
         self.mark_array_offset.get()
     }
 
+    pub fn mark_array(&self) -> Option<MarkArray> {
+        self.mark_array_offset().read(self.bytes())
+    }
+
     /// Offset to BaseArray table, from beginning of MarkBasePos
     /// subtable.
     pub fn base_array_offset(&self) -> Offset16 {
         self.base_array_offset.get()
+    }
+
+    pub fn base_array(&self) -> Option<BaseArray> {
+        self.base_array_offset()
+            .read_with_args::<_, BaseArray>(self.bytes(), &self.mark_class_count())
     }
 }
 
@@ -1334,10 +1424,18 @@ impl<'a> MarkLigPosFormat1<'a> {
         self.mark_coverage_offset.get()
     }
 
+    pub fn mark_coverage(&self) -> Option<CoverageTable> {
+        self.mark_coverage_offset().read(self.bytes())
+    }
+
     /// Offset to ligatureCoverage table, from beginning of MarkLigPos
     /// subtable.
     pub fn ligature_coverage_offset(&self) -> Offset16 {
         self.ligature_coverage_offset.get()
+    }
+
+    pub fn ligature_coverage(&self) -> Option<CoverageTable> {
+        self.ligature_coverage_offset().read(self.bytes())
     }
 
     /// Number of defined mark classes
@@ -1351,10 +1449,19 @@ impl<'a> MarkLigPosFormat1<'a> {
         self.mark_array_offset.get()
     }
 
+    pub fn mark_array(&self) -> Option<MarkArray> {
+        self.mark_array_offset().read(self.bytes())
+    }
+
     /// Offset to LigatureArray table, from beginning of MarkLigPos
     /// subtable.
     pub fn ligature_array_offset(&self) -> Offset16 {
         self.ligature_array_offset.get()
+    }
+
+    pub fn ligature_array(&self) -> Option<LigatureArray> {
+        self.ligature_array_offset()
+            .read_with_args::<_, LigatureArray>(self.bytes(), &self.mark_class_count())
     }
 }
 
@@ -1544,10 +1651,18 @@ impl<'a> MarkMarkPosFormat1<'a> {
         self.mark1_coverage_offset.get()
     }
 
+    pub fn mark1_coverage(&self) -> Option<CoverageTable> {
+        self.mark1_coverage_offset().read(self.bytes())
+    }
+
     /// Offset to Base Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
     pub fn mark2_coverage_offset(&self) -> Offset16 {
         self.mark2_coverage_offset.get()
+    }
+
+    pub fn mark2_coverage(&self) -> Option<CoverageTable> {
+        self.mark2_coverage_offset().read(self.bytes())
     }
 
     /// Number of Combining Mark classes defined
@@ -1561,10 +1676,19 @@ impl<'a> MarkMarkPosFormat1<'a> {
         self.mark1_array_offset.get()
     }
 
+    pub fn mark1_array(&self) -> Option<MarkArray> {
+        self.mark1_array_offset().read(self.bytes())
+    }
+
     /// Offset to Mark2Array table for mark2, from beginning of
     /// MarkMarkPos subtable.
     pub fn mark2_array_offset(&self) -> Offset16 {
         self.mark2_array_offset.get()
+    }
+
+    pub fn mark2_array(&self) -> Option<Mark2Array> {
+        self.mark2_array_offset()
+            .read_with_args::<_, Mark2Array>(self.bytes(), &self.mark_class_count())
     }
 }
 

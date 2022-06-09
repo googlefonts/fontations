@@ -117,7 +117,7 @@ Lookup<'a> {
     /// Array of offsets to lookup subtables, from beginning of Lookup
     /// table
     #[count(sub_table_count)]
-    subtable_offsets: [BigEndian<Offset16<Null>>],
+    subtable_offsets: [BigEndian<Offset16>],
     /// Index (base 0) into GDEF mark glyph sets structure. This field
     /// is only present if the USE_MARK_FILTERING_SET lookup flag is
     /// set.

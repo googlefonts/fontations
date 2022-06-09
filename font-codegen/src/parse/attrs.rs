@@ -1,4 +1,4 @@
-use quote::{quote_spanned, ToTokens};
+use quote::{quote, quote_spanned, ToTokens};
 use syn::{spanned::Spanned, Lit};
 
 use super::{ArrayField, CustomField, SingleField};
@@ -19,6 +19,7 @@ pub struct FieldAttrs {
     compute: Option<Compute>,
     compile_type: Option<syn::Path>,
     to_owned: Option<syn::Expr>,
+    skip_offset_getter: Option<syn::Path>,
 }
 
 /// Annotations for how to calculate the count of an array.
@@ -87,6 +88,7 @@ const NO_GETTER: &str = "no_getter";
 const READ_WITH: &str = "read_with";
 static COMPILE_TYPE: &str = "compile_type";
 static TO_OWNED: &str = "to_owned";
+static SKIP_OFFSET_GETTER: &str = "skip_offset_getter";
 
 impl FieldAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<FieldAttrs, syn::Error> {
@@ -111,6 +113,9 @@ impl FieldAttrs {
                 }
                 syn::Meta::Path(path) if path.is_ident(NO_GETTER) => {
                     result.no_getter = Some(path.clone())
+                }
+                syn::Meta::Path(path) if path.is_ident(SKIP_OFFSET_GETTER) => {
+                    result.skip_offset_getter = Some(path.clone())
                 }
 
                 syn::Meta::Path(path) if path.is_ident("variable_size") => {
@@ -198,10 +203,12 @@ impl FieldAttrs {
             ));
         }
         if let Some(read) = &self.read {
-            return Err(syn::Error::new(
-                read.attr.span(),
-                "'read_with' is not valid on array fields",
-            ));
+            if !matches!(inner_typ, super::FieldType::Offset { .. }) {
+                return Err(syn::Error::new(
+                    read.attr.span(),
+                    "'read_with' only valid on arrays of offsets",
+                ));
+            }
         }
         if let Some(offset) = self.offset {
             return Err(syn::Error::new(
@@ -230,6 +237,8 @@ impl FieldAttrs {
             variable_size: self.variable_size,
             no_getter: self.no_getter,
             to_owned: self.to_owned,
+            read: self.read,
+            skip_offset_getter: self.skip_offset_getter,
         })
     }
 
@@ -250,6 +259,14 @@ impl FieldAttrs {
             return Err(syn::Error::new(token.span(), "not valid on scalar fields"));
         }
 
+        if let Some(read) = &self.read {
+            if !matches!(typ, super::FieldType::Offset { .. }) {
+                return Err(syn::Error::new(
+                    read.attr.span(),
+                    "'read_with' only valid on offsets or custom types",
+                ));
+            }
+        }
         Ok(SingleField {
             docs: self.docs,
             name,
@@ -258,6 +275,7 @@ impl FieldAttrs {
             offset: self.offset,
             compute: self.compute,
             to_owned: self.to_owned,
+            read: self.read,
         })
     }
 
@@ -453,6 +471,17 @@ fn expect_ident(meta: &syn::NestedMeta) -> Result<syn::Ident, syn::Error> {
             Ok(p.get_ident().unwrap().clone())
         }
         _ => Err(syn::Error::new(meta.span(), "expected ident")),
+    }
+}
+
+impl ArgList {
+    pub(crate) fn for_read_with_args(&self) -> proc_macro2::TokenStream {
+        match self.args.as_slice() {
+            [arg] => quote!(&self.#arg()),
+            args => {
+                quote!( &( #(self.#args()),* ) )
+            }
+        }
     }
 }
 
