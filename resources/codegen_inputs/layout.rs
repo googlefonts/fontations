@@ -349,6 +349,17 @@ SequenceContextFormat3<'a> {
     seq_lookup_records: [SequenceLookupRecord],
 }
 
+#[format(u16)]
+#[offset_host]
+enum SequenceContext<'a> {
+    #[version(1)]
+    Format1(SequenceContextFormat1<'a>),
+    #[version(2)]
+    Format2(SequenceContextFormat2<'a>),
+    #[version(3)]
+    Format3(SequenceContextFormat3<'a>),
+}
+
 /// [Chained Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-1-simple-glyph-contexts)
 #[offset_host]
 ChainedSequenceContextFormat1<'a> {
@@ -505,6 +516,17 @@ ChainedSequenceContextFormat3<'a> {
     /// Array of SequenceLookupRecords
     #[count(seq_lookup_count)]
     seq_lookup_records: [SequenceLookupRecord],
+}
+
+#[format(u16)]
+#[offset_host]
+enum ChainedSequenceContext<'a> {
+    #[version(1)]
+    Format1(ChainedSequenceContextFormat1<'a>),
+    #[version(2)]
+    Format2(ChainedSequenceContextFormat2<'a>),
+    #[version(3)]
+    Format3(ChainedSequenceContextFormat3<'a>),
 }
 
 /// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)

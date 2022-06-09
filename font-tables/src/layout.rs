@@ -69,12 +69,74 @@ impl ClassDef<'_> {
 
 #[cfg(feature = "compile")]
 pub mod compile {
-    use font_types::GlyphId;
+    use font_types::{FontRead, GlyphId, Offset, Offset16, OffsetHost};
     use std::collections::BTreeMap;
 
-    use crate::compile::FontWrite;
+    use crate::compile::{FontWrite, OffsetMarker, ToOwnedTable};
 
     pub use super::generated::compile::*;
+
+    pub trait LayoutSubtable {
+        const TYPE: u16;
+    }
+
+    macro_rules! subtable_type {
+        ($ty:ty, $val:expr) => {
+            impl LayoutSubtable for $ty {
+                const TYPE: u16 = $val;
+            }
+        };
+    }
+
+    subtable_type!(crate::tables::gpos::compile::SinglePos, 1);
+    subtable_type!(crate::tables::gpos::compile::PairPos, 2);
+    subtable_type!(crate::tables::gpos::compile::CursivePosFormat1, 3);
+    subtable_type!(crate::tables::gpos::compile::MarkBasePosFormat1, 4);
+    subtable_type!(crate::tables::gpos::compile::MarkLigPosFormat1, 5);
+    subtable_type!(crate::tables::gpos::compile::MarkMarkPosFormat1, 6);
+    subtable_type!(SequenceContext, 7);
+    subtable_type!(ChainedSequenceContext, 8);
+    subtable_type!(crate::tables::gpos::compile::Extension, 9);
+
+    #[derive(Debug, PartialEq)]
+    pub struct Lookup<T> {
+        pub lookup_flag: u16,
+        pub subtables: Vec<OffsetMarker<Offset16, T>>,
+        pub mark_filtering_set: u16,
+    }
+
+    impl<T: LayoutSubtable + FontWrite> FontWrite for Lookup<T> {
+        fn write_into(&self, writer: &mut crate::compile::TableWriter) {
+            T::TYPE.write_into(writer);
+            self.lookup_flag.write_into(writer);
+            u16::try_from(self.subtables.len())
+                .unwrap()
+                .write_into(writer);
+            self.subtables.write_into(writer);
+            self.mark_filtering_set.write_into(writer);
+        }
+    }
+
+    impl<'a> super::Lookup<'a> {
+        pub(crate) fn to_owned_explicit<T: FontRead<'a> + ToOwnedTable>(
+            &self,
+        ) -> Option<Lookup<T::Owned>> {
+            let subtables: Vec<OffsetMarker<Offset16, T::Owned>> = self
+                .subtable_offsets()
+                .iter()
+                .map(|off| {
+                    off.get()
+                        .read::<T>(self.bytes())
+                        .and_then(|t| t.to_owned_table().map(OffsetMarker::new))
+                })
+                .collect::<Option<_>>()?;
+            Some(Lookup {
+                lookup_flag: self.lookup_flag(),
+                subtables,
+                mark_filtering_set: self.mark_filtering_set(),
+            })
+        }
+    }
 
     #[derive(Debug, PartialEq)]
     pub struct ClassDefBuilder {

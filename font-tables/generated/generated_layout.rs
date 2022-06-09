@@ -1193,6 +1193,34 @@ impl<'a> font_types::OffsetHost<'a> for SequenceContextFormat3<'a> {
     }
 }
 
+pub enum SequenceContext<'a> {
+    Format1(SequenceContextFormat1<'a>),
+    Format2(SequenceContextFormat2<'a>),
+    Format3(SequenceContextFormat3<'a>),
+}
+
+impl<'a> font_types::FontRead<'a> for SequenceContext<'a> {
+    fn read(bytes: &'a [u8]) -> Option<Self> {
+        let version: BigEndian<u16> = font_types::FontRead::read(bytes)?;
+        match version.get() {
+            1 => Some(Self::Format1(font_types::FontRead::read(bytes)?)),
+            2 => Some(Self::Format2(font_types::FontRead::read(bytes)?)),
+            3 => Some(Self::Format3(font_types::FontRead::read(bytes)?)),
+            _other => {
+                #[cfg(feature = "std")]
+                {
+                    eprintln!(
+                        "unknown enum variant {:?} (table {})",
+                        version,
+                        stringify!(SequenceContext)
+                    );
+                }
+                None
+            }
+        }
+    }
+}
+
 /// [Chained Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-1-simple-glyph-contexts)
 pub struct ChainedSequenceContextFormat1<'a> {
     format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
@@ -1777,6 +1805,34 @@ impl<'a> font_types::OffsetHost<'a> for ChainedSequenceContextFormat3<'a> {
     }
 }
 
+pub enum ChainedSequenceContext<'a> {
+    Format1(ChainedSequenceContextFormat1<'a>),
+    Format2(ChainedSequenceContextFormat2<'a>),
+    Format3(ChainedSequenceContextFormat3<'a>),
+}
+
+impl<'a> font_types::FontRead<'a> for ChainedSequenceContext<'a> {
+    fn read(bytes: &'a [u8]) -> Option<Self> {
+        let version: BigEndian<u16> = font_types::FontRead::read(bytes)?;
+        match version.get() {
+            1 => Some(Self::Format1(font_types::FontRead::read(bytes)?)),
+            2 => Some(Self::Format2(font_types::FontRead::read(bytes)?)),
+            3 => Some(Self::Format3(font_types::FontRead::read(bytes)?)),
+            _other => {
+                #[cfg(feature = "std")]
+                {
+                    eprintln!(
+                        "unknown enum variant {:?} (table {})",
+                        version,
+                        stringify!(ChainedSequenceContext)
+                    );
+                }
+                None
+            }
+        }
+    }
+}
+
 /// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
 pub struct Device<'a> {
     start_size: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
@@ -2177,7 +2233,7 @@ pub mod compile {
     #[derive(Debug, PartialEq)]
     pub struct ScriptRecord {
         pub script_tag: Tag,
-        pub script_offset: OffsetMarker16<Script>,
+        pub script_offset: OffsetMarker<Offset16, Script>,
     }
 
     impl ToOwnedObj for super::ScriptRecord {
@@ -2205,7 +2261,7 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct Script {
-        pub default_lang_sys_offset: OffsetMarker16<LangSys>,
+        pub default_lang_sys_offset: OffsetMarker<Offset16, LangSys>,
         pub lang_sys_records: Vec<LangSysRecord>,
     }
 
@@ -2245,7 +2301,7 @@ pub mod compile {
     #[derive(Debug, PartialEq)]
     pub struct LangSysRecord {
         pub lang_sys_tag: Tag,
-        pub lang_sys_offset: OffsetMarker16<LangSys>,
+        pub lang_sys_offset: OffsetMarker<Offset16, LangSys>,
     }
 
     impl ToOwnedObj for super::LangSysRecord {
@@ -2295,7 +2351,8 @@ pub mod compile {
 
     impl FontWrite for LangSys {
         fn write_into(&self, writer: &mut TableWriter) {
-            let lookup_order_offset: OffsetMarker16<Box<dyn FontWrite>> = Default::default();
+            let lookup_order_offset: OffsetMarker<Offset16, Box<dyn FontWrite>> =
+                Default::default();
             lookup_order_offset.write_into(writer);
             self.required_feature_index.write_into(writer);
             u16::try_from(self.feature_indices.len())
@@ -2340,7 +2397,7 @@ pub mod compile {
     #[derive(Debug, PartialEq)]
     pub struct FeatureRecord {
         pub feature_tag: Tag,
-        pub feature_offset: OffsetMarker16<Feature>,
+        pub feature_offset: OffsetMarker<Offset16, Feature>,
     }
 
     impl ToOwnedObj for super::FeatureRecord {
@@ -2663,8 +2720,8 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct SequenceContextFormat1 {
-        pub coverage_offset: OffsetMarker16<CoverageTable>,
-        pub seq_rule_set_offsets: Vec<OffsetMarker16<SequenceRuleSet>>,
+        pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+        pub seq_rule_set_offsets: Vec<OffsetMarker<Offset16, SequenceRuleSet>>,
     }
 
     impl ToOwnedObj for super::SequenceContextFormat1<'_> {
@@ -2710,7 +2767,7 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct SequenceRuleSet {
-        pub seq_rule_offsets: Vec<OffsetMarker16<SequenceRule>>,
+        pub seq_rule_offsets: Vec<OffsetMarker<Offset16, SequenceRule>>,
     }
 
     impl ToOwnedObj for super::SequenceRuleSet<'_> {
@@ -2786,9 +2843,9 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct SequenceContextFormat2 {
-        pub coverage_offset: OffsetMarker16<CoverageTable>,
-        pub class_def_offset: OffsetMarker16<ClassDef>,
-        pub class_seq_rule_set_offsets: Vec<OffsetMarker16<ClassSequenceRuleSet>>,
+        pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+        pub class_def_offset: OffsetMarker<Offset16, ClassDef>,
+        pub class_seq_rule_set_offsets: Vec<OffsetMarker<Offset16, ClassSequenceRuleSet>>,
     }
 
     impl ToOwnedObj for super::SequenceContextFormat2<'_> {
@@ -2840,7 +2897,7 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct ClassSequenceRuleSet {
-        pub class_seq_rule_offsets: Vec<OffsetMarker16<ClassSequenceRule>>,
+        pub class_seq_rule_offsets: Vec<OffsetMarker<Offset16, ClassSequenceRule>>,
     }
 
     impl ToOwnedObj for super::ClassSequenceRuleSet<'_> {
@@ -2916,7 +2973,7 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct SequenceContextFormat3 {
-        pub coverage_offsets: Vec<OffsetMarker16<CoverageTable>>,
+        pub coverage_offsets: Vec<OffsetMarker<Offset16, CoverageTable>>,
         pub seq_lookup_records: Vec<SequenceLookupRecord>,
     }
 
@@ -2965,9 +3022,45 @@ pub mod compile {
     }
 
     #[derive(Debug, PartialEq)]
+    pub enum SequenceContext {
+        Format1(SequenceContextFormat1),
+        Format2(SequenceContextFormat2),
+        Format3(SequenceContextFormat3),
+    }
+
+    impl ToOwnedObj for super::SequenceContext<'_> {
+        type Owned = SequenceContext;
+        fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
+            Some(match self {
+                super::SequenceContext::Format1(item) => {
+                    SequenceContext::Format1(item.to_owned_obj(offset_data)?)
+                }
+                super::SequenceContext::Format2(item) => {
+                    SequenceContext::Format2(item.to_owned_obj(offset_data)?)
+                }
+                super::SequenceContext::Format3(item) => {
+                    SequenceContext::Format3(item.to_owned_obj(offset_data)?)
+                }
+            })
+        }
+    }
+
+    impl ToOwnedTable for super::SequenceContext<'_> {}
+
+    impl FontWrite for SequenceContext {
+        fn write_into(&self, writer: &mut TableWriter) {
+            match self {
+                Self::Format1(item) => item.write_into(writer),
+                Self::Format2(item) => item.write_into(writer),
+                Self::Format3(item) => item.write_into(writer),
+            }
+        }
+    }
+
+    #[derive(Debug, PartialEq)]
     pub struct ChainedSequenceContextFormat1 {
-        pub coverage_offset: OffsetMarker16<CoverageTable>,
-        pub chained_seq_rule_set_offsets: Vec<OffsetMarker16<ChainedSequenceRuleSet>>,
+        pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+        pub chained_seq_rule_set_offsets: Vec<OffsetMarker<Offset16, ChainedSequenceRuleSet>>,
     }
 
     impl ToOwnedObj for super::ChainedSequenceContextFormat1<'_> {
@@ -3013,7 +3106,7 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct ChainedSequenceRuleSet {
-        pub chained_seq_rule_offsets: Vec<OffsetMarker16<ChainedSequenceRule>>,
+        pub chained_seq_rule_offsets: Vec<OffsetMarker<Offset16, ChainedSequenceRule>>,
     }
 
     impl ToOwnedObj for super::ChainedSequenceRuleSet<'_> {
@@ -3109,11 +3202,12 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct ChainedSequenceContextFormat2 {
-        pub coverage_offset: OffsetMarker16<CoverageTable>,
-        pub backtrack_class_def_offset: OffsetMarker16<ClassDef>,
-        pub input_class_def_offset: OffsetMarker16<ClassDef>,
-        pub lookahead_class_def_offset: OffsetMarker16<ClassDef>,
-        pub chained_class_seq_rule_set_offsets: Vec<OffsetMarker16<ChainedClassSequenceRuleSet>>,
+        pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+        pub backtrack_class_def_offset: OffsetMarker<Offset16, ClassDef>,
+        pub input_class_def_offset: OffsetMarker<Offset16, ClassDef>,
+        pub lookahead_class_def_offset: OffsetMarker<Offset16, ClassDef>,
+        pub chained_class_seq_rule_set_offsets:
+            Vec<OffsetMarker<Offset16, ChainedClassSequenceRuleSet>>,
     }
 
     impl ToOwnedObj for super::ChainedSequenceContextFormat2<'_> {
@@ -3177,7 +3271,7 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct ChainedClassSequenceRuleSet {
-        pub chained_class_seq_rule_offsets: Vec<OffsetMarker16<ChainedClassSequenceRule>>,
+        pub chained_class_seq_rule_offsets: Vec<OffsetMarker<Offset16, ChainedClassSequenceRule>>,
     }
 
     impl ToOwnedObj for super::ChainedClassSequenceRuleSet<'_> {
@@ -3273,9 +3367,9 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct ChainedSequenceContextFormat3 {
-        pub backtrack_coverage_offsets: Vec<OffsetMarker16<CoverageTable>>,
-        pub input_coverage_offsets: Vec<OffsetMarker16<CoverageTable>>,
-        pub lookahead_coverage_offsets: Vec<OffsetMarker16<CoverageTable>>,
+        pub backtrack_coverage_offsets: Vec<OffsetMarker<Offset16, CoverageTable>>,
+        pub input_coverage_offsets: Vec<OffsetMarker<Offset16, CoverageTable>>,
+        pub lookahead_coverage_offsets: Vec<OffsetMarker<Offset16, CoverageTable>>,
         pub seq_lookup_records: Vec<SequenceLookupRecord>,
     }
 
@@ -3350,6 +3444,42 @@ pub mod compile {
                 .unwrap()
                 .write_into(writer);
             self.seq_lookup_records.write_into(writer);
+        }
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub enum ChainedSequenceContext {
+        Format1(ChainedSequenceContextFormat1),
+        Format2(ChainedSequenceContextFormat2),
+        Format3(ChainedSequenceContextFormat3),
+    }
+
+    impl ToOwnedObj for super::ChainedSequenceContext<'_> {
+        type Owned = ChainedSequenceContext;
+        fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
+            Some(match self {
+                super::ChainedSequenceContext::Format1(item) => {
+                    ChainedSequenceContext::Format1(item.to_owned_obj(offset_data)?)
+                }
+                super::ChainedSequenceContext::Format2(item) => {
+                    ChainedSequenceContext::Format2(item.to_owned_obj(offset_data)?)
+                }
+                super::ChainedSequenceContext::Format3(item) => {
+                    ChainedSequenceContext::Format3(item.to_owned_obj(offset_data)?)
+                }
+            })
+        }
+    }
+
+    impl ToOwnedTable for super::ChainedSequenceContext<'_> {}
+
+    impl FontWrite for ChainedSequenceContext {
+        fn write_into(&self, writer: &mut TableWriter) {
+            match self {
+                Self::Format1(item) => item.write_into(writer),
+                Self::Format2(item) => item.write_into(writer),
+                Self::Format3(item) => item.write_into(writer),
+            }
         }
     }
 
@@ -3454,8 +3584,8 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct FeatureVariationRecord {
-        pub condition_set_offset: OffsetMarker32<ConditionSet>,
-        pub feature_table_substitution_offset: OffsetMarker32<FeatureTableSubstitution>,
+        pub condition_set_offset: OffsetMarker<Offset32, ConditionSet>,
+        pub feature_table_substitution_offset: OffsetMarker<Offset32, FeatureTableSubstitution>,
     }
 
     impl ToOwnedObj for super::FeatureVariationRecord {
@@ -3487,7 +3617,7 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct ConditionSet {
-        pub condition_offsets: Vec<OffsetMarker32<ConditionFormat1>>,
+        pub condition_offsets: Vec<OffsetMarker<Offset32, ConditionFormat1>>,
     }
 
     impl ToOwnedObj for super::ConditionSet<'_> {
@@ -3592,7 +3722,7 @@ pub mod compile {
     #[derive(Debug, PartialEq)]
     pub struct FeatureTableSubstitutionRecord {
         pub feature_index: u16,
-        pub alternate_feature_offset: OffsetMarker32<Feature>,
+        pub alternate_feature_offset: OffsetMarker<Offset32, Feature>,
     }
 
     impl ToOwnedObj for super::FeatureTableSubstitutionRecord {
