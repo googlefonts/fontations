@@ -14,6 +14,16 @@ pub trait Offset: Sized {
             .and_then(|off| bytes.get(off..))
             .and_then(T::read)
     }
+
+    fn read_with_args<'a, Args, T>(self, bytes: &'a [u8], args: &Args) -> Option<T>
+    where
+        T: crate::FontReadWithArgs<'a, Args>,
+    {
+        self.non_null()
+            .and_then(|off| bytes.get(off..))
+            .and_then(|bytes| T::read_with_args(bytes, args))
+            .map(|(t, _)| t)
+    }
 }
 
 /// A type that contains data referenced by offsets.
