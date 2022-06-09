@@ -18,6 +18,7 @@ pub struct FieldAttrs {
     variable_size: Option<syn::Path>,
     compute: Option<Compute>,
     compile_type: Option<syn::Path>,
+    to_owned: Option<syn::Expr>,
 }
 
 /// Annotations for how to calculate the count of an array.
@@ -76,6 +77,7 @@ pub struct ItemAttrs {
     pub repr: Option<syn::Ident>,
     pub flags: Option<syn::Ident>,
     pub no_compile: Option<syn::Path>,
+    pub skip_to_owned: Option<syn::Path>,
 }
 
 static OFFSET: &str = "offset";
@@ -84,6 +86,7 @@ static COMPUTE: &str = "compute";
 const NO_GETTER: &str = "no_getter";
 const READ_WITH: &str = "read_with";
 static COMPILE_TYPE: &str = "compile_type";
+static TO_OWNED: &str = "to_owned";
 
 impl FieldAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<FieldAttrs, syn::Error> {
@@ -94,6 +97,9 @@ impl FieldAttrs {
                 continue;
             } else if attr.path.is_ident(COMPUTE) {
                 result.compute = Some(Compute::Expr(attr.parse_args()?));
+                continue;
+            } else if attr.path.is_ident(TO_OWNED) {
+                result.to_owned = Some(attr.parse_args()?);
                 continue;
             }
             match attr.parse_meta()? {
@@ -223,6 +229,7 @@ impl FieldAttrs {
             count,
             variable_size: self.variable_size,
             no_getter: self.no_getter,
+            to_owned: self.to_owned,
         })
     }
 
@@ -250,6 +257,7 @@ impl FieldAttrs {
             hidden: self.hidden,
             offset: self.offset,
             compute: self.compute,
+            to_owned: self.to_owned,
         })
     }
 
@@ -364,6 +372,7 @@ static OFFSET_HOST: &str = "offset_host";
 static GENERATE_GETTERS: &str = "generate_getters";
 static READ_ARGS: &str = "read_args";
 static NO_COMPILE: &str = "no_compile";
+static SKIP_TO_OWNED: &str = "skip_to_owned";
 
 impl ItemAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<ItemAttrs, syn::Error> {
@@ -375,6 +384,9 @@ impl ItemAttrs {
                 }
                 syn::Meta::Path(path) if path.is_ident(NO_COMPILE) => {
                     result.no_compile = Some(path);
+                }
+                syn::Meta::Path(path) if path.is_ident(SKIP_TO_OWNED) => {
+                    result.skip_to_owned = Some(path);
                 }
                 syn::Meta::Path(path) if path.is_ident(GENERATE_GETTERS) => {
                     result.generate_getters = Some(path)

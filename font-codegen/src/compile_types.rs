@@ -56,7 +56,11 @@ fn generate_single_item(item: &parse::SingleItem) -> Result<proc_macro2::TokenSt
         field_decls.push(quote!(pub #name: #typ));
     }
 
-    let impl_to_owned = item_to_owned(item)?;
+    let impl_to_owned = item
+        .skip_to_owned
+        .is_none()
+        .then(|| item_to_owned(item))
+        .transpose()?;
     let impl_font_write = item_font_write(item)?;
 
     Ok(quote! {

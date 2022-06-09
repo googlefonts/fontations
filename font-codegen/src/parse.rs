@@ -33,6 +33,7 @@ pub struct SingleItem {
     pub lifetime: Option<syn::Lifetime>,
     pub offset_host: Option<syn::Path>,
     pub no_compile: Option<syn::Path>,
+    pub skip_to_owned: Option<syn::Path>,
     pub init: Vec<(syn::Ident, syn::Type)>,
     pub name: syn::Ident,
     pub fields: Vec<Field>,
@@ -95,6 +96,7 @@ pub struct SingleField {
     pub hidden: Option<syn::Path>,
     pub offset: Option<Offset>,
     pub compute: Option<Compute>,
+    pub to_owned: Option<syn::Expr>,
 }
 
 pub enum FieldType {
@@ -118,6 +120,7 @@ pub struct ArrayField {
     pub count: Count,
     pub variable_size: Option<syn::Path>,
     pub no_getter: Option<syn::Path>,
+    pub to_owned: Option<syn::Expr>,
 }
 
 pub struct CustomField {
@@ -232,6 +235,7 @@ impl Parse for Item {
                 docs: attrs.docs,
                 offset_host: attrs.offset_host,
                 no_compile: attrs.no_compile,
+                skip_to_owned: attrs.skip_to_owned,
                 init: attrs.init,
                 lifetime,
                 name,
@@ -597,6 +601,10 @@ impl SingleField {
     }
 
     fn to_owned_expr(&self) -> Result<proc_macro2::TokenStream, syn::Error> {
+        if let Some(to_owned) = &self.to_owned {
+            return Ok(quote!(#to_owned ?));
+        }
+
         let name = &self.name;
         match &self.typ {
             FieldType::Scalar { .. } => Ok(quote!(self.#name())),
@@ -635,6 +643,10 @@ impl SingleField {
 
 impl ArrayField {
     pub fn to_owned_expr(&self) -> Result<proc_macro2::TokenStream, syn::Error> {
+        if let Some(to_owned) = &self.to_owned {
+            return Ok(quote!(#to_owned ?));
+        }
+
         let name = &self.name;
         let map_impl = match &self.inner_typ {
             FieldType::Scalar { .. } => quote!(Some(item.get())),
