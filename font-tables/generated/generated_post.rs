@@ -158,8 +158,8 @@ impl<'a> font_types::FontRead<'a> for Post2_0<'a> {
             zerocopy::LayoutVerified::<_, [u8]>::new_slice_unaligned(bytes)?,
             0,
         );
-        let _ = bytes;
-        Some(Post2_0 {
+        let _bytes = bytes;
+        let result = Post2_0 {
             version,
             italic_angle,
             underline_position,
@@ -172,7 +172,8 @@ impl<'a> font_types::FontRead<'a> for Post2_0<'a> {
             num_glyphs,
             glyph_name_index,
             string_data,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -271,7 +272,11 @@ impl<'a> font_types::FontRead<'a> for Post<'a> {
             _other => {
                 #[cfg(feature = "std")]
                 {
-                    eprintln!("unknown enum variant {:?}", version);
+                    eprintln!(
+                        "unknown enum variant {:?} (table {})",
+                        version,
+                        stringify!(Post)
+                    );
                 }
                 None
             }

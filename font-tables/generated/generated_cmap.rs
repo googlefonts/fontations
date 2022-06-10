@@ -2,7 +2,6 @@
 // Any changes to this file will be overwritten.
 // For more information about how codegen works, see font-codegen/README.md
 
-//! The [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap) table
 use font_types::*;
 
 /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
@@ -26,13 +25,14 @@ impl<'a> font_types::FontRead<'a> for Cmap<'a> {
                 bytes,
                 __resolved_num_tables as usize,
             )?;
-        let _ = bytes;
-        Some(Cmap {
+        let _bytes = bytes;
+        let result = Cmap {
             version,
             num_tables,
             encoding_records,
             offset_bytes,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -46,6 +46,7 @@ impl<'a> Cmap<'a> {
     pub fn num_tables(&self) -> u16 {
         self.num_tables.get()
     }
+
     pub fn encoding_records(&self) -> &[EncodingRecord] {
         &self.encoding_records
     }
@@ -145,7 +146,11 @@ impl<'a> font_types::FontRead<'a> for CmapSubtable<'a> {
             _other => {
                 #[cfg(feature = "std")]
                 {
-                    eprintln!("unknown enum variant {:?}", version);
+                    eprintln!(
+                        "unknown enum variant {:?} (table {})",
+                        version,
+                        stringify!(CmapSubtable)
+                    );
                 }
                 None
             }
@@ -171,15 +176,17 @@ impl<'a> font_types::FontRead<'a> for Cmap0<'a> {
             zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
         let (glyph_id_array, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<u8>]>::new_slice_unaligned_from_prefix(
-                bytes, 256,
+                bytes,
+                256 as usize,
             )?;
-        let _ = bytes;
-        Some(Cmap0 {
+        let _bytes = bytes;
+        let result = Cmap0 {
             format,
             length,
             language,
             glyph_id_array,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -224,15 +231,17 @@ impl<'a> font_types::FontRead<'a> for Cmap2<'a> {
             zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
         let (sub_header_keys, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes, 256,
+                bytes,
+                256 as usize,
             )?;
-        let _ = bytes;
-        Some(Cmap2 {
+        let _bytes = bytes;
+        let result = Cmap2 {
             format,
             length,
             language,
             sub_header_keys,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -334,31 +343,31 @@ impl<'a> font_types::FontRead<'a> for Cmap4<'a> {
         let (end_code, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
                 bytes,
-                div_by_two(__resolved_seg_count_x2),
+                div_by_two(__resolved_seg_count_x2) as usize,
             )?;
         let (reserved_pad, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
         let (start_code, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
                 bytes,
-                div_by_two(__resolved_seg_count_x2),
+                div_by_two(__resolved_seg_count_x2) as usize,
             )?;
         let (id_delta, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<i16>]>::new_slice_unaligned_from_prefix(
                 bytes,
-                div_by_two(__resolved_seg_count_x2),
+                div_by_two(__resolved_seg_count_x2) as usize,
             )?;
         let (id_range_offsets, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
                 bytes,
-                div_by_two(__resolved_seg_count_x2),
+                div_by_two(__resolved_seg_count_x2) as usize,
             )?;
         let (glyph_id_array, bytes) = (
             zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned(bytes)?,
             0,
         );
-        let _ = bytes;
-        Some(Cmap4 {
+        let _bytes = bytes;
+        let result = Cmap4 {
             format,
             length,
             language,
@@ -372,7 +381,8 @@ impl<'a> font_types::FontRead<'a> for Cmap4<'a> {
             id_delta,
             id_range_offsets,
             glyph_id_array,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -471,15 +481,16 @@ impl<'a> font_types::FontRead<'a> for Cmap6<'a> {
                 bytes,
                 __resolved_entry_count as usize,
             )?;
-        let _ = bytes;
-        Some(Cmap6 {
+        let _bytes = bytes;
+        let result = Cmap6 {
             format,
             length,
             language,
             first_code,
             entry_count,
             glyph_id_array,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -540,7 +551,8 @@ impl<'a> font_types::FontRead<'a> for Cmap8<'a> {
             zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
         let (is32, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<u8>]>::new_slice_unaligned_from_prefix(
-                bytes, 8192,
+                bytes,
+                8192 as usize,
             )?;
         let (num_groups, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
@@ -550,8 +562,8 @@ impl<'a> font_types::FontRead<'a> for Cmap8<'a> {
                 bytes,
                 __resolved_num_groups as usize,
             )?;
-        let _ = bytes;
-        Some(Cmap8 {
+        let _bytes = bytes;
+        let result = Cmap8 {
             format,
             reserved,
             length,
@@ -559,7 +571,8 @@ impl<'a> font_types::FontRead<'a> for Cmap8<'a> {
             is32,
             num_groups,
             groups,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -665,8 +678,8 @@ impl<'a> font_types::FontRead<'a> for Cmap10<'a> {
             zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned(bytes)?,
             0,
         );
-        let _ = bytes;
-        Some(Cmap10 {
+        let _bytes = bytes;
+        let result = Cmap10 {
             format,
             reserved,
             length,
@@ -674,7 +687,8 @@ impl<'a> font_types::FontRead<'a> for Cmap10<'a> {
             start_char_code,
             num_chars,
             glyph_id_array,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -740,15 +754,16 @@ impl<'a> font_types::FontRead<'a> for Cmap12<'a> {
                 bytes,
                 __resolved_num_groups as usize,
             )?;
-        let _ = bytes;
-        Some(Cmap12 {
+        let _bytes = bytes;
+        let result = Cmap12 {
             format,
             reserved,
             length,
             language,
             num_groups,
             groups,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -809,15 +824,16 @@ impl<'a> font_types::FontRead<'a> for Cmap13<'a> {
                 bytes,
                 __resolved_num_groups as usize,
             )?;
-        let _ = bytes;
-        Some(Cmap13 {
+        let _bytes = bytes;
+        let result = Cmap13 {
             format,
             reserved,
             length,
             language,
             num_groups,
             groups,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -904,14 +920,15 @@ impl<'a> font_types::FontRead<'a> for Cmap14<'a> {
                 bytes,
                 __resolved_num_var_selector_records as usize,
             )?;
-        let _ = bytes;
-        Some(Cmap14 {
+        let _bytes = bytes;
+        let result = Cmap14 {
             format,
             length,
             num_var_selector_records,
             var_selector,
             offset_bytes,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -992,11 +1009,12 @@ impl<'a> font_types::FontRead<'a> for DefaultUvs<'a> {
                 bytes,
                 __resolved_num_unicode_value_ranges as usize,
             )?;
-        let _ = bytes;
-        Some(DefaultUvs {
+        let _bytes = bytes;
+        let result = DefaultUvs {
             num_unicode_value_ranges,
             ranges,
-        })
+        };
+        Some(result)
     }
 }
 

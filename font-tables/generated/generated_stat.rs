@@ -33,8 +33,8 @@ impl<'a> font_types::FontRead<'a> for Stat1_0<'a> {
             zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
         let (offset_to_axis_value_offsets, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<Offset32>>::new_unaligned_from_prefix(bytes)?;
-        let _ = bytes;
-        Some(Stat1_0 {
+        let _bytes = bytes;
+        let result = Stat1_0 {
             major_version,
             minor_version,
             design_axis_size,
@@ -43,7 +43,8 @@ impl<'a> font_types::FontRead<'a> for Stat1_0<'a> {
             axis_value_count,
             offset_to_axis_value_offsets,
             offset_bytes,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -131,8 +132,8 @@ impl<'a> font_types::FontRead<'a> for Stat1_2<'a> {
             zerocopy::LayoutVerified::<_, BigEndian<Offset32>>::new_unaligned_from_prefix(bytes)?;
         let (elided_fallback_name_id, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let _ = bytes;
-        Some(Stat1_2 {
+        let _bytes = bytes;
+        let result = Stat1_2 {
             major_version,
             minor_version,
             design_axis_size,
@@ -142,7 +143,8 @@ impl<'a> font_types::FontRead<'a> for Stat1_2<'a> {
             offset_to_axis_value_offsets,
             elided_fallback_name_id,
             offset_bytes,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -257,7 +259,11 @@ impl<'a> font_types::FontRead<'a> for Stat<'a> {
             _other => {
                 #[cfg(feature = "std")]
                 {
-                    eprintln!("unknown enum variant {:?}", version);
+                    eprintln!(
+                        "unknown enum variant {:?} (table {})",
+                        version,
+                        stringify!(Stat)
+                    );
                 }
                 None
             }
@@ -370,7 +376,11 @@ impl<'a> font_types::FontRead<'a> for AxisValue<'a> {
             _other => {
                 #[cfg(feature = "std")]
                 {
-                    eprintln!("unknown enum variant {:?}", version);
+                    eprintln!(
+                        "unknown enum variant {:?} (table {})",
+                        version,
+                        stringify!(AxisValue)
+                    );
                 }
                 None
             }
@@ -577,14 +587,15 @@ impl<'a> font_types::FontRead<'a> for AxisValueFormat4<'a> {
                 bytes,
                 __resolved_axis_count as usize,
             )?;
-        let _ = bytes;
-        Some(AxisValueFormat4 {
+        let _bytes = bytes;
+        let result = AxisValueFormat4 {
             format,
             axis_count,
             flags,
             value_name_id,
             axis_values,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -643,6 +654,7 @@ impl AxisValueRecord {
 }
 
 bitflags::bitflags! { # [doc = " [Axis value table flags](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#flags)."] pub struct AxisValueFlags : u16 { # [doc = " If set, this axis value table provides axis value information"] # [doc = " that is applicable to other fonts within the same font family."] # [doc = " This is used if the other fonts were released earlier and did"] # [doc = " not include information about values for some axis. If newer"] # [doc = " versions of the other fonts include the information themselves"] # [doc = " and are present, then this table is ignored."] const OLDER_SIBLING_FONT_ATTRIBUTE = 0x0001 ; # [doc = " If set, it indicates that the axis value represents the"] # [doc = " “normal” value for the axis and may be omitted when"] # [doc = " composing name strings."] const ELIDABLE_AXIS_VALUE_NAME = 0x0002 ; } }
+
 impl font_types::Scalar for AxisValueFlags {
     type Raw = <u16 as font_types::Scalar>::Raw;
     fn to_raw(self) -> Self::Raw {

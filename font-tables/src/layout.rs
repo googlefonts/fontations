@@ -2,10 +2,7 @@
 
 use font_types::{GlyphId, OffsetHost};
 
-#[path = "../generated/generated_layout.rs"]
-mod generated;
-
-pub use generated::*;
+include!("../generated/generated_layout_parse.rs");
 
 impl<'a> LookupList<'a> {
     /// Iterate all of the [`Lookup`]s in this list.
@@ -74,7 +71,7 @@ pub mod compile {
 
     use crate::compile::{FontWrite, OffsetMarker, ToOwnedTable};
 
-    pub use super::generated::compile::*;
+    include!("../generated/generated_layout_compile.rs");
 
     pub trait LayoutSubtable {
         const TYPE: u16;

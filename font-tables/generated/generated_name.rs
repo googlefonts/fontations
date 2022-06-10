@@ -2,7 +2,6 @@
 // Any changes to this file will be overwritten.
 // For more information about how codegen works, see font-codegen/README.md
 
-//! The [name (Naming)](https://docs.microsoft.com/en-us/typography/opentype/spec/name) table
 use font_types::*;
 
 /// [Naming table version 0](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-0)
@@ -29,14 +28,15 @@ impl<'a> font_types::FontRead<'a> for Name0<'a> {
                 bytes,
                 __resolved_count as usize,
             )?;
-        let _ = bytes;
-        Some(Name0 {
+        let _bytes = bytes;
+        let result = Name0 {
             version,
             count,
             storage_offset,
             name_record,
             offset_bytes,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -102,8 +102,8 @@ impl<'a> font_types::FontRead<'a> for Name1<'a> {
                 bytes,
                 __resolved_lang_tag_count as usize,
             )?;
-        let _ = bytes;
-        Some(Name1 {
+        let _bytes = bytes;
+        let result = Name1 {
             version,
             count,
             storage_offset,
@@ -111,7 +111,8 @@ impl<'a> font_types::FontRead<'a> for Name1<'a> {
             lang_tag_count,
             lang_tag_record,
             offset_bytes,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -167,7 +168,11 @@ impl<'a> font_types::FontRead<'a> for Name<'a> {
             _other => {
                 #[cfg(feature = "std")]
                 {
-                    eprintln!("unknown enum variant {:?}", version);
+                    eprintln!(
+                        "unknown enum variant {:?} (table {})",
+                        version,
+                        stringify!(Name)
+                    );
                 }
                 None
             }

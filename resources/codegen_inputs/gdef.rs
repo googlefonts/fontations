@@ -1,22 +1,6 @@
 use crate::layout::ClassDef;
 use crate::layout::CoverageTable;
 
-mod compile {
-    use std::collections::BTreeMap;
-
-    // a more ergonimic representation
-    #[derive(Debug, Default, PartialEq)]
-    pub struct AttachList {
-        pub items: BTreeMap<GlyphId, Vec<u16>>,
-    }
-
-    #[derive(Debug, Default, PartialEq)]
-    pub struct CaretValueFormat3 {
-        pub coordinate: i16,
-        pub device_offset: OffsetMarker16<Box<dyn FontWrite>>,
-    }
-}
-
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
 #[offset_host]
 Gdef1_0<'a> {

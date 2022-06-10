@@ -17,7 +17,7 @@ impl<'a> font_types::FontReadWithArgs<'a, (u16, u16)> for Hmtx<'a> {
         let (h_metrics, bytes) =
             zerocopy::LayoutVerified::<_, [LongHorMetric]>::new_slice_unaligned_from_prefix(
                 bytes,
-                __resolved_number_of_h_metrics as usize as usize,
+                __resolved_number_of_h_metrics as usize,
             )?;
         let (left_side_bearings, bytes) =
             zerocopy::LayoutVerified::<_, [BigEndian<i16>]>::new_slice_unaligned_from_prefix(

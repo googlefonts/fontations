@@ -2,17 +2,14 @@
 //!
 //! [GDEF]: https://docs.microsoft.com/en-us/typography/opentype/spec/gdef
 
-#[path = "../../generated/generated_gpos.rs"]
-mod generated;
-
-pub use generated::*;
-
 use font_types::{BigEndian, FontRead, FontReadWithArgs, Tag};
 
 use crate::layout::{Lookup, LookupList};
 
 /// 'GDEF'
 pub const TAG: Tag = Tag::new(b"GPOS");
+
+include!("../../generated/generated_gpos_parse.rs");
 
 impl ValueFormat {
     /// Return the number of bytes required to store a [`ValueRecord`] in this format.
@@ -143,8 +140,8 @@ pub mod compile {
     use crate::compile::{FontWrite, OffsetMarker, ToOwnedObj, ToOwnedTable};
     use crate::layout::compile::{ChainedSequenceContext, Lookup, SequenceContext};
 
-    pub use super::generated::compile::*;
     pub use super::ValueRecord;
+    include!("../../generated/generated_gpos_compile.rs");
 
     //TODO: we can get rid of all this once we have auto-getters for offset types?
     impl super::PairPosFormat1<'_> {

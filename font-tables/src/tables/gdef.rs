@@ -2,15 +2,12 @@
 //!
 //! [GDEF]: https://docs.microsoft.com/en-us/typography/opentype/spec/gdef
 
-#[path = "../../generated/generated_gdef.rs"]
-mod generated;
-
-pub use generated::*;
-
 use font_types::Tag;
 
 /// 'GDEF'
 pub const TAG: Tag = Tag::new(b"GDEF");
+
+include!("../../generated/generated_gdef_parse.rs");
 
 #[cfg(feature = "compile")]
 pub mod compile {
@@ -21,7 +18,21 @@ pub mod compile {
         layout::{compile::CoverageTableBuilder, CoverageTable as CoverageTableRef},
     };
 
-    pub use super::generated::compile::*;
+    include!("../../generated/generated_gdef_compile.rs");
+
+    use std::collections::BTreeMap;
+
+    // a more ergonimic representation
+    #[derive(Debug, Default, PartialEq)]
+    pub struct AttachList {
+        pub items: BTreeMap<GlyphId, Vec<u16>>,
+    }
+
+    #[derive(Debug, Default, PartialEq)]
+    pub struct CaretValueFormat3 {
+        pub coordinate: i16,
+        pub device_offset: OffsetMarker16<Box<dyn FontWrite>>,
+    }
 
     impl ToOwnedObj for super::AttachList<'_> {
         type Owned = AttachList;

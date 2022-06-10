@@ -3,9 +3,6 @@ use crate::layout::ClassDef;
 use crate::layout::FeatureList;
 use crate::layout::ScriptList;
 use crate::layout::FeatureVariations;
-use crate::tables::gpos::ValueRecord;
-use crate::tables::gpos::PairValueRecord;
-use crate::tables::gpos::PositionLookupList;
 
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 #[offset_host]
