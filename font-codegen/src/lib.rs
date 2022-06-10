@@ -9,11 +9,23 @@ mod parse;
 
 pub use error::ErrorReport;
 
-pub fn generate_code(code_str: &str) -> Result<String, syn::Error> {
+/// Codegeneration mode.
+#[derive(Debug, Clone, Copy, serde::Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Mode {
+    /// Generate parsing code
+    Parse,
+    /// Generate compilation code
+    Compile,
+}
+
+pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
     let parsed: parse::Items = syn::parse_str(code_str)?;
 
-    let tables = codegen(&parsed)?;
-
+    let tables = match mode {
+        Mode::Parse => generate_parse_module(&parsed),
+        Mode::Compile => compile_types::generate_compile_module(&parsed),
+    }?;
     // if this is not valid code just pass it through directly, and then we
     // can see the compiler errors
     let source_str = match rustfmt_wrapper::rustfmt(&tables) {
@@ -21,8 +33,6 @@ pub fn generate_code(code_str: &str) -> Result<String, syn::Error> {
         Err(_) => return Ok(tables.to_string()),
     };
     // convert doc comment attributes into normal doc comments
-    let mod_comments = regex::Regex::new(r#"#!\[doc = "(.*)"\]"#).unwrap();
-    let source_str = mod_comments.replace_all(&source_str, "//!$1");
     let doc_comments = regex::Regex::new(r#"#\[doc = "(.*)"\]"#).unwrap();
     let source_str = doc_comments.replace_all(&source_str, "///$1");
     let newlines_before_docs = regex::Regex::new(r#"([;\}])\n( *)(///|pub|impl|#)"#).unwrap();
@@ -42,7 +52,7 @@ pub fn generate_code(code_str: &str) -> Result<String, syn::Error> {
     ))
 }
 
-pub fn codegen(items: &parse::Items) -> Result<proc_macro2::TokenStream, syn::Error> {
+fn generate_parse_module(items: &parse::Items) -> Result<proc_macro2::TokenStream, syn::Error> {
     let mut code = Vec::new();
     for item in &items.items {
         let item_code = match item {
@@ -54,18 +64,13 @@ pub fn codegen(items: &parse::Items) -> Result<proc_macro2::TokenStream, syn::Er
         code.push(item_code);
     }
 
-    let compile_mod = compile_types::generate_compile_module(items)?;
-    let module_docs = &items.docs;
     let use_stmts = &items.use_stmts;
     let helpers = &items.helpers;
     Ok(quote! {
-        #(#module_docs)*
         #(#use_stmts)*
         use font_types::*;
         #(#code)*
         #(#helpers)*
-
-        #compile_mod
     })
 }
 
@@ -575,4 +580,18 @@ fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
 
 fn make_resolved_ident(ident: &syn::Ident) -> syn::Ident {
     quote::format_ident!("__resolved_{}", ident)
+}
+
+impl std::str::FromStr for Mode {
+    type Err = miette::Error;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "parse" => Ok(Self::Parse),
+            "compile" => Ok(Self::Compile),
+            other => Err(miette::Error::msg(format!(
+                "expected one of 'parse' or 'compile' (found {other})"
+            ))),
+        }
+    }
 }

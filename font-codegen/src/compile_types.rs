@@ -28,8 +28,6 @@ pub fn generate_compile_module(
 
     let custom_compile_types = &parsed.compile_types;
     Ok(quote! {
-        #[cfg(feature = "compile")]
-        pub mod compile {
             use crate::compile::*;
             use font_types::*;
             #(use #use_paths;)*
@@ -38,7 +36,6 @@ pub fn generate_compile_module(
             #(#custom_compile_types)*
 
             #(#items)*
-        }
     })
 }
 
