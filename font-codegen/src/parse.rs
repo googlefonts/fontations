@@ -83,12 +83,14 @@ pub struct Variant {
     pub typ_lifetime: Option<syn::Lifetime>,
 }
 
+#[derive(Debug, Clone)]
 pub enum Field {
     Single(SingleField),
     Array(ArrayField),
     CustomRead(CustomField),
 }
 
+#[derive(Debug, Clone)]
 pub struct SingleField {
     pub docs: Vec<syn::Attribute>,
     pub name: syn::Ident,
@@ -100,6 +102,7 @@ pub struct SingleField {
     pub read: Option<attrs::ArgList>,
 }
 
+#[derive(Debug, Clone)]
 pub enum FieldType {
     Offset {
         offset_type: syn::Ident,
@@ -113,6 +116,7 @@ pub enum FieldType {
     },
 }
 
+#[derive(Debug, Clone)]
 pub struct ArrayField {
     pub docs: Vec<syn::Attribute>,
     pub name: syn::Ident,
@@ -126,6 +130,7 @@ pub struct ArrayField {
     pub skip_offset_getter: Option<syn::Path>,
 }
 
+#[derive(Debug, Clone)]
 pub struct CustomField {
     pub docs: Vec<syn::Attribute>,
     pub name: syn::Ident,
@@ -497,16 +502,10 @@ impl Field {
         let name = self.name();
         let getter_name = self.offset_getter_name()?;
         assert_ne!(name, &getter_name);
+        let target = self.offset_target()?;
+
         match self {
-            Field::Single(SingleField {
-                typ:
-                    FieldType::Offset {
-                        target_type: Some(target),
-                        ..
-                    },
-                read,
-                ..
-            }) => {
+            Field::Single(SingleField { read, .. }) => {
                 let read_fn = match &read {
                     Some(args) => {
                         let args = args.for_read_with_args();
@@ -521,15 +520,7 @@ impl Field {
                     }
                 })
             }
-            Field::Array(ArrayField {
-                inner_typ:
-                    FieldType::Offset {
-                        target_type: Some(target),
-                        ..
-                    },
-                read,
-                ..
-            }) => {
+            Field::Array(ArrayField { read, .. }) => {
                 let map_fn = match &read {
                     Some(args) => {
                         let args = args.for_read_with_args();
@@ -543,6 +534,20 @@ impl Field {
                     }
                 })
             }
+            _ => None,
+        }
+    }
+
+    pub(crate) fn offset_target(&self) -> Option<&syn::Ident> {
+        match self {
+            Field::Single(SingleField {
+                typ: FieldType::Offset { target_type, .. },
+                ..
+            }) => target_type.as_ref(),
+            Field::Array(ArrayField {
+                inner_typ: FieldType::Offset { target_type, .. },
+                ..
+            }) => target_type.as_ref(),
             _ => None,
         }
     }

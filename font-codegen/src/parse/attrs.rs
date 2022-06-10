@@ -35,17 +35,20 @@ pub enum Count {
 }
 
 /// A list of arguments contained in an attribute
+#[derive(Debug, Clone)]
 pub struct ArgList {
     attr: syn::Path,
     pub args: Vec<syn::Ident>,
 }
 
 //TODO: remove me?
+#[derive(Debug, Clone)]
 pub struct Offset {
     pub target: syn::Path,
 }
 
 /// Annotations for how to calculate certain fields
+#[derive(Debug, Clone)]
 pub enum Compute {
     /// computed from length of a given collection
     Len(syn::Ident),

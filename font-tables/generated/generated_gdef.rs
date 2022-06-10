@@ -374,6 +374,14 @@ impl<'a> font_types::FontRead<'a> for Gdef<'a> {
 }
 
 impl<'a> Gdef<'a> {
+    pub fn attach_list(&self) -> Option<AttachList> {
+        match self {
+            Self::Gdef1_0(_inner) => _inner.attach_list(),
+            Self::Gdef1_2(_inner) => _inner.attach_list(),
+            Self::Gdef1_3(_inner) => _inner.attach_list(),
+        }
+    }
+
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
     pub fn attach_list_offset(&self) -> Offset16 {
@@ -381,6 +389,14 @@ impl<'a> Gdef<'a> {
             Self::Gdef1_0(_inner) => _inner.attach_list_offset(),
             Self::Gdef1_2(_inner) => _inner.attach_list_offset(),
             Self::Gdef1_3(_inner) => _inner.attach_list_offset(),
+        }
+    }
+
+    pub fn glyph_class_def(&self) -> Option<ClassDef> {
+        match self {
+            Self::Gdef1_0(_inner) => _inner.glyph_class_def(),
+            Self::Gdef1_2(_inner) => _inner.glyph_class_def(),
+            Self::Gdef1_3(_inner) => _inner.glyph_class_def(),
         }
     }
 
@@ -394,6 +410,14 @@ impl<'a> Gdef<'a> {
         }
     }
 
+    pub fn item_var_store(&self) -> Option<ClassDef> {
+        match self {
+            Self::Gdef1_0(_inner) => None,
+            Self::Gdef1_2(_inner) => None,
+            Self::Gdef1_3(_inner) => _inner.item_var_store(),
+        }
+    }
+
     /// Offset to the Item Variation Store table, from beginning of
     /// GDEF header (may be NULL)
     pub fn item_var_store_offset(&self) -> Option<Offset32> {
@@ -401,6 +425,14 @@ impl<'a> Gdef<'a> {
             Self::Gdef1_0(_inner) => None,
             Self::Gdef1_2(_inner) => None,
             Self::Gdef1_3(_inner) => Some(_inner.item_var_store_offset()),
+        }
+    }
+
+    pub fn lig_caret_list(&self) -> Option<LigCaretList> {
+        match self {
+            Self::Gdef1_0(_inner) => _inner.lig_caret_list(),
+            Self::Gdef1_2(_inner) => _inner.lig_caret_list(),
+            Self::Gdef1_3(_inner) => _inner.lig_caret_list(),
         }
     }
 
@@ -423,6 +455,14 @@ impl<'a> Gdef<'a> {
         }
     }
 
+    pub fn mark_attach_class_def(&self) -> Option<ClassDef> {
+        match self {
+            Self::Gdef1_0(_inner) => _inner.mark_attach_class_def(),
+            Self::Gdef1_2(_inner) => _inner.mark_attach_class_def(),
+            Self::Gdef1_3(_inner) => _inner.mark_attach_class_def(),
+        }
+    }
+
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
     pub fn mark_attach_class_def_offset(&self) -> Offset16 {
@@ -430,6 +470,14 @@ impl<'a> Gdef<'a> {
             Self::Gdef1_0(_inner) => _inner.mark_attach_class_def_offset(),
             Self::Gdef1_2(_inner) => _inner.mark_attach_class_def_offset(),
             Self::Gdef1_3(_inner) => _inner.mark_attach_class_def_offset(),
+        }
+    }
+
+    pub fn mark_glyph_sets_def(&self) -> Option<MarkGlyphSets> {
+        match self {
+            Self::Gdef1_0(_inner) => None,
+            Self::Gdef1_2(_inner) => _inner.mark_glyph_sets_def(),
+            Self::Gdef1_3(_inner) => _inner.mark_glyph_sets_def(),
         }
     }
 

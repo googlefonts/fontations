@@ -155,6 +155,43 @@ fn generate_group(
     })
 }
 
+/// a field that receives a getter; either for the concrete type of the field,
+/// or for the type pointed to by an offset.
+enum Getter<'a> {
+    Field(&'a parse::Field),
+    OffsetTarget(&'a parse::Field),
+}
+
+impl Getter<'_> {
+    fn is_offset_target(&self) -> bool {
+        matches!(self, Getter::OffsetTarget(_))
+    }
+
+    fn name(&self) -> syn::Ident {
+        match self {
+            Getter::Field(field) => field.name().clone(),
+            Getter::OffsetTarget(field) => field.offset_getter_name().unwrap(),
+        }
+    }
+
+    fn docs(&self) -> &[syn::Attribute] {
+        match self {
+            Getter::Field(field) => field.docs(),
+            _ => &[],
+        }
+    }
+
+    fn getter_return_type(&self) -> proc_macro2::TokenStream {
+        match self {
+            Getter::Field(field) => field.getter_return_type(),
+            Getter::OffsetTarget(field) => {
+                let target = field.offset_target();
+                quote!(Option<#target>)
+            }
+        }
+    }
+}
+
 fn generate_group_getter_impl(
     group: &parse::ItemGroup,
     all_items: &[parse::Item],
@@ -173,10 +210,18 @@ fn generate_group_getter_impl(
     for item in &items {
         for field in item.fields.iter().filter(|fld| fld.visible()) {
             fields
-                .entry(field.name())
-                .or_insert_with(|| (field, Vec::new()))
+                .entry(field.name().clone())
+                .or_insert_with(|| (Getter::Field(field), Vec::new()))
                 .1
                 .push(&item.name);
+
+            if let Some(offset_getter) = field.offset_getter_name() {
+                fields
+                    .entry(offset_getter)
+                    .or_insert_with(|| (Getter::OffsetTarget(field), Vec::new()))
+                    .1
+                    .push(&item.name);
+            }
         }
     }
 
@@ -203,13 +248,22 @@ fn generate_group_getter_impl(
             (field.getter_return_type(), match_right_sides)
         } else {
             let ret_type = field.getter_return_type();
-            let ret_type = quote!(Option<#ret_type>);
+            // offsets are already always option
+            let ret_type = if field.is_offset_target() {
+                ret_type
+            } else {
+                quote!(Option<#ret_type>)
+            };
             let match_right_sides = group
                 .variants
                 .iter()
                 .map(|var| {
                     if variants.contains(&&var.typ) {
-                        quote!( Some(_inner.#field_name()) )
+                        if field.is_offset_target() {
+                            quote!(_inner.#field_name())
+                        } else {
+                            quote!( Some(_inner.#field_name()) )
+                        }
                     } else {
                         quote!(None)
                     }

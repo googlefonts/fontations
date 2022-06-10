@@ -217,11 +217,25 @@ impl<'a> font_types::FontRead<'a> for Gpos<'a> {
 }
 
 impl<'a> Gpos<'a> {
+    pub fn feature_list(&self) -> Option<FeatureList> {
+        match self {
+            Self::Version1_0(_inner) => _inner.feature_list(),
+            Self::Version1_1(_inner) => _inner.feature_list(),
+        }
+    }
+
     /// Offset to FeatureList table, from beginning of GPOS table
     pub fn feature_list_offset(&self) -> Offset16 {
         match self {
             Self::Version1_0(_inner) => _inner.feature_list_offset(),
             Self::Version1_1(_inner) => _inner.feature_list_offset(),
+        }
+    }
+
+    pub fn feature_variations(&self) -> Option<FeatureVariations> {
+        match self {
+            Self::Version1_0(_inner) => None,
+            Self::Version1_1(_inner) => _inner.feature_variations(),
         }
     }
 
@@ -231,6 +245,13 @@ impl<'a> Gpos<'a> {
         match self {
             Self::Version1_0(_inner) => None,
             Self::Version1_1(_inner) => Some(_inner.feature_variations_offset()),
+        }
+    }
+
+    pub fn lookup_list(&self) -> Option<PositionLookupList> {
+        match self {
+            Self::Version1_0(_inner) => _inner.lookup_list(),
+            Self::Version1_1(_inner) => _inner.lookup_list(),
         }
     }
 
@@ -255,6 +276,13 @@ impl<'a> Gpos<'a> {
         match self {
             Self::Version1_0(_inner) => _inner.minor_version(),
             Self::Version1_1(_inner) => _inner.minor_version(),
+        }
+    }
+
+    pub fn script_list(&self) -> Option<ScriptList> {
+        match self {
+            Self::Version1_0(_inner) => _inner.script_list(),
+            Self::Version1_1(_inner) => _inner.script_list(),
         }
     }
 
