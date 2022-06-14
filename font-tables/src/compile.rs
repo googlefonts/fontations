@@ -8,6 +8,7 @@ use font_types::{
 
 //mod cmap;
 mod graph;
+mod graph2;
 mod offsets;
 
 use graph::{ObjectId, ObjectStore};

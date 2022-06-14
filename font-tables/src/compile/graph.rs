@@ -8,7 +8,7 @@ use std::{
 
 static OBJECT_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialOrd, Ord, Hash, PartialEq, Eq)]
 pub(crate) struct ObjectId(usize);
 
 impl ObjectId {
@@ -19,7 +19,7 @@ impl ObjectId {
 
 #[derive(Debug, Default)]
 pub(crate) struct ObjectStore {
-    objects: HashMap<TableData, ObjectId>,
+    pub(crate) objects: HashMap<TableData, ObjectId>,
 }
 
 pub(crate) struct Graph {
