@@ -8,7 +8,6 @@ use font_types::{
 
 //mod cmap;
 mod graph;
-mod graph2;
 mod offsets;
 
 use graph::{ObjectId, ObjectStore};
@@ -60,16 +59,8 @@ pub trait ToOwnedObj {
 pub fn dump_table<T: FontWrite>(table: &T) -> Vec<u8> {
     let mut writer = TableWriter::default();
     table.write_into(&mut writer);
-    let (root, graph) = writer.finish();
-    let sorted = graph.kahn_sort(root);
-    dump_impl(&sorted, &graph.nodes)
-}
-
-pub fn dump_table2(table: &impl FontWrite) -> Vec<u8> {
-    let mut writer = TableWriter::default();
-    table.write_into(&mut writer);
-    let mut graph = writer.into_graph2();
-    graph.sort_kahn();
+    let mut graph = writer.finish();
+    graph.topological_sort();
     dump_impl(&graph.order, &graph.objects)
 }
 
@@ -131,16 +122,9 @@ impl TableWriter {
     }
 
     /// Finish this table, returning the root Id and the object graph.
-    fn finish(mut self) -> (ObjectId, Graph) {
-        // we start with one table which is only removed now
+    fn finish(mut self) -> Graph {
         let id = self.tables.add(self.stack.pop().unwrap());
-        let graph = self.tables.into_graph();
-        (id, graph)
-    }
-
-    fn into_graph2(mut self) -> graph2::Graph {
-        let id = self.tables.add(self.stack.pop().unwrap());
-        graph2::Graph::from_obj_store(self.tables, id)
+        Graph::from_obj_store(self.tables, id)
     }
 
     #[inline]
@@ -392,7 +376,7 @@ mod tests {
             ],
         };
 
-        let bytes = super::dump_table2(&table);
+        let bytes = super::dump_table(&table);
         assert_hex_eq!(bytes.as_slice(), &[
             0xff, 0xff,
 
@@ -435,7 +419,7 @@ mod tests {
             ],
         };
 
-        let bytes = super::dump_table2(&table);
+        let bytes = super::dump_table(&table);
 
         assert_hex_eq!(bytes.as_slice(), &[
             0xff, 0xff,
