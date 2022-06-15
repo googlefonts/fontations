@@ -45,6 +45,8 @@ pub struct Graph {
 struct Node {
     size: u32,
     distance: Distance,
+    /// overall position after sorting
+    position: u32,
     //space: i64,
     parents: Vec<ObjectId>,
     priority: Priority,
@@ -83,8 +85,8 @@ impl Distance {
 
     fn from_offset_and_size(width: OffsetLen, size: u32) -> Self {
         let width_bits = width as u8 * 8;
-        let distance = size as u64 + 1_u64 << width_bits;
-        Distance { distance, order: 0 }.into()
+        let distance = size as u64 + (1_u64 << width_bits);
+        Distance { distance, order: 0 }
     }
 
     fn rev(self) -> std::cmp::Reverse<Distance> {
@@ -97,6 +99,7 @@ impl Node {
         Node {
             //obj,
             size,
+            position: Default::default(),
             distance: Default::default(),
             //space: 0,
             parents: Default::default(),
@@ -167,20 +170,32 @@ impl Graph {
 
     pub(crate) fn topological_sort(&mut self) {
         self.sort_kahn();
-        if self.has_overflows() {
+        if !self.find_overflows().is_empty() {
             self.sort_shortest_distance();
         }
     }
 
-    fn has_overflows(&self) -> bool {
-        false
+    fn find_overflows(&self) -> Vec<(ObjectId, ObjectId)> {
+        let mut result = Vec::new();
+        for (parent_id, data) in &self.objects {
+            let parent = &self.nodes[&parent_id];
+            for link in &data.offsets {
+                let child = &self.nodes[&link.object];
+                //TODO: account for 'whence'
+                let rel_off = child.position - parent.position;
+                if link.len.max_value() < rel_off {
+                    result.push((*parent_id, link.object));
+                }
+            }
+        }
+        result
     }
 
     fn update_parents(&mut self) {
         if !self.parents_invalid {
             return;
         }
-        for (_, node) in &mut self.nodes {
+        for node in self.nodes.values_mut() {
             node.parents.clear();
         }
 
@@ -200,6 +215,7 @@ impl Graph {
 
         let mut queue = BinaryHeap::new();
         let mut removed_edges = HashMap::new();
+        let mut current_pos: u32 = 0;
         self.order.clear();
 
         self.update_parents();
@@ -208,6 +224,8 @@ impl Graph {
         while let Some(id) = queue.pop().map(|x| x.0) {
             let next = &self.objects[&id];
             self.order.push(id);
+            self.nodes.get_mut(&id).unwrap().position = current_pos;
+            current_pos += next.bytes.len() as u32;
             for link in &next.offsets {
                 let seen_edges = removed_edges.entry(link.object).or_insert(0usize);
                 *seen_edges += 1;
@@ -220,7 +238,7 @@ impl Graph {
         }
         //TODO: check for orphans & cycles?
         for (id, seen_len) in &removed_edges {
-            if *seen_len != self.nodes[&id].parents.len() {
+            if *seen_len != self.nodes[id].parents.len() {
                 panic!("cycle or something?");
             }
         }
@@ -233,6 +251,7 @@ impl Graph {
 
         let mut queue = BinaryHeap::new();
         let mut removed_edges = HashMap::with_capacity(self.nodes.len());
+        let mut current_pos = 0;
         self.order.clear();
 
         queue.push((Distance::MIN.rev(), self.root));
@@ -240,6 +259,8 @@ impl Graph {
         while let Some((_, id)) = queue.pop() {
             let next = &self.objects[&id];
             self.order.push(id);
+            self.nodes.get_mut(&id).unwrap().position = current_pos;
+            current_pos += next.bytes.len() as u32;
             for link in &next.offsets {
                 let seen_edges = removed_edges.entry(link.object).or_insert(0usize);
                 *seen_edges += 1;
@@ -255,7 +276,7 @@ impl Graph {
 
         //TODO: check for orphans & cycles?
         for (id, seen_len) in &removed_edges {
-            if *seen_len != self.nodes[&id].parents.len() {
+            if *seen_len != self.nodes[id].parents.len() {
                 panic!("cycle or something?");
             }
         }
@@ -442,5 +463,18 @@ mod tests {
         graph.sort_shortest_distance();
         // but 2 is larger than 3, so should be ordered after
         assert_eq!(&graph.order, &[ids[0], ids[1], ids[3], ids[2]]);
+    }
+
+    #[test]
+    fn overflow_basic() {
+        let ids = make_ids::<3>();
+        let sizes = [10, u16::MAX as usize - 5, 100];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset16)
+            .add_link(ids[0], ids[2], OffsetLen::Offset16)
+            .add_link(ids[1], ids[2], OffsetLen::Offset16)
+            .build();
+        graph.sort_kahn();
+        assert_eq!(graph.find_overflows(), &[(ids[0], ids[2])]);
     }
 }

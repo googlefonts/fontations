@@ -67,6 +67,15 @@ impl OffsetLen {
             Self::Offset32 => &[0, 0, 0, 0],
         }
     }
+
+    /// The maximum value for an offset of this length.
+    pub const fn max_value(self) -> u32 {
+        match self {
+            Self::Offset16 => u16::MAX as u32,
+            Self::Offset24 => (1 << 24) - 1,
+            Self::Offset32 => u32::MAX,
+        }
+    }
 }
 
 impl std::fmt::Display for OffsetLen {
