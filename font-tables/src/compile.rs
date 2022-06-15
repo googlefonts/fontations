@@ -61,19 +61,26 @@ pub fn dump_table<T: FontWrite>(table: &T) -> Vec<u8> {
     let mut writer = TableWriter::default();
     table.write_into(&mut writer);
     let (root, graph) = writer.finish();
-    dump_impl(root, graph)
+    let sorted = graph.kahn_sort(root);
+    dump_impl(&sorted, &graph.nodes)
 }
 
-fn dump_impl(root: ObjectId, graph: Graph) -> Vec<u8> {
-    let sorted = graph.kahn_sort(root);
+pub fn dump_table2(table: &impl FontWrite) -> Vec<u8> {
+    let mut writer = TableWriter::default();
+    table.write_into(&mut writer);
+    let mut graph = writer.into_graph2();
+    graph.sort_kahn();
+    dump_impl(&graph.order, &graph.objects)
+}
 
+fn dump_impl(order: &[ObjectId], nodes: &HashMap<ObjectId, TableData>) -> Vec<u8> {
     let mut offsets = HashMap::new();
     let mut out = Vec::new();
     let mut off = 0;
 
     // first pass: write out bytes, record positions of offsets
-    for id in &sorted {
-        let node = graph.get_node(*id).unwrap();
+    for id in order {
+        let node = nodes.get(id).unwrap();
         offsets.insert(*id, off);
         off += node.bytes.len() as u32;
         out.extend_from_slice(&node.bytes);
@@ -81,8 +88,8 @@ fn dump_impl(root: ObjectId, graph: Graph) -> Vec<u8> {
 
     // second pass: write offsets
     let mut off = 0;
-    for id in &sorted {
-        let node = graph.get_node(*id).unwrap();
+    for id in order {
+        let node = nodes.get(id).unwrap();
         for offset in &node.offsets {
             let abs_off = *offsets.get(&offset.object).unwrap();
             let rel_off = abs_off - off as u32;
@@ -131,9 +138,9 @@ impl TableWriter {
         (id, graph)
     }
 
-    fn dump(self) -> Vec<u8> {
-        let (root, graph) = self.finish();
-        dump_impl(root, graph)
+    fn into_graph2(mut self) -> graph2::Graph {
+        let id = self.tables.add(self.stack.pop().unwrap());
+        graph2::Graph::from_obj_store(self.tables, id)
     }
 
     #[inline]
@@ -198,6 +205,20 @@ impl TableData {
 
     fn write(&mut self, bytes: &[u8]) {
         self.bytes.extend(bytes)
+    }
+
+    #[cfg(test)]
+    pub fn make_mock(size: usize) -> Self {
+        TableData {
+            bytes: vec![0xca; size], // has no special meaning
+            offsets: Vec::new(),
+        }
+    }
+
+    #[cfg(test)]
+    pub fn add_mock_offset(&mut self, object: ObjectId, len: OffsetLen) {
+        let pos = self.offsets.iter().map(|off| off.len as u8 as u32).sum();
+        self.offsets.push(OffsetRecord { pos, len, object });
     }
 }
 
@@ -371,24 +392,24 @@ mod tests {
             ],
         };
 
-        let bytes = super::dump_table(&table);
+        let bytes = super::dump_table2(&table);
         assert_hex_eq!(bytes.as_slice(), &[
             0xff, 0xff,
 
             0x10, 0x10,
-            0x00, 0x12, //18
-
-            0x40, 0x40,
             0x00, 0x0e, //14
 
-            0x69, 0x69,
+            0x40, 0x40,
             0x00, 0x12, //18
 
-            0x50, 0x50,
-            0x60, 0x60,
+            0x69, 0x69,
+            0x00, 0x0e, //14
 
             0x20, 0x20,
             0x30, 0x30,
+
+            0x50, 0x50,
+            0x60, 0x60,
         ]);
     }
 
@@ -414,7 +435,7 @@ mod tests {
             ],
         };
 
-        let bytes = super::dump_table(&table);
+        let bytes = super::dump_table2(&table);
 
         assert_hex_eq!(bytes.as_slice(), &[
             0xff, 0xff,

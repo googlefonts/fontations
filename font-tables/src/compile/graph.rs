@@ -23,7 +23,7 @@ pub(crate) struct ObjectStore {
 }
 
 pub(crate) struct Graph {
-    nodes: HashMap<ObjectId, TableData>,
+    pub(crate) nodes: HashMap<ObjectId, TableData>,
 }
 
 impl Graph {
@@ -35,10 +35,6 @@ impl Graph {
             }
         }
         edges
-    }
-
-    pub(super) fn get_node(&self, id: ObjectId) -> Option<&TableData> {
-        self.nodes.get(&id)
     }
 
     pub(super) fn kahn_sort(&self, root: ObjectId) -> Vec<ObjectId> {
