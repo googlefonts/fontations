@@ -4,7 +4,7 @@ use font_types::OffsetLen;
 
 use super::TableData;
 use std::{
-    collections::{BinaryHeap, HashMap, HashSet},
+    collections::{BinaryHeap, HashMap, HashSet, VecDeque},
     sync::atomic::AtomicUsize,
 };
 
@@ -38,17 +38,20 @@ pub struct Graph {
     parents_invalid: bool,
     distance_invalid: bool,
     positions_invalid: bool,
+    next_space: u32,
     //successful: bool,
     //num_roots_for_space: Vec<usize>,
 }
+
+const SPACE_0: Option<u32> = Some(0);
 
 struct Node {
     size: u32,
     distance: Distance,
     /// overall position after sorting
     position: u32,
-    //space: i64,
-    parents: Vec<ObjectId>,
+    space: Option<u32>,
+    parents: Vec<(ObjectId, OffsetLen)>,
     priority: Priority,
 }
 
@@ -101,7 +104,7 @@ impl Node {
             size,
             position: Default::default(),
             distance: Default::default(),
-            //space: 0,
+            space: None,
             parents: Default::default(),
             priority: Default::default(),
         }
@@ -163,6 +166,7 @@ impl Graph {
             parents_invalid: true,
             distance_invalid: true,
             positions_invalid: true,
+            next_space: 0,
             //successful: true,
             //num_roots_for_space: vec![1],
         }
@@ -200,8 +204,12 @@ impl Graph {
         }
 
         for (id, obj) in &self.objects {
-            for child in &obj.offsets {
-                self.nodes.get_mut(&child.object).unwrap().parents.push(*id);
+            for link in &obj.offsets {
+                self.nodes
+                    .get_mut(&link.object)
+                    .unwrap()
+                    .parents
+                    .push((*id, link.len));
             }
         }
         self.parents_invalid = false;
@@ -318,6 +326,208 @@ impl Graph {
         }
 
         self.distance_invalid = false;
+    }
+
+    /// Returns `true` if there were any 32bit subgraphs
+    fn assign_32bit_spaces(&mut self) -> bool {
+        self.update_parents();
+        // find all the nodes that only have 32-bit incoming edges
+        let mut roots = HashSet::new();
+        for (id, node) in &self.nodes {
+            if !node.parents.is_empty()
+                && node
+                    .parents
+                    .iter()
+                    .all(|(_, len)| *len == OffsetLen::Offset32)
+            {
+                roots.insert(*id);
+            }
+        }
+
+        if roots.is_empty() {
+            return false;
+        }
+
+        // assign all nodes reachable from 16/24 bit edges to space 0.
+        self.assign_space_0();
+
+        while !roots.is_empty() {
+            let root = *roots.iter().next().unwrap();
+            self.isolate_and_assign_space(root);
+            roots.remove(&root);
+        }
+        self.update_parents();
+        true
+    }
+
+    /// Isolate the subgraph at root, deduplicating any nodes reachable from
+    /// 16-bit space. Assign the subgraph to a new space.
+    fn isolate_and_assign_space(&mut self, root: ObjectId) {
+        // - if root is already in a space, it means we're part of an existing
+        // subgraph, and can return.
+        //
+        // - do a directed traversal from root
+        // - if we encounter a node in space 0, duplicate that node (subgraph?)
+        // - if we encounter a node in *another* space:
+        //    - we want it ordered after us, somehow :thinking face:
+        //    - maybe we reassign all nodes in that space to space_next()?
+        if matches!(self.nodes.get(&root).and_then(|n| n.space), Some(_)) {
+            return;
+        }
+
+        let mut stack = VecDeque::from([root]);
+        let space = self.next_space();
+
+        enum Op {
+            Reprioritize(u32),
+            Duplicate(ObjectId),
+            None,
+        }
+
+        let mut duplicated = HashMap::new();
+
+        while let Some(next) = stack.pop_front() {
+            // we do this with an enum so we can release the borrow
+            let op = match self.nodes.get_mut(&next) {
+                Some(node) if node.space == SPACE_0 => Op::Duplicate(next),
+                Some(node) => match node.space {
+                    // if this node is already in a space, we want to force that
+                    // space to be after the current one.
+                    Some(prev_space) if prev_space == space => continue,
+                    Some(prev_space) => Op::Reprioritize(prev_space),
+                    _ => Op::None,
+                },
+                None => unreachable!("ahem"),
+            };
+
+            let next = match op {
+                Op::Reprioritize(old_space) => {
+                    self.reprioritize_space(old_space);
+                    // no need to recurse
+                    continue;
+                }
+                Op::Duplicate(obj) => match duplicated.get(&obj) {
+                    // if we've already duplicated this node we can continue
+                    Some(_id) => continue,
+                    None => {
+                        let new_obj = self.duplicate_subgraph(obj, &mut duplicated);
+                        duplicated.insert(obj, new_obj);
+                        new_obj
+                    }
+                },
+                Op::None => next,
+            };
+
+            self.nodes.get_mut(&next).unwrap().space = Some(space);
+            for link in self
+                .objects
+                .get(&next)
+                .iter()
+                .flat_map(|obj| obj.offsets.iter())
+            {
+                stack.push_back(link.object);
+            }
+        }
+
+        // if we did any duplicates, do another traversal to update links
+        if !duplicated.is_empty() {
+            stack.push_back(root);
+            while let Some(next) = stack.pop_front() {
+                for link in self
+                    .objects
+                    .get_mut(&next)
+                    .iter_mut()
+                    .flat_map(|obj| obj.offsets.iter_mut())
+                {
+                    if let Some(new_id) = duplicated.get(&link.object) {
+                        link.object = *new_id;
+                    } else {
+                        stack.push_back(link.object);
+                    }
+                }
+            }
+        }
+    }
+
+    fn next_space(&mut self) -> u32 {
+        self.next_space += 1;
+        self.next_space
+    }
+
+    fn reprioritize_space(&mut self, old: u32) {
+        let space = self.next_space();
+        for node in self.nodes.values_mut() {
+            if node.space == Some(old) {
+                node.space = Some(space);
+            }
+        }
+    }
+
+    fn duplicate_subgraph(
+        &mut self,
+        root: ObjectId,
+        dupes: &mut HashMap<ObjectId, ObjectId>,
+    ) -> ObjectId {
+        if let Some(existing) = dupes.get(&root) {
+            return *existing;
+        }
+        self.parents_invalid = true;
+        let new_root = ObjectId::next();
+        let mut obj = self.objects.get(&root).cloned().unwrap();
+        let node = Node::new(obj.bytes.len() as u32);
+
+        for link in &mut obj.offsets {
+            // recursively duplicate the object
+            link.object = self.duplicate_subgraph(link.object, dupes);
+        }
+        dupes.insert(root, new_root);
+        self.objects.insert(new_root, obj);
+        self.nodes.insert(new_root, node);
+        eprintln!("copied {root:?} to {new_root:?}");
+        new_root
+    }
+
+    /// Find the set of nodes that are reachable from root only following
+    /// 16 & 24 bit offsets, and assign them to space 0.
+    fn assign_space_0(&mut self) {
+        self.nodes.values_mut().for_each(|val| val.space = None);
+        let mut stack = VecDeque::from([self.root]);
+
+        while let Some(next) = stack.pop_front() {
+            match self.nodes.get_mut(&next) {
+                Some(node) if node.space.is_none() => node.space = Some(0),
+                _ => continue,
+            }
+            for link in self
+                .objects
+                .get(&next)
+                .iter()
+                .flat_map(|obj| obj.offsets.iter())
+            {
+                if link.len != OffsetLen::Offset32 {
+                    stack.push_back(link.object);
+                }
+            }
+        }
+    }
+
+    #[cfg(test)]
+    fn find_descendents(&self, root: ObjectId) -> HashSet<ObjectId> {
+        let mut result = HashSet::new();
+        let mut stack = VecDeque::from([root]);
+        while let Some(id) = stack.pop_front() {
+            if result.insert(id) {
+                for link in self
+                    .objects
+                    .get(&id)
+                    .iter()
+                    .flat_map(|obj| obj.offsets.iter())
+                {
+                    stack.push_back(link.object);
+                }
+            }
+        }
+        result
     }
 }
 
@@ -477,4 +687,81 @@ mod tests {
         graph.sort_kahn();
         assert_eq!(graph.find_overflows(), &[(ids[0], ids[2])]);
     }
+
+    #[test]
+    fn duplicate_subgraph() {
+        let ids = make_ids::<10>();
+        let sizes = [10; 10];
+
+        // root has two children, one 16 and one 32-bit offset.
+        // those subgraphs share three nodes, which must be deduped.
+
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset16)
+            .add_link(ids[0], ids[2], OffsetLen::Offset32)
+            .add_link(ids[1], ids[3], OffsetLen::Offset16)
+            .add_link(ids[1], ids[9], OffsetLen::Offset16)
+            .add_link(ids[2], ids[3], OffsetLen::Offset16)
+            .add_link(ids[2], ids[4], OffsetLen::Offset16)
+            .add_link(ids[2], ids[5], OffsetLen::Offset16)
+            .add_link(ids[3], ids[6], OffsetLen::Offset16)
+            .add_link(ids[4], ids[6], OffsetLen::Offset16)
+            .add_link(ids[4], ids[7], OffsetLen::Offset16)
+            .add_link(ids[7], ids[8], OffsetLen::Offset16)
+            .add_link(ids[8], ids[9], OffsetLen::Offset16)
+            .build();
+
+        assert_eq!(graph.nodes.len(), 10);
+        let one = graph.find_descendents(ids[1]);
+        let two = graph.find_descendents(ids[2]);
+        assert_eq!(one.intersection(&two).count(), 3);
+
+        graph.sort_kahn();
+        graph.assign_32bit_spaces();
+
+        // 3, 6, and 9 should be duplicated
+        assert_eq!(graph.nodes.len(), 13);
+        let one = graph.find_descendents(ids[1]);
+        let two = graph.find_descendents(ids[2]);
+        assert_eq!(one.intersection(&two).count(), 0);
+    }
+
+    #[test]
+    fn assign_32bit_spaces() {
+        let ids = make_ids::<10>();
+        let sizes = [10; 10];
+
+        // root has two children, one 16 and one 32-bit offset.
+        // those subgraphs share three nodes, which must be deduped.
+
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset16)
+            .add_link(ids[0], ids[2], OffsetLen::Offset32)
+            .add_link(ids[1], ids[3], OffsetLen::Offset16)
+            .add_link(ids[1], ids[9], OffsetLen::Offset16)
+            .add_link(ids[2], ids[3], OffsetLen::Offset16)
+            .add_link(ids[2], ids[4], OffsetLen::Offset16)
+            .add_link(ids[2], ids[5], OffsetLen::Offset16)
+            .add_link(ids[3], ids[6], OffsetLen::Offset16)
+            .add_link(ids[4], ids[6], OffsetLen::Offset16)
+            .add_link(ids[4], ids[7], OffsetLen::Offset16)
+            .add_link(ids[7], ids[8], OffsetLen::Offset16)
+            .add_link(ids[8], ids[9], OffsetLen::Offset16)
+            .build();
+
+        graph.assign_32bit_spaces();
+        let one = graph.find_descendents(ids[1]);
+        let two = graph.find_descendents(ids[2]);
+
+        for id in &one {
+            assert_eq!(graph.nodes.get(&id).unwrap().space, SPACE_0);
+        }
+
+        for id in &two {
+            assert!(graph.nodes.get(&id).unwrap().space.unwrap() > 0);
+        }
+    }
+
+    //TODO:
+    // - test that subgraphs with priority n are placed after subgraphs with priority n - 1
 }
