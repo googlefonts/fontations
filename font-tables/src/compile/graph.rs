@@ -13,6 +13,26 @@ static OBJECT_COUNTER: AtomicUsize = AtomicUsize::new(0);
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, Hash, PartialEq, Eq)]
 pub(crate) struct ObjectId(usize);
 
+/// A ranking used for sorting the graph.
+///
+/// Nodes are assigned a space, and nodes in lower spaces are always
+/// packed before nodes in higher spaces.
+#[derive(Debug, Clone, Copy, PartialOrd, Ord, Hash, PartialEq, Eq)]
+struct Space(u32);
+
+impl Space {
+    /// A generic space for nodes reachable via 16-bit offsets.
+    const SHORT_REACHABLE: Space = Space(0);
+    /// A generic space for nodes that are reachable via any offset.
+    const REACHABLE: Space = Space(1);
+    /// The first space used for assignment to specific subgraphs.
+    const INIT: Space = Space(2);
+
+    const fn is_custom(self) -> bool {
+        self.0 >= Space::INIT.0
+    }
+}
+
 impl ObjectId {
     pub fn next() -> Self {
         ObjectId(OBJECT_COUNTER.fetch_add(1, std::sync::atomic::Ordering::Relaxed))
@@ -38,30 +58,31 @@ pub struct Graph {
     parents_invalid: bool,
     distance_invalid: bool,
     positions_invalid: bool,
-    next_space: u32,
-    //successful: bool,
-    //num_roots_for_space: Vec<usize>,
+    next_space: Space,
 }
-
-const SPACE_0: Option<u32> = Some(0);
 
 struct Node {
     size: u32,
-    distance: Distance,
+    distance: u32,
     /// overall position after sorting
     position: u32,
-    space: Option<u32>,
+    space: Space,
     parents: Vec<(ObjectId, OffsetLen)>,
     priority: Priority,
 }
 
 /// Scored used when computing shortest distance
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Distance {
+    // a space ranking; like rankings are packed together,
+    // and larger rankings are packed after smaller ones.
+    space: Space,
     distance: u64,
+    // a tie-breaker, based on order within a parent
     order: u32,
 }
 
+//TODO: remove me? maybe? not really used right now...
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Priority(u8);
 
@@ -79,18 +100,11 @@ impl Priority {
 }
 
 impl Distance {
-    const MIN: Distance = Distance::new(u64::MIN, u32::MIN);
-    const MAX: Distance = Distance::new(u64::MAX, u32::MAX);
-
-    const fn new(distance: u64, order: u32) -> Self {
-        Distance { distance, order }
-    }
-
-    fn from_offset_and_size(width: OffsetLen, size: u32) -> Self {
-        let width_bits = width as u8 * 8;
-        let distance = size as u64 + (1_u64 << width_bits);
-        Distance { distance, order: 0 }
-    }
+    const ROOT: Distance = Distance {
+        space: Space::SHORT_REACHABLE,
+        distance: 0,
+        order: 0,
+    };
 
     fn rev(self) -> std::cmp::Reverse<Distance> {
         std::cmp::Reverse(self)
@@ -104,25 +118,11 @@ impl Node {
             size,
             position: Default::default(),
             distance: Default::default(),
-            space: None,
+            space: Space::REACHABLE,
             parents: Default::default(),
             priority: Default::default(),
         }
     }
-
-    //fn is_shared(&self) -> bool {
-    //self.parents.len() > 1
-    //}
-
-    //fn incoming_edges(&self) -> usize {
-    //self.parents.len()
-    //}
-
-    //fn remove_parent(&mut self, obj: ObjectId) {
-    //if let Some(idx) = self.parents.iter().position(|x| x == &obj) {
-    //self.parents.swap_remove(idx);
-    //}
-    //}
 
     #[cfg(test)]
     fn raise_priority(&mut self) -> bool {
@@ -130,15 +130,20 @@ impl Node {
     }
 
     fn modified_distance(&self, order: u32) -> Distance {
-        let dist = self.distance.distance as i64;
-        let modified_distance = match self.priority {
-            Priority::ZERO => dist,
-            Priority::ONE => dist - self.size as i64 / 2,
-            Priority::TWO => dist - self.size as i64,
+        let prev_dist = self.distance as i64;
+        let distance = match self.priority {
+            Priority::ZERO => prev_dist,
+            Priority::ONE => prev_dist - self.size as i64 / 2,
+            Priority::TWO => prev_dist - self.size as i64,
             _ => 0,
         }
-        .max(0);
-        Distance::new(modified_distance as u64, order)
+        .max(0) as u64;
+
+        Distance {
+            space: self.space,
+            distance,
+            order,
+        }
     }
 }
 
@@ -166,15 +171,17 @@ impl Graph {
             parents_invalid: true,
             distance_invalid: true,
             positions_invalid: true,
-            next_space: 0,
-            //successful: true,
-            //num_roots_for_space: vec![1],
+            next_space: Space::INIT,
         }
     }
 
     pub(crate) fn topological_sort(&mut self) {
         self.sort_kahn();
         if !self.find_overflows().is_empty() {
+            self.sort_shortest_distance();
+        }
+        if !self.find_overflows().is_empty() {
+            self.assign_32bit_spaces();
             self.sort_shortest_distance();
         }
     }
@@ -256,13 +263,14 @@ impl Graph {
         self.positions_invalid = true;
         self.update_parents();
         self.update_distances();
+        self.assign_space_0();
 
         let mut queue = BinaryHeap::new();
         let mut removed_edges = HashMap::with_capacity(self.nodes.len());
         let mut current_pos = 0;
         self.order.clear();
 
-        queue.push((Distance::MIN.rev(), self.root));
+        queue.push((Distance::ROOT.rev(), self.root));
         let mut obj_order = 1u32;
         while let Some((_, id)) = queue.pop() {
             let next = &self.objects[&id];
@@ -291,13 +299,10 @@ impl Graph {
     }
 
     fn update_distances(&mut self) {
-        for (id, node) in &mut self.nodes {
-            if *id == self.root {
-                node.distance = Distance::MIN;
-            } else {
-                node.distance = Distance::MAX;
-            }
-        }
+        self.nodes
+            .values_mut()
+            .for_each(|node| node.distance = u32::MAX);
+        self.nodes.get_mut(&self.root).unwrap().distance = u32::MIN;
 
         let mut queue = BinaryHeap::new();
         let mut visited = HashSet::new();
@@ -315,8 +320,7 @@ impl Graph {
                 }
 
                 let child = self.nodes.get_mut(&link.object).unwrap();
-                let distance = Distance::from_offset_and_size(link.len, child.size);
-                let child_distance = next_distance + distance;
+                let child_distance = next_distance + child.size;
 
                 if child_distance < child.distance {
                     child.distance = child_distance;
@@ -371,7 +375,7 @@ impl Graph {
         // - if we encounter a node in *another* space:
         //    - we want it ordered after us, somehow :thinking face:
         //    - maybe we reassign all nodes in that space to space_next()?
-        if matches!(self.nodes.get(&root).and_then(|n| n.space), Some(_)) {
+        if self.nodes.get(&root).unwrap().space.is_custom() {
             return;
         }
 
@@ -379,7 +383,7 @@ impl Graph {
         let space = self.next_space();
 
         enum Op {
-            Reprioritize(u32),
+            Reprioritize(Space),
             Duplicate(ObjectId),
             None,
         }
@@ -389,13 +393,13 @@ impl Graph {
         while let Some(next) = stack.pop_front() {
             // we do this with an enum so we can release the borrow
             let op = match self.nodes.get_mut(&next) {
-                Some(node) if node.space == SPACE_0 => Op::Duplicate(next),
                 Some(node) => match node.space {
                     // if this node is already in a space, we want to force that
                     // space to be after the current one.
-                    Some(prev_space) if prev_space == space => continue,
-                    Some(prev_space) => Op::Reprioritize(prev_space),
-                    _ => Op::None,
+                    Space::SHORT_REACHABLE => Op::Duplicate(next),
+                    Space::REACHABLE => Op::None,
+                    prev_space if prev_space == space => continue,
+                    prev_space => Op::Reprioritize(prev_space),
                 },
                 None => unreachable!("ahem"),
             };
@@ -418,7 +422,7 @@ impl Graph {
                 Op::None => next,
             };
 
-            self.nodes.get_mut(&next).unwrap().space = Some(space);
+            self.nodes.get_mut(&next).unwrap().space = space;
             for link in self
                 .objects
                 .get(&next)
@@ -449,16 +453,17 @@ impl Graph {
         }
     }
 
-    fn next_space(&mut self) -> u32 {
-        self.next_space += 1;
+    fn next_space(&mut self) -> Space {
+        self.next_space = Space(self.next_space.0 + 1);
         self.next_space
     }
 
-    fn reprioritize_space(&mut self, old: u32) {
+    /// moves all nodes in the 'old' space to the next space.
+    fn reprioritize_space(&mut self, old: Space) {
         let space = self.next_space();
         for node in self.nodes.values_mut() {
-            if node.space == Some(old) {
-                node.space = Some(space);
+            if node.space == old {
+                node.space = space;
             }
         }
     }
@@ -472,6 +477,7 @@ impl Graph {
             return *existing;
         }
         self.parents_invalid = true;
+        self.distance_invalid = true;
         let new_root = ObjectId::next();
         let mut obj = self.objects.get(&root).cloned().unwrap();
         let node = Node::new(obj.bytes.len() as u32);
@@ -483,19 +489,19 @@ impl Graph {
         dupes.insert(root, new_root);
         self.objects.insert(new_root, obj);
         self.nodes.insert(new_root, node);
-        eprintln!("copied {root:?} to {new_root:?}");
         new_root
     }
 
     /// Find the set of nodes that are reachable from root only following
     /// 16 & 24 bit offsets, and assign them to space 0.
     fn assign_space_0(&mut self) {
-        self.nodes.values_mut().for_each(|val| val.space = None);
         let mut stack = VecDeque::from([self.root]);
 
         while let Some(next) = stack.pop_front() {
             match self.nodes.get_mut(&next) {
-                Some(node) if node.space.is_none() => node.space = Some(0),
+                Some(node) if node.space != Space::SHORT_REACHABLE => {
+                    node.space = Space::SHORT_REACHABLE
+                }
                 _ => continue,
             }
             for link in self
@@ -534,21 +540,6 @@ impl Graph {
 impl Default for Priority {
     fn default() -> Self {
         Priority::ZERO
-    }
-}
-
-impl std::ops::Add for Distance {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        let distance = self.distance + rhs.distance;
-        Distance::new(distance, self.order)
-    }
-}
-
-impl std::ops::AddAssign for Distance {
-    fn add_assign(&mut self, rhs: Self) {
-        *self = *self + rhs;
     }
 }
 
@@ -609,24 +600,24 @@ mod tests {
         }
     }
 
-    #[test]
-    fn difference_smoke_test() {
-        assert!(Distance::MIN < Distance::MAX);
-        assert!(
-            Distance::from_offset_and_size(OffsetLen::Offset16, 10)
-                < Distance::from_offset_and_size(OffsetLen::Offset16, 20)
-        );
-        assert!(
-            Distance::from_offset_and_size(OffsetLen::Offset32, 10)
-                > Distance::from_offset_and_size(OffsetLen::Offset16, 20)
-        );
-        assert!(Distance::new(10, 3) > Distance::new(10, 1));
-    }
+    //#[test]
+    //fn difference_smoke_test() {
+    //assert!(Distance::MIN < Distance::MAX);
+    //assert!(
+    //Distance::from_offset_and_size(OffsetLen::Offset16, 10)
+    //< Distance::from_offset_and_size(OffsetLen::Offset16, 20)
+    //);
+    //assert!(
+    //Distance::from_offset_and_size(OffsetLen::Offset32, 10)
+    //> Distance::from_offset_and_size(OffsetLen::Offset16, 20)
+    //);
+    //assert!(Distance::new(10, 3) > Distance::new(10, 1));
+    //}
 
     #[test]
     fn priority_smoke_test() {
         let mut node = Node::new(20);
-        node.distance = Distance::new(100, 0);
+        node.distance = 100;
         let mod0 = node.modified_distance(1);
         node.raise_priority();
         let mod1 = node.modified_distance(1);
@@ -696,6 +687,20 @@ mod tests {
         // root has two children, one 16 and one 32-bit offset.
         // those subgraphs share three nodes, which must be deduped.
 
+        //
+        //     before          after
+        //      0                 0
+        //     / \            ┌───┘\
+        //    1   2 ---+      1     2 ---+
+        //    |\ / \   |     / \   / \   |
+        //    | 3   4  5    9   3 3'  4  5
+        //    |  \ / \          |  \ / \
+        //    |   6   7         6   6'  7
+        //    |       |                 |
+        //    |    8──┘              8──┘
+        //    |    │                /
+        //    9 ───┘               9'
+
         let mut graph = TestGraphBuilder::new(ids, sizes)
             .add_link(ids[0], ids[1], OffsetLen::Offset16)
             .add_link(ids[0], ids[2], OffsetLen::Offset32)
@@ -724,44 +729,39 @@ mod tests {
         let one = graph.find_descendents(ids[1]);
         let two = graph.find_descendents(ids[2]);
         assert_eq!(one.intersection(&two).count(), 0);
-    }
-
-    #[test]
-    fn assign_32bit_spaces() {
-        let ids = make_ids::<10>();
-        let sizes = [10; 10];
-
-        // root has two children, one 16 and one 32-bit offset.
-        // those subgraphs share three nodes, which must be deduped.
-
-        let mut graph = TestGraphBuilder::new(ids, sizes)
-            .add_link(ids[0], ids[1], OffsetLen::Offset16)
-            .add_link(ids[0], ids[2], OffsetLen::Offset32)
-            .add_link(ids[1], ids[3], OffsetLen::Offset16)
-            .add_link(ids[1], ids[9], OffsetLen::Offset16)
-            .add_link(ids[2], ids[3], OffsetLen::Offset16)
-            .add_link(ids[2], ids[4], OffsetLen::Offset16)
-            .add_link(ids[2], ids[5], OffsetLen::Offset16)
-            .add_link(ids[3], ids[6], OffsetLen::Offset16)
-            .add_link(ids[4], ids[6], OffsetLen::Offset16)
-            .add_link(ids[4], ids[7], OffsetLen::Offset16)
-            .add_link(ids[7], ids[8], OffsetLen::Offset16)
-            .add_link(ids[8], ids[9], OffsetLen::Offset16)
-            .build();
-
-        graph.assign_32bit_spaces();
-        let one = graph.find_descendents(ids[1]);
-        let two = graph.find_descendents(ids[2]);
 
         for id in &one {
-            assert_eq!(graph.nodes.get(&id).unwrap().space, SPACE_0);
+            assert_eq!(graph.nodes.get(&id).unwrap().space, Space::SHORT_REACHABLE);
         }
 
         for id in &two {
-            assert!(graph.nodes.get(&id).unwrap().space.unwrap() > 0);
+            assert!(graph.nodes.get(&id).unwrap().space.is_custom());
         }
     }
 
-    //TODO:
-    // - test that subgraphs with priority n are placed after subgraphs with priority n - 1
+    #[test]
+    fn sort_respects_spaces() {
+        let ids = make_ids::<4>();
+        let sizes = [10; 4];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset32)
+            .add_link(ids[0], ids[2], OffsetLen::Offset32)
+            .add_link(ids[0], ids[3], OffsetLen::Offset16)
+            .build();
+        graph.sort_shortest_distance();
+        assert_eq!(&graph.order, &[ids[0], ids[3], ids[1], ids[2]]);
+    }
+
+    #[test]
+    fn assign_32bit_spaces_if_needed() {
+        let ids = make_ids::<4>();
+        let sizes = [10, u16::MAX as usize, 10, 10];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset32)
+            .add_link(ids[0], ids[2], OffsetLen::Offset16)
+            .add_link(ids[1], ids[2], OffsetLen::Offset16)
+            .build();
+        graph.topological_sort();
+        assert!(graph.find_overflows().is_empty());
+    }
 }
