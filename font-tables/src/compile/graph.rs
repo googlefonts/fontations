@@ -335,14 +335,13 @@ impl Graph {
     /// Returns `true` if there were any 32bit subgraphs
     fn assign_32bit_spaces(&mut self) -> bool {
         self.update_parents();
-        // find all the nodes that only have 32-bit incoming edges
+        // find all the nodes that have incoming 32-bit edges
         let mut roots = HashSet::new();
         for (id, node) in &self.nodes {
-            if !node.parents.is_empty()
-                && node
-                    .parents
-                    .iter()
-                    .all(|(_, len)| *len == OffsetLen::Offset32)
+            if node
+                .parents
+                .iter()
+                .any(|(_, len)| *len == OffsetLen::Offset32)
             {
                 roots.insert(*id);
             }
@@ -369,27 +368,26 @@ impl Graph {
     fn isolate_and_assign_space(&mut self, root: ObjectId) {
         // - if root is already in a space, it means we're part of an existing
         // subgraph, and can return.
-        //
+        if self.nodes.get(&root).unwrap().space.is_custom() {
+            return;
+        }
+
+        #[derive(Debug, Clone)]
+        enum Op {
+            Reprioritize(Space),
+            Duplicate(ObjectId),
+            JustChill,
+        }
+
+        let next_space = self.next_space();
+        let mut stack = VecDeque::from([root]);
+        let mut duplicated = HashMap::new();
+
         // - do a directed traversal from root
         // - if we encounter a node in space 0, duplicate that node (subgraph?)
         // - if we encounter a node in *another* space:
         //    - we want it ordered after us, somehow :thinking face:
         //    - maybe we reassign all nodes in that space to space_next()?
-        if self.nodes.get(&root).unwrap().space.is_custom() {
-            return;
-        }
-
-        let mut stack = VecDeque::from([root]);
-        let space = self.next_space();
-
-        enum Op {
-            Reprioritize(Space),
-            Duplicate(ObjectId),
-            None,
-        }
-
-        let mut duplicated = HashMap::new();
-
         while let Some(next) = stack.pop_front() {
             // we do this with an enum so we can release the borrow
             let op = match self.nodes.get_mut(&next) {
@@ -397,8 +395,8 @@ impl Graph {
                     // if this node is already in a space, we want to force that
                     // space to be after the current one.
                     Space::SHORT_REACHABLE => Op::Duplicate(next),
-                    Space::REACHABLE => Op::None,
-                    prev_space if prev_space == space => continue,
+                    Space::REACHABLE => Op::JustChill,
+                    prev_space if prev_space == next_space => continue,
                     prev_space => Op::Reprioritize(prev_space),
                 },
                 None => unreachable!("ahem"),
@@ -419,10 +417,10 @@ impl Graph {
                         new_obj
                     }
                 },
-                Op::None => next,
+                Op::JustChill => next,
             };
 
-            self.nodes.get_mut(&next).unwrap().space = space;
+            self.nodes.get_mut(&next).unwrap().space = next_space;
             for link in self
                 .objects
                 .get(&next)
@@ -737,6 +735,29 @@ mod tests {
         for id in &two {
             assert!(graph.nodes.get(&id).unwrap().space.is_custom());
         }
+    }
+
+    #[test]
+    fn duplicate_shared_root_subgraph() {
+        // if a node is linked from both 16 & 32-bit space, and has no parents
+        // in 32 bit space, it should always still be deduped.
+        //
+        //    before    after
+        //     0          0
+        //    / ⑊        / ⑊
+        //   1   ⑊      1   2
+        //   └───╴2     │
+        //              2'
+
+        let ids = make_ids::<3>();
+        let sizes = [10; 3];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset16)
+            .add_link(ids[0], ids[2], OffsetLen::Offset32)
+            .add_link(ids[1], ids[2], OffsetLen::Offset16)
+            .build();
+        graph.assign_32bit_spaces();
+        assert_eq!(graph.nodes.len(), 4);
     }
 
     #[test]
