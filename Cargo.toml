@@ -10,6 +10,7 @@ members = [
     "otexplorer",
     "skrifa",
     "fauntlet",
+    "subset-toy",
 ]
 
 [workspace.dependencies]
