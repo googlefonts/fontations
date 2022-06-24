@@ -504,10 +504,12 @@ impl<'a> font_types::OffsetHost<'a> for AnchorFormat3<'a> {
 pub struct MarkArray<'a> {
     mark_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
     mark_records: zerocopy::LayoutVerified<&'a [u8], [MarkRecord]>,
+    offset_bytes: &'a [u8],
 }
 
 impl<'a> font_types::FontRead<'a> for MarkArray<'a> {
     fn read(bytes: &'a [u8]) -> Option<Self> {
+        let offset_bytes = bytes;
         let (mark_count, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
         let __resolved_mark_count = mark_count.get();
@@ -520,6 +522,7 @@ impl<'a> font_types::FontRead<'a> for MarkArray<'a> {
         let result = MarkArray {
             mark_count,
             mark_records,
+            offset_bytes,
         };
         Some(result)
     }
@@ -535,6 +538,12 @@ impl<'a> MarkArray<'a> {
     /// associated mark Coverage table.
     pub fn mark_records(&self) -> &[MarkRecord] {
         &self.mark_records
+    }
+}
+
+impl<'a> font_types::OffsetHost<'a> for MarkArray<'a> {
+    fn bytes(&self) -> &'a [u8] {
+        self.offset_bytes
     }
 }
 

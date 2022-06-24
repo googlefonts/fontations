@@ -67,7 +67,7 @@ impl ClassDef<'_> {
 #[cfg(feature = "compile")]
 pub mod compile {
     use font_types::{FontRead, GlyphId, Offset, Offset16, OffsetHost};
-    use std::collections::BTreeMap;
+    use std::collections::{BTreeMap, HashSet};
 
     use crate::compile::{FontWrite, OffsetMarker, ToOwnedTable};
 
@@ -178,6 +178,53 @@ pub mod compile {
                     // if we're over u16::MAX glyphs, crash
                     ix.try_into().unwrap()
                 }
+            }
+        }
+    }
+
+    impl ClassDefFormat1 {
+        fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
+            self.class_value_array
+                .iter()
+                .enumerate()
+                .map(|(i, cls)| (self.start_glyph_id.saturating_add(i as u16), *cls))
+        }
+    }
+
+    impl ClassDefFormat2 {
+        fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
+            self.class_range_records
+                .iter()
+                .flat_map(|rcd| (rcd.start_glyph_id..=rcd.end_glyph_id).map(|gid| (gid, rcd.class)))
+        }
+    }
+
+    impl ClassDef {
+        pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
+            let (one, two) = match self {
+                Self::Format1(table) => (Some(table.iter()), None),
+                Self::Format2(table) => (None, Some(table.iter())),
+            };
+
+            one.into_iter().flatten().chain(two.into_iter().flatten())
+        }
+
+        pub fn class_count(&self) -> u16 {
+            //TODO: implement a good integer set!!
+            self.iter()
+                .map(|(_gid, cls)| cls)
+                .chain(std::iter::once(0))
+                .collect::<HashSet<_>>()
+                .len()
+                .try_into()
+                .unwrap()
+        }
+    }
+
+    impl FromIterator<(GlyphId, u16)> for ClassDefBuilder {
+        fn from_iter<T: IntoIterator<Item = (GlyphId, u16)>>(iter: T) -> Self {
+            Self {
+                items: iter.into_iter().collect(),
             }
         }
     }

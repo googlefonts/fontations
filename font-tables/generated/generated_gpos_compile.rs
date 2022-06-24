@@ -183,7 +183,6 @@ impl FontWrite for AnchorTable {
 
 #[derive(Debug, PartialEq)]
 pub struct AnchorFormat1 {
-    pub anchor_format: u16,
     pub x_coordinate: i16,
     pub y_coordinate: i16,
 }
@@ -194,7 +193,6 @@ impl ToOwnedObj for super::AnchorFormat1 {
     #[allow(unused_variables)]
     fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
         Some(AnchorFormat1 {
-            anchor_format: self.anchor_format(),
             x_coordinate: self.x_coordinate(),
             y_coordinate: self.y_coordinate(),
         })
@@ -203,7 +201,8 @@ impl ToOwnedObj for super::AnchorFormat1 {
 
 impl FontWrite for AnchorFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.anchor_format.write_into(writer);
+        let anchor_format: u16 = 1;
+        anchor_format.write_into(writer);
         self.x_coordinate.write_into(writer);
         self.y_coordinate.write_into(writer);
     }
@@ -211,7 +210,6 @@ impl FontWrite for AnchorFormat1 {
 
 #[derive(Debug, PartialEq)]
 pub struct AnchorFormat2 {
-    pub anchor_format: u16,
     pub x_coordinate: i16,
     pub y_coordinate: i16,
     pub anchor_point: u16,
@@ -223,7 +221,6 @@ impl ToOwnedObj for super::AnchorFormat2 {
     #[allow(unused_variables)]
     fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
         Some(AnchorFormat2 {
-            anchor_format: self.anchor_format(),
             x_coordinate: self.x_coordinate(),
             y_coordinate: self.y_coordinate(),
             anchor_point: self.anchor_point(),
@@ -233,7 +230,8 @@ impl ToOwnedObj for super::AnchorFormat2 {
 
 impl FontWrite for AnchorFormat2 {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.anchor_format.write_into(writer);
+        let anchor_format: u16 = 2;
+        anchor_format.write_into(writer);
         self.x_coordinate.write_into(writer);
         self.y_coordinate.write_into(writer);
         self.anchor_point.write_into(writer);
@@ -264,7 +262,6 @@ impl FontWrite for FakeDeviceTable {
 
 #[derive(Debug, PartialEq)]
 pub struct AnchorFormat3 {
-    pub anchor_format: u16,
     pub x_coordinate: i16,
     pub y_coordinate: i16,
     pub x_device_offset: OffsetMarker<Offset16, FakeDeviceTable>,
@@ -278,7 +275,6 @@ impl ToOwnedObj for super::AnchorFormat3<'_> {
     fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
         let offset_data = self.bytes();
         Some(AnchorFormat3 {
-            anchor_format: self.anchor_format(),
             x_coordinate: self.x_coordinate(),
             y_coordinate: self.y_coordinate(),
             x_device_offset: OffsetMarker::new_maybe_null(
@@ -299,7 +295,8 @@ impl ToOwnedTable for super::AnchorFormat3<'_> {}
 
 impl FontWrite for AnchorFormat3 {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.anchor_format.write_into(writer);
+        let anchor_format: u16 = 3;
+        anchor_format.write_into(writer);
         self.x_coordinate.write_into(writer);
         self.y_coordinate.write_into(writer);
         self.x_device_offset.write_into(writer);
@@ -309,7 +306,6 @@ impl FontWrite for AnchorFormat3 {
 
 #[derive(Debug, PartialEq)]
 pub struct MarkArray {
-    pub mark_count: u16,
     pub mark_records: Vec<MarkRecord>,
 }
 
@@ -318,8 +314,8 @@ impl ToOwnedObj for super::MarkArray<'_> {
 
     #[allow(unused_variables)]
     fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
+        let offset_data = self.bytes();
         Some(MarkArray {
-            mark_count: self.mark_count(),
             mark_records: self
                 .mark_records()
                 .iter()
@@ -329,9 +325,13 @@ impl ToOwnedObj for super::MarkArray<'_> {
     }
 }
 
+impl ToOwnedTable for super::MarkArray<'_> {}
+
 impl FontWrite for MarkArray {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.mark_count.write_into(writer);
+        u16::try_from(self.mark_records.len())
+            .unwrap()
+            .write_into(writer);
         self.mark_records.write_into(writer);
     }
 }
@@ -394,7 +394,6 @@ impl FontWrite for SinglePos {
 
 #[derive(Debug, PartialEq)]
 pub struct SinglePosFormat1 {
-    pub pos_format: u16,
     pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
     pub value_format: ValueFormat,
     pub value_record: ValueRecord,
@@ -407,7 +406,6 @@ impl ToOwnedObj for super::SinglePosFormat1<'_> {
     fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
         let offset_data = self.bytes();
         Some(SinglePosFormat1 {
-            pos_format: self.pos_format(),
             coverage_offset: OffsetMarker::new_maybe_null(
                 self.coverage_offset()
                     .read::<super::CoverageTable>(offset_data)
@@ -423,7 +421,8 @@ impl ToOwnedTable for super::SinglePosFormat1<'_> {}
 
 impl FontWrite for SinglePosFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.pos_format.write_into(writer);
+        let pos_format: u16 = 1;
+        pos_format.write_into(writer);
         self.coverage_offset.write_into(writer);
         self.value_format.write_into(writer);
         self.value_record.write_into(writer);
@@ -432,10 +431,8 @@ impl FontWrite for SinglePosFormat1 {
 
 #[derive(Debug, PartialEq)]
 pub struct SinglePosFormat2 {
-    pub pos_format: u16,
     pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
     pub value_format: ValueFormat,
-    pub value_count: u16,
     pub value_records: Vec<ValueRecord>,
 }
 
@@ -446,14 +443,12 @@ impl ToOwnedObj for super::SinglePosFormat2<'_> {
     fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
         let offset_data = self.bytes();
         Some(SinglePosFormat2 {
-            pos_format: self.pos_format(),
             coverage_offset: OffsetMarker::new_maybe_null(
                 self.coverage_offset()
                     .read::<super::CoverageTable>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
             value_format: self.value_format(),
-            value_count: self.value_count(),
             value_records: self.value_records.to_owned_obj(offset_data)?,
         })
     }
@@ -463,10 +458,13 @@ impl ToOwnedTable for super::SinglePosFormat2<'_> {}
 
 impl FontWrite for SinglePosFormat2 {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.pos_format.write_into(writer);
+        let pos_format: u16 = 2;
+        pos_format.write_into(writer);
         self.coverage_offset.write_into(writer);
         self.value_format.write_into(writer);
-        self.value_count.write_into(writer);
+        u16::try_from(self.value_records.len())
+            .unwrap()
+            .write_into(writer);
         self.value_records.write_into(writer);
     }
 }
@@ -543,7 +541,6 @@ impl FontWrite for PairPosFormat1 {
 
 #[derive(Debug, PartialEq)]
 pub struct PairSet {
-    pub pair_value_count: u16,
     pub pair_value_records: Vec<PairValueRecord>,
 }
 
@@ -553,7 +550,6 @@ impl ToOwnedObj for super::PairSet<'_> {
     #[allow(unused_variables)]
     fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
         Some(PairSet {
-            pair_value_count: self.pair_value_count(),
             pair_value_records: self.pair_value_records.to_owned_obj(offset_data)?,
         })
     }
@@ -561,7 +557,9 @@ impl ToOwnedObj for super::PairSet<'_> {
 
 impl FontWrite for PairSet {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.pair_value_count.write_into(writer);
+        u16::try_from(self.pair_value_records.len())
+            .unwrap()
+            .write_into(writer);
         self.pair_value_records.write_into(writer);
     }
 }
@@ -573,8 +571,6 @@ pub struct PairPosFormat2 {
     pub value_format2: ValueFormat,
     pub class_def1_offset: OffsetMarker<Offset16, ClassDef>,
     pub class_def2_offset: OffsetMarker<Offset16, ClassDef>,
-    pub class1_count: u16,
-    pub class2_count: u16,
     pub class1_records: Vec<Class1Record>,
 }
 
@@ -602,8 +598,6 @@ impl ToOwnedObj for super::PairPosFormat2<'_> {
                     .read::<super::ClassDef>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            class1_count: self.class1_count(),
-            class2_count: self.class2_count(),
             class1_records: self.class1_records.to_owned_obj(offset_data)?,
         })
     }
@@ -620,8 +614,10 @@ impl FontWrite for PairPosFormat2 {
         self.value_format2.write_into(writer);
         self.class_def1_offset.write_into(writer);
         self.class_def2_offset.write_into(writer);
-        self.class1_count.write_into(writer);
-        self.class2_count.write_into(writer);
+        let class1_count: u16 = self.class_def1_offset.get().unwrap().class_count();
+        class1_count.write_into(writer);
+        let class2_count: u16 = self.class_def2_offset.get().unwrap().class_count();
+        class2_count.write_into(writer);
         self.class1_records.write_into(writer);
     }
 }
@@ -751,7 +747,6 @@ impl FontWrite for EntryExitRecord {
 pub struct MarkBasePosFormat1 {
     pub mark_coverage_offset: OffsetMarker<Offset16, CoverageTable>,
     pub base_coverage_offset: OffsetMarker<Offset16, CoverageTable>,
-    pub mark_class_count: u16,
     pub mark_array_offset: OffsetMarker<Offset16, MarkArray>,
     pub base_array_offset: OffsetMarker<Offset16, BaseArray>,
 }
@@ -773,7 +768,6 @@ impl ToOwnedObj for super::MarkBasePosFormat1<'_> {
                     .read::<super::CoverageTable>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            mark_class_count: self.mark_class_count(),
             mark_array_offset: OffsetMarker::new_maybe_null(
                 self.mark_array_offset()
                     .read::<super::MarkArray>(offset_data)
@@ -792,7 +786,8 @@ impl FontWrite for MarkBasePosFormat1 {
         pos_format.write_into(writer);
         self.mark_coverage_offset.write_into(writer);
         self.base_coverage_offset.write_into(writer);
-        self.mark_class_count.write_into(writer);
+        let mark_class_count: u16 = self.mark_array_offset.get().unwrap().class_count();
+        mark_class_count.write_into(writer);
         self.mark_array_offset.write_into(writer);
         self.base_array_offset.write_into(writer);
     }
@@ -862,7 +857,6 @@ impl FontWrite for BaseRecord {
 pub struct MarkLigPosFormat1 {
     pub mark_coverage_offset: OffsetMarker<Offset16, CoverageTable>,
     pub ligature_coverage_offset: OffsetMarker<Offset16, CoverageTable>,
-    pub mark_class_count: u16,
     pub mark_array_offset: OffsetMarker<Offset16, MarkArray>,
     pub ligature_array_offset: OffsetMarker<Offset16, LigatureArray>,
 }
@@ -884,7 +878,6 @@ impl ToOwnedObj for super::MarkLigPosFormat1<'_> {
                     .read::<super::CoverageTable>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            mark_class_count: self.mark_class_count(),
             mark_array_offset: OffsetMarker::new_maybe_null(
                 self.mark_array_offset()
                     .read::<super::MarkArray>(offset_data)
@@ -903,7 +896,8 @@ impl FontWrite for MarkLigPosFormat1 {
         pos_format.write_into(writer);
         self.mark_coverage_offset.write_into(writer);
         self.ligature_coverage_offset.write_into(writer);
-        self.mark_class_count.write_into(writer);
+        let mark_class_count: u16 = self.mark_array_offset.get().unwrap().class_count();
+        mark_class_count.write_into(writer);
         self.mark_array_offset.write_into(writer);
         self.ligature_array_offset.write_into(writer);
     }
@@ -987,7 +981,6 @@ impl FontWrite for ComponentRecord {
 pub struct MarkMarkPosFormat1 {
     pub mark1_coverage_offset: OffsetMarker<Offset16, CoverageTable>,
     pub mark2_coverage_offset: OffsetMarker<Offset16, CoverageTable>,
-    pub mark_class_count: u16,
     pub mark1_array_offset: OffsetMarker<Offset16, MarkArray>,
     pub mark2_array_offset: OffsetMarker<Offset16, Mark2Array>,
 }
@@ -1009,7 +1002,6 @@ impl ToOwnedObj for super::MarkMarkPosFormat1<'_> {
                     .read::<super::CoverageTable>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            mark_class_count: self.mark_class_count(),
             mark1_array_offset: OffsetMarker::new_maybe_null(
                 self.mark1_array_offset()
                     .read::<super::MarkArray>(offset_data)
@@ -1028,7 +1020,8 @@ impl FontWrite for MarkMarkPosFormat1 {
         pos_format.write_into(writer);
         self.mark1_coverage_offset.write_into(writer);
         self.mark2_coverage_offset.write_into(writer);
-        self.mark_class_count.write_into(writer);
+        let mark_class_count: u16 = self.mark1_array_offset.get().unwrap().class_count();
+        mark_class_count.write_into(writer);
         self.mark1_array_offset.write_into(writer);
         self.mark2_array_offset.write_into(writer);
     }
@@ -1036,7 +1029,6 @@ impl FontWrite for MarkMarkPosFormat1 {
 
 #[derive(Debug, PartialEq)]
 pub struct Mark2Array {
-    pub mark2_count: u16,
     pub mark2_records: Vec<Mark2Record>,
 }
 
@@ -1047,7 +1039,6 @@ impl ToOwnedObj for super::Mark2Array<'_> {
     fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
         let offset_data = self.bytes();
         Some(Mark2Array {
-            mark2_count: self.mark2_count(),
             mark2_records: self.mark2_records.to_owned_obj(offset_data)?,
         })
     }
@@ -1057,7 +1048,9 @@ impl ToOwnedTable for super::Mark2Array<'_> {}
 
 impl FontWrite for Mark2Array {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.mark2_count.write_into(writer);
+        u16::try_from(self.mark2_records.len())
+            .unwrap()
+            .write_into(writer);
         self.mark2_records.write_into(writer);
     }
 }

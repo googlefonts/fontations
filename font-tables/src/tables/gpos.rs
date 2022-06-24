@@ -135,6 +135,8 @@ impl<'a> FontReadWithArgs<'a, (ValueFormat, ValueFormat)> for PairValueRecord {
 #[cfg(feature = "compile")]
 pub mod compile {
 
+    use std::collections::HashSet;
+
     use font_types::{Offset, Offset16, Offset32, OffsetHost};
 
     use crate::compile::{FontWrite, OffsetMarker, ToOwnedObj, ToOwnedTable};
@@ -205,6 +207,16 @@ pub mod compile {
                 .mark2_array_offset()
                 .read_with_args::<_, super::Mark2Array>(self.bytes(), &self.mark_class_count())?;
             Some(OffsetMarker::new_maybe_null(mark2array.to_owned_table()))
+        }
+    }
+
+    impl MarkArray {
+        fn class_count(&self) -> u16 {
+            self.mark_records
+                .iter()
+                .map(|rec| rec.mark_class)
+                .collect::<HashSet<_>>()
+                .len() as u16
         }
     }
 
