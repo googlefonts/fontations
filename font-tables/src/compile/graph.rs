@@ -225,6 +225,7 @@ impl Graph {
     fn sort_kahn(&mut self) {
         self.positions_invalid = true;
         if self.nodes.len() <= 1 {
+            self.order.extend(self.nodes.keys().copied());
             return;
         }
 
