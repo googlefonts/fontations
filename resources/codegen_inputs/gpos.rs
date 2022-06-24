@@ -308,20 +308,30 @@ PairPosFormat2<'a> {
     #[compute(self.class_def2_offset.get().unwrap().class_count())]
     class2_count: BigEndian<u16>,
     /// Array of Class1 records, ordered by classes in classDef1.
-    #[count(class1_count)]
+    #[count_with(class1_record_len, class1_count, class2_count, value_format1, value_format2)]
     #[read_with(class2_count, value_format1, value_format2)]
     #[compile_type(Vec<Class1Record>)]
     class1_records: DynSizedArray<'a, (u16, ValueFormat, ValueFormat), Class1Record<'a>>,
+}
+
+fn class1_record_len(class1_count: u16, class2_count: u16, format1: ValueFormat, format2: ValueFormat) -> usize {
+    class2_record_len(class2_count, format1, format2) * class1_count as usize
 }
 
 /// Part of [PairPosFormat2]
 #[read_args(class2_count = "u16", value_format1 = "ValueFormat", value_format2 = "ValueFormat")]
 Class1Record<'a> {
     /// Array of Class2 records, ordered by classes in classDef2.
-    #[count(class2_count)]
+    #[count_with(class2_record_len, class2_count, value_format1, value_format2)]
     #[read_with(value_format1, value_format2)]
     #[compile_type(Vec<Class2Record>)]
     class2_records: DynSizedArray<'a, (ValueFormat, ValueFormat), Class2Record>,
+}
+
+fn class2_record_len(class2_count: u16, format1: ValueFormat, format2: ValueFormat) -> usize {
+    (format1.record_byte_len() + format2.record_byte_len())
+        * class2_count
+        as usize
 }
 
 /// Part of [PairPosFormat2]

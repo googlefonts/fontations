@@ -460,7 +460,21 @@ impl Field {
                     .as_ref()
                     .and_then(Count::tokens)
                     .map(|count| quote!(#count as usize));
-                quote_spanned!(span=> font_types::FontReadWithArgs::read_with_args(bytes.get(..#count)?, &#args )?)
+                //NOTE: we generate separate code if there is a count, since we
+                // assume the passed count is valid, and use it to determine how
+                // many bytes should remain. Otherwise we trust the
+                // implementation to return a meaningful value,
+                if count.is_some() {
+                    quote_spanned! {span=>
+                        {
+                        let head = bytes.get(..#count)?;
+                        let (r, _) = font_types::FontReadWithArgs::read_with_args(head, &#args )?;
+                        (r, bytes.get(head.len()..).unwrap_or_default())
+                        }
+                    }
+                } else {
+                    quote_spanned!(span=> font_types::FontReadWithArgs::read_with_args(bytes.get(..#count)?, &#args )?)
+                }
             }
             Field::Single(value) => {
                 let typ = value.typ.view_field_tokens();

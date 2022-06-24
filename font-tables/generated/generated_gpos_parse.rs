@@ -689,12 +689,14 @@ impl<'a> font_types::FontRead<'a> for SinglePosFormat2<'a> {
         let (value_count, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
         let __resolved_value_count = value_count.get();
-        let (value_records, bytes) = font_types::FontReadWithArgs::read_with_args(
-            bytes.get(
+        let (value_records, bytes) = {
+            let head = bytes.get(
                 ..value_record_array_len(__resolved_value_format, __resolved_value_count) as usize,
-            )?,
-            &__resolved_value_format,
-        )?;
+            )?;
+            let (r, _) =
+                font_types::FontReadWithArgs::read_with_args(head, &__resolved_value_format)?;
+            (r, bytes.get(head.len()..).unwrap_or_default())
+        };
         let _bytes = bytes;
         let result = SinglePosFormat2 {
             pos_format,
@@ -891,16 +893,20 @@ impl<'a> font_types::FontReadWithArgs<'a, (ValueFormat, ValueFormat)> for PairSe
         let (pair_value_count, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
         let __resolved_pair_value_count = pair_value_count.get();
-        let (pair_value_records, bytes) = font_types::FontReadWithArgs::read_with_args(
-            bytes.get(
+        let (pair_value_records, bytes) = {
+            let head = bytes.get(
                 ..pair_value_record_len(
                     __resolved_pair_value_count,
                     __resolved_value_format1,
                     __resolved_value_format2,
                 ) as usize,
-            )?,
-            &(__resolved_value_format1, __resolved_value_format2),
-        )?;
+            )?;
+            let (r, _) = font_types::FontReadWithArgs::read_with_args(
+                head,
+                &(__resolved_value_format1, __resolved_value_format2),
+            )?;
+            (r, bytes.get(head.len()..).unwrap_or_default())
+        };
         let _bytes = bytes;
         let result = PairSet {
             pair_value_count,
@@ -966,14 +972,25 @@ impl<'a> font_types::FontRead<'a> for PairPosFormat2<'a> {
         let (class2_count, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
         let __resolved_class2_count = class2_count.get();
-        let (class1_records, bytes) = font_types::FontReadWithArgs::read_with_args(
-            bytes.get(..__resolved_class1_count as usize)?,
-            &(
-                __resolved_class2_count,
-                __resolved_value_format1,
-                __resolved_value_format2,
-            ),
-        )?;
+        let (class1_records, bytes) = {
+            let head = bytes.get(
+                ..class1_record_len(
+                    __resolved_class1_count,
+                    __resolved_class2_count,
+                    __resolved_value_format1,
+                    __resolved_value_format2,
+                ) as usize,
+            )?;
+            let (r, _) = font_types::FontReadWithArgs::read_with_args(
+                head,
+                &(
+                    __resolved_class2_count,
+                    __resolved_value_format1,
+                    __resolved_value_format2,
+                ),
+            )?;
+            (r, bytes.get(head.len()..).unwrap_or_default())
+        };
         let _bytes = bytes;
         let result = PairPosFormat2 {
             pos_format,
@@ -1075,10 +1092,20 @@ impl<'a> font_types::FontReadWithArgs<'a, (u16, ValueFormat, ValueFormat)> for C
         let __resolved_class2_count = args.0;
         let __resolved_value_format1 = args.1;
         let __resolved_value_format2 = args.2;
-        let (class2_records, bytes) = font_types::FontReadWithArgs::read_with_args(
-            bytes.get(..__resolved_class2_count as usize)?,
-            &(__resolved_value_format1, __resolved_value_format2),
-        )?;
+        let (class2_records, bytes) = {
+            let head = bytes.get(
+                ..class2_record_len(
+                    __resolved_class2_count,
+                    __resolved_value_format1,
+                    __resolved_value_format2,
+                ) as usize,
+            )?;
+            let (r, _) = font_types::FontReadWithArgs::read_with_args(
+                head,
+                &(__resolved_value_format1, __resolved_value_format2),
+            )?;
+            (r, bytes.get(head.len()..).unwrap_or_default())
+        };
         let _bytes = bytes;
         let result = Class1Record { class2_records };
         Some((result, _bytes))
@@ -1341,13 +1368,15 @@ impl<'a> font_types::FontReadWithArgs<'a, u16> for BaseArray<'a> {
         let (base_count, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
         let __resolved_base_count = base_count.get();
-        let (base_records, bytes) = font_types::FontReadWithArgs::read_with_args(
-            bytes.get(
+        let (base_records, bytes) = {
+            let head = bytes.get(
                 ..nested_offset_array_len(__resolved_base_count, __resolved_mark_class_count)
                     as usize,
-            )?,
-            &__resolved_mark_class_count,
-        )?;
+            )?;
+            let (r, _) =
+                font_types::FontReadWithArgs::read_with_args(head, &__resolved_mark_class_count)?;
+            (r, bytes.get(head.len()..).unwrap_or_default())
+        };
         let _bytes = bytes;
         let result = BaseArray {
             base_count,
@@ -1568,13 +1597,15 @@ impl<'a> font_types::FontReadWithArgs<'a, u16> for LigatureAttach<'a> {
         let (component_count, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
         let __resolved_component_count = component_count.get();
-        let (component_records, bytes) = font_types::FontReadWithArgs::read_with_args(
-            bytes.get(
+        let (component_records, bytes) = {
+            let head = bytes.get(
                 ..nested_offset_array_len(__resolved_component_count, __resolved_mark_class_count)
                     as usize,
-            )?,
-            &__resolved_mark_class_count,
-        )?;
+            )?;
+            let (r, _) =
+                font_types::FontReadWithArgs::read_with_args(head, &__resolved_mark_class_count)?;
+            (r, bytes.get(head.len()..).unwrap_or_default())
+        };
         let _bytes = bytes;
         let result = LigatureAttach {
             component_count,
@@ -1746,13 +1777,15 @@ impl<'a> font_types::FontReadWithArgs<'a, u16> for Mark2Array<'a> {
         let (mark2_count, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
         let __resolved_mark2_count = mark2_count.get();
-        let (mark2_records, bytes) = font_types::FontReadWithArgs::read_with_args(
-            bytes.get(
+        let (mark2_records, bytes) = {
+            let head = bytes.get(
                 ..nested_offset_array_len(__resolved_mark2_count, __resolved_mark_class_count)
                     as usize,
-            )?,
-            &__resolved_mark_class_count,
-        )?;
+            )?;
+            let (r, _) =
+                font_types::FontReadWithArgs::read_with_args(head, &__resolved_mark_class_count)?;
+            (r, bytes.get(head.len()..).unwrap_or_default())
+        };
         let _bytes = bytes;
         let result = Mark2Array {
             mark2_count,
@@ -1877,6 +1910,19 @@ fn pair_value_record_len(count: u16, format1: ValueFormat, format2: ValueFormat)
     std::mem::size_of::<u16>()
         + format1.record_byte_len()
         + format2.record_byte_len() * count as usize
+}
+
+fn class1_record_len(
+    class1_count: u16,
+    class2_count: u16,
+    format1: ValueFormat,
+    format2: ValueFormat,
+) -> usize {
+    class2_record_len(class2_count, format1, format2) * class1_count as usize
+}
+
+fn class2_record_len(class2_count: u16, format1: ValueFormat, format2: ValueFormat) -> usize {
+    (format1.record_byte_len() + format2.record_byte_len()) * class2_count as usize
 }
 
 fn nested_offset_array_len(array_len: u16, mark_class_count: u16) -> usize {
