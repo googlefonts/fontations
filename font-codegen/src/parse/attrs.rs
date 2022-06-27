@@ -277,6 +277,7 @@ impl FieldAttrs {
             hidden: self.hidden,
             offset: self.offset,
             compute: self.compute,
+            compile_type: self.compile_type,
             to_owned: self.to_owned,
             read: self.read,
         })

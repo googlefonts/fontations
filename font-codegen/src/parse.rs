@@ -98,6 +98,7 @@ pub struct SingleField {
     pub hidden: Option<syn::Path>,
     pub offset: Option<Offset>,
     pub compute: Option<Compute>,
+    pub compile_type: Option<syn::Path>,
     pub to_owned: Option<syn::Expr>,
     pub read: Option<attrs::ArgList>,
 }
@@ -424,6 +425,10 @@ impl Field {
 
     pub fn compile_type(&self) -> proc_macro2::TokenStream {
         match self {
+            Field::Single(SingleField {
+                compile_type: Some(typ),
+                ..
+            }) => typ.to_token_stream(),
             Field::Single(fld) => fld.typ.compile_type(),
             Field::Array(fld) => {
                 let inner = fld.inner_typ.compile_type();

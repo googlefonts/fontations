@@ -24,10 +24,7 @@ pub mod tables;
 #[cfg_attr(any(test, feature = "diagnostics"), doc(hidden))]
 pub mod hex_diff;
 
-#[path = "../generated/generated_font.rs"]
-mod generated;
-
-pub use generated::*;
+include!("../generated/generated_font_parse.rs");
 
 /// A temporary type for accessing tables
 pub struct FontRef<'a> {
