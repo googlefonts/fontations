@@ -7,9 +7,11 @@ use font_types::{
 };
 
 //mod cmap;
+mod font_builder;
 mod graph;
 mod offsets;
 
+pub use font_builder::FontBuilder;
 use graph::{ObjectId, ObjectStore};
 pub use offsets::{
     NullableOffsetMarker16, NullableOffsetMarker24, NullableOffsetMarker32, OffsetMarker,
@@ -140,6 +142,14 @@ impl TableWriter {
         let obj_id = self.add_table(obj);
         let data = self.stack.last_mut().unwrap();
         data.add_offset::<T>(obj_id);
+    }
+
+    /// used when writing top-level font objects, which are done more manually.
+    pub(crate) fn into_data(mut self) -> Vec<u8> {
+        assert_eq!(self.stack.len(), 1);
+        let result = self.stack.pop().unwrap();
+        assert!(result.offsets.is_empty());
+        result.bytes
     }
 }
 

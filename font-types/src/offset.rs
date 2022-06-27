@@ -129,6 +129,13 @@ macro_rules! impl_offset {
                 }
             }
         }
+
+        // useful for debugging
+        impl PartialEq<u32> for $name {
+            fn eq(&self, other: &u32) -> bool {
+                self.non_null().unwrap_or_default() as u32 == *other
+            }
+        }
     };
 }
 
