@@ -9,7 +9,7 @@ use syn::{
 
 mod attrs;
 
-pub use attrs::{Compute, Count, Offset};
+pub use attrs::{Compute, Count};
 use attrs::{FieldAttrs, ItemAttrs, VariantAttrs};
 
 pub struct Items {
@@ -96,7 +96,6 @@ pub struct SingleField {
     pub name: syn::Ident,
     pub typ: FieldType,
     pub hidden: Option<syn::Path>,
-    pub offset: Option<Offset>,
     pub compute: Option<Compute>,
     pub compile_type: Option<syn::Path>,
     pub to_owned: Option<syn::Expr>,
@@ -107,6 +106,7 @@ pub struct SingleField {
 pub enum FieldType {
     Offset {
         offset_type: syn::Ident,
+        nullable: Option<syn::Path>,
         target_type: Option<syn::Ident>,
     },
     Scalar {
@@ -346,19 +346,6 @@ impl Field {
         match self {
             Field::Array(v) => Some(v),
             _ => None,
-        }
-    }
-
-    fn is_array(&self) -> bool {
-        matches!(self, Field::Array(_))
-    }
-
-    /// true if this is an offset or an array of offsets
-    fn is_offset(&self) -> bool {
-        match self {
-            Field::Single(fld) => matches!(fld.typ, FieldType::Offset { .. }),
-            Field::Array(fld) => matches!(fld.inner_typ, FieldType::Offset { .. }),
-            Field::CustomRead(_) => false,
         }
     }
 
@@ -661,15 +648,12 @@ impl Field {
 }
 
 impl FieldType {
-    pub fn is_offset(&self) -> bool {
-        matches!(self, FieldType::Offset { .. })
-    }
-
     pub fn view_field_tokens(&self) -> proc_macro2::TokenStream {
         match self {
             Self::Offset {
                 offset_type,
                 target_type,
+                ..
             } => match target_type {
                 //Some(target) => quote!(BigEndian<#offset_type<#target<'a>>>),
                 Some(_) => quote!(BigEndian<#offset_type>),
@@ -687,12 +671,17 @@ impl FieldType {
             FieldType::Offset {
                 offset_type,
                 target_type,
+                nullable,
             } => {
                 let target = target_type
                     .as_ref()
                     .map(|t| t.into_token_stream())
                     .unwrap_or_else(|| quote!(Box<dyn FontWrite>));
-                quote!(OffsetMarker<#offset_type, #target>)
+                if nullable.is_some() {
+                    quote!(NullableOffsetMarker<#offset_type, #target>)
+                } else {
+                    quote!(OffsetMarker<#offset_type, #target>)
+                }
             }
         }
     }
@@ -727,11 +716,18 @@ impl SingleField {
             FieldType::Offset {
                 offset_type,
                 target_type,
+                nullable,
             } => match &target_type {
-                Some(target_type) => Ok(
+                Some(target_type) => {
                     //TODO: this is where we want a 'from' type.
-                    quote!(OffsetMarker::new_maybe_null(self.#name().read::<super::#target_type>(offset_data).and_then(|obj| obj.to_owned_obj(offset_data)))),
-                ),
+                    let typ_init = match nullable {
+                        Some(_) => quote!(NullableOffsetMarker::new),
+                        None => quote!(OffsetMarker::new_maybe_null),
+                    };
+                    Ok(
+                        quote!(#typ_init(self.#name().read::<super::#target_type>(offset_data).and_then(|obj| obj.to_owned_obj(offset_data)))),
+                    )
+                }
                 None => Err(syn::Error::new(
                     offset_type.span(),
                     "offsets with unknown types require custom FromObjRef impls",
@@ -742,7 +738,11 @@ impl SingleField {
 
     pub fn font_write_expr(&self) -> proc_macro2::TokenStream {
         let name = &self.name;
-        let compile_type = self.typ.compile_type();
+        let compile_type = self
+            .compile_type
+            .as_ref()
+            .map(|t| t.to_token_stream())
+            .unwrap_or_else(|| self.typ.compile_type());
         match &self.compute {
             Some(Compute::Len(fld)) => {
                 quote!(#compile_type::try_from(self.#fld.len()).unwrap().write_into(writer); )
@@ -769,9 +769,14 @@ impl ArrayField {
             //TODO: also a from type here
             FieldType::Offset {
                 target_type: Some(target_type),
+                nullable,
                 ..
             } => {
-                quote!(Some(OffsetMarker::new_maybe_null(item.get().read::<super::#target_type>(offset_data).and_then(|obj| obj.to_owned_obj(offset_data)))))
+                let typ_init = match nullable {
+                    Some(_) => quote!(NullableOffsetMarker::new),
+                    None => quote!(OffsetMarker::new_maybe_null),
+                };
+                quote!(Some(#typ_init(item.get().read::<super::#target_type>(offset_data).and_then(|obj| obj.to_owned_obj(offset_data)))))
             }
             FieldType::Offset { offset_type, .. } => {
                 return Err(syn::Error::new(
@@ -823,10 +828,6 @@ impl SingleItem {
 
     pub fn has_field_with_lifetime(&self) -> bool {
         self.fields.iter().any(|x| x.requires_lifetime())
-    }
-
-    pub fn contains_offsets(&self) -> bool {
-        self.fields.iter().any(Field::is_offset)
     }
 
     fn validate(&self) -> Result<(), syn::Error> {
@@ -1012,6 +1013,7 @@ fn parse_field_type(input: &syn::Path) -> Result<FieldType, syn::Error> {
         return Ok(FieldType::Offset {
             target_type,
             offset_type: last.ident.clone(),
+            nullable: None,
         });
     }
     if last.arguments.is_empty() {

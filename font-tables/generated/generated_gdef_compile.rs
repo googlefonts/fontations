@@ -3,17 +3,21 @@
 // For more information about how codegen works, see font-codegen/README.md
 
 use super::GlyphClassDef;
+
+#[allow(unused_imports)]
 use crate::compile::*;
 use crate::layout::compile::ClassDef;
 use crate::layout::compile::CoverageTable;
+
+#[allow(unused_imports)]
 use font_types::*;
 
 #[derive(Debug, PartialEq)]
 pub struct Gdef1_0 {
-    pub glyph_class_def_offset: OffsetMarker<Offset16, ClassDef>,
-    pub attach_list_offset: OffsetMarker<Offset16, AttachList>,
-    pub lig_caret_list_offset: OffsetMarker<Offset16, LigCaretList>,
-    pub mark_attach_class_def_offset: OffsetMarker<Offset16, ClassDef>,
+    pub glyph_class_def_offset: NullableOffsetMarker<Offset16, ClassDef>,
+    pub attach_list_offset: NullableOffsetMarker<Offset16, AttachList>,
+    pub lig_caret_list_offset: NullableOffsetMarker<Offset16, LigCaretList>,
+    pub mark_attach_class_def_offset: NullableOffsetMarker<Offset16, ClassDef>,
 }
 
 impl ToOwnedObj for super::Gdef1_0<'_> {
@@ -23,22 +27,22 @@ impl ToOwnedObj for super::Gdef1_0<'_> {
     fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
         let offset_data = self.bytes();
         Some(Gdef1_0 {
-            glyph_class_def_offset: OffsetMarker::new_maybe_null(
+            glyph_class_def_offset: NullableOffsetMarker::new(
                 self.glyph_class_def_offset()
                     .read::<super::ClassDef>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            attach_list_offset: OffsetMarker::new_maybe_null(
+            attach_list_offset: NullableOffsetMarker::new(
                 self.attach_list_offset()
                     .read::<super::AttachList>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            lig_caret_list_offset: OffsetMarker::new_maybe_null(
+            lig_caret_list_offset: NullableOffsetMarker::new(
                 self.lig_caret_list_offset()
                     .read::<super::LigCaretList>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            mark_attach_class_def_offset: OffsetMarker::new_maybe_null(
+            mark_attach_class_def_offset: NullableOffsetMarker::new(
                 self.mark_attach_class_def_offset()
                     .read::<super::ClassDef>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
@@ -64,11 +68,11 @@ impl FontWrite for Gdef1_0 {
 
 #[derive(Debug, PartialEq)]
 pub struct Gdef1_2 {
-    pub glyph_class_def_offset: OffsetMarker<Offset16, ClassDef>,
-    pub attach_list_offset: OffsetMarker<Offset16, AttachList>,
-    pub lig_caret_list_offset: OffsetMarker<Offset16, LigCaretList>,
-    pub mark_attach_class_def_offset: OffsetMarker<Offset16, ClassDef>,
-    pub mark_glyph_sets_def_offset: OffsetMarker<Offset16, MarkGlyphSets>,
+    pub glyph_class_def_offset: NullableOffsetMarker<Offset16, ClassDef>,
+    pub attach_list_offset: NullableOffsetMarker<Offset16, AttachList>,
+    pub lig_caret_list_offset: NullableOffsetMarker<Offset16, LigCaretList>,
+    pub mark_attach_class_def_offset: NullableOffsetMarker<Offset16, ClassDef>,
+    pub mark_glyph_sets_def_offset: NullableOffsetMarker<Offset16, MarkGlyphSets>,
 }
 
 impl ToOwnedObj for super::Gdef1_2<'_> {
@@ -78,27 +82,27 @@ impl ToOwnedObj for super::Gdef1_2<'_> {
     fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
         let offset_data = self.bytes();
         Some(Gdef1_2 {
-            glyph_class_def_offset: OffsetMarker::new_maybe_null(
+            glyph_class_def_offset: NullableOffsetMarker::new(
                 self.glyph_class_def_offset()
                     .read::<super::ClassDef>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            attach_list_offset: OffsetMarker::new_maybe_null(
+            attach_list_offset: NullableOffsetMarker::new(
                 self.attach_list_offset()
                     .read::<super::AttachList>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            lig_caret_list_offset: OffsetMarker::new_maybe_null(
+            lig_caret_list_offset: NullableOffsetMarker::new(
                 self.lig_caret_list_offset()
                     .read::<super::LigCaretList>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            mark_attach_class_def_offset: OffsetMarker::new_maybe_null(
+            mark_attach_class_def_offset: NullableOffsetMarker::new(
                 self.mark_attach_class_def_offset()
                     .read::<super::ClassDef>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            mark_glyph_sets_def_offset: OffsetMarker::new_maybe_null(
+            mark_glyph_sets_def_offset: NullableOffsetMarker::new(
                 self.mark_glyph_sets_def_offset()
                     .read::<super::MarkGlyphSets>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
@@ -125,12 +129,12 @@ impl FontWrite for Gdef1_2 {
 
 #[derive(Debug, PartialEq)]
 pub struct Gdef1_3 {
-    pub glyph_class_def_offset: OffsetMarker<Offset16, ClassDef>,
-    pub attach_list_offset: OffsetMarker<Offset16, AttachList>,
-    pub lig_caret_list_offset: OffsetMarker<Offset16, LigCaretList>,
-    pub mark_attach_class_def_offset: OffsetMarker<Offset16, ClassDef>,
-    pub mark_glyph_sets_def_offset: OffsetMarker<Offset16, MarkGlyphSets>,
-    pub item_var_store_offset: OffsetMarker<Offset32, ClassDef>,
+    pub glyph_class_def_offset: NullableOffsetMarker<Offset16, ClassDef>,
+    pub attach_list_offset: NullableOffsetMarker<Offset16, AttachList>,
+    pub lig_caret_list_offset: NullableOffsetMarker<Offset16, LigCaretList>,
+    pub mark_attach_class_def_offset: NullableOffsetMarker<Offset16, ClassDef>,
+    pub mark_glyph_sets_def_offset: NullableOffsetMarker<Offset16, MarkGlyphSets>,
+    pub item_var_store_offset: NullableOffsetMarker<Offset32, ClassDef>,
 }
 
 impl ToOwnedObj for super::Gdef1_3<'_> {
@@ -140,32 +144,32 @@ impl ToOwnedObj for super::Gdef1_3<'_> {
     fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
         let offset_data = self.bytes();
         Some(Gdef1_3 {
-            glyph_class_def_offset: OffsetMarker::new_maybe_null(
+            glyph_class_def_offset: NullableOffsetMarker::new(
                 self.glyph_class_def_offset()
                     .read::<super::ClassDef>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            attach_list_offset: OffsetMarker::new_maybe_null(
+            attach_list_offset: NullableOffsetMarker::new(
                 self.attach_list_offset()
                     .read::<super::AttachList>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            lig_caret_list_offset: OffsetMarker::new_maybe_null(
+            lig_caret_list_offset: NullableOffsetMarker::new(
                 self.lig_caret_list_offset()
                     .read::<super::LigCaretList>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            mark_attach_class_def_offset: OffsetMarker::new_maybe_null(
+            mark_attach_class_def_offset: NullableOffsetMarker::new(
                 self.mark_attach_class_def_offset()
                     .read::<super::ClassDef>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            mark_glyph_sets_def_offset: OffsetMarker::new_maybe_null(
+            mark_glyph_sets_def_offset: NullableOffsetMarker::new(
                 self.mark_glyph_sets_def_offset()
                     .read::<super::MarkGlyphSets>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            item_var_store_offset: OffsetMarker::new_maybe_null(
+            item_var_store_offset: NullableOffsetMarker::new(
                 self.item_var_store_offset()
                     .read::<super::ClassDef>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),

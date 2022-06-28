@@ -13,10 +13,7 @@ mod offsets;
 
 pub use font_builder::FontBuilder;
 use graph::{ObjectId, ObjectStore};
-pub use offsets::{
-    NullableOffsetMarker16, NullableOffsetMarker24, NullableOffsetMarker32, OffsetMarker,
-    OffsetMarker16, OffsetMarker24, OffsetMarker32,
-};
+pub use offsets::{NullableOffsetMarker, OffsetMarker};
 
 use self::graph::Graph;
 

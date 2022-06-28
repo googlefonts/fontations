@@ -4,6 +4,7 @@
 
 use crate::layout::ClassDef;
 use crate::layout::CoverageTable;
+use crate::layout::Device;
 use crate::layout::FeatureList;
 use crate::layout::FeatureVariations;
 use crate::layout::ScriptList;
@@ -407,18 +408,6 @@ impl AnchorFormat2 {
     }
 }
 
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
-#[repr(C)]
-pub struct FakeDeviceTable {
-    pub version: BigEndian<u16>,
-}
-
-impl FakeDeviceTable {
-    pub fn version(&self) -> u16 {
-        self.version.get()
-    }
-}
-
 /// [Anchor Table Format 3]()https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables: Design Units Plus Device or VariationIndex Tables
 pub struct AnchorFormat3<'a> {
     anchor_format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
@@ -478,7 +467,7 @@ impl<'a> AnchorFormat3<'a> {
         self.x_device_offset.get()
     }
 
-    pub fn x_device(&self) -> Option<FakeDeviceTable> {
+    pub fn x_device(&self) -> Option<Device> {
         self.x_device_offset().read(self.bytes())
     }
 
@@ -489,7 +478,7 @@ impl<'a> AnchorFormat3<'a> {
         self.y_device_offset.get()
     }
 
-    pub fn y_device(&self) -> Option<FakeDeviceTable> {
+    pub fn y_device(&self) -> Option<Device> {
         self.y_device_offset().read(self.bytes())
     }
 }

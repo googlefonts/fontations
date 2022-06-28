@@ -3,6 +3,7 @@ use crate::layout::ClassDef;
 use crate::layout::FeatureList;
 use crate::layout::ScriptList;
 use crate::layout::FeatureVariations;
+use crate::layout::Device;
 
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 #[offset_host]
@@ -34,6 +35,7 @@ Gpos1_1<'a> {
     lookup_list_offset: BigEndian<Offset16<PositionLookupList>>,
     /// Offset to FeatureVariations table, from beginning of GPOS table
     /// (may be NULL)
+    #[nullable]
     feature_variations_offset: BigEndian<Offset32<FeatureVariations>>,
 }
 
@@ -105,10 +107,6 @@ AnchorFormat2 {
     anchor_point: BigEndian<u16>,
 }
 
-FakeDeviceTable {
-    version: BigEndian<u16>,
-}
-
 /// [Anchor Table Format 3]()https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables: Design Units Plus Device or VariationIndex Tables
 #[offset_host]
 AnchorFormat3<'a> {
@@ -122,11 +120,13 @@ AnchorFormat3<'a> {
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for X coordinate, from beginning of
     /// Anchor table (may be NULL)
-    x_device_offset: BigEndian<Offset16<FakeDeviceTable>>,
+    #[nullable]
+    x_device_offset: BigEndian<Offset16<Device>>,
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for Y coordinate, from beginning of
     /// Anchor table (may be NULL)
-    y_device_offset: BigEndian<Offset16<FakeDeviceTable>>,
+    #[nullable]
+    y_device_offset: BigEndian<Offset16<Device>>,
 }
 
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
@@ -365,9 +365,11 @@ CursivePosFormat1<'a> {
 EntryExitRecord {
     /// Offset to entryAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
+    #[nullable]
     entry_anchor_offset: BigEndian<Offset16<AnchorTable>>,
     /// Offset to exitAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
+    #[nullable]
     exit_anchor_offset: BigEndian<Offset16<AnchorTable>>,
 }
 
@@ -423,6 +425,7 @@ BaseRecord<'a> {
     /// are from beginning of BaseArray table, ordered by class
     /// (offsets may be NULL).
     #[count(mark_class_count)]
+    #[nullable]
     base_anchor_offsets: [BigEndian<Offset16<AnchorTable>>],
 }
 
@@ -495,6 +498,7 @@ ComponentRecord<'a> {
     /// from beginning of LigatureAttach table, ordered by class
     /// (offsets may be NULL).
     #[count(mark_class_count)]
+    #[nullable]
     ligature_anchor_offsets: [BigEndian<Offset16<AnchorTable>>],
 }
 
@@ -544,6 +548,7 @@ Mark2Record<'a> {
     /// from beginning of Mark2Array table, in class order (offsets may
     /// be NULL).
     #[count(mark_class_count)]
+    #[nullable]
     mark2_anchor_offsets: [BigEndian<Offset16<AnchorTable>>],
 }
 

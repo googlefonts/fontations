@@ -13,12 +13,12 @@ pub struct FieldAttrs {
     hidden: Option<syn::Path>,
     no_getter: Option<syn::Path>,
     count: Option<Count>,
-    offset: Option<Offset>,
     pub(crate) read: Option<ArgList>,
     variable_size: Option<syn::Path>,
     compute: Option<Compute>,
     compile_type: Option<syn::Path>,
     to_owned: Option<syn::Expr>,
+    nullable: Option<syn::Path>,
     skip_offset_getter: Option<syn::Path>,
 }
 
@@ -39,12 +39,6 @@ pub enum Count {
 pub struct ArgList {
     attr: syn::Path,
     pub args: Vec<syn::Ident>,
-}
-
-//TODO: remove me?
-#[derive(Debug, Clone)]
-pub struct Offset {
-    pub target: syn::Path,
 }
 
 /// Annotations for how to calculate certain fields
@@ -84,7 +78,6 @@ pub struct ItemAttrs {
     pub skip_to_owned: Option<syn::Path>,
 }
 
-static OFFSET: &str = "offset";
 static COMPUTE_LEN: &str = "compute_count";
 static COMPUTE: &str = "compute";
 const NO_GETTER: &str = "no_getter";
@@ -92,6 +85,7 @@ const READ_WITH: &str = "read_with";
 static COMPILE_TYPE: &str = "compile_type";
 static TO_OWNED: &str = "to_owned";
 static SKIP_OFFSET_GETTER: &str = "skip_offset_getter";
+static NULLABLE: &str = "nullable";
 
 impl FieldAttrs {
     pub fn parse(attrs: &[syn::Attribute]) -> Result<FieldAttrs, syn::Error> {
@@ -113,6 +107,9 @@ impl FieldAttrs {
                 }
                 syn::Meta::Path(path) if path.is_ident("hidden") => {
                     result.hidden = Some(path.clone())
+                }
+                syn::Meta::Path(path) if path.is_ident(NULLABLE) => {
+                    result.nullable = Some(path.clone())
                 }
                 syn::Meta::Path(path) if path.is_ident(NO_GETTER) => {
                     result.no_getter = Some(path.clone())
@@ -170,17 +167,6 @@ impl FieldAttrs {
                         args,
                     })
                 }
-                syn::Meta::List(list) if list.path.is_ident(OFFSET) => {
-                    let inner = expect_single_item_list(&list)?;
-                    if let syn::NestedMeta::Meta(syn::Meta::Path(target)) = inner {
-                        result.offset = Some(Offset { target });
-                    } else {
-                        return Err(syn::Error::new(
-                            inner.span(),
-                            "expected path to offset target type",
-                        ));
-                    }
-                }
                 syn::Meta::List(list) if list.path.is_ident(COMPUTE_LEN) => {
                     let inner = expect_single_item_list(&list)?;
                     result.compute = Some(Compute::Len(expect_ident(&inner)?));
@@ -196,7 +182,7 @@ impl FieldAttrs {
     pub fn into_array(
         self,
         name: syn::Ident,
-        inner_typ: super::FieldType,
+        mut inner_typ: super::FieldType,
         inner_lifetime: Option<syn::Lifetime>,
     ) -> Result<ArrayField, syn::Error> {
         if let Some(path) = &self.hidden {
@@ -213,12 +199,6 @@ impl FieldAttrs {
                 ));
             }
         }
-        if let Some(offset) = self.offset {
-            return Err(syn::Error::new(
-                offset.target.span(),
-                "'offset' is not valid on arrays",
-            ));
-        }
         if self.compute.is_some() {
             return Err(syn::Error::new(
                 name.span(),
@@ -231,6 +211,17 @@ impl FieldAttrs {
                 "array types require 'count' or 'count_with' attribute",
             )
         })?;
+        if self.nullable.is_some() {
+            match &mut inner_typ {
+                super::FieldType::Offset { nullable, .. } => *nullable = self.nullable,
+                _ => {
+                    return Err(syn::Error::new(
+                        self.nullable.unwrap().span(),
+                        "'nullable' only valid for offsets or arrays of offsets",
+                    ))
+                }
+            }
+        }
         Ok(ArrayField {
             docs: self.docs,
             name,
@@ -248,7 +239,7 @@ impl FieldAttrs {
     pub fn into_single(
         self,
         name: syn::Ident,
-        typ: super::FieldType,
+        mut typ: super::FieldType,
     ) -> Result<SingleField, syn::Error> {
         if let Some(span) = self.count.as_ref().map(Count::span) {
             if self.read.is_none() {
@@ -270,12 +261,17 @@ impl FieldAttrs {
                 ));
             }
         }
+        if let Some(path) = self.nullable {
+            match &mut typ {
+                super::FieldType::Offset { nullable, .. } => *nullable = Some(path),
+                _ => return Err(syn::Error::new(path.span(), "only valid on offsets")),
+            }
+        }
         Ok(SingleField {
             docs: self.docs,
             name,
             typ,
             hidden: self.hidden,
-            offset: self.offset,
             compute: self.compute,
             compile_type: self.compile_type,
             to_owned: self.to_owned,

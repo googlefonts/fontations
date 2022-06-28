@@ -2,7 +2,10 @@
 // Any changes to this file will be overwritten.
 // For more information about how codegen works, see font-codegen/README.md
 
+#[allow(unused_imports)]
 use crate::compile::*;
+
+#[allow(unused_imports)]
 use font_types::*;
 
 #[derive(Debug, PartialEq)]

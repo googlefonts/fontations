@@ -31,7 +31,7 @@ pub mod compile {
     #[derive(Debug, Default, PartialEq)]
     pub struct CaretValueFormat3 {
         pub coordinate: i16,
-        pub device_offset: OffsetMarker16<Box<dyn FontWrite>>,
+        pub device_offset: OffsetMarker<Offset16, Box<dyn FontWrite>>,
     }
 
     impl ToOwnedObj for super::AttachList<'_> {

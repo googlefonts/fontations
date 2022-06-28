@@ -12,15 +12,19 @@ Gdef1_0<'a> {
     minor_version: BigEndian<u16>,
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
+    #[nullable]
     glyph_class_def_offset: BigEndian<Offset16<ClassDef>>,
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
+    #[nullable]
     attach_list_offset: BigEndian<Offset16<AttachList>>,
     /// Offset to ligature caret list table, from beginning of GDEF
     /// header (may be NULL)
+    #[nullable]
     lig_caret_list_offset: BigEndian<Offset16<LigCaretList>>,
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
+    #[nullable]
     mark_attach_class_def_offset: BigEndian<Offset16<ClassDef>>,
 }
 
@@ -35,18 +39,23 @@ Gdef1_2<'a> {
     minor_version: BigEndian<u16>,
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
+    #[nullable]
     glyph_class_def_offset: BigEndian<Offset16<ClassDef>>,
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
+    #[nullable]
     attach_list_offset: BigEndian<Offset16<AttachList>>,
     /// Offset to ligature caret list table, from beginning of GDEF
     /// header (may be NULL)
+    #[nullable]
     lig_caret_list_offset: BigEndian<Offset16<LigCaretList>>,
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
+    #[nullable]
     mark_attach_class_def_offset: BigEndian<Offset16<ClassDef>>,
     /// Offset to the table of mark glyph set definitions, from
     /// beginning of GDEF header (may be NULL)
+    #[nullable]
     mark_glyph_sets_def_offset: BigEndian<Offset16<MarkGlyphSets>>,
 }
 
@@ -61,22 +70,28 @@ Gdef1_3<'a> {
     minor_version: BigEndian<u16>,
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
+    #[nullable]
     glyph_class_def_offset: BigEndian<Offset16<ClassDef>>,
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
+    #[nullable]
     attach_list_offset: BigEndian<Offset16<AttachList>>,
     /// Offset to ligature caret list table, from beginning of GDEF
     /// header (may be NULL)
+    #[nullable]
     lig_caret_list_offset: BigEndian<Offset16<LigCaretList>>,
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
+    #[nullable]
     mark_attach_class_def_offset: BigEndian<Offset16<ClassDef>>,
     /// Offset to the table of mark glyph set definitions, from
     /// beginning of GDEF header (may be NULL)
+    #[nullable]
     mark_glyph_sets_def_offset: BigEndian<Offset16<MarkGlyphSets>>,
     /// Offset to the Item Variation Store table, from beginning of
     /// GDEF header (may be NULL)
     //FIXME
+    #[nullable]
     item_var_store_offset: BigEndian<Offset32<ClassDef>>,
 }
 

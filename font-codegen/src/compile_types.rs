@@ -28,7 +28,9 @@ pub fn generate_compile_module(
 
     let custom_compile_types = &parsed.compile_types;
     Ok(quote! {
+            #[allow(unused_imports)]
             use crate::compile::*;
+            #[allow(unused_imports)]
             use font_types::*;
             #(use #use_paths;)*
             #(use #use_manual_impls;)*

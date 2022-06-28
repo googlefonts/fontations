@@ -2,7 +2,10 @@
 // Any changes to this file will be overwritten.
 // For more information about how codegen works, see font-codegen/README.md
 
+#[allow(unused_imports)]
 use crate::compile::*;
+
+#[allow(unused_imports)]
 use font_types::*;
 fn plus_one(inp: usize) -> u16 {
     inp.saturating_add(1).try_into().unwrap()
@@ -71,7 +74,7 @@ impl FontWrite for ScriptRecord {
 
 #[derive(Debug, PartialEq)]
 pub struct Script {
-    pub default_lang_sys_offset: OffsetMarker<Offset16, LangSys>,
+    pub default_lang_sys_offset: NullableOffsetMarker<Offset16, LangSys>,
     pub lang_sys_records: Vec<LangSysRecord>,
 }
 
@@ -82,7 +85,7 @@ impl ToOwnedObj for super::Script<'_> {
     fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
         let offset_data = self.bytes();
         Some(Script {
-            default_lang_sys_offset: OffsetMarker::new_maybe_null(
+            default_lang_sys_offset: NullableOffsetMarker::new(
                 self.default_lang_sys_offset()
                     .read::<super::LangSys>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
@@ -161,7 +164,7 @@ impl ToOwnedObj for super::LangSys<'_> {
 
 impl FontWrite for LangSys {
     fn write_into(&self, writer: &mut TableWriter) {
-        let lookup_order_offset: OffsetMarker<Offset16, Box<dyn FontWrite>> = Default::default();
+        let lookup_order_offset: u16 = 0;
         lookup_order_offset.write_into(writer);
         self.required_feature_index.write_into(writer);
         u16::try_from(self.feature_indices.len())
@@ -526,7 +529,7 @@ impl FontWrite for SequenceLookupRecord {
 #[derive(Debug, PartialEq)]
 pub struct SequenceContextFormat1 {
     pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
-    pub seq_rule_set_offsets: Vec<OffsetMarker<Offset16, SequenceRuleSet>>,
+    pub seq_rule_set_offsets: Vec<NullableOffsetMarker<Offset16, SequenceRuleSet>>,
 }
 
 impl ToOwnedObj for super::SequenceContextFormat1<'_> {
@@ -545,7 +548,7 @@ impl ToOwnedObj for super::SequenceContextFormat1<'_> {
                 .seq_rule_set_offsets()
                 .iter()
                 .map(|item| {
-                    Some(OffsetMarker::new_maybe_null(
+                    Some(NullableOffsetMarker::new(
                         item.get()
                             .read::<super::SequenceRuleSet>(offset_data)
                             .and_then(|obj| obj.to_owned_obj(offset_data)),
@@ -650,7 +653,7 @@ impl FontWrite for SequenceRule {
 pub struct SequenceContextFormat2 {
     pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
     pub class_def_offset: OffsetMarker<Offset16, ClassDef>,
-    pub class_seq_rule_set_offsets: Vec<OffsetMarker<Offset16, ClassSequenceRuleSet>>,
+    pub class_seq_rule_set_offsets: Vec<NullableOffsetMarker<Offset16, ClassSequenceRuleSet>>,
 }
 
 impl ToOwnedObj for super::SequenceContextFormat2<'_> {
@@ -674,7 +677,7 @@ impl ToOwnedObj for super::SequenceContextFormat2<'_> {
                 .class_seq_rule_set_offsets()
                 .iter()
                 .map(|item| {
-                    Some(OffsetMarker::new_maybe_null(
+                    Some(NullableOffsetMarker::new(
                         item.get()
                             .read::<super::ClassSequenceRuleSet>(offset_data)
                             .and_then(|obj| obj.to_owned_obj(offset_data)),
@@ -865,7 +868,7 @@ impl FontWrite for SequenceContext {
 #[derive(Debug, PartialEq)]
 pub struct ChainedSequenceContextFormat1 {
     pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
-    pub chained_seq_rule_set_offsets: Vec<OffsetMarker<Offset16, ChainedSequenceRuleSet>>,
+    pub chained_seq_rule_set_offsets: Vec<NullableOffsetMarker<Offset16, ChainedSequenceRuleSet>>,
 }
 
 impl ToOwnedObj for super::ChainedSequenceContextFormat1<'_> {
@@ -884,7 +887,7 @@ impl ToOwnedObj for super::ChainedSequenceContextFormat1<'_> {
                 .chained_seq_rule_set_offsets()
                 .iter()
                 .map(|item| {
-                    Some(OffsetMarker::new_maybe_null(
+                    Some(NullableOffsetMarker::new(
                         item.get()
                             .read::<super::ChainedSequenceRuleSet>(offset_data)
                             .and_then(|obj| obj.to_owned_obj(offset_data)),
@@ -1012,7 +1015,7 @@ pub struct ChainedSequenceContextFormat2 {
     pub input_class_def_offset: OffsetMarker<Offset16, ClassDef>,
     pub lookahead_class_def_offset: OffsetMarker<Offset16, ClassDef>,
     pub chained_class_seq_rule_set_offsets:
-        Vec<OffsetMarker<Offset16, ChainedClassSequenceRuleSet>>,
+        Vec<NullableOffsetMarker<Offset16, ChainedClassSequenceRuleSet>>,
 }
 
 impl ToOwnedObj for super::ChainedSequenceContextFormat2<'_> {
@@ -1046,7 +1049,7 @@ impl ToOwnedObj for super::ChainedSequenceContextFormat2<'_> {
                 .chained_class_seq_rule_set_offsets()
                 .iter()
                 .map(|item| {
-                    Some(OffsetMarker::new_maybe_null(
+                    Some(NullableOffsetMarker::new(
                         item.get()
                             .read::<super::ChainedClassSequenceRuleSet>(offset_data)
                             .and_then(|obj| obj.to_owned_obj(offset_data)),

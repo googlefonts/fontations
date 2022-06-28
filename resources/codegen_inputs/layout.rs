@@ -24,6 +24,7 @@ ScriptRecord {
 Script<'a> {
     /// Offset to default LangSys table, from beginning of Script table
     /// — may be NULL
+    #[nullable]
     default_lang_sys_offset: BigEndian<Offset16<LangSys>>,
     /// Number of LangSysRecords for this script — excluding the
     /// default LangSys
@@ -45,7 +46,8 @@ LangSysRecord {
 LangSys<'a> {
     /// = NULL (reserved for an offset to a reordering table)
     #[hidden]
-    #[compute(Default::default())]
+    #[compile_type(u16)]
+    #[compute(0)]
     lookup_order_offset: BigEndian<Offset16>,
     /// Index of a feature required for this language system; if no
     /// required features = 0xFFFF
@@ -238,6 +240,7 @@ SequenceContextFormat1<'a> {
     /// Array of offsets to SequenceRuleSet tables, from beginning of
     /// SequenceContextFormat1 table (offsets may be NULL)
     #[count(seq_rule_set_count)]
+    #[nullable]
     seq_rule_set_offsets: [BigEndian<Offset16<SequenceRuleSet>>],
 }
 
@@ -296,6 +299,7 @@ SequenceContextFormat2<'a> {
     /// Array of offsets to ClassSequenceRuleSet tables, from beginning
     /// of SequenceContextFormat2 table (may be NULL)
     #[count(class_seq_rule_set_count)]
+    #[nullable]
     class_seq_rule_set_offsets: [BigEndian<Offset16<ClassSequenceRuleSet>>],
 }
 
@@ -375,6 +379,7 @@ ChainedSequenceContextFormat1<'a> {
     /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
     /// ChainedSequenceContextFormat1 table (may be NULL)
     #[count(chained_seq_rule_set_count)]
+    #[nullable]
     chained_seq_rule_set_offsets: [BigEndian<Offset16<ChainedSequenceRuleSet>>],
 }
 
@@ -442,6 +447,7 @@ ChainedSequenceContextFormat2<'a> {
     /// Array of offsets to ChainedClassSequenceRuleSet tables, from
     /// beginning of ChainedSequenceContextFormat2 table (may be NULL)
     #[count(chained_class_seq_rule_set_count)]
+    #[nullable]
     chained_class_seq_rule_set_offsets: [BigEndian<Offset16<ChainedClassSequenceRuleSet>>],
 }
 

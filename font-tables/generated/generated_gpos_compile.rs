@@ -3,12 +3,17 @@
 // For more information about how codegen works, see font-codegen/README.md
 
 use super::ValueFormat;
+
+#[allow(unused_imports)]
 use crate::compile::*;
 use crate::layout::compile::ClassDef;
 use crate::layout::compile::CoverageTable;
+use crate::layout::compile::Device;
 use crate::layout::compile::FeatureList;
 use crate::layout::compile::FeatureVariations;
 use crate::layout::compile::ScriptList;
+
+#[allow(unused_imports)]
 use font_types::*;
 
 #[derive(Debug, PartialEq)]
@@ -67,7 +72,7 @@ pub struct Gpos1_1 {
     pub script_list_offset: OffsetMarker<Offset16, ScriptList>,
     pub feature_list_offset: OffsetMarker<Offset16, FeatureList>,
     pub lookup_list_offset: OffsetMarker<Offset16, PositionLookupList>,
-    pub feature_variations_offset: OffsetMarker<Offset32, FeatureVariations>,
+    pub feature_variations_offset: NullableOffsetMarker<Offset32, FeatureVariations>,
 }
 
 impl ToOwnedObj for super::Gpos1_1<'_> {
@@ -94,7 +99,7 @@ impl ToOwnedObj for super::Gpos1_1<'_> {
                     .read::<super::PositionLookupList>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            feature_variations_offset: OffsetMarker::new_maybe_null(
+            feature_variations_offset: NullableOffsetMarker::new(
                 self.feature_variations_offset()
                     .read::<super::FeatureVariations>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
@@ -239,33 +244,11 @@ impl FontWrite for AnchorFormat2 {
 }
 
 #[derive(Debug, PartialEq)]
-pub struct FakeDeviceTable {
-    pub version: u16,
-}
-
-impl ToOwnedObj for super::FakeDeviceTable {
-    type Owned = FakeDeviceTable;
-
-    #[allow(unused_variables)]
-    fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
-        Some(FakeDeviceTable {
-            version: self.version(),
-        })
-    }
-}
-
-impl FontWrite for FakeDeviceTable {
-    fn write_into(&self, writer: &mut TableWriter) {
-        self.version.write_into(writer);
-    }
-}
-
-#[derive(Debug, PartialEq)]
 pub struct AnchorFormat3 {
     pub x_coordinate: i16,
     pub y_coordinate: i16,
-    pub x_device_offset: OffsetMarker<Offset16, FakeDeviceTable>,
-    pub y_device_offset: OffsetMarker<Offset16, FakeDeviceTable>,
+    pub x_device_offset: NullableOffsetMarker<Offset16, Device>,
+    pub y_device_offset: NullableOffsetMarker<Offset16, Device>,
 }
 
 impl ToOwnedObj for super::AnchorFormat3<'_> {
@@ -277,14 +260,14 @@ impl ToOwnedObj for super::AnchorFormat3<'_> {
         Some(AnchorFormat3 {
             x_coordinate: self.x_coordinate(),
             y_coordinate: self.y_coordinate(),
-            x_device_offset: OffsetMarker::new_maybe_null(
+            x_device_offset: NullableOffsetMarker::new(
                 self.x_device_offset()
-                    .read::<super::FakeDeviceTable>(offset_data)
+                    .read::<super::Device>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            y_device_offset: OffsetMarker::new_maybe_null(
+            y_device_offset: NullableOffsetMarker::new(
                 self.y_device_offset()
-                    .read::<super::FakeDeviceTable>(offset_data)
+                    .read::<super::Device>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
         })
@@ -712,8 +695,8 @@ impl FontWrite for CursivePosFormat1 {
 
 #[derive(Debug, PartialEq)]
 pub struct EntryExitRecord {
-    pub entry_anchor_offset: OffsetMarker<Offset16, AnchorTable>,
-    pub exit_anchor_offset: OffsetMarker<Offset16, AnchorTable>,
+    pub entry_anchor_offset: NullableOffsetMarker<Offset16, AnchorTable>,
+    pub exit_anchor_offset: NullableOffsetMarker<Offset16, AnchorTable>,
 }
 
 impl ToOwnedObj for super::EntryExitRecord {
@@ -722,12 +705,12 @@ impl ToOwnedObj for super::EntryExitRecord {
     #[allow(unused_variables)]
     fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
         Some(EntryExitRecord {
-            entry_anchor_offset: OffsetMarker::new_maybe_null(
+            entry_anchor_offset: NullableOffsetMarker::new(
                 self.entry_anchor_offset()
                     .read::<super::AnchorTable>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
             ),
-            exit_anchor_offset: OffsetMarker::new_maybe_null(
+            exit_anchor_offset: NullableOffsetMarker::new(
                 self.exit_anchor_offset()
                     .read::<super::AnchorTable>(offset_data)
                     .and_then(|obj| obj.to_owned_obj(offset_data)),
@@ -823,7 +806,7 @@ impl FontWrite for BaseArray {
 
 #[derive(Debug, PartialEq)]
 pub struct BaseRecord {
-    pub base_anchor_offsets: Vec<OffsetMarker<Offset16, AnchorTable>>,
+    pub base_anchor_offsets: Vec<NullableOffsetMarker<Offset16, AnchorTable>>,
 }
 
 impl ToOwnedObj for super::BaseRecord<'_> {
@@ -836,7 +819,7 @@ impl ToOwnedObj for super::BaseRecord<'_> {
                 .base_anchor_offsets()
                 .iter()
                 .map(|item| {
-                    Some(OffsetMarker::new_maybe_null(
+                    Some(NullableOffsetMarker::new(
                         item.get()
                             .read::<super::AnchorTable>(offset_data)
                             .and_then(|obj| obj.to_owned_obj(offset_data)),
@@ -947,7 +930,7 @@ impl FontWrite for LigatureAttach {
 
 #[derive(Debug, PartialEq)]
 pub struct ComponentRecord {
-    pub ligature_anchor_offsets: Vec<OffsetMarker<Offset16, AnchorTable>>,
+    pub ligature_anchor_offsets: Vec<NullableOffsetMarker<Offset16, AnchorTable>>,
 }
 
 impl ToOwnedObj for super::ComponentRecord<'_> {
@@ -960,7 +943,7 @@ impl ToOwnedObj for super::ComponentRecord<'_> {
                 .ligature_anchor_offsets()
                 .iter()
                 .map(|item| {
-                    Some(OffsetMarker::new_maybe_null(
+                    Some(NullableOffsetMarker::new(
                         item.get()
                             .read::<super::AnchorTable>(offset_data)
                             .and_then(|obj| obj.to_owned_obj(offset_data)),
@@ -1057,7 +1040,7 @@ impl FontWrite for Mark2Array {
 
 #[derive(Debug, PartialEq)]
 pub struct Mark2Record {
-    pub mark2_anchor_offsets: Vec<OffsetMarker<Offset16, AnchorTable>>,
+    pub mark2_anchor_offsets: Vec<NullableOffsetMarker<Offset16, AnchorTable>>,
 }
 
 impl ToOwnedObj for super::Mark2Record<'_> {
@@ -1070,7 +1053,7 @@ impl ToOwnedObj for super::Mark2Record<'_> {
                 .mark2_anchor_offsets()
                 .iter()
                 .map(|item| {
-                    Some(OffsetMarker::new_maybe_null(
+                    Some(NullableOffsetMarker::new(
                         item.get()
                             .read::<super::AnchorTable>(offset_data)
                             .and_then(|obj| obj.to_owned_obj(offset_data)),
