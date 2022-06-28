@@ -278,12 +278,17 @@ impl FeatureRecord {
 
 /// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
 pub struct Feature<'a> {
+    feature_params_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
     lookup_index_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
     lookup_list_indices: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
+    offset_bytes: &'a [u8],
 }
 
 impl<'a> font_types::FontRead<'a> for Feature<'a> {
     fn read(bytes: &'a [u8]) -> Option<Self> {
+        let offset_bytes = bytes;
+        let (feature_params_offset, bytes) =
+            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
         let (lookup_index_count, bytes) =
             zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
         let __resolved_lookup_index_count = lookup_index_count.get();
@@ -294,14 +299,21 @@ impl<'a> font_types::FontRead<'a> for Feature<'a> {
             )?;
         let _bytes = bytes;
         let result = Feature {
+            feature_params_offset,
             lookup_index_count,
             lookup_list_indices,
+            offset_bytes,
         };
         Some(result)
     }
 }
 
 impl<'a> Feature<'a> {
+    /// Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
+    pub fn feature_params_offset(&self) -> Offset16 {
+        self.feature_params_offset.get()
+    }
+
     /// Number of LookupList indices for this feature
     pub fn lookup_index_count(&self) -> u16 {
         self.lookup_index_count.get()
@@ -311,6 +323,12 @@ impl<'a> Feature<'a> {
     /// lookup is LookupListIndex = 0)
     pub fn lookup_list_indices(&self) -> &[BigEndian<u16>] {
         &self.lookup_list_indices
+    }
+}
+
+impl<'a> font_types::OffsetHost<'a> for Feature<'a> {
+    fn bytes(&self) -> &'a [u8] {
+        self.offset_bytes
     }
 }
 
@@ -2302,6 +2320,223 @@ impl FeatureTableSubstitutionRecord {
     /// FeatureTableSubstitution table.
     pub fn alternate_feature_offset(&self) -> Offset32 {
         self.alternate_feature_offset.get()
+    }
+}
+
+#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[repr(C)]
+pub struct SizeParams {
+    /// The first value represents the design size in 720/inch units (decipoints).
+    ///
+    /// The design size entry must be non-zero. When there is a design size but
+    /// no recommended size range, the rest of the array will consist of zeros.
+    pub design_size: BigEndian<u16>,
+    /// The second value has no independent meaning, but serves as an identifier that associates fonts in a subfamily.
+    ///
+    /// All fonts which share a Typographic or Font Family name and which differ
+    /// only by size range shall have the same subfamily value, and no fonts
+    /// which differ in weight or style shall have the same subfamily value.
+    /// If this value is zero, the remaining fields in the array will be ignored.
+    pub identifier: BigEndian<u16>,
+    /// The third value enables applications to use a single name for the subfamily identified by the second value.
+    ///
+    /// If the preceding value is non-zero, this value must be set in the range
+    /// 256 – 32767 (inclusive). It records the value of a field in the 'name'
+    /// table, which must contain English-language strings encoded in Windows
+    /// Unicode and Macintosh Roman, and may contain additional strings localized
+    /// to other scripts and languages. Each of these strings is the name
+    /// an application should use, in combination with the family name, to
+    /// represent the subfamily in a menu. Applications will choose the
+    /// appropriate version based on their selection criteria.
+    pub name_entry: BigEndian<u16>,
+    /// The fourth and fifth values represent the small end of the recommended
+    /// usage range (exclusive) and the large end of the recommended usage range
+    /// (inclusive), stored in 720/inch units (decipoints).
+    ///
+    /// Ranges must not overlap, and should generally be contiguous.
+    pub range_start: BigEndian<u16>,
+    pub range_end: BigEndian<u16>,
+}
+
+impl SizeParams {
+    /// The first value represents the design size in 720/inch units (decipoints).
+    ///
+    /// The design size entry must be non-zero. When there is a design size but
+    /// no recommended size range, the rest of the array will consist of zeros.
+    pub fn design_size(&self) -> u16 {
+        self.design_size.get()
+    }
+
+    /// The second value has no independent meaning, but serves as an identifier that associates fonts in a subfamily.
+    ///
+    /// All fonts which share a Typographic or Font Family name and which differ
+    /// only by size range shall have the same subfamily value, and no fonts
+    /// which differ in weight or style shall have the same subfamily value.
+    /// If this value is zero, the remaining fields in the array will be ignored.
+    pub fn identifier(&self) -> u16 {
+        self.identifier.get()
+    }
+
+    /// The third value enables applications to use a single name for the subfamily identified by the second value.
+    ///
+    /// If the preceding value is non-zero, this value must be set in the range
+    /// 256 – 32767 (inclusive). It records the value of a field in the 'name'
+    /// table, which must contain English-language strings encoded in Windows
+    /// Unicode and Macintosh Roman, and may contain additional strings localized
+    /// to other scripts and languages. Each of these strings is the name
+    /// an application should use, in combination with the family name, to
+    /// represent the subfamily in a menu. Applications will choose the
+    /// appropriate version based on their selection criteria.
+    pub fn name_entry(&self) -> u16 {
+        self.name_entry.get()
+    }
+
+    /// The fourth and fifth values represent the small end of the recommended
+    /// usage range (exclusive) and the large end of the recommended usage range
+    /// (inclusive), stored in 720/inch units (decipoints).
+    ///
+    /// Ranges must not overlap, and should generally be contiguous.
+    pub fn range_start(&self) -> u16 {
+        self.range_start.get()
+    }
+
+    pub fn range_end(&self) -> u16 {
+        self.range_end.get()
+    }
+}
+
+#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[repr(C)]
+pub struct StylisticSetParams {
+    pub version: BigEndian<u16>,
+    /// The 'name' table name ID that specifies a string (or strings, for
+    /// multiple languages) for a user-interface label for this feature.
+    ///
+    /// The value of uiLabelNameId is expected to be in the font-specific name
+    /// ID range (256-32767), though that is not a requirement in this Feature
+    /// Parameters specification. The user-interface label for the feature can
+    /// be provided in multiple languages. An English string should be included
+    /// as a fallback. The string should be kept to a minimal length to fit
+    /// comfortably with different application interfaces.
+    pub ui_name_id: BigEndian<u16>,
+}
+
+impl StylisticSetParams {
+    pub fn version(&self) -> u16 {
+        self.version.get()
+    }
+
+    /// The 'name' table name ID that specifies a string (or strings, for
+    /// multiple languages) for a user-interface label for this feature.
+    ///
+    /// The value of uiLabelNameId is expected to be in the font-specific name
+    /// ID range (256-32767), though that is not a requirement in this Feature
+    /// Parameters specification. The user-interface label for the feature can
+    /// be provided in multiple languages. An English string should be included
+    /// as a fallback. The string should be kept to a minimal length to fit
+    /// comfortably with different application interfaces.
+    pub fn ui_name_id(&self) -> u16 {
+        self.ui_name_id.get()
+    }
+}
+
+/// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
+pub struct CharacterVariantParams<'a> {
+    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
+    feat_ui_label_name_id: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
+    feat_ui_tooltip_text_name_id: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
+    sample_text_name_id: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
+    num_named_parameters: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
+    first_param_ui_label_name_id: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
+    char_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
+    character: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Uint24>]>,
+}
+
+impl<'a> font_types::FontRead<'a> for CharacterVariantParams<'a> {
+    fn read(bytes: &'a [u8]) -> Option<Self> {
+        let (format, bytes) =
+            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
+        let (feat_ui_label_name_id, bytes) =
+            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
+        let (feat_ui_tooltip_text_name_id, bytes) =
+            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
+        let (sample_text_name_id, bytes) =
+            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
+        let (num_named_parameters, bytes) =
+            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
+        let (first_param_ui_label_name_id, bytes) =
+            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
+        let (char_count, bytes) =
+            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
+        let __resolved_char_count = char_count.get();
+        let (character, bytes) =
+            zerocopy::LayoutVerified::<_, [BigEndian<Uint24>]>::new_slice_unaligned_from_prefix(
+                bytes,
+                __resolved_char_count as usize,
+            )?;
+        let _bytes = bytes;
+        let result = CharacterVariantParams {
+            format,
+            feat_ui_label_name_id,
+            feat_ui_tooltip_text_name_id,
+            sample_text_name_id,
+            num_named_parameters,
+            first_param_ui_label_name_id,
+            char_count,
+            character,
+        };
+        Some(result)
+    }
+}
+
+impl<'a> CharacterVariantParams<'a> {
+    /// Format number is set to 0.
+    pub fn format(&self) -> u16 {
+        self.format.get()
+    }
+
+    /// The 'name' table name ID that specifies a string (or strings,
+    /// for multiple languages) for a user-interface label for this
+    /// feature. (May be NULL.)
+    pub fn feat_ui_label_name_id(&self) -> u16 {
+        self.feat_ui_label_name_id.get()
+    }
+
+    /// The 'name' table name ID that specifies a string (or strings,
+    /// for multiple languages) that an application can use for tooltip
+    /// text for this feature. (May be NULL.)
+    pub fn feat_ui_tooltip_text_name_id(&self) -> u16 {
+        self.feat_ui_tooltip_text_name_id.get()
+    }
+
+    /// The 'name' table name ID that specifies sample text that
+    /// illustrates the effect of this feature. (May be NULL.)
+    pub fn sample_text_name_id(&self) -> u16 {
+        self.sample_text_name_id.get()
+    }
+
+    /// Number of named parameters. (May be zero.)
+    pub fn num_named_parameters(&self) -> u16 {
+        self.num_named_parameters.get()
+    }
+
+    /// The first 'name' table name ID used to specify strings for
+    /// user-interface labels for the feature parameters. (Must be zero
+    /// if numParameters is zero.)
+    pub fn first_param_ui_label_name_id(&self) -> u16 {
+        self.first_param_ui_label_name_id.get()
+    }
+
+    /// The count of characters for which this feature provides glyph
+    /// variants. (May be zero.)
+    pub fn char_count(&self) -> u16 {
+        self.char_count.get()
+    }
+
+    /// The Unicode Scalar Value of the characters for which this
+    /// feature provides glyph variants.
+    pub fn character(&self) -> &[BigEndian<Uint24>] {
+        &self.character
     }
 }
 

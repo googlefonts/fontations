@@ -276,6 +276,7 @@ impl FieldAttrs {
             compile_type: self.compile_type,
             to_owned: self.to_owned,
             read: self.read,
+            skip_offset_getter: self.skip_offset_getter,
         })
     }
 

@@ -70,10 +70,12 @@ FeatureList<'a> {
     /// Array of FeatureRecords — zero-based (first feature has
     /// FeatureIndex = 0), listed alphabetically by feature tag
     #[count(feature_count)]
+    #[to_owned(self.feature_records_to_owned())]
     feature_records: [FeatureRecord],
 }
 
 /// Part of [FeatureList]
+#[skip_to_owned]
 FeatureRecord {
     /// 4-byte feature identification tag
     feature_tag: BigEndian<Tag>,
@@ -82,7 +84,14 @@ FeatureRecord {
 }
 
 /// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
+
+#[skip_to_owned]
+#[offset_host]
 Feature<'a> {
+    /// Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
+    #[nullable]
+    #[skip_offset_getter]
+    feature_params_offset: BigEndian<Offset16<FeatureParams>>,
     /// Number of LookupList indices for this feature
     #[compute_count(lookup_list_indices)]
     lookup_index_count: BigEndian<u16>,
@@ -637,10 +646,12 @@ FeatureTableSubstitution<'a> {
     substitution_count: BigEndian<u16>,
     /// Array of feature table substitution records.
     #[count(substitution_count)]
+    #[to_owned(self.substitutions_to_owned())]
     substitutions: [FeatureTableSubstitutionRecord],
 }
 
 /// Used in [FeatureTableSubstitution]
+#[skip_to_owned]
 FeatureTableSubstitutionRecord {
     /// The feature table index to match.
     feature_index: BigEndian<u16>,
@@ -648,3 +659,84 @@ FeatureTableSubstitutionRecord {
     /// FeatureTableSubstitution table.
     alternate_feature_offset: BigEndian<Offset32<Feature>>,
 }
+
+SizeParams {
+    /// The first value represents the design size in 720/inch units (decipoints).
+    ///
+    /// The design size entry must be non-zero. When there is a design size but
+    /// no recommended size range, the rest of the array will consist of zeros.
+    design_size: BigEndian<u16>,
+    /// The second value has no independent meaning, but serves as an identifier that associates fonts in a subfamily.
+    ///
+    /// All fonts which share a Typographic or Font Family name and which differ
+    /// only by size range shall have the same subfamily value, and no fonts
+    /// which differ in weight or style shall have the same subfamily value.
+    /// If this value is zero, the remaining fields in the array will be ignored.
+    identifier: BigEndian<u16>,
+    /// The third value enables applications to use a single name for the subfamily identified by the second value.
+    ///
+    /// If the preceding value is non-zero, this value must be set in the range
+    /// 256 – 32767 (inclusive). It records the value of a field in the 'name'
+    /// table, which must contain English-language strings encoded in Windows
+    /// Unicode and Macintosh Roman, and may contain additional strings localized
+    /// to other scripts and languages. Each of these strings is the name
+    /// an application should use, in combination with the family name, to
+    /// represent the subfamily in a menu. Applications will choose the
+    /// appropriate version based on their selection criteria.
+    name_entry: BigEndian<u16>,
+    /// The fourth and fifth values represent the small end of the recommended
+    /// usage range (exclusive) and the large end of the recommended usage range
+    /// (inclusive), stored in 720/inch units (decipoints).
+    ///
+    /// Ranges must not overlap, and should generally be contiguous.
+    range_start: BigEndian<u16>,
+    range_end: BigEndian<u16>,
+}
+
+StylisticSetParams {
+    #[compute(0)]
+    version: BigEndian<u16>,
+    /// The 'name' table name ID that specifies a string (or strings, for
+    /// multiple languages) for a user-interface label for this feature.
+    ///
+    /// The value of uiLabelNameId is expected to be in the font-specific name
+    /// ID range (256-32767), though that is not a requirement in this Feature
+    /// Parameters specification. The user-interface label for the feature can
+    /// be provided in multiple languages. An English string should be included
+    /// as a fallback. The string should be kept to a minimal length to fit
+    /// comfortably with different application interfaces.
+    ui_name_id: BigEndian<u16>,
+}
+
+/// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
+CharacterVariantParams<'a> {
+    /// Format number is set to 0.
+    #[compute(0)]
+    format: BigEndian<u16>,
+    /// The 'name' table name ID that specifies a string (or strings,
+    /// for multiple languages) for a user-interface label for this
+    /// feature. (May be NULL.)
+    feat_ui_label_name_id: BigEndian<u16>,
+    /// The 'name' table name ID that specifies a string (or strings,
+    /// for multiple languages) that an application can use for tooltip
+    /// text for this feature. (May be NULL.)
+    feat_ui_tooltip_text_name_id: BigEndian<u16>,
+    /// The 'name' table name ID that specifies sample text that
+    /// illustrates the effect of this feature. (May be NULL.)
+    sample_text_name_id: BigEndian<u16>,
+    /// Number of named parameters. (May be zero.)
+    num_named_parameters: BigEndian<u16>,
+    /// The first 'name' table name ID used to specify strings for
+    /// user-interface labels for the feature parameters. (Must be zero
+    /// if numParameters is zero.)
+    first_param_ui_label_name_id: BigEndian<u16>,
+    /// The count of characters for which this feature provides glyph
+    /// variants. (May be zero.)
+    #[compute_count(character)]
+    char_count: BigEndian<u16>,
+    /// The Unicode Scalar Value of the characters for which this
+    /// feature provides glyph variants.
+    #[count(char_count)]
+    character: [BigEndian<Uint24>],
+}
+

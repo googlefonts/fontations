@@ -1,5 +1,7 @@
 //! [OpenType™ Layout Common Table Formats](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2)
 
+#[cfg(feature = "compile")]
+use crate::compile::{NullableOffsetMarker, OffsetMarker, ToOwnedObj};
 use font_types::{GlyphId, OffsetHost};
 
 include!("../generated/generated_layout_parse.rs");
@@ -10,6 +12,95 @@ include!("../generated/generated_layout_parse.rs");
 pub struct TypedLookup<'a, T> {
     inner: Lookup<'a>,
     phantom: std::marker::PhantomData<T>,
+}
+
+// this is all made complicated by our need to pass through the feature tag
+// in order to correctly deserialize the FeatureParams field
+impl FeatureList<'_> {
+    #[cfg(feature = "compile")]
+    pub(crate) fn feature_records_to_owned(&self) -> Option<Vec<compile::FeatureRecord>> {
+        Some(
+            self.feature_records()
+                .iter()
+                .flat_map(|rec| rec.to_owned_obj_custom(self.bytes()))
+                .collect(),
+        )
+    }
+}
+
+#[cfg(feature = "compile")]
+impl FeatureRecord {
+    fn to_owned_obj_custom(&self, data: &[u8]) -> Option<compile::FeatureRecord> {
+        let feature = self.feature_offset().read::<Feature>(data)?;
+        Some(compile::FeatureRecord {
+            feature_tag: self.feature_tag(),
+            feature_offset: OffsetMarker::new_maybe_null(
+                feature.to_owned_obj_custom(self.feature_tag()),
+            ),
+        })
+    }
+}
+
+#[cfg(feature = "compile")]
+impl Feature<'_> {
+    fn to_owned_obj_custom(&self, tag: Tag) -> Option<compile::Feature> {
+        Some(compile::Feature {
+            feature_params_offset: NullableOffsetMarker::new(
+                self.feature_params_offset()
+                    .read_with_args::<_, FeatureParams>(self.bytes(), &tag)
+                    .and_then(|obj| obj.to_owned_obj(self.bytes())),
+            ),
+            lookup_list_indices: self.lookup_list_indices().iter().map(|g| g.get()).collect(),
+        })
+    }
+}
+
+#[cfg(feature = "compile")]
+impl FeatureTableSubstitution<'_> {
+    fn substitutions_to_owned(&self) -> Option<Vec<compile::FeatureTableSubstitutionRecord>> {
+        Some(
+            self.substitutions()
+                .iter()
+                .flat_map(|rec| {
+                    let feature = rec
+                        .alternate_feature_offset()
+                        .read::<Feature>(self.bytes())?;
+                    Some(compile::FeatureTableSubstitutionRecord {
+                        feature_index: rec.feature_index(),
+                        alternate_feature_offset: OffsetMarker::new_maybe_null(
+                            feature.to_owned_obj_custom(Tag::new(b"LOVE")),
+                        ),
+                    })
+                })
+                .collect(),
+        )
+    }
+}
+
+pub enum FeatureParams<'a> {
+    StylisticSet(StylisticSetParams),
+    Size(SizeParams),
+    CharacterVariant(CharacterVariantParams<'a>),
+}
+
+impl<'a> FontReadWithArgs<'a, Tag> for FeatureParams<'a> {
+    fn read_with_args(bytes: &'a [u8], args: &Tag) -> Option<(Self, &'a [u8])> {
+        match *args {
+            t if t == Tag::new(b"size") => {
+                let r = SizeParams::read(bytes).map(Self::Size)?;
+                Some((r, bytes.get(std::mem::size_of::<SizeParams>()..)?))
+            }
+            // to whoever is debugging this dumb bug I wrote: I'm sorry.
+            t if &t.to_raw()[..2] == b"ss" => {
+                let r = StylisticSetParams::read(bytes).map(Self::StylisticSet)?;
+                Some((r, bytes.get(std::mem::size_of::<StylisticSetParams>()..)?))
+            }
+            t if &t.to_raw()[..2] == b"cv" => CharacterVariantParams::read(bytes)
+                .map(Self::CharacterVariant)
+                .map(|r| (r, &bytes[..0])),
+            _ => None,
+        }
+    }
 }
 
 impl<'a, T: FontRead<'a>> TypedLookup<'a, T> {
@@ -154,6 +245,39 @@ pub mod compile {
                 subtables,
                 mark_filtering_set: self.mark_filtering_set(),
             })
+        }
+    }
+
+    #[derive(Debug, PartialEq)]
+    pub enum FeatureParams {
+        StylisticSet(StylisticSetParams),
+        Size(SizeParams),
+        CharacterVariant(CharacterVariantParams),
+    }
+
+    impl FontWrite for FeatureParams {
+        fn write_into(&self, writer: &mut TableWriter) {
+            match self {
+                FeatureParams::StylisticSet(table) => table.write_into(writer),
+                FeatureParams::Size(table) => table.write_into(writer),
+                FeatureParams::CharacterVariant(table) => table.write_into(writer),
+            }
+        }
+    }
+
+    impl ToOwnedObj for super::FeatureParams<'_> {
+        type Owned = FeatureParams;
+
+        fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
+            match self {
+                Self::StylisticSet(table) => table
+                    .to_owned_obj(offset_data)
+                    .map(FeatureParams::StylisticSet),
+                Self::Size(table) => table.to_owned_obj(offset_data).map(FeatureParams::Size),
+                Self::CharacterVariant(table) => table
+                    .to_owned_obj(offset_data)
+                    .map(FeatureParams::CharacterVariant),
+            }
         }
     }
 

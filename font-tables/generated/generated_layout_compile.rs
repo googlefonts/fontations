@@ -186,11 +186,7 @@ impl ToOwnedObj for super::FeatureList<'_> {
     fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
         let offset_data = self.bytes();
         Some(FeatureList {
-            feature_records: self
-                .feature_records()
-                .iter()
-                .map(|item| item.to_owned_obj(offset_data))
-                .collect::<Option<Vec<_>>>()?,
+            feature_records: self.feature_records_to_owned()?,
         })
     }
 }
@@ -212,22 +208,6 @@ pub struct FeatureRecord {
     pub feature_offset: OffsetMarker<Offset16, Feature>,
 }
 
-impl ToOwnedObj for super::FeatureRecord {
-    type Owned = FeatureRecord;
-
-    #[allow(unused_variables)]
-    fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
-        Some(FeatureRecord {
-            feature_tag: self.feature_tag(),
-            feature_offset: OffsetMarker::new_maybe_null(
-                self.feature_offset()
-                    .read::<super::Feature>(offset_data)
-                    .and_then(|obj| obj.to_owned_obj(offset_data)),
-            ),
-        })
-    }
-}
-
 impl FontWrite for FeatureRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.feature_tag.write_into(writer);
@@ -237,26 +217,13 @@ impl FontWrite for FeatureRecord {
 
 #[derive(Debug, PartialEq)]
 pub struct Feature {
+    pub feature_params_offset: NullableOffsetMarker<Offset16, FeatureParams>,
     pub lookup_list_indices: Vec<u16>,
-}
-
-impl ToOwnedObj for super::Feature<'_> {
-    type Owned = Feature;
-
-    #[allow(unused_variables)]
-    fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
-        Some(Feature {
-            lookup_list_indices: self
-                .lookup_list_indices()
-                .iter()
-                .map(|item| Some(item.get()))
-                .collect::<Option<Vec<_>>>()?,
-        })
-    }
 }
 
 impl FontWrite for Feature {
     fn write_into(&self, writer: &mut TableWriter) {
+        self.feature_params_offset.write_into(writer);
         u16::try_from(self.lookup_list_indices.len())
             .unwrap()
             .write_into(writer);
@@ -1503,11 +1470,7 @@ impl ToOwnedObj for super::FeatureTableSubstitution<'_> {
     fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
         let offset_data = self.bytes();
         Some(FeatureTableSubstitution {
-            substitutions: self
-                .substitutions()
-                .iter()
-                .map(|item| item.to_owned_obj(offset_data))
-                .collect::<Option<Vec<_>>>()?,
+            substitutions: self.substitutions_to_owned()?,
         })
     }
 }
@@ -1533,25 +1496,113 @@ pub struct FeatureTableSubstitutionRecord {
     pub alternate_feature_offset: OffsetMarker<Offset32, Feature>,
 }
 
-impl ToOwnedObj for super::FeatureTableSubstitutionRecord {
-    type Owned = FeatureTableSubstitutionRecord;
-
-    #[allow(unused_variables)]
-    fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
-        Some(FeatureTableSubstitutionRecord {
-            feature_index: self.feature_index(),
-            alternate_feature_offset: OffsetMarker::new_maybe_null(
-                self.alternate_feature_offset()
-                    .read::<super::Feature>(offset_data)
-                    .and_then(|obj| obj.to_owned_obj(offset_data)),
-            ),
-        })
-    }
-}
-
 impl FontWrite for FeatureTableSubstitutionRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.feature_index.write_into(writer);
         self.alternate_feature_offset.write_into(writer);
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct SizeParams {
+    pub design_size: u16,
+    pub identifier: u16,
+    pub name_entry: u16,
+    pub range_start: u16,
+    pub range_end: u16,
+}
+
+impl ToOwnedObj for super::SizeParams {
+    type Owned = SizeParams;
+
+    #[allow(unused_variables)]
+    fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
+        Some(SizeParams {
+            design_size: self.design_size(),
+            identifier: self.identifier(),
+            name_entry: self.name_entry(),
+            range_start: self.range_start(),
+            range_end: self.range_end(),
+        })
+    }
+}
+
+impl FontWrite for SizeParams {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.design_size.write_into(writer);
+        self.identifier.write_into(writer);
+        self.name_entry.write_into(writer);
+        self.range_start.write_into(writer);
+        self.range_end.write_into(writer);
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct StylisticSetParams {
+    pub ui_name_id: u16,
+}
+
+impl ToOwnedObj for super::StylisticSetParams {
+    type Owned = StylisticSetParams;
+
+    #[allow(unused_variables)]
+    fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
+        Some(StylisticSetParams {
+            ui_name_id: self.ui_name_id(),
+        })
+    }
+}
+
+impl FontWrite for StylisticSetParams {
+    fn write_into(&self, writer: &mut TableWriter) {
+        let version: u16 = 0;
+        version.write_into(writer);
+        self.ui_name_id.write_into(writer);
+    }
+}
+
+#[derive(Debug, PartialEq)]
+pub struct CharacterVariantParams {
+    pub feat_ui_label_name_id: u16,
+    pub feat_ui_tooltip_text_name_id: u16,
+    pub sample_text_name_id: u16,
+    pub num_named_parameters: u16,
+    pub first_param_ui_label_name_id: u16,
+    pub character: Vec<Uint24>,
+}
+
+impl ToOwnedObj for super::CharacterVariantParams<'_> {
+    type Owned = CharacterVariantParams;
+
+    #[allow(unused_variables)]
+    fn to_owned_obj(&self, offset_data: &[u8]) -> Option<Self::Owned> {
+        Some(CharacterVariantParams {
+            feat_ui_label_name_id: self.feat_ui_label_name_id(),
+            feat_ui_tooltip_text_name_id: self.feat_ui_tooltip_text_name_id(),
+            sample_text_name_id: self.sample_text_name_id(),
+            num_named_parameters: self.num_named_parameters(),
+            first_param_ui_label_name_id: self.first_param_ui_label_name_id(),
+            character: self
+                .character()
+                .iter()
+                .map(|item| Some(item.get()))
+                .collect::<Option<Vec<_>>>()?,
+        })
+    }
+}
+
+impl FontWrite for CharacterVariantParams {
+    fn write_into(&self, writer: &mut TableWriter) {
+        let format: u16 = 0;
+        format.write_into(writer);
+        self.feat_ui_label_name_id.write_into(writer);
+        self.feat_ui_tooltip_text_name_id.write_into(writer);
+        self.sample_text_name_id.write_into(writer);
+        self.num_named_parameters.write_into(writer);
+        self.first_param_ui_label_name_id.write_into(writer);
+        u16::try_from(self.character.len())
+            .unwrap()
+            .write_into(writer);
+        self.character.write_into(writer);
     }
 }

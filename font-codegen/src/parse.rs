@@ -100,6 +100,7 @@ pub struct SingleField {
     pub compile_type: Option<syn::Path>,
     pub to_owned: Option<syn::Expr>,
     pub read: Option<attrs::ArgList>,
+    pub skip_offset_getter: Option<syn::Path>,
 }
 
 #[derive(Debug, Clone)]
@@ -351,7 +352,7 @@ impl Field {
 
     pub(crate) fn is_offset_with_target(&self) -> bool {
         match self {
-            Field::Single(fld) => matches!(
+            Field::Single(fld) if fld.skip_offset_getter.is_none() => matches!(
                 fld.typ,
                 FieldType::Offset {
                     target_type: Some(_),
@@ -730,7 +731,7 @@ impl SingleField {
                 }
                 None => Err(syn::Error::new(
                     offset_type.span(),
-                    "offsets with unknown types require custom FromObjRef impls",
+                    "offsets with unknown types require custom ToOwnedObj impls",
                 )),
             },
         }
@@ -781,7 +782,7 @@ impl ArrayField {
             FieldType::Offset { offset_type, .. } => {
                 return Err(syn::Error::new(
                     offset_type.span(),
-                    "offsets with unknown types require custom FromObjRef impls",
+                    "offsets with unknown types require custom ToOwnedObj impls",
                 ))
             }
         };

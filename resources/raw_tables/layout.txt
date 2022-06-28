@@ -46,6 +46,7 @@ Offset16	featureOffset	Offset to Feature table, from beginning of FeatureList
 
 /// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
 @table Feature
+Offset16	featureParamsOffset Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
 uint16	lookupIndexCount	Number of LookupList indices for this feature
 uint16	lookupListIndices[lookupIndexCount]	Array of indices into the LookupList — zero-based (first lookup is LookupListIndex = 0)
 
@@ -295,4 +296,14 @@ FeatureTableSubstitutionRecord	substitutions[substitutionCount]	Array of feature
 uint16	featureIndex	The feature table index to match.
 Offset32	alternateFeatureOffset	Offset to an alternate feature table, from start of the FeatureTableSubstitution table.
 
+/// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
+@record CharacterVariantParams
+uint16	format	Format number is set to 0.
+uint16	featUiLabelNameId	The 'name' table name ID that specifies a string (or strings, for multiple languages) for a user-interface label for this feature. (May be NULL.)
+uint16	featUiTooltipTextNameId	The 'name' table name ID that specifies a string (or strings, for multiple languages) that an application can use for tooltip text for this feature. (May be NULL.)
+uint16	sampleTextNameId	The 'name' table name ID that specifies sample text that illustrates the effect of this feature. (May be NULL.)
+uint16	numNamedParameters	Number of named parameters. (May be zero.)
+uint16	firstParamUiLabelNameId	The first 'name' table name ID used to specify strings for user-interface labels for the feature parameters. (Must be zero if numParameters is zero.)
+uint16	charCount	The count of characters for which this feature provides glyph variants. (May be zero.)
+uint24	character[charCount]	The Unicode Scalar Value of the characters for which this feature provides glyph variants.
 
