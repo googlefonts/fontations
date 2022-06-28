@@ -4,7 +4,7 @@
 
 use font_types::{BigEndian, FontRead, FontReadWithArgs, Tag};
 
-use crate::layout::{Lookup, LookupList};
+use crate::layout::{ChainedSequenceContext, Lookup, LookupList, SequenceContext, TypedLookup};
 
 /// 'GDEF'
 pub const TAG: Tag = Tag::new(b"GPOS");
@@ -21,11 +21,69 @@ impl ValueFormat {
 
 pub struct PositionLookupList<'a>(LookupList<'a>);
 
-pub struct PositionLookup<'a>(Lookup<'a>);
+pub enum PositionLookup<'a> {
+    Single(TypedLookup<'a, SinglePos<'a>>),
+    Pair(TypedLookup<'a, PairPos<'a>>),
+    Cursive(TypedLookup<'a, CursivePosFormat1<'a>>),
+    MarkToBase(TypedLookup<'a, MarkBasePosFormat1<'a>>),
+    MarkToMark(TypedLookup<'a, MarkMarkPosFormat1<'a>>),
+    MarkToLig(TypedLookup<'a, MarkLigPosFormat1<'a>>),
+    Contextual(TypedLookup<'a, SequenceContext<'a>>),
+    ChainContextual(TypedLookup<'a, ChainedSequenceContext<'a>>),
+    Extension(TypedLookup<'a, ExtensionPosFormat1<'a>>),
+}
+
+impl<'a> PositionLookupList<'a> {
+    pub fn lookup_count(&self) -> u16 {
+        self.0.lookup_count()
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = PositionLookup<'a>> + '_ {
+        self.0
+            .lookup_offsets()
+            .iter()
+            .flat_map(|off| self.0.resolve_offset(off.get()))
+    }
+}
 
 impl<'a> FontRead<'a> for PositionLookup<'a> {
     fn read(bytes: &'a [u8]) -> Option<Self> {
-        Lookup::read(bytes).map(Self)
+        let lookup = Lookup::read(bytes)?;
+        match lookup.lookup_type() {
+            1 => Some(PositionLookup::Single(TypedLookup::new(lookup))),
+            2 => Some(PositionLookup::Pair(TypedLookup::new(lookup))),
+            3 => Some(PositionLookup::Cursive(TypedLookup::new(lookup))),
+            4 => Some(PositionLookup::MarkToBase(TypedLookup::new(lookup))),
+            5 => Some(PositionLookup::MarkToLig(TypedLookup::new(lookup))),
+            6 => Some(PositionLookup::MarkToMark(TypedLookup::new(lookup))),
+            7 => Some(PositionLookup::Contextual(TypedLookup::new(lookup))),
+            8 => Some(PositionLookup::ChainContextual(TypedLookup::new(lookup))),
+            9 => Some(PositionLookup::Extension(TypedLookup::new(lookup))),
+            _other => {
+                #[cfg(feature = "std")]
+                {
+                    eprintln!("unhandled gpos lookup type {_other}");
+                }
+                None
+            }
+        }
+    }
+}
+
+impl<'a> std::ops::Deref for PositionLookup<'a> {
+    type Target = Lookup<'a>;
+    fn deref(&self) -> &Self::Target {
+        match self {
+            PositionLookup::Single(table) => *&table,
+            PositionLookup::Pair(table) => *&table,
+            PositionLookup::Cursive(table) => *&table,
+            PositionLookup::MarkToBase(table) => *&table,
+            PositionLookup::MarkToMark(table) => *&table,
+            PositionLookup::MarkToLig(table) => *&table,
+            PositionLookup::Contextual(table) => *&table,
+            PositionLookup::ChainContextual(table) => *&table,
+            PositionLookup::Extension(table) => *&table,
+        }
     }
 }
 
@@ -222,17 +280,17 @@ pub mod compile {
 
     #[derive(Debug, PartialEq)]
     pub struct PositionLookupList {
-        pub lookup_offsets: Vec<OffsetMarker<Offset16, GposLookup>>,
+        pub lookup_offsets: Vec<OffsetMarker<Offset16, PositionLookup>>,
     }
 
     #[derive(Debug, PartialEq)]
-    pub enum GposLookup {
+    pub enum PositionLookup {
         Single(Lookup<SinglePos>),
         Pair(Lookup<PairPos>),
         Cursive(Lookup<CursivePosFormat1>),
         MarkToBase(Lookup<MarkBasePosFormat1>),
-        MarkToMark(Lookup<MarkMarkPosFormat1>),
         MarkToLig(Lookup<MarkLigPosFormat1>),
+        MarkToMark(Lookup<MarkMarkPosFormat1>),
         Contextual(Lookup<SequenceContext>),
         ChainContextual(Lookup<ChainedSequenceContext>),
         Extension(Lookup<Extension>),
@@ -244,18 +302,18 @@ pub mod compile {
         pub extension_offset: OffsetMarker<Offset32, Box<dyn FontWrite>>,
     }
 
-    impl FontWrite for GposLookup {
+    impl FontWrite for PositionLookup {
         fn write_into(&self, writer: &mut crate::compile::TableWriter) {
             match self {
-                GposLookup::Single(lookup) => lookup.write_into(writer),
-                GposLookup::Pair(lookup) => lookup.write_into(writer),
-                GposLookup::Cursive(lookup) => lookup.write_into(writer),
-                GposLookup::MarkToBase(lookup) => lookup.write_into(writer),
-                GposLookup::MarkToMark(lookup) => lookup.write_into(writer),
-                GposLookup::MarkToLig(lookup) => lookup.write_into(writer),
-                GposLookup::Contextual(lookup) => lookup.write_into(writer),
-                GposLookup::ChainContextual(lookup) => lookup.write_into(writer),
-                GposLookup::Extension(lookup) => lookup.write_into(writer),
+                PositionLookup::Single(lookup) => lookup.write_into(writer),
+                PositionLookup::Pair(lookup) => lookup.write_into(writer),
+                PositionLookup::Cursive(lookup) => lookup.write_into(writer),
+                PositionLookup::MarkToBase(lookup) => lookup.write_into(writer),
+                PositionLookup::MarkToLig(lookup) => lookup.write_into(writer),
+                PositionLookup::MarkToMark(lookup) => lookup.write_into(writer),
+                PositionLookup::Contextual(lookup) => lookup.write_into(writer),
+                PositionLookup::ChainContextual(lookup) => lookup.write_into(writer),
+                PositionLookup::Extension(lookup) => lookup.write_into(writer),
             }
         }
     }
@@ -286,11 +344,11 @@ pub mod compile {
                         .to_owned_table()?,
                 ),
                 5 => Box::new(
-                    off.read::<super::MarkMarkPosFormat1>(data)?
+                    off.read::<super::MarkLigPosFormat1>(data)?
                         .to_owned_table()?,
                 ),
                 6 => Box::new(
-                    off.read::<super::MarkLigPosFormat1>(data)?
+                    off.read::<super::MarkMarkPosFormat1>(data)?
                         .to_owned_table()?,
                 ),
                 7 => Box::new(
@@ -322,47 +380,21 @@ pub mod compile {
     }
 
     impl ToOwnedObj for super::PositionLookup<'_> {
-        type Owned = GposLookup;
+        type Owned = PositionLookup;
 
         fn to_owned_obj(&self, _offset_data: &[u8]) -> Option<Self::Owned> {
-            match self.0.lookup_type() {
-                1 => self
-                    .0
-                    .to_owned_explicit::<super::SinglePos>()
-                    .map(GposLookup::Single),
-                2 => self
-                    .0
-                    .to_owned_explicit::<super::PairPos>()
-                    .map(GposLookup::Pair),
-                3 => self
-                    .0
-                    .to_owned_explicit::<super::CursivePosFormat1>()
-                    .map(GposLookup::Cursive),
-                4 => self
-                    .0
-                    .to_owned_explicit::<super::MarkBasePosFormat1>()
-                    .map(GposLookup::MarkToBase),
-                5 => self
-                    .0
-                    .to_owned_explicit::<super::MarkMarkPosFormat1>()
-                    .map(GposLookup::MarkToMark),
-                6 => self
-                    .0
-                    .to_owned_explicit::<super::MarkLigPosFormat1>()
-                    .map(GposLookup::MarkToLig),
-                7 => self
-                    .0
-                    .to_owned_explicit::<crate::layout::SequenceContext>()
-                    .map(GposLookup::Contextual),
-                8 => self
-                    .0
-                    .to_owned_explicit::<crate::layout::ChainedSequenceContext>()
-                    .map(GposLookup::ChainContextual),
-                9 => self
-                    .0
-                    .to_owned_explicit::<super::ExtensionPosFormat1>()
-                    .map(GposLookup::Extension),
-                _ => None,
+            match self {
+                Self::Single(lookup) => lookup.to_owned_table().map(PositionLookup::Single),
+                Self::Pair(lookup) => lookup.to_owned_table().map(PositionLookup::Pair),
+                Self::Cursive(lookup) => lookup.to_owned_table().map(PositionLookup::Cursive),
+                Self::MarkToBase(lookup) => lookup.to_owned_table().map(PositionLookup::MarkToBase),
+                Self::MarkToLig(lookup) => lookup.to_owned_table().map(PositionLookup::MarkToLig),
+                Self::MarkToMark(lookup) => lookup.to_owned_table().map(PositionLookup::MarkToMark),
+                Self::Contextual(lookup) => lookup.to_owned_table().map(PositionLookup::Contextual),
+                Self::ChainContextual(lookup) => {
+                    lookup.to_owned_table().map(PositionLookup::ChainContextual)
+                }
+                Self::Extension(lookup) => lookup.to_owned_table().map(PositionLookup::Extension),
             }
         }
     }
@@ -375,13 +407,8 @@ pub mod compile {
         fn to_owned_obj(&self, _offset_data: &[u8]) -> Option<Self::Owned> {
             Some(PositionLookupList {
                 lookup_offsets: self
-                    .0
-                    .iter_lookups()
-                    .map(|x| {
-                        super::PositionLookup(x)
-                            .to_owned_table()
-                            .map(OffsetMarker::new)
-                    })
+                    .iter()
+                    .map(|x| x.to_owned_table().map(OffsetMarker::new))
                     .collect::<Option<_>>()?,
             })
         }

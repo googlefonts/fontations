@@ -4,12 +4,34 @@ use font_types::{GlyphId, OffsetHost};
 
 include!("../generated/generated_layout_parse.rs");
 
-impl<'a> LookupList<'a> {
-    /// Iterate all of the [`Lookup`]s in this list.
-    pub fn iter_lookups(&self) -> impl Iterator<Item = Lookup<'a>> + '_ {
-        self.lookup_offsets()
+/// A typed lookup table.
+///
+/// Our generated code doesn't handle generics, so we define this ourselves.
+pub struct TypedLookup<'a, T> {
+    inner: Lookup<'a>,
+    phantom: std::marker::PhantomData<T>,
+}
+
+impl<'a, T: FontRead<'a>> TypedLookup<'a, T> {
+    pub(crate) fn new(inner: Lookup<'a>) -> Self {
+        TypedLookup {
+            inner,
+            phantom: std::marker::PhantomData,
+        }
+    }
+
+    pub fn subtables<'b: 'a>(&'b self) -> impl Iterator<Item = T> + 'a {
+        self.inner
+            .subtable_offsets()
             .iter()
-            .filter_map(|off| self.resolve_offset(off.get()))
+            .flat_map(|off| self.inner.resolve_offset(off.get()))
+    }
+}
+
+impl<'a, T> std::ops::Deref for TypedLookup<'a, T> {
+    type Target = Lookup<'a>;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
     }
 }
 
@@ -114,10 +136,10 @@ pub mod compile {
         }
     }
 
-    impl<'a> super::Lookup<'a> {
-        pub(crate) fn to_owned_explicit<T: FontRead<'a> + ToOwnedTable>(
-            &self,
-        ) -> Option<Lookup<T::Owned>> {
+    impl<'a, T: FontRead<'a> + ToOwnedTable> ToOwnedObj for super::TypedLookup<'a, T> {
+        type Owned = Lookup<T::Owned>;
+
+        fn to_owned_obj(&self, _offset_data: &[u8]) -> Option<Self::Owned> {
             let subtables: Vec<OffsetMarker<Offset16, T::Owned>> = self
                 .subtable_offsets()
                 .iter()
@@ -134,6 +156,8 @@ pub mod compile {
             })
         }
     }
+
+    impl<'a, T: FontRead<'a> + ToOwnedTable> ToOwnedTable for super::TypedLookup<'a, T> {}
 
     #[derive(Debug, PartialEq)]
     pub struct ClassDefBuilder {
