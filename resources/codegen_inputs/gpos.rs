@@ -204,12 +204,6 @@ fn value_record_len(format: ValueFormat) -> usize {
     format.bits().count_ones() as usize * std::mem::size_of::<u16>()
 }
 
-///// [Lookup Type 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-2-pair-adjustment-positioning-subtable): Pair Adjustment Positioning Subtable
-//PairPos {
-    ///// //TODO
-    //thing: fake,
-//}
-
 /// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
 #[format(u16)]
 #[offset_host]
@@ -261,9 +255,9 @@ PairSet<'a> {
 }
 
 fn pair_value_record_len(count: u16, format1: ValueFormat, format2: ValueFormat) -> usize {
-    std::mem::size_of::<u16>()
-        + format1.record_byte_len()
-        + format2.record_byte_len() * count as usize
+    (std::mem::size_of::<u16>()
+     + format1.record_byte_len()
+     + format2.record_byte_len()) * count as usize
 }
 
 

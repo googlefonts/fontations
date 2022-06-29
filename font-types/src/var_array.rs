@@ -38,3 +38,11 @@ where
         })
     }
 }
+
+impl<Args, T> std::fmt::Debug for DynSizedArray<'_, Args, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        f.debug_struct("DynSizedArray")
+            .field("bytes", &self.bytes)
+            .finish()
+    }
+}
