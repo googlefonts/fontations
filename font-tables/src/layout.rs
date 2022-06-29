@@ -369,3 +369,71 @@ pub mod compile {
         })
     }
 }
+
+#[cfg(feature = "compile")]
+#[cfg(test)]
+mod compile_tests {
+    use crate::assert_hex_eq;
+    use crate::compile::ToOwnedObj;
+    use font_types::OffsetHost;
+
+    use super::*;
+
+    #[test]
+    fn example_1_scripts() {
+        // https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#example-1-scriptlist-table-and-scriptrecords
+        #[rustfmt::skip]
+        let bytes = [
+            0x00, 0x03, 0x68, 0x61, 0x6E, 0x69, 0x00, 0x14, 0x6B, 0x61, 0x6E,
+            0x61, 0x00, 0x18, 0x6C, 0x61, 0x74, 0x6E, 0x00, 0x1C,
+        ];
+
+        let table = ScriptList::read(&bytes).unwrap();
+        assert_eq!(table.script_count(), 3);
+        let first = table.script_records()[0];
+        assert_eq!(first.script_tag(), Tag::new(b"hani"));
+        assert_eq!(first.script_offset(), 0x14);
+        //NOTE: we can't roundtrip this because the data doesn't include subtables.
+        //assert_hex_eq!(&bytes, &dumped);
+    }
+
+    #[test]
+    fn example_2_scripts_and_langs() {
+        // https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#example-2-script-table-langsysrecord-and-langsys-table
+        #[rustfmt::skip]
+        let bytes = [
+            0x00, 0x0A, 0x00, 0x01, 0x55, 0x52, 0x44, 0x20, 0x00, 0x16, 0x00,
+            0x00, 0xFF, 0xFF, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02,
+            0x00, 0x00, 0x00, 0x03, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x02,
+        ];
+
+        let table = Script::read(&bytes).unwrap();
+        let owned = table.to_owned_obj(&[]).unwrap();
+        let dumped = crate::compile::dump_table(&owned);
+        assert_hex_eq!(&bytes, &dumped);
+    }
+
+    #[test]
+    fn example_3_featurelist_and_feature() {
+        // https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#example-3-featurelist-table-and-feature-table
+        #[rustfmt::skip]
+        let bytes = [
+            0x00, 0x03, 0x6C, 0x69, 0x67, 0x61, 0x00, 0x14, 0x6C, 0x69, 0x67,
+            0x61, 0x00, 0x1A, 0x6C, 0x69, 0x67, 0x61, 0x00, 0x22, 0x00, 0x00,
+            0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+            0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02,
+        ];
+
+        let table = FeatureList::read(&bytes).unwrap();
+        assert_eq!(table.feature_count(), 3);
+        let turkish_liga = table.feature_records()[0]
+            .feature_offset()
+            .read::<Feature>(table.bytes())
+            .unwrap();
+        assert_eq!(turkish_liga.lookup_index_count(), 1);
+        let owned = table.to_owned_obj(&[]).unwrap();
+        let dumped = crate::compile::dump_table(&owned);
+        assert_hex_eq!(&bytes, &dumped);
+    }
+}
