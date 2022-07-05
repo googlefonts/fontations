@@ -1,14 +1,11 @@
 //! The [name (Naming)](https://docs.microsoft.com/en-us/typography/opentype/spec/name) table
 
-#[path = "../../generated/generated_name.rs"]
-mod generated;
-
-pub use generated::*;
-
 use font_types::{Offset, OffsetHost, Tag};
 
 /// 'name'
 pub const TAG: Tag = Tag::new(b"name");
+
+include!("../../generated/generated_name.rs");
 
 impl<'a> Name<'a> {
     pub fn resolve(&self, name: &NameRecord) -> Option<Entry<'a>> {

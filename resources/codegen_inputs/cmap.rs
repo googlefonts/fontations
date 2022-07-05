@@ -1,5 +1,3 @@
-//! The [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap) table
-
 /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
 #[offset_host]
 Cmap<'a> {

@@ -13,7 +13,6 @@ pub use attrs::{Compute, Count};
 use attrs::{FieldAttrs, ItemAttrs, VariantAttrs};
 
 pub struct Items {
-    pub docs: Vec<syn::Attribute>,
     pub use_stmts: Vec<SimpleUse>,
     pub items: Vec<Item>,
 }
@@ -167,17 +166,12 @@ impl quote::ToTokens for SimpleUse {
 
 impl Parse for Items {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        let docs = get_optional_module_docs(input)?;
         let use_stmts = get_use_statements(input)?;
         let mut items = Vec::new();
         while !input.is_empty() {
             items.push(input.parse()?);
         }
-        Ok(Self {
-            use_stmts,
-            docs,
-            items,
-        })
+        Ok(Self { use_stmts, items })
     }
 }
 
@@ -945,26 +939,6 @@ fn get_use_statements(input: ParseStream) -> Result<Vec<SimpleUse>, syn::Error> 
         let item = SimpleUse::parse(input)?;
         result.push(item);
     }
-    Ok(result)
-}
-
-fn get_optional_module_docs(input: ParseStream) -> Result<Vec<syn::Attribute>, syn::Error> {
-    let mut result = Vec::new();
-    while input.peek(Token![#]) && input.peek2(Token![!]) {
-        let item = Attribute::parse_inner(input).map_err(|e| {
-            syn::Error::new(e.span(), format!("error parsing inner attribute: '{}'", e))
-        })?;
-        for attr in &item {
-            if !attr.path.is_ident("doc") {
-                return Err(syn::Error::new_spanned(
-                    attr,
-                    "only doc attributes are supported",
-                ));
-            }
-        }
-        result.extend(item);
-    }
-
     Ok(result)
 }
 

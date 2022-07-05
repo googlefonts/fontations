@@ -1,5 +1,3 @@
-//! The [name (Naming)](https://docs.microsoft.com/en-us/typography/opentype/spec/name) table
-
 /// [Naming table version 0](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-0)
 #[offset_host]
 Name0<'a> {
