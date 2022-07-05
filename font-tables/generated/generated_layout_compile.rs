@@ -7,9 +7,6 @@ use crate::compile::*;
 
 #[allow(unused_imports)]
 use font_types::*;
-fn plus_one(inp: usize) -> u16 {
-    inp.saturating_add(1).try_into().unwrap()
-}
 
 #[derive(Debug, PartialEq)]
 pub struct ScriptList {

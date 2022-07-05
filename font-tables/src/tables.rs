@@ -69,4 +69,8 @@ pub trait TableProvider {
     fn gdef(&self) -> Option<gdef::Gdef> {
         self.data_for_tag(gdef::TAG).and_then(gdef::Gdef::read)
     }
+
+    fn gpos(&self) -> Option<gpos::Gpos> {
+        self.data_for_tag(gpos::TAG).and_then(FontRead::read)
+    }
 }

@@ -281,11 +281,6 @@ SequenceRule<'a> {
     seq_lookup_records: [SequenceLookupRecord],
 }
 
-mod compile {
-    fn plus_one(inp: usize) -> u16 {
-        inp.saturating_add(1).try_into().unwrap()
-    }
-}
 fn minus_one(inp: u16) -> usize {
     inp.saturating_sub(1) as usize
 }

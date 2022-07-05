@@ -41,6 +41,7 @@ Gpos1_1<'a> {
 
 #[format(MajorMinor)]
 #[generate_getters]
+#[offset_host]
 enum Gpos<'a> {
     #[version(MajorMinor::VERSION_1_0)]
     Version1_0(Gpos1_0<'a>),

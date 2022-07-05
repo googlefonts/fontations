@@ -137,6 +137,8 @@ impl ToOwnedObj for super::Gpos<'_> {
     }
 }
 
+impl ToOwnedTable for super::Gpos<'_> {}
+
 impl FontWrite for Gpos {
     fn write_into(&self, writer: &mut TableWriter) {
         match self {

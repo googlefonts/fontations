@@ -186,6 +186,10 @@ pub mod compile {
 
     include!("../generated/generated_layout_compile.rs");
 
+    fn plus_one(inp: usize) -> u16 {
+        inp.saturating_add(1).try_into().unwrap()
+    }
+
     pub trait LayoutSubtable {
         const TYPE: u16;
     }
