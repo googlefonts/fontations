@@ -8,6 +8,8 @@ use crate::layout::Device;
 use crate::layout::FeatureList;
 use crate::layout::FeatureVariations;
 use crate::layout::ScriptList;
+
+#[allow(unused_imports)]
 use font_types::*;
 
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)

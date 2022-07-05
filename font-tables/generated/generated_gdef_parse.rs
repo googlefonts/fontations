@@ -4,6 +4,8 @@
 
 use crate::layout::ClassDef;
 use crate::layout::CoverageTable;
+
+#[allow(unused_imports)]
 use font_types::*;
 
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0

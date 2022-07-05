@@ -67,6 +67,7 @@ fn generate_parse_module(items: &parse::Items) -> Result<proc_macro2::TokenStrea
     let use_stmts = &items.use_stmts;
     Ok(quote! {
         #(#use_stmts)*
+        #[allow(unused_imports)]
         use font_types::*;
         #(#code)*
     })
