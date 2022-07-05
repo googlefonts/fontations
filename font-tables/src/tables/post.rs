@@ -1,14 +1,11 @@
 //! the [post (PostScript)](https://docs.microsoft.com/en-us/typography/opentype/spec/post#header) table
 
-#[path = "../../generated/generated_post.rs"]
-mod generated;
-
-pub use generated::*;
-
 use font_types::Tag;
 
 /// 'post'
 pub const TAG: Tag = Tag::new(b"post");
+
+include!("../../generated/generated_post.rs");
 
 impl<'a> Post<'a> {
     /// The number of glyph names covered by this table

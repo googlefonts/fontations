@@ -1,14 +1,11 @@
 //! The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head) table
 
-#[path = "../../generated/generated_head.rs"]
-mod generated;
-
 use font_types::Tag;
 
-pub use generated::*;
-
-/// 'name'
+/// 'head'
 pub const TAG: Tag = Tag::new(b"head");
+
+include!("../../generated/generated_head.rs");
 
 #[cfg(test)]
 mod tests {
