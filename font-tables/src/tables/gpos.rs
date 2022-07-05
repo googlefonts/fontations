@@ -190,6 +190,36 @@ impl<'a> FontReadWithArgs<'a, (ValueFormat, ValueFormat)> for PairValueRecord {
     }
 }
 
+fn value_record_array_len(format: ValueFormat, count: u16) -> usize {
+    count as usize * value_record_len(format)
+}
+
+fn value_record_len(format: ValueFormat) -> usize {
+    format.bits().count_ones() as usize * std::mem::size_of::<u16>()
+}
+
+fn pair_value_record_len(count: u16, format1: ValueFormat, format2: ValueFormat) -> usize {
+    (std::mem::size_of::<u16>() + format1.record_byte_len() + format2.record_byte_len())
+        * count as usize
+}
+
+fn class1_record_len(
+    class1_count: u16,
+    class2_count: u16,
+    format1: ValueFormat,
+    format2: ValueFormat,
+) -> usize {
+    class2_record_len(class2_count, format1, format2) * class1_count as usize
+}
+
+fn class2_record_len(class2_count: u16, format1: ValueFormat, format2: ValueFormat) -> usize {
+    (format1.record_byte_len() + format2.record_byte_len()) * class2_count as usize
+}
+
+fn nested_offset_array_len(array_len: u16, mark_class_count: u16) -> usize {
+    std::mem::size_of::<u16>() * mark_class_count as usize * array_len as usize
+}
+
 #[cfg(feature = "compile")]
 pub mod compile {
 

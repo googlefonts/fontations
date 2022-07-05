@@ -244,11 +244,3 @@ impl<'a> font_types::FontRead<'a> for Glyph<'a> {
         }
     }
 }
-
-fn non_negative_i16(val: i16) -> bool {
-    !val.is_negative()
-}
-
-fn get_n_contours(header: &GlyphHeader) -> usize {
-    header.number_of_contours() as usize
-}

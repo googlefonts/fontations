@@ -1,14 +1,11 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
-#[path = "../../generated/generated_glyf.rs"]
-mod generated;
-
-pub use generated::*;
-
 use font_types::{BigEndian, FontRead, Offset32, OffsetHost, Tag};
 
 /// 'glyf'
 pub const TAG: Tag = Tag::new(b"glyf");
+
+include!("../../generated/generated_glyf.rs");
 
 impl<'a> Glyf<'a> {
     pub fn resolve_glyph(&self, offset: Offset32) -> Option<Glyph<'a>> {
@@ -273,4 +270,12 @@ impl<'a> Cursor<'a> {
         self.pos += std::mem::size_of::<T::Raw>();
         Some(r.get())
     }
+}
+
+fn non_negative_i16(val: i16) -> bool {
+    !val.is_negative()
+}
+
+fn get_n_contours(header: &GlyphHeader) -> usize {
+    header.number_of_contours() as usize
 }

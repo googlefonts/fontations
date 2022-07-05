@@ -18,6 +18,3 @@ LongHorMetric {
     lsb: BigEndian<i16>,
 }
 
-fn n_glyphs_less_n_metrics(num_glyphs: u16, num_metrics: u16) -> usize {
-    num_glyphs.saturating_sub(num_metrics) as usize
-}

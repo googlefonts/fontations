@@ -62,8 +62,7 @@ pub trait TableProvider {
     }
 
     fn cmap(&self) -> Option<cmap::Cmap> {
-        self.data_for_tag(Tag::new(b"cmap"))
-            .and_then(cmap::Cmap::read)
+        self.data_for_tag(cmap::TAG).and_then(cmap::Cmap::read)
     }
 
     fn gdef(&self) -> Option<gdef::Gdef> {

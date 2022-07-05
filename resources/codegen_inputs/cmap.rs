@@ -147,10 +147,6 @@ Cmap4<'a> {
     glyph_id_array: [BigEndian<u16>],
 }
 
-fn div_by_two(seg_count_x2: u16) -> usize {
-    (seg_count_x2 / 2) as usize
-}
-
 /// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
 Cmap6<'a> {
     /// Format number is set to 6.

@@ -281,10 +281,6 @@ SequenceRule<'a> {
     seq_lookup_records: [SequenceLookupRecord],
 }
 
-fn minus_one(inp: u16) -> usize {
-    inp.saturating_sub(1) as usize
-}
-
 /// [Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-2-class-based-glyph-contexts)
 #[offset_host]
 SequenceContextFormat2<'a> {

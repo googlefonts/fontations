@@ -177,6 +177,10 @@ impl ClassDef<'_> {
     }
 }
 
+fn minus_one(inp: u16) -> usize {
+    inp.saturating_sub(1) as usize
+}
+
 #[cfg(feature = "compile")]
 pub mod compile {
     use font_types::{FontRead, GlyphId, Offset, Offset16, OffsetHost};

@@ -16,7 +16,6 @@ pub struct Items {
     pub docs: Vec<syn::Attribute>,
     pub use_stmts: Vec<SimpleUse>,
     pub items: Vec<Item>,
-    pub helpers: Vec<syn::ItemFn>,
 }
 
 pub enum Item {
@@ -171,19 +170,13 @@ impl Parse for Items {
         let docs = get_optional_module_docs(input)?;
         let use_stmts = get_use_statements(input)?;
         let mut items = Vec::new();
-        let mut helpers = Vec::new();
         while !input.is_empty() {
-            if input.peek(Token![fn]) {
-                helpers.push(input.parse()?);
-            } else {
-                items.push(input.parse()?);
-            }
+            items.push(input.parse()?);
         }
         Ok(Self {
             use_stmts,
             docs,
             items,
-            helpers,
         })
     }
 }

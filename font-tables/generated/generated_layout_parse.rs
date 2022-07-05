@@ -2539,7 +2539,3 @@ impl<'a> CharacterVariantParams<'a> {
         &self.character
     }
 }
-
-fn minus_one(inp: u16) -> usize {
-    inp.saturating_sub(1) as usize
-}

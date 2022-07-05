@@ -197,14 +197,6 @@ SinglePosFormat2<'a> {
     value_records: DynSizedArray<'a, ValueFormat, ValueRecord>,
 }
 
-fn value_record_array_len(format: ValueFormat, count: u16) -> usize {
-    count as usize * value_record_len(format)
-}
-
-fn value_record_len(format: ValueFormat) -> usize {
-    format.bits().count_ones() as usize * std::mem::size_of::<u16>()
-}
-
 /// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
 #[format(u16)]
 #[offset_host]
@@ -255,13 +247,6 @@ PairSet<'a> {
     pair_value_records: DynSizedArray<'a, (ValueFormat, ValueFormat), PairValueRecord>,
 }
 
-fn pair_value_record_len(count: u16, format1: ValueFormat, format2: ValueFormat) -> usize {
-    (std::mem::size_of::<u16>()
-     + format1.record_byte_len()
-     + format2.record_byte_len()) * count as usize
-}
-
-
 ///// Part of [PairSet]
 //#[read_args(value_format1 = "ValueFormat", value_format2 = "ValueFormat")]
 //PairValueRecord<'a> {
@@ -309,10 +294,6 @@ PairPosFormat2<'a> {
     class1_records: DynSizedArray<'a, (u16, ValueFormat, ValueFormat), Class1Record<'a>>,
 }
 
-fn class1_record_len(class1_count: u16, class2_count: u16, format1: ValueFormat, format2: ValueFormat) -> usize {
-    class2_record_len(class2_count, format1, format2) * class1_count as usize
-}
-
 /// Part of [PairPosFormat2]
 #[read_args(class2_count = "u16", value_format1 = "ValueFormat", value_format2 = "ValueFormat")]
 Class1Record<'a> {
@@ -321,12 +302,6 @@ Class1Record<'a> {
     #[read_with(value_format1, value_format2)]
     #[compile_type(Vec<Class2Record>)]
     class2_records: DynSizedArray<'a, (ValueFormat, ValueFormat), Class2Record>,
-}
-
-fn class2_record_len(class2_count: u16, format1: ValueFormat, format2: ValueFormat) -> usize {
-    (format1.record_byte_len() + format2.record_byte_len())
-        * class2_count
-        as usize
 }
 
 /// Part of [PairPosFormat2]
@@ -484,13 +459,6 @@ LigatureAttach<'a> {
     #[compile_type(Vec<ComponentRecord>)]
     component_records: DynSizedArray<'a, u16, ComponentRecord<'a>>,
 }
-
-fn nested_offset_array_len(array_len: u16, mark_class_count: u16) -> usize {
-    std::mem::size_of::<u16>()
-        * mark_class_count as usize
-        * array_len as usize
-}
-
 
 /// Part of [MarkLigPosFormat1]
 #[read_args(mark_class_count = "u16")]

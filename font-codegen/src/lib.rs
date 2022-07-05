@@ -65,12 +65,10 @@ fn generate_parse_module(items: &parse::Items) -> Result<proc_macro2::TokenStrea
     }
 
     let use_stmts = &items.use_stmts;
-    let helpers = &items.helpers;
     Ok(quote! {
         #(#use_stmts)*
         use font_types::*;
         #(#code)*
-        #(#helpers)*
     })
 }
 
