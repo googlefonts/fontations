@@ -16,6 +16,11 @@ pub trait Scalar {
     fn to_raw(self) -> Self::Raw;
 }
 
+pub trait ReadScalar: Sized {
+    const SIZE: usize;
+    fn read(bytes: &[u8]) -> Option<Self>;
+}
+
 /// A wrapper around raw big-endian bytes for some type.
 #[derive(Clone, Copy, PartialEq, Eq, zerocopy::Unaligned, zerocopy::FromBytes)]
 #[repr(transparent)]
@@ -65,21 +70,20 @@ macro_rules! newtype_scalar {
                 Self(crate::raw::Scalar::from_raw(raw))
             }
         }
+
+        impl crate::raw::ReadScalar for $name {
+            const SIZE: usize = std::mem::size_of::<$raw>();
+            #[inline]
+            fn read(bytes: &[u8]) -> Option<Self> {
+                bytes
+                    .get(..Self::SIZE)
+                    .map(|bytes| crate::raw::Scalar::from_raw(bytes.try_into().unwrap()))
+            }
+        }
     };
 }
 
 macro_rules! int_scalar {
-    ($ident:ty) => {
-        impl crate::raw::Scalar for $ident {
-            type Raw = $ident;
-            fn to_raw(self) -> $ident {
-                self
-            }
-            fn from_raw(raw: $ident) -> $ident {
-                raw
-            }
-        }
-    };
     ($ty:ty, $raw:ty) => {
         impl crate::raw::Scalar for $ty {
             type Raw = $raw;
@@ -89,6 +93,16 @@ macro_rules! int_scalar {
 
             fn from_raw(raw: $raw) -> $ty {
                 Self::from_be_bytes(raw)
+            }
+        }
+
+        impl crate::raw::ReadScalar for $ty {
+            const SIZE: usize = std::mem::size_of::<$raw>();
+            #[inline]
+            fn read(bytes: &[u8]) -> Option<Self> {
+                bytes
+                    .get(..Self::SIZE)
+                    .map(|bytes| crate::raw::Scalar::from_raw(bytes.try_into().unwrap()))
             }
         }
     };

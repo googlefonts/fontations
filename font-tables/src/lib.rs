@@ -18,6 +18,8 @@ use font_types::{FontRead, Offset, Tag};
 #[cfg(feature = "compile")]
 pub mod compile;
 pub mod layout;
+mod parse2;
+mod parse_sketch;
 pub mod tables;
 
 #[cfg(any(test, feature = "diagnostics"))]
