@@ -1,11 +1,10 @@
-//use std::ops::{Bound, RangeBounds};
-//use std::slice::SliceIndex;
+use std::ops::Range;
 
 use font_types::ReadScalar;
 
 pub trait TableInfo: Sized {
     type Info: Copy;
-    fn parse<'a>(ctx: &mut ParseContext<'a>) -> Result<TableRef<'a, Self>, ReadError>;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError>;
 }
 
 pub trait Format<T> {
@@ -19,11 +18,6 @@ pub trait FontRead<'a>: Sized {
 pub struct TableRef<'a, T: TableInfo> {
     pub(crate) shape: T::Info,
     pub(crate) data: FontData<'a>,
-}
-
-/// The font data as well as information for reporting errors during parsing.
-pub struct ParseContext<'a> {
-    data: FontData<'a>,
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -47,7 +41,8 @@ pub(crate) struct Cursor<'a> {
 #[derive(Debug, Clone)]
 pub enum ReadError {
     OutOfBounds,
-    InvalidBits,
+    InvalidFormat,
+    InvalidArrayLen,
 }
 
 impl std::fmt::Display for ReadError {
@@ -99,15 +94,36 @@ impl<'a> FontData<'a> {
             .ok_or_else(|| ReadError::OutOfBounds)
             .map(|_| ())
     }
-}
 
-impl<'a> ParseContext<'a> {
+    pub fn read_array<T>(&self, range: Range<usize>) -> Result<&'a [T], ReadError> {
+        assert_ne!(std::mem::size_of::<T>(), 0);
+        assert_eq!(std::mem::align_of::<T>(), 1);
+        let bytes = self
+            .bytes
+            .get(range.clone())
+            .ok_or_else(|| ReadError::OutOfBounds)?;
+        if bytes.len() % std::mem::size_of::<T>() != 0 {
+            return Err(ReadError::InvalidArrayLen);
+        };
+        unsafe { Ok(self.read_array_unchecked(range)) }
+    }
+
+    pub unsafe fn read_array_unchecked<T>(&self, range: Range<usize>) -> &'a [T] {
+        let bytes = self.bytes.get_unchecked(range);
+        let elems = bytes.len() / std::mem::size_of::<T>();
+        std::slice::from_raw_parts(bytes.as_ptr() as *const _, elems)
+    }
+
     pub(crate) fn cursor(&self) -> Cursor<'a> {
         Cursor {
             pos: 0,
-            data: self.data,
+            data: self.clone(),
         }
     }
+}
+
+fn aligned_to(bytes: &[u8], align: usize) -> bool {
+    (bytes as *const _ as *const () as usize) % align == 0
 }
 
 impl<'a> Cursor<'a> {
@@ -123,6 +139,30 @@ impl<'a> Cursor<'a> {
         let temp = self.data.read_at(self.pos);
         self.pos += T::SIZE;
         temp
+    }
+
+    /// read a value, validating it with the provided function if successful.
+    pub(crate) fn read_validate<T, F>(&mut self, f: F) -> Result<T, ReadError>
+    where
+        T: ReadScalar,
+        F: FnOnce(T) -> Result<T, ReadError>,
+    {
+        self.read().and_then(f)
+    }
+
+    //pub(crate) fn check_array<T: Scalar>(&mut self, len_bytes: usize) -> Result<(), ReadError> {
+    //assert_ne!(std::mem::size_of::<BigEndian<T>>(), 0);
+    //assert_eq!(std::mem::align_of::<BigEndian<T>>(), 1);
+    //if len_bytes % T::SIZE != 0 {
+    //return Err(ReadError::InvalidArrayLen);
+    //}
+    //self.data.check_in_bounds(self.pos + len_bytes)
+    //todo!()
+    //}
+
+    /// return the current position, or an error if we are out of bounds
+    pub(crate) fn position(&self) -> Result<u32, ReadError> {
+        self.data.check_in_bounds(self.pos).map(|_| self.pos as u32)
     }
 
     pub(crate) fn finish<T: TableInfo>(self, shape: T::Info) -> Result<TableRef<'a, T>, ReadError> {
