@@ -6,6 +6,7 @@ use syn::spanned::Spanned;
 mod compile_types;
 mod error;
 mod parse;
+mod read_types;
 
 pub use error::ErrorReport;
 
@@ -15,16 +16,17 @@ pub use error::ErrorReport;
 pub enum Mode {
     /// Generate parsing code
     Parse,
+    /// Generate new-style parsing code
+    Parse2,
     /// Generate compilation code
     Compile,
 }
 
 pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
-    let parsed: parse::Items = syn::parse_str(code_str)?;
-
     let tables = match mode {
-        Mode::Parse => generate_parse_module(&parsed),
-        Mode::Compile => compile_types::generate_compile_module(&parsed),
+        Mode::Parse => generate_parse_module(&syn::parse_str(code_str)?),
+        Mode::Parse2 => read_types::generate_parse_module(&code_str),
+        Mode::Compile => compile_types::generate_compile_module(&syn::parse_str(code_str)?),
     }?;
     // if this is not valid code just pass it through directly, and then we
     // can see the compiler errors

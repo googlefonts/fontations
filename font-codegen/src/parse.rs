@@ -122,7 +122,7 @@ pub struct ArrayField {
     pub inner_typ: FieldType,
     pub inner_lifetime: Option<syn::Lifetime>,
     pub count: Count,
-    pub variable_size: Option<syn::Path>,
+    pub(crate) variable_size: Option<syn::Path>,
     pub no_getter: Option<syn::Path>,
     pub to_owned: Option<syn::Expr>,
     pub read: Option<attrs::ArgList>,
