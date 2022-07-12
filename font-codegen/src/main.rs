@@ -34,12 +34,19 @@ fn run_plan(path: &Path) -> miette::Result<()> {
     for path in &plan.clean {
         if path.exists() {
             println!("removing {}", path.display());
-            std::fs::remove_dir_all(path)
-                .map_err(|e| miette!("failed to clean directory '{}': {e}", path.display()))?;
+            if path.is_dir() {
+                std::fs::remove_dir_all(path)
+            } else {
+                std::fs::remove_file(&path)
+            }
+            .map_err(|e| miette!("failed to clean path '{}': {e}", path.display()))?;
         }
-        println!("creating {}", path.display());
-        std::fs::create_dir_all(path)
-            .map_err(|e| miette!("failed to create directory '{}': {e}", path.display()))?;
+
+        if path.is_dir() {
+            println!("creating {}", path.display());
+            std::fs::create_dir_all(path)
+                .map_err(|e| miette!("failed to create directory '{}': {e}", path.display()))?;
+        }
     }
     let results = plan
         .generate

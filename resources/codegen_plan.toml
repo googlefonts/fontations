@@ -1,7 +1,7 @@
 # This is a 'codegen plan': it describes a series of steps to perform
 # in order to regenerate all of this project's generated code.
 
-# a list of directories that will be cleaned
+# a list of files/directories
 clean = ["font-tables/generated"]
 
 # TODO: support a 'copy' step
