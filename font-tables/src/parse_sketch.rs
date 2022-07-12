@@ -125,11 +125,10 @@ impl TableInfo for Cmap4 {
     fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let _format: u16 = cursor.read_validate(|format| {
-            (format == Self::FORMAT)
-                .then_some(format)
-                .ok_or(ReadError::InvalidFormat)
+            format == &Self::FORMAT
+            //.then_some(format)
+            //.ok_or(ReadError::InvalidFormat)
         })?;
-        let _length: u16 = cursor.read()?;
         cursor.advance::<u16>(); // length
         cursor.advance::<u16>(); // language
         let seg_count_x2: u16 = cursor.read()?;
@@ -183,5 +182,57 @@ impl<'a> TableRef<'a, Cmap4> {
         self.data
             .read_array(self.shape.start_code())
             .unwrap_or_default()
+    }
+}
+
+struct Gdef;
+#[derive(Debug, Clone, Copy)]
+struct GdefShape {
+    mark_glyph_sets_def_offset: Option<usize>,
+}
+
+impl GdefShape {
+    fn major_version(&self) -> usize {
+        0
+    }
+
+    fn minor_version(&self) -> usize {
+        self.major_version() + u16::SIZE
+    }
+
+    fn mark_glyph_sets_def_offset(&self) -> Option<usize> {
+        // just pretend
+        self.mark_glyph_sets_def_offset
+    }
+}
+
+impl TableInfo for Gdef {
+    type Info = GdefShape;
+
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let _major_version = cursor.read_validate(|major_version: &u16| major_version == &1)?;
+        let minor_version = cursor.read::<u16>()?;
+        let mark_glyph_sets_def_offset = if minor_version >= 1 {
+            Some(cursor.position()? as usize)
+        } else {
+            None
+        };
+        cursor.advance::<Offset16>();
+
+        cursor.finish(GdefShape {
+            mark_glyph_sets_def_offset,
+        })
+    }
+}
+
+impl<'a> TableRef<'a, Gdef> {
+    fn minor_version(&self) -> u16 {
+        self.data.read_at(self.shape.minor_version()).unwrap()
+    }
+
+    fn mark_glyph_sets_def_offset(&self) -> Option<Offset16> {
+        let off = self.shape.mark_glyph_sets_def_offset()?;
+        Some(self.data.read_at(off).unwrap())
     }
 }

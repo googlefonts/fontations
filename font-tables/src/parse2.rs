@@ -43,6 +43,7 @@ pub enum ReadError {
     OutOfBounds,
     InvalidFormat,
     InvalidArrayLen,
+    ValidationError,
 }
 
 impl std::fmt::Display for ReadError {
@@ -86,6 +87,10 @@ impl<'a> FontData<'a> {
             .get(offset..)
             .and_then(T::read)
             .ok_or_else(|| ReadError::OutOfBounds)
+    }
+
+    pub unsafe fn read_at_unchecked<T: ReadScalar>(&self, offset: usize) -> T {
+        T::read(self.bytes.get_unchecked(offset..)).unwrap_unchecked()
     }
 
     fn check_in_bounds(&self, offset: usize) -> Result<(), ReadError> {
@@ -145,9 +150,14 @@ impl<'a> Cursor<'a> {
     pub(crate) fn read_validate<T, F>(&mut self, f: F) -> Result<T, ReadError>
     where
         T: ReadScalar,
-        F: FnOnce(T) -> Result<T, ReadError>,
+        F: FnOnce(&T) -> bool,
     {
-        self.read().and_then(f)
+        let temp = self.read()?;
+        if f(&temp) {
+            Ok(temp)
+        } else {
+            Err(ReadError::ValidationError)
+        }
     }
 
     //pub(crate) fn check_array<T: Scalar>(&mut self, len_bytes: usize) -> Result<(), ReadError> {
