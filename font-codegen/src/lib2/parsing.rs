@@ -1,6 +1,7 @@
 //! raw parsing code
 
 use proc_macro2::{TokenStream, TokenTree};
+use quote::quote;
 use syn::{
     braced, bracketed, parenthesized,
     parse::{Parse, ParseStream},
@@ -71,6 +72,7 @@ pub(crate) struct FieldAttrs {
     pub(crate) nullable: Option<syn::Path>,
     pub(crate) available: Option<syn::Path>,
     pub(crate) no_getter: Option<syn::Path>,
+    pub(crate) version: Option<syn::Path>,
     pub(crate) format: Option<FormatAttr>,
     pub(crate) count: Option<InlineExpr>,
     pub(crate) len: Option<InlineExpr>,
@@ -144,6 +146,15 @@ pub(crate) struct BitFlags {
 impl Fields {
     pub(crate) fn iter(&self) -> impl Iterator<Item = &Field> {
         self.fields.iter()
+    }
+}
+
+impl Field {
+    pub(crate) fn type_for_record(&self) -> TokenStream {
+        match &self.typ {
+            FieldType::Offset { typ } | FieldType::Scalar { typ } => quote!(BigEndian<#typ>),
+            _ => panic!("arrays and custom types not supported in records"),
+        }
     }
 }
 
@@ -374,6 +385,7 @@ static LEN: &str = "len";
 static COMPUTE_COUNT: &str = "compute_count";
 static AVAILABLE: &str = "available";
 static FORMAT: &str = "format";
+static VERSION: &str = "version";
 
 impl Parse for FieldAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -391,6 +403,8 @@ impl Parse for FieldAttrs {
                 this.nullable = Some(attr.path);
             } else if ident == NO_GETTER {
                 this.no_getter = Some(attr.path);
+            } else if ident == VERSION {
+                this.version = Some(attr.path);
             } else if ident == COUNT {
                 this.count = Some(parse_inline_expr(attr.tokens)?);
             } else if ident == AVAILABLE {
