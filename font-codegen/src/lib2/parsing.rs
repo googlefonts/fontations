@@ -72,7 +72,8 @@ pub(crate) struct FieldAttrs {
     pub(crate) available: Option<syn::Path>,
     pub(crate) no_getter: Option<syn::Path>,
     pub(crate) format: Option<FormatAttr>,
-    pub(crate) count: Option<Count>,
+    pub(crate) count: Option<InlineExpr>,
+    pub(crate) len: Option<InlineExpr>,
 }
 
 #[derive(Debug, Clone)]
@@ -81,17 +82,29 @@ pub(crate) struct FormatAttr {
     pub(crate) value: syn::LitInt,
 }
 
-/// Annotations for how to calculate the count of an array.
+///// Annotations for how to calculate the count of an array.
+//#[derive(Debug, Clone)]
+//pub(crate) enum Count {
+////Field(syn::Ident),
+//Literal(syn::LitInt),
+//All(syn::Path),
+//Expr(InlineExpr),
+////Function {
+////fn_: syn::Path,
+////args: Vec<syn::Ident>,
+////},
+//}
+
+/// an inline expression used in an attribute
+///
+/// this has one fancy quality: you can reference fields of the current
+/// object by prepending a '$' to the field name, e.g.
+///
+/// `#[count( $num_items - 1 )]`
 #[derive(Debug, Clone)]
-pub(crate) enum Count {
-    //Field(syn::Ident),
-    Literal(syn::LitInt),
-    All(syn::Path),
-    Expr(TokenTree),
-    //Function {
-    //fn_: syn::Path,
-    //args: Vec<syn::Ident>,
-    //},
+pub(crate) struct InlineExpr {
+    pub(crate) expr: syn::Expr,
+    pub(crate) referenced_fields: Vec<syn::Ident>,
 }
 
 #[derive(Debug, Clone)]
@@ -379,10 +392,12 @@ impl Parse for FieldAttrs {
             } else if ident == NO_GETTER {
                 this.no_getter = Some(attr.path);
             } else if ident == COUNT {
-                this.count = Some(attr.parse_args()?);
+                this.count = Some(parse_inline_expr(attr.tokens)?);
             } else if ident == AVAILABLE {
             } else if ident == COMPUTE_COUNT {
+                //this.comp
             } else if ident == LEN {
+                this.len = Some(parse_inline_expr(attr.tokens)?);
             } else if ident == FORMAT {
                 this.format = Some(FormatAttr {
                     kw: ident.clone(),
@@ -399,16 +414,30 @@ impl Parse for FieldAttrs {
     }
 }
 
-impl Parse for Count {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let fork = input.fork();
-        if let Ok(int) = fork.parse::<syn::LitInt>() {
-            if input.is_empty() {
-                return Ok(Count::Literal(int));
-            }
-        }
-        Ok(Count::Expr(input.parse()?))
+fn parse_inline_expr(tokens: TokenStream) -> syn::Result<InlineExpr> {
+    let s = tokens.to_string();
+    let mut idents = Vec::new();
+    let find_dollar_idents = regex::Regex::new(r#"(\$) (\w+)"#).unwrap();
+    for ident in find_dollar_idents.captures_iter(&s) {
+        let text = ident.get(2).unwrap().as_str();
+        let ident = syn::parse_str::<syn::Ident>(text)
+            .map_err(|_| syn::Error::new(tokens.span(), format!("invalid ident '{text}'")))?;
+        idents.push(ident);
     }
+    let expr: syn::Expr = if idents.is_empty() {
+        syn::parse2(tokens)
+    } else {
+        let new_source = find_dollar_idents.replace_all(&s, "__resolved_$2");
+        syn::parse_str(&new_source)
+    }?;
+
+    idents.sort_unstable();
+    idents.dedup();
+
+    Ok(InlineExpr {
+        expr,
+        referenced_fields: idents,
+    })
 }
 
 fn parse_attr_eq_value<T: Parse>(tokens: TokenStream) -> syn::Result<T> {
@@ -464,5 +493,42 @@ fn get_single_generic_type_arg(input: &syn::PathArguments) -> Option<syn::Path> 
             None
         }
         _ => None,
+    }
+}
+
+fn make_resolved_ident(ident: &syn::Ident) -> syn::Ident {
+    quote::format_ident!("__resolved_{}", ident)
+}
+
+#[cfg(test)]
+mod tests {
+    use std::str::FromStr;
+
+    use quote::ToTokens;
+
+    use super::*;
+
+    #[test]
+    fn parse_inline_expr_simple() {
+        let s = "div_me($hi * 5)";
+        let hmm = TokenStream::from_str(s).unwrap();
+        let inline = super::parse_inline_expr(hmm).unwrap();
+        assert_eq!(inline.referenced_fields.len(), 1);
+        assert_eq!(
+            inline.expr.into_token_stream().to_string(),
+            "div_me (__resolved_hi * 5)"
+        );
+    }
+
+    #[test]
+    fn parse_inline_expr_dedup() {
+        let s = "div_me($hi * 5 + $hi)";
+        let hmm = TokenStream::from_str(s).unwrap();
+        let inline = super::parse_inline_expr(hmm).unwrap();
+        assert_eq!(inline.referenced_fields.len(), 1);
+        assert_eq!(
+            inline.expr.into_token_stream().to_string(),
+            "div_me (__resolved_hi * 5 + __resolved_hi)"
+        );
     }
 }
