@@ -17,7 +17,7 @@ pub trait Scalar {
 }
 
 pub trait ReadScalar: Sized {
-    const SIZE: usize;
+    const RAW_BYTE_LEN: usize;
     fn read(bytes: &[u8]) -> Option<Self>;
 }
 
@@ -72,11 +72,11 @@ macro_rules! newtype_scalar {
         }
 
         impl crate::raw::ReadScalar for $name {
-            const SIZE: usize = std::mem::size_of::<$raw>();
+            const RAW_BYTE_LEN: usize = std::mem::size_of::<$raw>();
             #[inline]
             fn read(bytes: &[u8]) -> Option<Self> {
                 bytes
-                    .get(..Self::SIZE)
+                    .get(..Self::RAW_BYTE_LEN)
                     .map(|bytes| crate::raw::Scalar::from_raw(bytes.try_into().unwrap()))
             }
         }
@@ -97,11 +97,11 @@ macro_rules! int_scalar {
         }
 
         impl crate::raw::ReadScalar for $ty {
-            const SIZE: usize = std::mem::size_of::<$raw>();
+            const RAW_BYTE_LEN: usize = std::mem::size_of::<$raw>();
             #[inline]
             fn read(bytes: &[u8]) -> Option<Self> {
                 bytes
-                    .get(..Self::SIZE)
+                    .get(..Self::RAW_BYTE_LEN)
                     .map(|bytes| crate::raw::Scalar::from_raw(bytes.try_into().unwrap()))
             }
         }

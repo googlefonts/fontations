@@ -6,7 +6,7 @@ use crate::parse2::{FontData, FontRead, Format, ReadError, TableInfo, TableRef};
 use crate::tables::gpos::ValueFormat;
 
 impl ReadScalar for ValueFormat {
-    const SIZE: usize = 2;
+    const RAW_BYTE_LEN: usize = 2;
 
     fn read(bytes: &[u8]) -> Option<Self> {
         ReadScalar::read(bytes).and_then(Self::from_bits)
@@ -111,14 +111,6 @@ impl Format<u16> for Cmap4 {
     const FORMAT: u16 = 4;
 }
 
-#[derive(Debug, Clone, Copy)]
-struct Cmap4Shape {
-    start_code: u32,
-    id_delta: u32,
-    id_range_offsets: u32,
-    glyph_id_array: u32,
-}
-
 impl TableInfo for Cmap4 {
     type Info = Cmap4Shape;
 
@@ -135,52 +127,78 @@ impl TableInfo for Cmap4 {
         cursor.advance::<u16>(); // search_range
         cursor.advance::<u16>(); // entry_selector
         cursor.advance::<u16>(); // range_shift
-        cursor.advance_by(seg_count_x2 as usize);
+        let end_code_byte_len = seg_count_x2 as usize;
+        cursor.advance_by(end_code_byte_len);
         cursor.advance::<u16>(); // reserved_pad
-        let start_code = cursor.position()?;
-        cursor.advance_by(seg_count_x2 as usize);
-        let id_delta = cursor.position()?;
-        cursor.advance_by(seg_count_x2 as usize);
-        let id_range_offsets = cursor.position()?;
-        cursor.advance_by(seg_count_x2 as usize);
+                                 //let start_code = cursor.position()?;
+        let start_code_byte_len = seg_count_x2 as usize;
+        cursor.advance_by(start_code_byte_len);
+        let id_delta_byte_len = seg_count_x2 as usize;
+        cursor.advance_by(id_delta_byte_len);
+        let id_range_offsets_byte_len = seg_count_x2 as usize;
+        cursor.advance_by(id_range_offsets_byte_len);
         let glyph_id_array = cursor.position()?;
         cursor.finish(Cmap4Shape {
-            start_code,
-            id_delta,
-            id_range_offsets,
-            glyph_id_array,
+            end_code_byte_len,
+            start_code_byte_len,
+            id_delta_byte_len,
+            id_range_offsets_byte_len,
         })
     }
 }
 
+#[derive(Debug, Clone, Copy)]
+struct Cmap4Shape {
+    end_code_byte_len: usize,
+    start_code_byte_len: usize,
+    id_delta_byte_len: usize,
+    id_range_offsets_byte_len: usize,
+    //glyph_id_array_byte_len: usize,
+}
+
 impl Cmap4Shape {
-    fn format(&self) -> usize {
-        0
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
     }
 
-    fn length(&self) -> usize {
-        self.format() + u16::SIZE
+    fn length_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
     }
 
-    fn seg_count_x2(&self) -> usize {
-        self.length() + u16::SIZE
+    fn seg_count_x2_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
     }
 
     // etc etc
+    fn range_shift_byte_range(&self) -> Range<usize> {
+        let start = self.seg_count_x2_byte_range().end + 6;
+        start..start + u16::RAW_BYTE_LEN
+    }
 
-    fn start_code(&self) -> Range<usize> {
-        self.start_code as usize..self.id_delta as usize
+    fn end_code_byte_range(&self) -> Range<usize> {
+        let start = self.range_shift_byte_range().end;
+        start..start + self.end_code_byte_len
+    }
+
+    fn reserved_pad_byte_range(&self) -> Range<usize> {
+        let start = self.end_code_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
     }
 }
 
 impl<'a> TableRef<'a, Cmap4> {
     fn format(&self) -> u16 {
-        self.data.read_at(self.shape.format()).unwrap_or_default()
+        self.data
+            .read_at(self.shape.format_byte_range().start)
+            .unwrap_or_default()
     }
 
-    fn start_code(&self) -> &'a [BigEndian<u16>] {
+    fn end_code_byte_range(&self) -> &'a [BigEndian<u16>] {
         self.data
-            .read_array(self.shape.start_code())
+            .read_array(self.shape.end_code_byte_range())
             .unwrap_or_default()
     }
 }
@@ -192,12 +210,16 @@ struct GdefShape {
 }
 
 impl GdefShape {
+    const VERSION_BYTE_OFFSET: usize = 0;
+}
+
+impl GdefShape {
     fn major_version(&self) -> usize {
         0
     }
 
     fn minor_version(&self) -> usize {
-        self.major_version() + u16::SIZE
+        self.major_version() + u16::RAW_BYTE_LEN
     }
 
     fn mark_glyph_sets_def_offset(&self) -> Option<usize> {

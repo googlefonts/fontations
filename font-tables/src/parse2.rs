@@ -33,7 +33,7 @@ pub struct FontData<'a> {
 /// # Note
 ///
 /// call `finish` when you're done to ensure you're in bounds
-pub(crate) struct Cursor<'a> {
+pub struct Cursor<'a> {
     pos: usize,
     data: FontData<'a>,
 }
@@ -133,7 +133,7 @@ fn aligned_to(bytes: &[u8], align: usize) -> bool {
 
 impl<'a> Cursor<'a> {
     pub(crate) fn advance<T: ReadScalar>(&mut self) {
-        self.pos += T::SIZE
+        self.pos += T::RAW_BYTE_LEN
     }
 
     pub(crate) fn advance_by(&mut self, n_bytes: usize) {
@@ -142,7 +142,7 @@ impl<'a> Cursor<'a> {
 
     pub(crate) fn read<T: ReadScalar>(&mut self) -> Result<T, ReadError> {
         let temp = self.data.read_at(self.pos);
-        self.pos += T::SIZE;
+        self.pos += T::RAW_BYTE_LEN;
         temp
     }
 
