@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use font_types::{BigEndian, Offset16, ReadScalar};
+use font_types::{BigEndian, MajorMinor, Offset16, ReadScalar};
 
 use crate::parse2::{FontData, FontRead, Format, ReadError, TableInfo, TableRef};
 use crate::tables::gpos::ValueFormat;
@@ -116,8 +116,8 @@ impl TableInfo for Cmap4 {
 
     fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
-        let _format: u16 = cursor.read_validate(|format| {
-            format == &Self::FORMAT
+        let _format: u16 = cursor.read_validate(|value| {
+            value == &Self::FORMAT
             //.then_some(format)
             //.ok_or(ReadError::InvalidFormat)
         })?;
@@ -206,12 +206,10 @@ impl<'a> TableRef<'a, Cmap4> {
 struct Gdef;
 #[derive(Debug, Clone, Copy)]
 struct GdefShape {
-    mark_glyph_sets_def_offset: Option<usize>,
+    mark_glyph_sets_def_byte_start: Option<usize>,
 }
 
-impl GdefShape {
-    const VERSION_BYTE_OFFSET: usize = 0;
-}
+impl GdefShape {}
 
 impl GdefShape {
     fn major_version(&self) -> usize {
@@ -224,7 +222,7 @@ impl GdefShape {
 
     fn mark_glyph_sets_def_offset(&self) -> Option<usize> {
         // just pretend
-        self.mark_glyph_sets_def_offset
+        self.mark_glyph_sets_def_byte_start
     }
 }
 
@@ -233,17 +231,25 @@ impl TableInfo for Gdef {
 
     fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
-        let _major_version = cursor.read_validate(|major_version: &u16| major_version == &1)?;
-        let minor_version = cursor.read::<u16>()?;
-        let mark_glyph_sets_def_offset = if minor_version >= 1 {
-            Some(cursor.position()? as usize)
-        } else {
-            None
-        };
+        //let _major_version = cursor.read_validate(|major_version: &u16| major_version == &1)?;
+        //let minor_version = cursor.read::<u16>()?;
+        let version: MajorMinor = cursor.read()?;
+        let mark_glyph_sets_def_byte_start = version
+            .compatible(MajorMinor::VERSION_1_1)
+            .then(|| cursor.position())
+            .transpose()?;
+        // let's pretend this is an array:
+
+        let mark_glyph_sets_def_byte_len = version
+            .compatible(MajorMinor::VERSION_1_1)
+            .then(|| 1usize + 1);
+
+        mark_glyph_sets_def_byte_len.map(|value| cursor.advance_by(value));
+
         cursor.advance::<Offset16>();
 
         cursor.finish(GdefShape {
-            mark_glyph_sets_def_offset,
+            mark_glyph_sets_def_byte_start,
         })
     }
 }

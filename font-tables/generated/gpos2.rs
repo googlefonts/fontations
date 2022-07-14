@@ -9,7 +9,9 @@ use crate::parse_prelude::*;
 pub struct Gpos;
 
 #[derive(Debug, Clone, Copy)]
-pub struct GposShape {}
+pub struct GposShape {
+    feature_variations_offset_byte_start: Option<usize>,
+}
 
 impl GposShape {
     fn version_byte_range(&self) -> Range<usize> {
@@ -28,9 +30,30 @@ impl GposShape {
         let start = self.feature_list_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
-    fn feature_variations_offset_byte_range(&self) -> Range<usize> {
-        let start = self.lookup_list_offset_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
+    fn feature_variations_offset_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.feature_variations_offset_byte_start?;
+        Some(start..start + Offset32::RAW_BYTE_LEN)
+    }
+}
+
+impl TableInfo for Gpos {
+    type Info = GposShape;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let version: MajorMinor = cursor.read()?;
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        let feature_variations_offset_byte_start = version
+            .compatible(MajorMinor::VERSION_1_1)
+            .then(|| cursor.position())
+            .transpose()?;
+        version
+            .compatible(MajorMinor::VERSION_1_1)
+            .then(|| cursor.advance::<Offset32>());
+        cursor.finish(GposShape {
+            feature_variations_offset_byte_start,
+        })
     }
 }
 
@@ -52,6 +75,17 @@ impl AnchorFormat1Shape {
     fn y_coordinate_byte_range(&self) -> Range<usize> {
         let start = self.x_coordinate_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
+    }
+}
+
+impl TableInfo for AnchorFormat1 {
+    type Info = AnchorFormat1Shape;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let anchor_format: u16 = cursor.read()?;
+        cursor.advance::<i16>();
+        cursor.advance::<i16>();
+        cursor.finish(AnchorFormat1Shape {})
     }
 }
 
@@ -77,6 +111,18 @@ impl AnchorFormat2Shape {
     fn anchor_point_byte_range(&self) -> Range<usize> {
         let start = self.y_coordinate_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
+    }
+}
+
+impl TableInfo for AnchorFormat2 {
+    type Info = AnchorFormat2Shape;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let anchor_format: u16 = cursor.read()?;
+        cursor.advance::<i16>();
+        cursor.advance::<i16>();
+        cursor.advance::<u16>();
+        cursor.finish(AnchorFormat2Shape {})
     }
 }
 
@@ -109,6 +155,19 @@ impl AnchorFormat3Shape {
     }
 }
 
+impl TableInfo for AnchorFormat3 {
+    type Info = AnchorFormat3Shape;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let anchor_format: u16 = cursor.read()?;
+        cursor.advance::<i16>();
+        cursor.advance::<i16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        cursor.finish(AnchorFormat3Shape {})
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct MarkArray;
 
@@ -128,6 +187,19 @@ impl MarkArrayShape {
     }
 }
 
+impl TableInfo for MarkArray {
+    type Info = MarkArrayShape;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let mark_count: u16 = cursor.read()?;
+        let mark_records_byte_len = (mark_count) as usize * MarkRecord::RAW_BYTE_LEN;
+        cursor.advance_by(mark_records_byte_len);
+        cursor.finish(MarkArrayShape {
+            mark_records_byte_len,
+        })
+    }
+}
+
 #[derive(Clone, Debug)]
 #[repr(C)]
 #[repr(packed)]
@@ -136,6 +208,14 @@ pub struct MarkRecord {
     pub mark_class: BigEndian<u16>,
     /// Offset to Anchor table, from beginning of MarkArray table.
     pub mark_anchor_offset: BigEndian<Offset16>,
+}
+
+impl ReadScalar for MarkRecord {
+    const RAW_BYTE_LEN: usize =
+        std::mem::size_of::<BigEndian<u16>>() + std::mem::size_of::<BigEndian<Offset16>>();
+    fn read(bytes: &[u8]) -> Option<Self> {
+        todo!()
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -162,6 +242,21 @@ impl SinglePosFormat1Shape {
     fn value_record_byte_range(&self) -> Range<usize> {
         let start = self.value_format_byte_range().end;
         start..start + self.value_record_byte_len
+    }
+}
+
+impl TableInfo for SinglePosFormat1 {
+    type Info = SinglePosFormat1Shape;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let pos_format: u16 = cursor.read()?;
+        cursor.advance::<Offset16>();
+        let value_format: ValueFormat = cursor.read()?;
+        let value_record_byte_len = (value_format.record_byte_len());
+        cursor.advance_by(value_record_byte_len);
+        cursor.finish(SinglePosFormat1Shape {
+            value_record_byte_len,
+        })
     }
 }
 
@@ -193,5 +288,21 @@ impl SinglePosFormat2Shape {
     fn value_records_byte_range(&self) -> Range<usize> {
         let start = self.value_count_byte_range().end;
         start..start + self.value_records_byte_len
+    }
+}
+
+impl TableInfo for SinglePosFormat2 {
+    type Info = SinglePosFormat2Shape;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let pos_format: u16 = cursor.read()?;
+        cursor.advance::<Offset16>();
+        let value_format: ValueFormat = cursor.read()?;
+        let value_count: u16 = cursor.read()?;
+        let value_records_byte_len = (value_count as usize * value_format.record_byte_len());
+        cursor.advance_by(value_records_byte_len);
+        cursor.finish(SinglePosFormat2Shape {
+            value_records_byte_len,
+        })
     }
 }

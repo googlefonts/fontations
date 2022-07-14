@@ -105,7 +105,7 @@ table MarkArray {
     mark_count: BigEndian<u16>,
     /// Array of MarkRecords, ordered by corresponding glyphs in the
     /// associated mark Coverage table.
-    #[count(mark_count)]
+    #[count($mark_count)]
     mark_records: [MarkRecord],
 }
 

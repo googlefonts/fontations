@@ -70,6 +70,11 @@ impl MajorMinor {
     pub const fn new(major: u16, minor: u16) -> Self {
         MajorMinor(major, minor)
     }
+
+    /// `true` if major == major, and self.minor is >= other.minor
+    pub const fn compatible(self, other: MajorMinor) -> bool {
+        self.0 == other.0 && self.1 >= other.1
+    }
 }
 
 impl crate::Scalar for MajorMinor {

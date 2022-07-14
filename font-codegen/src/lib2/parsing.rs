@@ -1,5 +1,7 @@
 //! raw parsing code
 
+use std::collections::HashSet;
+
 use proc_macro2::{TokenStream, TokenTree};
 use quote::{quote, ToTokens};
 use syn::{
@@ -55,7 +57,7 @@ pub(crate) struct Variant {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Fields {
-    pub(crate) fields: Vec<Field>,
+    fields: Vec<Field>,
 }
 
 #[derive(Debug, Clone)]
@@ -64,6 +66,12 @@ pub(crate) struct Field {
     pub(crate) attrs: FieldAttrs,
     pub(crate) name: syn::Ident,
     pub(crate) typ: FieldType,
+    /// `true` if this field is required to be read in order to parse subsequent
+    /// fields.
+    ///
+    /// For instance: in a versioned table, the version must be read to determine
+    /// whether to expect version-dependent fields.
+    read_at_parse_time: bool,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -113,7 +121,7 @@ pub(crate) struct InlineExpr {
 pub enum FieldType {
     Offset { typ: syn::Ident },
     Scalar { typ: syn::Ident },
-    Other { typ: syn::Path },
+    Other { typ: syn::Ident },
     Array { inner_typ: Box<FieldType> },
 }
 
@@ -144,6 +152,22 @@ pub(crate) struct BitFlags {
 }
 
 impl Fields {
+    fn new(mut fields: Vec<Field>) -> syn::Result<Self> {
+        let referenced_fields = fields
+            .iter()
+            .flat_map(Field::input_fields)
+            .cloned()
+            .collect::<HashSet<_>>();
+
+        for field in fields.iter_mut() {
+            field.read_at_parse_time = field.attrs.format.is_some()
+                || field.attrs.version.is_some()
+                || referenced_fields.contains(&field.name);
+        }
+
+        Ok(Fields { fields })
+    }
+
     pub(crate) fn iter(&self) -> impl Iterator<Item = &Field> {
         self.fields.iter()
     }
@@ -179,6 +203,16 @@ impl Field {
         self.attrs.len.is_some() || self.attrs.count.is_some()
     }
 
+    fn is_version_dependent(&self) -> bool {
+        self.attrs.available.is_some()
+    }
+
+    fn validate_at_parse(&self) -> bool {
+        false
+        //FIXME: validate fields?
+        //self.attrs.format.is_some()
+    }
+
     fn len_expr(&self) -> TokenStream {
         // is this a scalar/offset? then it's just 'RAW_BYTE_LEN'
         // is this computed? then it is stored
@@ -190,6 +224,106 @@ impl Field {
                 let len_field = self.shape_byte_len_field_name();
                 quote!(self.#len_field)
             }
+        }
+    }
+
+    /// iterate other named fields that are used as in input to a calculation
+    /// done when parsing this field.
+    fn input_fields(&self) -> impl Iterator<Item = &syn::Ident> {
+        self.attrs
+            .count
+            .as_ref()
+            .into_iter()
+            .flat_map(|expr| expr.referenced_fields.iter())
+            .chain(
+                self.attrs
+                    .len
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(|expr| expr.referenced_fields.iter()),
+            )
+    }
+
+    /// the code generated for this field to validate data at parse time.
+    fn field_parse_validation_stmts(&self) -> TokenStream {
+        let name = &self.name;
+        // handle the trivial case
+        if !self.read_at_parse_time
+            && !self.has_computed_len()
+            && !self.validate_at_parse()
+            && !self.is_version_dependent()
+        {
+            let typ = self.typ.cooked_type_tokens();
+            return quote!( cursor.advance::<#typ>(); );
+        }
+
+        let versioned_field_start = self.attrs.available.as_ref().map(|available|{
+            let field_start_name = self.shape_byte_start_field_name();
+            quote! ( let #field_start_name = version.compatible(#available).then(|| cursor.position()).transpose()?; )
+        });
+
+        let other_stuff = if self.has_computed_len() {
+            assert!(!self.read_at_parse_time, "i did not expect this to happen");
+            let len_field_name = self.shape_byte_len_field_name();
+            let len_expr = if let Some(expr) = &self.attrs.len {
+                expr.expr.to_token_stream()
+            } else {
+                let count_expr = &self
+                    .attrs
+                    .count
+                    .as_ref()
+                    .expect("must have one of count or len")
+                    .expr;
+                let inner_type = self.typ.inner_type().expect("only arrays have count attr");
+                quote! ( (#count_expr) as usize * #inner_type::RAW_BYTE_LEN )
+            };
+
+            match &self.attrs.available {
+                Some(version) => quote! {
+                    let #len_field_name = version.compatible(#version).then(|| #len_expr);
+                    #len_field_name.map(|value| cursor.advance_by(value));
+                },
+                None => quote! {
+                    let #len_field_name = #len_expr;
+                    cursor.advance_by(#len_field_name);
+                },
+            }
+        } else if self.read_at_parse_time {
+            assert!(!self.is_version_dependent(), "does this happen?");
+            let typ = self.typ.cooked_type_tokens();
+            quote! ( let #name: #typ = cursor.read()?; )
+        } else if let Some(available) = &self.attrs.available {
+            assert!(!self.is_array());
+            let typ = self.typ.cooked_type_tokens();
+            quote! {
+            version.compatible(#available).then(|| cursor.advance::<#typ>());
+            }
+        } else {
+            panic!("who wrote this garbage anyway?");
+        };
+
+        quote! {
+            #versioned_field_start
+            #other_stuff
+        }
+    }
+}
+
+impl FieldType {
+    /// 'cooked', as in now 'raw', i.e no 'BigEndian' wrapper
+    pub(crate) fn cooked_type_tokens(&self) -> &syn::Ident {
+        match &self {
+            FieldType::Offset { typ } | FieldType::Scalar { typ } | FieldType::Other { typ } => typ,
+
+            FieldType::Array { .. } => panic!("array tokens never cooked"),
+        }
+    }
+
+    fn inner_type(&self) -> Option<&syn::Ident> {
+        if let FieldType::Array { inner_typ } = &self {
+            Some(inner_typ.cooked_type_tokens())
+        } else {
+            None
         }
     }
 }
@@ -207,6 +341,21 @@ impl Table {
             let field = iter.next()?;
             let fn_name = field.shape_byte_range_fn_name();
             let len_expr = field.len_expr();
+
+            // versioned fields have a different signature
+            if field.attrs.available.is_some() {
+                prev_field_end_expr = quote!(compile_error!(
+                    "non-version dependent field cannot follow version-dependent field"
+                ));
+                let start_field_name = field.shape_byte_start_field_name();
+                return Some(quote! {
+                    fn #fn_name(&self) -> Option<Range<usize>> {
+                        let start = self.#start_field_name?;
+                        Some(start..start + #len_expr)
+                    }
+                });
+            }
+
             let result = quote! {
                 fn #fn_name(&self) -> Range<usize> {
                     let start = #prev_field_end_expr;
@@ -220,6 +369,18 @@ impl Table {
     }
 
     pub(crate) fn iter_shape_fields(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        self.iter_shape_field_names_and_types()
+            .map(|(ident, typ)| quote!( #ident: #typ ))
+    }
+
+    pub(crate) fn iter_shape_field_names(&self) -> impl Iterator<Item = syn::Ident> + '_ {
+        self.iter_shape_field_names_and_types()
+            .map(|(name, _)| name)
+    }
+
+    pub(crate) fn iter_shape_field_names_and_types(
+        &self,
+    ) -> impl Iterator<Item = (syn::Ident, TokenStream)> + '_ {
         let mut iter = self.fields.iter();
         let mut return_me = None;
 
@@ -230,23 +391,28 @@ impl Table {
             }
 
             let next = iter.next()?;
+            //dbg!(&next.name);
             let is_versioned = next.attrs.available.is_some();
             let has_computed_len = next.has_computed_len();
+            eprintln!(
+                "{}: is_versioned {is_versioned}, computed_len {has_computed_len}",
+                &next.name
+            );
             if !(is_versioned || has_computed_len) {
                 continue;
             }
 
             let start_field = is_versioned.then(|| {
                 let field_name = next.shape_byte_start_field_name();
-                quote!( #field_name : Option<usize> )
+                (field_name, quote!(Option<usize>))
             });
 
             let len_field = has_computed_len.then(|| {
                 let field_name = next.shape_byte_len_field_name();
                 if is_versioned {
-                    quote!( #field_name : Option<usize> )
+                    (field_name, quote!(Option<usize>))
                 } else {
-                    quote!( #field_name : usize )
+                    (field_name, quote!(usize))
                 }
             });
             if start_field.is_some() {
@@ -256,6 +422,10 @@ impl Table {
                 return len_field;
             }
         })
+    }
+
+    pub(crate) fn iter_field_validation_stmts(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        self.fields.iter().map(Field::field_parse_validation_stmts)
     }
 }
 
@@ -402,7 +572,7 @@ impl Parse for Fields {
         let fields = Punctuated::<Field, Token![,]>::parse_terminated(&content)?
             .into_iter()
             .collect();
-        Ok(Self { fields })
+        Self::new(fields)
     }
 }
 
@@ -413,7 +583,13 @@ impl Parse for Field {
         let name = input.parse::<syn::Ident>()?;
         let _ = input.parse::<Token![:]>()?;
         let typ = input.parse()?;
-        Ok(Field { attrs, name, typ })
+        Ok(Field {
+            attrs,
+            name,
+            typ,
+            // computed later
+            read_at_parse_time: false,
+        })
     }
 }
 
@@ -435,7 +611,9 @@ impl Parse for FieldType {
         let path = input.parse::<syn::Path>()?;
         let last = path.segments.last().expect("do zero-length paths exist?");
         if last.ident != "BigEndian" {
-            return Ok(FieldType::Other { typ: path.clone() });
+            return Ok(FieldType::Other {
+                typ: last.ident.clone(),
+            });
         }
 
         let inner = get_single_generic_type_arg(&last.arguments).ok_or_else(|| {
@@ -508,6 +686,7 @@ impl Parse for FieldAttrs {
             } else if ident == COUNT {
                 this.count = Some(parse_inline_expr(attr.tokens)?);
             } else if ident == AVAILABLE {
+                this.available = Some(attr.parse_args()?);
             } else if ident == COMPUTE_COUNT {
                 //this.comp
             } else if ident == LEN {
@@ -541,7 +720,7 @@ fn parse_inline_expr(tokens: TokenStream) -> syn::Result<InlineExpr> {
     let expr: syn::Expr = if idents.is_empty() {
         syn::parse2(tokens)
     } else {
-        let new_source = find_dollar_idents.replace_all(&s, "__resolved_$2");
+        let new_source = find_dollar_idents.replace_all(&s, "$2");
         syn::parse_str(&new_source)
     }?;
 
@@ -610,9 +789,9 @@ fn get_single_generic_type_arg(input: &syn::PathArguments) -> Option<syn::Path> 
     }
 }
 
-fn make_resolved_ident(ident: &syn::Ident) -> syn::Ident {
-    quote::format_ident!("__resolved_{}", ident)
-}
+//fn make_resolved_ident(ident: &syn::Ident) -> syn::Ident {
+//quote::format_ident!("__resolved_{}", ident)
+//}
 
 #[cfg(test)]
 mod tests {
@@ -630,7 +809,7 @@ mod tests {
         assert_eq!(inline.referenced_fields.len(), 1);
         assert_eq!(
             inline.expr.into_token_stream().to_string(),
-            "div_me (__resolved_hi * 5)"
+            "div_me (hi * 5)"
         );
     }
 
@@ -642,7 +821,7 @@ mod tests {
         assert_eq!(inline.referenced_fields.len(), 1);
         assert_eq!(
             inline.expr.into_token_stream().to_string(),
-            "div_me (__resolved_hi * 5 + __resolved_hi)"
+            "div_me (hi * 5 + hi)"
         );
     }
 }

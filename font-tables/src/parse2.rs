@@ -171,8 +171,8 @@ impl<'a> Cursor<'a> {
     //}
 
     /// return the current position, or an error if we are out of bounds
-    pub(crate) fn position(&self) -> Result<u32, ReadError> {
-        self.data.check_in_bounds(self.pos).map(|_| self.pos as u32)
+    pub(crate) fn position(&self) -> Result<usize, ReadError> {
+        self.data.check_in_bounds(self.pos).map(|_| self.pos)
     }
 
     pub(crate) fn finish<T: TableInfo>(self, shape: T::Info) -> Result<TableRef<'a, T>, ReadError> {
