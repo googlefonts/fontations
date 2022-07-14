@@ -4,6 +4,8 @@ pub mod cmap;
 pub mod gdef;
 pub mod glyf;
 pub mod gpos;
+#[path = "../generated/gpos2.rs"]
+mod gpos2;
 pub mod head;
 pub mod hhea;
 pub mod hmtx;

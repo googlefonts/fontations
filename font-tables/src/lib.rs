@@ -28,6 +28,16 @@ pub mod hex_diff;
 
 include!("../generated/generated_font_parse.rs");
 
+/// types used in generated parsing code
+pub mod parse_prelude {
+    pub use crate::parse2::{Cursor, FontData, Format, ReadError, TableInfo, TableRef};
+    pub use font_types::*;
+    pub use std::ops::Range;
+
+    //temp, until we impl valueformat
+    pub type ValueFormat = u16;
+}
+
 /// A temporary type for accessing tables
 pub struct FontRef<'a> {
     data: &'a [u8],

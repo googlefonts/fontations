@@ -8,6 +8,7 @@
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 table Gpos {
     /// The major and minor version of the GPOS table, as a tuple (u16, u16)
+    #[version]
     version: BigEndian<MajorMinor>,
     /// Offset to ScriptList table, from beginning of GPOS table
     script_list_offset: BigEndian<Offset16<ScriptList>>,
@@ -21,7 +22,6 @@ table Gpos {
 }
 
 /// See [ValueRecord]
-//#[flags(u16)]
 flags u16 ValueFormat {
     /// Includes horizontal adjustment for placement
     X_PLACEMENT = 0x0001,
@@ -101,7 +101,7 @@ table AnchorFormat3 {
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
 table MarkArray {
     /// Number of MarkRecords
-    #[compute_count(mark_records)]
+    //#[compute_count(mark_records)]
     mark_count: BigEndian<u16>,
     /// Array of MarkRecords, ordered by corresponding glyphs in the
     /// associated mark Coverage table.

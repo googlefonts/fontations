@@ -1,7 +1,7 @@
 //! raw parsing code
 
 use proc_macro2::{TokenStream, TokenTree};
-use quote::quote;
+use quote::{quote, ToTokens};
 use syn::{
     braced, bracketed, parenthesized,
     parse::{Parse, ParseStream},
@@ -156,6 +156,107 @@ impl Field {
             _ => panic!("arrays and custom types not supported in records"),
         }
     }
+
+    pub(crate) fn shape_byte_range_fn_name(&self) -> syn::Ident {
+        quote::format_ident!("{}_byte_range", &self.name)
+    }
+
+    fn shape_byte_len_field_name(&self) -> syn::Ident {
+        quote::format_ident!("{}_byte_len", &self.name)
+    }
+
+    fn shape_byte_start_field_name(&self) -> syn::Ident {
+        // used when fields are optional
+        quote::format_ident!("{}_byte_start", &self.name)
+    }
+
+    #[allow(dead_code)]
+    fn is_array(&self) -> bool {
+        matches!(&self.typ, FieldType::Array { .. })
+    }
+
+    fn has_computed_len(&self) -> bool {
+        self.attrs.len.is_some() || self.attrs.count.is_some()
+    }
+
+    fn len_expr(&self) -> TokenStream {
+        // is this a scalar/offset? then it's just 'RAW_BYTE_LEN'
+        // is this computed? then it is stored
+        match &self.typ {
+            FieldType::Offset { typ } | FieldType::Scalar { typ } => {
+                quote!(#typ::RAW_BYTE_LEN)
+            }
+            FieldType::Other { .. } | FieldType::Array { .. } => {
+                let len_field = self.shape_byte_len_field_name();
+                quote!(self.#len_field)
+            }
+        }
+    }
+}
+
+impl Table {
+    pub(crate) fn shape_name(&self) -> syn::Ident {
+        quote::format_ident!("{}Shape", &self.name)
+    }
+
+    pub(crate) fn iter_shape_byte_fns(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        let mut prev_field_end_expr = quote!(0);
+        let mut iter = self.fields.iter();
+
+        std::iter::from_fn(move || {
+            let field = iter.next()?;
+            let fn_name = field.shape_byte_range_fn_name();
+            let len_expr = field.len_expr();
+            let result = quote! {
+                fn #fn_name(&self) -> Range<usize> {
+                    let start = #prev_field_end_expr;
+                    start..start + #len_expr
+                }
+            };
+            prev_field_end_expr = quote!( self.#fn_name().end );
+
+            Some(result)
+        })
+    }
+
+    pub(crate) fn iter_shape_fields(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        let mut iter = self.fields.iter();
+        let mut return_me = None;
+
+        // a given field can have 0, 1, or 2 shape fields.
+        std::iter::from_fn(move || loop {
+            if let Some(thing) = return_me.take() {
+                return Some(thing);
+            }
+
+            let next = iter.next()?;
+            let is_versioned = next.attrs.available.is_some();
+            let has_computed_len = next.has_computed_len();
+            if !(is_versioned || has_computed_len) {
+                continue;
+            }
+
+            let start_field = is_versioned.then(|| {
+                let field_name = next.shape_byte_start_field_name();
+                quote!( #field_name : Option<usize> )
+            });
+
+            let len_field = has_computed_len.then(|| {
+                let field_name = next.shape_byte_len_field_name();
+                if is_versioned {
+                    quote!( #field_name : Option<usize> )
+                } else {
+                    quote!( #field_name : usize )
+                }
+            });
+            if start_field.is_some() {
+                return_me = len_field;
+                return start_field;
+            } else {
+                return len_field;
+            }
+        })
+    }
 }
 
 mod kw {
@@ -163,7 +264,6 @@ mod kw {
     syn::custom_keyword!(record);
     syn::custom_keyword!(flags);
     syn::custom_keyword!(format);
-    syn::custom_keyword!(all);
 }
 
 impl Parse for Items {

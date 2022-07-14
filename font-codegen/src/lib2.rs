@@ -11,7 +11,7 @@ pub fn generate_parse_module(code: &str) -> Result<proc_macro2::TokenStream, syn
     for item in &items.items {
         let item_code = match item {
             Item::Record(item) => record::generate(item)?,
-            //Item::Table(item) => table::generate(item)?,
+            Item::Table(item) => table::generate(item)?,
             //Item::Format(item) => todo!(),
             //Item::RawEnum(item) => todo!(),
             //Item::Flags(item) => todo!(),
@@ -24,7 +24,7 @@ pub fn generate_parse_module(code: &str) -> Result<proc_macro2::TokenStream, syn
     Ok(quote! {
         //#(#use_stmts)*
         #[allow(unused_imports)]
-        use font_types::*;
+        use crate::parse_prelude::*;
         #(#code)*
     })
 }
