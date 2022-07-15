@@ -4,8 +4,6 @@ pub mod cmap;
 pub mod gdef;
 pub mod glyf;
 pub mod gpos;
-#[path = "../generated/gpos2.rs"]
-mod gpos2;
 pub mod head;
 pub mod hhea;
 pub mod hmtx;
@@ -74,4 +72,17 @@ pub trait TableProvider {
     fn gpos(&self) -> Option<gpos::Gpos> {
         self.data_for_tag(gpos::TAG).and_then(FontRead::read)
     }
+}
+
+pub mod test_gpos2 {
+
+    impl ValueFormat {
+        /// Return the number of bytes required to store a [`ValueRecord`] in this format.
+        #[inline]
+        pub fn record_byte_len(self) -> usize {
+            self.bits().count_ones() as usize * u16::RAW_BYTE_LEN
+        }
+    }
+
+    include!("../generated/gpos2.rs");
 }

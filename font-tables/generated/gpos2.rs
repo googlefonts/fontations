@@ -84,6 +84,26 @@ impl<'a> TableRef<'a, Gpos> {
     }
 }
 
+bitflags::bitflags! { # [doc = " See [ValueRecord]"] pub struct ValueFormat : u16 { # [doc = " Includes horizontal adjustment for placement"] const X_PLACEMENT = 0x0001 ; # [doc = " Includes vertical adjustment for placement"] const Y_PLACEMENT = 0x0002 ; # [doc = " Includes horizontal adjustment for advance"] const X_ADVANCE = 0x0004 ; # [doc = " Includes vertical adjustment for advance"] const Y_ADVANCE = 0x0008 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal placement"] const X_PLACEMENT_DEVICE = 0x0010 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical placement"] const Y_PLACEMENT_DEVICE = 0x0020 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal advance"] const X_ADVANCE_DEVICE = 0x0040 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical advance"] const Y_ADVANCE_DEVICE = 0x0080 ; } }
+
+impl font_types::Scalar for ValueFormat {
+    type Raw = <u16 as font_types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        self.bits().to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u16>::from_raw(raw);
+        Self::from_bits_truncate(t)
+    }
+}
+
+impl ReadScalar for ValueFormat {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+    fn read(bytes: &[u8]) -> Option<Self> {
+        u16::read(bytes).map(Self::from_bits_truncate)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct AnchorFormat1;
 
@@ -357,7 +377,7 @@ impl TableInfo for SinglePosFormat1 {
         let pos_format: u16 = cursor.read()?;
         cursor.advance::<Offset16>();
         let value_format: ValueFormat = cursor.read()?;
-        let value_record_byte_len = 2;
+        let value_record_byte_len = (value_format.record_byte_len());
         cursor.advance_by(value_record_byte_len);
         cursor.finish(SinglePosFormat1Shape {
             value_record_byte_len,
@@ -421,7 +441,7 @@ impl TableInfo for SinglePosFormat2 {
         cursor.advance::<Offset16>();
         let value_format: ValueFormat = cursor.read()?;
         let value_count: u16 = cursor.read()?;
-        let value_records_byte_len = (value_count as usize * value_format as usize);
+        let value_records_byte_len = (value_count as usize * value_format.record_byte_len());
         cursor.advance_by(value_records_byte_len);
         cursor.finish(SinglePosFormat2Shape {
             value_records_byte_len,

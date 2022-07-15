@@ -1,3 +1,4 @@
+mod flags_enums;
 mod parsing;
 mod record;
 mod table;
@@ -13,8 +14,8 @@ pub fn generate_parse_module(code: &str) -> Result<proc_macro2::TokenStream, syn
             Item::Record(item) => record::generate(item)?,
             Item::Table(item) => table::generate(item)?,
             //Item::Format(item) => todo!(),
-            //Item::RawEnum(item) => todo!(),
-            //Item::Flags(item) => todo!(),
+            Item::RawEnum(item) => flags_enums::generate_raw_enum(&item),
+            Item::Flags(item) => flags_enums::generate_flags(&item),
             _ => Default::default(),
         };
         code.push(item_code);

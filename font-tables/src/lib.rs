@@ -33,9 +33,6 @@ pub mod parse_prelude {
     pub use crate::parse2::{Cursor, FontData, Format, ReadError, TableInfo, TableRef};
     pub use font_types::*;
     pub use std::ops::Range;
-
-    //temp, until we impl valueformat
-    pub type ValueFormat = u16;
 }
 
 /// A temporary type for accessing tables
