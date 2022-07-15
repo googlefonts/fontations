@@ -13,7 +13,7 @@ use syn::{
 };
 
 pub(crate) struct Items {
-    //pub use_stmts: Vec<SimpleUse>,
+    //pub(crate) use_stmts: Vec<SimpleUse>,
     pub(crate) items: Vec<Item>,
 }
 
@@ -29,14 +29,14 @@ pub(crate) enum Item {
 pub(crate) struct Table {
     //pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) name: syn::Ident,
-    pub fields: Fields,
+    pub(crate) fields: Fields,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct Record {
     //pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) name: syn::Ident,
-    pub fields: Fields,
+    pub(crate) fields: Fields,
 }
 
 /// A table with a format; we generate an enum
@@ -50,9 +50,9 @@ pub(crate) struct TableFormat {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Variant {
-    pub docs: Vec<syn::Attribute>,
-    pub name: syn::Ident,
-    pub typ: syn::Ident,
+    pub(crate) docs: Vec<syn::Attribute>,
+    pub(crate) name: syn::Ident,
+    pub(crate) typ: syn::Ident,
 }
 
 #[derive(Debug, Clone)]
@@ -118,7 +118,7 @@ pub(crate) struct InlineExpr {
 }
 
 #[derive(Debug, Clone)]
-pub enum FieldType {
+pub(crate) enum FieldType {
     Offset { typ: syn::Ident },
     Scalar { typ: syn::Ident },
     Other { typ: syn::Ident },
@@ -211,6 +211,10 @@ impl Field {
         false
         //FIXME: validate fields?
         //self.attrs.format.is_some()
+    }
+
+    fn has_getter(&self) -> bool {
+        self.attrs.no_getter.is_none()
     }
 
     fn len_expr(&self) -> TokenStream {
@@ -307,6 +311,18 @@ impl Field {
             #other_stuff
         }
     }
+
+    pub(crate) fn getter_return_type(&self) -> TokenStream {
+        match &self.typ {
+            FieldType::Offset { typ } | FieldType::Scalar { typ } => typ.to_token_stream(),
+            FieldType::Other { typ } => quote!( &#typ ),
+            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+                FieldType::Offset { typ } | FieldType::Scalar { typ } => quote!(&[BigEndian<#typ>]),
+                FieldType::Other { typ } => quote!( &[#typ] ),
+                _ => unreachable!(),
+            },
+        }
+    }
 }
 
 impl FieldType {
@@ -391,13 +407,8 @@ impl Table {
             }
 
             let next = iter.next()?;
-            //dbg!(&next.name);
             let is_versioned = next.attrs.available.is_some();
             let has_computed_len = next.has_computed_len();
-            eprintln!(
-                "{}: is_versioned {is_versioned}, computed_len {has_computed_len}",
-                &next.name
-            );
             if !(is_versioned || has_computed_len) {
                 continue;
             }
@@ -426,6 +437,41 @@ impl Table {
 
     pub(crate) fn iter_field_validation_stmts(&self) -> impl Iterator<Item = TokenStream> + '_ {
         self.fields.iter().map(Field::field_parse_validation_stmts)
+    }
+
+    pub(crate) fn iter_table_ref_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        self.fields
+            .iter()
+            .filter(|fld| fld.has_getter())
+            .map(|fld| {
+                let name = &fld.name;
+                let return_type = fld.getter_return_type();
+                let shape_range_fn_name = fld.shape_byte_range_fn_name();
+                let is_array = fld.is_array();
+                let is_versioned = fld.is_version_dependent();
+                let read_stmt = if is_array {
+                    quote!(self.data.read_array(range).unwrap())
+                } else {
+                    quote!(self.data.read_at(range.start).unwrap())
+                };
+
+                if is_versioned {
+                    quote! {
+                        pub fn #name(&self) -> Option<#return_type> {
+                            let range = self.shape.#shape_range_fn_name()?;
+                            Some(#read_stmt)
+                        }
+                    }
+                } else {
+                    quote! {
+                        pub fn #name(&self) -> #return_type {
+                            let range = self.shape.#shape_range_fn_name();
+                            // we would like to skip this unwrap
+                            #read_stmt
+                        }
+                    }
+                }
+            })
     }
 }
 

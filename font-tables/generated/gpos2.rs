@@ -57,6 +57,33 @@ impl TableInfo for Gpos {
     }
 }
 
+impl<'a> TableRef<'a, Gpos> {
+    pub fn version(&self) -> MajorMinor {
+        let range = self.shape.version_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn script_list_offset(&self) -> Offset16 {
+        let range = self.shape.script_list_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn feature_list_offset(&self) -> Offset16 {
+        let range = self.shape.feature_list_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn lookup_list_offset(&self) -> Offset16 {
+        let range = self.shape.lookup_list_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn feature_variations_offset(&self) -> Option<Offset32> {
+        let range = self.shape.feature_variations_offset_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct AnchorFormat1;
 
@@ -86,6 +113,23 @@ impl TableInfo for AnchorFormat1 {
         cursor.advance::<i16>();
         cursor.advance::<i16>();
         cursor.finish(AnchorFormat1Shape {})
+    }
+}
+
+impl<'a> TableRef<'a, AnchorFormat1> {
+    pub fn anchor_format(&self) -> u16 {
+        let range = self.shape.anchor_format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn x_coordinate(&self) -> i16 {
+        let range = self.shape.x_coordinate_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn y_coordinate(&self) -> i16 {
+        let range = self.shape.y_coordinate_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 }
 
@@ -123,6 +167,28 @@ impl TableInfo for AnchorFormat2 {
         cursor.advance::<i16>();
         cursor.advance::<u16>();
         cursor.finish(AnchorFormat2Shape {})
+    }
+}
+
+impl<'a> TableRef<'a, AnchorFormat2> {
+    pub fn anchor_format(&self) -> u16 {
+        let range = self.shape.anchor_format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn x_coordinate(&self) -> i16 {
+        let range = self.shape.x_coordinate_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn y_coordinate(&self) -> i16 {
+        let range = self.shape.y_coordinate_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn anchor_point(&self) -> u16 {
+        let range = self.shape.anchor_point_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 }
 
@@ -168,6 +234,33 @@ impl TableInfo for AnchorFormat3 {
     }
 }
 
+impl<'a> TableRef<'a, AnchorFormat3> {
+    pub fn anchor_format(&self) -> u16 {
+        let range = self.shape.anchor_format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn x_coordinate(&self) -> i16 {
+        let range = self.shape.x_coordinate_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn y_coordinate(&self) -> i16 {
+        let range = self.shape.y_coordinate_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn x_device_offset(&self) -> Offset16 {
+        let range = self.shape.x_device_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn y_device_offset(&self) -> Offset16 {
+        let range = self.shape.y_device_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct MarkArray;
 
@@ -197,6 +290,18 @@ impl TableInfo for MarkArray {
         cursor.finish(MarkArrayShape {
             mark_records_byte_len,
         })
+    }
+}
+
+impl<'a> TableRef<'a, MarkArray> {
+    pub fn mark_count(&self) -> u16 {
+        let range = self.shape.mark_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn mark_records(&self) -> &[MarkRecord] {
+        let range = self.shape.mark_records_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
@@ -252,11 +357,28 @@ impl TableInfo for SinglePosFormat1 {
         let pos_format: u16 = cursor.read()?;
         cursor.advance::<Offset16>();
         let value_format: ValueFormat = cursor.read()?;
-        let value_record_byte_len = (value_format.record_byte_len());
+        let value_record_byte_len = 2;
         cursor.advance_by(value_record_byte_len);
         cursor.finish(SinglePosFormat1Shape {
             value_record_byte_len,
         })
+    }
+}
+
+impl<'a> TableRef<'a, SinglePosFormat1> {
+    pub fn pos_format(&self) -> u16 {
+        let range = self.shape.pos_format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.shape.coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn value_format(&self) -> ValueFormat {
+        let range = self.shape.value_format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 }
 
@@ -299,10 +421,32 @@ impl TableInfo for SinglePosFormat2 {
         cursor.advance::<Offset16>();
         let value_format: ValueFormat = cursor.read()?;
         let value_count: u16 = cursor.read()?;
-        let value_records_byte_len = (value_count as usize * value_format.record_byte_len());
+        let value_records_byte_len = (value_count as usize * value_format as usize);
         cursor.advance_by(value_records_byte_len);
         cursor.finish(SinglePosFormat2Shape {
             value_records_byte_len,
         })
+    }
+}
+
+impl<'a> TableRef<'a, SinglePosFormat2> {
+    pub fn pos_format(&self) -> u16 {
+        let range = self.shape.pos_format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.shape.coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn value_format(&self) -> ValueFormat {
+        let range = self.shape.value_format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn value_count(&self) -> u16 {
+        let range = self.shape.value_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 }

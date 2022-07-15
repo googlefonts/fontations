@@ -13,6 +13,8 @@ pub(crate) fn generate(item: &Table) -> syn::Result<proc_macro2::TokenStream> {
     let field_validation_stmts = item.iter_field_validation_stmts();
     let shape_field_names = item.iter_shape_field_names();
 
+    let table_ref_getters = item.iter_table_ref_getters();
+
     Ok(quote! {
         #[derive(Debug, Clone, Copy)]
         pub struct #marker_name;
@@ -36,6 +38,12 @@ pub(crate) fn generate(item: &Table) -> syn::Result<proc_macro2::TokenStream> {
                     #( #shape_field_names, )*
                 })
             }
+        }
+
+        impl<'a> TableRef<'a, #marker_name> {
+
+            #( #table_ref_getters )*
+
         }
     })
 }
