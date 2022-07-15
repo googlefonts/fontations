@@ -41,7 +41,7 @@ pub struct Cursor<'a> {
 #[derive(Debug, Clone)]
 pub enum ReadError {
     OutOfBounds,
-    InvalidFormat,
+    InvalidFormat(u16),
     InvalidArrayLen,
     ValidationError,
 }

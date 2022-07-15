@@ -94,7 +94,7 @@ impl<'a> FontRead<'a> for SinglePos<'a> {
         match format {
             SinglePosFormat1::FORMAT => SinglePosFormat1::parse(data).map(Self::Format1),
             SinglePosFormat2::FORMAT => SinglePosFormat2::parse(data).map(Self::Format2),
-            _ => Err(ReadError::InvalidFormat),
+            other => Err(ReadError::InvalidFormat(other)),
         }
     }
 }

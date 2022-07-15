@@ -14,7 +14,7 @@ pub fn generate_parse_module(code: &str) -> Result<proc_macro2::TokenStream, syn
         let item_code = match item {
             Item::Record(item) => record::generate(item)?,
             Item::Table(item) => table::generate(item)?,
-            //Item::Format(item) => todo!(),
+            Item::Format(item) => table::generate_format_group(item)?,
             Item::RawEnum(item) => flags_enums::generate_raw_enum(&item),
             Item::Flags(item) => flags_enums::generate_flags(&item),
             _ => Default::default(),

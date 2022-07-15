@@ -104,8 +104,30 @@ impl ReadScalar for ValueFormat {
     }
 }
 
+pub enum AnchorTable<'a> {
+    Format1(TableRef<'a, AnchorFormat1>),
+    Format2(TableRef<'a, AnchorFormat2>),
+    Format3(TableRef<'a, AnchorFormat3>),
+}
+
+impl<'a> FontRead<'a> for AnchorTable<'a> {
+    fn read(data: &FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0)?;
+        match format {
+            <AnchorFormat1 as Format<u16>>::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            <AnchorFormat2 as Format<u16>>::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            <AnchorFormat3 as Format<u16>>::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other)),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct AnchorFormat1;
+
+impl Format<u16> for AnchorFormat1 {
+    const FORMAT: u16 = 1;
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct AnchorFormat1Shape {}
@@ -155,6 +177,10 @@ impl<'a> TableRef<'a, AnchorFormat1> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct AnchorFormat2;
+
+impl Format<u16> for AnchorFormat2 {
+    const FORMAT: u16 = 2;
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct AnchorFormat2Shape {}
@@ -214,6 +240,10 @@ impl<'a> TableRef<'a, AnchorFormat2> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct AnchorFormat3;
+
+impl Format<u16> for AnchorFormat3 {
+    const FORMAT: u16 = 3;
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct AnchorFormat3Shape {}
@@ -343,8 +373,28 @@ impl ReadScalar for MarkRecord {
     }
 }
 
+pub enum SinglePos<'a> {
+    Format1(TableRef<'a, SinglePosFormat1>),
+    Format2(TableRef<'a, SinglePosFormat2>),
+}
+
+impl<'a> FontRead<'a> for SinglePos<'a> {
+    fn read(data: &FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0)?;
+        match format {
+            <SinglePosFormat1 as Format<u16>>::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            <SinglePosFormat2 as Format<u16>>::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other)),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 pub struct SinglePosFormat1;
+
+impl Format<u16> for SinglePosFormat1 {
+    const FORMAT: u16 = 1;
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct SinglePosFormat1Shape {
@@ -404,6 +454,10 @@ impl<'a> TableRef<'a, SinglePosFormat1> {
 
 #[derive(Debug, Clone, Copy)]
 pub struct SinglePosFormat2;
+
+impl Format<u16> for SinglePosFormat2 {
+    const FORMAT: u16 = 2;
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct SinglePosFormat2Shape {

@@ -1,11 +1,11 @@
 //! codegen for table objects
 
 use proc_macro2::TokenStream;
-use quote::{quote, ToTokens};
+use quote::quote;
 
-use super::parsing::{Field, Table};
+use super::parsing::{Field, Table, TableFormat};
 
-pub(crate) fn generate(item: &Table) -> syn::Result<proc_macro2::TokenStream> {
+pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     let marker_name = &item.name;
     let shape_name = item.shape_name();
     let shape_byte_range_fns = item.iter_shape_byte_fns();
@@ -16,9 +16,13 @@ pub(crate) fn generate(item: &Table) -> syn::Result<proc_macro2::TokenStream> {
 
     let table_ref_getters = item.iter_table_ref_getters();
 
+    let optional_format_trait_impl = item.impl_format_trait();
+
     Ok(quote! {
         #[derive(Debug, Clone, Copy)]
         pub struct #marker_name;
+
+        #optional_format_trait_impl
 
         #[derive(Debug, Clone, Copy)]
         pub struct #shape_name {
@@ -45,6 +49,42 @@ pub(crate) fn generate(item: &Table) -> syn::Result<proc_macro2::TokenStream> {
 
             #( #table_ref_getters )*
 
+        }
+    })
+}
+
+pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStream> {
+    let name = &item.name;
+    let variants = item.variants.iter().map(|variant| {
+        let name = &variant.name;
+        let typ = &variant.typ;
+        quote! ( #name(TableRef<'a, #typ>) )
+    });
+
+    let format = &item.format;
+    let match_arms = item.variants.iter().map(|variant| {
+        let name = &variant.name;
+        let typ = &variant.typ;
+        quote! {
+            <#typ as Format<#format>>::FORMAT => {
+                Ok(Self::#name(FontRead::read(data)?))
+            }
+        }
+    });
+
+    Ok(quote! {
+        pub enum #name<'a> {
+            #( #variants ),*
+        }
+
+        impl<'a> FontRead<'a> for #name<'a> {
+            fn read(data: &FontData<'a>) -> Result<Self, ReadError> {
+                let format: #format = data.read_at(0)?;
+                match format {
+                    #( #match_arms ),*
+                    other => Err(ReadError::InvalidFormat(other)),
+                }
+            }
         }
     })
 }
@@ -177,5 +217,18 @@ impl Table {
                     }
                 }
             })
+    }
+
+    pub(crate) fn impl_format_trait(&self) -> Option<TokenStream> {
+        let field = self.fields.iter().find(|fld| fld.attrs.format.is_some())?;
+        let name = &self.name;
+        let value = &field.attrs.format.as_ref().unwrap().value;
+        let typ = field.typ.cooked_type_tokens();
+
+        Some(quote! {
+            impl Format<#typ> for #name {
+                const FORMAT: #typ = #value;
+            }
+        })
     }
 }
