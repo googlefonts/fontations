@@ -1,8 +1,9 @@
 //! codegen for table objects
 
-use quote::quote;
+use proc_macro2::TokenStream;
+use quote::{quote, ToTokens};
 
-use super::parsing::Table;
+use super::parsing::{Field, Table};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<proc_macro2::TokenStream> {
     let marker_name = &item.name;
@@ -46,4 +47,135 @@ pub(crate) fn generate(item: &Table) -> syn::Result<proc_macro2::TokenStream> {
 
         }
     })
+}
+
+impl Table {
+    fn shape_name(&self) -> syn::Ident {
+        quote::format_ident!("{}Shape", &self.name)
+    }
+
+    fn iter_shape_byte_fns(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        let mut prev_field_end_expr = quote!(0);
+        let mut iter = self.fields.iter();
+
+        std::iter::from_fn(move || {
+            let field = iter.next()?;
+            let fn_name = field.shape_byte_range_fn_name();
+            let len_expr = field.len_expr();
+
+            // versioned fields have a different signature
+            if field.attrs.available.is_some() {
+                prev_field_end_expr = quote!(compile_error!(
+                    "non-version dependent field cannot follow version-dependent field"
+                ));
+                let start_field_name = field.shape_byte_start_field_name();
+                return Some(quote! {
+                    fn #fn_name(&self) -> Option<Range<usize>> {
+                        let start = self.#start_field_name?;
+                        Some(start..start + #len_expr)
+                    }
+                });
+            }
+
+            let result = quote! {
+                fn #fn_name(&self) -> Range<usize> {
+                    let start = #prev_field_end_expr;
+                    start..start + #len_expr
+                }
+            };
+            prev_field_end_expr = quote!( self.#fn_name().end );
+
+            Some(result)
+        })
+    }
+
+    fn iter_shape_fields(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        self.iter_shape_field_names_and_types()
+            .map(|(ident, typ)| quote!( #ident: #typ ))
+    }
+
+    fn iter_shape_field_names(&self) -> impl Iterator<Item = syn::Ident> + '_ {
+        self.iter_shape_field_names_and_types()
+            .map(|(name, _)| name)
+    }
+
+    fn iter_shape_field_names_and_types(
+        &self,
+    ) -> impl Iterator<Item = (syn::Ident, TokenStream)> + '_ {
+        let mut iter = self.fields.iter();
+        let mut return_me = None;
+
+        // a given field can have 0, 1, or 2 shape fields.
+        std::iter::from_fn(move || loop {
+            if let Some(thing) = return_me.take() {
+                return Some(thing);
+            }
+
+            let next = iter.next()?;
+            let is_versioned = next.attrs.available.is_some();
+            let has_computed_len = next.has_computed_len();
+            if !(is_versioned || has_computed_len) {
+                continue;
+            }
+
+            let start_field = is_versioned.then(|| {
+                let field_name = next.shape_byte_start_field_name();
+                (field_name, quote!(Option<usize>))
+            });
+
+            let len_field = has_computed_len.then(|| {
+                let field_name = next.shape_byte_len_field_name();
+                if is_versioned {
+                    (field_name, quote!(Option<usize>))
+                } else {
+                    (field_name, quote!(usize))
+                }
+            });
+            if start_field.is_some() {
+                return_me = len_field;
+                return start_field;
+            } else {
+                return len_field;
+            }
+        })
+    }
+
+    fn iter_field_validation_stmts(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        self.fields.iter().map(Field::field_parse_validation_stmts)
+    }
+
+    fn iter_table_ref_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        self.fields
+            .iter()
+            .filter(|fld| fld.has_getter())
+            .map(|fld| {
+                let name = &fld.name;
+                let return_type = fld.getter_return_type();
+                let shape_range_fn_name = fld.shape_byte_range_fn_name();
+                let is_array = fld.is_array();
+                let is_versioned = fld.is_version_dependent();
+                let read_stmt = if is_array {
+                    quote!(self.data.read_array(range).unwrap())
+                } else {
+                    quote!(self.data.read_at(range.start).unwrap())
+                };
+
+                if is_versioned {
+                    quote! {
+                        pub fn #name(&self) -> Option<#return_type> {
+                            let range = self.shape.#shape_range_fn_name()?;
+                            Some(#read_stmt)
+                        }
+                    }
+                } else {
+                    quote! {
+                        pub fn #name(&self) -> #return_type {
+                            let range = self.shape.#shape_range_fn_name();
+                            // we would like to skip this unwrap
+                            #read_stmt
+                        }
+                    }
+                }
+            })
+    }
 }

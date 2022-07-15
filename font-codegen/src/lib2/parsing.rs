@@ -1,9 +1,7 @@
 //! raw parsing code
 
-use std::collections::HashSet;
+use proc_macro2::TokenStream;
 
-use proc_macro2::{TokenStream, TokenTree};
-use quote::{quote, ToTokens};
 use syn::{
     braced, bracketed, parenthesized,
     parse::{Parse, ParseStream},
@@ -57,7 +55,7 @@ pub(crate) struct Variant {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Fields {
-    fields: Vec<Field>,
+    pub(crate) fields: Vec<Field>,
 }
 
 #[derive(Debug, Clone)]
@@ -71,7 +69,7 @@ pub(crate) struct Field {
     ///
     /// For instance: in a versioned table, the version must be read to determine
     /// whether to expect version-dependent fields.
-    read_at_parse_time: bool,
+    pub(crate) read_at_parse_time: bool,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -149,330 +147,6 @@ pub(crate) struct BitFlags {
     pub(crate) name: syn::Ident,
     pub(crate) typ: syn::Ident,
     pub(crate) variants: Vec<RawVariant>,
-}
-
-impl Fields {
-    fn new(mut fields: Vec<Field>) -> syn::Result<Self> {
-        let referenced_fields = fields
-            .iter()
-            .flat_map(Field::input_fields)
-            .cloned()
-            .collect::<HashSet<_>>();
-
-        for field in fields.iter_mut() {
-            field.read_at_parse_time = field.attrs.format.is_some()
-                || field.attrs.version.is_some()
-                || referenced_fields.contains(&field.name);
-        }
-
-        Ok(Fields { fields })
-    }
-
-    pub(crate) fn iter(&self) -> impl Iterator<Item = &Field> {
-        self.fields.iter()
-    }
-}
-
-impl Field {
-    pub(crate) fn type_for_record(&self) -> TokenStream {
-        match &self.typ {
-            FieldType::Offset { typ } | FieldType::Scalar { typ } => quote!(BigEndian<#typ>),
-            _ => panic!("arrays and custom types not supported in records"),
-        }
-    }
-
-    pub(crate) fn shape_byte_range_fn_name(&self) -> syn::Ident {
-        quote::format_ident!("{}_byte_range", &self.name)
-    }
-
-    fn shape_byte_len_field_name(&self) -> syn::Ident {
-        quote::format_ident!("{}_byte_len", &self.name)
-    }
-
-    fn shape_byte_start_field_name(&self) -> syn::Ident {
-        // used when fields are optional
-        quote::format_ident!("{}_byte_start", &self.name)
-    }
-
-    #[allow(dead_code)]
-    fn is_array(&self) -> bool {
-        matches!(&self.typ, FieldType::Array { .. })
-    }
-
-    fn has_computed_len(&self) -> bool {
-        self.attrs.len.is_some() || self.attrs.count.is_some()
-    }
-
-    fn is_version_dependent(&self) -> bool {
-        self.attrs.available.is_some()
-    }
-
-    fn validate_at_parse(&self) -> bool {
-        false
-        //FIXME: validate fields?
-        //self.attrs.format.is_some()
-    }
-
-    fn has_getter(&self) -> bool {
-        self.attrs.no_getter.is_none()
-    }
-
-    fn len_expr(&self) -> TokenStream {
-        // is this a scalar/offset? then it's just 'RAW_BYTE_LEN'
-        // is this computed? then it is stored
-        match &self.typ {
-            FieldType::Offset { typ } | FieldType::Scalar { typ } => {
-                quote!(#typ::RAW_BYTE_LEN)
-            }
-            FieldType::Other { .. } | FieldType::Array { .. } => {
-                let len_field = self.shape_byte_len_field_name();
-                quote!(self.#len_field)
-            }
-        }
-    }
-
-    /// iterate other named fields that are used as in input to a calculation
-    /// done when parsing this field.
-    fn input_fields(&self) -> impl Iterator<Item = &syn::Ident> {
-        self.attrs
-            .count
-            .as_ref()
-            .into_iter()
-            .flat_map(|expr| expr.referenced_fields.iter())
-            .chain(
-                self.attrs
-                    .len
-                    .as_ref()
-                    .into_iter()
-                    .flat_map(|expr| expr.referenced_fields.iter()),
-            )
-    }
-
-    /// the code generated for this field to validate data at parse time.
-    fn field_parse_validation_stmts(&self) -> TokenStream {
-        let name = &self.name;
-        // handle the trivial case
-        if !self.read_at_parse_time
-            && !self.has_computed_len()
-            && !self.validate_at_parse()
-            && !self.is_version_dependent()
-        {
-            let typ = self.typ.cooked_type_tokens();
-            return quote!( cursor.advance::<#typ>(); );
-        }
-
-        let versioned_field_start = self.attrs.available.as_ref().map(|available|{
-            let field_start_name = self.shape_byte_start_field_name();
-            quote! ( let #field_start_name = version.compatible(#available).then(|| cursor.position()).transpose()?; )
-        });
-
-        let other_stuff = if self.has_computed_len() {
-            assert!(!self.read_at_parse_time, "i did not expect this to happen");
-            let len_field_name = self.shape_byte_len_field_name();
-            let len_expr = if let Some(expr) = &self.attrs.len {
-                expr.expr.to_token_stream()
-            } else {
-                let count_expr = &self
-                    .attrs
-                    .count
-                    .as_ref()
-                    .expect("must have one of count or len")
-                    .expr;
-                let inner_type = self.typ.inner_type().expect("only arrays have count attr");
-                quote! ( (#count_expr) as usize * #inner_type::RAW_BYTE_LEN )
-            };
-
-            match &self.attrs.available {
-                Some(version) => quote! {
-                    let #len_field_name = version.compatible(#version).then(|| #len_expr);
-                    #len_field_name.map(|value| cursor.advance_by(value));
-                },
-                None => quote! {
-                    let #len_field_name = #len_expr;
-                    cursor.advance_by(#len_field_name);
-                },
-            }
-        } else if self.read_at_parse_time {
-            assert!(!self.is_version_dependent(), "does this happen?");
-            let typ = self.typ.cooked_type_tokens();
-            quote! ( let #name: #typ = cursor.read()?; )
-        } else if let Some(available) = &self.attrs.available {
-            assert!(!self.is_array());
-            let typ = self.typ.cooked_type_tokens();
-            quote! {
-            version.compatible(#available).then(|| cursor.advance::<#typ>());
-            }
-        } else {
-            panic!("who wrote this garbage anyway?");
-        };
-
-        quote! {
-            #versioned_field_start
-            #other_stuff
-        }
-    }
-
-    pub(crate) fn getter_return_type(&self) -> TokenStream {
-        match &self.typ {
-            FieldType::Offset { typ } | FieldType::Scalar { typ } => typ.to_token_stream(),
-            FieldType::Other { typ } => quote!( &#typ ),
-            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
-                FieldType::Offset { typ } | FieldType::Scalar { typ } => quote!(&[BigEndian<#typ>]),
-                FieldType::Other { typ } => quote!( &[#typ] ),
-                _ => unreachable!(),
-            },
-        }
-    }
-}
-
-impl FieldType {
-    /// 'cooked', as in now 'raw', i.e no 'BigEndian' wrapper
-    pub(crate) fn cooked_type_tokens(&self) -> &syn::Ident {
-        match &self {
-            FieldType::Offset { typ } | FieldType::Scalar { typ } | FieldType::Other { typ } => typ,
-
-            FieldType::Array { .. } => panic!("array tokens never cooked"),
-        }
-    }
-
-    fn inner_type(&self) -> Option<&syn::Ident> {
-        if let FieldType::Array { inner_typ } = &self {
-            Some(inner_typ.cooked_type_tokens())
-        } else {
-            None
-        }
-    }
-}
-
-impl Table {
-    pub(crate) fn shape_name(&self) -> syn::Ident {
-        quote::format_ident!("{}Shape", &self.name)
-    }
-
-    pub(crate) fn iter_shape_byte_fns(&self) -> impl Iterator<Item = TokenStream> + '_ {
-        let mut prev_field_end_expr = quote!(0);
-        let mut iter = self.fields.iter();
-
-        std::iter::from_fn(move || {
-            let field = iter.next()?;
-            let fn_name = field.shape_byte_range_fn_name();
-            let len_expr = field.len_expr();
-
-            // versioned fields have a different signature
-            if field.attrs.available.is_some() {
-                prev_field_end_expr = quote!(compile_error!(
-                    "non-version dependent field cannot follow version-dependent field"
-                ));
-                let start_field_name = field.shape_byte_start_field_name();
-                return Some(quote! {
-                    fn #fn_name(&self) -> Option<Range<usize>> {
-                        let start = self.#start_field_name?;
-                        Some(start..start + #len_expr)
-                    }
-                });
-            }
-
-            let result = quote! {
-                fn #fn_name(&self) -> Range<usize> {
-                    let start = #prev_field_end_expr;
-                    start..start + #len_expr
-                }
-            };
-            prev_field_end_expr = quote!( self.#fn_name().end );
-
-            Some(result)
-        })
-    }
-
-    pub(crate) fn iter_shape_fields(&self) -> impl Iterator<Item = TokenStream> + '_ {
-        self.iter_shape_field_names_and_types()
-            .map(|(ident, typ)| quote!( #ident: #typ ))
-    }
-
-    pub(crate) fn iter_shape_field_names(&self) -> impl Iterator<Item = syn::Ident> + '_ {
-        self.iter_shape_field_names_and_types()
-            .map(|(name, _)| name)
-    }
-
-    pub(crate) fn iter_shape_field_names_and_types(
-        &self,
-    ) -> impl Iterator<Item = (syn::Ident, TokenStream)> + '_ {
-        let mut iter = self.fields.iter();
-        let mut return_me = None;
-
-        // a given field can have 0, 1, or 2 shape fields.
-        std::iter::from_fn(move || loop {
-            if let Some(thing) = return_me.take() {
-                return Some(thing);
-            }
-
-            let next = iter.next()?;
-            let is_versioned = next.attrs.available.is_some();
-            let has_computed_len = next.has_computed_len();
-            if !(is_versioned || has_computed_len) {
-                continue;
-            }
-
-            let start_field = is_versioned.then(|| {
-                let field_name = next.shape_byte_start_field_name();
-                (field_name, quote!(Option<usize>))
-            });
-
-            let len_field = has_computed_len.then(|| {
-                let field_name = next.shape_byte_len_field_name();
-                if is_versioned {
-                    (field_name, quote!(Option<usize>))
-                } else {
-                    (field_name, quote!(usize))
-                }
-            });
-            if start_field.is_some() {
-                return_me = len_field;
-                return start_field;
-            } else {
-                return len_field;
-            }
-        })
-    }
-
-    pub(crate) fn iter_field_validation_stmts(&self) -> impl Iterator<Item = TokenStream> + '_ {
-        self.fields.iter().map(Field::field_parse_validation_stmts)
-    }
-
-    pub(crate) fn iter_table_ref_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {
-        self.fields
-            .iter()
-            .filter(|fld| fld.has_getter())
-            .map(|fld| {
-                let name = &fld.name;
-                let return_type = fld.getter_return_type();
-                let shape_range_fn_name = fld.shape_byte_range_fn_name();
-                let is_array = fld.is_array();
-                let is_versioned = fld.is_version_dependent();
-                let read_stmt = if is_array {
-                    quote!(self.data.read_array(range).unwrap())
-                } else {
-                    quote!(self.data.read_at(range.start).unwrap())
-                };
-
-                if is_versioned {
-                    quote! {
-                        pub fn #name(&self) -> Option<#return_type> {
-                            let range = self.shape.#shape_range_fn_name()?;
-                            Some(#read_stmt)
-                        }
-                    }
-                } else {
-                    quote! {
-                        pub fn #name(&self) -> #return_type {
-                            let range = self.shape.#shape_range_fn_name();
-                            // we would like to skip this unwrap
-                            #read_stmt
-                        }
-                    }
-                }
-            })
-    }
 }
 
 mod kw {
@@ -834,10 +508,6 @@ fn get_single_generic_type_arg(input: &syn::PathArguments) -> Option<syn::Path> 
         _ => None,
     }
 }
-
-//fn make_resolved_ident(ident: &syn::Ident) -> syn::Ident {
-//quote::format_ident!("__resolved_{}", ident)
-//}
 
 #[cfg(test)]
 mod tests {

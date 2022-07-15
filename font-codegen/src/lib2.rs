@@ -1,3 +1,4 @@
+mod fields;
 mod flags_enums;
 mod parsing;
 mod record;
