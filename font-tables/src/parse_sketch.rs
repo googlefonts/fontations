@@ -1,17 +1,20 @@
 use std::ops::Range;
 
-use font_types::{BigEndian, MajorMinor, Offset16, ReadScalar};
+use font_types::{BigEndian, FixedSized, MajorMinor, Offset16, ReadScalar};
 
 use crate::parse2::{FontData, FontRead, Format, ReadError, TableInfo, TableRef};
 use crate::tables::gpos::ValueFormat;
 
-impl ReadScalar for ValueFormat {
+impl FixedSized for ValueFormat {
     const RAW_BYTE_LEN: usize = 2;
+}
 
+impl ReadScalar for ValueFormat {
     fn read(bytes: &[u8]) -> Option<Self> {
         ReadScalar::read(bytes).and_then(Self::from_bits)
     }
 }
+
 struct SinglePosFormat1;
 
 impl Format<u16> for SinglePosFormat1 {
@@ -263,4 +266,19 @@ impl<'a> TableRef<'a, Gdef> {
         let off = self.shape.mark_glyph_sets_def_offset()?;
         Some(self.data.read_at(off).unwrap())
     }
+}
+
+/// a record
+#[derive(Clone, Debug)]
+#[repr(C)]
+#[repr(packed)]
+pub struct MarkRecord {
+    /// Class defined for the associated mark.
+    pub mark_class: BigEndian<u16>,
+    /// Offset to Anchor table, from beginning of MarkArray table.
+    pub mark_anchor_offset: BigEndian<Offset16>,
+}
+
+impl FixedSized for MarkRecord {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }

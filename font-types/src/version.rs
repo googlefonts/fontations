@@ -93,8 +93,11 @@ impl crate::Scalar for MajorMinor {
     }
 }
 
-impl crate::ReadScalar for MajorMinor {
+impl crate::FixedSized for MajorMinor {
     const RAW_BYTE_LEN: usize = 4;
+}
+
+impl crate::ReadScalar for MajorMinor {
     #[inline]
     fn read(bytes: &[u8]) -> Option<Self> {
         let major = u16::read(bytes)?;

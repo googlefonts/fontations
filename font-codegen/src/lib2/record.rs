@@ -16,6 +16,7 @@ pub(crate) fn generate(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
         let docs = &fld.attrs.docs;
         quote!( #( #docs )* )
     });
+    let inner_types = item.fields.iter().map(|fld| fld.getter_return_type());
 
     Ok(quote! {
         #[derive(Clone, Debug)]
@@ -25,11 +26,8 @@ pub(crate) fn generate(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
             #( #field_docs pub #field_names: #field_types, )*
         }
 
-        impl ReadScalar for #name {
-            const RAW_BYTE_LEN: usize = #( std::mem::size_of::<#field_types>() )+*;
-            fn read(bytes: &[u8]) -> Option<Self> {
-                todo!()
-            }
+        impl FixedSized for #name {
+            const RAW_BYTE_LEN: usize = #( #inner_types::RAW_BYTE_LEN )+*;
         }
     })
 }

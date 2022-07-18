@@ -97,8 +97,11 @@ impl font_types::Scalar for ValueFormat {
     }
 }
 
-impl ReadScalar for ValueFormat {
+impl FixedSized for ValueFormat {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
+}
+
+impl ReadScalar for ValueFormat {
     fn read(bytes: &[u8]) -> Option<Self> {
         u16::read(bytes).map(Self::from_bits_truncate)
     }
@@ -365,12 +368,8 @@ pub struct MarkRecord {
     pub mark_anchor_offset: BigEndian<Offset16>,
 }
 
-impl ReadScalar for MarkRecord {
-    const RAW_BYTE_LEN: usize =
-        std::mem::size_of::<BigEndian<u16>>() + std::mem::size_of::<BigEndian<Offset16>>();
-    fn read(bytes: &[u8]) -> Option<Self> {
-        todo!()
-    }
+impl FixedSized for MarkRecord {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
 pub enum SinglePos<'a> {

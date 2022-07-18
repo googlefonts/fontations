@@ -32,8 +32,9 @@ include!("../generated/generated_font_parse.rs");
 pub mod parse_prelude {
     pub use crate::parse2::{Cursor, FontData, FontRead, Format, ReadError, TableInfo, TableRef};
     pub use font_types::{
-        BigEndian, F2Dot14, FWord, Fixed, LongDateTime, MajorMinor, Offset, Offset16, Offset24,
-        Offset32, OffsetHost, OffsetLen, ReadScalar, Scalar, Tag, UfWord, Uint24, Version16Dot16,
+        BigEndian, F2Dot14, FWord, Fixed, FixedSized, LongDateTime, MajorMinor, Offset, Offset16,
+        Offset24, Offset32, OffsetHost, OffsetLen, ReadScalar, Scalar, Tag, UfWord, Uint24,
+        Version16Dot16,
     };
     pub use std::ops::Range;
 }
