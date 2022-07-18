@@ -86,7 +86,7 @@ pub(crate) struct FieldAttrs {
 
 #[derive(Debug, Clone)]
 pub(crate) struct FormatAttr {
-    kw: syn::Ident,
+    _kw: syn::Ident,
     pub(crate) value: syn::LitInt,
 }
 
@@ -197,7 +197,7 @@ impl Parse for Item {
 
 impl Parse for Table {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let attributes = get_optional_attributes(input)?;
+        let _attributes = get_optional_attributes(input)?;
         let _table = input.parse::<kw::table>()?;
         let name = input.parse::<syn::Ident>()?;
 
@@ -208,7 +208,7 @@ impl Parse for Table {
 
 impl Parse for Record {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let attributes = get_optional_attributes(input)?;
+        let _attributes = get_optional_attributes(input)?;
         let _kw = input.parse::<kw::record>()?;
         let name = input.parse::<syn::Ident>()?;
 
@@ -413,7 +413,7 @@ impl Parse for FieldAttrs {
                 this.len = Some(parse_inline_expr(attr.tokens)?);
             } else if ident == FORMAT {
                 this.format = Some(FormatAttr {
-                    kw: ident.clone(),
+                    _kw: ident.clone(),
                     value: parse_attr_eq_value(attr.tokens)?,
                 });
             } else {

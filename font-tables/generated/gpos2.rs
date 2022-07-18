@@ -154,7 +154,7 @@ impl TableInfo for AnchorFormat1 {
     type Info = AnchorFormat1Shape;
     fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
-        let anchor_format: u16 = cursor.read()?;
+        cursor.advance::<u16>();
         cursor.advance::<i16>();
         cursor.advance::<i16>();
         cursor.finish(AnchorFormat1Shape {})
@@ -211,7 +211,7 @@ impl TableInfo for AnchorFormat2 {
     type Info = AnchorFormat2Shape;
     fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
-        let anchor_format: u16 = cursor.read()?;
+        cursor.advance::<u16>();
         cursor.advance::<i16>();
         cursor.advance::<i16>();
         cursor.advance::<u16>();
@@ -278,7 +278,7 @@ impl TableInfo for AnchorFormat3 {
     type Info = AnchorFormat3Shape;
     fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
-        let anchor_format: u16 = cursor.read()?;
+        cursor.advance::<u16>();
         cursor.advance::<i16>();
         cursor.advance::<i16>();
         cursor.advance::<Offset16>();
@@ -372,6 +372,7 @@ impl FixedSized for MarkRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
+/// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
 pub enum SinglePos<'a> {
     Format1(TableRef<'a, SinglePosFormat1>),
     Format2(TableRef<'a, SinglePosFormat2>),
@@ -423,7 +424,7 @@ impl TableInfo for SinglePosFormat1 {
     type Info = SinglePosFormat1Shape;
     fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
-        let pos_format: u16 = cursor.read()?;
+        cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let value_format: ValueFormat = cursor.read()?;
         let value_record_byte_len = (value_format.record_byte_len());
@@ -490,7 +491,7 @@ impl TableInfo for SinglePosFormat2 {
     type Info = SinglePosFormat2Shape;
     fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
-        let pos_format: u16 = cursor.read()?;
+        cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let value_format: ValueFormat = cursor.read()?;
         let value_count: u16 = cursor.read()?;

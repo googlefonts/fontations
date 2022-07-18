@@ -55,10 +55,12 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 
 pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStream> {
     let name = &item.name;
+    let docs = &item.docs;
     let variants = item.variants.iter().map(|variant| {
         let name = &variant.name;
         let typ = &variant.typ;
-        quote! ( #name(TableRef<'a, #typ>) )
+        let docs = &variant.docs;
+        quote! ( #( #docs )* #name(TableRef<'a, #typ>) )
     });
 
     let format = &item.format;
@@ -73,6 +75,7 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
     });
 
     Ok(quote! {
+        #( #docs )*
         pub enum #name<'a> {
             #( #variants ),*
         }

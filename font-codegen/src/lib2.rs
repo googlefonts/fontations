@@ -17,7 +17,6 @@ pub fn generate_parse_module(code: &str) -> Result<proc_macro2::TokenStream, syn
             Item::Format(item) => table::generate_format_group(item)?,
             Item::RawEnum(item) => flags_enums::generate_raw_enum(&item),
             Item::Flags(item) => flags_enums::generate_flags(&item),
-            _ => Default::default(),
         };
         code.push(item_code);
     }

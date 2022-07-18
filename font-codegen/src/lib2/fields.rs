@@ -16,9 +16,8 @@ impl Fields {
             .collect::<HashSet<_>>();
 
         for field in fields.iter_mut() {
-            field.read_at_parse_time = field.attrs.format.is_some()
-                || field.attrs.version.is_some()
-                || referenced_fields.contains(&field.name);
+            field.read_at_parse_time =
+                field.attrs.version.is_some() || referenced_fields.contains(&field.name);
         }
 
         Ok(Fields { fields })

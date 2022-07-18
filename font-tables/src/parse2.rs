@@ -127,9 +127,9 @@ impl<'a> FontData<'a> {
     }
 }
 
-fn aligned_to(bytes: &[u8], align: usize) -> bool {
-    (bytes as *const _ as *const () as usize) % align == 0
-}
+//fn aligned_to(bytes: &[u8], align: usize) -> bool {
+//(bytes as *const _ as *const () as usize) % align == 0
+//}
 
 impl<'a> Cursor<'a> {
     pub(crate) fn advance<T: ReadScalar>(&mut self) {

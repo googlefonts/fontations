@@ -1,3 +1,4 @@
+#![allow(dead_code)]
 use std::ops::Range;
 
 use font_types::{BigEndian, FixedSized, MajorMinor, Offset16, ReadScalar};
@@ -140,7 +141,6 @@ impl TableInfo for Cmap4 {
         cursor.advance_by(id_delta_byte_len);
         let id_range_offsets_byte_len = seg_count_x2 as usize;
         cursor.advance_by(id_range_offsets_byte_len);
-        let glyph_id_array = cursor.position()?;
         cursor.finish(Cmap4Shape {
             end_code_byte_len,
             start_code_byte_len,
