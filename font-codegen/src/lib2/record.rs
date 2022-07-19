@@ -6,6 +6,7 @@ use super::parsing::{Field, Record};
 
 pub(crate) fn generate(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
     let name = &item.name;
+    let docs = &item.docs;
     let field_names = item.fields.iter().map(|fld| &fld.name).collect::<Vec<_>>();
     let field_types = item
         .fields
@@ -19,6 +20,7 @@ pub(crate) fn generate(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
     let inner_types = item.fields.iter().map(|fld| fld.getter_return_type());
 
     Ok(quote! {
+        #( #docs )*
         #[derive(Clone, Debug)]
         #[repr(C)]
         #[repr(packed)]

@@ -25,14 +25,20 @@ pub(crate) enum Item {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Table {
-    //pub(crate) docs: Vec<syn::Attribute>,
+    pub(crate) attrs: TableAttrs,
     pub(crate) name: syn::Ident,
     pub(crate) fields: Fields,
 }
 
+#[derive(Debug, Default, Clone)]
+pub(crate) struct TableAttrs {
+    pub(crate) docs: Vec<syn::Attribute>,
+    pub(crate) manual_parse: Option<syn::Path>,
+}
+
 #[derive(Debug, Clone)]
 pub(crate) struct Record {
-    //pub(crate) docs: Vec<syn::Attribute>,
+    pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) name: syn::Ident,
     pub(crate) fields: Fields,
 }
@@ -197,23 +203,31 @@ impl Parse for Item {
 
 impl Parse for Table {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let _attributes = get_optional_attributes(input)?;
+        let attrs = input.parse()?;
         let _table = input.parse::<kw::table>()?;
         let name = input.parse::<syn::Ident>()?;
 
         let fields = input.parse()?;
-        Ok(Table { name, fields })
+        Ok(Table {
+            attrs,
+            name,
+            fields,
+        })
     }
 }
 
 impl Parse for Record {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let _attributes = get_optional_attributes(input)?;
+        let attrs: TableAttrs = input.parse()?;
         let _kw = input.parse::<kw::record>()?;
         let name = input.parse::<syn::Ident>()?;
 
         let fields = input.parse()?;
-        Ok(Record { name, fields })
+        Ok(Record {
+            docs: attrs.docs,
+            name,
+            fields,
+        })
     }
 }
 
@@ -420,6 +434,33 @@ impl Parse for FieldAttrs {
                 return Err(syn::Error::new(
                     ident.span(),
                     format!("unknown field attribute {ident}"),
+                ));
+            }
+        }
+        Ok(this)
+    }
+}
+
+static MANUAL_PARSE: &str = "manual_parse";
+
+impl Parse for TableAttrs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut this = TableAttrs::default();
+        let attrs = Attribute::parse_outer(input)
+            .map_err(|e| syn::Error::new(e.span(), format!("hmm: '{e}'")))?;
+
+        for attr in attrs {
+            let ident = attr.path.get_ident().ok_or_else(|| {
+                syn::Error::new(attr.path.span(), "attr paths should be a single identifer")
+            })?;
+            if ident == DOC {
+                this.docs.push(attr);
+            } else if ident == MANUAL_PARSE {
+                this.manual_parse = Some(attr.path);
+            } else {
+                return Err(syn::Error::new(
+                    ident.span(),
+                    format!("unknown table attribute {ident}"),
                 ));
             }
         }

@@ -6,6 +6,10 @@ use quote::quote;
 use super::parsing::{Field, Table, TableFormat};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
+    if item.attrs.manual_parse.is_some() {
+        return Ok(Default::default());
+    }
+    let docs = &item.attrs.docs;
     let marker_name = &item.name;
     let shape_name = item.shape_name();
     let shape_byte_range_fns = item.iter_shape_byte_fns();
@@ -19,6 +23,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     let optional_format_trait_impl = item.impl_format_trait();
 
     Ok(quote! {
+        #( #docs )*
         #[derive(Debug, Clone, Copy)]
         pub struct #marker_name;
 

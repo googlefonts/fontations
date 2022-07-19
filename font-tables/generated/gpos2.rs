@@ -5,6 +5,7 @@
 #[allow(unused_imports)]
 use crate::parse_prelude::*;
 
+/// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 #[derive(Debug, Clone, Copy)]
 pub struct Gpos;
 
@@ -125,6 +126,7 @@ impl<'a> FontRead<'a> for AnchorTable<'a> {
     }
 }
 
+/// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
 #[derive(Debug, Clone, Copy)]
 pub struct AnchorFormat1;
 
@@ -178,6 +180,7 @@ impl<'a> TableRef<'a, AnchorFormat1> {
     }
 }
 
+/// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
 #[derive(Debug, Clone, Copy)]
 pub struct AnchorFormat2;
 
@@ -241,6 +244,7 @@ impl<'a> TableRef<'a, AnchorFormat2> {
     }
 }
 
+/// [Anchor Table Format 3]()https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables: Design Units Plus Device or VariationIndex Tables
 #[derive(Debug, Clone, Copy)]
 pub struct AnchorFormat3;
 
@@ -314,6 +318,7 @@ impl<'a> TableRef<'a, AnchorFormat3> {
     }
 }
 
+/// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
 #[derive(Debug, Clone, Copy)]
 pub struct MarkArray;
 
@@ -358,6 +363,7 @@ impl<'a> TableRef<'a, MarkArray> {
     }
 }
 
+/// Part of [MarkArray]
 #[derive(Clone, Debug)]
 #[repr(C)]
 #[repr(packed)]
@@ -389,6 +395,7 @@ impl<'a> FontRead<'a> for SinglePos<'a> {
     }
 }
 
+/// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
 #[derive(Debug, Clone, Copy)]
 pub struct SinglePosFormat1;
 
@@ -452,6 +459,7 @@ impl<'a> TableRef<'a, SinglePosFormat1> {
     }
 }
 
+/// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
 #[derive(Debug, Clone, Copy)]
 pub struct SinglePosFormat2;
 
