@@ -89,6 +89,16 @@ impl<'a> FontData<'a> {
             .ok_or_else(|| ReadError::OutOfBounds)
     }
 
+    pub fn read_at_with<T, F>(&self, offset: usize, f: F) -> Result<T, ReadError>
+    where
+        F: FnOnce(&[u8]) -> Result<T, ReadError>,
+    {
+        self.bytes
+            .get(offset..)
+            .ok_or(ReadError::OutOfBounds)
+            .and_then(f)
+    }
+
     pub unsafe fn read_at_unchecked<T: ReadScalar>(&self, offset: usize) -> T {
         T::read(self.bytes.get_unchecked(offset..)).unwrap_unchecked()
     }

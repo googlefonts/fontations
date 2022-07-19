@@ -532,3 +532,657 @@ impl<'a> TableRef<'a, SinglePosFormat2> {
         self.data.read_at(range.start).unwrap()
     }
 }
+
+/// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
+pub enum PairPos<'a> {
+    Format1(TableRef<'a, PairPosFormat1>),
+    Format2(TableRef<'a, PairPosFormat2>),
+}
+
+impl<'a> FontRead<'a> for PairPos<'a> {
+    fn read(data: &FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0)?;
+        match format {
+            <PairPosFormat1 as Format<u16>>::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            <PairPosFormat2 as Format<u16>>::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other)),
+        }
+    }
+}
+
+/// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
+#[derive(Debug, Clone, Copy)]
+pub struct PairPosFormat1;
+
+impl Format<u16> for PairPosFormat1 {
+    const FORMAT: u16 = 1;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PairPosFormat1Shape {
+    pair_set_offsets_byte_len: usize,
+}
+
+impl PairPosFormat1Shape {
+    fn pos_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.pos_format_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn value_format1_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        start..start + ValueFormat::RAW_BYTE_LEN
+    }
+    fn value_format2_byte_range(&self) -> Range<usize> {
+        let start = self.value_format1_byte_range().end;
+        start..start + ValueFormat::RAW_BYTE_LEN
+    }
+    fn pair_set_count_byte_range(&self) -> Range<usize> {
+        let start = self.value_format2_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn pair_set_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.pair_set_count_byte_range().end;
+        start..start + self.pair_set_offsets_byte_len
+    }
+}
+
+impl TableInfo for PairPosFormat1 {
+    type Info = PairPosFormat1Shape;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<ValueFormat>();
+        cursor.advance::<ValueFormat>();
+        let pair_set_count: u16 = cursor.read()?;
+        let pair_set_offsets_byte_len = (pair_set_count) as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(pair_set_offsets_byte_len);
+        cursor.finish(PairPosFormat1Shape {
+            pair_set_offsets_byte_len,
+        })
+    }
+}
+
+impl<'a> TableRef<'a, PairPosFormat1> {
+    pub fn pos_format(&self) -> u16 {
+        let range = self.shape.pos_format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.shape.coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn value_format1(&self) -> ValueFormat {
+        let range = self.shape.value_format1_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn value_format2(&self) -> ValueFormat {
+        let range = self.shape.value_format2_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn pair_set_count(&self) -> u16 {
+        let range = self.shape.pair_set_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn pair_set_offsets(&self) -> &[BigEndian<Offset16>] {
+        let range = self.shape.pair_set_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+/// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
+#[derive(Debug, Clone, Copy)]
+pub struct PairPosFormat2;
+
+impl Format<u16> for PairPosFormat2 {
+    const FORMAT: u16 = 2;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PairPosFormat2Shape {
+    class1_records_byte_len: usize,
+}
+
+impl PairPosFormat2Shape {
+    fn pos_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.pos_format_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn value_format1_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        start..start + ValueFormat::RAW_BYTE_LEN
+    }
+    fn value_format2_byte_range(&self) -> Range<usize> {
+        let start = self.value_format1_byte_range().end;
+        start..start + ValueFormat::RAW_BYTE_LEN
+    }
+    fn class_def1_offset_byte_range(&self) -> Range<usize> {
+        let start = self.value_format2_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn class_def2_offset_byte_range(&self) -> Range<usize> {
+        let start = self.class_def1_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn class1_count_byte_range(&self) -> Range<usize> {
+        let start = self.class_def2_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn class2_count_byte_range(&self) -> Range<usize> {
+        let start = self.class1_count_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn class1_records_byte_range(&self) -> Range<usize> {
+        let start = self.class2_count_byte_range().end;
+        start..start + self.class1_records_byte_len
+    }
+}
+
+impl TableInfo for PairPosFormat2 {
+    type Info = PairPosFormat2Shape;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset16>();
+        let value_format1: ValueFormat = cursor.read()?;
+        let value_format2: ValueFormat = cursor.read()?;
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        let class1_count: u16 = cursor.read()?;
+        let class2_count: u16 = cursor.read()?;
+        let class1_records_byte_len =
+            (class1_record_len(class1_count, class2_count, value_format1, value_format2));
+        cursor.advance_by(class1_records_byte_len);
+        cursor.finish(PairPosFormat2Shape {
+            class1_records_byte_len,
+        })
+    }
+}
+
+impl<'a> TableRef<'a, PairPosFormat2> {
+    pub fn pos_format(&self) -> u16 {
+        let range = self.shape.pos_format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.shape.coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn value_format1(&self) -> ValueFormat {
+        let range = self.shape.value_format1_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn value_format2(&self) -> ValueFormat {
+        let range = self.shape.value_format2_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn class_def1_offset(&self) -> Offset16 {
+        let range = self.shape.class_def1_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn class_def2_offset(&self) -> Offset16 {
+        let range = self.shape.class_def2_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn class1_count(&self) -> u16 {
+        let range = self.shape.class1_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn class2_count(&self) -> u16 {
+        let range = self.shape.class2_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+}
+
+/// [Cursive Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#cursive-attachment-positioning-format1-cursive-attachment): Cursvie attachment
+#[derive(Debug, Clone, Copy)]
+pub struct CursivePosFormat1;
+
+impl Format<u16> for CursivePosFormat1 {
+    const FORMAT: u16 = 1;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct CursivePosFormat1Shape {
+    entry_exit_record_byte_len: usize,
+}
+
+impl CursivePosFormat1Shape {
+    fn pos_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.pos_format_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn entry_exit_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn entry_exit_record_byte_range(&self) -> Range<usize> {
+        let start = self.entry_exit_count_byte_range().end;
+        start..start + self.entry_exit_record_byte_len
+    }
+}
+
+impl TableInfo for CursivePosFormat1 {
+    type Info = CursivePosFormat1Shape;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset16>();
+        let entry_exit_count: u16 = cursor.read()?;
+        let entry_exit_record_byte_len =
+            (entry_exit_count) as usize * EntryExitRecord::RAW_BYTE_LEN;
+        cursor.advance_by(entry_exit_record_byte_len);
+        cursor.finish(CursivePosFormat1Shape {
+            entry_exit_record_byte_len,
+        })
+    }
+}
+
+impl<'a> TableRef<'a, CursivePosFormat1> {
+    pub fn pos_format(&self) -> u16 {
+        let range = self.shape.pos_format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn coverage_offset(&self) -> Offset16 {
+        let range = self.shape.coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn entry_exit_count(&self) -> u16 {
+        let range = self.shape.entry_exit_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn entry_exit_record(&self) -> &[EntryExitRecord] {
+        let range = self.shape.entry_exit_record_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+/// Part of [CursivePosFormat1]
+#[derive(Clone, Debug)]
+#[repr(C)]
+#[repr(packed)]
+pub struct EntryExitRecord {
+    /// Offset to entryAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub entry_anchor_offset: BigEndian<Offset16>,
+    /// Offset to exitAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub exit_anchor_offset: BigEndian<Offset16>,
+}
+
+impl FixedSized for EntryExitRecord {
+    const RAW_BYTE_LEN: usize = Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+/// [Mark-to-Base Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-base-attachment-positioning-format-1-mark-to-base-attachment-point): Mark-to-base Attachment Point
+#[derive(Debug, Clone, Copy)]
+pub struct MarkBasePosFormat1;
+
+impl Format<u16> for MarkBasePosFormat1 {
+    const FORMAT: u16 = 1;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MarkBasePosFormat1Shape {}
+
+impl MarkBasePosFormat1Shape {
+    fn pos_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn mark_coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.pos_format_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn base_coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark_coverage_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn mark_class_count_byte_range(&self) -> Range<usize> {
+        let start = self.base_coverage_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn mark_array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark_class_count_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn base_array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark_array_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+}
+
+impl TableInfo for MarkBasePosFormat1 {
+    type Info = MarkBasePosFormat1Shape;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        cursor.finish(MarkBasePosFormat1Shape {})
+    }
+}
+
+impl<'a> TableRef<'a, MarkBasePosFormat1> {
+    pub fn pos_format(&self) -> u16 {
+        let range = self.shape.pos_format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn mark_coverage_offset(&self) -> Offset16 {
+        let range = self.shape.mark_coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn base_coverage_offset(&self) -> Offset16 {
+        let range = self.shape.base_coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn mark_class_count(&self) -> u16 {
+        let range = self.shape.mark_class_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn mark_array_offset(&self) -> Offset16 {
+        let range = self.shape.mark_array_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn base_array_offset(&self) -> Offset16 {
+        let range = self.shape.base_array_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+}
+
+/// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
+#[derive(Debug, Clone, Copy)]
+pub struct MarkLigPosFormat1;
+
+impl Format<u16> for MarkLigPosFormat1 {
+    const FORMAT: u16 = 1;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MarkLigPosFormat1Shape {}
+
+impl MarkLigPosFormat1Shape {
+    fn pos_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn mark_coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.pos_format_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn ligature_coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark_coverage_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn mark_class_count_byte_range(&self) -> Range<usize> {
+        let start = self.ligature_coverage_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn mark_array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark_class_count_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn ligature_array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark_array_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+}
+
+impl TableInfo for MarkLigPosFormat1 {
+    type Info = MarkLigPosFormat1Shape;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        cursor.finish(MarkLigPosFormat1Shape {})
+    }
+}
+
+impl<'a> TableRef<'a, MarkLigPosFormat1> {
+    pub fn pos_format(&self) -> u16 {
+        let range = self.shape.pos_format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn mark_coverage_offset(&self) -> Offset16 {
+        let range = self.shape.mark_coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn ligature_coverage_offset(&self) -> Offset16 {
+        let range = self.shape.ligature_coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn mark_class_count(&self) -> u16 {
+        let range = self.shape.mark_class_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn mark_array_offset(&self) -> Offset16 {
+        let range = self.shape.mark_array_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+}
+
+/// Part of [MarkLigPosFormat1]
+#[derive(Debug, Clone, Copy)]
+pub struct LigatureArray;
+
+#[derive(Debug, Clone, Copy)]
+pub struct LigatureArrayShape {
+    ligature_attach_offsets_byte_len: usize,
+}
+
+impl LigatureArrayShape {
+    fn ligature_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn ligature_attach_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.ligature_count_byte_range().end;
+        start..start + self.ligature_attach_offsets_byte_len
+    }
+}
+
+impl TableInfo for LigatureArray {
+    type Info = LigatureArrayShape;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let ligature_count: u16 = cursor.read()?;
+        let ligature_attach_offsets_byte_len = (ligature_count) as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(ligature_attach_offsets_byte_len);
+        cursor.finish(LigatureArrayShape {
+            ligature_attach_offsets_byte_len,
+        })
+    }
+}
+
+impl<'a> TableRef<'a, LigatureArray> {
+    pub fn ligature_count(&self) -> u16 {
+        let range = self.shape.ligature_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn ligature_attach_offsets(&self) -> &[BigEndian<Offset16>] {
+        let range = self.shape.ligature_attach_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+/// [Mark-to-Mark Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-mark-attachment-positioning-format-1-mark-to-mark-attachment): Mark-to-Mark Attachment
+#[derive(Debug, Clone, Copy)]
+pub struct MarkMarkPosFormat1;
+
+impl Format<u16> for MarkMarkPosFormat1 {
+    const FORMAT: u16 = 1;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct MarkMarkPosFormat1Shape {}
+
+impl MarkMarkPosFormat1Shape {
+    fn pos_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn mark1_coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.pos_format_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn mark2_coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark1_coverage_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn mark_class_count_byte_range(&self) -> Range<usize> {
+        let start = self.mark2_coverage_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn mark1_array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark_class_count_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn mark2_array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.mark1_array_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+}
+
+impl TableInfo for MarkMarkPosFormat1 {
+    type Info = MarkMarkPosFormat1Shape;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        cursor.finish(MarkMarkPosFormat1Shape {})
+    }
+}
+
+impl<'a> TableRef<'a, MarkMarkPosFormat1> {
+    pub fn pos_format(&self) -> u16 {
+        let range = self.shape.pos_format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn mark1_coverage_offset(&self) -> Offset16 {
+        let range = self.shape.mark1_coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn mark2_coverage_offset(&self) -> Offset16 {
+        let range = self.shape.mark2_coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn mark_class_count(&self) -> u16 {
+        let range = self.shape.mark_class_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn mark1_array_offset(&self) -> Offset16 {
+        let range = self.shape.mark1_array_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn mark2_array_offset(&self) -> Offset16 {
+        let range = self.shape.mark2_array_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+}
+
+/// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
+#[derive(Debug, Clone, Copy)]
+pub struct ExtensionPosFormat1;
+
+impl Format<u16> for ExtensionPosFormat1 {
+    const FORMAT: u16 = 1;
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ExtensionPosFormat1Shape {}
+
+impl ExtensionPosFormat1Shape {
+    fn pos_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn extension_lookup_type_byte_range(&self) -> Range<usize> {
+        let start = self.pos_format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn extension_offset_byte_range(&self) -> Range<usize> {
+        let start = self.extension_lookup_type_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+}
+
+impl TableInfo for ExtensionPosFormat1 {
+    type Info = ExtensionPosFormat1Shape;
+    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset32>();
+        cursor.finish(ExtensionPosFormat1Shape {})
+    }
+}
+
+impl<'a> TableRef<'a, ExtensionPosFormat1> {
+    pub fn pos_format(&self) -> u16 {
+        let range = self.shape.pos_format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn extension_lookup_type(&self) -> u16 {
+        let range = self.shape.extension_lookup_type_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn extension_offset(&self) -> Offset32 {
+        let range = self.shape.extension_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+}

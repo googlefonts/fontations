@@ -33,12 +33,12 @@ pub(crate) struct Table {
 #[derive(Debug, Default, Clone)]
 pub(crate) struct TableAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
-    pub(crate) manual_parse: Option<syn::Path>,
+    pub(crate) skip_parse: Option<syn::Path>,
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct Record {
-    pub(crate) docs: Vec<syn::Attribute>,
+    pub(crate) attrs: TableAttrs,
     pub(crate) name: syn::Ident,
     pub(crate) fields: Fields,
 }
@@ -224,7 +224,7 @@ impl Parse for Record {
 
         let fields = input.parse()?;
         Ok(Record {
-            docs: attrs.docs,
+            attrs,
             name,
             fields,
         })
@@ -441,7 +441,7 @@ impl Parse for FieldAttrs {
     }
 }
 
-static MANUAL_PARSE: &str = "manual_parse";
+static SKIP_PARSE: &str = "skip_parse";
 
 impl Parse for TableAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -455,8 +455,8 @@ impl Parse for TableAttrs {
             })?;
             if ident == DOC {
                 this.docs.push(attr);
-            } else if ident == MANUAL_PARSE {
-                this.manual_parse = Some(attr.path);
+            } else if ident == SKIP_PARSE {
+                this.skip_parse = Some(attr.path);
             } else {
                 return Err(syn::Error::new(
                     ident.span(),

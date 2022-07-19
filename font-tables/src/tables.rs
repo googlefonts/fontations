@@ -75,12 +75,51 @@ pub trait TableProvider {
 }
 
 pub mod test_gpos2 {
+    use super::gpos::ValueRecord;
 
     impl ValueFormat {
         /// Return the number of bytes required to store a [`ValueRecord`] in this format.
         #[inline]
         pub fn record_byte_len(self) -> usize {
             self.bits().count_ones() as usize * u16::RAW_BYTE_LEN
+        }
+    }
+
+    fn class1_record_len(
+        class1_count: u16,
+        class2_count: u16,
+        format1: ValueFormat,
+        format2: ValueFormat,
+    ) -> usize {
+        (format1.record_byte_len() + format2.record_byte_len())
+            * class1_count as usize
+            * class2_count as usize
+    }
+
+    impl<'a> TableRef<'a, SinglePosFormat1> {
+        pub fn value_record(&self) -> ValueRecord {
+            self.data
+                .read_at_with(self.shape.value_record_byte_range().start, |bytes| {
+                    ValueRecord::read2(bytes, self.value_format()).ok_or(ReadError::OutOfBounds)
+                })
+                .unwrap_or_default()
+        }
+    }
+
+    impl<'a> TableRef<'a, SinglePosFormat2> {
+        pub fn value_records(&self) -> impl Iterator<Item = ValueRecord> + '_ {
+            let count = self.value_count() as usize;
+            let format = self.value_format();
+
+            (0..count).map(move |idx| {
+                let offset =
+                    self.shape.value_records_byte_range().start + (idx * format.record_byte_len());
+                self.data
+                    .read_at_with(offset, |bytes| {
+                        ValueRecord::read2(bytes, format).ok_or(ReadError::OutOfBounds)
+                    })
+                    .unwrap_or_default()
+            })
         }
     }
 

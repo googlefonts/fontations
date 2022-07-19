@@ -5,8 +5,12 @@ use quote::quote;
 use super::parsing::{Field, Record};
 
 pub(crate) fn generate(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
+    if item.attrs.skip_parse.is_some() {
+        return Ok(Default::default());
+    }
+
     let name = &item.name;
-    let docs = &item.docs;
+    let docs = &item.attrs.docs;
     let field_names = item.fields.iter().map(|fld| &fld.name).collect::<Vec<_>>();
     let field_types = item
         .fields

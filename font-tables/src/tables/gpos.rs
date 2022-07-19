@@ -137,6 +137,12 @@ impl ValueRecord {
         let len = format.bits().count_ones() as usize * 2;
         bytes.get(len..).map(|b| (this, b))
     }
+
+    pub fn read2(bytes: &[u8], format: super::test_gpos2::ValueFormat) -> Option<Self> {
+        let format: ValueFormat = ValueFormat::from_raw(format.to_raw());
+        let r = Self::read(bytes, format)?;
+        Some(r.0)
+    }
 }
 
 impl<'a> FontReadWithArgs<'a, ValueFormat> for ValueRecord {

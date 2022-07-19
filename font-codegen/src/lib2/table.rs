@@ -6,7 +6,7 @@ use quote::quote;
 use super::parsing::{Field, Table, TableFormat};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
-    if item.attrs.manual_parse.is_some() {
+    if item.attrs.skip_parse.is_some() {
         return Ok(Default::default());
     }
     let docs = &item.attrs.docs;
