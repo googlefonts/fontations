@@ -26,8 +26,15 @@ pub(crate) enum Item {
 #[derive(Debug, Clone)]
 pub(crate) struct Table {
     pub(crate) attrs: TableAttrs,
-    pub(crate) name: syn::Ident,
+    name: syn::Ident,
     pub(crate) fields: Fields,
+}
+
+impl Table {
+    // here for visibility reasons
+    pub(crate) fn raw_name(&self) -> &syn::Ident {
+        &self.name
+    }
 }
 
 #[derive(Debug, Default, Clone)]
@@ -56,7 +63,17 @@ pub(crate) struct TableFormat {
 pub(crate) struct Variant {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) name: syn::Ident,
-    pub(crate) typ: syn::Ident,
+    typ: syn::Ident,
+}
+
+impl Variant {
+    pub(crate) fn marker_name(&self) -> syn::Ident {
+        quote::format_ident!("{}Marker", &self.typ)
+    }
+
+    pub(crate) fn type_name(&self) -> &syn::Ident {
+        &self.typ
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -512,14 +529,6 @@ fn validate_ident(ident: &syn::Ident, expected: &[&str], error: &str) -> Result<
         return Err(syn::Error::new(ident.span(), error));
     }
     Ok(())
-}
-
-fn get_optional_attributes(input: ParseStream) -> Result<Vec<syn::Attribute>, syn::Error> {
-    let mut result = Vec::new();
-    while input.lookahead1().peek(Token![#]) {
-        result.extend(Attribute::parse_outer(input)?);
-    }
-    Ok(result)
 }
 
 fn get_optional_docs(input: ParseStream) -> Result<Vec<syn::Attribute>, syn::Error> {

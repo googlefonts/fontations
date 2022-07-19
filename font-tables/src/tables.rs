@@ -96,7 +96,7 @@ pub mod test_gpos2 {
             * class2_count as usize
     }
 
-    impl<'a> TableRef<'a, SinglePosFormat1> {
+    impl<'a> SinglePosFormat1<'a> {
         pub fn value_record(&self) -> ValueRecord {
             self.data
                 .read_at_with(self.shape.value_record_byte_range().start, |bytes| {
@@ -106,7 +106,7 @@ pub mod test_gpos2 {
         }
     }
 
-    impl<'a> TableRef<'a, SinglePosFormat2> {
+    impl<'a> SinglePosFormat2<'a> {
         pub fn value_records(&self) -> impl Iterator<Item = ValueRecord> + '_ {
             let count = self.value_count() as usize;
             let format = self.value_format();

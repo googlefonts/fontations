@@ -11,6 +11,10 @@ pub trait Format<T> {
     const FORMAT: T;
 }
 
+impl<U, T: TableInfo + Format<U>> Format<U> for TableRef<'_, T> {
+    const FORMAT: U = T::FORMAT;
+}
+
 pub trait FontRead<'a>: Sized {
     fn read(data: &FontData<'a>) -> Result<Self, ReadError>;
 }

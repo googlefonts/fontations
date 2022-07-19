@@ -10,8 +10,9 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         return Ok(Default::default());
     }
     let docs = &item.attrs.docs;
-    let marker_name = &item.name;
+    let marker_name = item.marker_name();
     let shape_name = item.shape_name();
+    let raw_name = item.raw_name();
     let shape_byte_range_fns = item.iter_shape_byte_fns();
     let shape_fields = item.iter_shape_fields();
 
@@ -25,11 +26,13 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     Ok(quote! {
         #( #docs )*
         #[derive(Debug, Clone, Copy)]
+        #[doc(hidden)]
         pub struct #marker_name;
 
         #optional_format_trait_impl
 
         #[derive(Debug, Clone, Copy)]
+        #[doc(hidden)]
         pub struct #shape_name {
             #( #shape_fields )*
         }
@@ -50,7 +53,10 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
             }
         }
 
-        impl<'a> TableRef<'a, #marker_name> {
+        #( #docs )*
+        pub type #raw_name<'a> = TableRef<'a, #marker_name>;
+
+        impl<'a> #raw_name<'a> {
 
             #( #table_ref_getters )*
 
@@ -63,17 +69,17 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
     let docs = &item.docs;
     let variants = item.variants.iter().map(|variant| {
         let name = &variant.name;
-        let typ = &variant.typ;
+        let typ = variant.type_name();
         let docs = &variant.docs;
-        quote! ( #( #docs )* #name(TableRef<'a, #typ>) )
+        quote! ( #( #docs )* #name(#typ<'a>) )
     });
 
     let format = &item.format;
     let match_arms = item.variants.iter().map(|variant| {
         let name = &variant.name;
-        let typ = &variant.typ;
+        let typ = variant.marker_name();
         quote! {
-            <#typ as Format<#format>>::FORMAT => {
+            #typ::FORMAT => {
                 Ok(Self::#name(FontRead::read(data)?))
             }
         }
@@ -98,8 +104,12 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
 }
 
 impl Table {
+    fn marker_name(&self) -> syn::Ident {
+        quote::format_ident!("{}Marker", self.raw_name())
+    }
+
     fn shape_name(&self) -> syn::Ident {
-        quote::format_ident!("{}Shape", &self.name)
+        quote::format_ident!("{}Shape", self.raw_name())
     }
 
     fn iter_shape_byte_fns(&self) -> impl Iterator<Item = TokenStream> + '_ {
@@ -202,6 +212,7 @@ impl Table {
                 let shape_range_fn_name = fld.shape_byte_range_fn_name();
                 let is_array = fld.is_array();
                 let is_versioned = fld.is_version_dependent();
+                let docs = &fld.attrs.docs;
                 let read_stmt = if is_array {
                     quote!(self.data.read_array(range).unwrap())
                 } else {
@@ -210,6 +221,7 @@ impl Table {
 
                 if is_versioned {
                     quote! {
+                        #( #docs )*
                         pub fn #name(&self) -> Option<#return_type> {
                             let range = self.shape.#shape_range_fn_name()?;
                             Some(#read_stmt)
@@ -217,6 +229,7 @@ impl Table {
                     }
                 } else {
                     quote! {
+                        #( #docs )*
                         pub fn #name(&self) -> #return_type {
                             let range = self.shape.#shape_range_fn_name();
                             // we would like to skip this unwrap
@@ -229,7 +242,7 @@ impl Table {
 
     pub(crate) fn impl_format_trait(&self) -> Option<TokenStream> {
         let field = self.fields.iter().find(|fld| fld.attrs.format.is_some())?;
-        let name = &self.name;
+        let name = self.marker_name();
         let value = &field.attrs.format.as_ref().unwrap().value;
         let typ = field.typ.cooked_type_tokens();
 

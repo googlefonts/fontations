@@ -77,7 +77,7 @@ table AnchorFormat2 {
     anchor_point: BigEndian<u16>,
 }
 
-/// [Anchor Table Format 3]()https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables: Design Units Plus Device or VariationIndex Tables
+/// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
 table AnchorFormat3 {
     /// Format identifier, = 3
     #[format = 3]
