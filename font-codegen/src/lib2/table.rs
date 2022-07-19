@@ -44,7 +44,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         impl TableInfo for #marker_name {
             type Info = #shape_name;
 
-            fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+            fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
                 let mut cursor = data.cursor();
                 #( #field_validation_stmts )*
                 cursor.finish( #shape_name {
@@ -92,7 +92,7 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
         }
 
         impl<'a> FontRead<'a> for #name<'a> {
-            fn read(data: &FontData<'a>) -> Result<Self, ReadError> {
+            fn read(data: FontData<'a>) -> Result<Self, ReadError> {
                 let format: #format = data.read_at(0)?;
                 match format {
                     #( #match_arms ),*
@@ -203,41 +203,7 @@ impl Table {
     }
 
     fn iter_table_ref_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {
-        self.fields
-            .iter()
-            .filter(|fld| fld.has_getter())
-            .map(|fld| {
-                let name = &fld.name;
-                let return_type = fld.getter_return_type();
-                let shape_range_fn_name = fld.shape_byte_range_fn_name();
-                let is_array = fld.is_array();
-                let is_versioned = fld.is_version_dependent();
-                let docs = &fld.attrs.docs;
-                let read_stmt = if is_array {
-                    quote!(self.data.read_array(range).unwrap())
-                } else {
-                    quote!(self.data.read_at(range.start).unwrap())
-                };
-
-                if is_versioned {
-                    quote! {
-                        #( #docs )*
-                        pub fn #name(&self) -> Option<#return_type> {
-                            let range = self.shape.#shape_range_fn_name()?;
-                            Some(#read_stmt)
-                        }
-                    }
-                } else {
-                    quote! {
-                        #( #docs )*
-                        pub fn #name(&self) -> #return_type {
-                            let range = self.shape.#shape_range_fn_name();
-                            // we would like to skip this unwrap
-                            #read_stmt
-                        }
-                    }
-                }
-            })
+        self.fields.iter().filter_map(|fld| fld.field_getter())
     }
 
     pub(crate) fn impl_format_trait(&self) -> Option<TokenStream> {

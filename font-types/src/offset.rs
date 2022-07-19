@@ -3,7 +3,7 @@
 use crate::Uint24;
 
 /// A trait for the different offset representations.
-pub trait Offset: Sized {
+pub trait Offset: Sized + Copy {
     /// The length in bytes of this offset type.
     const SIZE: OffsetLen;
 

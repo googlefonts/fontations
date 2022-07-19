@@ -54,7 +54,7 @@ impl SinglePosFormat1Shape {
 impl TableInfo for SinglePosFormat1 {
     type Info = SinglePosFormat1Shape;
 
-    fn parse<'a>(ctx: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse<'a>(ctx: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = ctx.cursor();
         let _pos_format = cursor.advance::<u16>();
         let _coverage_offset = cursor.advance::<Offset16>();
@@ -68,7 +68,7 @@ impl TableInfo for SinglePosFormat1 {
 impl TableInfo for SinglePosFormat2 {
     type Info = SinglePosFormat2Shape;
 
-    fn parse<'a>(ctx: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse<'a>(ctx: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = ctx.cursor();
         let _pos_format = cursor.advance_by(std::mem::size_of::<u16>());
         let _coverage_offset = cursor.advance_by(std::mem::size_of::<Offset16>());
@@ -86,14 +86,14 @@ impl TableRef<'_, SinglePosFormat1> {
 }
 
 impl<'a, T: TableInfo> FontRead<'a> for TableRef<'a, T> {
-    fn read(data: &FontData<'a>) -> Result<Self, ReadError> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         T::parse(data)
     }
 }
 
 // how we handle formats:
 impl<'a> FontRead<'a> for SinglePos<'a> {
-    fn read(data: &FontData<'a>) -> Result<Self, ReadError> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0)?;
         match format {
             SinglePosFormat1::FORMAT => SinglePosFormat1::parse(data).map(Self::Format1),
@@ -118,7 +118,7 @@ impl Format<u16> for Cmap4 {
 impl TableInfo for Cmap4 {
     type Info = Cmap4Shape;
 
-    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let _format: u16 = cursor.read_validate(|value| {
             value == &Self::FORMAT
@@ -232,7 +232,7 @@ impl GdefShape {
 impl TableInfo for Gdef {
     type Info = GdefShape;
 
-    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         //let _major_version = cursor.read_validate(|major_version: &u16| major_version == &1)?;
         //let minor_version = cursor.read::<u16>()?;

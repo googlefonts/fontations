@@ -31,7 +31,7 @@ impl Fields {
 impl Field {
     pub(crate) fn type_for_record(&self) -> TokenStream {
         match &self.typ {
-            FieldType::Offset { typ } | FieldType::Scalar { typ } => quote!(BigEndian<#typ>),
+            FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => quote!(BigEndian<#typ>),
             _ => panic!("arrays and custom types not supported in records"),
         }
     }
@@ -61,6 +61,10 @@ impl Field {
         self.attrs.available.is_some()
     }
 
+    fn is_nullable(&self) -> bool {
+        self.attrs.nullable.is_some()
+    }
+
     pub(crate) fn validate_at_parse(&self) -> bool {
         false
         //FIXME: validate fields?
@@ -75,7 +79,7 @@ impl Field {
         // is this a scalar/offset? then it's just 'RAW_BYTE_LEN'
         // is this computed? then it is stored
         match &self.typ {
-            FieldType::Offset { typ } | FieldType::Scalar { typ } => {
+            FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
                 quote!(#typ::RAW_BYTE_LEN)
             }
             FieldType::Other { .. } | FieldType::Array { .. } => {
@@ -102,21 +106,121 @@ impl Field {
             )
     }
 
-    pub(crate) fn getter_return_type(&self) -> TokenStream {
+    /// 'raw' as in this does not include handling offset resolution
+    pub(crate) fn raw_getter_return_type(&self) -> TokenStream {
         match &self.typ {
-            FieldType::Offset { typ } | FieldType::Scalar { typ } => typ.to_token_stream(),
+            FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => typ.to_token_stream(),
             FieldType::Other { typ } => quote!( &#typ ),
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
-                FieldType::Offset { typ } | FieldType::Scalar { typ } => quote!(&[BigEndian<#typ>]),
+                FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
+                    quote!(&[BigEndian<#typ>])
+                }
                 FieldType::Other { typ } => quote!( &[#typ] ),
                 _ => unreachable!(),
             },
         }
     }
 
+    pub(crate) fn field_getter(&self) -> Option<TokenStream> {
+        if !self.has_getter() {
+            return None;
+        }
+
+        let name = &self.name;
+        let is_array = self.is_array();
+        let is_versioned = self.is_version_dependent();
+
+        let mut return_type = self.raw_getter_return_type();
+        if is_versioned {
+            return_type = quote!(Option<#return_type>);
+        }
+
+        let range_stmt = self.getter_range_stmt();
+        let mut read_stmt = if is_array {
+            quote!(self.data.read_array(range).unwrap())
+        } else {
+            quote!(self.data.read_at(range.start).unwrap())
+        };
+        if is_versioned {
+            read_stmt = quote!(Some(#read_stmt));
+        }
+
+        let docs = &self.attrs.docs;
+        let offset_getter = self.typed_offset_field_getter();
+
+        Some(quote! {
+            #( #docs )*
+            pub fn #name(&self) -> #return_type {
+                let range = #range_stmt;
+                #read_stmt
+            }
+
+            #offset_getter
+        })
+    }
+
+    fn getter_range_stmt(&self) -> TokenStream {
+        let shape_range_fn_name = self.shape_byte_range_fn_name();
+        let try_op = self.is_version_dependent().then(|| quote!(?));
+        quote!( self.shape.#shape_range_fn_name() #try_op )
+    }
+
+    fn typed_offset_field_getter(&self) -> Option<TokenStream> {
+        let (typ, target) = match &self.typ {
+            _ if self.attrs.no_offset_getter.is_some() => return None,
+            FieldType::Offset {
+                typ,
+                target: Some(target),
+            } => (typ, target),
+            _ => return None,
+        };
+
+        let getter_name = self.offset_getter_name().unwrap();
+        let mut return_type = quote!(Result<#target<'a>, ReadError>);
+        if self.is_nullable() || self.attrs.available.is_some() {
+            return_type = quote!(Option<#return_type>);
+        }
+        let range_stmt = self.getter_range_stmt();
+        let resolve_method = self
+            .is_nullable()
+            .then(|| quote!(resolve_nullable))
+            .unwrap_or_else(|| quote!(resolve));
+
+        let return_stmt = if self.is_version_dependent() && !self.is_nullable() {
+            quote!(Some(result))
+        } else {
+            quote!(result)
+        };
+
+        let raw_name = &self.name;
+        let docs = format!("Attempt to resolve [`{raw_name}`]");
+
+        Some(quote! {
+            #[doc = #docs]
+            pub fn #getter_name(&self) -> #return_type {
+                let range = #range_stmt;
+                let offset: #typ = self.data.read_at(range.start).unwrap();
+                let result = offset.#resolve_method(&self.data);
+                #return_stmt
+            }
+        })
+    }
+
+    fn offset_getter_name(&self) -> Option<syn::Ident> {
+        if !matches!(self.typ, FieldType::Offset { .. }) {
+            return None;
+        }
+        let name_string = self.name.to_string();
+        let offset_name = name_string
+            .trim_end_matches("_offsets")
+            .trim_end_matches("_offset");
+        Some(syn::Ident::new(offset_name, self.name.span()))
+    }
+
     /// the code generated for this field to validate data at parse time.
     pub(crate) fn field_parse_validation_stmts(&self) -> TokenStream {
         let name = &self.name;
+        //dbg!(&name);
         // handle the trivial case
         if !self.read_at_parse_time
             && !self.has_computed_len()
@@ -183,7 +287,9 @@ impl FieldType {
     /// 'cooked', as in now 'raw', i.e no 'BigEndian' wrapper
     pub(crate) fn cooked_type_tokens(&self) -> &syn::Ident {
         match &self {
-            FieldType::Offset { typ } | FieldType::Scalar { typ } | FieldType::Other { typ } => typ,
+            FieldType::Offset { typ, .. }
+            | FieldType::Scalar { typ }
+            | FieldType::Other { typ } => typ,
 
             FieldType::Array { .. } => panic!("array tokens never cooked"),
         }

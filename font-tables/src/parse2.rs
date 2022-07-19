@@ -1,10 +1,10 @@
 use std::ops::Range;
 
-use font_types::ReadScalar;
+use font_types::{Offset, Offset16, ReadScalar};
 
 pub trait TableInfo: Sized {
     type Info: Copy;
-    fn parse<'a>(data: &FontData<'a>) -> Result<TableRef<'a, Self>, ReadError>;
+    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError>;
 }
 
 pub trait Format<T> {
@@ -16,7 +16,7 @@ impl<U, T: TableInfo + Format<U>> Format<U> for TableRef<'_, T> {
 }
 
 pub trait FontRead<'a>: Sized {
-    fn read(data: &FontData<'a>) -> Result<Self, ReadError>;
+    fn read(data: FontData<'a>) -> Result<Self, ReadError>;
 }
 
 pub struct TableRef<'a, T: TableInfo> {
@@ -48,6 +48,7 @@ pub enum ReadError {
     InvalidFormat(u16),
     InvalidArrayLen,
     ValidationError,
+    NullOffset,
 }
 
 impl std::fmt::Display for ReadError {
@@ -133,11 +134,47 @@ impl<'a> FontData<'a> {
         std::slice::from_raw_parts(bytes.as_ptr() as *const _, elems)
     }
 
+    //pub fn resolve_offset<T: FontRead<'a>, O: Offset>(&self, off: O) -> Result<T, ReadError> {
+    //let off = off.non_null().ok_or(ReadError::NullOffset)?;
+    //self.split_off(off)
+    //.ok_or(ReadError::OutOfBounds)
+    //.and_then(|data| T::read(data))
+    //}
+
     pub(crate) fn cursor(&self) -> Cursor<'a> {
         Cursor {
             pos: 0,
             data: self.clone(),
         }
+    }
+}
+
+pub trait ResolveOffset {
+    fn resolve<'a, T: FontRead<'a>>(&self, data: &FontData<'a>) -> Result<T, ReadError>;
+    fn resolve_nullable<'a, T: FontRead<'a>>(
+        &self,
+        data: &FontData<'a>,
+    ) -> Option<Result<T, ReadError>>;
+}
+
+impl<O: Offset> ResolveOffset for O {
+    fn resolve<'a, T: FontRead<'a>>(&self, data: &FontData<'a>) -> Result<T, ReadError> {
+        match self.resolve_nullable(data) {
+            Some(x) => x,
+            None => Err(ReadError::NullOffset),
+        }
+    }
+
+    fn resolve_nullable<'a, T: FontRead<'a>>(
+        &self,
+        data: &FontData<'a>,
+    ) -> Option<Result<T, ReadError>> {
+        let non_null = self.non_null()?;
+        Some(
+            data.split_off(non_null)
+                .ok_or(ReadError::OutOfBounds)
+                .and_then(T::read),
+        )
     }
 }
 

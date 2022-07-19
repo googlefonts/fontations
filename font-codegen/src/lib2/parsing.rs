@@ -101,6 +101,8 @@ pub(crate) struct FieldAttrs {
     pub(crate) nullable: Option<syn::Path>,
     pub(crate) available: Option<syn::Path>,
     pub(crate) no_getter: Option<syn::Path>,
+    /// if present, we will not try to resolve this offset
+    pub(crate) no_offset_getter: Option<syn::Path>,
     pub(crate) version: Option<syn::Path>,
     pub(crate) format: Option<FormatAttr>,
     pub(crate) count: Option<InlineExpr>,
@@ -140,10 +142,19 @@ pub(crate) struct InlineExpr {
 
 #[derive(Debug, Clone)]
 pub(crate) enum FieldType {
-    Offset { typ: syn::Ident },
-    Scalar { typ: syn::Ident },
-    Other { typ: syn::Ident },
-    Array { inner_typ: Box<FieldType> },
+    Offset {
+        typ: syn::Ident,
+        target: Option<syn::Ident>,
+    },
+    Scalar {
+        typ: syn::Ident,
+    },
+    Other {
+        typ: syn::Ident,
+    },
+    Array {
+        inner_typ: Box<FieldType>,
+    },
 }
 
 /// A raw c-style enum
@@ -372,8 +383,11 @@ impl Parse for FieldType {
         })?;
         let last = inner.segments.last().unwrap();
         if ["Offset16", "Offset24", "Offset32"].contains(&last.ident.to_string().as_str()) {
+            let target = get_single_generic_type_arg(&last.arguments)
+                .map(|p| p.segments.last().unwrap().ident.clone());
             Ok(FieldType::Offset {
                 typ: last.ident.clone(),
+                target,
             })
         } else if last.arguments.is_empty() {
             Ok(FieldType::Scalar {
@@ -415,6 +429,7 @@ static COMPUTE_COUNT: &str = "compute_count";
 static AVAILABLE: &str = "available";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
+static NO_OFFSET_GETTER: &str = "no_offset_getter";
 
 impl Parse for FieldAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -432,6 +447,8 @@ impl Parse for FieldAttrs {
                 this.nullable = Some(attr.path);
             } else if ident == NO_GETTER {
                 this.no_getter = Some(attr.path);
+            } else if ident == NO_OFFSET_GETTER {
+                this.no_offset_getter = Some(attr.path);
             } else if ident == VERSION {
                 this.version = Some(attr.path);
             } else if ident == COUNT {

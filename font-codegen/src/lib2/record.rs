@@ -21,7 +21,7 @@ pub(crate) fn generate(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
         let docs = &fld.attrs.docs;
         quote!( #( #docs )* )
     });
-    let inner_types = item.fields.iter().map(|fld| fld.getter_return_type());
+    let inner_types = item.fields.iter().map(|fld| fld.raw_getter_return_type());
 
     Ok(quote! {
         #( #docs )*
