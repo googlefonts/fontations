@@ -76,6 +76,7 @@ pub trait TableProvider {
 
 pub mod test_gpos2 {
     use super::gpos::ValueRecord;
+    use super::layout2::CoverageTable;
 
     impl ValueFormat {
         /// Return the number of bytes required to store a [`ValueRecord`] in this format.
@@ -124,4 +125,85 @@ pub mod test_gpos2 {
     }
 
     include!("../generated/gpos2.rs");
+}
+
+pub mod layout2 {
+
+    include!("../generated/layout2.rs");
+    fn delta_value_count(start_size: u16, end_size: u16, delta_format: DeltaFormat) -> usize {
+        let range_len = start_size.saturating_add(1).saturating_sub(end_size) as usize;
+        let val_per_word = match delta_format {
+            DeltaFormat::Local2BitDeltas => 8,
+            DeltaFormat::Local4BitDeltas => 4,
+            DeltaFormat::Local8BitDeltas => 2,
+            _ => return 0,
+        };
+
+        let count = range_len / val_per_word;
+        let extra = (range_len % val_per_word).min(1);
+        count + extra
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use font_types::OffsetHost;
+
+        use super::*;
+        fn try_read<'a, T: super::FontRead<'a>>(bytes: &'a [u8]) -> Result<T, super::ReadError> {
+            let data = super::FontData::new(bytes);
+            T::read(data)
+        }
+
+        #[test]
+        fn example_1_scripts() {
+            // https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#example-1-scriptlist-table-and-scriptrecords
+            #[rustfmt::skip]
+        let bytes = [
+            0x00, 0x03, 0x68, 0x61, 0x6E, 0x69, 0x00, 0x14, 0x6B, 0x61, 0x6E,
+            0x61, 0x00, 0x18, 0x6C, 0x61, 0x74, 0x6E, 0x00, 0x1C,
+        ];
+
+            let table: ScriptList = try_read(&bytes).unwrap();
+            assert_eq!(table.script_count(), 3);
+            let first = &table.script_records()[0];
+            assert_eq!(first.script_tag.get(), Tag::new(b"hani"));
+            assert_eq!(first.script_offset.get(), 0x14);
+        }
+
+        #[test]
+        fn example_2_scripts_and_langs() {
+            // https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#example-2-script-table-langsysrecord-and-langsys-table
+            #[rustfmt::skip]
+        let bytes = [
+            0x00, 0x0A, 0x00, 0x01, 0x55, 0x52, 0x44, 0x20, 0x00, 0x16, 0x00,
+            0x00, 0xFF, 0xFF, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02,
+            0x00, 0x00, 0x00, 0x03, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00,
+            0x02,
+        ];
+
+            let table: Script = try_read(&bytes).unwrap();
+            let def_lang = table.default_lang_sys().unwrap().unwrap();
+            assert_eq!(def_lang.required_feature_index(), 0xFFFF);
+            assert_eq!(def_lang.feature_index_count(), 3);
+            assert_eq!(def_lang.feature_indices(), [0u16, 1, 2]);
+        }
+
+        #[test]
+        fn example_3_featurelist_and_feature() {
+            // https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#example-3-featurelist-table-and-feature-table
+            #[rustfmt::skip]
+        let bytes = [
+            0x00, 0x03, 0x6C, 0x69, 0x67, 0x61, 0x00, 0x14, 0x6C, 0x69, 0x67,
+            0x61, 0x00, 0x1A, 0x6C, 0x69, 0x67, 0x61, 0x00, 0x22, 0x00, 0x00,
+            0x00, 0x01, 0x00, 0x01, 0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00,
+            0x01, 0x00, 0x00, 0x00, 0x03, 0x00, 0x00, 0x00, 0x01, 0x00, 0x02,
+        ];
+
+            let table: FeatureList = try_read(&bytes).unwrap();
+            assert_eq!(table.feature_count(), 3);
+            let record1 = &table.feature_records()[0];
+            let turkish_liga: Feature = table.resolve_offset(record1.feature_offset.get()).unwrap();
+            assert_eq!(turkish_liga.lookup_index_count(), 1);
+        }
+    }
 }

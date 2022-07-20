@@ -5,50 +5,6 @@
 //use crate::layout::FeatureVariations;
 //use crate::layout::Device;
 
-//NOTE: this is temporary until we impl layout, just so we can test
-//that offset resolution works.
-/// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
-table CoverageFormat1 {
-    /// Format identifier — format = 1
-    #[format = 1]
-    coverage_format: BigEndian<u16>,
-    /// Number of glyphs in the glyph array
-    //#[compute_count(glyph_array)]
-    glyph_count: BigEndian<u16>,
-    /// Array of glyph IDs — in numerical order
-    #[count($glyph_count)]
-    glyph_array: [BigEndian<u16>],
-}
-
-/// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
-table CoverageFormat2 {
-    /// Format identifier — format = 2
-    #[format = 2]
-    coverage_format: BigEndian<u16>,
-    /// Number of RangeRecords
-    //#[compute_count(range_records)]
-    range_count: BigEndian<u16>,
-    /// Array of glyph ranges — ordered by startGlyphID.
-    #[count($range_count)]
-    range_records: [RangeRecord],
-}
-
-format u16 CoverageTable {
-    Format1(CoverageFormat1),
-    Format2(CoverageFormat2),
-}
-
-/// Used in [CoverageFormat2]
-record RangeRecord {
-    /// First glyph ID in the range
-    start_glyph_id: BigEndian<u16>,
-    /// Last glyph ID in the range
-    end_glyph_id: BigEndian<u16>,
-    /// Coverage Index of first glyph ID in range
-    start_coverage_index: BigEndian<u16>,
-}
-
-
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 table Gpos {

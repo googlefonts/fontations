@@ -11,3 +11,8 @@ clean = ["font-tables/generated/gpos2.rs"]
 mode = "parse2"
 source = "resources/codegen_inputs/gpos2.rs"
 target = "font-tables/generated/gpos2.rs"
+
+[[generate]]
+mode = "parse2"
+source = "resources/codegen_inputs/layout2.rs"
+target = "font-tables/generated/layout2.rs"
