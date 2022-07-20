@@ -361,6 +361,7 @@ impl MarkArrayMarker {
 }
 
 impl TableInfo for MarkArrayMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let mark_count: u16 = cursor.read()?;
@@ -453,6 +454,7 @@ impl SinglePosFormat1Marker {
 }
 
 impl TableInfo for SinglePosFormat1Marker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -532,6 +534,7 @@ impl SinglePosFormat2Marker {
 }
 
 impl TableInfo for SinglePosFormat2Marker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -640,6 +643,7 @@ impl PairPosFormat1Marker {
 }
 
 impl TableInfo for PairPosFormat1Marker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -750,6 +754,7 @@ impl PairPosFormat2Marker {
 }
 
 impl TableInfo for PairPosFormat2Marker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -857,6 +862,7 @@ impl CursivePosFormat1Marker {
 }
 
 impl TableInfo for CursivePosFormat1Marker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1133,6 +1139,7 @@ impl LigatureArrayMarker {
 }
 
 impl TableInfo for LigatureArrayMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let ligature_count: u16 = cursor.read()?;

@@ -24,6 +24,7 @@ impl ScriptListMarker {
 }
 
 impl TableInfo for ScriptListMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let script_count: u16 = cursor.read()?;
@@ -90,6 +91,7 @@ impl ScriptMarker {
 }
 
 impl TableInfo for ScriptMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
@@ -176,6 +178,7 @@ impl LangSysMarker {
 }
 
 impl TableInfo for LangSysMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
@@ -233,6 +236,7 @@ impl FeatureListMarker {
 }
 
 impl TableInfo for FeatureListMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let feature_count: u16 = cursor.read()?;
@@ -300,6 +304,7 @@ impl FeatureMarker {
 }
 
 impl TableInfo for FeatureMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
@@ -355,6 +360,7 @@ impl LookupListMarker {
 }
 
 impl TableInfo for LookupListMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let lookup_count: u16 = cursor.read()?;
@@ -415,6 +421,7 @@ impl LookupMarker {
 }
 
 impl TableInfo for LookupMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -494,6 +501,7 @@ impl CoverageFormat1Marker {
 }
 
 impl TableInfo for CoverageFormat1Marker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -556,6 +564,7 @@ impl CoverageFormat2Marker {
 }
 
 impl TableInfo for CoverageFormat2Marker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -656,6 +665,7 @@ impl ClassDefFormat1Marker {
 }
 
 impl TableInfo for ClassDefFormat1Marker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -725,6 +735,7 @@ impl ClassDefFormat2Marker {
 }
 
 impl TableInfo for ClassDefFormat2Marker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -841,6 +852,7 @@ impl SequenceContextFormat1Marker {
 }
 
 impl TableInfo for SequenceContextFormat1Marker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -912,6 +924,7 @@ impl SequenceRuleSetMarker {
 }
 
 impl TableInfo for SequenceRuleSetMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let seq_rule_count: u16 = cursor.read()?;
@@ -969,6 +982,7 @@ impl SequenceRuleMarker {
 }
 
 impl TableInfo for SequenceRuleMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
@@ -1049,6 +1063,7 @@ impl SequenceContextFormat2Marker {
 }
 
 impl TableInfo for SequenceContextFormat2Marker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1137,6 +1152,7 @@ impl ClassSequenceRuleSetMarker {
 }
 
 impl TableInfo for ClassSequenceRuleSetMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let class_seq_rule_count: u16 = cursor.read()?;
@@ -1195,6 +1211,7 @@ impl ClassSequenceRuleMarker {
 }
 
 impl TableInfo for ClassSequenceRuleMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
@@ -1277,6 +1294,7 @@ impl SequenceContextFormat3Marker {
 }
 
 impl TableInfo for SequenceContextFormat3Marker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1379,6 +1397,7 @@ impl ChainedSequenceContextFormat1Marker {
 }
 
 impl TableInfo for ChainedSequenceContextFormat1Marker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1451,6 +1470,7 @@ impl ChainedSequenceRuleSetMarker {
 }
 
 impl TableInfo for ChainedSequenceRuleSetMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let chained_seq_rule_count: u16 = cursor.read()?;
@@ -1527,6 +1547,7 @@ impl ChainedSequenceRuleMarker {
 }
 
 impl TableInfo for ChainedSequenceRuleMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let backtrack_glyph_count: u16 = cursor.read()?;
@@ -1648,6 +1669,7 @@ impl ChainedSequenceContextFormat2Marker {
 }
 
 impl TableInfo for ChainedSequenceContextFormat2Marker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1768,6 +1790,7 @@ impl ChainedClassSequenceRuleSetMarker {
 }
 
 impl TableInfo for ChainedClassSequenceRuleSetMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let chained_class_seq_rule_count: u16 = cursor.read()?;
@@ -1844,6 +1867,7 @@ impl ChainedClassSequenceRuleMarker {
 }
 
 impl TableInfo for ChainedClassSequenceRuleMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let backtrack_glyph_count: u16 = cursor.read()?;
@@ -1977,6 +2001,7 @@ impl ChainedSequenceContextFormat3Marker {
 }
 
 impl TableInfo for ChainedSequenceContextFormat3Marker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -2149,6 +2174,7 @@ impl DeviceMarker {
 }
 
 impl TableInfo for DeviceMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let start_size: u16 = cursor.read()?;
@@ -2270,6 +2296,7 @@ impl FeatureVariationsMarker {
 }
 
 impl TableInfo for FeatureVariationsMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
@@ -2342,6 +2369,7 @@ impl ConditionSetMarker {
 }
 
 impl TableInfo for ConditionSetMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let condition_count: u16 = cursor.read()?;
@@ -2465,6 +2493,7 @@ impl FeatureTableSubstitutionMarker {
 }
 
 impl TableInfo for FeatureTableSubstitutionMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
@@ -2705,6 +2734,7 @@ impl CharacterVariantParamsMarker {
 }
 
 impl TableInfo for CharacterVariantParamsMarker {
+    #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();

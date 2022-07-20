@@ -21,6 +21,13 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     let table_ref_getters = item.iter_table_ref_getters();
 
     let optional_format_trait_impl = item.impl_format_trait();
+    // add this attribute if we're going to be generating expressions which
+    // may trigger a warning
+    let ignore_parens = item
+        .fields
+        .iter()
+        .any(|fld| fld.has_computed_len())
+        .then(|| quote!(#[allow(unused_parens)]));
 
     Ok(quote! {
         #optional_format_trait_impl
@@ -37,6 +44,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         }
 
         impl TableInfo for #marker_name {
+            #ignore_parens
             fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
                 let mut cursor = data.cursor();
                 #( #field_validation_stmts )*
