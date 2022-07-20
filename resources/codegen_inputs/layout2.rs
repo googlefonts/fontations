@@ -552,7 +552,7 @@ table FeatureVariations {
     ///// Minor version of the FeatureVariations table — set to 0.
     //#[compute(0)]
     //minor_version: BigEndian<u16>,
-    #[version]
+    //#[version]
     version: BigEndian<MajorMinor>,
     /// Number of feature variation records.
     //#[compute_count(feature_variation_records)]
@@ -615,7 +615,7 @@ table FeatureTableSubstitution {
     ///// to 0.
     //#[compute(0)]
     //minor_version: BigEndian<u16>,
-    #[version]
+    //#[version]
     version: BigEndian<MajorMinor>,
     /// Number of feature table substitution records.
     //#[compute_count(substitutions)]
@@ -671,7 +671,7 @@ table SizeParams {
 
 table StylisticSetParams {
     //#[compute(0)]
-    #[version]
+    //#[version]
     version: BigEndian<u16>,
     /// The 'name' table name ID that specifies a string (or strings, for
     /// multiple languages) for a user-interface label for this feature.

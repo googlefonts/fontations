@@ -2299,7 +2299,7 @@ impl TableInfo for FeatureVariationsMarker {
     #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
-        let version: MajorMinor = cursor.read()?;
+        cursor.advance::<MajorMinor>();
         let feature_variation_record_count: u32 = cursor.read()?;
         let feature_variation_records_byte_len =
             (feature_variation_record_count) as usize * FeatureVariationRecord::RAW_BYTE_LEN;
@@ -2496,7 +2496,7 @@ impl TableInfo for FeatureTableSubstitutionMarker {
     #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
-        let version: MajorMinor = cursor.read()?;
+        cursor.advance::<MajorMinor>();
         let substitution_count: u16 = cursor.read()?;
         let substitutions_byte_len =
             (substitution_count) as usize * FeatureTableSubstitutionRecord::RAW_BYTE_LEN;
@@ -2658,7 +2658,7 @@ impl StylisticSetParamsMarker {
 impl TableInfo for StylisticSetParamsMarker {
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
-        let version: u16 = cursor.read()?;
+        cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.finish(StylisticSetParamsMarker {})
     }

@@ -406,7 +406,6 @@ table MarkLigPosFormat1 {
     mark_array_offset: BigEndian<Offset16<MarkArray>>,
     /// Offset to LigatureArray table, from beginning of MarkLigPos
     /// subtable.
-    #[no_getter]
     ligature_array_offset: BigEndian<Offset16<LigatureArray>>,
 }
 

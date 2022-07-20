@@ -1118,6 +1118,21 @@ impl<'a> MarkLigPosFormat1<'a> {
         let result = offset.resolve(&self.data);
         result
     }
+
+    /// Offset to LigatureArray table, from beginning of MarkLigPos
+    /// subtable.
+    pub fn ligature_array_offset(&self) -> Offset16 {
+        let range = self.shape.ligature_array_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`ligature_array_offset`][Self::ligature_array_offset].
+    pub fn ligature_array(&self) -> Result<LigatureArray<'a>, ReadError> {
+        let range = self.shape.ligature_array_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve(&self.data);
+        result
+    }
 }
 
 /// Part of [MarkLigPosFormat1]
