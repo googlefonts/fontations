@@ -60,6 +60,17 @@ impl std::fmt::Display for ReadError {
 impl std::error::Error for ReadError {}
 
 impl<'a> FontData<'a> {
+    /// Create a new `FontData` with these bytes.
+    ///
+    /// You generally don't need to do this? It is handled for you when loading
+    /// data from disk, but may be useful in tests.
+    pub fn new(bytes: &'a [u8]) -> Self {
+        FontData {
+            total_pos: 0,
+            bytes,
+        }
+    }
+
     pub fn split_off(&self, pos: usize) -> Option<FontData<'a>> {
         self.bytes.get(pos..).map(|bytes| FontData {
             bytes,
@@ -109,7 +120,7 @@ impl<'a> FontData<'a> {
 
     fn check_in_bounds(&self, offset: usize) -> Result<(), ReadError> {
         self.bytes
-            .get(offset)
+            .get(..offset)
             .ok_or_else(|| ReadError::OutOfBounds)
             .map(|_| ())
     }
@@ -229,5 +240,12 @@ impl<'a> Cursor<'a> {
         let data = self.data;
         data.check_in_bounds(self.pos)?;
         Ok(TableRef { data, shape })
+    }
+}
+
+impl<'a, T> TableRef<'a, T> {
+    /// Resolve the provided offset from the start of this table.
+    pub fn resolve_offset<O: Offset, R: FontRead<'a>>(&self, offset: O) -> Result<R, ReadError> {
+        offset.resolve(&self.data)
     }
 }

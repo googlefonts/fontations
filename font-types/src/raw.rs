@@ -61,6 +61,12 @@ impl<T: Scalar + Default> Default for BigEndian<T> {
     }
 }
 
+impl<T: Scalar + Copy + PartialEq> PartialEq<T> for BigEndian<T> {
+    fn eq(&self, other: &T) -> bool {
+        self.get() == *other
+    }
+}
+
 /// An internal macro for implementing the `RawType` trait.
 #[macro_export]
 macro_rules! newtype_scalar {

@@ -112,6 +112,17 @@ impl crate::raw::Scalar for Tag {
     }
 }
 
+impl crate::raw::FixedSized for Tag {
+    const RAW_BYTE_LEN: usize = 4;
+}
+
+impl crate::raw::ReadScalar for Tag {
+    #[inline]
+    fn read(bytes: &[u8]) -> Option<Self> {
+        bytes.try_into().map(crate::raw::Scalar::from_raw).ok()
+    }
+}
+
 impl Borrow<[u8; 4]> for Tag {
     fn borrow(&self) -> &[u8; 4] {
         &self.0

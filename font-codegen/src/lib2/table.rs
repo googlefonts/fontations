@@ -29,7 +29,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         #[derive(Debug, Clone, Copy)]
         #[doc(hidden)]
         pub struct #marker_name {
-            #( #shape_fields )*
+            #( #shape_fields ),*
         }
 
         impl #marker_name {
