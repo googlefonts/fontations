@@ -4,4 +4,5 @@ members = [
     "font-tables",
     "font-types",
     "font-codegen",
+    "compile-tables",
 ]
