@@ -193,7 +193,7 @@ impl Field {
         };
 
         let raw_name = &self.name;
-        let docs = format!("Attempt to resolve [`{raw_name}`]");
+        let docs = format!(" Attempt to resolve [`{raw_name}`][Self::{raw_name}].");
 
         Some(quote! {
             #[doc = #docs]

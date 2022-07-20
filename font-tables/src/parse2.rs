@@ -1,9 +1,8 @@
 use std::ops::Range;
 
-use font_types::{Offset, Offset16, ReadScalar};
+use font_types::{Offset, ReadScalar};
 
-pub trait TableInfo: Sized {
-    type Info: Copy;
+pub trait TableInfo: Sized + Copy {
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError>;
 }
 
@@ -19,8 +18,8 @@ pub trait FontRead<'a>: Sized {
     fn read(data: FontData<'a>) -> Result<Self, ReadError>;
 }
 
-pub struct TableRef<'a, T: TableInfo> {
-    pub(crate) shape: T::Info,
+pub struct TableRef<'a, T> {
+    pub(crate) shape: T,
     pub(crate) data: FontData<'a>,
 }
 
@@ -226,7 +225,7 @@ impl<'a> Cursor<'a> {
         self.data.check_in_bounds(self.pos).map(|_| self.pos)
     }
 
-    pub(crate) fn finish<T: TableInfo>(self, shape: T::Info) -> Result<TableRef<'a, T>, ReadError> {
+    pub(crate) fn finish<T>(self, shape: T) -> Result<TableRef<'a, T>, ReadError> {
         let data = self.data;
         data.check_in_bounds(self.pos)?;
         Ok(TableRef { data, shape })

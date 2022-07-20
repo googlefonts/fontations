@@ -16,7 +16,8 @@ impl ReadScalar for ValueFormat {
     }
 }
 
-struct SinglePosFormat1;
+#[derive(Debug, Clone, Copy)]
+struct SinglePosFormat1 {}
 
 impl Format<u16> for SinglePosFormat1 {
     const FORMAT: u16 = 1;
@@ -27,14 +28,9 @@ impl Format<u16> for SinglePosFormat2 {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct SinglePosFormat1Shape {}
+struct SinglePosFormat2 {}
 
-struct SinglePosFormat2;
-
-#[derive(Debug, Clone, Copy)]
-struct SinglePosFormat2Shape {}
-
-impl SinglePosFormat1Shape {
+impl SinglePosFormat1 {
     #[inline]
     fn pos_format(&self, data: &FontData) -> u16 {
         data.read_at(0).unwrap_or_default()
@@ -52,7 +48,7 @@ impl SinglePosFormat1Shape {
 }
 
 impl TableInfo for SinglePosFormat1 {
-    type Info = SinglePosFormat1Shape;
+    //type Info = SinglePosFormat1Shape;
 
     fn parse<'a>(ctx: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = ctx.cursor();
@@ -61,12 +57,12 @@ impl TableInfo for SinglePosFormat1 {
         let value_format = cursor.read::<ValueFormat>()?;
         let value_record_len = value_format.record_byte_len();
         cursor.advance_by(value_record_len);
-        cursor.finish(SinglePosFormat1Shape {})
+        cursor.finish(SinglePosFormat1 {})
     }
 }
 
 impl TableInfo for SinglePosFormat2 {
-    type Info = SinglePosFormat2Shape;
+    //type Info = SinglePosFormat2Shape;
 
     fn parse<'a>(ctx: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = ctx.cursor();
@@ -75,7 +71,7 @@ impl TableInfo for SinglePosFormat2 {
         let value_format = cursor.read::<ValueFormat>()?;
         let value_count: u16 = cursor.read()?;
         cursor.advance_by(value_format.record_byte_len() * value_count as usize);
-        cursor.finish(SinglePosFormat2Shape {})
+        cursor.finish(SinglePosFormat2 {})
     }
 }
 
@@ -109,15 +105,7 @@ enum SinglePos<'a> {
     Format2(TableRef<'a, SinglePosFormat2>),
 }
 
-struct Cmap4;
-
-impl Format<u16> for Cmap4 {
-    const FORMAT: u16 = 4;
-}
-
 impl TableInfo for Cmap4 {
-    type Info = Cmap4Shape;
-
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let _format: u16 = cursor.read_validate(|value| {
@@ -141,7 +129,7 @@ impl TableInfo for Cmap4 {
         cursor.advance_by(id_delta_byte_len);
         let id_range_offsets_byte_len = seg_count_x2 as usize;
         cursor.advance_by(id_range_offsets_byte_len);
-        cursor.finish(Cmap4Shape {
+        cursor.finish(Cmap4 {
             end_code_byte_len,
             start_code_byte_len,
             id_delta_byte_len,
@@ -151,7 +139,7 @@ impl TableInfo for Cmap4 {
 }
 
 #[derive(Debug, Clone, Copy)]
-struct Cmap4Shape {
+struct Cmap4 {
     end_code_byte_len: usize,
     start_code_byte_len: usize,
     id_delta_byte_len: usize,
@@ -159,7 +147,11 @@ struct Cmap4Shape {
     //glyph_id_array_byte_len: usize,
 }
 
-impl Cmap4Shape {
+impl Format<u16> for Cmap4 {
+    const FORMAT: u16 = 4;
+}
+
+impl Cmap4 {
     fn format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -206,15 +198,12 @@ impl<'a> TableRef<'a, Cmap4> {
     }
 }
 
-struct Gdef;
 #[derive(Debug, Clone, Copy)]
-struct GdefShape {
+struct Gdef {
     mark_glyph_sets_def_byte_start: Option<usize>,
 }
 
-impl GdefShape {}
-
-impl GdefShape {
+impl Gdef {
     fn major_version(&self) -> usize {
         0
     }
@@ -230,8 +219,6 @@ impl GdefShape {
 }
 
 impl TableInfo for Gdef {
-    type Info = GdefShape;
-
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         //let _major_version = cursor.read_validate(|major_version: &u16| major_version == &1)?;
@@ -251,7 +238,7 @@ impl TableInfo for Gdef {
 
         cursor.advance::<Offset16>();
 
-        cursor.finish(GdefShape {
+        cursor.finish(Gdef {
             mark_glyph_sets_def_byte_start,
         })
     }

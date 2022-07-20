@@ -94,6 +94,8 @@ flags u16 ValueFormat {
     Y_ADVANCE_DEVICE = 0x0080,
 }
 
+/// [Anchor Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-tables)
+/// position one glyph with respect to another.
 format u16 AnchorTable {
     Format1(AnchorFormat1),
     Format2(AnchorFormat2),

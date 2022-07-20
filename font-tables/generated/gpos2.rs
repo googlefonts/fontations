@@ -5,22 +5,18 @@
 #[allow(unused_imports)]
 use crate::parse_prelude::*;
 
-/// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct CoverageFormat1Marker;
-
 impl Format<u16> for CoverageFormat1Marker {
     const FORMAT: u16 = 1;
 }
 
+/// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CoverageFormat1Shape {
+pub struct CoverageFormat1Marker {
     glyph_array_byte_len: usize,
 }
 
-impl CoverageFormat1Shape {
+impl CoverageFormat1Marker {
     fn coverage_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -36,14 +32,13 @@ impl CoverageFormat1Shape {
 }
 
 impl TableInfo for CoverageFormat1Marker {
-    type Info = CoverageFormat1Shape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let glyph_count: u16 = cursor.read()?;
         let glyph_array_byte_len = (glyph_count) as usize * u16::RAW_BYTE_LEN;
         cursor.advance_by(glyph_array_byte_len);
-        cursor.finish(CoverageFormat1Shape {
+        cursor.finish(CoverageFormat1Marker {
             glyph_array_byte_len,
         })
     }
@@ -72,22 +67,18 @@ impl<'a> CoverageFormat1<'a> {
     }
 }
 
-/// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct CoverageFormat2Marker;
-
 impl Format<u16> for CoverageFormat2Marker {
     const FORMAT: u16 = 2;
 }
 
+/// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CoverageFormat2Shape {
+pub struct CoverageFormat2Marker {
     range_records_byte_len: usize,
 }
 
-impl CoverageFormat2Shape {
+impl CoverageFormat2Marker {
     fn coverage_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -103,14 +94,13 @@ impl CoverageFormat2Shape {
 }
 
 impl TableInfo for CoverageFormat2Marker {
-    type Info = CoverageFormat2Shape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let range_count: u16 = cursor.read()?;
         let range_records_byte_len = (range_count) as usize * RangeRecord::RAW_BYTE_LEN;
         cursor.advance_by(range_records_byte_len);
-        cursor.finish(CoverageFormat2Shape {
+        cursor.finish(CoverageFormat2Marker {
             range_records_byte_len,
         })
     }
@@ -176,15 +166,11 @@ impl FixedSized for RangeRecord {
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct GposMarker;
-
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct GposShape {
+pub struct GposMarker {
     feature_variations_offset_byte_start: Option<usize>,
 }
 
-impl GposShape {
+impl GposMarker {
     fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
@@ -208,7 +194,6 @@ impl GposShape {
 }
 
 impl TableInfo for GposMarker {
-    type Info = GposShape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
@@ -222,7 +207,7 @@ impl TableInfo for GposMarker {
         version
             .compatible(MajorMinor::VERSION_1_1)
             .then(|| cursor.advance::<Offset32>());
-        cursor.finish(GposShape {
+        cursor.finish(GposMarker {
             feature_variations_offset_byte_start,
         })
     }
@@ -286,6 +271,8 @@ impl ReadScalar for ValueFormat {
     }
 }
 
+/// [Anchor Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-tables)
+/// position one glyph with respect to another.
 pub enum AnchorTable<'a> {
     Format1(AnchorFormat1<'a>),
     Format2(AnchorFormat2<'a>),
@@ -304,20 +291,16 @@ impl<'a> FontRead<'a> for AnchorTable<'a> {
     }
 }
 
-/// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AnchorFormat1Marker;
-
 impl Format<u16> for AnchorFormat1Marker {
     const FORMAT: u16 = 1;
 }
 
+/// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AnchorFormat1Shape {}
+pub struct AnchorFormat1Marker {}
 
-impl AnchorFormat1Shape {
+impl AnchorFormat1Marker {
     fn anchor_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -333,13 +316,12 @@ impl AnchorFormat1Shape {
 }
 
 impl TableInfo for AnchorFormat1Marker {
-    type Info = AnchorFormat1Shape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<i16>();
         cursor.advance::<i16>();
-        cursor.finish(AnchorFormat1Shape {})
+        cursor.finish(AnchorFormat1Marker {})
     }
 }
 
@@ -366,20 +348,16 @@ impl<'a> AnchorFormat1<'a> {
     }
 }
 
-/// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AnchorFormat2Marker;
-
 impl Format<u16> for AnchorFormat2Marker {
     const FORMAT: u16 = 2;
 }
 
+/// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AnchorFormat2Shape {}
+pub struct AnchorFormat2Marker {}
 
-impl AnchorFormat2Shape {
+impl AnchorFormat2Marker {
     fn anchor_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -399,14 +377,13 @@ impl AnchorFormat2Shape {
 }
 
 impl TableInfo for AnchorFormat2Marker {
-    type Info = AnchorFormat2Shape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<i16>();
         cursor.advance::<i16>();
         cursor.advance::<u16>();
-        cursor.finish(AnchorFormat2Shape {})
+        cursor.finish(AnchorFormat2Marker {})
     }
 }
 
@@ -439,20 +416,16 @@ impl<'a> AnchorFormat2<'a> {
     }
 }
 
-/// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AnchorFormat3Marker;
-
 impl Format<u16> for AnchorFormat3Marker {
     const FORMAT: u16 = 3;
 }
 
+/// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct AnchorFormat3Shape {}
+pub struct AnchorFormat3Marker {}
 
-impl AnchorFormat3Shape {
+impl AnchorFormat3Marker {
     fn anchor_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -476,7 +449,6 @@ impl AnchorFormat3Shape {
 }
 
 impl TableInfo for AnchorFormat3Marker {
-    type Info = AnchorFormat3Shape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -484,7 +456,7 @@ impl TableInfo for AnchorFormat3Marker {
         cursor.advance::<i16>();
         cursor.advance::<Offset16>();
         cursor.advance::<Offset16>();
-        cursor.finish(AnchorFormat3Shape {})
+        cursor.finish(AnchorFormat3Marker {})
     }
 }
 
@@ -530,15 +502,11 @@ impl<'a> AnchorFormat3<'a> {
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MarkArrayMarker;
-
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct MarkArrayShape {
+pub struct MarkArrayMarker {
     mark_records_byte_len: usize,
 }
 
-impl MarkArrayShape {
+impl MarkArrayMarker {
     fn mark_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -550,13 +518,12 @@ impl MarkArrayShape {
 }
 
 impl TableInfo for MarkArrayMarker {
-    type Info = MarkArrayShape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let mark_count: u16 = cursor.read()?;
         let mark_records_byte_len = (mark_count) as usize * MarkRecord::RAW_BYTE_LEN;
         cursor.advance_by(mark_records_byte_len);
-        cursor.finish(MarkArrayShape {
+        cursor.finish(MarkArrayMarker {
             mark_records_byte_len,
         })
     }
@@ -612,22 +579,18 @@ impl<'a> FontRead<'a> for SinglePos<'a> {
     }
 }
 
-/// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SinglePosFormat1Marker;
-
 impl Format<u16> for SinglePosFormat1Marker {
     const FORMAT: u16 = 1;
 }
 
+/// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SinglePosFormat1Shape {
+pub struct SinglePosFormat1Marker {
     value_record_byte_len: usize,
 }
 
-impl SinglePosFormat1Shape {
+impl SinglePosFormat1Marker {
     fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -647,7 +610,6 @@ impl SinglePosFormat1Shape {
 }
 
 impl TableInfo for SinglePosFormat1Marker {
-    type Info = SinglePosFormat1Shape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -655,7 +617,7 @@ impl TableInfo for SinglePosFormat1Marker {
         let value_format: ValueFormat = cursor.read()?;
         let value_record_byte_len = (value_format.record_byte_len());
         cursor.advance_by(value_record_byte_len);
-        cursor.finish(SinglePosFormat1Shape {
+        cursor.finish(SinglePosFormat1Marker {
             value_record_byte_len,
         })
     }
@@ -677,7 +639,7 @@ impl<'a> SinglePosFormat1<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    ///Attempt to resolve [`coverage_offset`]
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let range = self.shape.coverage_offset_byte_range();
         let offset: Offset16 = self.data.read_at(range.start).unwrap();
@@ -692,22 +654,18 @@ impl<'a> SinglePosFormat1<'a> {
     }
 }
 
-/// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SinglePosFormat2Marker;
-
 impl Format<u16> for SinglePosFormat2Marker {
     const FORMAT: u16 = 2;
 }
 
+/// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct SinglePosFormat2Shape {
+pub struct SinglePosFormat2Marker {
     value_records_byte_len: usize,
 }
 
-impl SinglePosFormat2Shape {
+impl SinglePosFormat2Marker {
     fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -731,7 +689,6 @@ impl SinglePosFormat2Shape {
 }
 
 impl TableInfo for SinglePosFormat2Marker {
-    type Info = SinglePosFormat2Shape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -740,7 +697,7 @@ impl TableInfo for SinglePosFormat2Marker {
         let value_count: u16 = cursor.read()?;
         let value_records_byte_len = (value_count as usize * value_format.record_byte_len());
         cursor.advance_by(value_records_byte_len);
-        cursor.finish(SinglePosFormat2Shape {
+        cursor.finish(SinglePosFormat2Marker {
             value_records_byte_len,
         })
     }
@@ -762,7 +719,7 @@ impl<'a> SinglePosFormat2<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    ///Attempt to resolve [`coverage_offset`]
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
         let range = self.shape.coverage_offset_byte_range();
         let offset: Offset16 = self.data.read_at(range.start).unwrap();
@@ -801,22 +758,18 @@ impl<'a> FontRead<'a> for PairPos<'a> {
     }
 }
 
-/// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PairPosFormat1Marker;
-
 impl Format<u16> for PairPosFormat1Marker {
     const FORMAT: u16 = 1;
 }
 
+/// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PairPosFormat1Shape {
+pub struct PairPosFormat1Marker {
     pair_set_offsets_byte_len: usize,
 }
 
-impl PairPosFormat1Shape {
+impl PairPosFormat1Marker {
     fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -844,7 +797,6 @@ impl PairPosFormat1Shape {
 }
 
 impl TableInfo for PairPosFormat1Marker {
-    type Info = PairPosFormat1Shape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -854,7 +806,7 @@ impl TableInfo for PairPosFormat1Marker {
         let pair_set_count: u16 = cursor.read()?;
         let pair_set_offsets_byte_len = (pair_set_count) as usize * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(pair_set_offsets_byte_len);
-        cursor.finish(PairPosFormat1Shape {
+        cursor.finish(PairPosFormat1Marker {
             pair_set_offsets_byte_len,
         })
     }
@@ -904,22 +856,18 @@ impl<'a> PairPosFormat1<'a> {
     }
 }
 
-/// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PairPosFormat2Marker;
-
 impl Format<u16> for PairPosFormat2Marker {
     const FORMAT: u16 = 2;
 }
 
+/// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct PairPosFormat2Shape {
+pub struct PairPosFormat2Marker {
     class1_records_byte_len: usize,
 }
 
-impl PairPosFormat2Shape {
+impl PairPosFormat2Marker {
     fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -959,7 +907,6 @@ impl PairPosFormat2Shape {
 }
 
 impl TableInfo for PairPosFormat2Marker {
-    type Info = PairPosFormat2Shape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -973,7 +920,7 @@ impl TableInfo for PairPosFormat2Marker {
         let class1_records_byte_len =
             (class1_record_len(class1_count, class2_count, value_format1, value_format2));
         cursor.advance_by(class1_records_byte_len);
-        cursor.finish(PairPosFormat2Shape {
+        cursor.finish(PairPosFormat2Marker {
             class1_records_byte_len,
         })
     }
@@ -1036,22 +983,18 @@ impl<'a> PairPosFormat2<'a> {
     }
 }
 
-/// [Cursive Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#cursive-attachment-positioning-format1-cursive-attachment): Cursvie attachment
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct CursivePosFormat1Marker;
-
 impl Format<u16> for CursivePosFormat1Marker {
     const FORMAT: u16 = 1;
 }
 
+/// [Cursive Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#cursive-attachment-positioning-format1-cursive-attachment): Cursvie attachment
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CursivePosFormat1Shape {
+pub struct CursivePosFormat1Marker {
     entry_exit_record_byte_len: usize,
 }
 
-impl CursivePosFormat1Shape {
+impl CursivePosFormat1Marker {
     fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -1071,7 +1014,6 @@ impl CursivePosFormat1Shape {
 }
 
 impl TableInfo for CursivePosFormat1Marker {
-    type Info = CursivePosFormat1Shape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1080,7 +1022,7 @@ impl TableInfo for CursivePosFormat1Marker {
         let entry_exit_record_byte_len =
             (entry_exit_count) as usize * EntryExitRecord::RAW_BYTE_LEN;
         cursor.advance_by(entry_exit_record_byte_len);
-        cursor.finish(CursivePosFormat1Shape {
+        cursor.finish(CursivePosFormat1Marker {
             entry_exit_record_byte_len,
         })
     }
@@ -1132,20 +1074,16 @@ impl FixedSized for EntryExitRecord {
     const RAW_BYTE_LEN: usize = Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
-/// [Mark-to-Base Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-base-attachment-positioning-format-1-mark-to-base-attachment-point): Mark-to-base Attachment Point
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct MarkBasePosFormat1Marker;
-
 impl Format<u16> for MarkBasePosFormat1Marker {
     const FORMAT: u16 = 1;
 }
 
+/// [Mark-to-Base Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-base-attachment-positioning-format-1-mark-to-base-attachment-point): Mark-to-base Attachment Point
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MarkBasePosFormat1Shape {}
+pub struct MarkBasePosFormat1Marker {}
 
-impl MarkBasePosFormat1Shape {
+impl MarkBasePosFormat1Marker {
     fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -1173,7 +1111,6 @@ impl MarkBasePosFormat1Shape {
 }
 
 impl TableInfo for MarkBasePosFormat1Marker {
-    type Info = MarkBasePosFormat1Shape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1182,7 +1119,7 @@ impl TableInfo for MarkBasePosFormat1Marker {
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         cursor.advance::<Offset16>();
-        cursor.finish(MarkBasePosFormat1Shape {})
+        cursor.finish(MarkBasePosFormat1Marker {})
     }
 }
 
@@ -1223,7 +1160,7 @@ impl<'a> MarkBasePosFormat1<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    ///Attempt to resolve [`mark_array_offset`]
+    /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
     pub fn mark_array(&self) -> Result<MarkArray<'a>, ReadError> {
         let range = self.shape.mark_array_offset_byte_range();
         let offset: Offset16 = self.data.read_at(range.start).unwrap();
@@ -1239,20 +1176,16 @@ impl<'a> MarkBasePosFormat1<'a> {
     }
 }
 
-/// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct MarkLigPosFormat1Marker;
-
 impl Format<u16> for MarkLigPosFormat1Marker {
     const FORMAT: u16 = 1;
 }
 
+/// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MarkLigPosFormat1Shape {}
+pub struct MarkLigPosFormat1Marker {}
 
-impl MarkLigPosFormat1Shape {
+impl MarkLigPosFormat1Marker {
     fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -1280,7 +1213,6 @@ impl MarkLigPosFormat1Shape {
 }
 
 impl TableInfo for MarkLigPosFormat1Marker {
-    type Info = MarkLigPosFormat1Shape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1289,7 +1221,7 @@ impl TableInfo for MarkLigPosFormat1Marker {
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         cursor.advance::<Offset16>();
-        cursor.finish(MarkLigPosFormat1Shape {})
+        cursor.finish(MarkLigPosFormat1Marker {})
     }
 }
 
@@ -1330,7 +1262,7 @@ impl<'a> MarkLigPosFormat1<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    ///Attempt to resolve [`mark_array_offset`]
+    /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
     pub fn mark_array(&self) -> Result<MarkArray<'a>, ReadError> {
         let range = self.shape.mark_array_offset_byte_range();
         let offset: Offset16 = self.data.read_at(range.start).unwrap();
@@ -1342,15 +1274,11 @@ impl<'a> MarkLigPosFormat1<'a> {
 /// Part of [MarkLigPosFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct LigatureArrayMarker;
-
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct LigatureArrayShape {
+pub struct LigatureArrayMarker {
     ligature_attach_offsets_byte_len: usize,
 }
 
-impl LigatureArrayShape {
+impl LigatureArrayMarker {
     fn ligature_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -1362,13 +1290,12 @@ impl LigatureArrayShape {
 }
 
 impl TableInfo for LigatureArrayMarker {
-    type Info = LigatureArrayShape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let ligature_count: u16 = cursor.read()?;
         let ligature_attach_offsets_byte_len = (ligature_count) as usize * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(ligature_attach_offsets_byte_len);
-        cursor.finish(LigatureArrayShape {
+        cursor.finish(LigatureArrayMarker {
             ligature_attach_offsets_byte_len,
         })
     }
@@ -1393,20 +1320,16 @@ impl<'a> LigatureArray<'a> {
     }
 }
 
-/// [Mark-to-Mark Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-mark-attachment-positioning-format-1-mark-to-mark-attachment): Mark-to-Mark Attachment
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct MarkMarkPosFormat1Marker;
-
 impl Format<u16> for MarkMarkPosFormat1Marker {
     const FORMAT: u16 = 1;
 }
 
+/// [Mark-to-Mark Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-mark-attachment-positioning-format-1-mark-to-mark-attachment): Mark-to-Mark Attachment
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MarkMarkPosFormat1Shape {}
+pub struct MarkMarkPosFormat1Marker {}
 
-impl MarkMarkPosFormat1Shape {
+impl MarkMarkPosFormat1Marker {
     fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -1434,7 +1357,6 @@ impl MarkMarkPosFormat1Shape {
 }
 
 impl TableInfo for MarkMarkPosFormat1Marker {
-    type Info = MarkMarkPosFormat1Shape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -1443,7 +1365,7 @@ impl TableInfo for MarkMarkPosFormat1Marker {
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         cursor.advance::<Offset16>();
-        cursor.finish(MarkMarkPosFormat1Shape {})
+        cursor.finish(MarkMarkPosFormat1Marker {})
     }
 }
 
@@ -1484,7 +1406,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    ///Attempt to resolve [`mark1_array_offset`]
+    /// Attempt to resolve [`mark1_array_offset`][Self::mark1_array_offset].
     pub fn mark1_array(&self) -> Result<MarkArray<'a>, ReadError> {
         let range = self.shape.mark1_array_offset_byte_range();
         let offset: Offset16 = self.data.read_at(range.start).unwrap();
@@ -1500,20 +1422,16 @@ impl<'a> MarkMarkPosFormat1<'a> {
     }
 }
 
-/// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct ExtensionPosFormat1Marker;
-
 impl Format<u16> for ExtensionPosFormat1Marker {
     const FORMAT: u16 = 1;
 }
 
+/// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct ExtensionPosFormat1Shape {}
+pub struct ExtensionPosFormat1Marker {}
 
-impl ExtensionPosFormat1Shape {
+impl ExtensionPosFormat1Marker {
     fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -1529,13 +1447,12 @@ impl ExtensionPosFormat1Shape {
 }
 
 impl TableInfo for ExtensionPosFormat1Marker {
-    type Info = ExtensionPosFormat1Shape;
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<Offset32>();
-        cursor.finish(ExtensionPosFormat1Shape {})
+        cursor.finish(ExtensionPosFormat1Marker {})
     }
 }
 

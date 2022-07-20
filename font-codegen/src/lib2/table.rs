@@ -11,7 +11,6 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     }
     let docs = &item.attrs.docs;
     let marker_name = item.marker_name();
-    let shape_name = item.shape_name();
     let raw_name = item.raw_name();
     let shape_byte_range_fns = item.iter_shape_byte_fns();
     let shape_fields = item.iter_shape_fields();
@@ -24,30 +23,24 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     let optional_format_trait_impl = item.impl_format_trait();
 
     Ok(quote! {
+        #optional_format_trait_impl
+
         #( #docs )*
         #[derive(Debug, Clone, Copy)]
         #[doc(hidden)]
-        pub struct #marker_name;
-
-        #optional_format_trait_impl
-
-        #[derive(Debug, Clone, Copy)]
-        #[doc(hidden)]
-        pub struct #shape_name {
+        pub struct #marker_name {
             #( #shape_fields )*
         }
 
-        impl #shape_name {
+        impl #marker_name {
             #( #shape_byte_range_fns )*
         }
 
         impl TableInfo for #marker_name {
-            type Info = #shape_name;
-
             fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
                 let mut cursor = data.cursor();
                 #( #field_validation_stmts )*
-                cursor.finish( #shape_name {
+                cursor.finish( #marker_name {
                     #( #shape_field_names, )*
                 })
             }
@@ -106,10 +99,6 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
 impl Table {
     fn marker_name(&self) -> syn::Ident {
         quote::format_ident!("{}Marker", self.raw_name())
-    }
-
-    fn shape_name(&self) -> syn::Ident {
-        quote::format_ident!("{}Shape", self.raw_name())
     }
 
     fn iter_shape_byte_fns(&self) -> impl Iterator<Item = TokenStream> + '_ {
