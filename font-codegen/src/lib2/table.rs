@@ -65,6 +65,36 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     })
 }
 
+pub(crate) fn generate_compile(item: &Table) -> syn::Result<TokenStream> {
+    let docs = &item.attrs.docs;
+    let raw_name = item.raw_name();
+
+    Ok(quote! {
+        #( #docs )*
+        #[derive(Debug, Clone, Copy)]
+        pub struct #raw_name {}
+    })
+}
+
+pub(crate) fn generate_format_compile(item: &TableFormat) -> syn::Result<TokenStream> {
+    let name = &item.name;
+    let docs = &item.docs;
+    let variants = item.variants.iter().map(|variant| {
+        let name = &variant.name;
+        let typ = variant.type_name();
+        let docs = &variant.docs;
+        quote! ( #( #docs )* #name(#typ) )
+    });
+
+    Ok(quote! {
+        #( #docs )*
+        #[derive(Clone, Debug)]
+        pub enum #name {
+            #( #variants ),*
+        }
+    })
+}
+
 pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStream> {
     let name = &item.name;
     let docs = &item.docs;

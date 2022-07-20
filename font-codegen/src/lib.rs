@@ -20,12 +20,15 @@ pub enum Mode {
     Parse2,
     /// Generate compilation code
     Compile,
+    /// Generate new-style-compatible compilation code
+    Compile2,
 }
 
 pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
     let tables = match mode {
         Mode::Parse => generate_parse_module(&syn::parse_str(code_str)?),
         Mode::Parse2 => lib2::generate_parse_module(&code_str),
+        Mode::Compile2 => lib2::generate_compile_module(&code_str),
         Mode::Compile => compile_types::generate_compile_module(&syn::parse_str(code_str)?),
     }?;
     // if this is not valid code just pass it through directly, and then we

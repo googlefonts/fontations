@@ -4,3 +4,178 @@
 
 #[allow(unused_imports)]
 use crate::compile_prelude::*;
+
+/// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
+/// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
+#[derive(Debug, Clone, Copy)]
+pub struct Gpos {}
+
+/// [Anchor Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-tables)
+/// position one glyph with respect to another.
+#[derive(Clone, Debug)]
+pub enum AnchorTable {
+    Format1(AnchorFormat1),
+    Format2(AnchorFormat2),
+    Format3(AnchorFormat3),
+}
+
+/// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
+#[derive(Debug, Clone, Copy)]
+pub struct AnchorFormat1 {}
+
+/// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
+#[derive(Debug, Clone, Copy)]
+pub struct AnchorFormat2 {}
+
+/// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
+#[derive(Debug, Clone, Copy)]
+pub struct AnchorFormat3 {}
+
+/// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
+#[derive(Debug, Clone, Copy)]
+pub struct MarkArray {}
+
+/// Part of [MarkArray]
+#[derive(Clone, Debug)]
+pub struct MarkRecord {
+    /// Class defined for the associated mark.
+    pub mark_class: u16,
+    /// Offset to Anchor table, from beginning of MarkArray table.
+    pub mark_anchor_offset: OffsetMarker<Offset16, AnchorTable>,
+}
+
+/// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
+#[derive(Clone, Debug)]
+pub enum SinglePos {
+    Format1(SinglePosFormat1),
+    Format2(SinglePosFormat2),
+}
+
+/// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
+#[derive(Debug, Clone, Copy)]
+pub struct SinglePosFormat1 {}
+
+/// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
+#[derive(Debug, Clone, Copy)]
+pub struct SinglePosFormat2 {}
+
+/// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
+#[derive(Clone, Debug)]
+pub enum PairPos {
+    Format1(PairPosFormat1),
+    Format2(PairPosFormat2),
+}
+
+/// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
+#[derive(Debug, Clone, Copy)]
+pub struct PairPosFormat1 {}
+
+/// Part of [PairPosFormat1]
+#[derive(Debug, Clone, Copy)]
+pub struct PairSet {}
+
+/// Part of [PairSet]
+#[derive(Clone, Debug)]
+pub struct PairValueRecord {
+    /// Glyph ID of second glyph in the pair (first glyph is listed in
+    /// the Coverage table).
+    pub second_glyph: u16,
+    /// Positioning data for the first glyph in the pair.
+    pub value_record1: ValueRecord,
+    /// Positioning data for the second glyph in the pair.
+    pub value_record2: ValueRecord,
+}
+
+/// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
+#[derive(Debug, Clone, Copy)]
+pub struct PairPosFormat2 {}
+
+/// Part of [PairPosFormat2]
+#[derive(Clone, Debug)]
+pub struct Class1Record {
+    /// Array of Class2 records, ordered by classes in classDef2.
+    pub class2_records: Vec<Class2Record>,
+}
+
+/// Part of [PairPosFormat2]
+#[derive(Clone, Debug)]
+pub struct Class2Record {
+    /// Positioning for first glyph — empty if valueFormat1 = 0.
+    pub value_record1: ValueRecord,
+    /// Positioning for second glyph — empty if valueFormat2 = 0.
+    pub value_record2: ValueRecord,
+}
+
+/// [Cursive Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#cursive-attachment-positioning-format1-cursive-attachment): Cursvie attachment
+#[derive(Debug, Clone, Copy)]
+pub struct CursivePosFormat1 {}
+
+/// Part of [CursivePosFormat1]
+#[derive(Clone, Debug)]
+pub struct EntryExitRecord {
+    /// Offset to entryAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub entry_anchor_offset: NullableOffsetMarker<Offset16, AnchorTable>,
+    /// Offset to exitAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub exit_anchor_offset: NullableOffsetMarker<Offset16, AnchorTable>,
+}
+
+/// [Mark-to-Base Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-base-attachment-positioning-format-1-mark-to-base-attachment-point): Mark-to-base Attachment Point
+#[derive(Debug, Clone, Copy)]
+pub struct MarkBasePosFormat1 {}
+
+/// Part of [MarkBasePosFormat1]
+#[derive(Debug, Clone, Copy)]
+pub struct BaseArray {}
+
+/// Part of [BaseArray]
+#[derive(Clone, Debug)]
+pub struct BaseRecord {
+    /// Array of offsets (one per mark class) to Anchor tables. Offsets
+    /// are from beginning of BaseArray table, ordered by class
+    /// (offsets may be NULL).
+    pub base_anchor_offsets: Vec<NullableOffsetMarker<Offset16, AnchorTable>>,
+}
+
+/// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
+#[derive(Debug, Clone, Copy)]
+pub struct MarkLigPosFormat1 {}
+
+/// Part of [MarkLigPosFormat1]
+#[derive(Debug, Clone, Copy)]
+pub struct LigatureArray {}
+
+/// Part of [MarkLigPosFormat1]
+#[derive(Debug, Clone, Copy)]
+pub struct LigatureAttach {}
+
+/// Part of [MarkLigPosFormat1]
+#[derive(Clone, Debug)]
+pub struct ComponentRecord {
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of LigatureAttach table, ordered by class
+    /// (offsets may be NULL).
+    pub ligature_anchor_offsets: Vec<NullableOffsetMarker<Offset16, AnchorTable>>,
+}
+
+/// [Mark-to-Mark Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-mark-attachment-positioning-format-1-mark-to-mark-attachment): Mark-to-Mark Attachment
+#[derive(Debug, Clone, Copy)]
+pub struct MarkMarkPosFormat1 {}
+
+/// Part of [MarkMarkPosFormat1]Class2Record
+#[derive(Debug, Clone, Copy)]
+pub struct Mark2Array {}
+
+/// Part of [MarkMarkPosFormat1]
+#[derive(Clone, Debug)]
+pub struct Mark2Record {
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of Mark2Array table, in class order (offsets may
+    /// be NULL).
+    pub mark2_anchor_offsets: Vec<NullableOffsetMarker<Offset16, AnchorTable>>,
+}
+
+/// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
+#[derive(Debug, Clone, Copy)]
+pub struct ExtensionPosFormat1 {}

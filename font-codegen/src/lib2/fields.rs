@@ -65,6 +65,10 @@ impl Field {
         self.attrs.nullable.is_some()
     }
 
+    pub(crate) fn is_computed(&self) -> bool {
+        false
+    }
+
     pub(crate) fn validate_at_parse(&self) -> bool {
         false
         //FIXME: validate fields?
@@ -119,6 +123,10 @@ impl Field {
                 _ => unreachable!(),
             },
         }
+    }
+
+    pub(crate) fn owned_type(&self) -> TokenStream {
+        self.typ.compile_type(self.is_nullable())
     }
 
     pub(crate) fn field_getter(&self) -> Option<TokenStream> {
@@ -300,6 +308,31 @@ impl FieldType {
             Some(inner_typ.cooked_type_tokens())
         } else {
             None
+        }
+    }
+
+    fn compile_type(&self, nullable: bool) -> TokenStream {
+        match self {
+            FieldType::Scalar { typ } | FieldType::Other { typ } => typ.into_token_stream(),
+            FieldType::Offset { typ, target } => {
+                let target = target
+                    .as_ref()
+                    .map(|t| t.into_token_stream())
+                    .unwrap_or_else(|| quote!(Box<dyn FontWrite>));
+                if nullable {
+                    quote!(NullableOffsetMarker<#typ, #target>)
+                } else {
+                    quote!(OffsetMarker<#typ, #target>)
+                }
+            }
+            FieldType::Array { inner_typ } => {
+                if matches!(inner_typ.as_ref(), &FieldType::Array { .. }) {
+                    panic!("nesting arrays is not supported");
+                }
+
+                let inner_tokens = inner_typ.compile_type(nullable);
+                quote!( Vec<#inner_tokens> )
+            }
         }
     }
 }

@@ -1,6 +1,6 @@
-//! the [GDEF] table
+//! the [GPOS] table
 //!
-//! [GDEF]: https://docs.microsoft.com/en-us/typography/opentype/spec/gdef
+//! [GPOS]: https://docs.microsoft.com/en-us/typography/opentype/spec/gpos
 
 use font_types::{BigEndian, FontRead, FontReadWithArgs, Tag};
 

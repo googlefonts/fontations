@@ -1,5 +1,6 @@
 //! codegen for record objects
 
+use proc_macro2::TokenStream;
 use quote::quote;
 
 use super::parsing::{Field, Record};
@@ -36,4 +37,34 @@ pub(crate) fn generate(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
             const RAW_BYTE_LEN: usize = #( #inner_types::RAW_BYTE_LEN )+*;
         }
     })
+}
+
+pub(crate) fn generate_compile(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
+    //Ok(Default::default())
+
+    let name = &item.name;
+    let docs = &item.attrs.docs;
+    let fields = item.iter_compile_field_decls();
+
+    Ok(quote! {
+        #( #docs )*
+        #[derive(Clone, Debug)]
+        pub struct #name {
+            #( #fields, )*
+        }
+    })
+}
+
+impl Record {
+    fn iter_compile_field_decls(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        self.fields
+            .iter()
+            .filter(|fld| !fld.is_computed())
+            .map(|fld| {
+                let name = &fld.name;
+                let docs = &fld.attrs.docs;
+                let typ = fld.owned_type();
+                quote!( #( #docs)* pub #name: #typ )
+            })
+    }
 }

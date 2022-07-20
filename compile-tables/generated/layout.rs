@@ -4,3 +4,243 @@
 
 #[allow(unused_imports)]
 use crate::compile_prelude::*;
+
+/// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
+#[derive(Debug, Clone, Copy)]
+pub struct ScriptList {}
+
+/// [Script Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
+#[derive(Clone, Debug)]
+pub struct ScriptRecord {
+    /// 4-byte script tag identifier
+    pub script_tag: Tag,
+    /// Offset to Script table, from beginning of ScriptList
+    pub script_offset: OffsetMarker<Offset16, Script>,
+}
+
+/// [Script Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-table-and-language-system-record)
+#[derive(Debug, Clone, Copy)]
+pub struct Script {}
+
+#[derive(Clone, Debug)]
+pub struct LangSysRecord {
+    /// 4-byte LangSysTag identifier
+    pub lang_sys_tag: Tag,
+    /// Offset to LangSys table, from beginning of Script table
+    pub lang_sys_offset: OffsetMarker<Offset16, LangSys>,
+}
+
+/// [Language System Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#language-system-table)
+#[derive(Debug, Clone, Copy)]
+pub struct LangSys {}
+
+/// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
+#[derive(Debug, Clone, Copy)]
+pub struct FeatureList {}
+
+/// Part of [FeatureList]
+#[derive(Clone, Debug)]
+pub struct FeatureRecord {
+    /// 4-byte feature identification tag
+    pub feature_tag: Tag,
+    /// Offset to Feature table, from beginning of FeatureList
+    pub feature_offset: OffsetMarker<Offset16, Feature>,
+}
+
+/// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
+#[derive(Debug, Clone, Copy)]
+pub struct Feature {}
+
+/// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
+#[derive(Debug, Clone, Copy)]
+pub struct LookupList {}
+
+/// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
+#[derive(Debug, Clone, Copy)]
+pub struct Lookup {}
+
+/// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
+#[derive(Debug, Clone, Copy)]
+pub struct CoverageFormat1 {}
+
+/// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
+#[derive(Debug, Clone, Copy)]
+pub struct CoverageFormat2 {}
+
+/// Used in [CoverageFormat2]
+#[derive(Clone, Debug)]
+pub struct RangeRecord {
+    /// First glyph ID in the range
+    pub start_glyph_id: u16,
+    /// Last glyph ID in the range
+    pub end_glyph_id: u16,
+    /// Coverage Index of first glyph ID in range
+    pub start_coverage_index: u16,
+}
+
+/// [Coverage Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-table)
+#[derive(Clone, Debug)]
+pub enum CoverageTable {
+    Format1(CoverageFormat1),
+    Format2(CoverageFormat2),
+}
+
+/// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
+#[derive(Debug, Clone, Copy)]
+pub struct ClassDefFormat1 {}
+
+/// [Class Definition Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-2)
+#[derive(Debug, Clone, Copy)]
+pub struct ClassDefFormat2 {}
+
+/// Used in [ClassDefFormat2]
+#[derive(Clone, Debug)]
+pub struct ClassRangeRecord {
+    /// First glyph ID in the range
+    pub start_glyph_id: u16,
+    /// Last glyph ID in the range
+    pub end_glyph_id: u16,
+    /// Applied to all glyphs in the range
+    pub class: u16,
+}
+
+/// A [Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table)
+#[derive(Clone, Debug)]
+pub enum ClassDef {
+    Format1(ClassDefFormat1),
+    Format2(ClassDefFormat2),
+}
+
+/// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
+#[derive(Clone, Debug)]
+pub struct SequenceLookupRecord {
+    /// Index (zero-based) into the input glyph sequence
+    pub sequence_index: u16,
+    /// Index (zero-based) into the LookupList
+    pub lookup_list_index: u16,
+}
+
+/// [Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-1-simple-glyph-contexts)
+#[derive(Debug, Clone, Copy)]
+pub struct SequenceContextFormat1 {}
+
+/// Part of [SequenceContextFormat1]
+#[derive(Debug, Clone, Copy)]
+pub struct SequenceRuleSet {}
+
+/// Part of [SequenceContextFormat1]
+#[derive(Debug, Clone, Copy)]
+pub struct SequenceRule {}
+
+/// [Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-2-class-based-glyph-contexts)
+#[derive(Debug, Clone, Copy)]
+pub struct SequenceContextFormat2 {}
+
+/// Part of [SequenceContextFormat2]
+#[derive(Debug, Clone, Copy)]
+pub struct ClassSequenceRuleSet {}
+
+/// Part of [SequenceContextFormat2]
+#[derive(Debug, Clone, Copy)]
+pub struct ClassSequenceRule {}
+
+/// [Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-3-coverage-based-glyph-contexts)
+#[derive(Debug, Clone, Copy)]
+pub struct SequenceContextFormat3 {}
+
+#[derive(Clone, Debug)]
+pub enum SequenceContext {
+    Format1(SequenceContextFormat1),
+    Format2(SequenceContextFormat2),
+    Format3(SequenceContextFormat3),
+}
+
+/// [Chained Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-1-simple-glyph-contexts)
+#[derive(Debug, Clone, Copy)]
+pub struct ChainedSequenceContextFormat1 {}
+
+/// Part of [ChainedSequenceContextFormat1]
+#[derive(Debug, Clone, Copy)]
+pub struct ChainedSequenceRuleSet {}
+
+/// Part of [ChainedSequenceContextFormat1]
+#[derive(Debug, Clone, Copy)]
+pub struct ChainedSequenceRule {}
+
+/// [Chained Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-2-class-based-glyph-contexts)
+#[derive(Debug, Clone, Copy)]
+pub struct ChainedSequenceContextFormat2 {}
+
+/// Part of [ChainedSequenceContextFormat2]
+#[derive(Debug, Clone, Copy)]
+pub struct ChainedClassSequenceRuleSet {}
+
+/// Part of [ChainedSequenceContextFormat2]
+#[derive(Debug, Clone, Copy)]
+pub struct ChainedClassSequenceRule {}
+
+/// [Chained Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-3-coverage-based-glyph-contexts)
+#[derive(Debug, Clone, Copy)]
+pub struct ChainedSequenceContextFormat3 {}
+
+#[derive(Clone, Debug)]
+pub enum ChainedSequenceContext {
+    Format1(ChainedSequenceContextFormat1),
+    Format2(ChainedSequenceContextFormat2),
+    Format3(ChainedSequenceContextFormat3),
+}
+
+/// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
+#[derive(Debug, Clone, Copy)]
+pub struct Device {}
+
+/// Variation index table
+#[derive(Debug, Clone, Copy)]
+pub struct VariationIndex {}
+
+/// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
+#[derive(Debug, Clone, Copy)]
+pub struct FeatureVariations {}
+
+/// Part of [FeatureVariations]
+#[derive(Clone, Debug)]
+pub struct FeatureVariationRecord {
+    /// Offset to a condition set table, from beginning of
+    /// FeatureVariations table.
+    pub condition_set_offset: OffsetMarker<Offset32, ConditionSet>,
+    /// Offset to a feature table substitution table, from beginning of
+    /// the FeatureVariations table.
+    pub feature_table_substitution_offset: OffsetMarker<Offset32, FeatureTableSubstitution>,
+}
+
+/// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
+#[derive(Debug, Clone, Copy)]
+pub struct ConditionSet {}
+
+/// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
+#[derive(Debug, Clone, Copy)]
+pub struct ConditionFormat1 {}
+
+/// [FeatureTableSubstitution Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featuretablesubstitution-table)
+#[derive(Debug, Clone, Copy)]
+pub struct FeatureTableSubstitution {}
+
+/// Used in [FeatureTableSubstitution]
+#[derive(Clone, Debug)]
+pub struct FeatureTableSubstitutionRecord {
+    /// The feature table index to match.
+    pub feature_index: u16,
+    /// Offset to an alternate feature table, from start of the
+    /// FeatureTableSubstitution table.
+    pub alternate_feature_offset: OffsetMarker<Offset32, Feature>,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct SizeParams {}
+
+#[derive(Debug, Clone, Copy)]
+pub struct StylisticSetParams {}
+
+/// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
+#[derive(Debug, Clone, Copy)]
+pub struct CharacterVariantParams {}

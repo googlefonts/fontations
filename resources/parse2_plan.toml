@@ -16,3 +16,13 @@ target = "font-tables/generated/gpos2.rs"
 mode = "parse2"
 source = "resources/codegen_inputs/layout2.rs"
 target = "font-tables/generated/layout2.rs"
+
+[[generate]]
+mode = "compile2"
+source = "resources/codegen_inputs/gpos2.rs"
+target = "compile-tables/generated/gpos.rs"
+
+[[generate]]
+mode = "compile2"
+source = "resources/codegen_inputs/layout2.rs"
+target = "compile-tables/generated/layout.rs"

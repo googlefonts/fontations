@@ -7,4 +7,4 @@ license = "MIT/Apache-2.0"
 
 [dependencies]
 font-types = { path = "../font-types" }
-font-tables = { path = "../font-tables" }
+font-tables = { path = "../font-tables", features = ["compile"] }

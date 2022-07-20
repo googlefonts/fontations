@@ -21,11 +21,31 @@ pub fn generate_parse_module(code: &str) -> Result<proc_macro2::TokenStream, syn
         code.push(item_code);
     }
 
-    //let use_stmts = &items.use_stmts;
     Ok(quote! {
-        //#(#use_stmts)*
         #[allow(unused_imports)]
         use crate::parse_prelude::*;
         #(#code)*
+    })
+}
+
+pub fn generate_compile_module(code: &str) -> Result<proc_macro2::TokenStream, syn::Error> {
+    let items: Items = syn::parse_str(code)?;
+
+    let code = items
+        .items
+        .iter()
+        .map(|item| match item {
+            Item::Record(item) => record::generate_compile(&item),
+            Item::Table(item) => table::generate_compile(&item),
+            Item::Format(item) => table::generate_format_compile(&item),
+            _ => Ok(Default::default()),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+
+    Ok(quote! {
+        #[allow(unused_imports)]
+        use crate::compile_prelude::*;
+
+        #( #code )*
     })
 }

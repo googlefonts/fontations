@@ -5,12 +5,14 @@ use font_types::Offset;
 use super::FontWrite;
 
 /// An offset subtable.
+#[derive(Clone)]
 pub struct OffsetMarker<W, T> {
     width: std::marker::PhantomData<W>,
     obj: Option<T>,
 }
 
 /// An offset subtable which may be null.
+#[derive(Clone)]
 pub struct NullableOffsetMarker<W, T> {
     width: std::marker::PhantomData<W>,
     obj: Option<T>,
