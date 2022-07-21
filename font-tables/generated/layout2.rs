@@ -161,7 +161,7 @@ pub struct LangSysMarker {
 impl LangSysMarker {
     fn lookup_order_offset_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + Offset16::RAW_BYTE_LEN
+        start..start + u16::RAW_BYTE_LEN
     }
     fn required_feature_index_byte_range(&self) -> Range<usize> {
         let start = self.lookup_order_offset_byte_range().end;
@@ -181,7 +181,7 @@ impl TableInfo for LangSysMarker {
     #[allow(unused_parens)]
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<Offset16>();
+        cursor.advance::<u16>();
         cursor.advance::<u16>();
         let feature_index_count: u16 = cursor.read()?;
         let feature_indices_byte_len = (feature_index_count) as usize * u16::RAW_BYTE_LEN;
@@ -2314,7 +2314,6 @@ impl TableInfo for FeatureVariationsMarker {
 pub type FeatureVariations<'a> = TableRef<'a, FeatureVariationsMarker>;
 
 impl<'a> FeatureVariations<'a> {
-    /// Major version of the FeatureVariations table — set to 1.
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -2511,8 +2510,7 @@ impl TableInfo for FeatureTableSubstitutionMarker {
 pub type FeatureTableSubstitution<'a> = TableRef<'a, FeatureTableSubstitutionMarker>;
 
 impl<'a> FeatureTableSubstitution<'a> {
-    /// Major version of the feature table substitution table — set
-    /// to 1
+    /// Major & minor version of the table: (1, 0)
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()

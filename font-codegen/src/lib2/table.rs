@@ -66,14 +66,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 }
 
 pub(crate) fn generate_compile(item: &Table) -> syn::Result<TokenStream> {
-    let docs = &item.attrs.docs;
-    let raw_name = item.raw_name();
-
-    Ok(quote! {
-        #( #docs )*
-        #[derive(Debug, Clone, Copy)]
-        pub struct #raw_name {}
-    })
+    super::record::generate_compile_impl(item.raw_name(), &item.attrs, &item.fields)
 }
 
 pub(crate) fn generate_format_compile(item: &TableFormat) -> syn::Result<TokenStream> {
@@ -86,11 +79,24 @@ pub(crate) fn generate_format_compile(item: &TableFormat) -> syn::Result<TokenSt
         quote! ( #( #docs )* #name(#typ) )
     });
 
+    let match_arms = item.variants.iter().map(|variant| {
+        let var_name = &variant.name;
+        quote!( Self::#var_name(item) => item.write_into(writer), )
+    });
+
     Ok(quote! {
         #( #docs )*
         #[derive(Clone, Debug)]
         pub enum #name {
             #( #variants ),*
+        }
+
+        impl FontWrite for #name {
+            fn write_into(&self, writer: &mut TableWriter) {
+                match self {
+                    #(#match_arms)*
+                }
+            }
         }
     })
 }

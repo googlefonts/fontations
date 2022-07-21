@@ -1,7 +1,7 @@
 /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 table ScriptList {
     /// Number of ScriptRecords
-    //#[compute_count(script_records)]
+    #[compile(array_len($script_records))]
     script_count: BigEndian<u16>,
     /// Array of ScriptRecords, listed alphabetically by script tag
     #[count($script_count)]
@@ -24,7 +24,7 @@ table Script {
     default_lang_sys_offset: BigEndian<Offset16<LangSys>>,
     /// Number of LangSysRecords for this script — excluding the
     /// default LangSys
-    //#[compute_count(lang_sys_records)]
+    #[compile(array_len($lang_sys_records))]
     lang_sys_count: BigEndian<u16>,
     /// Array of LangSysRecords, listed alphabetically by LangSys tag
     #[count($lang_sys_count)]
@@ -42,15 +42,15 @@ record LangSysRecord {
 table LangSys {
     /// = NULL (reserved for an offset to a reordering table)
     #[no_getter]
-    //#[compile_type(u16)]
-    //#[compute(0)]
-    lookup_order_offset: BigEndian<Offset16>,
+    //#[nullable]
+    #[compile(0)]
+    lookup_order_offset: BigEndian<u16>,
     /// Index of a feature required for this language system; if no
     /// required features = 0xFFFF
     required_feature_index: BigEndian<u16>,
     /// Number of feature index values for this language system —
     /// excludes the required feature
-    //#[compute_count(feature_indices)]
+    #[compile(array_len($feature_indices))]
     feature_index_count: BigEndian<u16>,
     /// Array of indices into the FeatureList, in arbitrary order
     #[count($feature_index_count)]
@@ -60,7 +60,7 @@ table LangSys {
 /// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
 table FeatureList {
     /// Number of FeatureRecords in this table
-    //#[compute_count(feature_records)]
+    #[compile(array_len($feature_records))]
     feature_count: BigEndian<u16>,
     /// Array of FeatureRecords — zero-based (first feature has
     /// FeatureIndex = 0), listed alphabetically by feature tag
@@ -87,7 +87,7 @@ table Feature {
     #[no_offset_getter]
     feature_params_offset: BigEndian<Offset16<FeatureParams>>,
     /// Number of LookupList indices for this feature
-    //#[compute_count(lookup_list_indices)]
+    #[compile(array_len($lookup_list_indices))]
     lookup_index_count: BigEndian<u16>,
     /// Array of indices into the LookupList — zero-based (first
     /// lookup is LookupListIndex = 0)
@@ -97,10 +97,10 @@ table Feature {
 
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
 //#[offset_host]
-//#[no_compile]
+#[skip_compile]
 table LookupList {
     /// Number of lookups in this table
-    //#[compute_count(lookup_offsets)]
+    #[compile(array_len($lookup_offsets))]
     lookup_count: BigEndian<u16>,
     /// Array of offsets to Lookup tables, from beginning of LookupList
     /// — zero based (first lookup is Lookup index = 0)
@@ -109,14 +109,14 @@ table LookupList {
 }
 
 /// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
-//#[no_compile]
+#[skip_compile]
 table Lookup {
     /// Different enumerations for GSUB and GPOS
     lookup_type: BigEndian<u16>,
     /// Lookup qualifiers
     lookup_flag: BigEndian<u16>,
     /// Number of subtables for this lookup
-    //#[compute_count(subtable_offsets)]
+    #[compile(array_len($subtable_offsets))]
     sub_table_count: BigEndian<u16>,
     /// Array of offsets to lookup subtables, from beginning of Lookup
     /// table
@@ -134,7 +134,7 @@ table CoverageFormat1 {
     #[format = 1]
     coverage_format: BigEndian<u16>,
     /// Number of glyphs in the glyph array
-    //#[compute_count(glyph_array)]
+    #[compile(array_len($glyph_array))]
     glyph_count: BigEndian<u16>,
     /// Array of glyph IDs — in numerical order
     #[count($glyph_count)]
@@ -147,7 +147,7 @@ table CoverageFormat2 {
     #[format = 2]
     coverage_format: BigEndian<u16>,
     /// Number of RangeRecords
-    //#[compute_count(range_records)]
+    #[compile(array_len($range_records))]
     range_count: BigEndian<u16>,
     /// Array of glyph ranges — ordered by startGlyphID.
     #[count($range_count)]
@@ -179,7 +179,7 @@ table ClassDefFormat1 {
     /// First glyph ID of the classValueArray
     start_glyph_id: BigEndian<u16>,
     /// Size of the classValueArray
-    //#[compute_count(class_value_array)]
+    #[compile(array_len($class_value_array))]
     glyph_count: BigEndian<u16>,
     /// Array of Class Values — one per glyph ID
     #[count($glyph_count)]
@@ -192,7 +192,7 @@ table ClassDefFormat2 {
     #[format = 2]
     class_format: BigEndian<u16>,
     /// Number of ClassRangeRecords
-    //#[compute_count(class_range_records)]
+    #[compile(array_len($class_range_records))]
     class_range_count: BigEndian<u16>,
     /// Array of ClassRangeRecords — ordered by startGlyphID
     #[count($class_range_count)]
@@ -232,7 +232,7 @@ table SequenceContextFormat1 {
     /// SequenceContextFormat1 table
     coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Number of SequenceRuleSet tables
-    //#[compute_count(seq_rule_set_offsets)]
+    #[compile(array_len($seq_rule_set_offsets))]
     seq_rule_set_count: BigEndian<u16>,
     /// Array of offsets to SequenceRuleSet tables, from beginning of
     /// SequenceContextFormat1 table (offsets may be NULL)
@@ -244,7 +244,7 @@ table SequenceContextFormat1 {
 /// Part of [SequenceContextFormat1]
 table SequenceRuleSet {
     /// Number of SequenceRule tables
-    //#[compute_count(seq_rule_offsets)]
+    #[compile(array_len($seq_rule_offsets))]
     seq_rule_count: BigEndian<u16>,
     /// Array of offsets to SequenceRule tables, from beginning of the
     /// SequenceRuleSet table
@@ -255,10 +255,10 @@ table SequenceRuleSet {
 /// Part of [SequenceContextFormat1]
 table SequenceRule {
     /// Number of glyphs in the input glyph sequence
-    //#[compute(plus_one(self.input_sequence.len()))]
+    #[compile(plus_one($input_sequence.len()))]
     glyph_count: BigEndian<u16>,
     /// Number of SequenceLookupRecords
-    //#[compute_count(seq_lookup_records)]
+    #[compile(array_len($seq_lookup_records))]
     seq_lookup_count: BigEndian<u16>,
     /// Array of input glyph IDs—starting with the second glyph
     #[count($glyph_count.saturating_sub(1))]
@@ -280,7 +280,7 @@ table SequenceContextFormat2 {
     /// SequenceContextFormat2 table
     class_def_offset: BigEndian<Offset16<ClassDef>>,
     /// Number of ClassSequenceRuleSet tables
-    //#[compute_count(class_seq_rule_set_offsets)]
+    #[compile(array_len($class_seq_rule_set_offsets))]
     class_seq_rule_set_count: BigEndian<u16>,
     /// Array of offsets to ClassSequenceRuleSet tables, from beginning
     /// of SequenceContextFormat2 table (may be NULL)
@@ -292,7 +292,7 @@ table SequenceContextFormat2 {
 /// Part of [SequenceContextFormat2]
 table ClassSequenceRuleSet {
     /// Number of ClassSequenceRule tables
-    //#[compute_count(class_seq_rule_offsets)]
+    #[compile(array_len($class_seq_rule_offsets))]
     class_seq_rule_count: BigEndian<u16>,
     /// Array of offsets to ClassSequenceRule tables, from beginning of
     /// ClassSequenceRuleSet table
@@ -303,10 +303,10 @@ table ClassSequenceRuleSet {
 /// Part of [SequenceContextFormat2]
 table ClassSequenceRule {
     /// Number of glyphs to be matched
-    //#[compute(plus_one(self.input_sequence.len()))]
+    #[compile(plus_one($input_sequence.len()))]
     glyph_count: BigEndian<u16>,
     /// Number of SequenceLookupRecords
-    //#[compute_count(seq_lookup_records)]
+    #[compile(array_len($seq_lookup_records))]
     seq_lookup_count: BigEndian<u16>,
     /// Sequence of classes to be matched to the input glyph sequence,
     /// beginning with the second glyph position
@@ -323,10 +323,10 @@ table SequenceContextFormat3 {
     #[format = 3]
     format: BigEndian<u16>,
     /// Number of glyphs in the input sequence
-    //#[compute_count(coverage_offsets)]
+    #[compile(array_len($coverage_offsets))]
     glyph_count: BigEndian<u16>,
     /// Number of SequenceLookupRecords
-    //#[compute_count(seq_lookup_records)]
+    #[compile(array_len($seq_lookup_records))]
     seq_lookup_count: BigEndian<u16>,
     /// Array of offsets to Coverage tables, from beginning of
     /// SequenceContextFormat3 subtable
@@ -352,7 +352,7 @@ table ChainedSequenceContextFormat1 {
     /// ChainSequenceContextFormat1 table
     coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Number of ChainedSequenceRuleSet tables
-    //#[compute_count(chained_seq_rule_set_offsets)]
+    #[compile(array_len($chained_seq_rule_set_offsets))]
     chained_seq_rule_set_count: BigEndian<u16>,
     /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
     /// ChainedSequenceContextFormat1 table (may be NULL)
@@ -364,7 +364,7 @@ table ChainedSequenceContextFormat1 {
 /// Part of [ChainedSequenceContextFormat1]
 table ChainedSequenceRuleSet {
     /// Number of ChainedSequenceRule tables
-    //#[compute_count(chained_seq_rule_offsets)]
+    #[compile(array_len($chained_seq_rule_offsets))]
     chained_seq_rule_count: BigEndian<u16>,
     /// Array of offsets to ChainedSequenceRule tables, from beginning
     /// of ChainedSequenceRuleSet table
@@ -375,25 +375,25 @@ table ChainedSequenceRuleSet {
 /// Part of [ChainedSequenceContextFormat1]
 table ChainedSequenceRule {
     /// Number of glyphs in the backtrack sequence
-    //#[compute_count(backtrack_sequence)]
+    #[compile(array_len($backtrack_sequence))]
     backtrack_glyph_count: BigEndian<u16>,
     /// Array of backtrack glyph IDs
     #[count($backtrack_glyph_count)]
     backtrack_sequence: [BigEndian<u16>],
     /// Number of glyphs in the input sequence
-    //#[compute(plus_one(self.input_sequence.len()))]
+    #[compile(plus_one($input_sequence.len()))]
     input_glyph_count: BigEndian<u16>,
     /// Array of input glyph IDs—start with second glyph
     #[count($input_glyph_count.saturating_sub(1))]
     input_sequence: [BigEndian<u16>],
     /// Number of glyphs in the lookahead sequence
-    //#[compute_count(lookahead_sequence)]
+    #[compile(array_len($lookahead_sequence))]
     lookahead_glyph_count: BigEndian<u16>,
     /// Array of lookahead glyph IDs
     #[count($lookahead_glyph_count)]
     lookahead_sequence: [BigEndian<u16>],
     /// Number of SequenceLookupRecords
-    #[compute_count(seq_lookup_records)]
+    #[compile(array_len($seq_lookup_records))]
     seq_lookup_count: BigEndian<u16>,
     /// Array of SequenceLookupRecords
     #[count($seq_lookup_count)]
@@ -418,7 +418,7 @@ table ChainedSequenceContextFormat2 {
     /// from beginning of ChainedSequenceContextFormat2 table
     lookahead_class_def_offset: BigEndian<Offset16<ClassDef>>,
     /// Number of ChainedClassSequenceRuleSet tables
-    //#[compute_count(chained_class_seq_rule_set_offsets)]
+    #[compile(array_len($chained_class_seq_rule_set_offsets))]
     chained_class_seq_rule_set_count: BigEndian<u16>,
     /// Array of offsets to ChainedClassSequenceRuleSet tables, from
     /// beginning of ChainedSequenceContextFormat2 table (may be NULL)
@@ -430,7 +430,7 @@ table ChainedSequenceContextFormat2 {
 /// Part of [ChainedSequenceContextFormat2]
 table ChainedClassSequenceRuleSet {
     /// Number of ChainedClassSequenceRule tables
-    //#[compute_count(chained_class_seq_rule_offsets)]
+    #[compile(array_len($chained_class_seq_rule_offsets))]
     chained_class_seq_rule_count: BigEndian<u16>,
     /// Array of offsets to ChainedClassSequenceRule tables, from
     /// beginning of ChainedClassSequenceRuleSet
@@ -441,26 +441,26 @@ table ChainedClassSequenceRuleSet {
 /// Part of [ChainedSequenceContextFormat2]
 table ChainedClassSequenceRule {
     /// Number of glyphs in the backtrack sequence
-    //#[compute_count(backtrack_sequence)]
+    #[compile(array_len($backtrack_sequence))]
     backtrack_glyph_count: BigEndian<u16>,
     /// Array of backtrack-sequence classes
     #[count($backtrack_glyph_count)]
     backtrack_sequence: [BigEndian<u16>],
     /// Total number of glyphs in the input sequence
-    //#[compute(plus_one(self.input_sequence.len()))]
+    #[compile(plus_one($input_sequence.len()))]
     input_glyph_count: BigEndian<u16>,
     /// Array of input sequence classes, beginning with the second
     /// glyph position
     #[count($input_glyph_count.saturating_sub(1))]
     input_sequence: [BigEndian<u16>],
     /// Number of glyphs in the lookahead sequence
-    //#[compute_count(lookahead_sequence)]
+    #[compile(array_len($lookahead_sequence))]
     lookahead_glyph_count: BigEndian<u16>,
     /// Array of lookahead-sequence classes
     #[count($lookahead_glyph_count)]
     lookahead_sequence: [BigEndian<u16>],
     /// Number of SequenceLookupRecords
-    //#[compute_count(seq_lookup_records)]
+    #[compile(array_len($seq_lookup_records))]
     seq_lookup_count: BigEndian<u16>,
     /// Array of SequenceLookupRecords
     #[count($seq_lookup_count)]
@@ -473,25 +473,25 @@ table ChainedSequenceContextFormat3 {
     #[format = 3]
     format: BigEndian<u16>,
     /// Number of glyphs in the backtrack sequence
-    //#[compute_count(backtrack_coverage_offsets)]
+    #[compile(array_len($backtrack_coverage_offsets))]
     backtrack_glyph_count: BigEndian<u16>,
     /// Array of offsets to coverage tables for the backtrack sequence
     #[count($backtrack_glyph_count)]
     backtrack_coverage_offsets: [BigEndian<Offset16<CoverageTable>>],
     /// Number of glyphs in the input sequence
-    //#[compute_count(input_coverage_offsets)]
+    #[compile(array_len($input_coverage_offsets))]
     input_glyph_count: BigEndian<u16>,
     /// Array of offsets to coverage tables for the input sequence
     #[count($input_glyph_count)]
     input_coverage_offsets: [BigEndian<Offset16<CoverageTable>>],
     /// Number of glyphs in the lookahead sequence
-    //#[compute_count(lookahead_coverage_offsets)]
+    #[compile(array_len($lookahead_coverage_offsets))]
     lookahead_glyph_count: BigEndian<u16>,
     /// Array of offsets to coverage tables for the lookahead sequence
     #[count($lookahead_glyph_count)]
     lookahead_coverage_offsets: [BigEndian<Offset16<CoverageTable>>],
     /// Number of SequenceLookupRecords
-    //#[compute_count(seq_lookup_records)]
+    #[compile(array_len($seq_lookup_records))]
     seq_lookup_count: BigEndian<u16>,
     /// Array of SequenceLookupRecords
     #[count($seq_lookup_count)]
@@ -527,7 +527,6 @@ table Device {
     /// Format of deltaValue array data: 0x0001, 0x0002, or 0x0003
     delta_format: BigEndian<DeltaFormat>,
     /// Array of compressed data
-    //#[count_all]
     #[count(delta_value_count($start_size, $end_size, $delta_format))]
     delta_value: [BigEndian<u16>],
 }
@@ -546,16 +545,10 @@ table VariationIndex {
 
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
 table FeatureVariations {
-    /// Major version of the FeatureVariations table — set to 1.
-    //#[compute(1)]
-    //major_version: BigEndian<u16>,
-    ///// Minor version of the FeatureVariations table — set to 0.
-    //#[compute(0)]
-    //minor_version: BigEndian<u16>,
-    //#[version]
+    #[compile(MajorMinor::VERSION_1_0)]
     version: BigEndian<MajorMinor>,
     /// Number of feature variation records.
-    //#[compute_count(feature_variation_records)]
+    #[compile(array_len($feature_variation_records))]
     feature_variation_record_count: BigEndian<u32>,
     /// Array of feature variation records.
     #[count($feature_variation_record_count)]
@@ -575,7 +568,7 @@ record FeatureVariationRecord {
 /// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
 table ConditionSet {
     /// Number of conditions for this condition set.
-    //#[compute_count(condition_offsets)]
+    #[compile(array_len($condition_offsets))]
     condition_count: BigEndian<u16>,
     /// Array of offsets to condition tables, from beginning of the
     /// ConditionSet table.
@@ -607,22 +600,14 @@ table ConditionFormat1 {
 
 /// [FeatureTableSubstitution Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featuretablesubstitution-table)
 table FeatureTableSubstitution {
-    /// Major version of the feature table substitution table — set
-    /// to 1
-    //#[compute(1)]
-    //major_version: BigEndian<u16>,
-    ///// Minor version of the feature table substitution table — set
-    ///// to 0.
-    //#[compute(0)]
-    //minor_version: BigEndian<u16>,
-    //#[version]
+    /// Major & minor version of the table: (1, 0)
+    #[compile(MajorMinor::VERSION_1_0)]
     version: BigEndian<MajorMinor>,
     /// Number of feature table substitution records.
-    //#[compute_count(substitutions)]
+    #[compile(array_len($substitutions))]
     substitution_count: BigEndian<u16>,
     /// Array of feature table substitution records.
     #[count($substitution_count)]
-    //#[to_owned(self.substitutions_to_owned())]
     substitutions: [FeatureTableSubstitutionRecord],
 }
 
@@ -670,8 +655,8 @@ table SizeParams {
 }
 
 table StylisticSetParams {
-    //#[compute(0)]
     //#[version]
+    #[compile(0)]
     version: BigEndian<u16>,
     /// The 'name' table name ID that specifies a string (or strings, for
     /// multiple languages) for a user-interface label for this feature.
@@ -709,7 +694,7 @@ table CharacterVariantParams {
     first_param_ui_label_name_id: BigEndian<u16>,
     /// The count of characters for which this feature provides glyph
     /// variants. (May be zero.)
-    //#[compute_count(character)]
+    #[compile(array_len($character))]
     char_count: BigEndian<u16>,
     /// The Unicode Scalar Value of the characters for which this
     /// feature provides glyph variants.

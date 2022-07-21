@@ -41,6 +41,7 @@ impl Table {
 pub(crate) struct TableAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) skip_parse: Option<syn::Path>,
+    pub(crate) skip_compile: Option<syn::Path>,
 }
 
 #[derive(Debug, Clone)]
@@ -83,7 +84,6 @@ pub(crate) struct Fields {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Field {
-    //pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) attrs: FieldAttrs,
     pub(crate) name: syn::Ident,
     pub(crate) typ: FieldType,
@@ -106,6 +106,7 @@ pub(crate) struct FieldAttrs {
     pub(crate) version: Option<syn::Path>,
     pub(crate) format: Option<FormatAttr>,
     pub(crate) count: Option<InlineExpr>,
+    pub(crate) compile: Option<InlineExpr>,
     pub(crate) len: Option<InlineExpr>,
 }
 
@@ -137,7 +138,16 @@ pub(crate) struct FormatAttr {
 #[derive(Debug, Clone)]
 pub(crate) struct InlineExpr {
     pub(crate) expr: syn::Expr,
+    // the expression used in a compilation context. This resolves any referenced
+    // fields against `self`.
+    compile_expr: Option<syn::Expr>,
     pub(crate) referenced_fields: Vec<syn::Ident>,
+}
+
+impl InlineExpr {
+    pub(crate) fn compile_expr(&self) -> &syn::Expr {
+        self.compile_expr.as_ref().unwrap_or(&self.expr)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -425,11 +435,12 @@ static NULLABLE: &str = "nullable";
 static NO_GETTER: &str = "no_getter";
 static COUNT: &str = "count";
 static LEN: &str = "len";
-static COMPUTE_COUNT: &str = "compute_count";
+//static COMPUTE_COUNT: &str = "compute_count";
 static AVAILABLE: &str = "available";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
 static NO_OFFSET_GETTER: &str = "no_offset_getter";
+static COMPILE: &str = "compile";
 
 impl Parse for FieldAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -453,10 +464,12 @@ impl Parse for FieldAttrs {
                 this.version = Some(attr.path);
             } else if ident == COUNT {
                 this.count = Some(parse_inline_expr(attr.tokens)?);
+            } else if ident == COMPILE {
+                this.compile = Some(parse_inline_expr(attr.tokens)?);
             } else if ident == AVAILABLE {
                 this.available = Some(attr.parse_args()?);
-            } else if ident == COMPUTE_COUNT {
-                //this.comp
+            //} else if ident == COMPUTE_COUNT {
+            //this.comp
             } else if ident == LEN {
                 this.len = Some(parse_inline_expr(attr.tokens)?);
             } else if ident == FORMAT {
@@ -476,6 +489,7 @@ impl Parse for FieldAttrs {
 }
 
 static SKIP_PARSE: &str = "skip_parse";
+static SKIP_COMPILE: &str = "skip_compile";
 
 impl Parse for TableAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -491,6 +505,8 @@ impl Parse for TableAttrs {
                 this.docs.push(attr);
             } else if ident == SKIP_PARSE {
                 this.skip_parse = Some(attr.path);
+            } else if ident == SKIP_COMPILE {
+                this.skip_compile = Some(attr.path);
             } else {
                 return Err(syn::Error::new(
                     ident.span(),
@@ -519,11 +535,19 @@ fn parse_inline_expr(tokens: TokenStream) -> syn::Result<InlineExpr> {
         syn::parse_str(&new_source)
     }?;
 
+    let compile_expr = (!idents.is_empty())
+        .then(|| {
+            let new_source = find_dollar_idents.replace_all(&s, "&self.$2");
+            syn::parse_str::<syn::Expr>(&new_source)
+        })
+        .transpose()?;
+
     idents.sort_unstable();
     idents.dedup();
 
     Ok(InlineExpr {
         expr,
+        compile_expr,
         referenced_fields: idents,
     })
 }

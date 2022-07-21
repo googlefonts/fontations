@@ -26,6 +26,14 @@ impl Fields {
     pub(crate) fn iter(&self) -> impl Iterator<Item = &Field> {
         self.fields.iter()
     }
+
+    pub(crate) fn iter_compile_decls(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        self.fields.iter().filter_map(Field::compile_field_decl)
+    }
+
+    pub(crate) fn iter_compile_write_stmts(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        self.fields.iter().map(Field::compile_write_stmt)
+    }
 }
 
 impl Field {
@@ -65,8 +73,8 @@ impl Field {
         self.attrs.nullable.is_some()
     }
 
-    pub(crate) fn is_computed(&self) -> bool {
-        false
+    fn is_computed(&self) -> bool {
+        self.attrs.format.is_some() || self.attrs.compile.is_some()
     }
 
     pub(crate) fn validate_at_parse(&self) -> bool {
@@ -288,6 +296,39 @@ impl Field {
             #versioned_field_start
             #other_stuff
         }
+    }
+
+    /// 'None' if this field's value is computed at compile time
+    fn compile_field_decl(&self) -> Option<TokenStream> {
+        if self.is_computed() {
+            return None;
+        }
+
+        let name = &self.name;
+        let docs = &self.attrs.docs;
+        let typ = self.owned_type();
+        Some(quote!( #( #docs)* pub #name: #typ ))
+    }
+
+    fn compile_write_stmt(&self) -> TokenStream {
+        let value_expr = if let Some(format) = &self.attrs.format {
+            let typ = self.typ.compile_type(self.is_nullable());
+            let value = &format.value;
+            quote!( (#value as #typ) )
+        } else if let Some(computed) = &self.attrs.compile {
+            let expr = computed.compile_expr();
+            if !computed.referenced_fields.is_empty() {
+                quote!( #expr.unwrap() )
+            } else {
+                quote!( #expr )
+            }
+            // not computed
+        } else {
+            let name = &self.name;
+            quote!( self.#name )
+        };
+
+        quote!(#value_expr.write_into(writer))
     }
 }
 

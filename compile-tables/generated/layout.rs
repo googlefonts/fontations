@@ -6,8 +6,20 @@
 use crate::compile_prelude::*;
 
 /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
-#[derive(Debug, Clone, Copy)]
-pub struct ScriptList {}
+#[derive(Clone, Debug)]
+pub struct ScriptList {
+    /// Array of ScriptRecords, listed alphabetically by script tag
+    pub script_records: Vec<ScriptRecord>,
+}
+
+impl FontWrite for ScriptList {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (array_len(&self.script_records))
+            .unwrap()
+            .write_into(writer);
+        self.script_records.write_into(writer);
+    }
+}
 
 /// [Script Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 #[derive(Clone, Debug)]
@@ -18,9 +30,32 @@ pub struct ScriptRecord {
     pub script_offset: OffsetMarker<Offset16, Script>,
 }
 
+impl FontWrite for ScriptRecord {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.script_tag.write_into(writer);
+        self.script_offset.write_into(writer);
+    }
+}
+
 /// [Script Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-table-and-language-system-record)
-#[derive(Debug, Clone, Copy)]
-pub struct Script {}
+#[derive(Clone, Debug)]
+pub struct Script {
+    /// Offset to default LangSys table, from beginning of Script table
+    /// — may be NULL
+    pub default_lang_sys_offset: NullableOffsetMarker<Offset16, LangSys>,
+    /// Array of LangSysRecords, listed alphabetically by LangSys tag
+    pub lang_sys_records: Vec<LangSysRecord>,
+}
+
+impl FontWrite for Script {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.default_lang_sys_offset.write_into(writer);
+        (array_len(&self.lang_sys_records))
+            .unwrap()
+            .write_into(writer);
+        self.lang_sys_records.write_into(writer);
+    }
+}
 
 #[derive(Clone, Debug)]
 pub struct LangSysRecord {
@@ -30,13 +65,50 @@ pub struct LangSysRecord {
     pub lang_sys_offset: OffsetMarker<Offset16, LangSys>,
 }
 
+impl FontWrite for LangSysRecord {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.lang_sys_tag.write_into(writer);
+        self.lang_sys_offset.write_into(writer);
+    }
+}
+
 /// [Language System Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#language-system-table)
-#[derive(Debug, Clone, Copy)]
-pub struct LangSys {}
+#[derive(Clone, Debug)]
+pub struct LangSys {
+    /// Index of a feature required for this language system; if no
+    /// required features = 0xFFFF
+    pub required_feature_index: u16,
+    /// Array of indices into the FeatureList, in arbitrary order
+    pub feature_indices: Vec<u16>,
+}
+
+impl FontWrite for LangSys {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (0).write_into(writer);
+        self.required_feature_index.write_into(writer);
+        (array_len(&self.feature_indices))
+            .unwrap()
+            .write_into(writer);
+        self.feature_indices.write_into(writer);
+    }
+}
 
 /// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
-#[derive(Debug, Clone, Copy)]
-pub struct FeatureList {}
+#[derive(Clone, Debug)]
+pub struct FeatureList {
+    /// Array of FeatureRecords — zero-based (first feature has
+    /// FeatureIndex = 0), listed alphabetically by feature tag
+    pub feature_records: Vec<FeatureRecord>,
+}
+
+impl FontWrite for FeatureList {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (array_len(&self.feature_records))
+            .unwrap()
+            .write_into(writer);
+        self.feature_records.write_into(writer);
+    }
+}
 
 /// Part of [FeatureList]
 #[derive(Clone, Debug)]
@@ -47,25 +119,62 @@ pub struct FeatureRecord {
     pub feature_offset: OffsetMarker<Offset16, Feature>,
 }
 
+impl FontWrite for FeatureRecord {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.feature_tag.write_into(writer);
+        self.feature_offset.write_into(writer);
+    }
+}
+
 /// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
-#[derive(Debug, Clone, Copy)]
-pub struct Feature {}
+#[derive(Clone, Debug)]
+pub struct Feature {
+    /// Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
+    pub feature_params_offset: NullableOffsetMarker<Offset16, FeatureParams>,
+    /// Array of indices into the LookupList — zero-based (first
+    /// lookup is LookupListIndex = 0)
+    pub lookup_list_indices: Vec<u16>,
+}
 
-/// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
-#[derive(Debug, Clone, Copy)]
-pub struct LookupList {}
-
-/// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
-#[derive(Debug, Clone, Copy)]
-pub struct Lookup {}
+impl FontWrite for Feature {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.feature_params_offset.write_into(writer);
+        (array_len(&self.lookup_list_indices))
+            .unwrap()
+            .write_into(writer);
+        self.lookup_list_indices.write_into(writer);
+    }
+}
 
 /// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
-#[derive(Debug, Clone, Copy)]
-pub struct CoverageFormat1 {}
+#[derive(Clone, Debug)]
+pub struct CoverageFormat1 {
+    /// Array of glyph IDs — in numerical order
+    pub glyph_array: Vec<u16>,
+}
+
+impl FontWrite for CoverageFormat1 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (1 as u16).write_into(writer);
+        (array_len(&self.glyph_array)).unwrap().write_into(writer);
+        self.glyph_array.write_into(writer);
+    }
+}
 
 /// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
-#[derive(Debug, Clone, Copy)]
-pub struct CoverageFormat2 {}
+#[derive(Clone, Debug)]
+pub struct CoverageFormat2 {
+    /// Array of glyph ranges — ordered by startGlyphID.
+    pub range_records: Vec<RangeRecord>,
+}
+
+impl FontWrite for CoverageFormat2 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (2 as u16).write_into(writer);
+        (array_len(&self.range_records)).unwrap().write_into(writer);
+        self.range_records.write_into(writer);
+    }
+}
 
 /// Used in [CoverageFormat2]
 #[derive(Clone, Debug)]
@@ -78,6 +187,14 @@ pub struct RangeRecord {
     pub start_coverage_index: u16,
 }
 
+impl FontWrite for RangeRecord {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.start_glyph_id.write_into(writer);
+        self.end_glyph_id.write_into(writer);
+        self.start_coverage_index.write_into(writer);
+    }
+}
+
 /// [Coverage Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-table)
 #[derive(Clone, Debug)]
 pub enum CoverageTable {
@@ -85,13 +202,51 @@ pub enum CoverageTable {
     Format2(CoverageFormat2),
 }
 
+impl FontWrite for CoverageTable {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Format1(item) => item.write_into(writer),
+            Self::Format2(item) => item.write_into(writer),
+        }
+    }
+}
+
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
-#[derive(Debug, Clone, Copy)]
-pub struct ClassDefFormat1 {}
+#[derive(Clone, Debug)]
+pub struct ClassDefFormat1 {
+    /// First glyph ID of the classValueArray
+    pub start_glyph_id: u16,
+    /// Array of Class Values — one per glyph ID
+    pub class_value_array: Vec<u16>,
+}
+
+impl FontWrite for ClassDefFormat1 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (1 as u16).write_into(writer);
+        self.start_glyph_id.write_into(writer);
+        (array_len(&self.class_value_array))
+            .unwrap()
+            .write_into(writer);
+        self.class_value_array.write_into(writer);
+    }
+}
 
 /// [Class Definition Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-2)
-#[derive(Debug, Clone, Copy)]
-pub struct ClassDefFormat2 {}
+#[derive(Clone, Debug)]
+pub struct ClassDefFormat2 {
+    /// Array of ClassRangeRecords — ordered by startGlyphID
+    pub class_range_records: Vec<ClassRangeRecord>,
+}
+
+impl FontWrite for ClassDefFormat2 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (2 as u16).write_into(writer);
+        (array_len(&self.class_range_records))
+            .unwrap()
+            .write_into(writer);
+        self.class_range_records.write_into(writer);
+    }
+}
 
 /// Used in [ClassDefFormat2]
 #[derive(Clone, Debug)]
@@ -104,11 +259,28 @@ pub struct ClassRangeRecord {
     pub class: u16,
 }
 
+impl FontWrite for ClassRangeRecord {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.start_glyph_id.write_into(writer);
+        self.end_glyph_id.write_into(writer);
+        self.class.write_into(writer);
+    }
+}
+
 /// A [Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table)
 #[derive(Clone, Debug)]
 pub enum ClassDef {
     Format1(ClassDefFormat1),
     Format2(ClassDefFormat2),
+}
+
+impl FontWrite for ClassDef {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Format1(item) => item.write_into(writer),
+            Self::Format2(item) => item.write_into(writer),
+        }
+    }
 }
 
 /// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
@@ -120,33 +292,163 @@ pub struct SequenceLookupRecord {
     pub lookup_list_index: u16,
 }
 
+impl FontWrite for SequenceLookupRecord {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.sequence_index.write_into(writer);
+        self.lookup_list_index.write_into(writer);
+    }
+}
+
 /// [Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-1-simple-glyph-contexts)
-#[derive(Debug, Clone, Copy)]
-pub struct SequenceContextFormat1 {}
+#[derive(Clone, Debug)]
+pub struct SequenceContextFormat1 {
+    /// Offset to Coverage table, from beginning of
+    /// SequenceContextFormat1 table
+    pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    /// Array of offsets to SequenceRuleSet tables, from beginning of
+    /// SequenceContextFormat1 table (offsets may be NULL)
+    pub seq_rule_set_offsets: Vec<NullableOffsetMarker<Offset16, SequenceRuleSet>>,
+}
+
+impl FontWrite for SequenceContextFormat1 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (1 as u16).write_into(writer);
+        self.coverage_offset.write_into(writer);
+        (array_len(&self.seq_rule_set_offsets))
+            .unwrap()
+            .write_into(writer);
+        self.seq_rule_set_offsets.write_into(writer);
+    }
+}
 
 /// Part of [SequenceContextFormat1]
-#[derive(Debug, Clone, Copy)]
-pub struct SequenceRuleSet {}
+#[derive(Clone, Debug)]
+pub struct SequenceRuleSet {
+    /// Array of offsets to SequenceRule tables, from beginning of the
+    /// SequenceRuleSet table
+    pub seq_rule_offsets: Vec<OffsetMarker<Offset16, SequenceRule>>,
+}
+
+impl FontWrite for SequenceRuleSet {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (array_len(&self.seq_rule_offsets))
+            .unwrap()
+            .write_into(writer);
+        self.seq_rule_offsets.write_into(writer);
+    }
+}
 
 /// Part of [SequenceContextFormat1]
-#[derive(Debug, Clone, Copy)]
-pub struct SequenceRule {}
+#[derive(Clone, Debug)]
+pub struct SequenceRule {
+    /// Array of input glyph IDs—starting with the second glyph
+    pub input_sequence: Vec<u16>,
+    /// Array of Sequence lookup records
+    pub seq_lookup_records: Vec<SequenceLookupRecord>,
+}
+
+impl FontWrite for SequenceRule {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (plus_one(&self.input_sequence.len()))
+            .unwrap()
+            .write_into(writer);
+        (array_len(&self.seq_lookup_records))
+            .unwrap()
+            .write_into(writer);
+        self.input_sequence.write_into(writer);
+        self.seq_lookup_records.write_into(writer);
+    }
+}
 
 /// [Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-2-class-based-glyph-contexts)
-#[derive(Debug, Clone, Copy)]
-pub struct SequenceContextFormat2 {}
+#[derive(Clone, Debug)]
+pub struct SequenceContextFormat2 {
+    /// Offset to Coverage table, from beginning of
+    /// SequenceContextFormat2 table
+    pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    /// Offset to ClassDef table, from beginning of
+    /// SequenceContextFormat2 table
+    pub class_def_offset: OffsetMarker<Offset16, ClassDef>,
+    /// Array of offsets to ClassSequenceRuleSet tables, from beginning
+    /// of SequenceContextFormat2 table (may be NULL)
+    pub class_seq_rule_set_offsets: Vec<NullableOffsetMarker<Offset16, ClassSequenceRuleSet>>,
+}
+
+impl FontWrite for SequenceContextFormat2 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (2 as u16).write_into(writer);
+        self.coverage_offset.write_into(writer);
+        self.class_def_offset.write_into(writer);
+        (array_len(&self.class_seq_rule_set_offsets))
+            .unwrap()
+            .write_into(writer);
+        self.class_seq_rule_set_offsets.write_into(writer);
+    }
+}
 
 /// Part of [SequenceContextFormat2]
-#[derive(Debug, Clone, Copy)]
-pub struct ClassSequenceRuleSet {}
+#[derive(Clone, Debug)]
+pub struct ClassSequenceRuleSet {
+    /// Array of offsets to ClassSequenceRule tables, from beginning of
+    /// ClassSequenceRuleSet table
+    pub class_seq_rule_offsets: Vec<OffsetMarker<Offset16, ClassSequenceRule>>,
+}
+
+impl FontWrite for ClassSequenceRuleSet {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (array_len(&self.class_seq_rule_offsets))
+            .unwrap()
+            .write_into(writer);
+        self.class_seq_rule_offsets.write_into(writer);
+    }
+}
 
 /// Part of [SequenceContextFormat2]
-#[derive(Debug, Clone, Copy)]
-pub struct ClassSequenceRule {}
+#[derive(Clone, Debug)]
+pub struct ClassSequenceRule {
+    /// Sequence of classes to be matched to the input glyph sequence,
+    /// beginning with the second glyph position
+    pub input_sequence: Vec<u16>,
+    /// Array of SequenceLookupRecords
+    pub seq_lookup_records: Vec<SequenceLookupRecord>,
+}
+
+impl FontWrite for ClassSequenceRule {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (plus_one(&self.input_sequence.len()))
+            .unwrap()
+            .write_into(writer);
+        (array_len(&self.seq_lookup_records))
+            .unwrap()
+            .write_into(writer);
+        self.input_sequence.write_into(writer);
+        self.seq_lookup_records.write_into(writer);
+    }
+}
 
 /// [Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-3-coverage-based-glyph-contexts)
-#[derive(Debug, Clone, Copy)]
-pub struct SequenceContextFormat3 {}
+#[derive(Clone, Debug)]
+pub struct SequenceContextFormat3 {
+    /// Array of offsets to Coverage tables, from beginning of
+    /// SequenceContextFormat3 subtable
+    pub coverage_offsets: Vec<OffsetMarker<Offset16, CoverageTable>>,
+    /// Array of SequenceLookupRecords
+    pub seq_lookup_records: Vec<SequenceLookupRecord>,
+}
+
+impl FontWrite for SequenceContextFormat3 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (3 as u16).write_into(writer);
+        (array_len(&self.coverage_offsets))
+            .unwrap()
+            .write_into(writer);
+        (array_len(&self.seq_lookup_records))
+            .unwrap()
+            .write_into(writer);
+        self.coverage_offsets.write_into(writer);
+        self.seq_lookup_records.write_into(writer);
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum SequenceContext {
@@ -155,33 +457,210 @@ pub enum SequenceContext {
     Format3(SequenceContextFormat3),
 }
 
+impl FontWrite for SequenceContext {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Format1(item) => item.write_into(writer),
+            Self::Format2(item) => item.write_into(writer),
+            Self::Format3(item) => item.write_into(writer),
+        }
+    }
+}
+
 /// [Chained Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-1-simple-glyph-contexts)
-#[derive(Debug, Clone, Copy)]
-pub struct ChainedSequenceContextFormat1 {}
+#[derive(Clone, Debug)]
+pub struct ChainedSequenceContextFormat1 {
+    /// Offset to Coverage table, from beginning of
+    /// ChainSequenceContextFormat1 table
+    pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
+    /// ChainedSequenceContextFormat1 table (may be NULL)
+    pub chained_seq_rule_set_offsets: Vec<NullableOffsetMarker<Offset16, ChainedSequenceRuleSet>>,
+}
+
+impl FontWrite for ChainedSequenceContextFormat1 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (1 as u16).write_into(writer);
+        self.coverage_offset.write_into(writer);
+        (array_len(&self.chained_seq_rule_set_offsets))
+            .unwrap()
+            .write_into(writer);
+        self.chained_seq_rule_set_offsets.write_into(writer);
+    }
+}
 
 /// Part of [ChainedSequenceContextFormat1]
-#[derive(Debug, Clone, Copy)]
-pub struct ChainedSequenceRuleSet {}
+#[derive(Clone, Debug)]
+pub struct ChainedSequenceRuleSet {
+    /// Array of offsets to ChainedSequenceRule tables, from beginning
+    /// of ChainedSequenceRuleSet table
+    pub chained_seq_rule_offsets: Vec<OffsetMarker<Offset16, ChainedSequenceRule>>,
+}
+
+impl FontWrite for ChainedSequenceRuleSet {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (array_len(&self.chained_seq_rule_offsets))
+            .unwrap()
+            .write_into(writer);
+        self.chained_seq_rule_offsets.write_into(writer);
+    }
+}
 
 /// Part of [ChainedSequenceContextFormat1]
-#[derive(Debug, Clone, Copy)]
-pub struct ChainedSequenceRule {}
+#[derive(Clone, Debug)]
+pub struct ChainedSequenceRule {
+    /// Array of backtrack glyph IDs
+    pub backtrack_sequence: Vec<u16>,
+    /// Array of input glyph IDs—start with second glyph
+    pub input_sequence: Vec<u16>,
+    /// Array of lookahead glyph IDs
+    pub lookahead_sequence: Vec<u16>,
+    /// Array of SequenceLookupRecords
+    pub seq_lookup_records: Vec<SequenceLookupRecord>,
+}
+
+impl FontWrite for ChainedSequenceRule {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (array_len(&self.backtrack_sequence))
+            .unwrap()
+            .write_into(writer);
+        self.backtrack_sequence.write_into(writer);
+        (plus_one(&self.input_sequence.len()))
+            .unwrap()
+            .write_into(writer);
+        self.input_sequence.write_into(writer);
+        (array_len(&self.lookahead_sequence))
+            .unwrap()
+            .write_into(writer);
+        self.lookahead_sequence.write_into(writer);
+        (array_len(&self.seq_lookup_records))
+            .unwrap()
+            .write_into(writer);
+        self.seq_lookup_records.write_into(writer);
+    }
+}
 
 /// [Chained Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-2-class-based-glyph-contexts)
-#[derive(Debug, Clone, Copy)]
-pub struct ChainedSequenceContextFormat2 {}
+#[derive(Clone, Debug)]
+pub struct ChainedSequenceContextFormat2 {
+    /// Offset to Coverage table, from beginning of
+    /// ChainedSequenceContextFormat2 table
+    pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    /// Offset to ClassDef table containing backtrack sequence context,
+    /// from beginning of ChainedSequenceContextFormat2 table
+    pub backtrack_class_def_offset: OffsetMarker<Offset16, ClassDef>,
+    /// Offset to ClassDef table containing input sequence context,
+    /// from beginning of ChainedSequenceContextFormat2 table
+    pub input_class_def_offset: OffsetMarker<Offset16, ClassDef>,
+    /// Offset to ClassDef table containing lookahead sequence context,
+    /// from beginning of ChainedSequenceContextFormat2 table
+    pub lookahead_class_def_offset: OffsetMarker<Offset16, ClassDef>,
+    /// Array of offsets to ChainedClassSequenceRuleSet tables, from
+    /// beginning of ChainedSequenceContextFormat2 table (may be NULL)
+    pub chained_class_seq_rule_set_offsets:
+        Vec<NullableOffsetMarker<Offset16, ChainedClassSequenceRuleSet>>,
+}
+
+impl FontWrite for ChainedSequenceContextFormat2 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (2 as u16).write_into(writer);
+        self.coverage_offset.write_into(writer);
+        self.backtrack_class_def_offset.write_into(writer);
+        self.input_class_def_offset.write_into(writer);
+        self.lookahead_class_def_offset.write_into(writer);
+        (array_len(&self.chained_class_seq_rule_set_offsets))
+            .unwrap()
+            .write_into(writer);
+        self.chained_class_seq_rule_set_offsets.write_into(writer);
+    }
+}
 
 /// Part of [ChainedSequenceContextFormat2]
-#[derive(Debug, Clone, Copy)]
-pub struct ChainedClassSequenceRuleSet {}
+#[derive(Clone, Debug)]
+pub struct ChainedClassSequenceRuleSet {
+    /// Array of offsets to ChainedClassSequenceRule tables, from
+    /// beginning of ChainedClassSequenceRuleSet
+    pub chained_class_seq_rule_offsets: Vec<OffsetMarker<Offset16, ChainedClassSequenceRule>>,
+}
+
+impl FontWrite for ChainedClassSequenceRuleSet {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (array_len(&self.chained_class_seq_rule_offsets))
+            .unwrap()
+            .write_into(writer);
+        self.chained_class_seq_rule_offsets.write_into(writer);
+    }
+}
 
 /// Part of [ChainedSequenceContextFormat2]
-#[derive(Debug, Clone, Copy)]
-pub struct ChainedClassSequenceRule {}
+#[derive(Clone, Debug)]
+pub struct ChainedClassSequenceRule {
+    /// Array of backtrack-sequence classes
+    pub backtrack_sequence: Vec<u16>,
+    /// Array of input sequence classes, beginning with the second
+    /// glyph position
+    pub input_sequence: Vec<u16>,
+    /// Array of lookahead-sequence classes
+    pub lookahead_sequence: Vec<u16>,
+    /// Array of SequenceLookupRecords
+    pub seq_lookup_records: Vec<SequenceLookupRecord>,
+}
+
+impl FontWrite for ChainedClassSequenceRule {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (array_len(&self.backtrack_sequence))
+            .unwrap()
+            .write_into(writer);
+        self.backtrack_sequence.write_into(writer);
+        (plus_one(&self.input_sequence.len()))
+            .unwrap()
+            .write_into(writer);
+        self.input_sequence.write_into(writer);
+        (array_len(&self.lookahead_sequence))
+            .unwrap()
+            .write_into(writer);
+        self.lookahead_sequence.write_into(writer);
+        (array_len(&self.seq_lookup_records))
+            .unwrap()
+            .write_into(writer);
+        self.seq_lookup_records.write_into(writer);
+    }
+}
 
 /// [Chained Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-3-coverage-based-glyph-contexts)
-#[derive(Debug, Clone, Copy)]
-pub struct ChainedSequenceContextFormat3 {}
+#[derive(Clone, Debug)]
+pub struct ChainedSequenceContextFormat3 {
+    /// Array of offsets to coverage tables for the backtrack sequence
+    pub backtrack_coverage_offsets: Vec<OffsetMarker<Offset16, CoverageTable>>,
+    /// Array of offsets to coverage tables for the input sequence
+    pub input_coverage_offsets: Vec<OffsetMarker<Offset16, CoverageTable>>,
+    /// Array of offsets to coverage tables for the lookahead sequence
+    pub lookahead_coverage_offsets: Vec<OffsetMarker<Offset16, CoverageTable>>,
+    /// Array of SequenceLookupRecords
+    pub seq_lookup_records: Vec<SequenceLookupRecord>,
+}
+
+impl FontWrite for ChainedSequenceContextFormat3 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (3 as u16).write_into(writer);
+        (array_len(&self.backtrack_coverage_offsets))
+            .unwrap()
+            .write_into(writer);
+        self.backtrack_coverage_offsets.write_into(writer);
+        (array_len(&self.input_coverage_offsets))
+            .unwrap()
+            .write_into(writer);
+        self.input_coverage_offsets.write_into(writer);
+        (array_len(&self.lookahead_coverage_offsets))
+            .unwrap()
+            .write_into(writer);
+        self.lookahead_coverage_offsets.write_into(writer);
+        (array_len(&self.seq_lookup_records))
+            .unwrap()
+            .write_into(writer);
+        self.seq_lookup_records.write_into(writer);
+    }
+}
 
 #[derive(Clone, Debug)]
 pub enum ChainedSequenceContext {
@@ -190,17 +669,102 @@ pub enum ChainedSequenceContext {
     Format3(ChainedSequenceContextFormat3),
 }
 
+impl FontWrite for ChainedSequenceContext {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Format1(item) => item.write_into(writer),
+            Self::Format2(item) => item.write_into(writer),
+            Self::Format3(item) => item.write_into(writer),
+        }
+    }
+}
+
+/// [Device](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
+/// delta formats
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u16)]
+pub enum DeltaFormat {
+    /// Signed 2-bit value, 8 values per uint16
+    Local2BitDeltas = 0x0001,
+    /// Signed 4-bit value, 4 values per uint16
+    Local4BitDeltas = 0x0002,
+    /// Signed 8-bit value, 2 values per uint16
+    Local8BitDeltas = 0x0003,
+    /// VariationIndex table, contains a delta-set index pair.
+    VariationIndex = 0x8000,
+}
+
+impl FontWrite for DeltaFormat {
+    fn write_into(&self, writer: &mut TableWriter) {
+        let val: u16 = match self {
+            Self::Local2BitDeltas => 0x0001,
+            Self::Local4BitDeltas => 0x0002,
+            Self::Local8BitDeltas => 0x0003,
+            Self::VariationIndex => 0x8000,
+        };
+        writer.write_slice(&val.to_be_bytes())
+    }
+}
+
 /// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
-#[derive(Debug, Clone, Copy)]
-pub struct Device {}
+#[derive(Clone, Debug)]
+pub struct Device {
+    /// Smallest size to correct, in ppem
+    pub start_size: u16,
+    /// Largest size to correct, in ppem
+    pub end_size: u16,
+    /// Format of deltaValue array data: 0x0001, 0x0002, or 0x0003
+    pub delta_format: DeltaFormat,
+    /// Array of compressed data
+    pub delta_value: Vec<u16>,
+}
+
+impl FontWrite for Device {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.start_size.write_into(writer);
+        self.end_size.write_into(writer);
+        self.delta_format.write_into(writer);
+        self.delta_value.write_into(writer);
+    }
+}
 
 /// Variation index table
-#[derive(Debug, Clone, Copy)]
-pub struct VariationIndex {}
+#[derive(Clone, Debug)]
+pub struct VariationIndex {
+    /// A delta-set outer index — used to select an item variation
+    /// data subtable within the item variation store.
+    pub delta_set_outer_index: u16,
+    /// A delta-set inner index — used to select a delta-set row
+    /// within an item variation data subtable.
+    pub delta_set_inner_index: u16,
+    /// Format, = 0x8000
+    pub delta_format: u16,
+}
+
+impl FontWrite for VariationIndex {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.delta_set_outer_index.write_into(writer);
+        self.delta_set_inner_index.write_into(writer);
+        self.delta_format.write_into(writer);
+    }
+}
 
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
-#[derive(Debug, Clone, Copy)]
-pub struct FeatureVariations {}
+#[derive(Clone, Debug)]
+pub struct FeatureVariations {
+    /// Array of feature variation records.
+    pub feature_variation_records: Vec<FeatureVariationRecord>,
+}
+
+impl FontWrite for FeatureVariations {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (MajorMinor::VERSION_1_0).write_into(writer);
+        (array_len(&self.feature_variation_records))
+            .unwrap()
+            .write_into(writer);
+        self.feature_variation_records.write_into(writer);
+    }
+}
 
 /// Part of [FeatureVariations]
 #[derive(Clone, Debug)]
@@ -213,17 +777,67 @@ pub struct FeatureVariationRecord {
     pub feature_table_substitution_offset: OffsetMarker<Offset32, FeatureTableSubstitution>,
 }
 
+impl FontWrite for FeatureVariationRecord {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.condition_set_offset.write_into(writer);
+        self.feature_table_substitution_offset.write_into(writer);
+    }
+}
+
 /// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
-#[derive(Debug, Clone, Copy)]
-pub struct ConditionSet {}
+#[derive(Clone, Debug)]
+pub struct ConditionSet {
+    /// Array of offsets to condition tables, from beginning of the
+    /// ConditionSet table.
+    pub condition_offsets: Vec<OffsetMarker<Offset32, ConditionFormat1>>,
+}
+
+impl FontWrite for ConditionSet {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (array_len(&self.condition_offsets))
+            .unwrap()
+            .write_into(writer);
+        self.condition_offsets.write_into(writer);
+    }
+}
 
 /// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
-#[derive(Debug, Clone, Copy)]
-pub struct ConditionFormat1 {}
+#[derive(Clone, Debug)]
+pub struct ConditionFormat1 {
+    /// Index (zero-based) for the variation axis within the 'fvar'
+    /// table.
+    pub axis_index: u16,
+    /// Minimum value of the font variation instances that satisfy this
+    /// condition.
+    pub filter_range_min_value: F2Dot14,
+    /// Maximum value of the font variation instances that satisfy this
+    /// condition.
+    pub filter_range_max_value: F2Dot14,
+}
+
+impl FontWrite for ConditionFormat1 {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (1 as u16).write_into(writer);
+        self.axis_index.write_into(writer);
+        self.filter_range_min_value.write_into(writer);
+        self.filter_range_max_value.write_into(writer);
+    }
+}
 
 /// [FeatureTableSubstitution Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featuretablesubstitution-table)
-#[derive(Debug, Clone, Copy)]
-pub struct FeatureTableSubstitution {}
+#[derive(Clone, Debug)]
+pub struct FeatureTableSubstitution {
+    /// Array of feature table substitution records.
+    pub substitutions: Vec<FeatureTableSubstitutionRecord>,
+}
+
+impl FontWrite for FeatureTableSubstitution {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (MajorMinor::VERSION_1_0).write_into(writer);
+        (array_len(&self.substitutions)).unwrap().write_into(writer);
+        self.substitutions.write_into(writer);
+    }
+}
 
 /// Used in [FeatureTableSubstitution]
 #[derive(Clone, Debug)]
@@ -235,12 +849,112 @@ pub struct FeatureTableSubstitutionRecord {
     pub alternate_feature_offset: OffsetMarker<Offset32, Feature>,
 }
 
-#[derive(Debug, Clone, Copy)]
-pub struct SizeParams {}
+impl FontWrite for FeatureTableSubstitutionRecord {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.feature_index.write_into(writer);
+        self.alternate_feature_offset.write_into(writer);
+    }
+}
 
-#[derive(Debug, Clone, Copy)]
-pub struct StylisticSetParams {}
+#[derive(Clone, Debug)]
+pub struct SizeParams {
+    /// The first value represents the design size in 720/inch units (decipoints).
+    ///
+    /// The design size entry must be non-zero. When there is a design size but
+    /// no recommended size range, the rest of the array will consist of zeros.
+    pub design_size: u16,
+    /// The second value has no independent meaning, but serves as an identifier that associates fonts in a subfamily.
+    ///
+    /// All fonts which share a Typographic or Font Family name and which differ
+    /// only by size range shall have the same subfamily value, and no fonts
+    /// which differ in weight or style shall have the same subfamily value.
+    /// If this value is zero, the remaining fields in the array will be ignored.
+    pub identifier: u16,
+    /// The third value enables applications to use a single name for the subfamily identified by the second value.
+    ///
+    /// If the preceding value is non-zero, this value must be set in the range
+    /// 256 – 32767 (inclusive). It records the value of a field in the 'name'
+    /// table, which must contain English-language strings encoded in Windows
+    /// Unicode and Macintosh Roman, and may contain additional strings localized
+    /// to other scripts and languages. Each of these strings is the name
+    /// an application should use, in combination with the family name, to
+    /// represent the subfamily in a menu. Applications will choose the
+    /// appropriate version based on their selection criteria.
+    pub name_entry: u16,
+    /// The fourth and fifth values represent the small end of the recommended
+    /// usage range (exclusive) and the large end of the recommended usage range
+    /// (inclusive), stored in 720/inch units (decipoints).
+    ///
+    /// Ranges must not overlap, and should generally be contiguous.
+    pub range_start: u16,
+    pub range_end: u16,
+}
+
+impl FontWrite for SizeParams {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.design_size.write_into(writer);
+        self.identifier.write_into(writer);
+        self.name_entry.write_into(writer);
+        self.range_start.write_into(writer);
+        self.range_end.write_into(writer);
+    }
+}
+
+#[derive(Clone, Debug)]
+pub struct StylisticSetParams {
+    /// The 'name' table name ID that specifies a string (or strings, for
+    /// multiple languages) for a user-interface label for this feature.
+    ///
+    /// The value of uiLabelNameId is expected to be in the font-specific name
+    /// ID range (256-32767), though that is not a requirement in this Feature
+    /// Parameters specification. The user-interface label for the feature can
+    /// be provided in multiple languages. An English string should be included
+    /// as a fallback. The string should be kept to a minimal length to fit
+    /// comfortably with different application interfaces.
+    pub ui_name_id: u16,
+}
+
+impl FontWrite for StylisticSetParams {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (0).write_into(writer);
+        self.ui_name_id.write_into(writer);
+    }
+}
 
 /// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
-#[derive(Debug, Clone, Copy)]
-pub struct CharacterVariantParams {}
+#[derive(Clone, Debug)]
+pub struct CharacterVariantParams {
+    /// The 'name' table name ID that specifies a string (or strings,
+    /// for multiple languages) for a user-interface label for this
+    /// feature. (May be NULL.)
+    pub feat_ui_label_name_id: u16,
+    /// The 'name' table name ID that specifies a string (or strings,
+    /// for multiple languages) that an application can use for tooltip
+    /// text for this feature. (May be NULL.)
+    pub feat_ui_tooltip_text_name_id: u16,
+    /// The 'name' table name ID that specifies sample text that
+    /// illustrates the effect of this feature. (May be NULL.)
+    pub sample_text_name_id: u16,
+    /// Number of named parameters. (May be zero.)
+    pub num_named_parameters: u16,
+    /// The first 'name' table name ID used to specify strings for
+    /// user-interface labels for the feature parameters. (Must be zero
+    /// if numParameters is zero.)
+    pub first_param_ui_label_name_id: u16,
+    /// The Unicode Scalar Value of the characters for which this
+    /// feature provides glyph variants.
+    pub character: Vec<Uint24>,
+}
+
+impl FontWrite for CharacterVariantParams {
+    fn write_into(&self, writer: &mut TableWriter) {
+        (1 as u16).write_into(writer);
+        self.feat_ui_label_name_id.write_into(writer);
+        self.feat_ui_tooltip_text_name_id.write_into(writer);
+        self.sample_text_name_id.write_into(writer);
+        self.num_named_parameters.write_into(writer);
+        self.first_param_ui_label_name_id.write_into(writer);
+        (array_len(&self.character)).unwrap().write_into(writer);
+        self.character.write_into(writer);
+    }
+}

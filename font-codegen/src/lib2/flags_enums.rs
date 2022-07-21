@@ -1,5 +1,6 @@
 //! codegen for bitflags and raw enums
 
+use proc_macro2::TokenStream;
 use quote::quote;
 
 use super::parsing::{BitFlags, RawEnum};
@@ -51,7 +52,41 @@ pub(crate) fn generate_flags(raw: &BitFlags) -> proc_macro2::TokenStream {
     }
 }
 
-pub(crate) fn generate_raw_enum(raw: &RawEnum) -> proc_macro2::TokenStream {
+pub(crate) fn generate_flags_compile(raw: &BitFlags) -> TokenStream {
+    //NOTE: we can reuse the declarations of these from parsing, but you need
+    //to import them manually; we only implement the traits.
+
+    let name = &raw.name;
+    let docs = &raw.docs;
+    let typ = &raw.typ;
+    let variants = raw.variants.iter().map(|variant| {
+        let name = &variant.name;
+        let value = &variant.value;
+        let docs = &variant.docs;
+        quote! {
+            #( #docs )*
+            const #name = #value;
+        }
+    });
+
+    quote! {
+        bitflags::bitflags! {
+            #( #docs )*
+            pub struct #name: #typ {
+                #( #variants )*
+            }
+        }
+
+
+        impl FontWrite for #name {
+            fn write_into(&self, writer: &mut TableWriter) {
+                writer.write_slice(&self.bits().to_be_bytes())
+            }
+        }
+    }
+}
+
+pub(crate) fn generate_raw_enum(raw: &RawEnum) -> TokenStream {
     let name = &raw.name;
     let docs = &raw.docs;
     let typ = &raw.typ;
@@ -98,6 +133,48 @@ pub(crate) fn generate_raw_enum(raw: &RawEnum) -> proc_macro2::TokenStream {
         impl ReadScalar for #name {
             fn read(bytes: &[u8]) -> Option<Self> {
                 #typ::read(bytes).map(Self::new)
+            }
+        }
+    }
+}
+
+pub(crate) fn generate_raw_enum_compile(raw: &RawEnum) -> TokenStream {
+    //NOTE: we can reuse the declarations of these from parsing, but you need
+    //to import them manually; we only implement the traits.
+
+    let name = &raw.name;
+    let docs = &raw.docs;
+    let typ = &raw.typ;
+    let variants = raw.variants.iter().map(|variant| {
+        let name = &variant.name;
+        let value = &variant.value;
+        let docs = &variant.docs;
+        quote! {
+            #( #docs )*
+            #name = #value,
+        }
+    });
+
+    let match_arms = raw.variants.iter().map(|variant| {
+        let name = &variant.name;
+        let value = &variant.value;
+        quote!( Self::#name => #value, )
+    });
+
+    quote! {
+        #( #docs )*
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        #[repr(#typ)]
+        pub enum #name {
+            #( #variants )*
+        }
+
+        impl FontWrite for #name {
+            fn write_into(&self, writer: &mut TableWriter) {
+                let val: #typ = match self {
+                    #( #match_arms )*
+                };
+                writer.write_slice(&val.to_be_bytes())
             }
         }
     }

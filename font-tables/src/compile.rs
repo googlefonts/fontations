@@ -238,6 +238,7 @@ write_be_bytes!(font_types::Fixed);
 write_be_bytes!(font_types::LongDateTime);
 write_be_bytes!(font_types::Tag);
 write_be_bytes!(font_types::Version16Dot16);
+write_be_bytes!(font_types::MajorMinor);
 
 impl<T: Scalar + FontWrite> FontWrite for BigEndian<T> {
     fn write_into(&self, writer: &mut TableWriter) {

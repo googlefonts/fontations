@@ -109,7 +109,7 @@ table AnchorFormat3 {
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
 table MarkArray {
     /// Number of MarkRecords
-    //#[compute_count(mark_records)]
+    #[compile(array_len($mark_records))]
     mark_count: BigEndian<u16>,
     /// Array of MarkRecords, ordered by corresponding glyphs in the
     /// associated mark Coverage table.
@@ -139,6 +139,7 @@ table SinglePosFormat1 {
     /// Offset to Coverage table, from beginning of SinglePos subtable.
     coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Defines the types of data in the ValueRecord.
+    #[compile(self.compute_value_format())]
     value_format: BigEndian<ValueFormat>,
     /// Defines positioning value(s) — applied to all glyphs in the
     /// Coverage table.
@@ -156,10 +157,11 @@ table SinglePosFormat2 {
     //#[no_offset_getter]
     coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Defines the types of data in the ValueRecords.
+    #[compile(self.compute_value_format())]
     value_format: BigEndian<ValueFormat>,
     /// Number of ValueRecords — must equal glyphCount in the
     /// Coverage table.
-    #[compute_count(value_records)]
+    #[compile(array_len($value_records))]
     value_count: BigEndian<u16>,
     /// Array of ValueRecords — positioning values applied to glyphs.
     #[no_getter]
@@ -188,12 +190,14 @@ table PairPosFormat1 {
     coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Defines the types of data in valueRecord1 — for the first
     /// glyph in the pair (may be zero).
+    #[compile(self.compute_value_format1())]
     value_format1: BigEndian<ValueFormat>,
     /// Defines the types of data in valueRecord2 — for the second
     /// glyph in the pair (may be zero).
+    #[compile(self.compute_value_format2())]
     value_format2: BigEndian<ValueFormat>,
     /// Number of PairSet tables
-    //#[compute_count(pair_set_offsets)]
+    #[compile(array_len($pair_set_offsets))]
     pair_set_count: BigEndian<u16>,
     /// Array of offsets to PairSet tables. Offsets are from beginning
     /// of PairPos subtable, ordered by Coverage Index.
@@ -207,11 +211,11 @@ table PairPosFormat1 {
 #[skip_parse]
 table PairSet {
     /// Number of PairValueRecords
-    //#[compute_count(pair_value_records)]
+    #[compile(array_len($pair_value_records))]
     pair_value_count: BigEndian<u16>,
     /// Array of PairValueRecords, ordered by glyph ID of the second
     /// glyph.
-    pair_value_records: [PairValueRecord]
+    pair_value_records: [PairValueRecord],
         //#[count_with(pair_value_record_len, pair_value_count, value_format1, value_format2)]
         //#[read_with(value_format1, value_format2)]
         //#[compile_type(Vec<PairValueRecord>)]
@@ -243,9 +247,11 @@ table PairPosFormat2 {
     coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// ValueRecord definition — for the first glyph of the pair (may
     /// be zero).
+    #[compile(self.compute_value_format1())]
     value_format1: BigEndian<ValueFormat>,
     /// ValueRecord definition — for the second glyph of the pair
     /// (may be zero).
+    #[compile(self.compute_value_format2())]
     value_format2: BigEndian<ValueFormat>,
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the first glyph of the pair.
@@ -256,10 +262,10 @@ table PairPosFormat2 {
     #[no_offset_getter]
     class_def2_offset: BigEndian<Offset16<ClassDef>>,
     /// Number of classes in classDef1 table — includes Class 0.
-    //#[compute(self.class_def1_offset.get().unwrap().class_count())]
+    #[compile(self.compute_class1_count())]
     class1_count: BigEndian<u16>,
     /// Number of classes in classDef2 table — includes Class 0.
-    //#[compute(self.class_def2_offset.get().unwrap().class_count())]
+    #[compile(self.compute_class2_count())]
     class2_count: BigEndian<u16>,
     #[len(class1_record_len($class1_count, $class2_count, $value_format1, $value_format2))]
     #[no_getter]
@@ -311,7 +317,7 @@ table CursivePosFormat1 {
     #[no_offset_getter]
     coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Number of EntryExit records
-    //#[compute_count(entry_exit_record)]
+    #[compile(array_len($entry_exit_record))]
     entry_exit_count: BigEndian<u16>,
     /// Array of EntryExit records, in Coverage index order.
     #[count($entry_exit_count)]
@@ -350,7 +356,7 @@ table MarkBasePosFormat1 {
     #[no_offset_getter]
     base_coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Number of classes defined for marks
-    //#[compute(self.mark_array_offset.get().unwrap().class_count())]
+    #[compile(self.compute_mark_class_count())]
     mark_class_count: BigEndian<u16>,
     /// Offset to MarkArray table, from beginning of MarkBasePos
     /// subtable.
@@ -368,7 +374,7 @@ table MarkBasePosFormat1 {
 #[skip_parse]
 table BaseArray {
     /// Number of BaseRecords
-    //#[compute_count(base_records)]
+    #[compile(array_len($base_records))]
     base_count: BigEndian<u16>,
     /// Array of BaseRecords, in order of baseCoverage Index.
     base_records: [BaseRecord]
@@ -399,7 +405,7 @@ table MarkLigPosFormat1 {
     #[no_offset_getter]
     ligature_coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Number of defined mark classes
-    //#[compute(self.mark_array_offset.get().unwrap().class_count())]
+    #[compile(self.compute_mark_class_count())]
     mark_class_count: BigEndian<u16>,
     /// Offset to MarkArray table, from beginning of MarkLigPos
     /// subtable.
@@ -412,7 +418,7 @@ table MarkLigPosFormat1 {
 /// Part of [MarkLigPosFormat1]
 table LigatureArray {
     /// Number of LigatureAttach table offsets
-    //#[compute_count(ligature_attach_offsets)]
+    #[compile(array_len($ligature_attach_offsets))]
     ligature_count: BigEndian<u16>,
     /// Array of offsets to LigatureAttach tables. Offsets are from
     /// beginning of LigatureArray table, ordered by ligatureCoverage
@@ -427,7 +433,7 @@ table LigatureArray {
 #[skip_parse]
 table LigatureAttach {
     /// Number of ComponentRecords in this ligature
-    //#[compute_count(component_records)]
+    #[compile(array_len($component_records))]
     component_count: BigEndian<u16>,
     /// Array of Component records, ordered in writing direction.
     component_records: [ComponentRecord],
@@ -462,7 +468,7 @@ table MarkMarkPosFormat1 {
     #[no_offset_getter]
     mark2_coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Number of Combining Mark classes defined
-    //#[compute(self.mark1_array_offset.get().unwrap().class_count())]
+    #[compile(self.compute_mark_class_count())]
     mark_class_count: BigEndian<u16>,
     /// Offset to MarkArray table for mark1, from beginning of
     /// MarkMarkPos subtable.
@@ -479,7 +485,7 @@ table MarkMarkPosFormat1 {
 #[skip_parse]
 table Mark2Array {
     /// Number of Mark2 records
-    //#[compute_count(mark2_records)]
+    #[compile(array_len($mark2_records))]
     mark2_count: BigEndian<u16>,
     /// Array of Mark2Records, in Coverage order.
     mark2_records: [Mark2Record],
@@ -502,7 +508,7 @@ record Mark2Record {
 }
 
 /// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
-//#[no_compile]
+#[skip_compile]
 table ExtensionPosFormat1 {
     /// Format identifier: format = 1
     #[format = 1]

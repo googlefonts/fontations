@@ -38,7 +38,8 @@ pub fn generate_compile_module(code: &str) -> Result<proc_macro2::TokenStream, s
             Item::Record(item) => record::generate_compile(&item),
             Item::Table(item) => table::generate_compile(&item),
             Item::Format(item) => table::generate_format_compile(&item),
-            _ => Ok(Default::default()),
+            Item::RawEnum(item) => Ok(flags_enums::generate_raw_enum_compile(&item)),
+            Item::Flags(item) => Ok(flags_enums::generate_flags_compile(&item)),
         })
         .collect::<Result<Vec<_>, _>>()?;
 

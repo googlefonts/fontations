@@ -3,7 +3,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use super::parsing::{Field, Record};
+use super::parsing::{Field, Fields, Record, TableAttrs};
 
 pub(crate) fn generate(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
     if item.attrs.skip_parse.is_some() {
@@ -40,31 +40,34 @@ pub(crate) fn generate(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
 }
 
 pub(crate) fn generate_compile(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
-    //Ok(Default::default())
+    generate_compile_impl(&item.name, &item.attrs, &item.fields)
+}
 
-    let name = &item.name;
-    let docs = &item.attrs.docs;
-    let fields = item.iter_compile_field_decls();
+// shared between table/record
+pub(crate) fn generate_compile_impl(
+    name: &syn::Ident,
+    attrs: &TableAttrs,
+    fields: &Fields,
+) -> syn::Result<TokenStream> {
+    if attrs.skip_compile.is_some() {
+        return Ok(Default::default());
+    }
+
+    let docs = &attrs.docs;
+    let field_decls = fields.iter_compile_decls();
+    let write_stmts = fields.iter_compile_write_stmts();
 
     Ok(quote! {
         #( #docs )*
         #[derive(Clone, Debug)]
         pub struct #name {
-            #( #fields, )*
+            #( #field_decls, )*
+        }
+
+        impl FontWrite for #name {
+            fn write_into(&self, writer: &mut TableWriter) {
+                #( #write_stmts; )*
+            }
         }
     })
-}
-
-impl Record {
-    fn iter_compile_field_decls(&self) -> impl Iterator<Item = TokenStream> + '_ {
-        self.fields
-            .iter()
-            .filter(|fld| !fld.is_computed())
-            .map(|fld| {
-                let name = &fld.name;
-                let docs = &fld.attrs.docs;
-                let typ = fld.owned_type();
-                quote!( #( #docs)* pub #name: #typ )
-            })
-    }
 }
