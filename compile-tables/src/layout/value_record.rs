@@ -1,8 +1,7 @@
 //! The ValueRecord type used in the GPOS table
 
-use font_tables::compile::{FontWrite, TableWriter};
-
 use super::gpos::ValueFormat;
+use crate::write::{FontWrite, TableWriter};
 
 #[derive(Clone, Default, PartialEq)]
 pub struct ValueRecord {

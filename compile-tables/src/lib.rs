@@ -1,12 +1,17 @@
 //! Raw types for compiling opentype tables
 
+mod graph;
 pub mod layout;
+mod offsets;
+mod write;
+
+pub use write::dump_table;
 
 pub mod compile_prelude {
     use std::num::TryFromIntError;
 
-    pub use font_tables::compile::*;
-    pub use font_tables::tables::gpos::ValueRecord;
+    pub use super::offsets::{NullableOffsetMarker, OffsetMarker};
+    pub use super::write::{FontWrite, TableWriter};
     pub use font_types::*;
 
     /// checked conversion to u16
