@@ -14,7 +14,12 @@ pub struct Version16Dot16(u32);
 /// those as a single type, which is useful for some of the generated code that
 /// parses out a version.
 #[derive(Copy, Clone, Debug, PartialEq, Eq)]
-pub struct MajorMinor(u16, u16);
+pub struct MajorMinor {
+    /// The major version number
+    pub major: u16,
+    /// The minor version number
+    pub minor: u16,
+}
 
 impl Version16Dot16 {
     /// Version 0.5
@@ -49,6 +54,7 @@ impl Version16Dot16 {
     }
 
     /// The representation of this version as a big-endian byte array.
+    #[inline]
     pub fn to_be_bytes(self) -> [u8; 4] {
         self.0.to_be_bytes()
     }
@@ -67,13 +73,23 @@ impl MajorMinor {
     pub const VERSION_1_3: MajorMinor = MajorMinor::new(1, 3);
 
     /// Create a new version with major and minor parts.
+    #[inline]
     pub const fn new(major: u16, minor: u16) -> Self {
-        MajorMinor(major, minor)
+        MajorMinor { major, minor }
     }
 
     /// `true` if major == major, and self.minor is >= other.minor
+    #[inline]
     pub const fn compatible(self, other: MajorMinor) -> bool {
-        self.0 == other.0 && self.1 >= other.1
+        self.major == other.major && self.minor >= other.minor
+    }
+
+    /// The representation of this version as a big-endian byte array.
+    #[inline]
+    pub fn to_be_bytes(self) -> [u8; 4] {
+        let [a, b] = self.major.to_be_bytes();
+        let [c, d] = self.major.to_be_bytes();
+        [a, b, c, d]
     }
 }
 
@@ -83,13 +99,11 @@ impl crate::Scalar for MajorMinor {
     fn from_raw(raw: Self::Raw) -> Self {
         let major = u16::from_be_bytes([raw[0], raw[1]]);
         let minor = u16::from_be_bytes([raw[2], raw[3]]);
-        Self(major, minor)
+        Self { major, minor }
     }
 
     fn to_raw(self) -> Self::Raw {
-        let [a, b] = self.0.to_be_bytes();
-        let [c, d] = self.1.to_be_bytes();
-        [a, b, c, d]
+        self.to_be_bytes()
     }
 }
 
