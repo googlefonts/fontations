@@ -26,6 +26,16 @@ impl Validate for PositionLookupList {
     }
 }
 
+impl Gpos {
+    fn compute_version(&self) -> MajorMinor {
+        if self.feature_variations_offset.get().is_none() {
+            MajorMinor::VERSION_1_0
+        } else {
+            MajorMinor::VERSION_1_1
+        }
+    }
+}
+
 /// A GPOS lookup
 #[derive(Debug, Clone)]
 pub enum PositionLookup {

@@ -3,6 +3,7 @@
 table Gpos {
     /// The major and minor version of the GPOS table, as a tuple (u16, u16)
     #[version]
+    #[compile(self.compute_version())]
     version: BigEndian<MajorMinor>,
     /// Offset to ScriptList table, from beginning of GPOS table
     #[no_offset_getter]

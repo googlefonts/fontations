@@ -9,8 +9,6 @@ use crate::compile_prelude::*;
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 #[derive(Clone, Debug)]
 pub struct Gpos {
-    /// The major and minor version of the GPOS table, as a tuple (u16, u16)
-    pub version: MajorMinor,
     /// Offset to ScriptList table, from beginning of GPOS table
     pub script_list_offset: OffsetMarker<Offset16, ScriptList>,
     /// Offset to FeatureList table, from beginning of GPOS table
@@ -22,7 +20,7 @@ pub struct Gpos {
 
 impl FontWrite for Gpos {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.version.write_into(writer);
+        (self.compute_version()).write_into(writer);
         self.script_list_offset.write_into(writer);
         self.feature_list_offset.write_into(writer);
         self.lookup_list_offset.write_into(writer);
