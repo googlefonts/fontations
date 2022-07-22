@@ -30,6 +30,25 @@ impl FontWrite for Gpos {
     }
 }
 
+impl Validate for Gpos {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Gpos", |ctx| {
+            ctx.in_field("script_list_offset", |ctx| {
+                self.script_list_offset.validate_impl(ctx);
+            });
+            ctx.in_field("feature_list_offset", |ctx| {
+                self.feature_list_offset.validate_impl(ctx);
+            });
+            ctx.in_field("lookup_list_offset", |ctx| {
+                self.lookup_list_offset.validate_impl(ctx);
+            });
+            ctx.in_field("feature_variations_offset", |ctx| {
+                self.feature_variations_offset.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 bitflags::bitflags! { # [doc = " See [ValueRecord]"] pub struct ValueFormat : u16 { # [doc = " Includes horizontal adjustment for placement"] const X_PLACEMENT = 0x0001 ; # [doc = " Includes vertical adjustment for placement"] const Y_PLACEMENT = 0x0002 ; # [doc = " Includes horizontal adjustment for advance"] const X_ADVANCE = 0x0004 ; # [doc = " Includes vertical adjustment for advance"] const Y_ADVANCE = 0x0008 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal placement"] const X_PLACEMENT_DEVICE = 0x0010 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical placement"] const Y_PLACEMENT_DEVICE = 0x0020 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal advance"] const X_ADVANCE_DEVICE = 0x0040 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical advance"] const Y_ADVANCE_DEVICE = 0x0080 ; } }
 
 impl FontWrite for ValueFormat {
@@ -57,6 +76,16 @@ impl FontWrite for AnchorTable {
     }
 }
 
+impl Validate for AnchorTable {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
+            Self::Format3(item) => item.validate_impl(ctx),
+        }
+    }
+}
+
 /// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
 #[derive(Clone, Debug)]
 pub struct AnchorFormat1 {
@@ -72,6 +101,10 @@ impl FontWrite for AnchorFormat1 {
         self.x_coordinate.write_into(writer);
         self.y_coordinate.write_into(writer);
     }
+}
+
+impl Validate for AnchorFormat1 {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
 /// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
@@ -92,6 +125,10 @@ impl FontWrite for AnchorFormat2 {
         self.y_coordinate.write_into(writer);
         self.anchor_point.write_into(writer);
     }
+}
+
+impl Validate for AnchorFormat2 {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
 /// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
@@ -121,6 +158,19 @@ impl FontWrite for AnchorFormat3 {
     }
 }
 
+impl Validate for AnchorFormat3 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("AnchorFormat3", |ctx| {
+            ctx.in_field("x_device_offset", |ctx| {
+                self.x_device_offset.validate_impl(ctx);
+            });
+            ctx.in_field("y_device_offset", |ctx| {
+                self.y_device_offset.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
 #[derive(Clone, Debug)]
 pub struct MarkArray {
@@ -133,6 +183,19 @@ impl FontWrite for MarkArray {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.mark_records)).unwrap().write_into(writer);
         self.mark_records.write_into(writer);
+    }
+}
+
+impl Validate for MarkArray {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("MarkArray", |ctx| {
+            ctx.in_field("mark_records", |ctx| {
+                if self.mark_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.mark_records.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -152,6 +215,16 @@ impl FontWrite for MarkRecord {
     }
 }
 
+impl Validate for MarkRecord {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("MarkRecord", |ctx| {
+            ctx.in_field("mark_anchor_offset", |ctx| {
+                self.mark_anchor_offset.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
 #[derive(Clone, Debug)]
 pub enum SinglePos {
@@ -164,6 +237,15 @@ impl FontWrite for SinglePos {
         match self {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
+        }
+    }
+}
+
+impl Validate for SinglePos {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -187,6 +269,16 @@ impl FontWrite for SinglePosFormat1 {
     }
 }
 
+impl Validate for SinglePosFormat1 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SinglePosFormat1", |ctx| {
+            ctx.in_field("coverage_offset", |ctx| {
+                self.coverage_offset.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
 #[derive(Clone, Debug)]
 pub struct SinglePosFormat2 {
@@ -206,6 +298,19 @@ impl FontWrite for SinglePosFormat2 {
     }
 }
 
+impl Validate for SinglePosFormat2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SinglePosFormat2", |ctx| {
+            ctx.in_field("coverage_offset", |ctx| {
+                self.coverage_offset.validate_impl(ctx);
+            });
+            ctx.in_field("value_records", |ctx| {
+                self.value_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
 #[derive(Clone, Debug)]
 pub enum PairPos {
@@ -218,6 +323,15 @@ impl FontWrite for PairPos {
         match self {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
+        }
+    }
+}
+
+impl Validate for PairPos {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -245,6 +359,22 @@ impl FontWrite for PairPosFormat1 {
     }
 }
 
+impl Validate for PairPosFormat1 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("PairPosFormat1", |ctx| {
+            ctx.in_field("coverage_offset", |ctx| {
+                self.coverage_offset.validate_impl(ctx);
+            });
+            ctx.in_field("pair_set_offsets", |ctx| {
+                if self.pair_set_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.pair_set_offsets.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// Part of [PairPosFormat1]
 #[derive(Clone, Debug)]
 pub struct PairSet {
@@ -259,6 +389,16 @@ impl FontWrite for PairSet {
             .unwrap()
             .write_into(writer);
         self.pair_value_records.write_into(writer);
+    }
+}
+
+impl Validate for PairSet {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("PairSet", |ctx| {
+            ctx.in_field("pair_value_records", |ctx| {
+                self.pair_value_records.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -280,6 +420,10 @@ impl FontWrite for PairValueRecord {
         self.value_record1.write_into(writer);
         self.value_record2.write_into(writer);
     }
+}
+
+impl Validate for PairValueRecord {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
 /// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
@@ -310,6 +454,25 @@ impl FontWrite for PairPosFormat2 {
     }
 }
 
+impl Validate for PairPosFormat2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("PairPosFormat2", |ctx| {
+            ctx.in_field("coverage_offset", |ctx| {
+                self.coverage_offset.validate_impl(ctx);
+            });
+            ctx.in_field("class_def1_offset", |ctx| {
+                self.class_def1_offset.validate_impl(ctx);
+            });
+            ctx.in_field("class_def2_offset", |ctx| {
+                self.class_def2_offset.validate_impl(ctx);
+            });
+            ctx.in_field("class1_records", |ctx| {
+                self.class1_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// Part of [PairPosFormat2]
 #[derive(Clone, Debug)]
 pub struct Class1Record {
@@ -320,6 +483,16 @@ pub struct Class1Record {
 impl FontWrite for Class1Record {
     fn write_into(&self, writer: &mut TableWriter) {
         self.class2_records.write_into(writer);
+    }
+}
+
+impl Validate for Class1Record {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Class1Record", |ctx| {
+            ctx.in_field("class2_records", |ctx| {
+                self.class2_records.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -337,6 +510,10 @@ impl FontWrite for Class2Record {
         self.value_record1.write_into(writer);
         self.value_record2.write_into(writer);
     }
+}
+
+impl Validate for Class2Record {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
 /// [Cursive Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#cursive-attachment-positioning-format1-cursive-attachment): Cursvie attachment
@@ -359,6 +536,22 @@ impl FontWrite for CursivePosFormat1 {
     }
 }
 
+impl Validate for CursivePosFormat1 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("CursivePosFormat1", |ctx| {
+            ctx.in_field("coverage_offset", |ctx| {
+                self.coverage_offset.validate_impl(ctx);
+            });
+            ctx.in_field("entry_exit_record", |ctx| {
+                if self.entry_exit_record.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.entry_exit_record.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// Part of [CursivePosFormat1]
 #[derive(Clone, Debug)]
 pub struct EntryExitRecord {
@@ -374,6 +567,19 @@ impl FontWrite for EntryExitRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.entry_anchor_offset.write_into(writer);
         self.exit_anchor_offset.write_into(writer);
+    }
+}
+
+impl Validate for EntryExitRecord {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("EntryExitRecord", |ctx| {
+            ctx.in_field("entry_anchor_offset", |ctx| {
+                self.entry_anchor_offset.validate_impl(ctx);
+            });
+            ctx.in_field("exit_anchor_offset", |ctx| {
+                self.exit_anchor_offset.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -405,6 +611,25 @@ impl FontWrite for MarkBasePosFormat1 {
     }
 }
 
+impl Validate for MarkBasePosFormat1 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("MarkBasePosFormat1", |ctx| {
+            ctx.in_field("mark_coverage_offset", |ctx| {
+                self.mark_coverage_offset.validate_impl(ctx);
+            });
+            ctx.in_field("base_coverage_offset", |ctx| {
+                self.base_coverage_offset.validate_impl(ctx);
+            });
+            ctx.in_field("mark_array_offset", |ctx| {
+                self.mark_array_offset.validate_impl(ctx);
+            });
+            ctx.in_field("base_array_offset", |ctx| {
+                self.base_array_offset.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// Part of [MarkBasePosFormat1]
 #[derive(Clone, Debug)]
 pub struct BaseArray {
@@ -416,6 +641,16 @@ impl FontWrite for BaseArray {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.base_records)).unwrap().write_into(writer);
         self.base_records.write_into(writer);
+    }
+}
+
+impl Validate for BaseArray {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("BaseArray", |ctx| {
+            ctx.in_field("base_records", |ctx| {
+                self.base_records.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -431,6 +666,16 @@ pub struct BaseRecord {
 impl FontWrite for BaseRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.base_anchor_offsets.write_into(writer);
+    }
+}
+
+impl Validate for BaseRecord {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("BaseRecord", |ctx| {
+            ctx.in_field("base_anchor_offsets", |ctx| {
+                self.base_anchor_offsets.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -462,6 +707,25 @@ impl FontWrite for MarkLigPosFormat1 {
     }
 }
 
+impl Validate for MarkLigPosFormat1 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("MarkLigPosFormat1", |ctx| {
+            ctx.in_field("mark_coverage_offset", |ctx| {
+                self.mark_coverage_offset.validate_impl(ctx);
+            });
+            ctx.in_field("ligature_coverage_offset", |ctx| {
+                self.ligature_coverage_offset.validate_impl(ctx);
+            });
+            ctx.in_field("mark_array_offset", |ctx| {
+                self.mark_array_offset.validate_impl(ctx);
+            });
+            ctx.in_field("ligature_array_offset", |ctx| {
+                self.ligature_array_offset.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// Part of [MarkLigPosFormat1]
 #[derive(Clone, Debug)]
 pub struct LigatureArray {
@@ -477,6 +741,19 @@ impl FontWrite for LigatureArray {
             .unwrap()
             .write_into(writer);
         self.ligature_attach_offsets.write_into(writer);
+    }
+}
+
+impl Validate for LigatureArray {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("LigatureArray", |ctx| {
+            ctx.in_field("ligature_attach_offsets", |ctx| {
+                if self.ligature_attach_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.ligature_attach_offsets.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -496,6 +773,16 @@ impl FontWrite for LigatureAttach {
     }
 }
 
+impl Validate for LigatureAttach {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("LigatureAttach", |ctx| {
+            ctx.in_field("component_records", |ctx| {
+                self.component_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// Part of [MarkLigPosFormat1]
 #[derive(Clone, Debug)]
 pub struct ComponentRecord {
@@ -508,6 +795,16 @@ pub struct ComponentRecord {
 impl FontWrite for ComponentRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.ligature_anchor_offsets.write_into(writer);
+    }
+}
+
+impl Validate for ComponentRecord {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ComponentRecord", |ctx| {
+            ctx.in_field("ligature_anchor_offsets", |ctx| {
+                self.ligature_anchor_offsets.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -539,6 +836,25 @@ impl FontWrite for MarkMarkPosFormat1 {
     }
 }
 
+impl Validate for MarkMarkPosFormat1 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("MarkMarkPosFormat1", |ctx| {
+            ctx.in_field("mark1_coverage_offset", |ctx| {
+                self.mark1_coverage_offset.validate_impl(ctx);
+            });
+            ctx.in_field("mark2_coverage_offset", |ctx| {
+                self.mark2_coverage_offset.validate_impl(ctx);
+            });
+            ctx.in_field("mark1_array_offset", |ctx| {
+                self.mark1_array_offset.validate_impl(ctx);
+            });
+            ctx.in_field("mark2_array_offset", |ctx| {
+                self.mark2_array_offset.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// Part of [MarkMarkPosFormat1]Class2Record
 #[derive(Clone, Debug)]
 pub struct Mark2Array {
@@ -550,6 +866,16 @@ impl FontWrite for Mark2Array {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.mark2_records)).unwrap().write_into(writer);
         self.mark2_records.write_into(writer);
+    }
+}
+
+impl Validate for Mark2Array {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Mark2Array", |ctx| {
+            ctx.in_field("mark2_records", |ctx| {
+                self.mark2_records.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -565,5 +891,15 @@ pub struct Mark2Record {
 impl FontWrite for Mark2Record {
     fn write_into(&self, writer: &mut TableWriter) {
         self.mark2_anchor_offsets.write_into(writer);
+    }
+}
+
+impl Validate for Mark2Record {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Mark2Record", |ctx| {
+            ctx.in_field("mark2_anchor_offsets", |ctx| {
+                self.mark2_anchor_offsets.validate_impl(ctx);
+            });
+        })
     }
 }

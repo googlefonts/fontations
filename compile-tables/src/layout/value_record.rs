@@ -1,7 +1,10 @@
 //! The ValueRecord type used in the GPOS table
 
 use super::gpos::ValueFormat;
-use crate::write::{FontWrite, TableWriter};
+use crate::{
+    validate::Validate,
+    write::{FontWrite, TableWriter},
+};
 
 #[derive(Clone, Default, PartialEq)]
 pub struct ValueRecord {
@@ -68,4 +71,8 @@ impl std::fmt::Debug for ValueRecord {
             .map(|y| f.field("y_advance_device", &y));
         f.finish()
     }
+}
+
+impl Validate for ValueRecord {
+    fn validate_impl(&self, _ctx: &mut crate::validate::ValidationCtx) {}
 }

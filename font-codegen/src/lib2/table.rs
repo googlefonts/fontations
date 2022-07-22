@@ -79,9 +79,14 @@ pub(crate) fn generate_format_compile(item: &TableFormat) -> syn::Result<TokenSt
         quote! ( #( #docs )* #name(#typ) )
     });
 
-    let match_arms = item.variants.iter().map(|variant| {
+    let write_arms = item.variants.iter().map(|variant| {
         let var_name = &variant.name;
         quote!( Self::#var_name(item) => item.write_into(writer), )
+    });
+
+    let validation_arms = item.variants.iter().map(|variant| {
+        let var_name = &variant.name;
+        quote!( Self::#var_name(item) => item.validate_impl(ctx), )
     });
 
     Ok(quote! {
@@ -94,7 +99,15 @@ pub(crate) fn generate_format_compile(item: &TableFormat) -> syn::Result<TokenSt
         impl FontWrite for #name {
             fn write_into(&self, writer: &mut TableWriter) {
                 match self {
-                    #(#match_arms)*
+                    #( #write_arms )*
+                }
+            }
+        }
+
+        impl Validate for #name {
+            fn validate_impl(&self, ctx: &mut ValidationCtx) {
+                match self {
+                    #( #validation_arms )*
                 }
             }
         }

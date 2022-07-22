@@ -57,6 +57,22 @@ pub(crate) fn generate_compile_impl(
     let field_decls = fields.iter_compile_decls();
     let write_stmts = fields.iter_compile_write_stmts();
 
+    let name_string = name.to_string();
+    let validation_stmts = fields.compilation_validation_stmts();
+    let validation_impl = if validation_stmts.is_empty() {
+        quote!(
+            fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+        )
+    } else {
+        quote! {
+            fn validate_impl(&self, ctx: &mut ValidationCtx) {
+                ctx.in_table(#name_string, |ctx| {
+                    #( #validation_stmts)*
+                })
+            }
+        }
+    };
+
     Ok(quote! {
         #( #docs )*
         #[derive(Clone, Debug)]
@@ -68,6 +84,10 @@ pub(crate) fn generate_compile_impl(
             fn write_into(&self, writer: &mut TableWriter) {
                 #( #write_stmts; )*
             }
+        }
+
+        impl Validate for #name {
+            #validation_impl
         }
     })
 }

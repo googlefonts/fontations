@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, fmt::Display};
 
 use super::graph::{Graph, ObjectId, ObjectStore};
 use font_types::{Offset as AnyOffset, OffsetLen, Uint24};
@@ -10,11 +10,7 @@ use font_types::{Offset as AnyOffset, OffsetLen, Uint24};
 pub trait FontWrite {
     /// Write our data and information about offsets into this [TableWriter].
     fn write_into(&self, writer: &mut TableWriter);
-    //#[allow(unused_variables)]
-    //fn validate(&self, ctx: &mut ValidationCtx) {}
 }
-
-//pub struct ValidationCtx;
 
 #[derive(Debug)]
 pub struct TableWriter {

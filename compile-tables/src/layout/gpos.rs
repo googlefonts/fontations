@@ -18,6 +18,14 @@ pub struct PositionLookupList {
     pub lookup_offsets: Vec<OffsetMarker<Offset16, PositionLookup>>,
 }
 
+impl Validate for PositionLookupList {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_field("lookup_offsets", |ctx| {
+            self.lookup_offsets.validate_impl(ctx)
+        });
+    }
+}
+
 /// A GPOS lookup
 #[derive(Debug, Clone)]
 pub enum PositionLookup {
@@ -61,6 +69,22 @@ impl FontWrite for PositionLookup {
     }
 }
 
+impl Validate for PositionLookup {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Single(lookup) => lookup.validate_impl(ctx),
+            Self::Pair(lookup) => lookup.validate_impl(ctx),
+            Self::Cursive(lookup) => lookup.validate_impl(ctx),
+            Self::MarkToBase(lookup) => lookup.validate_impl(ctx),
+            Self::MarkToLig(lookup) => lookup.validate_impl(ctx),
+            Self::MarkToMark(lookup) => lookup.validate_impl(ctx),
+            Self::Contextual(lookup) => lookup.validate_impl(ctx),
+            Self::ChainContextual(lookup) => lookup.validate_impl(ctx),
+            Self::Extension(lookup) => lookup.validate_impl(ctx),
+        }
+    }
+}
+
 impl FontWrite for PositionLookupList {
     fn write_into(&self, writer: &mut TableWriter) {
         u16::try_from(self.lookup_offsets.len())
@@ -81,6 +105,21 @@ impl FontWrite for Extension {
             Self::MarkToMark(lookup) => lookup.write_into(writer),
             Self::Contextual(lookup) => lookup.write_into(writer),
             Self::ChainContextual(lookup) => lookup.write_into(writer),
+        }
+    }
+}
+
+impl Validate for Extension {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Single(lookup) => lookup.validate_impl(ctx),
+            Self::Pair(lookup) => lookup.validate_impl(ctx),
+            Self::Cursive(lookup) => lookup.validate_impl(ctx),
+            Self::MarkToBase(lookup) => lookup.validate_impl(ctx),
+            Self::MarkToLig(lookup) => lookup.validate_impl(ctx),
+            Self::MarkToMark(lookup) => lookup.validate_impl(ctx),
+            Self::Contextual(lookup) => lookup.validate_impl(ctx),
+            Self::ChainContextual(lookup) => lookup.validate_impl(ctx),
         }
     }
 }

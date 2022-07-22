@@ -21,6 +21,19 @@ impl FontWrite for ScriptList {
     }
 }
 
+impl Validate for ScriptList {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ScriptList", |ctx| {
+            ctx.in_field("script_records", |ctx| {
+                if self.script_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.script_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// [Script Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 #[derive(Clone, Debug)]
 pub struct ScriptRecord {
@@ -34,6 +47,16 @@ impl FontWrite for ScriptRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.script_tag.write_into(writer);
         self.script_offset.write_into(writer);
+    }
+}
+
+impl Validate for ScriptRecord {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ScriptRecord", |ctx| {
+            ctx.in_field("script_offset", |ctx| {
+                self.script_offset.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -57,6 +80,22 @@ impl FontWrite for Script {
     }
 }
 
+impl Validate for Script {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Script", |ctx| {
+            ctx.in_field("default_lang_sys_offset", |ctx| {
+                self.default_lang_sys_offset.validate_impl(ctx);
+            });
+            ctx.in_field("lang_sys_records", |ctx| {
+                if self.lang_sys_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.lang_sys_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct LangSysRecord {
     /// 4-byte LangSysTag identifier
@@ -69,6 +108,16 @@ impl FontWrite for LangSysRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.lang_sys_tag.write_into(writer);
         self.lang_sys_offset.write_into(writer);
+    }
+}
+
+impl Validate for LangSysRecord {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("LangSysRecord", |ctx| {
+            ctx.in_field("lang_sys_offset", |ctx| {
+                self.lang_sys_offset.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -93,6 +142,18 @@ impl FontWrite for LangSys {
     }
 }
 
+impl Validate for LangSys {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("LangSys", |ctx| {
+            ctx.in_field("feature_indices", |ctx| {
+                if self.feature_indices.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+            });
+        })
+    }
+}
+
 /// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
 #[derive(Clone, Debug)]
 pub struct FeatureList {
@@ -110,6 +171,19 @@ impl FontWrite for FeatureList {
     }
 }
 
+impl Validate for FeatureList {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("FeatureList", |ctx| {
+            ctx.in_field("feature_records", |ctx| {
+                if self.feature_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.feature_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// Part of [FeatureList]
 #[derive(Clone, Debug)]
 pub struct FeatureRecord {
@@ -123,6 +197,16 @@ impl FontWrite for FeatureRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.feature_tag.write_into(writer);
         self.feature_offset.write_into(writer);
+    }
+}
+
+impl Validate for FeatureRecord {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("FeatureRecord", |ctx| {
+            ctx.in_field("feature_offset", |ctx| {
+                self.feature_offset.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -146,6 +230,21 @@ impl FontWrite for Feature {
     }
 }
 
+impl Validate for Feature {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Feature", |ctx| {
+            ctx.in_field("feature_params_offset", |ctx| {
+                self.feature_params_offset.validate_impl(ctx);
+            });
+            ctx.in_field("lookup_list_indices", |ctx| {
+                if self.lookup_list_indices.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+            });
+        })
+    }
+}
+
 /// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
 #[derive(Clone, Debug)]
 pub struct CoverageFormat1 {
@@ -161,6 +260,18 @@ impl FontWrite for CoverageFormat1 {
     }
 }
 
+impl Validate for CoverageFormat1 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("CoverageFormat1", |ctx| {
+            ctx.in_field("glyph_array", |ctx| {
+                if self.glyph_array.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+            });
+        })
+    }
+}
+
 /// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
 #[derive(Clone, Debug)]
 pub struct CoverageFormat2 {
@@ -173,6 +284,19 @@ impl FontWrite for CoverageFormat2 {
         (2 as u16).write_into(writer);
         (array_len(&self.range_records)).unwrap().write_into(writer);
         self.range_records.write_into(writer);
+    }
+}
+
+impl Validate for CoverageFormat2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("CoverageFormat2", |ctx| {
+            ctx.in_field("range_records", |ctx| {
+                if self.range_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.range_records.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -195,6 +319,10 @@ impl FontWrite for RangeRecord {
     }
 }
 
+impl Validate for RangeRecord {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
 /// [Coverage Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-table)
 #[derive(Clone, Debug)]
 pub enum CoverageTable {
@@ -207,6 +335,15 @@ impl FontWrite for CoverageTable {
         match self {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
+        }
+    }
+}
+
+impl Validate for CoverageTable {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -231,6 +368,18 @@ impl FontWrite for ClassDefFormat1 {
     }
 }
 
+impl Validate for ClassDefFormat1 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ClassDefFormat1", |ctx| {
+            ctx.in_field("class_value_array", |ctx| {
+                if self.class_value_array.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+            });
+        })
+    }
+}
+
 /// [Class Definition Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-2)
 #[derive(Clone, Debug)]
 pub struct ClassDefFormat2 {
@@ -245,6 +394,19 @@ impl FontWrite for ClassDefFormat2 {
             .unwrap()
             .write_into(writer);
         self.class_range_records.write_into(writer);
+    }
+}
+
+impl Validate for ClassDefFormat2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ClassDefFormat2", |ctx| {
+            ctx.in_field("class_range_records", |ctx| {
+                if self.class_range_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.class_range_records.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -267,6 +429,10 @@ impl FontWrite for ClassRangeRecord {
     }
 }
 
+impl Validate for ClassRangeRecord {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
 /// A [Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table)
 #[derive(Clone, Debug)]
 pub enum ClassDef {
@@ -279,6 +445,15 @@ impl FontWrite for ClassDef {
         match self {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
+        }
+    }
+}
+
+impl Validate for ClassDef {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -297,6 +472,10 @@ impl FontWrite for SequenceLookupRecord {
         self.sequence_index.write_into(writer);
         self.lookup_list_index.write_into(writer);
     }
+}
+
+impl Validate for SequenceLookupRecord {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
 /// [Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-1-simple-glyph-contexts)
@@ -321,6 +500,22 @@ impl FontWrite for SequenceContextFormat1 {
     }
 }
 
+impl Validate for SequenceContextFormat1 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SequenceContextFormat1", |ctx| {
+            ctx.in_field("coverage_offset", |ctx| {
+                self.coverage_offset.validate_impl(ctx);
+            });
+            ctx.in_field("seq_rule_set_offsets", |ctx| {
+                if self.seq_rule_set_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.seq_rule_set_offsets.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// Part of [SequenceContextFormat1]
 #[derive(Clone, Debug)]
 pub struct SequenceRuleSet {
@@ -335,6 +530,19 @@ impl FontWrite for SequenceRuleSet {
             .unwrap()
             .write_into(writer);
         self.seq_rule_offsets.write_into(writer);
+    }
+}
+
+impl Validate for SequenceRuleSet {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SequenceRuleSet", |ctx| {
+            ctx.in_field("seq_rule_offsets", |ctx| {
+                if self.seq_rule_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.seq_rule_offsets.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -357,6 +565,19 @@ impl FontWrite for SequenceRule {
             .write_into(writer);
         self.input_sequence.write_into(writer);
         self.seq_lookup_records.write_into(writer);
+    }
+}
+
+impl Validate for SequenceRule {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SequenceRule", |ctx| {
+            ctx.in_field("seq_lookup_records", |ctx| {
+                if self.seq_lookup_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.seq_lookup_records.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -386,6 +607,25 @@ impl FontWrite for SequenceContextFormat2 {
     }
 }
 
+impl Validate for SequenceContextFormat2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SequenceContextFormat2", |ctx| {
+            ctx.in_field("coverage_offset", |ctx| {
+                self.coverage_offset.validate_impl(ctx);
+            });
+            ctx.in_field("class_def_offset", |ctx| {
+                self.class_def_offset.validate_impl(ctx);
+            });
+            ctx.in_field("class_seq_rule_set_offsets", |ctx| {
+                if self.class_seq_rule_set_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.class_seq_rule_set_offsets.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// Part of [SequenceContextFormat2]
 #[derive(Clone, Debug)]
 pub struct ClassSequenceRuleSet {
@@ -400,6 +640,19 @@ impl FontWrite for ClassSequenceRuleSet {
             .unwrap()
             .write_into(writer);
         self.class_seq_rule_offsets.write_into(writer);
+    }
+}
+
+impl Validate for ClassSequenceRuleSet {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ClassSequenceRuleSet", |ctx| {
+            ctx.in_field("class_seq_rule_offsets", |ctx| {
+                if self.class_seq_rule_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.class_seq_rule_offsets.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -423,6 +676,19 @@ impl FontWrite for ClassSequenceRule {
             .write_into(writer);
         self.input_sequence.write_into(writer);
         self.seq_lookup_records.write_into(writer);
+    }
+}
+
+impl Validate for ClassSequenceRule {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ClassSequenceRule", |ctx| {
+            ctx.in_field("seq_lookup_records", |ctx| {
+                if self.seq_lookup_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.seq_lookup_records.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -450,6 +716,25 @@ impl FontWrite for SequenceContextFormat3 {
     }
 }
 
+impl Validate for SequenceContextFormat3 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("SequenceContextFormat3", |ctx| {
+            ctx.in_field("coverage_offsets", |ctx| {
+                if self.coverage_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.coverage_offsets.validate_impl(ctx);
+            });
+            ctx.in_field("seq_lookup_records", |ctx| {
+                if self.seq_lookup_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.seq_lookup_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum SequenceContext {
     Format1(SequenceContextFormat1),
@@ -463,6 +748,16 @@ impl FontWrite for SequenceContext {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
             Self::Format3(item) => item.write_into(writer),
+        }
+    }
+}
+
+impl Validate for SequenceContext {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
+            Self::Format3(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -489,6 +784,22 @@ impl FontWrite for ChainedSequenceContextFormat1 {
     }
 }
 
+impl Validate for ChainedSequenceContextFormat1 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ChainedSequenceContextFormat1", |ctx| {
+            ctx.in_field("coverage_offset", |ctx| {
+                self.coverage_offset.validate_impl(ctx);
+            });
+            ctx.in_field("chained_seq_rule_set_offsets", |ctx| {
+                if self.chained_seq_rule_set_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.chained_seq_rule_set_offsets.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// Part of [ChainedSequenceContextFormat1]
 #[derive(Clone, Debug)]
 pub struct ChainedSequenceRuleSet {
@@ -503,6 +814,19 @@ impl FontWrite for ChainedSequenceRuleSet {
             .unwrap()
             .write_into(writer);
         self.chained_seq_rule_offsets.write_into(writer);
+    }
+}
+
+impl Validate for ChainedSequenceRuleSet {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ChainedSequenceRuleSet", |ctx| {
+            ctx.in_field("chained_seq_rule_offsets", |ctx| {
+                if self.chained_seq_rule_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.chained_seq_rule_offsets.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -537,6 +861,29 @@ impl FontWrite for ChainedSequenceRule {
             .unwrap()
             .write_into(writer);
         self.seq_lookup_records.write_into(writer);
+    }
+}
+
+impl Validate for ChainedSequenceRule {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ChainedSequenceRule", |ctx| {
+            ctx.in_field("backtrack_sequence", |ctx| {
+                if self.backtrack_sequence.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+            });
+            ctx.in_field("lookahead_sequence", |ctx| {
+                if self.lookahead_sequence.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+            });
+            ctx.in_field("seq_lookup_records", |ctx| {
+                if self.seq_lookup_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.seq_lookup_records.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -575,6 +922,31 @@ impl FontWrite for ChainedSequenceContextFormat2 {
     }
 }
 
+impl Validate for ChainedSequenceContextFormat2 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ChainedSequenceContextFormat2", |ctx| {
+            ctx.in_field("coverage_offset", |ctx| {
+                self.coverage_offset.validate_impl(ctx);
+            });
+            ctx.in_field("backtrack_class_def_offset", |ctx| {
+                self.backtrack_class_def_offset.validate_impl(ctx);
+            });
+            ctx.in_field("input_class_def_offset", |ctx| {
+                self.input_class_def_offset.validate_impl(ctx);
+            });
+            ctx.in_field("lookahead_class_def_offset", |ctx| {
+                self.lookahead_class_def_offset.validate_impl(ctx);
+            });
+            ctx.in_field("chained_class_seq_rule_set_offsets", |ctx| {
+                if self.chained_class_seq_rule_set_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.chained_class_seq_rule_set_offsets.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// Part of [ChainedSequenceContextFormat2]
 #[derive(Clone, Debug)]
 pub struct ChainedClassSequenceRuleSet {
@@ -589,6 +961,19 @@ impl FontWrite for ChainedClassSequenceRuleSet {
             .unwrap()
             .write_into(writer);
         self.chained_class_seq_rule_offsets.write_into(writer);
+    }
+}
+
+impl Validate for ChainedClassSequenceRuleSet {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ChainedClassSequenceRuleSet", |ctx| {
+            ctx.in_field("chained_class_seq_rule_offsets", |ctx| {
+                if self.chained_class_seq_rule_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.chained_class_seq_rule_offsets.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -627,6 +1012,29 @@ impl FontWrite for ChainedClassSequenceRule {
     }
 }
 
+impl Validate for ChainedClassSequenceRule {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ChainedClassSequenceRule", |ctx| {
+            ctx.in_field("backtrack_sequence", |ctx| {
+                if self.backtrack_sequence.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+            });
+            ctx.in_field("lookahead_sequence", |ctx| {
+                if self.lookahead_sequence.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+            });
+            ctx.in_field("seq_lookup_records", |ctx| {
+                if self.seq_lookup_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.seq_lookup_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// [Chained Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-3-coverage-based-glyph-contexts)
 #[derive(Clone, Debug)]
 pub struct ChainedSequenceContextFormat3 {
@@ -662,6 +1070,37 @@ impl FontWrite for ChainedSequenceContextFormat3 {
     }
 }
 
+impl Validate for ChainedSequenceContextFormat3 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ChainedSequenceContextFormat3", |ctx| {
+            ctx.in_field("backtrack_coverage_offsets", |ctx| {
+                if self.backtrack_coverage_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.backtrack_coverage_offsets.validate_impl(ctx);
+            });
+            ctx.in_field("input_coverage_offsets", |ctx| {
+                if self.input_coverage_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.input_coverage_offsets.validate_impl(ctx);
+            });
+            ctx.in_field("lookahead_coverage_offsets", |ctx| {
+                if self.lookahead_coverage_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.lookahead_coverage_offsets.validate_impl(ctx);
+            });
+            ctx.in_field("seq_lookup_records", |ctx| {
+                if self.seq_lookup_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.seq_lookup_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum ChainedSequenceContext {
     Format1(ChainedSequenceContextFormat1),
@@ -675,6 +1114,16 @@ impl FontWrite for ChainedSequenceContext {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
             Self::Format3(item) => item.write_into(writer),
+        }
+    }
+}
+
+impl Validate for ChainedSequenceContext {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1(item) => item.validate_impl(ctx),
+            Self::Format2(item) => item.validate_impl(ctx),
+            Self::Format3(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -728,6 +1177,10 @@ impl FontWrite for Device {
     }
 }
 
+impl Validate for Device {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
 /// Variation index table
 #[derive(Clone, Debug)]
 pub struct VariationIndex {
@@ -749,6 +1202,10 @@ impl FontWrite for VariationIndex {
     }
 }
 
+impl Validate for VariationIndex {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
 #[derive(Clone, Debug)]
 pub struct FeatureVariations {
@@ -763,6 +1220,19 @@ impl FontWrite for FeatureVariations {
             .unwrap()
             .write_into(writer);
         self.feature_variation_records.write_into(writer);
+    }
+}
+
+impl Validate for FeatureVariations {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("FeatureVariations", |ctx| {
+            ctx.in_field("feature_variation_records", |ctx| {
+                if self.feature_variation_records.len() > (u32::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.feature_variation_records.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -784,6 +1254,19 @@ impl FontWrite for FeatureVariationRecord {
     }
 }
 
+impl Validate for FeatureVariationRecord {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("FeatureVariationRecord", |ctx| {
+            ctx.in_field("condition_set_offset", |ctx| {
+                self.condition_set_offset.validate_impl(ctx);
+            });
+            ctx.in_field("feature_table_substitution_offset", |ctx| {
+                self.feature_table_substitution_offset.validate_impl(ctx);
+            });
+        })
+    }
+}
+
 /// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
 #[derive(Clone, Debug)]
 pub struct ConditionSet {
@@ -798,6 +1281,19 @@ impl FontWrite for ConditionSet {
             .unwrap()
             .write_into(writer);
         self.condition_offsets.write_into(writer);
+    }
+}
+
+impl Validate for ConditionSet {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ConditionSet", |ctx| {
+            ctx.in_field("condition_offsets", |ctx| {
+                if self.condition_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.condition_offsets.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -824,6 +1320,10 @@ impl FontWrite for ConditionFormat1 {
     }
 }
 
+impl Validate for ConditionFormat1 {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
 /// [FeatureTableSubstitution Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featuretablesubstitution-table)
 #[derive(Clone, Debug)]
 pub struct FeatureTableSubstitution {
@@ -836,6 +1336,19 @@ impl FontWrite for FeatureTableSubstitution {
         (MajorMinor::VERSION_1_0).write_into(writer);
         (array_len(&self.substitutions)).unwrap().write_into(writer);
         self.substitutions.write_into(writer);
+    }
+}
+
+impl Validate for FeatureTableSubstitution {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("FeatureTableSubstitution", |ctx| {
+            ctx.in_field("substitutions", |ctx| {
+                if self.substitutions.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.substitutions.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -853,6 +1366,16 @@ impl FontWrite for FeatureTableSubstitutionRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.feature_index.write_into(writer);
         self.alternate_feature_offset.write_into(writer);
+    }
+}
+
+impl Validate for FeatureTableSubstitutionRecord {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("FeatureTableSubstitutionRecord", |ctx| {
+            ctx.in_field("alternate_feature_offset", |ctx| {
+                self.alternate_feature_offset.validate_impl(ctx);
+            });
+        })
     }
 }
 
@@ -900,6 +1423,10 @@ impl FontWrite for SizeParams {
     }
 }
 
+impl Validate for SizeParams {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
 #[derive(Clone, Debug)]
 pub struct StylisticSetParams {
     /// The 'name' table name ID that specifies a string (or strings, for
@@ -919,6 +1446,10 @@ impl FontWrite for StylisticSetParams {
         (0).write_into(writer);
         self.ui_name_id.write_into(writer);
     }
+}
+
+impl Validate for StylisticSetParams {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
 /// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
@@ -956,5 +1487,17 @@ impl FontWrite for CharacterVariantParams {
         self.first_param_ui_label_name_id.write_into(writer);
         (array_len(&self.character)).unwrap().write_into(writer);
         self.character.write_into(writer);
+    }
+}
+
+impl Validate for CharacterVariantParams {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("CharacterVariantParams", |ctx| {
+            ctx.in_field("character", |ctx| {
+                if self.character.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+            });
+        })
     }
 }

@@ -36,6 +36,50 @@ impl Fields {
     pub(crate) fn iter_compile_write_stmts(&self) -> impl Iterator<Item = TokenStream> + '_ {
         self.fields.iter().map(Field::compile_write_stmt)
     }
+
+    fn get_scalar_field_type(&self, name: &syn::Ident) -> &syn::Ident {
+        let field = self
+            .iter()
+            .find(|fld| &fld.name == name)
+            .expect("validate that count references existing fields");
+        match &field.typ {
+            FieldType::Scalar { typ } => typ,
+            _ => panic!("not a scalar field"),
+        }
+    }
+
+    pub(crate) fn compilation_validation_stmts(&self) -> Vec<TokenStream> {
+        let mut stmts = Vec::new();
+        for field in self.fields.iter() {
+            let name = &field.name;
+            let name_str = field.name.to_string();
+            let recursive_stmt = field
+                .gets_recursive_validation()
+                .then(|| quote!( self.#name.validate_impl(ctx); ));
+
+            let array_len_check = if let Some(Count::Field(count_name)) = &field.attrs.count {
+                let typ = self.get_scalar_field_type(&count_name);
+                Some(quote! {
+                    if self.#name.len() > (#typ::MAX as usize) {
+                        ctx.report("array excedes max length");
+                    }
+                })
+            } else {
+                None
+            };
+
+            if recursive_stmt.is_some() || array_len_check.is_some() {
+                stmts.push(quote! {
+                    ctx.in_field(#name_str, |ctx| {
+                        #array_len_check
+                        #recursive_stmt
+                    });
+                })
+            }
+            //TODO: also add a custom validation statements
+        }
+        stmts
+    }
 }
 
 impl Field {
@@ -330,6 +374,17 @@ impl Field {
         };
 
         quote!(#value_expr.write_into(writer))
+    }
+
+    pub(crate) fn gets_recursive_validation(&self) -> bool {
+        match &self.typ {
+            FieldType::Scalar { .. } | FieldType::Other { .. } => false,
+            FieldType::Offset { .. } => true,
+            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+                FieldType::Offset { .. } | FieldType::Other { .. } => true,
+                _ => false,
+            },
+        }
     }
 }
 

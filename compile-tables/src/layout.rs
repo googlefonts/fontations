@@ -27,6 +27,14 @@ impl<T: LookupType + FontWrite> FontWrite for Lookup<T> {
     }
 }
 
+impl<T: Validate> Validate for Lookup<T> {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Lookup", |ctx| {
+            ctx.in_field("subtables", |ctx| self.subtables.validate_impl(ctx))
+        })
+    }
+}
+
 /// An extension table that is generic over the subtable type.
 #[derive(Debug, Clone)]
 pub struct ExtensionSubtable<T> {
@@ -38,6 +46,14 @@ impl<T: LookupType + FontWrite> FontWrite for ExtensionSubtable<T> {
         1u16.write_into(writer);
         T::TYPE.write_into(writer);
         self.extension_offset.write_into(writer);
+    }
+}
+
+impl<T: Validate> Validate for ExtensionSubtable<T> {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_field("extension_offset", |ctx| {
+            self.extension_offset.validate_impl(ctx)
+        })
     }
 }
 
@@ -82,6 +98,16 @@ impl FontWrite for FeatureParams {
     }
 }
 
+impl Validate for FeatureParams {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::StylisticSet(table) => table.validate_impl(ctx),
+            Self::Size(table) => table.validate_impl(ctx),
+            Self::CharacterVariant(table) => table.validate_impl(ctx),
+        }
+    }
+}
+
 impl ClassDefFormat1 {
     fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
         self.class_value_array
@@ -118,5 +144,32 @@ impl ClassDef {
             .len()
             .try_into()
             .unwrap()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    #[should_panic(expected = "array excedes max length")]
+    fn array_len_smoke_test() {
+        let table = ScriptList {
+            script_records: vec![ScriptRecord {
+                script_tag: Tag::new(b"hihi"),
+                script_offset: OffsetMarker::new(Script {
+                    default_lang_sys_offset: NullableOffsetMarker::new(None),
+                    lang_sys_records: vec![LangSysRecord {
+                        lang_sys_tag: Tag::new(b"coco"),
+                        lang_sys_offset: OffsetMarker::new(LangSys {
+                            required_feature_index: 0xffff,
+                            feature_indices: vec![69; (u16::MAX) as usize + 5],
+                        }),
+                    }],
+                }),
+            }],
+        };
+
+        table.validate().unwrap();
     }
 }
