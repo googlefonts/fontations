@@ -365,7 +365,7 @@ impl TableInfo for MarkArrayMarker {
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let mark_count: u16 = cursor.read()?;
-        let mark_records_byte_len = (mark_count) as usize * MarkRecord::RAW_BYTE_LEN;
+        let mark_records_byte_len = (mark_count as usize) * MarkRecord::RAW_BYTE_LEN;
         cursor.advance_by(mark_records_byte_len);
         cursor.finish(MarkArrayMarker {
             mark_records_byte_len,
@@ -651,7 +651,7 @@ impl TableInfo for PairPosFormat1Marker {
         cursor.advance::<ValueFormat>();
         cursor.advance::<ValueFormat>();
         let pair_set_count: u16 = cursor.read()?;
-        let pair_set_offsets_byte_len = (pair_set_count) as usize * Offset16::RAW_BYTE_LEN;
+        let pair_set_offsets_byte_len = (pair_set_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(pair_set_offsets_byte_len);
         cursor.finish(PairPosFormat1Marker {
             pair_set_offsets_byte_len,
@@ -869,7 +869,7 @@ impl TableInfo for CursivePosFormat1Marker {
         cursor.advance::<Offset16>();
         let entry_exit_count: u16 = cursor.read()?;
         let entry_exit_record_byte_len =
-            (entry_exit_count) as usize * EntryExitRecord::RAW_BYTE_LEN;
+            (entry_exit_count as usize) * EntryExitRecord::RAW_BYTE_LEN;
         cursor.advance_by(entry_exit_record_byte_len);
         cursor.finish(CursivePosFormat1Marker {
             entry_exit_record_byte_len,
@@ -1158,7 +1158,7 @@ impl TableInfo for LigatureArrayMarker {
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let ligature_count: u16 = cursor.read()?;
-        let ligature_attach_offsets_byte_len = (ligature_count) as usize * Offset16::RAW_BYTE_LEN;
+        let ligature_attach_offsets_byte_len = (ligature_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(ligature_attach_offsets_byte_len);
         cursor.finish(LigatureArrayMarker {
             ligature_attach_offsets_byte_len,

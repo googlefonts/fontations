@@ -130,6 +130,7 @@ pub mod test_gpos2 {
 pub mod layout2 {
 
     include!("../generated/layout2.rs");
+
     fn delta_value_count(start_size: u16, end_size: u16, delta_format: DeltaFormat) -> usize {
         let range_len = start_size.saturating_add(1).saturating_sub(end_size) as usize;
         let val_per_word = match delta_format {
@@ -142,6 +143,10 @@ pub mod layout2 {
         let count = range_len / val_per_word;
         let extra = (range_len % val_per_word).min(1);
         count + extra
+    }
+
+    fn minus_one(val: impl Into<usize>) -> usize {
+        val.into().saturating_sub(1)
     }
 
     #[cfg(test)]

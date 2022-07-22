@@ -5,6 +5,8 @@ use std::collections::HashSet;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
+use crate::lib2::parsing::Count;
+
 use super::parsing::{Field, FieldType, Fields};
 
 impl Fields {
@@ -108,7 +110,7 @@ impl Field {
             .count
             .as_ref()
             .into_iter()
-            .flat_map(|expr| expr.referenced_fields.iter())
+            .flat_map(|count| count.iter_referenced_fields())
             .chain(
                 self.attrs
                     .len
@@ -258,14 +260,13 @@ impl Field {
             let len_expr = if let Some(expr) = &self.attrs.len {
                 expr.expr.to_token_stream()
             } else {
-                let count_expr = &self
-                    .attrs
-                    .count
-                    .as_ref()
-                    .expect("must have one of count or len")
-                    .expr;
+                let expr = match self.attrs.count.as_ref() {
+                    Some(Count::Field(field)) => quote!( (#field as usize )),
+                    Some(Count::Expr(expr)) => expr.expr.to_token_stream(),
+                    None => unreachable!("must have one of count/count_exr/len"),
+                };
                 let inner_type = self.typ.inner_type().expect("only arrays have count attr");
-                quote! ( (#count_expr) as usize * #inner_type::RAW_BYTE_LEN )
+                quote!(  #expr * #inner_type::RAW_BYTE_LEN )
             };
 
             match &self.attrs.available {

@@ -1,10 +1,3 @@
-//use crate::layout::CoverageTable;
-//use crate::layout::ClassDef;
-//use crate::layout::FeatureList;
-//use crate::layout::ScriptList;
-//use crate::layout::FeatureVariations;
-//use crate::layout::Device;
-
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 table Gpos {
@@ -113,7 +106,7 @@ table MarkArray {
     mark_count: BigEndian<u16>,
     /// Array of MarkRecords, ordered by corresponding glyphs in the
     /// associated mark Coverage table.
-    #[count($mark_count)]
+    #[count(mark_count)]
     mark_records: [MarkRecord],
 }
 
@@ -144,7 +137,7 @@ table SinglePosFormat1 {
     /// Defines positioning value(s) — applied to all glyphs in the
     /// Coverage table.
     #[no_getter]
-    #[len($value_format.record_byte_len())]
+    #[len_expr($value_format.record_byte_len())]
     value_record: ValueRecord,
 }
 
@@ -165,7 +158,7 @@ table SinglePosFormat2 {
     value_count: BigEndian<u16>,
     /// Array of ValueRecords — positioning values applied to glyphs.
     #[no_getter]
-    #[len($value_count as usize * $value_format.record_byte_len())]
+    #[len_expr($value_count as usize * $value_format.record_byte_len())]
     value_records: [ValueRecord],
     //#[count_with(value_record_array_len, value_format, value_count)]
     //#[read_with(value_format)]
@@ -201,7 +194,7 @@ table PairPosFormat1 {
     pair_set_count: BigEndian<u16>,
     /// Array of offsets to PairSet tables. Offsets are from beginning
     /// of PairPos subtable, ordered by Coverage Index.
-    #[count($pair_set_count)]
+    #[count(pair_set_count)]
     //#[to_owned(self.pair_sets_to_owned())]
     pair_set_offsets: [BigEndian<Offset16<PairSet>>],
 }
@@ -267,7 +260,7 @@ table PairPosFormat2 {
     /// Number of classes in classDef2 table — includes Class 0.
     #[compile(self.compute_class2_count())]
     class2_count: BigEndian<u16>,
-    #[len(class1_record_len($class1_count, $class2_count, $value_format1, $value_format2))]
+    #[len_expr(class1_record_len($class1_count, $class2_count, $value_format1, $value_format2))]
     #[no_getter]
     class1_records: [Class1Record],
 }
@@ -320,7 +313,7 @@ table CursivePosFormat1 {
     #[compile(array_len($entry_exit_record))]
     entry_exit_count: BigEndian<u16>,
     /// Array of EntryExit records, in Coverage index order.
-    #[count($entry_exit_count)]
+    #[count(entry_exit_count)]
     entry_exit_record: [EntryExitRecord],
 }
 
@@ -423,7 +416,7 @@ table LigatureArray {
     /// Array of offsets to LigatureAttach tables. Offsets are from
     /// beginning of LigatureArray table, ordered by ligatureCoverage
     /// index.
-    #[count($ligature_count)]
+    #[count(ligature_count)]
     ligature_attach_offsets: [BigEndian<Offset16<LigatureAttach>>],
 }
 

@@ -28,7 +28,7 @@ impl TableInfo for ScriptListMarker {
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let script_count: u16 = cursor.read()?;
-        let script_records_byte_len = (script_count) as usize * ScriptRecord::RAW_BYTE_LEN;
+        let script_records_byte_len = (script_count as usize) * ScriptRecord::RAW_BYTE_LEN;
         cursor.advance_by(script_records_byte_len);
         cursor.finish(ScriptListMarker {
             script_records_byte_len,
@@ -96,7 +96,7 @@ impl TableInfo for ScriptMarker {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
         let lang_sys_count: u16 = cursor.read()?;
-        let lang_sys_records_byte_len = (lang_sys_count) as usize * LangSysRecord::RAW_BYTE_LEN;
+        let lang_sys_records_byte_len = (lang_sys_count as usize) * LangSysRecord::RAW_BYTE_LEN;
         cursor.advance_by(lang_sys_records_byte_len);
         cursor.finish(ScriptMarker {
             lang_sys_records_byte_len,
@@ -184,7 +184,7 @@ impl TableInfo for LangSysMarker {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         let feature_index_count: u16 = cursor.read()?;
-        let feature_indices_byte_len = (feature_index_count) as usize * u16::RAW_BYTE_LEN;
+        let feature_indices_byte_len = (feature_index_count as usize) * u16::RAW_BYTE_LEN;
         cursor.advance_by(feature_indices_byte_len);
         cursor.finish(LangSysMarker {
             feature_indices_byte_len,
@@ -240,7 +240,7 @@ impl TableInfo for FeatureListMarker {
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let feature_count: u16 = cursor.read()?;
-        let feature_records_byte_len = (feature_count) as usize * FeatureRecord::RAW_BYTE_LEN;
+        let feature_records_byte_len = (feature_count as usize) * FeatureRecord::RAW_BYTE_LEN;
         cursor.advance_by(feature_records_byte_len);
         cursor.finish(FeatureListMarker {
             feature_records_byte_len,
@@ -309,7 +309,7 @@ impl TableInfo for FeatureMarker {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
         let lookup_index_count: u16 = cursor.read()?;
-        let lookup_list_indices_byte_len = (lookup_index_count) as usize * u16::RAW_BYTE_LEN;
+        let lookup_list_indices_byte_len = (lookup_index_count as usize) * u16::RAW_BYTE_LEN;
         cursor.advance_by(lookup_list_indices_byte_len);
         cursor.finish(FeatureMarker {
             lookup_list_indices_byte_len,
@@ -364,7 +364,7 @@ impl TableInfo for LookupListMarker {
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let lookup_count: u16 = cursor.read()?;
-        let lookup_offsets_byte_len = (lookup_count) as usize * Offset16::RAW_BYTE_LEN;
+        let lookup_offsets_byte_len = (lookup_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(lookup_offsets_byte_len);
         cursor.finish(LookupListMarker {
             lookup_offsets_byte_len,
@@ -427,7 +427,7 @@ impl TableInfo for LookupMarker {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         let sub_table_count: u16 = cursor.read()?;
-        let subtable_offsets_byte_len = (sub_table_count) as usize * Offset16::RAW_BYTE_LEN;
+        let subtable_offsets_byte_len = (sub_table_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(subtable_offsets_byte_len);
         cursor.advance::<u16>();
         cursor.finish(LookupMarker {
@@ -506,7 +506,7 @@ impl TableInfo for CoverageFormat1Marker {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let glyph_count: u16 = cursor.read()?;
-        let glyph_array_byte_len = (glyph_count) as usize * u16::RAW_BYTE_LEN;
+        let glyph_array_byte_len = (glyph_count as usize) * u16::RAW_BYTE_LEN;
         cursor.advance_by(glyph_array_byte_len);
         cursor.finish(CoverageFormat1Marker {
             glyph_array_byte_len,
@@ -569,7 +569,7 @@ impl TableInfo for CoverageFormat2Marker {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let range_count: u16 = cursor.read()?;
-        let range_records_byte_len = (range_count) as usize * RangeRecord::RAW_BYTE_LEN;
+        let range_records_byte_len = (range_count as usize) * RangeRecord::RAW_BYTE_LEN;
         cursor.advance_by(range_records_byte_len);
         cursor.finish(CoverageFormat2Marker {
             range_records_byte_len,
@@ -671,7 +671,7 @@ impl TableInfo for ClassDefFormat1Marker {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         let glyph_count: u16 = cursor.read()?;
-        let class_value_array_byte_len = (glyph_count) as usize * u16::RAW_BYTE_LEN;
+        let class_value_array_byte_len = (glyph_count as usize) * u16::RAW_BYTE_LEN;
         cursor.advance_by(class_value_array_byte_len);
         cursor.finish(ClassDefFormat1Marker {
             class_value_array_byte_len,
@@ -741,7 +741,7 @@ impl TableInfo for ClassDefFormat2Marker {
         cursor.advance::<u16>();
         let class_range_count: u16 = cursor.read()?;
         let class_range_records_byte_len =
-            (class_range_count) as usize * ClassRangeRecord::RAW_BYTE_LEN;
+            (class_range_count as usize) * ClassRangeRecord::RAW_BYTE_LEN;
         cursor.advance_by(class_range_records_byte_len);
         cursor.finish(ClassDefFormat2Marker {
             class_range_records_byte_len,
@@ -858,7 +858,7 @@ impl TableInfo for SequenceContextFormat1Marker {
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let seq_rule_set_count: u16 = cursor.read()?;
-        let seq_rule_set_offsets_byte_len = (seq_rule_set_count) as usize * Offset16::RAW_BYTE_LEN;
+        let seq_rule_set_offsets_byte_len = (seq_rule_set_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(seq_rule_set_offsets_byte_len);
         cursor.finish(SequenceContextFormat1Marker {
             seq_rule_set_offsets_byte_len,
@@ -928,7 +928,7 @@ impl TableInfo for SequenceRuleSetMarker {
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let seq_rule_count: u16 = cursor.read()?;
-        let seq_rule_offsets_byte_len = (seq_rule_count) as usize * Offset16::RAW_BYTE_LEN;
+        let seq_rule_offsets_byte_len = (seq_rule_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(seq_rule_offsets_byte_len);
         cursor.finish(SequenceRuleSetMarker {
             seq_rule_offsets_byte_len,
@@ -987,10 +987,10 @@ impl TableInfo for SequenceRuleMarker {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
         let seq_lookup_count: u16 = cursor.read()?;
-        let input_sequence_byte_len = (glyph_count.saturating_sub(1)) as usize * u16::RAW_BYTE_LEN;
+        let input_sequence_byte_len = (minus_one(glyph_count)) * u16::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let seq_lookup_records_byte_len =
-            (seq_lookup_count) as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+            (seq_lookup_count as usize) * SequenceLookupRecord::RAW_BYTE_LEN;
         cursor.advance_by(seq_lookup_records_byte_len);
         cursor.finish(SequenceRuleMarker {
             input_sequence_byte_len,
@@ -1071,7 +1071,7 @@ impl TableInfo for SequenceContextFormat2Marker {
         cursor.advance::<Offset16>();
         let class_seq_rule_set_count: u16 = cursor.read()?;
         let class_seq_rule_set_offsets_byte_len =
-            (class_seq_rule_set_count) as usize * Offset16::RAW_BYTE_LEN;
+            (class_seq_rule_set_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(class_seq_rule_set_offsets_byte_len);
         cursor.finish(SequenceContextFormat2Marker {
             class_seq_rule_set_offsets_byte_len,
@@ -1157,7 +1157,7 @@ impl TableInfo for ClassSequenceRuleSetMarker {
         let mut cursor = data.cursor();
         let class_seq_rule_count: u16 = cursor.read()?;
         let class_seq_rule_offsets_byte_len =
-            (class_seq_rule_count) as usize * Offset16::RAW_BYTE_LEN;
+            (class_seq_rule_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(class_seq_rule_offsets_byte_len);
         cursor.finish(ClassSequenceRuleSetMarker {
             class_seq_rule_offsets_byte_len,
@@ -1216,10 +1216,10 @@ impl TableInfo for ClassSequenceRuleMarker {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
         let seq_lookup_count: u16 = cursor.read()?;
-        let input_sequence_byte_len = (glyph_count.saturating_sub(1)) as usize * u16::RAW_BYTE_LEN;
+        let input_sequence_byte_len = (minus_one(glyph_count)) * u16::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let seq_lookup_records_byte_len =
-            (seq_lookup_count) as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+            (seq_lookup_count as usize) * SequenceLookupRecord::RAW_BYTE_LEN;
         cursor.advance_by(seq_lookup_records_byte_len);
         cursor.finish(ClassSequenceRuleMarker {
             input_sequence_byte_len,
@@ -1300,10 +1300,10 @@ impl TableInfo for SequenceContextFormat3Marker {
         cursor.advance::<u16>();
         let glyph_count: u16 = cursor.read()?;
         let seq_lookup_count: u16 = cursor.read()?;
-        let coverage_offsets_byte_len = (glyph_count) as usize * Offset16::RAW_BYTE_LEN;
+        let coverage_offsets_byte_len = (glyph_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(coverage_offsets_byte_len);
         let seq_lookup_records_byte_len =
-            (seq_lookup_count) as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+            (seq_lookup_count as usize) * SequenceLookupRecord::RAW_BYTE_LEN;
         cursor.advance_by(seq_lookup_records_byte_len);
         cursor.finish(SequenceContextFormat3Marker {
             coverage_offsets_byte_len,
@@ -1404,7 +1404,7 @@ impl TableInfo for ChainedSequenceContextFormat1Marker {
         cursor.advance::<Offset16>();
         let chained_seq_rule_set_count: u16 = cursor.read()?;
         let chained_seq_rule_set_offsets_byte_len =
-            (chained_seq_rule_set_count) as usize * Offset16::RAW_BYTE_LEN;
+            (chained_seq_rule_set_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(chained_seq_rule_set_offsets_byte_len);
         cursor.finish(ChainedSequenceContextFormat1Marker {
             chained_seq_rule_set_offsets_byte_len,
@@ -1475,7 +1475,7 @@ impl TableInfo for ChainedSequenceRuleSetMarker {
         let mut cursor = data.cursor();
         let chained_seq_rule_count: u16 = cursor.read()?;
         let chained_seq_rule_offsets_byte_len =
-            (chained_seq_rule_count) as usize * Offset16::RAW_BYTE_LEN;
+            (chained_seq_rule_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(chained_seq_rule_offsets_byte_len);
         cursor.finish(ChainedSequenceRuleSetMarker {
             chained_seq_rule_offsets_byte_len,
@@ -1551,18 +1551,17 @@ impl TableInfo for ChainedSequenceRuleMarker {
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let backtrack_glyph_count: u16 = cursor.read()?;
-        let backtrack_sequence_byte_len = (backtrack_glyph_count) as usize * u16::RAW_BYTE_LEN;
+        let backtrack_sequence_byte_len = (backtrack_glyph_count as usize) * u16::RAW_BYTE_LEN;
         cursor.advance_by(backtrack_sequence_byte_len);
         let input_glyph_count: u16 = cursor.read()?;
-        let input_sequence_byte_len =
-            (input_glyph_count.saturating_sub(1)) as usize * u16::RAW_BYTE_LEN;
+        let input_sequence_byte_len = (minus_one(input_glyph_count)) * u16::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let lookahead_glyph_count: u16 = cursor.read()?;
-        let lookahead_sequence_byte_len = (lookahead_glyph_count) as usize * u16::RAW_BYTE_LEN;
+        let lookahead_sequence_byte_len = (lookahead_glyph_count as usize) * u16::RAW_BYTE_LEN;
         cursor.advance_by(lookahead_sequence_byte_len);
         let seq_lookup_count: u16 = cursor.read()?;
         let seq_lookup_records_byte_len =
-            (seq_lookup_count) as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+            (seq_lookup_count as usize) * SequenceLookupRecord::RAW_BYTE_LEN;
         cursor.advance_by(seq_lookup_records_byte_len);
         cursor.finish(ChainedSequenceRuleMarker {
             backtrack_sequence_byte_len,
@@ -1679,7 +1678,7 @@ impl TableInfo for ChainedSequenceContextFormat2Marker {
         cursor.advance::<Offset16>();
         let chained_class_seq_rule_set_count: u16 = cursor.read()?;
         let chained_class_seq_rule_set_offsets_byte_len =
-            (chained_class_seq_rule_set_count) as usize * Offset16::RAW_BYTE_LEN;
+            (chained_class_seq_rule_set_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(chained_class_seq_rule_set_offsets_byte_len);
         cursor.finish(ChainedSequenceContextFormat2Marker {
             chained_class_seq_rule_set_offsets_byte_len,
@@ -1795,7 +1794,7 @@ impl TableInfo for ChainedClassSequenceRuleSetMarker {
         let mut cursor = data.cursor();
         let chained_class_seq_rule_count: u16 = cursor.read()?;
         let chained_class_seq_rule_offsets_byte_len =
-            (chained_class_seq_rule_count) as usize * Offset16::RAW_BYTE_LEN;
+            (chained_class_seq_rule_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(chained_class_seq_rule_offsets_byte_len);
         cursor.finish(ChainedClassSequenceRuleSetMarker {
             chained_class_seq_rule_offsets_byte_len,
@@ -1871,18 +1870,17 @@ impl TableInfo for ChainedClassSequenceRuleMarker {
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let backtrack_glyph_count: u16 = cursor.read()?;
-        let backtrack_sequence_byte_len = (backtrack_glyph_count) as usize * u16::RAW_BYTE_LEN;
+        let backtrack_sequence_byte_len = (backtrack_glyph_count as usize) * u16::RAW_BYTE_LEN;
         cursor.advance_by(backtrack_sequence_byte_len);
         let input_glyph_count: u16 = cursor.read()?;
-        let input_sequence_byte_len =
-            (input_glyph_count.saturating_sub(1)) as usize * u16::RAW_BYTE_LEN;
+        let input_sequence_byte_len = (minus_one(input_glyph_count)) * u16::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let lookahead_glyph_count: u16 = cursor.read()?;
-        let lookahead_sequence_byte_len = (lookahead_glyph_count) as usize * u16::RAW_BYTE_LEN;
+        let lookahead_sequence_byte_len = (lookahead_glyph_count as usize) * u16::RAW_BYTE_LEN;
         cursor.advance_by(lookahead_sequence_byte_len);
         let seq_lookup_count: u16 = cursor.read()?;
         let seq_lookup_records_byte_len =
-            (seq_lookup_count) as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+            (seq_lookup_count as usize) * SequenceLookupRecord::RAW_BYTE_LEN;
         cursor.advance_by(seq_lookup_records_byte_len);
         cursor.finish(ChainedClassSequenceRuleMarker {
             backtrack_sequence_byte_len,
@@ -2007,18 +2005,18 @@ impl TableInfo for ChainedSequenceContextFormat3Marker {
         cursor.advance::<u16>();
         let backtrack_glyph_count: u16 = cursor.read()?;
         let backtrack_coverage_offsets_byte_len =
-            (backtrack_glyph_count) as usize * Offset16::RAW_BYTE_LEN;
+            (backtrack_glyph_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(backtrack_coverage_offsets_byte_len);
         let input_glyph_count: u16 = cursor.read()?;
-        let input_coverage_offsets_byte_len = (input_glyph_count) as usize * Offset16::RAW_BYTE_LEN;
+        let input_coverage_offsets_byte_len = (input_glyph_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(input_coverage_offsets_byte_len);
         let lookahead_glyph_count: u16 = cursor.read()?;
         let lookahead_coverage_offsets_byte_len =
-            (lookahead_glyph_count) as usize * Offset16::RAW_BYTE_LEN;
+            (lookahead_glyph_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(lookahead_coverage_offsets_byte_len);
         let seq_lookup_count: u16 = cursor.read()?;
         let seq_lookup_records_byte_len =
-            (seq_lookup_count) as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+            (seq_lookup_count as usize) * SequenceLookupRecord::RAW_BYTE_LEN;
         cursor.advance_by(seq_lookup_records_byte_len);
         cursor.finish(ChainedSequenceContextFormat3Marker {
             backtrack_coverage_offsets_byte_len,
@@ -2181,7 +2179,7 @@ impl TableInfo for DeviceMarker {
         let end_size: u16 = cursor.read()?;
         let delta_format: DeltaFormat = cursor.read()?;
         let delta_value_byte_len =
-            (delta_value_count(start_size, end_size, delta_format)) as usize * u16::RAW_BYTE_LEN;
+            (delta_value_count(start_size, end_size, delta_format)) * u16::RAW_BYTE_LEN;
         cursor.advance_by(delta_value_byte_len);
         cursor.finish(DeviceMarker {
             delta_value_byte_len,
@@ -2302,7 +2300,7 @@ impl TableInfo for FeatureVariationsMarker {
         cursor.advance::<MajorMinor>();
         let feature_variation_record_count: u32 = cursor.read()?;
         let feature_variation_records_byte_len =
-            (feature_variation_record_count) as usize * FeatureVariationRecord::RAW_BYTE_LEN;
+            (feature_variation_record_count as usize) * FeatureVariationRecord::RAW_BYTE_LEN;
         cursor.advance_by(feature_variation_records_byte_len);
         cursor.finish(FeatureVariationsMarker {
             feature_variation_records_byte_len,
@@ -2372,7 +2370,7 @@ impl TableInfo for ConditionSetMarker {
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         let condition_count: u16 = cursor.read()?;
-        let condition_offsets_byte_len = (condition_count) as usize * Offset32::RAW_BYTE_LEN;
+        let condition_offsets_byte_len = (condition_count as usize) * Offset32::RAW_BYTE_LEN;
         cursor.advance_by(condition_offsets_byte_len);
         cursor.finish(ConditionSetMarker {
             condition_offsets_byte_len,
@@ -2498,7 +2496,7 @@ impl TableInfo for FeatureTableSubstitutionMarker {
         cursor.advance::<MajorMinor>();
         let substitution_count: u16 = cursor.read()?;
         let substitutions_byte_len =
-            (substitution_count) as usize * FeatureTableSubstitutionRecord::RAW_BYTE_LEN;
+            (substitution_count as usize) * FeatureTableSubstitutionRecord::RAW_BYTE_LEN;
         cursor.advance_by(substitutions_byte_len);
         cursor.finish(FeatureTableSubstitutionMarker {
             substitutions_byte_len,
@@ -2742,7 +2740,7 @@ impl TableInfo for CharacterVariantParamsMarker {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         let char_count: u16 = cursor.read()?;
-        let character_byte_len = (char_count) as usize * Uint24::RAW_BYTE_LEN;
+        let character_byte_len = (char_count as usize) * Uint24::RAW_BYTE_LEN;
         cursor.advance_by(character_byte_len);
         cursor.finish(CharacterVariantParamsMarker { character_byte_len })
     }

@@ -105,7 +105,7 @@ pub(crate) struct FieldAttrs {
     pub(crate) no_offset_getter: Option<syn::Path>,
     pub(crate) version: Option<syn::Path>,
     pub(crate) format: Option<FormatAttr>,
-    pub(crate) count: Option<InlineExpr>,
+    pub(crate) count: Option<Count>,
     pub(crate) compile: Option<InlineExpr>,
     pub(crate) len: Option<InlineExpr>,
 }
@@ -116,18 +116,12 @@ pub(crate) struct FormatAttr {
     pub(crate) value: syn::LitInt,
 }
 
-///// Annotations for how to calculate the count of an array.
-//#[derive(Debug, Clone)]
-//pub(crate) enum Count {
-////Field(syn::Ident),
-//Literal(syn::LitInt),
-//All(syn::Path),
-//Expr(InlineExpr),
-////Function {
-////fn_: syn::Path,
-////args: Vec<syn::Ident>,
-////},
-//}
+/// Annotations for how to calculate the count of an array.
+#[derive(Debug, Clone)]
+pub(crate) enum Count {
+    Field(syn::Ident),
+    Expr(InlineExpr),
+}
 
 /// an inline expression used in an attribute
 ///
@@ -434,8 +428,8 @@ static DOC: &str = "doc";
 static NULLABLE: &str = "nullable";
 static NO_GETTER: &str = "no_getter";
 static COUNT: &str = "count";
-static LEN: &str = "len";
-//static COMPUTE_COUNT: &str = "compute_count";
+static COUNT_EXPR: &str = "count_expr";
+static LEN: &str = "len_expr";
 static AVAILABLE: &str = "available";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
@@ -462,14 +456,14 @@ impl Parse for FieldAttrs {
                 this.no_offset_getter = Some(attr.path);
             } else if ident == VERSION {
                 this.version = Some(attr.path);
+            } else if ident == COUNT_EXPR {
+                this.count = Some(Count::Expr(parse_inline_expr(attr.tokens)?));
             } else if ident == COUNT {
-                this.count = Some(parse_inline_expr(attr.tokens)?);
+                this.count = Some(Count::Field(attr.parse_args()?));
             } else if ident == COMPILE {
                 this.compile = Some(parse_inline_expr(attr.tokens)?);
             } else if ident == AVAILABLE {
                 this.available = Some(attr.parse_args()?);
-            //} else if ident == COMPUTE_COUNT {
-            //this.comp
             } else if ident == LEN {
                 this.len = Some(parse_inline_expr(attr.tokens)?);
             } else if ident == FORMAT {
@@ -515,6 +509,19 @@ impl Parse for TableAttrs {
             }
         }
         Ok(this)
+    }
+}
+
+impl Count {
+    pub(crate) fn iter_referenced_fields(&self) -> impl Iterator<Item = &syn::Ident> {
+        let (one, two) = match self {
+            Count::Field(ident) => (Some(ident), None),
+            Count::Expr(InlineExpr {
+                referenced_fields, ..
+            }) => (None, Some(referenced_fields.iter())),
+        };
+        // a trick so we return the exact sample iterator type from both match arms
+        one.into_iter().chain(two.into_iter().flatten())
     }
 }
 
