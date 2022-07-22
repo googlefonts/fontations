@@ -76,7 +76,9 @@ pub trait TableProvider {
 
 pub mod test_gpos2 {
     use super::gpos::ValueRecord;
-    use super::layout2::CoverageTable;
+    use super::layout2::{
+        ClassDef, CoverageTable, Device, FeatureList, FeatureVariations, ScriptList,
+    };
 
     impl ValueFormat {
         /// Return the number of bytes required to store a [`ValueRecord`] in this format.

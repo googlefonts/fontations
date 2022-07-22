@@ -6,17 +6,14 @@ table Gpos {
     #[compile(self.compute_version())]
     version: BigEndian<MajorMinor>,
     /// Offset to ScriptList table, from beginning of GPOS table
-    #[no_offset_getter]
     script_list_offset: BigEndian<Offset16<ScriptList>>,
     /// Offset to FeatureList table, from beginning of GPOS table
-    #[no_offset_getter]
     feature_list_offset: BigEndian<Offset16<FeatureList>>,
     /// Offset to LookupList table, from beginning of GPOS table
     #[no_offset_getter]
     lookup_list_offset: BigEndian<Offset16<PositionLookupList>>,
     #[available(MajorMinor::VERSION_1_1)]
     #[nullable]
-    #[no_offset_getter]
     feature_variations_offset: BigEndian<Offset32<FeatureVariations>>,
 }
 
@@ -90,13 +87,11 @@ table AnchorFormat3 {
     /// table (variable font) for X coordinate, from beginning of
     /// Anchor table (may be NULL)
     #[nullable]
-    #[no_offset_getter]
     x_device_offset: BigEndian<Offset16<Device>>,
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for Y coordinate, from beginning of
     /// Anchor table (may be NULL)
     #[nullable]
-    #[no_offset_getter]
     y_device_offset: BigEndian<Offset16<Device>>,
 }
 
@@ -148,7 +143,6 @@ table SinglePosFormat2 {
     #[format = 2]
     pos_format: BigEndian<u16>,
     /// Offset to Coverage table, from beginning of SinglePos subtable.
-    //#[no_offset_getter]
     coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Defines the types of data in the ValueRecords.
     #[compile(self.compute_value_format())]
@@ -180,7 +174,6 @@ table PairPosFormat1 {
     #[format = 1]
     pos_format: BigEndian<u16>,
     /// Offset to Coverage table, from beginning of PairPos subtable.
-    #[no_offset_getter]
     coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Defines the types of data in valueRecord1 — for the first
     /// glyph in the pair (may be zero).
@@ -237,7 +230,6 @@ table PairPosFormat2 {
     #[format = 2]
     pos_format: BigEndian<u16>,
     /// Offset to Coverage table, from beginning of PairPos subtable.
-    #[no_offset_getter]
     coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// ValueRecord definition — for the first glyph of the pair (may
     /// be zero).
@@ -249,11 +241,9 @@ table PairPosFormat2 {
     value_format2: BigEndian<ValueFormat>,
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the first glyph of the pair.
-    #[no_offset_getter]
     class_def1_offset: BigEndian<Offset16<ClassDef>>,
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the second glyph of the pair.
-    #[no_offset_getter]
     class_def2_offset: BigEndian<Offset16<ClassDef>>,
     /// Number of classes in classDef1 table — includes Class 0.
     #[compile(self.compute_class1_count())]
@@ -308,7 +298,6 @@ table CursivePosFormat1 {
     #[format = 1]
     pos_format: BigEndian<u16>,
     /// Offset to Coverage table, from beginning of CursivePos subtable.
-    #[no_offset_getter]
     coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Number of EntryExit records
     #[compile(array_len($entry_exit_record))]
@@ -343,11 +332,9 @@ table MarkBasePosFormat1 {
     pos_format: BigEndian<u16>,
     /// Offset to markCoverage table, from beginning of MarkBasePos
     /// subtable.
-    #[no_offset_getter]
     mark_coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Offset to baseCoverage table, from beginning of MarkBasePos
     /// subtable.
-    #[no_offset_getter]
     base_coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Number of classes defined for marks
     #[compile(self.compute_mark_class_count())]
@@ -392,11 +379,9 @@ table MarkLigPosFormat1 {
     pos_format: BigEndian<u16>,
     /// Offset to markCoverage table, from beginning of MarkLigPos
     /// subtable.
-    #[no_offset_getter]
     mark_coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Offset to ligatureCoverage table, from beginning of MarkLigPos
     /// subtable.
-    #[no_offset_getter]
     ligature_coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Number of defined mark classes
     #[compile(self.compute_mark_class_count())]
@@ -455,11 +440,9 @@ table MarkMarkPosFormat1 {
     pos_format: BigEndian<u16>,
     /// Offset to Combining Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
-    #[no_offset_getter]
     mark1_coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Offset to Base Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
-    #[no_offset_getter]
     mark2_coverage_offset: BigEndian<Offset16<CoverageTable>>,
     /// Number of Combining Mark classes defined
     #[compile(self.compute_mark_class_count())]

@@ -73,10 +73,26 @@ impl<'a> Gpos<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Attempt to resolve [`script_list_offset`][Self::script_list_offset].
+    pub fn script_list(&self) -> Result<ScriptList<'a>, ReadError> {
+        let range = self.shape.script_list_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve(&self.data);
+        result
+    }
+
     /// Offset to FeatureList table, from beginning of GPOS table
     pub fn feature_list_offset(&self) -> Offset16 {
         let range = self.shape.feature_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`feature_list_offset`][Self::feature_list_offset].
+    pub fn feature_list(&self) -> Result<FeatureList<'a>, ReadError> {
+        let range = self.shape.feature_list_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve(&self.data);
+        result
     }
 
     /// Offset to LookupList table, from beginning of GPOS table
@@ -88,6 +104,14 @@ impl<'a> Gpos<'a> {
     pub fn feature_variations_offset(&self) -> Option<Offset32> {
         let range = self.shape.feature_variations_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
+    }
+
+    /// Attempt to resolve [`feature_variations_offset`][Self::feature_variations_offset].
+    pub fn feature_variations(&self) -> Option<Result<FeatureVariations<'a>, ReadError>> {
+        let range = self.shape.feature_variations_offset_byte_range()?;
+        let offset: Offset32 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve_nullable(&self.data);
+        result
     }
 }
 
@@ -333,12 +357,28 @@ impl<'a> AnchorFormat3<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Attempt to resolve [`x_device_offset`][Self::x_device_offset].
+    pub fn x_device(&self) -> Option<Result<Device<'a>, ReadError>> {
+        let range = self.shape.x_device_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve_nullable(&self.data);
+        result
+    }
+
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for Y coordinate, from beginning of
     /// Anchor table (may be NULL)
     pub fn y_device_offset(&self) -> Offset16 {
         let range = self.shape.y_device_offset_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`y_device_offset`][Self::y_device_offset].
+    pub fn y_device(&self) -> Option<Result<Device<'a>, ReadError>> {
+        let range = self.shape.y_device_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve_nullable(&self.data);
+        result
     }
 }
 
@@ -675,6 +715,14 @@ impl<'a> PairPosFormat1<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let range = self.shape.coverage_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve(&self.data);
+        result
+    }
+
     /// Defines the types of data in valueRecord1 — for the first
     /// glyph in the pair (may be zero).
     pub fn value_format1(&self) -> ValueFormat {
@@ -790,6 +838,14 @@ impl<'a> PairPosFormat2<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let range = self.shape.coverage_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve(&self.data);
+        result
+    }
+
     /// ValueRecord definition — for the first glyph of the pair (may
     /// be zero).
     pub fn value_format1(&self) -> ValueFormat {
@@ -811,11 +867,27 @@ impl<'a> PairPosFormat2<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Attempt to resolve [`class_def1_offset`][Self::class_def1_offset].
+    pub fn class_def1(&self) -> Result<ClassDef<'a>, ReadError> {
+        let range = self.shape.class_def1_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve(&self.data);
+        result
+    }
+
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the second glyph of the pair.
     pub fn class_def2_offset(&self) -> Offset16 {
         let range = self.shape.class_def2_offset_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`class_def2_offset`][Self::class_def2_offset].
+    pub fn class_def2(&self) -> Result<ClassDef<'a>, ReadError> {
+        let range = self.shape.class_def2_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve(&self.data);
+        result
     }
 
     /// Number of classes in classDef1 table — includes Class 0.
@@ -891,6 +963,14 @@ impl<'a> CursivePosFormat1<'a> {
     pub fn coverage_offset(&self) -> Offset16 {
         let range = self.shape.coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let range = self.shape.coverage_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve(&self.data);
+        result
     }
 
     /// Number of EntryExit records
@@ -989,11 +1069,27 @@ impl<'a> MarkBasePosFormat1<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
+    pub fn mark_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let range = self.shape.mark_coverage_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve(&self.data);
+        result
+    }
+
     /// Offset to baseCoverage table, from beginning of MarkBasePos
     /// subtable.
     pub fn base_coverage_offset(&self) -> Offset16 {
         let range = self.shape.base_coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`base_coverage_offset`][Self::base_coverage_offset].
+    pub fn base_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let range = self.shape.base_coverage_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve(&self.data);
+        result
     }
 
     /// Number of classes defined for marks
@@ -1091,11 +1187,27 @@ impl<'a> MarkLigPosFormat1<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
+    pub fn mark_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let range = self.shape.mark_coverage_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve(&self.data);
+        result
+    }
+
     /// Offset to ligatureCoverage table, from beginning of MarkLigPos
     /// subtable.
     pub fn ligature_coverage_offset(&self) -> Offset16 {
         let range = self.shape.ligature_coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`ligature_coverage_offset`][Self::ligature_coverage_offset].
+    pub fn ligature_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let range = self.shape.ligature_coverage_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve(&self.data);
+        result
     }
 
     /// Number of defined mark classes
@@ -1251,11 +1363,27 @@ impl<'a> MarkMarkPosFormat1<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Attempt to resolve [`mark1_coverage_offset`][Self::mark1_coverage_offset].
+    pub fn mark1_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let range = self.shape.mark1_coverage_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve(&self.data);
+        result
+    }
+
     /// Offset to Base Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
     pub fn mark2_coverage_offset(&self) -> Offset16 {
         let range = self.shape.mark2_coverage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`mark2_coverage_offset`][Self::mark2_coverage_offset].
+    pub fn mark2_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let range = self.shape.mark2_coverage_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve(&self.data);
+        result
     }
 
     /// Number of Combining Mark classes defined
