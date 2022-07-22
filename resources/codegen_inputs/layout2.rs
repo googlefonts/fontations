@@ -200,6 +200,7 @@ table ClassDefFormat2 {
 }
 
 /// Used in [ClassDefFormat2]
+#[validation_method(validate_glyph_range)]
 record ClassRangeRecord {
     /// First glyph ID in the range
     start_glyph_id: BigEndian<u16>,

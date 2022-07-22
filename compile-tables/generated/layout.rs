@@ -430,7 +430,11 @@ impl FontWrite for ClassRangeRecord {
 }
 
 impl Validate for ClassRangeRecord {
-    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ClassRangeRecord", |ctx| {
+            self.validate_glyph_range(ctx);
+        })
+    }
 }
 
 /// A [Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table)

@@ -117,6 +117,17 @@ impl ClassDefFormat1 {
     }
 }
 
+impl ClassRangeRecord {
+    fn validate_glyph_range(&self, ctx: &mut ValidationCtx) {
+        if self.start_glyph_id > self.end_glyph_id {
+            ctx.report(format!(
+                "start_glyph_id {} larger than end_glyph_id {}",
+                self.start_glyph_id, self.end_glyph_id
+            ));
+        }
+    }
+}
+
 impl ClassDefFormat2 {
     fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
         self.class_range_records
@@ -171,5 +182,19 @@ mod tests {
         };
 
         table.validate().unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "larger than end_glyph_id")]
+    fn validate_classdef_ranges() {
+        let classdef = ClassDefFormat2 {
+            class_range_records: vec![ClassRangeRecord {
+                start_glyph_id: 12,
+                end_glyph_id: 3,
+                class: 7,
+            }],
+        };
+
+        classdef.validate().unwrap();
     }
 }

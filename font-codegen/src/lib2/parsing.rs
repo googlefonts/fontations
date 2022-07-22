@@ -42,6 +42,7 @@ pub(crate) struct TableAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) skip_parse: Option<syn::Path>,
     pub(crate) skip_compile: Option<syn::Path>,
+    pub(crate) validation_method: Option<syn::Path>,
 }
 
 #[derive(Debug, Clone)]
@@ -484,6 +485,7 @@ impl Parse for FieldAttrs {
 
 static SKIP_PARSE: &str = "skip_parse";
 static SKIP_COMPILE: &str = "skip_compile";
+static VALIDATION_METHOD: &str = "validation_method";
 
 impl Parse for TableAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -501,6 +503,8 @@ impl Parse for TableAttrs {
                 this.skip_parse = Some(attr.path);
             } else if ident == SKIP_COMPILE {
                 this.skip_compile = Some(attr.path);
+            } else if ident == VALIDATION_METHOD {
+                this.validation_method = Some(attr.parse_args()?);
             } else {
                 return Err(syn::Error::new(
                     ident.span(),
