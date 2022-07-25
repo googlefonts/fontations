@@ -10,7 +10,7 @@ table Gpos {
     /// Offset to FeatureList table, from beginning of GPOS table
     feature_list_offset: BigEndian<Offset16<FeatureList>>,
     /// Offset to LookupList table, from beginning of GPOS table
-    #[no_offset_getter]
+    #[skip_offset_getter]
     lookup_list_offset: BigEndian<Offset16<PositionLookupList>>,
     #[available(MajorMinor::VERSION_1_1)]
     #[nullable]
@@ -132,7 +132,7 @@ table SinglePosFormat1 {
     value_format: BigEndian<ValueFormat>,
     /// Defines positioning value(s) — applied to all glyphs in the
     /// Coverage table.
-    #[no_getter]
+    #[skip_getter]
     #[len_expr($value_format.record_byte_len())]
     value_record: ValueRecord,
 }
@@ -152,7 +152,7 @@ table SinglePosFormat2 {
     #[compile(array_len($value_records))]
     value_count: BigEndian<u16>,
     /// Array of ValueRecords — positioning values applied to glyphs.
-    #[no_getter]
+    #[skip_getter]
     #[len_expr($value_count as usize * $value_format.record_byte_len())]
     value_records: [ValueRecord],
     //#[count_with(value_record_array_len, value_format, value_count)]
@@ -252,7 +252,7 @@ table PairPosFormat2 {
     #[compile(self.compute_class2_count())]
     class2_count: BigEndian<u16>,
     #[len_expr(class1_record_len($class1_count, $class2_count, $value_format1, $value_format2))]
-    #[no_getter]
+    #[skip_getter]
     class1_records: [Class1Record],
 }
     ///// Array of Class1 records, ordered by classes in classDef1.
@@ -346,7 +346,7 @@ table MarkBasePosFormat1 {
     /// subtable.
     //#[to_owned(self.base_array_to_owned())]
     //#[read_with(mark_class_ount)]
-    #[no_offset_getter]
+    #[skip_offset_getter]
     base_array_offset: BigEndian<Offset16<BaseArray>>,
 }
 
@@ -454,7 +454,7 @@ table MarkMarkPosFormat1 {
     /// MarkMarkPos subtable.
     //#[to_owned(self.mark2_array_to_owned())]
     //#[read_with(mark_class_count)]
-    #[no_offset_getter]
+    #[skip_offset_getter]
     mark2_array_offset: BigEndian<Offset16<Mark2Array>>,
 }
 

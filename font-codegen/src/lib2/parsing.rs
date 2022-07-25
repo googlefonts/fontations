@@ -101,9 +101,9 @@ pub(crate) struct FieldAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) nullable: Option<syn::Path>,
     pub(crate) available: Option<syn::Path>,
-    pub(crate) no_getter: Option<syn::Path>,
+    pub(crate) skip_getter: Option<syn::Path>,
     /// if present, we will not try to resolve this offset
-    pub(crate) no_offset_getter: Option<syn::Path>,
+    pub(crate) skip_offset_getter: Option<syn::Path>,
     pub(crate) version: Option<syn::Path>,
     pub(crate) format: Option<FormatAttr>,
     pub(crate) count: Option<Count>,
@@ -427,14 +427,14 @@ impl Parse for Variant {
 
 static DOC: &str = "doc";
 static NULLABLE: &str = "nullable";
-static NO_GETTER: &str = "no_getter";
+static SKIP_GETTER: &str = "skip_getter";
 static COUNT: &str = "count";
 static COUNT_EXPR: &str = "count_expr";
 static LEN: &str = "len_expr";
 static AVAILABLE: &str = "available";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
-static NO_OFFSET_GETTER: &str = "no_offset_getter";
+static SKIP_OFFSET_GETTER: &str = "skip_offset_getter";
 static COMPILE: &str = "compile";
 
 impl Parse for FieldAttrs {
@@ -451,10 +451,10 @@ impl Parse for FieldAttrs {
                 this.docs.push(attr);
             } else if ident == NULLABLE {
                 this.nullable = Some(attr.path);
-            } else if ident == NO_GETTER {
-                this.no_getter = Some(attr.path);
-            } else if ident == NO_OFFSET_GETTER {
-                this.no_offset_getter = Some(attr.path);
+            } else if ident == SKIP_GETTER {
+                this.skip_getter = Some(attr.path);
+            } else if ident == SKIP_OFFSET_GETTER {
+                this.skip_offset_getter = Some(attr.path);
             } else if ident == VERSION {
                 this.version = Some(attr.path);
             } else if ident == COUNT_EXPR {

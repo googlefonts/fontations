@@ -130,7 +130,7 @@ impl Field {
     }
 
     pub(crate) fn has_getter(&self) -> bool {
-        self.attrs.no_getter.is_none()
+        self.attrs.skip_getter.is_none()
     }
 
     pub(crate) fn len_expr(&self) -> TokenStream {
@@ -245,7 +245,7 @@ impl Field {
 
     fn typed_offset_field_getter(&self) -> Option<TokenStream> {
         let (typ, target) = match &self.typ {
-            _ if self.attrs.no_offset_getter.is_some() => return None,
+            _ if self.attrs.skip_offset_getter.is_some() => return None,
             FieldType::Offset {
                 typ,
                 target: Some(target),

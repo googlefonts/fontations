@@ -41,8 +41,7 @@ record LangSysRecord {
 /// [Language System Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#language-system-table)
 table LangSys {
     /// = NULL (reserved for an offset to a reordering table)
-    #[no_getter]
-    //#[nullable]
+    #[skip_getter]
     #[compile(0)]
     lookup_order_offset: BigEndian<u16>,
     /// Index of a feature required for this language system; if no
@@ -84,7 +83,7 @@ record FeatureRecord {
 table Feature {
     /// Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
     #[nullable]
-    #[no_offset_getter]
+    #[skip_offset_getter]
     feature_params_offset: BigEndian<Offset16<FeatureParams>>,
     /// Number of LookupList indices for this feature
     #[compile(array_len($lookup_list_indices))]
