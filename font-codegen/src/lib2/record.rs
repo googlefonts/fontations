@@ -23,6 +23,7 @@ pub(crate) fn generate(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
         quote!( #( #docs )* )
     });
     let inner_types = item.fields.iter().map(|fld| fld.raw_getter_return_type());
+    let getters = item.fields.iter().map(Field::record_getter);
 
     Ok(quote! {
         #( #docs )*
@@ -31,6 +32,10 @@ pub(crate) fn generate(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
         #[repr(packed)]
         pub struct #name {
             #( #field_docs pub #field_names: #field_types, )*
+        }
+
+        impl #name {
+            #( #getters )*
         }
 
         impl FixedSized for #name {

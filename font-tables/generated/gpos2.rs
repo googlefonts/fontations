@@ -442,6 +442,18 @@ pub struct MarkRecord {
     pub mark_anchor_offset: BigEndian<Offset16>,
 }
 
+impl MarkRecord {
+    /// Class defined for the associated mark.
+    pub fn mark_class(&self) -> u16 {
+        self.mark_class.get()
+    }
+
+    /// Offset to Anchor table, from beginning of MarkArray table.
+    pub fn mark_anchor_offset(&self) -> Offset16 {
+        self.mark_anchor_offset.get()
+    }
+}
+
 impl FixedSized for MarkRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
@@ -997,6 +1009,20 @@ pub struct EntryExitRecord {
     /// Offset to exitAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
     pub exit_anchor_offset: BigEndian<Offset16>,
+}
+
+impl EntryExitRecord {
+    /// Offset to entryAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub fn entry_anchor_offset(&self) -> Offset16 {
+        self.entry_anchor_offset.get()
+    }
+
+    /// Offset to exitAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    pub fn exit_anchor_offset(&self) -> Offset16 {
+        self.exit_anchor_offset.get()
+    }
 }
 
 impl FixedSized for EntryExitRecord {

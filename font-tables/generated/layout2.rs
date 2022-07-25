@@ -64,6 +64,18 @@ pub struct ScriptRecord {
     pub script_offset: BigEndian<Offset16>,
 }
 
+impl ScriptRecord {
+    /// 4-byte script tag identifier
+    pub fn script_tag(&self) -> Tag {
+        self.script_tag.get()
+    }
+
+    /// Offset to Script table, from beginning of ScriptList
+    pub fn script_offset(&self) -> Offset16 {
+        self.script_offset.get()
+    }
+}
+
 impl FixedSized for ScriptRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
@@ -145,6 +157,18 @@ pub struct LangSysRecord {
     pub lang_sys_tag: BigEndian<Tag>,
     /// Offset to LangSys table, from beginning of Script table
     pub lang_sys_offset: BigEndian<Offset16>,
+}
+
+impl LangSysRecord {
+    /// 4-byte LangSysTag identifier
+    pub fn lang_sys_tag(&self) -> Tag {
+        self.lang_sys_tag.get()
+    }
+
+    /// Offset to LangSys table, from beginning of Script table
+    pub fn lang_sys_offset(&self) -> Offset16 {
+        self.lang_sys_offset.get()
+    }
 }
 
 impl FixedSized for LangSysRecord {
@@ -275,6 +299,18 @@ pub struct FeatureRecord {
     pub feature_tag: BigEndian<Tag>,
     /// Offset to Feature table, from beginning of FeatureList
     pub feature_offset: BigEndian<Offset16>,
+}
+
+impl FeatureRecord {
+    /// 4-byte feature identification tag
+    pub fn feature_tag(&self) -> Tag {
+        self.feature_tag.get()
+    }
+
+    /// Offset to Feature table, from beginning of FeatureList
+    pub fn feature_offset(&self) -> Offset16 {
+        self.feature_offset.get()
+    }
 }
 
 impl FixedSized for FeatureRecord {
@@ -613,6 +649,23 @@ pub struct RangeRecord {
     pub start_coverage_index: BigEndian<u16>,
 }
 
+impl RangeRecord {
+    /// First glyph ID in the range
+    pub fn start_glyph_id(&self) -> u16 {
+        self.start_glyph_id.get()
+    }
+
+    /// Last glyph ID in the range
+    pub fn end_glyph_id(&self) -> u16 {
+        self.end_glyph_id.get()
+    }
+
+    /// Coverage Index of first glyph ID in range
+    pub fn start_coverage_index(&self) -> u16 {
+        self.start_coverage_index.get()
+    }
+}
+
 impl FixedSized for RangeRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
@@ -785,6 +838,23 @@ pub struct ClassRangeRecord {
     pub class: BigEndian<u16>,
 }
 
+impl ClassRangeRecord {
+    /// First glyph ID in the range
+    pub fn start_glyph_id(&self) -> u16 {
+        self.start_glyph_id.get()
+    }
+
+    /// Last glyph ID in the range
+    pub fn end_glyph_id(&self) -> u16 {
+        self.end_glyph_id.get()
+    }
+
+    /// Applied to all glyphs in the range
+    pub fn class(&self) -> u16 {
+        self.class.get()
+    }
+}
+
 impl FixedSized for ClassRangeRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
@@ -815,6 +885,18 @@ pub struct SequenceLookupRecord {
     pub sequence_index: BigEndian<u16>,
     /// Index (zero-based) into the LookupList
     pub lookup_list_index: BigEndian<u16>,
+}
+
+impl SequenceLookupRecord {
+    /// Index (zero-based) into the input glyph sequence
+    pub fn sequence_index(&self) -> u16 {
+        self.sequence_index.get()
+    }
+
+    /// Index (zero-based) into the LookupList
+    pub fn lookup_list_index(&self) -> u16 {
+        self.lookup_list_index.get()
+    }
 }
 
 impl FixedSized for SequenceLookupRecord {
@@ -2343,6 +2425,20 @@ pub struct FeatureVariationRecord {
     pub feature_table_substitution_offset: BigEndian<Offset32>,
 }
 
+impl FeatureVariationRecord {
+    /// Offset to a condition set table, from beginning of
+    /// FeatureVariations table.
+    pub fn condition_set_offset(&self) -> Offset32 {
+        self.condition_set_offset.get()
+    }
+
+    /// Offset to a feature table substitution table, from beginning of
+    /// the FeatureVariations table.
+    pub fn feature_table_substitution_offset(&self) -> Offset32 {
+        self.feature_table_substitution_offset.get()
+    }
+}
+
 impl FixedSized for FeatureVariationRecord {
     const RAW_BYTE_LEN: usize = Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
@@ -2537,6 +2633,19 @@ pub struct FeatureTableSubstitutionRecord {
     /// Offset to an alternate feature table, from start of the
     /// FeatureTableSubstitution table.
     pub alternate_feature_offset: BigEndian<Offset32>,
+}
+
+impl FeatureTableSubstitutionRecord {
+    /// The feature table index to match.
+    pub fn feature_index(&self) -> u16 {
+        self.feature_index.get()
+    }
+
+    /// Offset to an alternate feature table, from start of the
+    /// FeatureTableSubstitution table.
+    pub fn alternate_feature_offset(&self) -> Offset32 {
+        self.alternate_feature_offset.get()
+    }
 }
 
 impl FixedSized for FeatureTableSubstitutionRecord {

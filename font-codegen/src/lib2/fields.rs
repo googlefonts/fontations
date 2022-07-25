@@ -183,7 +183,7 @@ impl Field {
         self.typ.compile_type(self.is_nullable())
     }
 
-    pub(crate) fn field_getter(&self) -> Option<TokenStream> {
+    pub(crate) fn table_getter(&self) -> Option<TokenStream> {
         if !self.has_getter() {
             return None;
         }
@@ -218,6 +218,22 @@ impl Field {
             }
 
             #offset_getter
+        })
+    }
+
+    pub(crate) fn record_getter(&self) -> Option<TokenStream> {
+        if !self.has_getter() {
+            return None;
+        }
+        let name = &self.name;
+        let docs = &self.attrs.docs;
+        let return_type = self.raw_getter_return_type();
+
+        Some(quote! {
+            #(#docs)*
+            pub fn #name(&self) -> #return_type {
+                self.#name.get()
+            }
         })
     }
 

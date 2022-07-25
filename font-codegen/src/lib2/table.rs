@@ -249,7 +249,7 @@ impl Table {
     }
 
     fn iter_table_ref_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {
-        self.fields.iter().filter_map(|fld| fld.field_getter())
+        self.fields.iter().filter_map(Field::table_getter)
     }
 
     pub(crate) fn impl_format_trait(&self) -> Option<TokenStream> {
