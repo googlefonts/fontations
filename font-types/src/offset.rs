@@ -9,21 +9,6 @@ pub trait Offset: Sized + Copy {
 
     /// Returns this offsize as a `usize`, or `None` if it is `0`.
     fn non_null(self) -> Option<usize>;
-    fn read<'a, T: crate::FontRead<'a>>(self, bytes: &'a [u8]) -> Option<T> {
-        self.non_null()
-            .and_then(|off| bytes.get(off..))
-            .and_then(T::read)
-    }
-
-    fn read_with_args<'a, Args, T>(self, bytes: &'a [u8], args: &Args) -> Option<T>
-    where
-        T: crate::FontReadWithArgs<'a, Args>,
-    {
-        self.non_null()
-            .and_then(|off| bytes.get(off..))
-            .and_then(|bytes| T::read_with_args(bytes, args))
-            .map(|(t, _)| t)
-    }
 }
 
 /// A type that contains data referenced by offsets.
@@ -39,10 +24,6 @@ pub trait OffsetHost<'a> {
             .non_null()
             .and_then(|off| self.bytes().get(off..))
             .unwrap_or_default()
-    }
-
-    fn resolve_offset<T: crate::FontRead<'a>>(&self, offset: impl Offset) -> Option<T> {
-        crate::FontRead::read(self.bytes_at_offset(offset))
     }
 }
 

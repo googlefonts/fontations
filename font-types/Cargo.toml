@@ -11,4 +11,3 @@ std = []
 default = ["std"]
 
 [dependencies]
-zerocopy = "0.6"

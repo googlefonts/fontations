@@ -8,7 +8,7 @@
 /// detail of the [`BigEndian`] wrapper.
 pub trait Scalar {
     /// The raw byte representation of this type.
-    type Raw: Copy + zerocopy::Unaligned + zerocopy::FromBytes + zerocopy::AsBytes + AsRef<[u8]>;
+    type Raw: Copy + AsRef<[u8]>;
 
     /// Create an instance of this type from raw big-endian bytes
     fn from_raw(raw: Self::Raw) -> Self;
@@ -27,7 +27,7 @@ pub trait ReadScalar: FixedSized {
 }
 
 /// A wrapper around raw big-endian bytes for some type.
-#[derive(Clone, Copy, PartialEq, Eq, zerocopy::Unaligned, zerocopy::FromBytes)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
 pub struct BigEndian<T: Scalar>(pub(crate) T::Raw);
 
