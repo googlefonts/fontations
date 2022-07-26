@@ -1,27 +1,10 @@
+//! raw font bytes
+
 use std::ops::Range;
 
-use font_types::{Offset, ReadScalar};
+use font_types::ReadScalar;
 
-pub trait TableInfo: Sized + Copy {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError>;
-}
-
-pub trait Format<T> {
-    const FORMAT: T;
-}
-
-impl<U, T: TableInfo + Format<U>> Format<U> for TableRef<'_, T> {
-    const FORMAT: U = T::FORMAT;
-}
-
-pub trait FontRead<'a>: Sized {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError>;
-}
-
-pub struct TableRef<'a, T> {
-    pub(crate) shape: T,
-    pub(crate) data: FontData<'a>,
-}
+use crate::table_ref::TableRef;
 
 #[derive(Debug, Clone, Copy)]
 pub struct FontData<'a> {
@@ -159,39 +142,6 @@ impl<'a> FontData<'a> {
     }
 }
 
-pub trait ResolveOffset {
-    fn resolve<'a, T: FontRead<'a>>(&self, data: &FontData<'a>) -> Result<T, ReadError>;
-    fn resolve_nullable<'a, T: FontRead<'a>>(
-        &self,
-        data: &FontData<'a>,
-    ) -> Option<Result<T, ReadError>>;
-}
-
-impl<O: Offset> ResolveOffset for O {
-    fn resolve<'a, T: FontRead<'a>>(&self, data: &FontData<'a>) -> Result<T, ReadError> {
-        match self.resolve_nullable(data) {
-            Some(x) => x,
-            None => Err(ReadError::NullOffset),
-        }
-    }
-
-    fn resolve_nullable<'a, T: FontRead<'a>>(
-        &self,
-        data: &FontData<'a>,
-    ) -> Option<Result<T, ReadError>> {
-        let non_null = self.non_null()?;
-        Some(
-            data.split_off(non_null)
-                .ok_or(ReadError::OutOfBounds)
-                .and_then(T::read),
-        )
-    }
-}
-
-//fn aligned_to(bytes: &[u8], align: usize) -> bool {
-//(bytes as *const _ as *const () as usize) % align == 0
-//}
-
 impl<'a> Cursor<'a> {
     pub(crate) fn advance<T: ReadScalar>(&mut self) {
         self.pos += T::RAW_BYTE_LEN
@@ -240,12 +190,5 @@ impl<'a> Cursor<'a> {
         let data = self.data;
         data.check_in_bounds(self.pos)?;
         Ok(TableRef { data, shape })
-    }
-}
-
-impl<'a, T> TableRef<'a, T> {
-    /// Resolve the provided offset from the start of this table.
-    pub fn resolve_offset<O: Offset, R: FontRead<'a>>(&self, offset: O) -> Result<R, ReadError> {
-        offset.resolve(&self.data)
     }
 }

@@ -2,7 +2,7 @@
 # in order to regenerate all of this project's generated code.
 
 # a list of directories that will be cleaned
-clean = ["font-tables/generated/gpos2.rs"]
+clean = ["font-tables/generated", "compile-tables/generated"]
 
 # TODO: support a 'copy' step
 
@@ -10,12 +10,12 @@ clean = ["font-tables/generated/gpos2.rs"]
 [[generate]]
 mode = "parse2"
 source = "resources/codegen_inputs/gpos2.rs"
-target = "font-tables/generated/gpos2.rs"
+target = "font-tables/generated/gpos.rs"
 
 [[generate]]
 mode = "parse2"
 source = "resources/codegen_inputs/layout2.rs"
-target = "font-tables/generated/layout2.rs"
+target = "font-tables/generated/layout.rs"
 
 [[generate]]
 mode = "compile2"
