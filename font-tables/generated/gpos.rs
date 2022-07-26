@@ -101,6 +101,14 @@ impl<'a> Gpos<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
+    pub fn lookup_list(&self) -> Result<PositionLookupList<'a>, ReadError> {
+        let range = self.shape.lookup_list_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve(&self.data);
+        result
+    }
+
     pub fn feature_variations_offset(&self) -> Option<Offset32> {
         let range = self.shape.feature_variations_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())

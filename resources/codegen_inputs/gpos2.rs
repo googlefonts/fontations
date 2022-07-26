@@ -10,7 +10,6 @@ table Gpos {
     /// Offset to FeatureList table, from beginning of GPOS table
     feature_list_offset: BigEndian<Offset16<FeatureList>>,
     /// Offset to LookupList table, from beginning of GPOS table
-    #[skip_offset_getter]
     lookup_list_offset: BigEndian<Offset16<PositionLookupList>>,
     #[available(MajorMinor::VERSION_1_1)]
     #[nullable]
