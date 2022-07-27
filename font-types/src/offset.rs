@@ -117,19 +117,6 @@ macro_rules! impl_offset {
                 self.non_null().unwrap_or_default() as u32 == *other
             }
         }
-
-        impl crate::raw::FixedSized for $name {
-            const RAW_BYTE_LEN: usize = $bits / 8;
-        }
-
-        impl crate::raw::ReadScalar for $name {
-            #[inline]
-            fn read(bytes: &[u8]) -> Option<Self> {
-                bytes
-                    .get(..<Self as crate::raw::FixedSized>::RAW_BYTE_LEN)
-                    .map(|bytes| crate::raw::Scalar::from_raw(bytes.try_into().unwrap()))
-            }
-        }
     };
 }
 

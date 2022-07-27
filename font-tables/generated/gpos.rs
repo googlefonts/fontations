@@ -136,16 +136,6 @@ impl font_types::Scalar for ValueFormat {
     }
 }
 
-impl FixedSized for ValueFormat {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
-}
-
-impl ReadScalar for ValueFormat {
-    fn read(bytes: &[u8]) -> Option<Self> {
-        u16::read(bytes).map(Self::from_bits_truncate)
-    }
-}
-
 /// [Anchor Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-tables)
 /// position one glyph with respect to another.
 pub enum AnchorTable<'a> {

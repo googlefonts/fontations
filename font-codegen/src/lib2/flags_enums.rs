@@ -39,16 +39,6 @@ pub(crate) fn generate_flags(raw: &BitFlags) -> proc_macro2::TokenStream {
                 Self::from_bits_truncate(t)
             }
         }
-
-        impl FixedSized for #name {
-            const RAW_BYTE_LEN: usize = #typ::RAW_BYTE_LEN;
-        }
-
-        impl ReadScalar for #name {
-            fn read(bytes: &[u8]) -> Option<Self> {
-                #typ::read(bytes).map(Self::from_bits_truncate)
-            }
-        }
     }
 }
 
@@ -126,13 +116,16 @@ pub(crate) fn generate_raw_enum(raw: &RawEnum) -> TokenStream {
             }
         }
 
-        impl FixedSized for #name {
-            const RAW_BYTE_LEN: usize = #typ::RAW_BYTE_LEN;
-        }
+        impl font_types::Scalar for #name {
+            type Raw = <#typ as font_types::Scalar>::Raw;
 
-        impl ReadScalar for #name {
-            fn read(bytes: &[u8]) -> Option<Self> {
-                #typ::read(bytes).map(Self::new)
+            fn to_raw(self) -> Self::Raw {
+                (self as #typ).to_raw()
+            }
+
+            fn from_raw(raw: Self::Raw) -> Self {
+                let t = <#typ>::from_raw(raw);
+                Self::new(t)
             }
         }
     }

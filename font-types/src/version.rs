@@ -107,19 +107,6 @@ impl crate::Scalar for MajorMinor {
     }
 }
 
-impl crate::FixedSized for MajorMinor {
-    const RAW_BYTE_LEN: usize = 4;
-}
-
-impl crate::ReadScalar for MajorMinor {
-    #[inline]
-    fn read(bytes: &[u8]) -> Option<Self> {
-        let major = u16::read(bytes)?;
-        let minor = bytes.get(2..).and_then(u16::read)?;
-        Some(MajorMinor::new(major, minor))
-    }
-}
-
 impl std::fmt::Debug for Version16Dot16 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "Version16Dot16({:08x})", self.0)

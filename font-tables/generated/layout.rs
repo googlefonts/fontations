@@ -2217,13 +2217,14 @@ impl DeltaFormat {
     }
 }
 
-impl FixedSized for DeltaFormat {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN;
-}
-
-impl ReadScalar for DeltaFormat {
-    fn read(bytes: &[u8]) -> Option<Self> {
-        u16::read(bytes).map(Self::new)
+impl font_types::Scalar for DeltaFormat {
+    type Raw = <u16 as font_types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        (self as u16).to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u16>::from_raw(raw);
+        Self::new(t)
     }
 }
 

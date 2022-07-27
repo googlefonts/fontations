@@ -22,6 +22,7 @@ pub trait FixedSized: Sized {
     const RAW_BYTE_LEN: usize;
 }
 
+/// A trait for types that can be represented as raw bytes.
 pub trait ReadScalar: FixedSized {
     fn read(bytes: &[u8]) -> Option<Self>;
 }
@@ -71,11 +72,60 @@ impl<T: Scalar + Copy + PartialEq> PartialEq<T> for BigEndian<T> {
     }
 }
 
+// these following impls are an elaborate way to impl ReadScalar for BigEndian<T>
+impl<const N: usize> FixedSized for [u8; N] {
+    const RAW_BYTE_LEN: usize = N;
+}
+
+impl<const N: usize> ReadScalar for [u8; N] {
+    #[inline]
+    fn read(bytes: &[u8]) -> Option<Self> {
+        bytes.try_into().ok()
+    }
+}
+
+impl<T> ReadScalar for BigEndian<T>
+where
+    T: Scalar + FixedSized,
+    <T as Scalar>::Raw: ReadScalar,
+{
+    #[inline]
+    fn read(bytes: &[u8]) -> Option<Self> {
+        T::Raw::read(bytes).map(BigEndian)
+    }
+}
+
+// and then we can impl ReadScalar for T based on the impl for BigEndian<T>
+impl<T> ReadScalar for T
+where
+    T: Scalar + FixedSized,
+    <T as Scalar>::Raw: ReadScalar,
+{
+    #[inline]
+    fn read(bytes: &[u8]) -> Option<Self> {
+        BigEndian::<T>::read(bytes).map(BigEndian::get)
+    }
+}
+
+// and impl FixedSized for T based on the impl for the arrays
+impl<T> FixedSized for T
+where
+    T: Scalar,
+    <T as Scalar>::Raw: FixedSized,
+{
+    const RAW_BYTE_LEN: usize = <T as Scalar>::Raw::RAW_BYTE_LEN;
+}
+
+// and impl FixedSized for BigEndian<T> based on the impl forr T
+impl<T: Scalar + FixedSized> FixedSized for BigEndian<T> {
+    const RAW_BYTE_LEN: usize = T::RAW_BYTE_LEN;
+}
+
 /// An internal macro for implementing the `RawType` trait.
 #[macro_export]
 macro_rules! newtype_scalar {
-    ($name:ident, $raw:ty) => {
-        impl crate::raw::Scalar for $name {
+    ($ty:ident, $raw:ty) => {
+        impl crate::raw::Scalar for $ty {
             type Raw = $raw;
             fn to_raw(self) -> $raw {
                 self.0.to_raw()
@@ -83,19 +133,6 @@ macro_rules! newtype_scalar {
 
             fn from_raw(raw: $raw) -> Self {
                 Self(crate::raw::Scalar::from_raw(raw))
-            }
-        }
-
-        impl crate::raw::FixedSized for $name {
-            const RAW_BYTE_LEN: usize = std::mem::size_of::<$raw>();
-        }
-
-        impl crate::raw::ReadScalar for $name {
-            #[inline]
-            fn read(bytes: &[u8]) -> Option<Self> {
-                bytes
-                    .get(..<Self as crate::FixedSized>::RAW_BYTE_LEN)
-                    .map(|bytes| crate::raw::Scalar::from_raw(bytes.try_into().unwrap()))
             }
         }
     };
@@ -111,19 +148,6 @@ macro_rules! int_scalar {
 
             fn from_raw(raw: $raw) -> $ty {
                 Self::from_be_bytes(raw)
-            }
-        }
-
-        impl crate::raw::FixedSized for $ty {
-            const RAW_BYTE_LEN: usize = std::mem::size_of::<$raw>();
-        }
-
-        impl crate::raw::ReadScalar for $ty {
-            #[inline]
-            fn read(bytes: &[u8]) -> Option<Self> {
-                bytes
-                    .get(..Self::RAW_BYTE_LEN)
-                    .map(|bytes| crate::raw::Scalar::from_raw(bytes.try_into().unwrap()))
             }
         }
     };
