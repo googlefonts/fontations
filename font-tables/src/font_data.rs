@@ -1,13 +1,13 @@
 //! raw font bytes
 
-use std::ops::Range;
+use std::ops::{Bound, Range, RangeBounds};
 
 use font_types::ReadScalar;
 
-use crate::read::ReadError;
+use crate::read::{FontReadWithArgs, ReadError};
 use crate::table_ref::TableRef;
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct FontData<'a> {
     total_pos: u32,
     bytes: &'a [u8],
@@ -43,25 +43,20 @@ impl<'a> FontData<'a> {
             total_pos: self.total_pos.saturating_add(pos as u32),
         })
     }
-    //pub fn get(&self, range: impl RangeBounds<usize>) -> Option<FontData<'a>> {
-    //let start = match range.start_bound() {
-    //Bound::Unbounded => 0,
-    //Bound::Included(i) => *i,
-    //Bound::Excluded(i) => i.saturating_add(1),
-    //};
 
-    //let bounds = (range.start_bound().cloned(), range.end_bound().cloned());
-    //let total_pos = self.total_pos.saturating_add(start as u32);
-    //self.bytes
-    //.get(bounds)
-    //.map(|bytes| FontData { bytes, total_pos })
-    //}
-    //pub fn get<I>(&self, range: I) -> Option<FontData<'a>>
-    //where
-    //I: SliceIndex<[u8], Output = [u8]>,
-    //{
-    //self.bytes.get(range).map(|bytes| FontData { bytes })
-    //}
+    pub fn slice(&self, range: impl RangeBounds<usize>) -> Option<FontData<'a>> {
+        let start = match range.start_bound() {
+            Bound::Unbounded => 0,
+            Bound::Included(i) => *i,
+            Bound::Excluded(i) => i.saturating_add(1),
+        };
+
+        let bounds = (range.start_bound().cloned(), range.end_bound().cloned());
+        let total_pos = self.total_pos.saturating_add(start as u32);
+        self.bytes
+            .get(bounds)
+            .map(|bytes| FontData { bytes, total_pos })
+    }
 
     pub fn read_at<T: ReadScalar>(&self, offset: usize) -> Result<T, ReadError> {
         self.bytes
@@ -70,14 +65,13 @@ impl<'a> FontData<'a> {
             .ok_or_else(|| ReadError::OutOfBounds)
     }
 
-    pub fn read_at_with<T, F>(&self, offset: usize, f: F) -> Result<T, ReadError>
+    pub fn read_at_with_args<T, Args>(&self, offset: usize, args: &Args) -> Result<T, ReadError>
     where
-        F: FnOnce(&[u8]) -> Result<T, ReadError>,
+        T: FontReadWithArgs<'a, Args>,
     {
-        self.bytes
-            .get(offset..)
+        self.split_off(offset)
             .ok_or(ReadError::OutOfBounds)
-            .and_then(f)
+            .and_then(|data| T::read_with_args(data, args))
     }
 
     pub unsafe fn read_at_unchecked<T: ReadScalar>(&self, offset: usize) -> T {

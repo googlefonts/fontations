@@ -1,5 +1,6 @@
 //! Reading OpentType tables
 
+mod array;
 mod font_data;
 mod layout;
 mod read;

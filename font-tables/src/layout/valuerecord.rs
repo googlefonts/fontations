@@ -1,6 +1,18 @@
-/// A GPOS ValueRecord
+//! A GPOS ValueRecord
+
 use super::ValueFormat;
-use crate::parse_prelude::*;
+use crate::{
+    parse_prelude::*,
+    read::{ComputeSize, FontReadWithArgs},
+};
+
+impl ValueFormat {
+    /// Return the number of bytes required to store a [`ValueRecord`] in this format.
+    #[inline]
+    pub fn record_byte_len(self) -> usize {
+        self.bits().count_ones() as usize * u16::RAW_BYTE_LEN
+    }
+}
 
 #[derive(Clone, Default, PartialEq)]
 pub struct ValueRecord {
@@ -15,37 +27,46 @@ pub struct ValueRecord {
 }
 
 impl ValueRecord {
-    pub fn read(data: &[u8], format: ValueFormat) -> Result<Self, ReadError> {
+    pub fn read_old(data: &[u8], format: ValueFormat) -> Result<Self, ReadError> {
+        let data = FontData::new(data);
+        Self::read(data, format)
+    }
+
+    pub fn read<'a>(data: FontData<'a>, format: ValueFormat) -> Result<Self, ReadError> {
         let mut this = ValueRecord::default();
-        let mut words = data
-            .chunks_exact(2)
-            .map(|bytes| BigEndian::<i16>::new(bytes.try_into().unwrap()));
+        let mut cursor = data.cursor();
 
         if format.contains(ValueFormat::X_PLACEMENT) {
-            this.x_placement = Some(words.next().ok_or(ReadError::OutOfBounds)?);
+            this.x_placement = Some(cursor.read()?);
         }
         if format.contains(ValueFormat::Y_PLACEMENT) {
-            this.y_placement = Some(words.next().ok_or(ReadError::OutOfBounds)?);
+            this.y_placement = Some(cursor.read()?);
         }
         if format.contains(ValueFormat::X_ADVANCE) {
-            this.x_advance = Some(words.next().ok_or(ReadError::OutOfBounds)?);
+            this.x_advance = Some(cursor.read()?);
         }
         if format.contains(ValueFormat::Y_ADVANCE) {
-            this.y_advance = Some(words.next().ok_or(ReadError::OutOfBounds)?);
+            this.y_advance = Some(cursor.read()?);
         }
         if format.contains(ValueFormat::X_PLACEMENT_DEVICE) {
-            this.x_placement_device = Some(words.next().ok_or(ReadError::OutOfBounds)?);
+            this.x_placement_device = Some(cursor.read()?);
         }
         if format.contains(ValueFormat::Y_PLACEMENT_DEVICE) {
-            this.y_placement_device = Some(words.next().ok_or(ReadError::OutOfBounds)?);
+            this.y_placement_device = Some(cursor.read()?);
         }
         if format.contains(ValueFormat::X_ADVANCE_DEVICE) {
-            this.x_advance_device = Some(words.next().ok_or(ReadError::OutOfBounds)?);
+            this.x_advance_device = Some(cursor.read()?);
         }
         if format.contains(ValueFormat::Y_ADVANCE_DEVICE) {
-            this.y_advance_device = Some(words.next().ok_or(ReadError::OutOfBounds)?);
+            this.y_advance_device = Some(cursor.read()?);
         }
         Ok(this)
+    }
+}
+
+impl<'a> FontReadWithArgs<'a, ValueFormat> for ValueRecord {
+    fn read_with_args(data: FontData<'a>, args: &ValueFormat) -> Result<Self, ReadError> {
+        ValueRecord::read(data, *args)
     }
 }
 
@@ -65,5 +86,12 @@ impl std::fmt::Debug for ValueRecord {
         self.y_advance_device
             .map(|y| f.field("y_advance_device", &y));
         f.finish()
+    }
+}
+
+impl ComputeSize<ValueFormat> for ValueRecord {
+    #[inline]
+    fn compute_size(args: &ValueFormat) -> usize {
+        args.record_byte_len()
     }
 }
