@@ -65,9 +65,9 @@ impl<'a> FontData<'a> {
             .ok_or_else(|| ReadError::OutOfBounds)
     }
 
-    pub fn read_at_with_args<T, Args>(&self, offset: usize, args: &Args) -> Result<T, ReadError>
+    pub fn read_at_with_args<T>(&self, offset: usize, args: &T::Args) -> Result<T, ReadError>
     where
-        T: FontReadWithArgs<'a, Args>,
+        T: FontReadWithArgs<'a>,
     {
         self.split_off(offset)
             .ok_or(ReadError::OutOfBounds)
@@ -135,18 +135,18 @@ impl<'a> Cursor<'a> {
     }
 
     /// read a value, validating it with the provided function if successful.
-    pub(crate) fn read_validate<T, F>(&mut self, f: F) -> Result<T, ReadError>
-    where
-        T: ReadScalar,
-        F: FnOnce(&T) -> bool,
-    {
-        let temp = self.read()?;
-        if f(&temp) {
-            Ok(temp)
-        } else {
-            Err(ReadError::ValidationError)
-        }
-    }
+    //pub(crate) fn read_validate<T, F>(&mut self, f: F) -> Result<T, ReadError>
+    //where
+    //T: ReadScalar,
+    //F: FnOnce(&T) -> bool,
+    //{
+    //let temp = self.read()?;
+    //if f(&temp) {
+    //Ok(temp)
+    //} else {
+    //Err(ReadError::ValidationError)
+    //}
+    //}
 
     //pub(crate) fn check_array<T: Scalar>(&mut self, len_bytes: usize) -> Result<(), ReadError> {
     //assert_ne!(std::mem::size_of::<BigEndian<T>>(), 0);

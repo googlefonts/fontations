@@ -7,8 +7,19 @@ pub trait FontRead<'a>: Sized {
     fn read(data: FontData<'a>) -> Result<Self, ReadError>;
 }
 
+//NOTE: this is separate so that it can be a super trait of FontReadWithArgs and
+//ComputeSize, without them needing to know about each other? I'm not sure this
+//is necessary, but I don't know the full heirarchy of traits I'm going to need
+//yet, so this seems... okay?
+
+/// A trait for a type that needs additional arguments to be read.
+pub trait ReadArgs {
+    type Args;
+}
+
 /// A trait for types that require external data in order to be constructed.
-pub trait FontReadWithArgs<'a, Args>: Sized {
+pub trait FontReadWithArgs<'a>: Sized + ReadArgs {
+    //type Args;
     /// read an item, using the provided args.
     ///
     /// If successful, returns a new item of this type, and the number of bytes
@@ -17,7 +28,7 @@ pub trait FontReadWithArgs<'a, Args>: Sized {
     /// If a type requires multiple arguments, they will be passed as a tuple.
     //TODO: split up the 'takes args' and 'reports size' parts of this into
     // separate traits
-    fn read_with_args(data: FontData<'a>, args: &Args) -> Result<Self, ReadError>;
+    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError>;
 }
 
 /// A trait for tables that have multiple possible formats.
@@ -27,9 +38,10 @@ pub trait Format<T> {
 }
 
 /// A type that can compute its size at runtime, based on some input.
-pub trait ComputeSize<Args> {
+pub trait ComputeSize: ReadArgs {
+    //type Args;
     /// Compute the number of bytes required to represent this type.
-    fn compute_size(args: &Args) -> usize;
+    fn compute_size(args: &Self::Args) -> usize;
 }
 
 /// An error that occurs when reading font data

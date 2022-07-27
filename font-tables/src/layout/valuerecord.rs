@@ -3,7 +3,7 @@
 use super::ValueFormat;
 use crate::{
     parse_prelude::*,
-    read::{ComputeSize, FontReadWithArgs},
+    read::{ComputeSize, FontReadWithArgs, ReadArgs},
 };
 
 impl ValueFormat {
@@ -64,8 +64,12 @@ impl ValueRecord {
     }
 }
 
-impl<'a> FontReadWithArgs<'a, ValueFormat> for ValueRecord {
-    fn read_with_args(data: FontData<'a>, args: &ValueFormat) -> Result<Self, ReadError> {
+impl ReadArgs for ValueRecord {
+    type Args = ValueFormat;
+}
+
+impl<'a> FontReadWithArgs<'a> for ValueRecord {
+    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
         ValueRecord::read(data, *args)
     }
 }
@@ -89,7 +93,7 @@ impl std::fmt::Debug for ValueRecord {
     }
 }
 
-impl ComputeSize<ValueFormat> for ValueRecord {
+impl ComputeSize for ValueRecord {
     #[inline]
     fn compute_size(args: &ValueFormat) -> usize {
         args.record_byte_len()

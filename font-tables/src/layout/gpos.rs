@@ -108,7 +108,7 @@ impl<'a> SinglePosFormat1<'a> {
 }
 
 impl<'a> SinglePosFormat2<'a> {
-    pub fn value_records(&self) -> ComputedArray<'a, ValueFormat, ValueRecord> {
+    pub fn value_records(&self) -> ComputedArray<'a, ValueRecord> {
         ComputedArray::new(
             self.data
                 .slice(self.shape.value_records_byte_range())

@@ -2,34 +2,32 @@
 
 use crate::font_data::FontData;
 use crate::parse_prelude::ReadError;
-use crate::read::{ComputeSize, FontReadWithArgs};
+use crate::read::{ComputeSize, FontReadWithArgs, ReadArgs};
 
 /// An array whose items size is not known at compile time.
 ///
 /// At runtime, `Args` are provided which will be used to compute the size
 /// of each item.
-pub struct ComputedArray<'a, Args, T> {
+pub struct ComputedArray<'a, T: ReadArgs> {
     // the length of each item
     item_len: usize,
     data: FontData<'a>,
-    args: Args,
-    phantom: std::marker::PhantomData<T>,
+    args: T::Args,
 }
 
-impl<'a, Args, T: ComputeSize<Args>> ComputedArray<'a, Args, T> {
-    pub fn new(data: FontData<'a>, args: Args) -> Self {
+impl<'a, T: ComputeSize> ComputedArray<'a, T> {
+    pub fn new(data: FontData<'a>, args: T::Args) -> Self {
         ComputedArray {
             item_len: T::compute_size(&args),
             data,
             args,
-            phantom: std::marker::PhantomData,
         }
     }
 }
 
-impl<'a, Args, T> ComputedArray<'a, Args, T>
+impl<'a, T> ComputedArray<'a, T>
 where
-    T: FontReadWithArgs<'a, Args> + Default,
+    T: FontReadWithArgs<'a> + Default,
 {
     pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = Result<T, ReadError>> + 'b {
         let mut i = 0;
@@ -50,7 +48,7 @@ where
     }
 }
 
-impl<Args, T> std::fmt::Debug for ComputedArray<'_, Args, T> {
+impl<T: ReadArgs> std::fmt::Debug for ComputedArray<'_, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         f.debug_struct("DynSizedArray")
             .field("bytes", &self.data)
