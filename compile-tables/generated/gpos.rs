@@ -388,13 +388,7 @@ impl FontWrite for PairSet {
 }
 
 impl Validate for PairSet {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("PairSet", |ctx| {
-            ctx.in_field("pair_value_records", |ctx| {
-                self.pair_value_records.validate_impl(ctx);
-            });
-        })
-    }
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
 /// Part of [PairSet]

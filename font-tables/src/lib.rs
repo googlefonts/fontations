@@ -9,8 +9,8 @@ mod table_ref;
 pub mod parse_prelude {
     pub use crate::array::ComputedArray;
     pub use crate::font_data::{Cursor, FontData};
-    pub use crate::read::{FontRead, Format, ReadError};
-    pub use crate::table_ref::{ResolveOffset, TableInfo, TableRef};
+    pub use crate::read::{FontRead, Format, ReadArgs, ReadError};
+    pub use crate::table_ref::{ResolveOffset, TableInfo, TableInfoWithArgs, TableRef};
 
     pub use font_types::{
         BigEndian, F2Dot14, FWord, Fixed, FixedSized, LongDateTime, MajorMinor, Offset, Offset16,

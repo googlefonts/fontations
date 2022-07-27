@@ -43,6 +43,18 @@ pub(crate) struct TableAttrs {
     pub(crate) skip_parse: Option<syn::Path>,
     pub(crate) skip_compile: Option<syn::Path>,
     pub(crate) validation_method: Option<syn::Path>,
+    pub(crate) read_args: Option<TableReadArgs>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TableReadArgs {
+    pub(crate) args: Vec<TableReadArg>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct TableReadArg {
+    pub(crate) ident: syn::Ident,
+    pub(crate) typ: syn::Type,
 }
 
 #[derive(Debug, Clone)]
@@ -511,6 +523,7 @@ impl Parse for FieldAttrs {
 static SKIP_PARSE: &str = "skip_parse";
 static SKIP_COMPILE: &str = "skip_compile";
 static VALIDATION_METHOD: &str = "validation_method";
+static READ_ARGS: &str = "read_args";
 
 impl Parse for TableAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -530,6 +543,8 @@ impl Parse for TableAttrs {
                 this.skip_compile = Some(attr.path);
             } else if ident == VALIDATION_METHOD {
                 this.validation_method = Some(attr.parse_args()?);
+            } else if ident == READ_ARGS {
+                this.read_args = Some(attr.parse_args()?);
             } else {
                 return Err(syn::Error::new(
                     ident.span(),
@@ -538,6 +553,24 @@ impl Parse for TableAttrs {
             }
         }
         Ok(this)
+    }
+}
+
+impl Parse for TableReadArgs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let args = Punctuated::<TableReadArg, Token![,]>::parse_separated_nonempty(input)?
+            .into_iter()
+            .collect();
+        Ok(TableReadArgs { args })
+    }
+}
+
+impl Parse for TableReadArg {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let ident = input.parse::<syn::Ident>()?;
+        input.parse::<Token![:]>()?;
+        let typ = input.parse::<syn::Type>()?;
+        Ok(TableReadArg { ident, typ })
     }
 }
 

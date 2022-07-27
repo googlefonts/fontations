@@ -778,6 +778,78 @@ impl<'a> PairPosFormat1<'a> {
     }
 }
 
+/// Part of [PairPosFormat1]
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct PairSetMarker {
+    value_format1: ValueFormat,
+    value_format2: ValueFormat,
+    pair_value_records_byte_len: usize,
+}
+
+impl PairSetMarker {
+    fn pair_value_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn pair_value_records_byte_range(&self) -> Range<usize> {
+        let start = self.pair_value_count_byte_range().end;
+        start..start + self.pair_value_records_byte_len
+    }
+}
+
+impl ReadArgs for PairSetMarker {
+    type Args = (ValueFormat, ValueFormat);
+}
+
+impl TableInfoWithArgs for PairSetMarker {
+    #[allow(unused_parens)]
+    fn parse_with_args<'a>(
+        data: FontData<'a>,
+        args: &(ValueFormat, ValueFormat),
+    ) -> Result<TableRef<'a, Self>, ReadError> {
+        let (value_format1, value_format2) = *args;
+        let mut cursor = data.cursor();
+        let pair_value_count: u16 = cursor.read()?;
+        let pair_value_records_byte_len =
+            (pair_value_record_len(pair_value_count, value_format1, value_format2));
+        cursor.advance_by(pair_value_records_byte_len);
+        cursor.finish(PairSetMarker {
+            value_format1,
+            value_format2,
+            pair_value_records_byte_len,
+        })
+    }
+}
+
+/// Part of [PairPosFormat1]
+pub type PairSet<'a> = TableRef<'a, PairSetMarker>;
+
+impl<'a> PairSet<'a> {
+    /// Number of PairValueRecords
+    pub fn pair_value_count(&self) -> u16 {
+        let range = self.shape.pair_value_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Array of PairValueRecords, ordered by glyph ID of the second
+    /// glyph.
+    pub fn pair_value_records(&self) -> ComputedArray<'a, PairValueRecord> {
+        let range = self.shape.pair_value_records_byte_range();
+        self.data
+            .read_with_args(range, &(self.value_format1(), self.value_format2()))
+            .unwrap()
+    }
+
+    pub(crate) fn value_format1(&self) -> ValueFormat {
+        self.shape.value_format1
+    }
+
+    pub(crate) fn value_format2(&self) -> ValueFormat {
+        self.shape.value_format2
+    }
+}
+
 impl Format<u16> for PairPosFormat2Marker {
     const FORMAT: u16 = 2;
 }

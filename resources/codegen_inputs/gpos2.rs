@@ -190,33 +190,35 @@ table PairPosFormat1 {
 }
 
 /// Part of [PairPosFormat1]
-//#[read_args(value_format1 = "ValueFormat", value_format2 = "ValueFormat")]
-#[skip_parse]
+#[read_args(value_format1: ValueFormat, value_format2: ValueFormat)]
 table PairSet {
     /// Number of PairValueRecords
     #[compile(array_len($pair_value_records))]
     pair_value_count: BigEndian<u16>,
     /// Array of PairValueRecords, ordered by glyph ID of the second
     /// glyph.
-    pair_value_records: [PairValueRecord],
-        //#[count_with(pair_value_record_len, pair_value_count, value_format1, value_format2)]
-        //#[read_with(value_format1, value_format2)]
-        //#[compile_type(Vec<PairValueRecord>)]
-        //pair_value_records: DynSizedArray<'a, (ValueFormat, ValueFormat), PairValueRecord>,
+    #[len_expr(pair_value_record_len($pair_value_count, $value_format1, $value_format2))]
+    #[read_with($value_format1, $value_format2)]
+    #[compile_type(Vec<PairValueRecord>)]
+    pair_value_records: ComputedArray<'a, PairValueRecord>,
 }
 
+//NOTE: this is supposed to be a record? but it sure acts a lot more like a table,
+//in that it does not have a known size.
 /// Part of [PairSet]
-//#[read_args(value_format1 = "ValueFormat", value_format2 = "ValueFormat")]
+//#[read_args(value_format1: ValueFormat, value_format2: ValueFormat)]
 #[skip_parse]
 record PairValueRecord {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
     second_glyph: BigEndian<u16>,
     /// Positioning data for the first glyph in the pair.
-    //#[read_with(value_format1)]
+    //#[read_with($value_format1)]
+    //#[len_expr($value_format1.record_byte_len())]
     value_record1: ValueRecord,
     /// Positioning data for the second glyph in the pair.
-    //#[read_with(value_format2)]
+    //#[read_with($value_format2)]
+    //#[len_expr($value_format2.record_byte_len())]
     value_record2: ValueRecord,
 }
 

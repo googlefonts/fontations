@@ -26,6 +26,16 @@ pub struct ValueRecord {
     pub y_advance_device: Option<BigEndian<i16>>,
 }
 
+// NOTE: this has a custom impl because it's a very funny case, being a record
+// with variable length that is computed. Handling this in codegen doesn't
+// feel totally worth it, to me
+#[derive(Debug, Default, PartialEq)]
+pub struct PairValueRecord {
+    pub second_glyph: BigEndian<u16>,
+    pub value_record1: ValueRecord,
+    pub value_record2: ValueRecord,
+}
+
 impl ValueRecord {
     pub fn read_old(data: &[u8], format: ValueFormat) -> Result<Self, ReadError> {
         let data = FontData::new(data);
@@ -97,5 +107,34 @@ impl ComputeSize for ValueRecord {
     #[inline]
     fn compute_size(args: &ValueFormat) -> usize {
         args.record_byte_len()
+    }
+}
+
+impl ReadArgs for PairValueRecord {
+    type Args = (ValueFormat, ValueFormat);
+}
+
+impl ComputeSize for PairValueRecord {
+    #[inline]
+    fn compute_size(args: &(ValueFormat, ValueFormat)) -> usize {
+        args.0.record_byte_len() + args.1.record_byte_len() + u16::RAW_BYTE_LEN
+    }
+}
+
+impl<'a> FontReadWithArgs<'a> for PairValueRecord {
+    fn read_with_args(
+        data: FontData<'a>,
+        args: &(ValueFormat, ValueFormat),
+    ) -> Result<PairValueRecord, ReadError> {
+        let second_glyph = data.read_at(0)?;
+        let range1 = 2..2 + args.0.record_byte_len();
+        let range2 = range1.end..range1.end + args.1.record_byte_len();
+        let value_record1 = data.read_with_args(range1, &args.0)?;
+        let value_record2 = data.read_with_args(range2, &args.0)?;
+        Ok(PairValueRecord {
+            second_glyph,
+            value_record1,
+            value_record2,
+        })
     }
 }

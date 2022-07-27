@@ -1,7 +1,10 @@
 //! Typed font tables
 
 use super::read::{FontRead, Format, ReadError};
-use crate::font_data::FontData;
+use crate::{
+    font_data::FontData,
+    read::{FontReadWithArgs, ReadArgs},
+};
 use font_types::Offset;
 
 /// Typed access to raw table data.
@@ -24,6 +27,15 @@ pub struct TableRef<'a, T> {
 /// fields, without needing to perform redundant bounds checks.
 pub trait TableInfo: Sized + Copy {
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError>;
+}
+
+/// A trait for types that describe the structure of a font table, but require
+/// additional information.
+pub trait TableInfoWithArgs: Sized + Copy + ReadArgs {
+    fn parse_with_args<'a>(
+        data: FontData<'a>,
+        args: &Self::Args,
+    ) -> Result<TableRef<'a, Self>, ReadError>;
 }
 
 impl<'a, T> TableRef<'a, T> {
@@ -72,5 +84,15 @@ impl<U, T: TableInfo + Format<U>> Format<U> for TableRef<'_, T> {
 impl<'a, T: TableInfo> FontRead<'a> for TableRef<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         T::parse(data)
+    }
+}
+
+impl<'a, T: ReadArgs> ReadArgs for TableRef<'a, T> {
+    type Args = T::Args;
+}
+
+impl<'a, T: TableInfoWithArgs> FontReadWithArgs<'a> for TableRef<'a, T> {
+    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
+        T::parse_with_args(data, args)
     }
 }
