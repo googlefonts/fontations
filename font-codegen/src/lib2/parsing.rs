@@ -108,7 +108,14 @@ pub(crate) struct FieldAttrs {
     pub(crate) format: Option<FormatAttr>,
     pub(crate) count: Option<Count>,
     pub(crate) compile: Option<InlineExpr>,
+    pub(crate) compile_type: Option<syn::Path>,
     pub(crate) len: Option<InlineExpr>,
+    pub(crate) read_with_args: Option<FieldReadArgs>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct FieldReadArgs {
+    pub(crate) inputs: Vec<syn::Ident>,
 }
 
 #[derive(Debug, Clone)]
@@ -155,7 +162,7 @@ pub(crate) enum FieldType {
         typ: syn::Ident,
     },
     Other {
-        typ: syn::Ident,
+        typ: syn::Path,
     },
     Array {
         inner_typ: Box<FieldType>,
@@ -378,9 +385,7 @@ impl Parse for FieldType {
         let path = input.parse::<syn::Path>()?;
         let last = path.segments.last().expect("do zero-length paths exist?");
         if last.ident != "BigEndian" {
-            return Ok(FieldType::Other {
-                typ: last.ident.clone(),
-            });
+            return Ok(FieldType::Other { typ: path });
         }
 
         let inner = get_single_generic_type_arg(&last.arguments).ok_or_else(|| {
@@ -401,6 +406,20 @@ impl Parse for FieldType {
         } else {
             Err(syn::Error::new(last.span(), "unexpected arguments"))
         }
+    }
+}
+
+impl Parse for FieldReadArgs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut inputs = Vec::new();
+        while !input.is_empty() {
+            input.parse::<Token![$]>()?;
+            inputs.push(input.parse::<syn::Ident>()?);
+            if !input.is_empty() {
+                input.parse::<Token![,]>()?;
+            }
+        }
+        Ok(FieldReadArgs { inputs })
     }
 }
 
@@ -436,6 +455,8 @@ static FORMAT: &str = "format";
 static VERSION: &str = "version";
 static SKIP_OFFSET_GETTER: &str = "skip_offset_getter";
 static COMPILE: &str = "compile";
+static COMPILE_TYPE: &str = "compile_type";
+static READ_WITH: &str = "read_with";
 
 impl Parse for FieldAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -463,10 +484,14 @@ impl Parse for FieldAttrs {
                 this.count = Some(Count::Field(attr.parse_args()?));
             } else if ident == COMPILE {
                 this.compile = Some(parse_inline_expr(attr.tokens)?);
+            } else if ident == COMPILE_TYPE {
+                this.compile_type = Some(attr.parse_args()?);
             } else if ident == AVAILABLE {
                 this.available = Some(attr.parse_args()?);
             } else if ident == LEN {
                 this.len = Some(parse_inline_expr(attr.tokens)?);
+            } else if ident == READ_WITH {
+                this.read_with_args = Some(attr.parse_args()?);
             } else if ident == FORMAT {
                 this.format = Some(FormatAttr {
                     _kw: ident.clone(),

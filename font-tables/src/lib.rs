@@ -7,6 +7,7 @@ mod read;
 mod table_ref;
 
 pub mod parse_prelude {
+    pub use crate::array::ComputedArray;
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::read::{FontRead, Format, ReadError};
     pub use crate::table_ref::{ResolveOffset, TableInfo, TableRef};

@@ -65,11 +65,11 @@ impl<'a> FontData<'a> {
             .ok_or_else(|| ReadError::OutOfBounds)
     }
 
-    pub fn read_at_with_args<T>(&self, offset: usize, args: &T::Args) -> Result<T, ReadError>
+    pub fn read_with_args<T>(&self, range: Range<usize>, args: &T::Args) -> Result<T, ReadError>
     where
         T: FontReadWithArgs<'a>,
     {
-        self.split_off(offset)
+        self.slice(range)
             .ok_or(ReadError::OutOfBounds)
             .and_then(|data| T::read_with_args(data, args))
     }

@@ -131,8 +131,8 @@ table SinglePosFormat1 {
     value_format: BigEndian<ValueFormat>,
     /// Defines positioning value(s) — applied to all glyphs in the
     /// Coverage table.
-    #[skip_getter]
     #[len_expr($value_format.record_byte_len())]
+    #[read_with($value_format)]
     value_record: ValueRecord,
 }
 
@@ -151,13 +151,10 @@ table SinglePosFormat2 {
     #[compile(array_len($value_records))]
     value_count: BigEndian<u16>,
     /// Array of ValueRecords — positioning values applied to glyphs.
-    #[skip_getter]
     #[len_expr($value_count as usize * $value_format.record_byte_len())]
-    value_records: [ValueRecord],
-    //#[count_with(value_record_array_len, value_format, value_count)]
-    //#[read_with(value_format)]
-    //#[compile_type(Vec<ValueRecord>)]
-    //value_records: DynSizedArray<'a, ValueFormat, ValueRecord>,
+    #[read_with($value_format)]
+    #[compile_type(Vec<ValueRecord>)]
+    value_records: ComputedArray<'a, ValueRecord>,
 }
 
 /// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable

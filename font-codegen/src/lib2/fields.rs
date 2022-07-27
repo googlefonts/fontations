@@ -168,7 +168,7 @@ impl Field {
     pub(crate) fn raw_getter_return_type(&self) -> TokenStream {
         match &self.typ {
             FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => typ.to_token_stream(),
-            FieldType::Other { typ } => quote!( &#typ ),
+            FieldType::Other { typ } => typ.to_token_stream(),
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
                 FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
                     quote!(&[BigEndian<#typ>])
@@ -180,6 +180,9 @@ impl Field {
     }
 
     pub(crate) fn owned_type(&self) -> TokenStream {
+        if let Some(typ) = &self.attrs.compile_type {
+            return typ.into_token_stream();
+        }
         self.typ.compile_type(self.is_nullable())
     }
 
@@ -198,7 +201,13 @@ impl Field {
         }
 
         let range_stmt = self.getter_range_stmt();
-        let mut read_stmt = if is_array {
+        let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
+            let get_args = match args.inputs.as_slice() {
+                [arg] => quote!(self.#arg()),
+                args => quote!( ( #( self.#args() ),* ) ),
+            };
+            quote!( self.data.read_with_args(range, &#get_args).unwrap() )
+        } else if is_array {
             quote!(self.data.read_array(range).unwrap())
         } else {
             quote!(self.data.read_at(range.start).unwrap())
@@ -373,7 +382,7 @@ impl Field {
 
     fn compile_write_stmt(&self) -> TokenStream {
         let value_expr = if let Some(format) = &self.attrs.format {
-            let typ = self.typ.compile_type(self.is_nullable());
+            let typ = self.typ.cooked_type_tokens();
             let value = &format.value;
             quote!( (#value as #typ) )
         } else if let Some(computed) = &self.attrs.compile {
@@ -408,10 +417,10 @@ impl FieldType {
     /// 'cooked', as in now 'raw', i.e no 'BigEndian' wrapper
     pub(crate) fn cooked_type_tokens(&self) -> &syn::Ident {
         match &self {
-            FieldType::Offset { typ, .. }
-            | FieldType::Scalar { typ }
-            | FieldType::Other { typ } => typ,
-
+            FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => typ,
+            FieldType::Other { typ } => typ
+                .get_ident()
+                .expect("non-trivial custom types never cooked"),
             FieldType::Array { .. } => panic!("array tokens never cooked"),
         }
     }
@@ -426,7 +435,8 @@ impl FieldType {
 
     fn compile_type(&self, nullable: bool) -> TokenStream {
         match self {
-            FieldType::Scalar { typ } | FieldType::Other { typ } => typ.into_token_stream(),
+            FieldType::Scalar { typ } => typ.into_token_stream(),
+            FieldType::Other { typ } => typ.into_token_stream(),
             FieldType::Offset { typ, target } => {
                 let target = target
                     .as_ref()

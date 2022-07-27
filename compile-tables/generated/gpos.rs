@@ -302,9 +302,6 @@ impl Validate for SinglePosFormat2 {
             ctx.in_field("coverage_offset", |ctx| {
                 self.coverage_offset.validate_impl(ctx);
             });
-            ctx.in_field("value_records", |ctx| {
-                self.value_records.validate_impl(ctx);
-            });
         })
     }
 }

@@ -25,6 +25,20 @@ impl<'a, T: ComputeSize> ComputedArray<'a, T> {
     }
 }
 
+impl<'a, T: ReadArgs> ReadArgs for ComputedArray<'a, T> {
+    type Args = T::Args;
+}
+
+impl<'a, T> FontReadWithArgs<'a> for ComputedArray<'a, T>
+where
+    T: ComputeSize + FontReadWithArgs<'a>,
+    T::Args: Copy,
+{
+    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
+        Ok(Self::new(data, *args))
+    }
+}
+
 impl<'a, T> ComputedArray<'a, T>
 where
     T: FontReadWithArgs<'a> + Default,

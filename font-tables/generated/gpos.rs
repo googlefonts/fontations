@@ -547,6 +547,15 @@ impl<'a> SinglePosFormat1<'a> {
         let range = self.shape.value_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
+
+    /// Defines positioning value(s) — applied to all glyphs in the
+    /// Coverage table.
+    pub fn value_record(&self) -> ValueRecord {
+        let range = self.shape.value_record_byte_range();
+        self.data
+            .read_with_args(range, &self.value_format())
+            .unwrap()
+    }
 }
 
 impl Format<u16> for SinglePosFormat2Marker {
@@ -634,6 +643,14 @@ impl<'a> SinglePosFormat2<'a> {
     pub fn value_count(&self) -> u16 {
         let range = self.shape.value_count_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+
+    /// Array of ValueRecords — positioning values applied to glyphs.
+    pub fn value_records(&self) -> ComputedArray<'a, ValueRecord> {
+        let range = self.shape.value_records_byte_range();
+        self.data
+            .read_with_args(range, &self.value_format())
+            .unwrap()
     }
 }
 

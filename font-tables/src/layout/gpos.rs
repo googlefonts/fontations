@@ -95,25 +95,3 @@ fn class1_record_len(
         * class1_count as usize
         * class2_count as usize
 }
-
-impl<'a> SinglePosFormat1<'a> {
-    pub fn value_record(&self) -> ValueRecord {
-        self.data
-            .read_at_with_args(
-                self.shape.value_record_byte_range().start,
-                &self.value_format(),
-            )
-            .unwrap_or_default()
-    }
-}
-
-impl<'a> SinglePosFormat2<'a> {
-    pub fn value_records(&self) -> ComputedArray<'a, ValueRecord> {
-        ComputedArray::new(
-            self.data
-                .slice(self.shape.value_records_byte_range())
-                .unwrap_or_default(),
-            self.value_format(),
-        )
-    }
-}
