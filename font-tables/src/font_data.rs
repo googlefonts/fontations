@@ -4,6 +4,7 @@ use std::ops::Range;
 
 use font_types::ReadScalar;
 
+use crate::read::ReadError;
 use crate::table_ref::TableRef;
 
 #[derive(Debug, Clone, Copy)]
@@ -23,24 +24,6 @@ pub struct Cursor<'a> {
     pos: usize,
     data: FontData<'a>,
 }
-
-#[derive(Debug, Clone)]
-pub enum ReadError {
-    OutOfBounds,
-    InvalidFormat(u16),
-    InvalidArrayLen,
-    ValidationError,
-    NullOffset,
-}
-
-impl std::fmt::Display for ReadError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Some error I guess")
-    }
-}
-
-#[cfg(feature = "std")]
-impl std::error::Error for ReadError {}
 
 impl<'a> FontData<'a> {
     /// Create a new `FontData` with these bytes.

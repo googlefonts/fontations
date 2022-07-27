@@ -1,7 +1,14 @@
 //! Typed font tables
 
-use super::font_data::{FontData, ReadError};
+use super::read::{FontRead, Format, ReadError};
+use crate::font_data::FontData;
 use font_types::Offset;
+
+/// Typed access to raw table data.
+pub struct TableRef<'a, T> {
+    pub(crate) shape: T,
+    pub(crate) data: FontData<'a>,
+}
 
 /// A trait for types that describe the structure of a specific font table.
 ///
@@ -19,38 +26,10 @@ pub trait TableInfo: Sized + Copy {
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError>;
 }
 
-/// Typed access to raw table data.
-pub struct TableRef<'a, T> {
-    pub(crate) shape: T,
-    pub(crate) data: FontData<'a>,
-}
-
-/// A trait for tables that have multiple possible formats.
-pub trait Format<T> {
-    /// The format value for this table.
-    const FORMAT: T;
-}
-
-// a blanket impl so that the format is available through a TableRef
-impl<U, T: TableInfo + Format<U>> Format<U> for TableRef<'_, T> {
-    const FORMAT: U = T::FORMAT;
-}
-
-/// A type that can be parsed from raw table data.
-pub trait FontRead<'a>: Sized {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError>;
-}
-
 impl<'a, T> TableRef<'a, T> {
     /// Resolve the provided offset from the start of this table.
     pub fn resolve_offset<O: Offset, R: FontRead<'a>>(&self, offset: O) -> Result<R, ReadError> {
         offset.resolve(&self.data)
-    }
-}
-
-impl<'a, T: TableInfo> FontRead<'a> for TableRef<'a, T> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        T::parse(data)
     }
 }
 
@@ -81,5 +60,17 @@ impl<O: Offset> ResolveOffset for O {
                 .ok_or(ReadError::OutOfBounds)
                 .and_then(T::read),
         )
+    }
+}
+
+// a blanket impl so that the format is available through a TableRef
+impl<U, T: TableInfo + Format<U>> Format<U> for TableRef<'_, T> {
+    const FORMAT: U = T::FORMAT;
+}
+
+// blanket impl of FontRead for any TableRef
+impl<'a, T: TableInfo> FontRead<'a> for TableRef<'a, T> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        T::parse(data)
     }
 }
