@@ -7,7 +7,7 @@ use quote::{quote, ToTokens};
 
 use crate::lib2::parsing::Count;
 
-use super::parsing::{Field, FieldType, Fields};
+use super::parsing::{Field, FieldReadArgs, FieldType, Fields};
 
 impl Fields {
     pub(crate) fn new(mut fields: Vec<Field>) -> syn::Result<Self> {
@@ -140,7 +140,7 @@ impl Field {
             FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
                 quote!(#typ::RAW_BYTE_LEN)
             }
-            FieldType::Other { .. } | FieldType::Array { .. } => {
+            FieldType::Other { .. } | FieldType::Array { .. } | FieldType::ComputedArray { .. } => {
                 let len_field = self.shape_byte_len_field_name();
                 quote!(self.#len_field)
             }
@@ -162,6 +162,13 @@ impl Field {
                     .into_iter()
                     .flat_map(|expr| expr.referenced_fields.iter()),
             )
+            .chain(
+                self.attrs
+                    .read_with_args
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(|args| args.inputs.iter()),
+            )
     }
 
     /// 'raw' as in this does not include handling offset resolution
@@ -176,6 +183,7 @@ impl Field {
                 FieldType::Other { typ } => quote!( &[#typ] ),
                 _ => unreachable!(),
             },
+            FieldType::ComputedArray { inner_typ } => quote!(ComputedArray<'a, #inner_typ>),
         }
     }
 
@@ -202,10 +210,7 @@ impl Field {
 
         let range_stmt = self.getter_range_stmt();
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
-            let get_args = match args.inputs.as_slice() {
-                [arg] => quote!(self.#arg()),
-                args => quote!( ( #( self.#args() ),* ) ),
-            };
+            let get_args = args.to_tokens_for_table_getter();
             quote!( self.data.read_with_args(range, &#get_args).unwrap() )
         } else if is_array {
             quote!(self.data.read_array(range).unwrap())
@@ -329,13 +334,28 @@ impl Field {
             let len_expr = if let Some(expr) = &self.attrs.len {
                 expr.expr.to_token_stream()
             } else {
-                let expr = match self.attrs.count.as_ref() {
+                let count_expr = match self.attrs.count.as_ref() {
                     Some(Count::Field(field)) => quote!( (#field as usize )),
                     Some(Count::Expr(expr)) => expr.expr.to_token_stream(),
-                    None => unreachable!("must have one of count/count_exr/len"),
+                    None => unreachable!("must have one of count/count_expr/len"),
                 };
-                let inner_type = self.typ.inner_type().expect("only arrays have count attr");
-                quote!(  #expr * #inner_type::RAW_BYTE_LEN )
+                let size_expr = match &self.typ {
+                    FieldType::Array { inner_typ } => {
+                        let inner_typ = inner_typ.cooked_type_tokens();
+                        quote!( #inner_typ::RAW_BYTE_LEN )
+                    }
+                    FieldType::ComputedArray { inner_typ } => {
+                        let read_args = self
+                            .attrs
+                            .read_with_args
+                            .as_ref()
+                            .map(FieldReadArgs::to_tokens_for_validation)
+                            .expect("ComputedArray needs read_args attribute");
+                        quote!( <#inner_typ as ComputeSize>::compute_size(&#read_args) )
+                    }
+                    _ => unreachable!("count not valid here"),
+                };
+                quote!(  #count_expr * #size_expr )
             };
 
             match &self.attrs.available {
@@ -404,7 +424,7 @@ impl Field {
     pub(crate) fn gets_recursive_validation(&self) -> bool {
         match &self.typ {
             FieldType::Scalar { .. } | FieldType::Other { .. } => false,
-            FieldType::Offset { .. } => true,
+            FieldType::Offset { .. } | FieldType::ComputedArray { .. } => true,
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
                 FieldType::Offset { .. } | FieldType::Other { .. } => true,
                 _ => false,
@@ -421,15 +441,9 @@ impl FieldType {
             FieldType::Other { typ } => typ
                 .get_ident()
                 .expect("non-trivial custom types never cooked"),
-            FieldType::Array { .. } => panic!("array tokens never cooked"),
-        }
-    }
-
-    pub(crate) fn inner_type(&self) -> Option<&syn::Ident> {
-        if let FieldType::Array { inner_typ } = &self {
-            Some(inner_typ.cooked_type_tokens())
-        } else {
-            None
+            FieldType::Array { .. } | FieldType::ComputedArray { .. } => {
+                panic!("array tokens never cooked")
+            }
         }
     }
 
@@ -456,6 +470,23 @@ impl FieldType {
                 let inner_tokens = inner_typ.compile_type(nullable);
                 quote!( Vec<#inner_tokens> )
             }
+            FieldType::ComputedArray { inner_typ } => quote!(Vec<#inner_typ>),
+        }
+    }
+}
+
+impl FieldReadArgs {
+    fn to_tokens_for_table_getter(&self) -> TokenStream {
+        match self.inputs.as_slice() {
+            [arg] => quote!(self.#arg()),
+            args => quote!( ( #( self.#args() ),* ) ),
+        }
+    }
+
+    fn to_tokens_for_validation(&self) -> TokenStream {
+        match self.inputs.as_slice() {
+            [arg] => arg.to_token_stream(),
+            args => quote!( ( #( #args ),* ) ),
         }
     }
 }

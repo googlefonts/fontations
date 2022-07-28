@@ -39,7 +39,6 @@ pub trait Format<T> {
 
 /// A type that can compute its size at runtime, based on some input.
 pub trait ComputeSize: ReadArgs {
-    //type Args;
     /// Compute the number of bytes required to represent this type.
     fn compute_size(args: &Self::Args) -> usize;
 }

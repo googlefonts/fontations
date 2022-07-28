@@ -600,7 +600,8 @@ impl TableInfo for SinglePosFormat2Marker {
         cursor.advance::<Offset16>();
         let value_format: ValueFormat = cursor.read()?;
         let value_count: u16 = cursor.read()?;
-        let value_records_byte_len = (value_count as usize * value_format.record_byte_len());
+        let value_records_byte_len =
+            (value_count as usize) * <ValueRecord as ComputeSize>::compute_size(&value_format);
         cursor.advance_by(value_records_byte_len);
         cursor.finish(SinglePosFormat2Marker {
             value_records_byte_len,

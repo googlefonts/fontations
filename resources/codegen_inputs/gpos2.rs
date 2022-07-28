@@ -131,7 +131,6 @@ table SinglePosFormat1 {
     value_format: BigEndian<ValueFormat>,
     /// Defines positioning value(s) — applied to all glyphs in the
     /// Coverage table.
-    #[len_expr($value_format.record_byte_len())]
     #[read_with($value_format)]
     value_record: ValueRecord,
 }
@@ -151,10 +150,9 @@ table SinglePosFormat2 {
     #[compile(array_len($value_records))]
     value_count: BigEndian<u16>,
     /// Array of ValueRecords — positioning values applied to glyphs.
-    #[len_expr($value_count as usize * $value_format.record_byte_len())]
+    #[count(value_count)]
     #[read_with($value_format)]
-    #[compile_type(Vec<ValueRecord>)]
-    value_records: ComputedArray<'a, ValueRecord>,
+    value_records: ComputedArray<ValueRecord>,
 }
 
 /// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
@@ -199,8 +197,7 @@ table PairSet {
     /// glyph.
     #[len_expr(pair_value_record_len($pair_value_count, $value_format1, $value_format2))]
     #[read_with($value_format1, $value_format2)]
-    #[compile_type(Vec<PairValueRecord>)]
-    pair_value_records: ComputedArray<'a, PairValueRecord>,
+    pair_value_records: ComputedArray<PairValueRecord>,
 }
 
 //NOTE: this is supposed to be a record? but it sure acts a lot more like a table,

@@ -179,6 +179,9 @@ pub(crate) enum FieldType {
     Array {
         inner_typ: Box<FieldType>,
     },
+    ComputedArray {
+        inner_typ: syn::Path,
+    },
 }
 
 /// A raw c-style enum
@@ -396,16 +399,21 @@ impl Parse for FieldType {
 
         let path = input.parse::<syn::Path>()?;
         let last = path.segments.last().expect("do zero-length paths exist?");
+
+        if last.ident == "ComputedArray" {
+            let inner_typ = get_single_generic_type_arg(&last.arguments)?;
+            return Ok(FieldType::ComputedArray { inner_typ });
+        }
+
         if last.ident != "BigEndian" {
             return Ok(FieldType::Other { typ: path });
         }
 
-        let inner = get_single_generic_type_arg(&last.arguments).ok_or_else(|| {
-            syn::Error::new(last.ident.span(), "expected single generic type argument")
-        })?;
+        let inner = get_single_generic_type_arg(&last.arguments)?;
         let last = inner.segments.last().unwrap();
         if ["Offset16", "Offset24", "Offset32"].contains(&last.ident.to_string().as_str()) {
             let target = get_single_generic_type_arg(&last.arguments)
+                .ok()
                 .map(|p| p.segments.last().unwrap().ident.clone());
             Ok(FieldType::Offset {
                 typ: last.ident.clone(),
@@ -654,19 +662,22 @@ fn get_optional_docs(input: ParseStream) -> Result<Vec<syn::Attribute>, syn::Err
     Ok(result)
 }
 
-fn get_single_generic_type_arg(input: &syn::PathArguments) -> Option<syn::Path> {
+fn get_single_generic_type_arg(input: &syn::PathArguments) -> syn::Result<syn::Path> {
     match input {
         syn::PathArguments::AngleBracketed(args) if args.args.len() == 1 => {
             let arg = args.args.last().unwrap();
             if let syn::GenericArgument::Type(syn::Type::Path(path)) = arg {
                 if path.qself.is_none() && path.path.segments.len() == 1 {
-                    return Some(path.path.clone());
+                    return Ok(path.path.clone());
                 }
             }
-            None
         }
-        _ => None,
+        _ => (),
     }
+    Err(syn::Error::new(
+        input.span(),
+        "expected single generic type arg",
+    ))
 }
 
 #[cfg(test)]
