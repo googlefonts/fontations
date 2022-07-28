@@ -510,7 +510,7 @@ impl TableInfo for SinglePosFormat1Marker {
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let value_format: ValueFormat = cursor.read()?;
-        let value_record_byte_len = (value_format.record_byte_len());
+        let value_record_byte_len = <ValueRecord as ComputeSize>::compute_size(&value_format);
         cursor.advance_by(value_record_byte_len);
         cursor.finish(SinglePosFormat1Marker {
             value_record_byte_len,
@@ -812,8 +812,8 @@ impl TableInfoWithArgs for PairSetMarker {
         let (value_format1, value_format2) = *args;
         let mut cursor = data.cursor();
         let pair_value_count: u16 = cursor.read()?;
-        let pair_value_records_byte_len =
-            (pair_value_record_len(pair_value_count, value_format1, value_format2));
+        let pair_value_records_byte_len = (pair_value_count as usize)
+            * <PairValueRecord as ComputeSize>::compute_size(&(value_format1, value_format2));
         cursor.advance_by(pair_value_records_byte_len);
         cursor.finish(PairSetMarker {
             value_format1,

@@ -117,7 +117,9 @@ impl Field {
     }
 
     pub(crate) fn has_computed_len(&self) -> bool {
-        self.attrs.len.is_some() || self.attrs.count.is_some()
+        self.attrs.len.is_some()
+            || self.attrs.count.is_some()
+            || self.attrs.read_with_args.is_some()
     }
 
     pub(crate) fn is_version_dependent(&self) -> bool {
@@ -364,34 +366,8 @@ impl Field {
         });
 
         let other_stuff = if self.has_computed_len() {
-            assert!(!self.read_at_parse_time, "i did not expect this to happen");
+            let len_expr = self.validation_computed_len_stmt().unwrap();
             let len_field_name = self.shape_byte_len_field_name();
-            let len_expr = if let Some(expr) = &self.attrs.len {
-                expr.expr.to_token_stream()
-            } else {
-                let count_expr = match self.attrs.count.as_deref() {
-                    Some(Count::Field(field)) => quote!( (#field as usize )),
-                    Some(Count::Expr(expr)) => expr.expr.to_token_stream(),
-                    None => unreachable!("must have one of count/count_expr/len"),
-                };
-                let size_expr = match &self.typ {
-                    FieldType::Array { inner_typ } => {
-                        let inner_typ = inner_typ.cooked_type_tokens();
-                        quote!( #inner_typ::RAW_BYTE_LEN )
-                    }
-                    FieldType::ComputedArray { inner_typ, .. } => {
-                        let read_args = self
-                            .attrs
-                            .read_with_args
-                            .as_deref()
-                            .map(FieldReadArgs::to_tokens_for_validation)
-                            .expect("ComputedArray needs read_args attribute");
-                        quote!( <#inner_typ as ComputeSize>::compute_size(&#read_args) )
-                    }
-                    _ => unreachable!("count not valid here"),
-                };
-                quote!(  #count_expr * #size_expr )
-            };
 
             match &self.attrs.available {
                 Some(version) => quote! {
@@ -421,6 +397,45 @@ impl Field {
             #versioned_field_start
             #other_stuff
         }
+    }
+
+    fn validation_computed_len_stmt(&self) -> Option<TokenStream> {
+        if !self.has_computed_len() {
+            return None;
+        }
+
+        assert!(!self.read_at_parse_time, "i did not expect this to happen");
+        let read_args = self
+            .attrs
+            .read_with_args
+            .as_deref()
+            .map(FieldReadArgs::to_tokens_for_validation);
+
+        if let FieldType::Other { typ } = &self.typ {
+            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args)));
+        }
+
+        let len_expr = if let Some(expr) = &self.attrs.len {
+            expr.expr.to_token_stream()
+        } else {
+            let count_expr = match self.attrs.count.as_deref() {
+                Some(Count::Field(field)) => quote!( (#field as usize )),
+                Some(Count::Expr(expr)) => expr.expr.to_token_stream(),
+                None => unreachable!("must have one of count/count_expr/len"),
+            };
+            let size_expr = match &self.typ {
+                FieldType::Array { inner_typ } => {
+                    let inner_typ = inner_typ.cooked_type_tokens();
+                    quote!( #inner_typ::RAW_BYTE_LEN )
+                }
+                FieldType::ComputedArray { inner_typ, .. } => {
+                    quote!( <#inner_typ as ComputeSize>::compute_size(&#read_args) )
+                }
+                _ => unreachable!("count not valid here"),
+            };
+            quote!(  #count_expr * #size_expr )
+        };
+        Some(len_expr)
     }
 
     /// 'None' if this field's value is computed at compile time

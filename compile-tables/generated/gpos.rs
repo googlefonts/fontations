@@ -397,6 +397,9 @@ impl Validate for PairSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PairSet", |ctx| {
             ctx.in_field("pair_value_records", |ctx| {
+                if self.pair_value_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
                 self.pair_value_records.validate_impl(ctx);
             });
         })

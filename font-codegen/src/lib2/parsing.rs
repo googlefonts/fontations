@@ -396,7 +396,7 @@ impl Parse for Field {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         //let _attrs = get_optional_attributes(input)?;
         let attrs = input.parse()?;
-        let name = input.parse::<syn::Ident>()?;
+        let name = input.parse::<syn::Ident>().unwrap();
         let _ = input.parse::<Token![:]>()?;
         let typ = input.parse()?;
         Ok(Field {
@@ -534,7 +534,12 @@ impl Parse for FieldAttrs {
                     Count::Expr(parse_inline_expr(attr.tokens)?),
                 ));
             } else if ident == COUNT {
-                this.count = Some(Attr::new(ident.clone(), Count::Field(attr.parse_args()?)));
+                this.count = Some(Attr::new(
+                    ident.clone(),
+                    Count::Field(attr.parse_args().map_err(|err| {
+                        syn::Error::new(err.span(), "Expected single field name")
+                    })?),
+                ));
             } else if ident == COMPILE {
                 this.compile = Some(Attr::new(ident.clone(), parse_inline_expr(attr.tokens)?));
             } else if ident == COMPILE_TYPE {

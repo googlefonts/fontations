@@ -183,7 +183,6 @@ table PairPosFormat1 {
     /// Array of offsets to PairSet tables. Offsets are from beginning
     /// of PairPos subtable, ordered by Coverage Index.
     #[count(pair_set_count)]
-    //#[to_owned(self.pair_sets_to_owned())]
     pair_set_offsets: [BigEndian<Offset16<PairSet>>],
 }
 
@@ -195,7 +194,7 @@ table PairSet {
     pair_value_count: BigEndian<u16>,
     /// Array of PairValueRecords, ordered by glyph ID of the second
     /// glyph.
-    #[len_expr(pair_value_record_len($pair_value_count, $value_format1, $value_format2))]
+    #[count(pair_value_count)]
     #[read_with($value_format1, $value_format2)]
     pair_value_records: ComputedArray<PairValueRecord>,
 }
