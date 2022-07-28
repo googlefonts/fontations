@@ -95,6 +95,7 @@ impl Field {
     pub(crate) fn type_for_record(&self) -> TokenStream {
         match &self.typ {
             FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => quote!(BigEndian<#typ>),
+            FieldType::Other { typ } => typ.to_token_stream(),
             _ => panic!("arrays and custom types not supported in records"),
         }
     }
@@ -170,7 +171,7 @@ impl Field {
         self.attrs.skip_getter.is_none()
     }
 
-    pub(crate) fn len_expr(&self) -> TokenStream {
+    pub(crate) fn shape_len_expr(&self) -> TokenStream {
         // is this a scalar/offset? then it's just 'RAW_BYTE_LEN'
         // is this computed? then it is stored
         match &self.typ {
@@ -279,11 +280,22 @@ impl Field {
         let name = &self.name;
         let docs = &self.attrs.docs;
         let return_type = self.raw_getter_return_type();
+        // records are actually instantiated; their fields exist, so we return
+        // them by reference. This differs from tables, which have to instantiate
+        // their fields on access.
+        let add_borrow_just_for_record =
+            matches!(self.typ, FieldType::Other { .. }).then(|| quote!(&));
+
+        let getter_expr = match &self.typ {
+            FieldType::Scalar { .. } | FieldType::Offset { .. } => quote!(self.#name.get()),
+            FieldType::Other { .. } => quote!(&self.#name),
+            _ => panic!("unexpected record field type"),
+        };
 
         Some(quote! {
             #(#docs)*
-            pub fn #name(&self) -> #return_type {
-                self.#name.get()
+            pub fn #name(&self) -> #add_borrow_just_for_record #return_type {
+                #getter_expr
             }
         })
     }
@@ -366,7 +378,7 @@ impl Field {
         });
 
         let other_stuff = if self.has_computed_len() {
-            let len_expr = self.validation_computed_len_stmt().unwrap();
+            let len_expr = self.computed_len_expr().unwrap();
             let len_field_name = self.shape_byte_len_field_name();
 
             match &self.attrs.available {
@@ -399,7 +411,8 @@ impl Field {
         }
     }
 
-    fn validation_computed_len_stmt(&self) -> Option<TokenStream> {
+    /// The computed length of this field, if it is not a scalar/offset
+    fn computed_len_expr(&self) -> Option<TokenStream> {
         if !self.has_computed_len() {
             return None;
         }
@@ -436,6 +449,24 @@ impl Field {
             quote!(  #count_expr * #size_expr )
         };
         Some(len_expr)
+    }
+
+    pub(crate) fn record_len_expr(&self) -> TokenStream {
+        self.computed_len_expr().unwrap_or_else(|| {
+            let cooked = self.typ.cooked_type_tokens();
+            quote!(#cooked::RAW_BYTE_LEN)
+        })
+    }
+
+    pub(crate) fn record_init_stmt(&self) -> TokenStream {
+        let name = &self.name;
+        let rhs = if let Some(args) = &self.attrs.read_with_args {
+            let args = args.to_tokens_for_validation();
+            quote!( cursor.read_with_args(&#args)? )
+        } else {
+            quote!(cursor.read()?)
+        };
+        quote!( #name : #rhs )
     }
 
     /// 'None' if this field's value is computed at compile time

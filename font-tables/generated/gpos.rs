@@ -851,6 +851,66 @@ impl<'a> PairSet<'a> {
     }
 }
 
+/// Part of [PairSet]
+#[derive(Clone, Debug)]
+#[repr(C)]
+#[repr(packed)]
+pub struct PairValueRecord {
+    /// Glyph ID of second glyph in the pair (first glyph is listed in
+    /// the Coverage table).
+    pub second_glyph: BigEndian<u16>,
+    /// Positioning data for the first glyph in the pair.
+    pub value_record1: ValueRecord,
+    /// Positioning data for the second glyph in the pair.
+    pub value_record2: ValueRecord,
+}
+
+impl PairValueRecord {
+    /// Glyph ID of second glyph in the pair (first glyph is listed in
+    /// the Coverage table).
+    pub fn second_glyph(&self) -> u16 {
+        self.second_glyph.get()
+    }
+
+    /// Positioning data for the first glyph in the pair.
+    pub fn value_record1(&self) -> &ValueRecord {
+        &self.value_record1
+    }
+
+    /// Positioning data for the second glyph in the pair.
+    pub fn value_record2(&self) -> &ValueRecord {
+        &self.value_record2
+    }
+}
+
+impl ReadArgs for PairValueRecord {
+    type Args = (ValueFormat, ValueFormat);
+}
+
+impl ComputeSize for PairValueRecord {
+    fn compute_size(args: &(ValueFormat, ValueFormat)) -> usize {
+        let (value_format1, value_format2) = *args;
+        u16::RAW_BYTE_LEN
+            + <ValueRecord as ComputeSize>::compute_size(&value_format1)
+            + <ValueRecord as ComputeSize>::compute_size(&value_format2)
+    }
+}
+
+impl<'a> FontReadWithArgs<'a> for PairValueRecord {
+    fn read_with_args(
+        data: FontData<'a>,
+        args: &(ValueFormat, ValueFormat),
+    ) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let (value_format1, value_format2) = *args;
+        Ok(Self {
+            second_glyph: cursor.read()?,
+            value_record1: cursor.read_with_args(&value_format1)?,
+            value_record2: cursor.read_with_args(&value_format2)?,
+        })
+    }
+}
+
 impl Format<u16> for PairPosFormat2Marker {
     const FORMAT: u16 = 2;
 }

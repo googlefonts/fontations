@@ -200,7 +200,7 @@ impl Table {
         std::iter::from_fn(move || {
             let field = iter.next()?;
             let fn_name = field.shape_byte_range_fn_name();
-            let len_expr = field.len_expr();
+            let len_expr = field.shape_len_expr();
 
             // versioned fields have a different signature
             if field.attrs.available.is_some() {
@@ -304,7 +304,7 @@ impl Table {
 }
 
 impl TableReadArgs {
-    fn args_type(&self) -> TokenStream {
+    pub(crate) fn args_type(&self) -> TokenStream {
         match self.args.as_slice() {
             [TableReadArg { typ, .. }] => typ.to_token_stream(),
             other => {
@@ -314,7 +314,7 @@ impl TableReadArgs {
         }
     }
 
-    fn destructure_pattern(&self) -> TokenStream {
+    pub(crate) fn destructure_pattern(&self) -> TokenStream {
         match self.args.as_slice() {
             [TableReadArg { ident, .. }] => ident.to_token_stream(),
             other => {

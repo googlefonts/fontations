@@ -5,7 +5,7 @@ use quote::quote;
 
 use super::parsing::{Field, Fields, Record, TableAttrs};
 
-pub(crate) fn generate(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
+pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
     if item.attrs.skip_parse.is_some() {
         return Ok(Default::default());
     }
@@ -22,29 +22,72 @@ pub(crate) fn generate(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
         let docs = &fld.attrs.docs;
         quote!( #( #docs )* )
     });
-    let inner_types = item.fields.iter().map(|fld| fld.raw_getter_return_type());
     let getters = item.fields.iter().map(Field::record_getter);
+    let extra_traits = generate_extra_traits(item)?;
 
     Ok(quote! {
-        #( #docs )*
-        #[derive(Clone, Debug)]
-        #[repr(C)]
-        #[repr(packed)]
-        pub struct #name {
-            #( #field_docs pub #field_names: #field_types, )*
+    #( #docs )*
+    #[derive(Clone, Debug)]
+    #[repr(C)]
+    #[repr(packed)]
+    pub struct #name {
+        #( #field_docs pub #field_names: #field_types, )*
+    }
+
+    impl #name {
+        #( #getters )*
+    }
+
+    #extra_traits
+        })
+}
+
+fn generate_extra_traits(item: &Record) -> syn::Result<TokenStream> {
+    let name = &item.name;
+    if item.attrs.read_args.is_none() {
+        let inner_types = item.fields.iter().map(|fld| fld.raw_getter_return_type());
+        return Ok(quote! {
+            impl FixedSized for #name {
+                const RAW_BYTE_LEN: usize = #( #inner_types::RAW_BYTE_LEN )+*;
+            }
+        });
+    }
+
+    let args = item.attrs.read_args.as_ref().unwrap();
+    // impl ReadArgs
+    // impl ComputeSize
+    // impl FontReadWithArgs
+    let args_type = args.args_type();
+    let destructure_pattern = args.destructure_pattern();
+    let field_size_expr = item.fields.iter().map(Field::record_len_expr);
+    let field_inits = item.fields.iter().map(Field::record_init_stmt);
+
+    Ok(quote! {
+        impl ReadArgs for #name {
+            type Args = #args_type;
         }
 
-        impl #name {
-            #( #getters )*
+        impl ComputeSize for #name {
+            fn compute_size(args: &#args_type) -> usize {
+                let #destructure_pattern = *args;
+                #( #field_size_expr )+*
+            }
         }
 
-        impl FixedSized for #name {
-            const RAW_BYTE_LEN: usize = #( #inner_types::RAW_BYTE_LEN )+*;
+        impl<'a> FontReadWithArgs<'a> for #name {
+            fn read_with_args(data: FontData<'a>, args: &#args_type) -> Result<Self, ReadError> {
+                let mut cursor = data.cursor();
+                let #destructure_pattern = *args;
+                Ok(Self {
+                    #( #field_inits, )*
+                })
+
+            }
         }
     })
 }
 
-pub(crate) fn generate_compile(item: &Record) -> syn::Result<proc_macro2::TokenStream> {
+pub(crate) fn generate_compile(item: &Record) -> syn::Result<TokenStream> {
     generate_compile_impl(&item.name, &item.attrs, &item.fields)
 }
 

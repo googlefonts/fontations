@@ -4,6 +4,7 @@ use std::ops::{Bound, Range, RangeBounds};
 
 use font_types::ReadScalar;
 
+use crate::parse_prelude::ComputeSize;
 use crate::read::{FontReadWithArgs, ReadError};
 use crate::table_ref::TableRef;
 
@@ -131,6 +132,16 @@ impl<'a> Cursor<'a> {
     pub(crate) fn read<T: ReadScalar>(&mut self) -> Result<T, ReadError> {
         let temp = self.data.read_at(self.pos);
         self.pos += T::RAW_BYTE_LEN;
+        temp
+    }
+
+    pub(crate) fn read_with_args<T>(&mut self, args: &T::Args) -> Result<T, ReadError>
+    where
+        T: FontReadWithArgs<'a> + ComputeSize,
+    {
+        let len = T::compute_size(args);
+        let temp = self.data.read_with_args(self.pos..self.pos + len, args);
+        self.pos += len;
         temp
     }
 

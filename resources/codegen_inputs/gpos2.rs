@@ -199,22 +199,17 @@ table PairSet {
     pair_value_records: ComputedArray<PairValueRecord>,
 }
 
-//NOTE: this is supposed to be a record? but it sure acts a lot more like a table,
-//in that it does not have a known size.
 /// Part of [PairSet]
-//#[read_args(value_format1: ValueFormat, value_format2: ValueFormat)]
-#[skip_parse]
+#[read_args(value_format1: ValueFormat, value_format2: ValueFormat)]
 record PairValueRecord {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
     second_glyph: BigEndian<u16>,
     /// Positioning data for the first glyph in the pair.
-    //#[read_with($value_format1)]
-    //#[len_expr($value_format1.record_byte_len())]
+    #[read_with($value_format1)]
     value_record1: ValueRecord,
     /// Positioning data for the second glyph in the pair.
-    //#[read_with($value_format2)]
-    //#[len_expr($value_format2.record_byte_len())]
+    #[read_with($value_format2)]
     value_record2: ValueRecord,
 }
 

@@ -11,7 +11,7 @@ use super::{
     ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
     Lookup, LookupList, ScriptList, SequenceContext, TypedLookup,
 };
-pub use valuerecord::{PairValueRecord, ValueRecord};
+pub use valuerecord::ValueRecord;
 
 include!("../../generated/gpos.rs");
 
@@ -94,9 +94,4 @@ fn class1_record_len(
     (format1.record_byte_len() + format2.record_byte_len())
         * class1_count as usize
         * class2_count as usize
-}
-
-fn pair_value_record_len(count: u16, format1: ValueFormat, format2: ValueFormat) -> usize {
-    (std::mem::size_of::<u16>() + format1.record_byte_len() + format2.record_byte_len())
-        * count as usize
 }
