@@ -4,7 +4,6 @@ use std::collections::HashSet;
 
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
-use syn::spanned::Spanned;
 
 use crate::lib2::parsing::Count;
 
@@ -96,6 +95,10 @@ impl Field {
         match &self.typ {
             FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => quote!(BigEndian<#typ>),
             FieldType::Other { typ } => typ.to_token_stream(),
+            FieldType::ComputedArray(array) => {
+                let inner = array.type_with_lifetime();
+                quote!(ComputedArray<'a, #inner>)
+            }
             _ => panic!("arrays and custom types not supported in records"),
         }
     }
@@ -113,8 +116,12 @@ impl Field {
         quote::format_ident!("{}_byte_start", &self.name)
     }
 
-    pub(crate) fn is_array(&self) -> bool {
+    fn is_array(&self) -> bool {
         matches!(&self.typ, FieldType::Array { .. })
+    }
+
+    pub(crate) fn is_computed_array(&self) -> bool {
+        matches!(&self.typ, FieldType::ComputedArray { .. })
     }
 
     pub(crate) fn has_computed_len(&self) -> bool {
@@ -138,8 +145,8 @@ impl Field {
                 ));
             }
             match &self.typ {
-                FieldType::ComputedArray { all, .. } if self.attrs.count.is_none() => {
-                    return Err(syn::Error::new(all.span(), "missing count attribute"));
+                FieldType::ComputedArray(array) if self.attrs.count.is_none() => {
+                    return Err(syn::Error::new(array.span(), "missing count attribute"));
                 }
                 FieldType::Offset { .. } | FieldType::Scalar { .. } | FieldType::Array { .. } => {
                     return Err(syn::Error::new(
@@ -221,7 +228,10 @@ impl Field {
                 FieldType::Other { typ } => quote!( &[#typ] ),
                 _ => unreachable!(),
             },
-            FieldType::ComputedArray { inner_typ, .. } => quote!(ComputedArray<'a, #inner_typ>),
+            FieldType::ComputedArray(array) => {
+                let inner = array.type_with_lifetime();
+                quote!(ComputedArray<'a, #inner>)
+            }
         }
     }
 
@@ -283,12 +293,15 @@ impl Field {
         // records are actually instantiated; their fields exist, so we return
         // them by reference. This differs from tables, which have to instantiate
         // their fields on access.
-        let add_borrow_just_for_record =
-            matches!(self.typ, FieldType::Other { .. }).then(|| quote!(&));
+        let add_borrow_just_for_record = matches!(
+            self.typ,
+            FieldType::Other { .. } | FieldType::ComputedArray { .. }
+        )
+        .then(|| quote!(&));
 
         let getter_expr = match &self.typ {
             FieldType::Scalar { .. } | FieldType::Offset { .. } => quote!(self.#name.get()),
-            FieldType::Other { .. } => quote!(&self.#name),
+            FieldType::Other { .. } | FieldType::ComputedArray { .. } => quote!(&self.#name),
             _ => panic!("unexpected record field type"),
         };
 
@@ -431,18 +444,20 @@ impl Field {
         let len_expr = if let Some(expr) = &self.attrs.len {
             expr.expr.to_token_stream()
         } else {
-            let count_expr = match self.attrs.count.as_deref() {
-                Some(Count::Field(field)) => quote!( (#field as usize )),
-                Some(Count::Expr(expr)) => expr.expr.to_token_stream(),
-                None => unreachable!("must have one of count/count_expr/len"),
-            };
+            let count_expr = self
+                .attrs
+                .count
+                .as_deref()
+                .map(Count::count_expr)
+                .expect("must have one of count/count_expr/len");
             let size_expr = match &self.typ {
                 FieldType::Array { inner_typ } => {
                     let inner_typ = inner_typ.cooked_type_tokens();
                     quote!( #inner_typ::RAW_BYTE_LEN )
                 }
-                FieldType::ComputedArray { inner_typ, .. } => {
-                    quote!( <#inner_typ as ComputeSize>::compute_size(&#read_args) )
+                FieldType::ComputedArray(array) => {
+                    let inner = array.raw_inner_type();
+                    quote!( <#inner as ComputeSize>::compute_size(&#read_args) )
                 }
                 _ => unreachable!("count not valid here"),
             };
@@ -460,11 +475,27 @@ impl Field {
 
     pub(crate) fn record_init_stmt(&self) -> TokenStream {
         let name = &self.name;
-        let rhs = if let Some(args) = &self.attrs.read_with_args {
-            let args = args.to_tokens_for_validation();
-            quote!( cursor.read_with_args(&#args)? )
-        } else {
-            quote!(cursor.read()?)
+        let rhs = match &self.typ {
+            FieldType::Array { .. } => panic!("not expecting array here"),
+            FieldType::ComputedArray(_) => {
+                let args = self
+                    .attrs
+                    .read_with_args
+                    .as_ref()
+                    .unwrap()
+                    .to_tokens_for_validation();
+                let count = self.attrs.count.as_ref().unwrap().count_expr();
+                quote!(cursor.read_computed_array(#count, &#args)?)
+            }
+            _ => match self
+                .attrs
+                .read_with_args
+                .as_deref()
+                .map(FieldReadArgs::to_tokens_for_validation)
+            {
+                Some(args) => quote!(cursor.read_with_args(&#args)?),
+                None => quote!(cursor.read()?),
+            },
         };
         quote!( #name : #rhs )
     }
@@ -550,7 +581,7 @@ impl FieldType {
                 let inner_tokens = inner_typ.compile_type(nullable);
                 quote!( Vec<#inner_tokens> )
             }
-            FieldType::ComputedArray { inner_typ, .. } => quote!(Vec<#inner_typ>),
+            FieldType::ComputedArray(array) => array.compile_type(),
         }
     }
 }

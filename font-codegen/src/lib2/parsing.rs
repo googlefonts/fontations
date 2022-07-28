@@ -1,7 +1,7 @@
 //! raw parsing code
 
 use proc_macro2::{Span, TokenStream};
-use quote::ToTokens;
+use quote::{quote, ToTokens};
 use syn::{
     braced, bracketed, parenthesized,
     parse::{Parse, ParseStream},
@@ -60,6 +60,7 @@ pub(crate) struct TableReadArg {
 #[derive(Debug, Clone)]
 pub(crate) struct Record {
     pub(crate) attrs: TableAttrs,
+    pub(crate) lifetime: Option<TokenStream>,
     pub(crate) name: syn::Ident,
     pub(crate) fields: Fields,
 }
@@ -205,10 +206,38 @@ pub(crate) enum FieldType {
     Array {
         inner_typ: Box<FieldType>,
     },
-    ComputedArray {
-        all: syn::Path,
-        inner_typ: syn::Path,
-    },
+    ComputedArray(ComputedArray),
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ComputedArray {
+    span: Span,
+    inner: syn::Ident,
+    lifetime: Option<syn::Lifetime>,
+}
+
+impl ComputedArray {
+    pub(crate) fn compile_type(&self) -> TokenStream {
+        let inner = &self.inner;
+        quote!(Vec<#inner>)
+    }
+
+    pub(crate) fn raw_inner_type(&self) -> &syn::Ident {
+        &self.inner
+    }
+
+    pub(crate) fn type_with_lifetime(&self) -> TokenStream {
+        let inner = &self.inner;
+        if self.lifetime.is_some() {
+            quote!(#inner<'a>)
+        } else {
+            inner.to_token_stream()
+        }
+    }
+
+    pub(crate) fn span(&self) -> Span {
+        self.span
+    }
 }
 
 /// A raw c-style enum
@@ -303,10 +332,19 @@ impl Parse for Record {
         let attrs: TableAttrs = input.parse()?;
         let _kw = input.parse::<kw::record>()?;
         let name = input.parse::<syn::Ident>()?;
+        let lifetime = input
+            .peek(Token![<])
+            .then(|| {
+                input.parse::<Token![<]>()?;
+                input.parse::<syn::Lifetime>()?;
+                input.parse::<Token![>]>().map(|_| quote!(<'a>))
+            })
+            .transpose()?;
 
         let fields = input.parse()?;
         Ok(Record {
             attrs,
+            lifetime,
             name,
             fields,
         })
@@ -425,14 +463,17 @@ impl Parse for FieldType {
         }
 
         let path = input.parse::<syn::Path>()?;
-        let last = path.segments.last().expect("do zero-length paths exist?");
+        let last = get_single_path_segment(&path)?;
 
         if last.ident == "ComputedArray" {
             let inner_typ = get_single_generic_type_arg(&last.arguments)?;
-            return Ok(FieldType::ComputedArray {
-                all: path,
-                inner_typ,
-            });
+            let last = get_single_path_segment(&inner_typ)?;
+            let lifetime = get_single_lifetime(&last.arguments)?;
+            return Ok(FieldType::ComputedArray(ComputedArray {
+                span: last.span(),
+                inner: last.ident.clone(),
+                lifetime: lifetime.clone(),
+            }));
         }
 
         if last.ident != "BigEndian" {
@@ -457,6 +498,13 @@ impl Parse for FieldType {
             Err(syn::Error::new(last.span(), "unexpected arguments"))
         }
     }
+}
+
+fn get_single_path_segment(path: &syn::Path) -> syn::Result<&syn::PathSegment> {
+    if path.segments.len() != 1 {
+        return Err(syn::Error::new(path.span(), "expect a single-item path"));
+    }
+    Ok(path.segments.last().unwrap())
 }
 
 impl Parse for FieldReadArgs {
@@ -652,6 +700,13 @@ impl Count {
         // a trick so we return the exact sample iterator type from both match arms
         one.into_iter().chain(two.into_iter().flatten())
     }
+
+    pub(crate) fn count_expr(&self) -> TokenStream {
+        match self {
+            Count::Field(field) => quote!( (#field as usize) ),
+            Count::Expr(expr) => expr.expr.to_token_stream(),
+        }
+    }
 }
 
 fn parse_inline_expr(tokens: TokenStream) -> syn::Result<InlineExpr> {
@@ -737,6 +792,20 @@ fn get_single_generic_type_arg(input: &syn::PathArguments) -> syn::Result<syn::P
         input.span(),
         "expected single generic type arg",
     ))
+}
+
+fn get_single_lifetime(input: &syn::PathArguments) -> syn::Result<Option<syn::Lifetime>> {
+    match input {
+        syn::PathArguments::None => return Ok(None),
+        syn::PathArguments::AngleBracketed(args) if args.args.len() == 1 => {
+            let arg = args.args.last().unwrap();
+            if let syn::GenericArgument::Lifetime(lifetime) = arg {
+                return Ok(Some(lifetime.clone()));
+            }
+        }
+        _ => (),
+    }
+    Err(syn::Error::new(input.span(), "expected single lifetime"))
 }
 
 #[cfg(test)]

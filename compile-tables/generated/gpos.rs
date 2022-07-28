@@ -441,6 +441,7 @@ pub struct PairPosFormat2 {
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the second glyph of the pair.
     pub class_def2_offset: OffsetMarker<Offset16, ClassDef>,
+    /// Array of Class1 records, ordered by classes in classDef1.
     pub class1_records: Vec<Class1Record>,
 }
 
@@ -471,6 +472,9 @@ impl Validate for PairPosFormat2 {
                 self.class_def2_offset.validate_impl(ctx);
             });
             ctx.in_field("class1_records", |ctx| {
+                if self.class1_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
                 self.class1_records.validate_impl(ctx);
             });
         })

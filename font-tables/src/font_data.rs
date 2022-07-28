@@ -4,7 +4,7 @@ use std::ops::{Bound, Range, RangeBounds};
 
 use font_types::ReadScalar;
 
-use crate::parse_prelude::ComputeSize;
+use crate::parse_prelude::{ComputeSize, ComputedArray};
 use crate::read::{FontReadWithArgs, ReadError};
 use crate::table_ref::TableRef;
 
@@ -140,6 +140,21 @@ impl<'a> Cursor<'a> {
         T: FontReadWithArgs<'a> + ComputeSize,
     {
         let len = T::compute_size(args);
+        let temp = self.data.read_with_args(self.pos..self.pos + len, args);
+        self.pos += len;
+        temp
+    }
+
+    // only used in records that contain arrays :/
+    pub(crate) fn read_computed_array<T>(
+        &mut self,
+        len: usize,
+        args: &T::Args,
+    ) -> Result<ComputedArray<'a, T>, ReadError>
+    where
+        T: FontReadWithArgs<'a> + ComputeSize,
+    {
+        let len = len * T::compute_size(args);
         let temp = self.data.read_with_args(self.pos..self.pos + len, args);
         self.pos += len;
         temp

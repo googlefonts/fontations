@@ -8,6 +8,7 @@ use crate::read::{ComputeSize, FontReadWithArgs, ReadArgs};
 ///
 /// At runtime, `Args` are provided which will be used to compute the size
 /// of each item.
+#[derive(Clone)]
 pub struct ComputedArray<'a, T: ReadArgs> {
     // the length of each item
     item_len: usize,

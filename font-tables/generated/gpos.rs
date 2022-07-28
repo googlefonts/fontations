@@ -897,6 +897,7 @@ impl ComputeSize for PairValueRecord {
 }
 
 impl<'a> FontReadWithArgs<'a> for PairValueRecord {
+    #[allow(unused_parens)]
     fn read_with_args(
         data: FontData<'a>,
         args: &(ValueFormat, ValueFormat),
@@ -973,8 +974,12 @@ impl TableInfo for PairPosFormat2Marker {
         cursor.advance::<Offset16>();
         let class1_count: u16 = cursor.read()?;
         let class2_count: u16 = cursor.read()?;
-        let class1_records_byte_len =
-            (class1_record_len(class1_count, class2_count, value_format1, value_format2));
+        let class1_records_byte_len = (class1_count as usize)
+            * <Class1Record as ComputeSize>::compute_size(&(
+                class2_count,
+                value_format1,
+                value_format2,
+            ));
         cursor.advance_by(class1_records_byte_len);
         cursor.finish(PairPosFormat2Marker {
             class1_records_byte_len,
@@ -1060,6 +1065,112 @@ impl<'a> PairPosFormat2<'a> {
     pub fn class2_count(&self) -> u16 {
         let range = self.shape.class2_count_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+
+    /// Array of Class1 records, ordered by classes in classDef1.
+    pub fn class1_records(&self) -> ComputedArray<'a, Class1Record<'a>> {
+        let range = self.shape.class1_records_byte_range();
+        self.data
+            .read_with_args(
+                range,
+                &(
+                    self.class2_count(),
+                    self.value_format1(),
+                    self.value_format2(),
+                ),
+            )
+            .unwrap()
+    }
+}
+
+/// Part of [PairPosFormat2]
+#[derive(Clone, Debug)]
+pub struct Class1Record<'a> {
+    /// Array of Class2 records, ordered by classes in classDef2.
+    pub class2_records: ComputedArray<'a, Class2Record>,
+}
+
+impl<'a> Class1Record<'a> {
+    /// Array of Class2 records, ordered by classes in classDef2.
+    pub fn class2_records(&self) -> &ComputedArray<'a, Class2Record> {
+        &self.class2_records
+    }
+}
+
+impl ReadArgs for Class1Record<'_> {
+    type Args = (u16, ValueFormat, ValueFormat);
+}
+
+impl ComputeSize for Class1Record<'_> {
+    fn compute_size(args: &(u16, ValueFormat, ValueFormat)) -> usize {
+        let (class2_count, value_format1, value_format2) = *args;
+        (class2_count as usize)
+            * <Class2Record as ComputeSize>::compute_size(&(value_format1, value_format2))
+    }
+}
+
+impl<'a> FontReadWithArgs<'a> for Class1Record<'a> {
+    #[allow(unused_parens)]
+    fn read_with_args(
+        data: FontData<'a>,
+        args: &(u16, ValueFormat, ValueFormat),
+    ) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let (class2_count, value_format1, value_format2) = *args;
+        Ok(Self {
+            class2_records: cursor
+                .read_computed_array((class2_count as usize), &(value_format1, value_format2))?,
+        })
+    }
+}
+
+/// Part of [PairPosFormat2]
+#[derive(Clone, Debug)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Class2Record {
+    /// Positioning for first glyph — empty if valueFormat1 = 0.
+    pub value_record1: ValueRecord,
+    /// Positioning for second glyph — empty if valueFormat2 = 0.
+    pub value_record2: ValueRecord,
+}
+
+impl Class2Record {
+    /// Positioning for first glyph — empty if valueFormat1 = 0.
+    pub fn value_record1(&self) -> &ValueRecord {
+        &self.value_record1
+    }
+
+    /// Positioning for second glyph — empty if valueFormat2 = 0.
+    pub fn value_record2(&self) -> &ValueRecord {
+        &self.value_record2
+    }
+}
+
+impl ReadArgs for Class2Record {
+    type Args = (ValueFormat, ValueFormat);
+}
+
+impl ComputeSize for Class2Record {
+    fn compute_size(args: &(ValueFormat, ValueFormat)) -> usize {
+        let (value_format1, value_format2) = *args;
+        <ValueRecord as ComputeSize>::compute_size(&value_format1)
+            + <ValueRecord as ComputeSize>::compute_size(&value_format2)
+    }
+}
+
+impl<'a> FontReadWithArgs<'a> for Class2Record {
+    #[allow(unused_parens)]
+    fn read_with_args(
+        data: FontData<'a>,
+        args: &(ValueFormat, ValueFormat),
+    ) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let (value_format1, value_format2) = *args;
+        Ok(Self {
+            value_record1: cursor.read_with_args(&value_format1)?,
+            value_record2: cursor.read_with_args(&value_format2)?,
+        })
     }
 }
 

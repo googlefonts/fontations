@@ -84,14 +84,3 @@ impl<'a> FontRead<'a> for PositionLookupList<'a> {
         LookupList::read(bytes).map(Self)
     }
 }
-
-fn class1_record_len(
-    class1_count: u16,
-    class2_count: u16,
-    format1: ValueFormat,
-    format2: ValueFormat,
-) -> usize {
-    (format1.record_byte_len() + format2.record_byte_len())
-        * class1_count as usize
-        * class2_count as usize
-}

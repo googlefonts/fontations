@@ -240,38 +240,29 @@ table PairPosFormat2 {
     /// Number of classes in classDef2 table — includes Class 0.
     #[compile(self.compute_class2_count())]
     class2_count: BigEndian<u16>,
-    #[len_expr(class1_record_len($class1_count, $class2_count, $value_format1, $value_format2))]
-    #[skip_getter]
-    class1_records: [Class1Record],
+    /// Array of Class1 records, ordered by classes in classDef1.
+    #[read_with($class2_count, $value_format1, $value_format2)]
+    #[count(class1_count)]
+    class1_records: ComputedArray<Class1Record<'a>>,
 }
-    ///// Array of Class1 records, ordered by classes in classDef1.
-    //#[count_with(class1_record_len, class1_count, class2_count, value_format1, value_format2)]
-    //#[read_with(class2_count, value_format1, value_format2)]
-    //#[compile_type(Vec<Class1Record>)]
-    //class1_records: DynSizedArray<'a, (u16, ValueFormat, ValueFormat), Class1Record>,
-//}
 
 /// Part of [PairPosFormat2]
-//#[read_args(class2_count = "u16", value_format1 = "ValueFormat", value_format2 = "ValueFormat")]
-#[skip_parse]
-record Class1Record {
+#[read_args(class2_count: u16, value_format1: ValueFormat, value_format2: ValueFormat)]
+record Class1Record<'a> {
     /// Array of Class2 records, ordered by classes in classDef2.
-    class2_records: [Class2Record],
-    //#[count_with(class2_record_len, class2_count, value_format1, value_format2)]
-    //#[read_with(value_format1, value_format2)]
-    //#[compile_type(Vec<Class2Record>)]
-    //class2_records: DynSizedArray<'a, (ValueFormat, ValueFormat), Class2Record>,
+    #[count_expr($class2_count as usize)]
+    #[read_with($value_format1, $value_format2)]
+    class2_records: ComputedArray<Class2Record>,
 }
 
 /// Part of [PairPosFormat2]
-//#[read_args(value_format1 = "ValueFormat", value_format2 = "ValueFormat")]
-#[skip_parse]
+#[read_args(value_format1: ValueFormat, value_format2: ValueFormat)]
 record Class2Record {
     /// Positioning for first glyph — empty if valueFormat1 = 0.
-    //#[read_with(value_format1)]
+    #[read_with($value_format1)]
     value_record1: ValueRecord,
     /// Positioning for second glyph — empty if valueFormat2 = 0.
-    //#[read_with(value_format2)]
+    #[read_with($value_format2)]
     value_record2: ValueRecord,
 }
 
