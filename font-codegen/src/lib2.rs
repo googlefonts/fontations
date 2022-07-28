@@ -9,6 +9,7 @@ use quote::quote;
 
 pub fn generate_parse_module(code: &str) -> Result<proc_macro2::TokenStream, syn::Error> {
     let items: Items = syn::parse_str(code)?;
+    items.sanity_check()?;
     let mut code = Vec::new();
     for item in &items.items {
         let item_code = match item {
@@ -30,6 +31,7 @@ pub fn generate_parse_module(code: &str) -> Result<proc_macro2::TokenStream, syn
 
 pub fn generate_compile_module(code: &str) -> Result<proc_macro2::TokenStream, syn::Error> {
     let items: Items = syn::parse_str(code)?;
+    items.sanity_check()?;
 
     let code = items
         .items

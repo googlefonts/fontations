@@ -185,6 +185,10 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
 }
 
 impl Table {
+    pub(crate) fn sanity_check(&self) -> syn::Result<()> {
+        self.fields.sanity_check()
+    }
+
     fn marker_name(&self) -> syn::Ident {
         quote::format_ident!("{}Marker", self.raw_name())
     }
@@ -288,7 +292,7 @@ impl Table {
     pub(crate) fn impl_format_trait(&self) -> Option<TokenStream> {
         let field = self.fields.iter().find(|fld| fld.attrs.format.is_some())?;
         let name = self.marker_name();
-        let value = &field.attrs.format.as_ref().unwrap().value;
+        let value = &field.attrs.format.as_ref().unwrap();
         let typ = field.typ.cooked_type_tokens();
 
         Some(quote! {

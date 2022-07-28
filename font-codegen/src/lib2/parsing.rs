@@ -1,7 +1,7 @@
 //! raw parsing code
 
-use proc_macro2::TokenStream;
-
+use proc_macro2::{Span, TokenStream};
+use quote::ToTokens;
 use syn::{
     braced, bracketed, parenthesized,
     parse::{Parse, ParseStream},
@@ -42,8 +42,8 @@ pub(crate) struct TableAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) skip_parse: Option<syn::Path>,
     pub(crate) skip_compile: Option<syn::Path>,
-    pub(crate) validation_method: Option<syn::Path>,
-    pub(crate) read_args: Option<TableReadArgs>,
+    pub(crate) validation_method: Option<Attr<syn::Path>>,
+    pub(crate) read_args: Option<Attr<TableReadArgs>>,
 }
 
 #[derive(Debug, Clone)]
@@ -112,28 +112,54 @@ pub(crate) struct Field {
 pub(crate) struct FieldAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) nullable: Option<syn::Path>,
-    pub(crate) available: Option<syn::Path>,
+    pub(crate) available: Option<Attr<syn::Path>>,
     pub(crate) skip_getter: Option<syn::Path>,
     /// if present, we will not try to resolve this offset
     pub(crate) skip_offset_getter: Option<syn::Path>,
     pub(crate) version: Option<syn::Path>,
-    pub(crate) format: Option<FormatAttr>,
-    pub(crate) count: Option<Count>,
-    pub(crate) compile: Option<InlineExpr>,
-    pub(crate) compile_type: Option<syn::Path>,
-    pub(crate) len: Option<InlineExpr>,
-    pub(crate) read_with_args: Option<FieldReadArgs>,
+    pub(crate) format: Option<Attr<syn::LitInt>>,
+    pub(crate) count: Option<Attr<Count>>,
+    pub(crate) compile: Option<Attr<InlineExpr>>,
+    pub(crate) compile_type: Option<Attr<syn::Path>>,
+    pub(crate) len: Option<Attr<InlineExpr>>,
+    pub(crate) read_with_args: Option<Attr<FieldReadArgs>>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct Attr<T> {
+    pub(crate) name: syn::Ident,
+    pub(crate) attr: T,
+}
+
+impl<T> Attr<T> {
+    fn new(ident: syn::Ident, attr: T) -> Self {
+        Attr {
+            name: ident.into(),
+            attr,
+        }
+    }
+
+    pub(crate) fn span(&self) -> Span {
+        self.name.span()
+    }
+}
+
+impl<T> std::ops::Deref for Attr<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.attr
+    }
+}
+
+impl<T: ToTokens> ToTokens for Attr<T> {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        self.attr.to_tokens(tokens)
+    }
 }
 
 #[derive(Debug, Clone)]
 pub(crate) struct FieldReadArgs {
     pub(crate) inputs: Vec<syn::Ident>,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct FormatAttr {
-    _kw: syn::Ident,
-    pub(crate) value: syn::LitInt,
 }
 
 /// Annotations for how to calculate the count of an array.
@@ -180,6 +206,7 @@ pub(crate) enum FieldType {
         inner_typ: Box<FieldType>,
     },
     ComputedArray {
+        all: syn::Path,
         inner_typ: syn::Path,
     },
 }
@@ -402,7 +429,10 @@ impl Parse for FieldType {
 
         if last.ident == "ComputedArray" {
             let inner_typ = get_single_generic_type_arg(&last.arguments)?;
-            return Ok(FieldType::ComputedArray { inner_typ });
+            return Ok(FieldType::ComputedArray {
+                all: path,
+                inner_typ,
+            });
         }
 
         if last.ident != "BigEndian" {
@@ -499,24 +529,27 @@ impl Parse for FieldAttrs {
             } else if ident == VERSION {
                 this.version = Some(attr.path);
             } else if ident == COUNT_EXPR {
-                this.count = Some(Count::Expr(parse_inline_expr(attr.tokens)?));
+                this.count = Some(Attr::new(
+                    ident.clone(),
+                    Count::Expr(parse_inline_expr(attr.tokens)?),
+                ));
             } else if ident == COUNT {
-                this.count = Some(Count::Field(attr.parse_args()?));
+                this.count = Some(Attr::new(ident.clone(), Count::Field(attr.parse_args()?)));
             } else if ident == COMPILE {
-                this.compile = Some(parse_inline_expr(attr.tokens)?);
+                this.compile = Some(Attr::new(ident.clone(), parse_inline_expr(attr.tokens)?));
             } else if ident == COMPILE_TYPE {
-                this.compile_type = Some(attr.parse_args()?);
+                this.compile_type = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == AVAILABLE {
-                this.available = Some(attr.parse_args()?);
-            } else if ident == LEN {
-                this.len = Some(parse_inline_expr(attr.tokens)?);
-            } else if ident == READ_WITH {
-                this.read_with_args = Some(attr.parse_args()?);
-            } else if ident == FORMAT {
-                this.format = Some(FormatAttr {
-                    _kw: ident.clone(),
-                    value: parse_attr_eq_value(attr.tokens)?,
+                this.available = Some(Attr {
+                    name: ident.clone(),
+                    attr: attr.parse_args()?,
                 });
+            } else if ident == LEN {
+                this.len = Some(Attr::new(ident.clone(), parse_inline_expr(attr.tokens)?));
+            } else if ident == READ_WITH {
+                this.read_with_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == FORMAT {
+                this.format = Some(Attr::new(ident.clone(), parse_attr_eq_value(attr.tokens)?))
             } else {
                 return Err(syn::Error::new(
                     ident.span(),
@@ -550,9 +583,9 @@ impl Parse for TableAttrs {
             } else if ident == SKIP_COMPILE {
                 this.skip_compile = Some(attr.path);
             } else if ident == VALIDATION_METHOD {
-                this.validation_method = Some(attr.parse_args()?);
+                this.validation_method = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_ARGS {
-                this.read_args = Some(attr.parse_args()?);
+                this.read_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else {
                 return Err(syn::Error::new(
                     ident.span(),
@@ -579,6 +612,27 @@ impl Parse for TableReadArg {
         input.parse::<Token![:]>()?;
         let typ = input.parse::<syn::Type>()?;
         Ok(TableReadArg { ident, typ })
+    }
+}
+
+impl Items {
+    pub(crate) fn sanity_check(&self) -> syn::Result<()> {
+        for item in &self.items {
+            item.sanity_check()?;
+        }
+        Ok(())
+    }
+}
+
+impl Item {
+    fn sanity_check(&self) -> syn::Result<()> {
+        match self {
+            Item::Table(item) => item.sanity_check(),
+            Item::Record(item) => item.sanity_check(),
+            Item::Format(_) => Ok(()),
+            Item::RawEnum(_) => Ok(()),
+            Item::Flags(_) => Ok(()),
+        }
     }
 }
 

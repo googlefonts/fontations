@@ -102,3 +102,9 @@ pub(crate) fn generate_compile_impl(
         }
     })
 }
+
+impl Record {
+    pub(crate) fn sanity_check(&self) -> syn::Result<()> {
+        self.fields.sanity_check()
+    }
+}

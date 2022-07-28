@@ -4,6 +4,7 @@ use std::collections::HashSet;
 
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
+use syn::spanned::Spanned;
 
 use crate::lib2::parsing::Count;
 
@@ -23,6 +24,13 @@ impl Fields {
         }
 
         Ok(Fields { fields })
+    }
+
+    pub(crate) fn sanity_check(&self) -> syn::Result<()> {
+        for fld in &self.fields {
+            fld.validate_attrs()?;
+        }
+        Ok(())
     }
 
     pub(crate) fn iter(&self) -> impl Iterator<Item = &Field> {
@@ -57,16 +65,17 @@ impl Fields {
                 .gets_recursive_validation()
                 .then(|| quote!( self.#name.validate_impl(ctx); ));
 
-            let array_len_check = if let Some(Count::Field(count_name)) = &field.attrs.count {
-                let typ = self.get_scalar_field_type(&count_name);
-                Some(quote! {
-                    if self.#name.len() > (#typ::MAX as usize) {
-                        ctx.report("array excedes max length");
-                    }
-                })
-            } else {
-                None
-            };
+            let array_len_check =
+                if let Some(Count::Field(count_name)) = field.attrs.count.as_deref() {
+                    let typ = self.get_scalar_field_type(&count_name);
+                    Some(quote! {
+                        if self.#name.len() > (#typ::MAX as usize) {
+                            ctx.report("array excedes max length");
+                        }
+                    })
+                } else {
+                    None
+                };
 
             if recursive_stmt.is_some() || array_len_check.is_some() {
                 stmts.push(quote! {
@@ -113,6 +122,32 @@ impl Field {
 
     pub(crate) fn is_version_dependent(&self) -> bool {
         self.attrs.available.is_some()
+    }
+
+    /// Ensure attributes are sane; this is run after parsing, so we can report
+    /// any errors in a reasonable way.
+    fn validate_attrs(&self) -> syn::Result<()> {
+        if let Some(args) = &self.attrs.read_with_args {
+            if let Some(len) = &self.attrs.len {
+                return Err(syn::Error::new(
+                    len.span(),
+                    "#[len_expr] unnecessary, #[read_with] provides computed length",
+                ));
+            }
+            match &self.typ {
+                FieldType::ComputedArray { all, .. } if self.attrs.count.is_none() => {
+                    return Err(syn::Error::new(all.span(), "missing count attribute"));
+                }
+                FieldType::Offset { .. } | FieldType::Scalar { .. } | FieldType::Array { .. } => {
+                    return Err(syn::Error::new(
+                        args.span(),
+                        "attribute not valid on this type",
+                    ))
+                }
+                _ => (),
+            }
+        }
+        Ok(())
     }
 
     fn is_nullable(&self) -> bool {
@@ -183,7 +218,7 @@ impl Field {
                 FieldType::Other { typ } => quote!( &[#typ] ),
                 _ => unreachable!(),
             },
-            FieldType::ComputedArray { inner_typ } => quote!(ComputedArray<'a, #inner_typ>),
+            FieldType::ComputedArray { inner_typ, .. } => quote!(ComputedArray<'a, #inner_typ>),
         }
     }
 
@@ -334,7 +369,7 @@ impl Field {
             let len_expr = if let Some(expr) = &self.attrs.len {
                 expr.expr.to_token_stream()
             } else {
-                let count_expr = match self.attrs.count.as_ref() {
+                let count_expr = match self.attrs.count.as_deref() {
                     Some(Count::Field(field)) => quote!( (#field as usize )),
                     Some(Count::Expr(expr)) => expr.expr.to_token_stream(),
                     None => unreachable!("must have one of count/count_expr/len"),
@@ -344,11 +379,11 @@ impl Field {
                         let inner_typ = inner_typ.cooked_type_tokens();
                         quote!( #inner_typ::RAW_BYTE_LEN )
                     }
-                    FieldType::ComputedArray { inner_typ } => {
+                    FieldType::ComputedArray { inner_typ, .. } => {
                         let read_args = self
                             .attrs
                             .read_with_args
-                            .as_ref()
+                            .as_deref()
                             .map(FieldReadArgs::to_tokens_for_validation)
                             .expect("ComputedArray needs read_args attribute");
                         quote!( <#inner_typ as ComputeSize>::compute_size(&#read_args) )
@@ -403,8 +438,7 @@ impl Field {
     fn compile_write_stmt(&self) -> TokenStream {
         let value_expr = if let Some(format) = &self.attrs.format {
             let typ = self.typ.cooked_type_tokens();
-            let value = &format.value;
-            quote!( (#value as #typ) )
+            quote!( (#format as #typ) )
         } else if let Some(computed) = &self.attrs.compile {
             let expr = computed.compile_expr();
             if !computed.referenced_fields.is_empty() {
@@ -470,7 +504,7 @@ impl FieldType {
                 let inner_tokens = inner_typ.compile_type(nullable);
                 quote!( Vec<#inner_tokens> )
             }
-            FieldType::ComputedArray { inner_typ } => quote!(Vec<#inner_typ>),
+            FieldType::ComputedArray { inner_typ, .. } => quote!(Vec<#inner_typ>),
         }
     }
 }
