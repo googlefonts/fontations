@@ -30,7 +30,7 @@ impl Fields {
 
     pub(crate) fn sanity_check(&self) -> syn::Result<()> {
         for fld in &self.fields {
-            fld.validate_attrs()?;
+            fld.sanity_check()?;
         }
         Ok(())
     }
@@ -111,7 +111,13 @@ impl Field {
                 let inner = array.type_with_lifetime();
                 quote!(ComputedArray<'a, #inner>)
             }
-            _ => panic!("arrays and custom types not supported in records"),
+            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+                FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
+                    quote!(&'a [BigEndian<#typ>])
+                }
+                FieldType::Other { typ } => quote!( &[#typ] ),
+                _ => unreachable!("no nested arrays"),
+            },
         }
     }
 
@@ -128,7 +134,7 @@ impl Field {
         quote::format_ident!("{}_byte_start", &self.name)
     }
 
-    fn is_array(&self) -> bool {
+    pub(crate) fn is_array(&self) -> bool {
         matches!(&self.typ, FieldType::Array { .. })
     }
 
@@ -148,7 +154,24 @@ impl Field {
 
     /// Ensure attributes are sane; this is run after parsing, so we can report
     /// any errors in a reasonable way.
-    fn validate_attrs(&self) -> syn::Result<()> {
+    fn sanity_check(&self) -> syn::Result<()> {
+        if let FieldType::Array { inner_typ } = &self.typ {
+            if matches!(
+                inner_typ.as_ref(),
+                FieldType::Array { .. } | FieldType::ComputedArray(_)
+            ) {
+                return Err(syn::Error::new(
+                    self.name.span(),
+                    "nested arrays are not allowed",
+                ));
+            }
+        }
+        if self.is_array() && (self.attrs.count.is_none() && self.attrs.len.is_none()) {
+            return Err(syn::Error::new(
+                self.name.span(),
+                "array requires #[count] attribute",
+            ));
+        }
         if let Some(args) = &self.attrs.read_with_args {
             if let Some(len) = &self.attrs.len {
                 return Err(syn::Error::new(
@@ -160,7 +183,14 @@ impl Field {
                 FieldType::ComputedArray(array) if self.attrs.count.is_none() => {
                     return Err(syn::Error::new(array.span(), "missing count attribute"));
                 }
-                FieldType::Offset { .. } | FieldType::Scalar { .. } | FieldType::Array { .. } => {
+                FieldType::Offset { .. } => (),
+                FieldType::Array { inner_typ, .. }
+                    if matches!(inner_typ.as_ref(), FieldType::Offset { .. }) =>
+                {
+                    ()
+                }
+
+                FieldType::Scalar { .. } | FieldType::Array { .. } => {
                     return Err(syn::Error::new(
                         args.span(),
                         "attribute not valid on this type",
@@ -314,7 +344,7 @@ impl Field {
         let getter_expr = match &self.typ {
             FieldType::Scalar { .. } | FieldType::Offset { .. } => quote!(self.#name.get()),
             FieldType::Other { .. } | FieldType::ComputedArray { .. } => quote!(&self.#name),
-            _ => panic!("unexpected record field type"),
+            FieldType::Array { .. } => quote!(self.#name),
         };
 
         Some(quote! {
@@ -386,7 +416,6 @@ impl Field {
     /// the code generated for this field to validate data at parse time.
     pub(crate) fn field_parse_validation_stmts(&self) -> TokenStream {
         let name = &self.name;
-        //dbg!(&name);
         // handle the trivial case
         if !self.read_at_parse_time
             && !self.has_computed_len()
@@ -488,7 +517,12 @@ impl Field {
     pub(crate) fn record_init_stmt(&self) -> TokenStream {
         let name = &self.name;
         let rhs = match &self.typ {
-            FieldType::Array { .. } => panic!("not expecting array here"),
+            FieldType::Array { .. } => {
+                let len_expr = self
+                    .computed_len_expr()
+                    .expect("array always has computed len");
+                quote!(cursor.read_array(#len_expr)?)
+            }
             FieldType::ComputedArray(_) => {
                 let args = self
                     .attrs

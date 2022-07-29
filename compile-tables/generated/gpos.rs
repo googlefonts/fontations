@@ -498,6 +498,9 @@ impl Validate for Class1Record {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Class1Record", |ctx| {
             ctx.in_field("class2_records", |ctx| {
+                if self.class2_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
                 self.class2_records.validate_impl(ctx);
             });
         })
@@ -656,6 +659,9 @@ impl Validate for BaseArray {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseArray", |ctx| {
             ctx.in_field("base_records", |ctx| {
+                if self.base_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
                 self.base_records.validate_impl(ctx);
             });
         })
@@ -681,6 +687,9 @@ impl Validate for BaseRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseRecord", |ctx| {
             ctx.in_field("base_anchor_offsets", |ctx| {
+                if self.base_anchor_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
                 self.base_anchor_offsets.validate_impl(ctx);
             });
         })
@@ -785,6 +794,9 @@ impl Validate for LigatureAttach {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigatureAttach", |ctx| {
             ctx.in_field("component_records", |ctx| {
+                if self.component_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
                 self.component_records.validate_impl(ctx);
             });
         })
@@ -810,6 +822,9 @@ impl Validate for ComponentRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ComponentRecord", |ctx| {
             ctx.in_field("ligature_anchor_offsets", |ctx| {
+                if self.ligature_anchor_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
                 self.ligature_anchor_offsets.validate_impl(ctx);
             });
         })
@@ -881,6 +896,9 @@ impl Validate for Mark2Array {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Mark2Array", |ctx| {
             ctx.in_field("mark2_records", |ctx| {
+                if self.mark2_records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
                 self.mark2_records.validate_impl(ctx);
             });
         })
@@ -906,6 +924,9 @@ impl Validate for Mark2Record {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Mark2Record", |ctx| {
             ctx.in_field("mark2_anchor_offsets", |ctx| {
+                if self.mark2_anchor_offsets.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
                 self.mark2_anchor_offsets.validate_impl(ctx);
             });
         })

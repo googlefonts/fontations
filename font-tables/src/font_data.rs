@@ -2,7 +2,7 @@
 
 use std::ops::{Bound, Range, RangeBounds};
 
-use font_types::ReadScalar;
+use font_types::{FixedSized, ReadScalar};
 
 use crate::parse_prelude::{ComputeSize, ComputedArray};
 use crate::read::{FontReadWithArgs, ReadError};
@@ -86,7 +86,7 @@ impl<'a> FontData<'a> {
             .map(|_| ())
     }
 
-    pub fn read_array<T>(&self, range: Range<usize>) -> Result<&'a [T], ReadError> {
+    pub fn read_array<T: FixedSized>(&self, range: Range<usize>) -> Result<&'a [T], ReadError> {
         assert_ne!(std::mem::size_of::<T>(), 0);
         assert_eq!(std::mem::align_of::<T>(), 1);
         let bytes = self
@@ -156,6 +156,13 @@ impl<'a> Cursor<'a> {
     {
         let len = len * T::compute_size(args);
         let temp = self.data.read_with_args(self.pos..self.pos + len, args);
+        self.pos += len;
+        temp
+    }
+
+    pub(crate) fn read_array<T: FixedSized>(&mut self, len: usize) -> Result<&'a [T], ReadError> {
+        let len = len * T::RAW_BYTE_LEN;
+        let temp = self.data.read_array(self.pos..self.pos + len);
         self.pos += len;
         temp
     }

@@ -250,7 +250,7 @@ table PairPosFormat2 {
 #[read_args(class2_count: u16, value_format1: ValueFormat, value_format2: ValueFormat)]
 record Class1Record<'a> {
     /// Array of Class2 records, ordered by classes in classDef2.
-    #[count_expr($class2_count as usize)]
+    #[count(class2_count)]
     #[read_with($value_format1, $value_format2)]
     class2_records: ComputedArray<Class2Record>,
 }
@@ -331,24 +331,26 @@ table MarkBasePosFormat1 {
 }
 
 /// Part of [MarkBasePosFormat1]
-//#[read_args(mark_class_count = "u16")]
-#[skip_parse]
+#[read_args(mark_class_count: u16)]
 table BaseArray {
     /// Number of BaseRecords
     #[compile(array_len($base_records))]
     base_count: BigEndian<u16>,
     /// Array of BaseRecords, in order of baseCoverage Index.
-    base_records: [BaseRecord]
+    #[count(base_count)]
+    #[read_with($mark_class_count)]
+    base_records: ComputedArray<BaseRecord<'a>>
 }
 
 /// Part of [BaseArray]
-//#[read_args(mark_class_count = "u16")]
-#[skip_parse]
-record BaseRecord {
+#[read_args(mark_class_count: u16)]
+//#[skip_parse]
+record BaseRecord<'a> {
     /// Array of offsets (one per mark class) to Anchor tables. Offsets
     /// are from beginning of BaseArray table, ordered by class
     /// (offsets may be NULL).
     #[nullable]
+    #[count(mark_class_count)]
     base_anchor_offsets: [BigEndian<Offset16<AnchorTable>>],
 }
 
@@ -388,14 +390,15 @@ table LigatureArray {
 
 /// Part of [MarkLigPosFormat1]
 //#[offset_host]
-//#[read_args(mark_class_count = "u16")]
-#[skip_parse]
+#[read_args(mark_class_count: u16)]
 table LigatureAttach {
     /// Number of ComponentRecords in this ligature
     #[compile(array_len($component_records))]
     component_count: BigEndian<u16>,
     /// Array of Component records, ordered in writing direction.
-    component_records: [ComponentRecord],
+    #[count(component_count)]
+    #[read_with($mark_class_count)]
+    component_records: ComputedArray<ComponentRecord<'a>>,
     //#[count_with(nested_offset_array_len, component_count, mark_class_count)]
     //#[read_with(mark_class_count)]
     //#[compile_type(Vec<ComponentRecord>)]
@@ -403,13 +406,13 @@ table LigatureAttach {
 }
 
 /// Part of [MarkLigPosFormat1]
-//#[read_args(mark_class_count = "u16")]
-#[skip_parse]
-record ComponentRecord {
+#[read_args(mark_class_count: u16)]
+record ComponentRecord<'a> {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of LigatureAttach table, ordered by class
     /// (offsets may be NULL).
     #[nullable]
+    #[count(mark_class_count)]
     ligature_anchor_offsets: [BigEndian<Offset16<AnchorTable>>],
 }
 
@@ -440,12 +443,15 @@ table MarkMarkPosFormat1 {
 
 /// Part of [MarkMarkPosFormat1]Class2Record
 #[skip_parse]
+#[read_args(mark_class_count: u16)]
 table Mark2Array {
     /// Number of Mark2 records
     #[compile(array_len($mark2_records))]
     mark2_count: BigEndian<u16>,
     /// Array of Mark2Records, in Coverage order.
-    mark2_records: [Mark2Record],
+    #[count(mark2_count)]
+    #[read_with($mark_class_count)]
+    mark2_records: ComputedArray<Mark2Record<'a>>,
     //#[count_with(nested_offset_array_len, mark2_count, mark_class_count)]
     //#[read_with(mark_class_count)]
     //#[compile_type(Vec<Mark2Record>)]
@@ -453,13 +459,13 @@ table Mark2Array {
 }
 
 /// Part of [MarkMarkPosFormat1]
-//#[read_args(mark_class_count = "u16")]
+#[read_args(mark_class_count: u16)]
 #[skip_parse]
-record Mark2Record {
+record Mark2Record<'a> {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of Mark2Array table, in class order (offsets may
     /// be NULL).
-    //#[count(mark_class_count)]
+    #[count(mark_class_count)]
     #[nullable]
     mark2_anchor_offsets: [BigEndian<Offset16<AnchorTable>>],
 }

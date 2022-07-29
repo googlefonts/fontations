@@ -2,7 +2,6 @@
 
 use proc_macro2::TokenStream;
 use quote::quote;
-use syn::spanned::Spanned;
 
 use super::parsing::{Field, Fields, Record, TableAttrs};
 
@@ -158,14 +157,17 @@ pub(crate) fn generate_compile_impl(
 impl Record {
     pub(crate) fn sanity_check(&self) -> syn::Result<()> {
         self.fields.sanity_check()?;
-        let field_needs_lifetime = self.fields.iter().find(|fld| fld.is_computed_array());
+        let field_needs_lifetime = self
+            .fields
+            .iter()
+            .find(|fld| fld.is_computed_array() || fld.is_array());
         match (field_needs_lifetime, &self.lifetime) {
             (Some(_), None) => Err(syn::Error::new(
                 self.name.span(),
                 "This record contains an array, and so must have a lifetime",
             )),
-            (None, Some(life)) => Err(syn::Error::new(
-                life.span(),
+            (None, Some(_)) => Err(syn::Error::new(
+                self.name.span(),
                 "unexpected lifetime; record contains no array",
             )),
             _ => Ok(()),

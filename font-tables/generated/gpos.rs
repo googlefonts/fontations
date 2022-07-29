@@ -1406,6 +1406,112 @@ impl<'a> MarkBasePosFormat1<'a> {
     }
 }
 
+/// Part of [MarkBasePosFormat1]
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct BaseArrayMarker {
+    mark_class_count: u16,
+    base_records_byte_len: usize,
+}
+
+impl BaseArrayMarker {
+    fn base_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn base_records_byte_range(&self) -> Range<usize> {
+        let start = self.base_count_byte_range().end;
+        start..start + self.base_records_byte_len
+    }
+}
+
+impl ReadArgs for BaseArrayMarker {
+    type Args = u16;
+}
+
+impl TableInfoWithArgs for BaseArrayMarker {
+    #[allow(unused_parens)]
+    fn parse_with_args<'a>(
+        data: FontData<'a>,
+        args: &u16,
+    ) -> Result<TableRef<'a, Self>, ReadError> {
+        let mark_class_count = *args;
+        let mut cursor = data.cursor();
+        let base_count: u16 = cursor.read()?;
+        let base_records_byte_len =
+            (base_count as usize) * <BaseRecord as ComputeSize>::compute_size(&mark_class_count);
+        cursor.advance_by(base_records_byte_len);
+        cursor.finish(BaseArrayMarker {
+            mark_class_count,
+            base_records_byte_len,
+        })
+    }
+}
+
+/// Part of [MarkBasePosFormat1]
+pub type BaseArray<'a> = TableRef<'a, BaseArrayMarker>;
+
+impl<'a> BaseArray<'a> {
+    /// Number of BaseRecords
+    pub fn base_count(&self) -> u16 {
+        let range = self.shape.base_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Array of BaseRecords, in order of baseCoverage Index.
+    pub fn base_records(&self) -> ComputedArray<'a, BaseRecord<'a>> {
+        let range = self.shape.base_records_byte_range();
+        self.data
+            .read_with_args(range, &self.mark_class_count())
+            .unwrap()
+    }
+
+    pub(crate) fn mark_class_count(&self) -> u16 {
+        self.shape.mark_class_count
+    }
+}
+
+/// Part of [BaseArray]
+#[derive(Clone, Debug)]
+pub struct BaseRecord<'a> {
+    /// Array of offsets (one per mark class) to Anchor tables. Offsets
+    /// are from beginning of BaseArray table, ordered by class
+    /// (offsets may be NULL).
+    pub base_anchor_offsets: &'a [BigEndian<Offset16>],
+}
+
+impl<'a> BaseRecord<'a> {
+    /// Array of offsets (one per mark class) to Anchor tables. Offsets
+    /// are from beginning of BaseArray table, ordered by class
+    /// (offsets may be NULL).
+    pub fn base_anchor_offsets(&self) -> &[BigEndian<Offset16>] {
+        self.base_anchor_offsets
+    }
+}
+
+impl ReadArgs for BaseRecord<'_> {
+    type Args = u16;
+}
+
+impl ComputeSize for BaseRecord<'_> {
+    fn compute_size(args: &u16) -> usize {
+        let mark_class_count = *args;
+        (mark_class_count as usize) * Offset16::RAW_BYTE_LEN
+    }
+}
+
+impl<'a> FontReadWithArgs<'a> for BaseRecord<'a> {
+    #[allow(unused_parens)]
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let mark_class_count = *args;
+        Ok(Self {
+            base_anchor_offsets: cursor
+                .read_array((mark_class_count as usize) * Offset16::RAW_BYTE_LEN)?,
+        })
+    }
+}
+
 impl Format<u16> for MarkLigPosFormat1Marker {
     const FORMAT: u16 = 1;
 }
@@ -1579,6 +1685,112 @@ impl<'a> LigatureArray<'a> {
     pub fn ligature_attach_offsets(&self) -> &[BigEndian<Offset16>] {
         let range = self.shape.ligature_attach_offsets_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+/// Part of [MarkLigPosFormat1]
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct LigatureAttachMarker {
+    mark_class_count: u16,
+    component_records_byte_len: usize,
+}
+
+impl LigatureAttachMarker {
+    fn component_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn component_records_byte_range(&self) -> Range<usize> {
+        let start = self.component_count_byte_range().end;
+        start..start + self.component_records_byte_len
+    }
+}
+
+impl ReadArgs for LigatureAttachMarker {
+    type Args = u16;
+}
+
+impl TableInfoWithArgs for LigatureAttachMarker {
+    #[allow(unused_parens)]
+    fn parse_with_args<'a>(
+        data: FontData<'a>,
+        args: &u16,
+    ) -> Result<TableRef<'a, Self>, ReadError> {
+        let mark_class_count = *args;
+        let mut cursor = data.cursor();
+        let component_count: u16 = cursor.read()?;
+        let component_records_byte_len = (component_count as usize)
+            * <ComponentRecord as ComputeSize>::compute_size(&mark_class_count);
+        cursor.advance_by(component_records_byte_len);
+        cursor.finish(LigatureAttachMarker {
+            mark_class_count,
+            component_records_byte_len,
+        })
+    }
+}
+
+/// Part of [MarkLigPosFormat1]
+pub type LigatureAttach<'a> = TableRef<'a, LigatureAttachMarker>;
+
+impl<'a> LigatureAttach<'a> {
+    /// Number of ComponentRecords in this ligature
+    pub fn component_count(&self) -> u16 {
+        let range = self.shape.component_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Array of Component records, ordered in writing direction.
+    pub fn component_records(&self) -> ComputedArray<'a, ComponentRecord<'a>> {
+        let range = self.shape.component_records_byte_range();
+        self.data
+            .read_with_args(range, &self.mark_class_count())
+            .unwrap()
+    }
+
+    pub(crate) fn mark_class_count(&self) -> u16 {
+        self.shape.mark_class_count
+    }
+}
+
+/// Part of [MarkLigPosFormat1]
+#[derive(Clone, Debug)]
+pub struct ComponentRecord<'a> {
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of LigatureAttach table, ordered by class
+    /// (offsets may be NULL).
+    pub ligature_anchor_offsets: &'a [BigEndian<Offset16>],
+}
+
+impl<'a> ComponentRecord<'a> {
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of LigatureAttach table, ordered by class
+    /// (offsets may be NULL).
+    pub fn ligature_anchor_offsets(&self) -> &[BigEndian<Offset16>] {
+        self.ligature_anchor_offsets
+    }
+}
+
+impl ReadArgs for ComponentRecord<'_> {
+    type Args = u16;
+}
+
+impl ComputeSize for ComponentRecord<'_> {
+    fn compute_size(args: &u16) -> usize {
+        let mark_class_count = *args;
+        (mark_class_count as usize) * Offset16::RAW_BYTE_LEN
+    }
+}
+
+impl<'a> FontReadWithArgs<'a> for ComponentRecord<'a> {
+    #[allow(unused_parens)]
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let mark_class_count = *args;
+        Ok(Self {
+            ligature_anchor_offsets: cursor
+                .read_array((mark_class_count as usize) * Offset16::RAW_BYTE_LEN)?,
+        })
     }
 }
 
