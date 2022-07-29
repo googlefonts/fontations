@@ -54,7 +54,7 @@ pub(crate) struct TableReadArgs {
 #[derive(Debug, Clone)]
 pub(crate) struct TableReadArg {
     pub(crate) ident: syn::Ident,
-    pub(crate) typ: syn::Type,
+    pub(crate) typ: syn::Ident,
 }
 
 #[derive(Debug, Clone)]
@@ -93,6 +93,8 @@ impl Variant {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Fields {
+    // not parsed, but set when the table/record is parsed
+    pub(crate) read_args: Option<TableReadArgs>,
     pub(crate) fields: Vec<Field>,
 }
 
@@ -314,11 +316,12 @@ impl Parse for Item {
 
 impl Parse for Table {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let attrs = input.parse()?;
+        let attrs: TableAttrs = input.parse()?;
         let _table = input.parse::<kw::table>()?;
         let name = input.parse::<syn::Ident>()?;
 
-        let fields = input.parse()?;
+        let mut fields: Fields = input.parse()?;
+        fields.read_args = attrs.read_args.clone().map(|attrs| attrs.attr);
         Ok(Table {
             attrs,
             name,
@@ -341,7 +344,8 @@ impl Parse for Record {
             })
             .transpose()?;
 
-        let fields = input.parse()?;
+        let mut fields: Fields = input.parse()?;
+        fields.read_args = attrs.read_args.clone().map(|attrs| attrs.attr);
         Ok(Record {
             attrs,
             lifetime,
@@ -663,7 +667,7 @@ impl Parse for TableReadArg {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let ident = input.parse::<syn::Ident>()?;
         input.parse::<Token![:]>()?;
-        let typ = input.parse::<syn::Type>()?;
+        let typ = input.parse()?;
         Ok(TableReadArg { ident, typ })
     }
 }

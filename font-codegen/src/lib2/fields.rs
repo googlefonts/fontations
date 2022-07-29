@@ -22,7 +22,10 @@ impl Fields {
                 field.attrs.version.is_some() || referenced_fields.contains(&field.name);
         }
 
-        Ok(Fields { fields })
+        Ok(Fields {
+            fields,
+            read_args: None,
+        })
     }
 
     pub(crate) fn sanity_check(&self) -> syn::Result<()> {
@@ -44,15 +47,24 @@ impl Fields {
         self.fields.iter().map(Field::compile_write_stmt)
     }
 
+    // used for validating lengths. handles both fields and 'virtual fields',
+    // e.g. arguments passed in FontReadWithArgs
     fn get_scalar_field_type(&self, name: &syn::Ident) -> &syn::Ident {
-        let field = self
-            .iter()
+        self.iter()
             .find(|fld| &fld.name == name)
-            .expect("validate that count references existing fields");
-        match &field.typ {
-            FieldType::Scalar { typ } => typ,
-            _ => panic!("not a scalar field"),
-        }
+            .map(|fld| match &fld.typ {
+                FieldType::Scalar { typ } => typ,
+                _ => panic!("not a scalar field"),
+            })
+            .or_else(|| {
+                self.read_args.as_ref().and_then(|args| {
+                    args.args
+                        .iter()
+                        .find(|arg| &arg.ident == name)
+                        .map(|arg| &arg.typ)
+                })
+            })
+            .expect("validate that count references existing fields")
     }
 
     pub(crate) fn compilation_validation_stmts(&self) -> Vec<TokenStream> {
