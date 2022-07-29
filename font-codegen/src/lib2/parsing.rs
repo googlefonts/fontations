@@ -126,6 +126,7 @@ pub(crate) struct FieldAttrs {
     pub(crate) compile_type: Option<Attr<syn::Path>>,
     pub(crate) len: Option<Attr<InlineExpr>>,
     pub(crate) read_with_args: Option<Attr<FieldReadArgs>>,
+    pub(crate) read_offset_args: Option<Attr<FieldReadArgs>>,
 }
 
 #[derive(Debug, Clone)]
@@ -559,6 +560,7 @@ static SKIP_OFFSET_GETTER: &str = "skip_offset_getter";
 static COMPILE: &str = "compile";
 static COMPILE_TYPE: &str = "compile_type";
 static READ_WITH: &str = "read_with";
+static READ_OFFSET_WITH: &str = "read_offset_with";
 
 impl Parse for FieldAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -605,6 +607,8 @@ impl Parse for FieldAttrs {
                 this.len = Some(Attr::new(ident.clone(), parse_inline_expr(attr.tokens)?));
             } else if ident == READ_WITH {
                 this.read_with_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == READ_OFFSET_WITH {
+                this.read_offset_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == FORMAT {
                 this.format = Some(Attr::new(ident.clone(), parse_attr_eq_value(attr.tokens)?))
             } else {

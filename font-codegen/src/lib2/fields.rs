@@ -377,10 +377,18 @@ impl Field {
             return_type = quote!(Option<#return_type>);
         }
         let range_stmt = self.getter_range_stmt();
-        let resolve_method = self
-            .is_nullable()
-            .then(|| quote!(resolve_nullable))
-            .unwrap_or_else(|| quote!(resolve));
+
+        let resolve = match (self.attrs.read_offset_args.as_deref(), self.is_nullable()) {
+            (None, true) => quote!(resolve_nullable(&self.data)),
+            (None, false) => quote!(resolve(&self.data)),
+            (Some(_), true) => quote!(resolve_nullable_with_args(&self.data, &args)),
+            (Some(_), false) => quote!(resolve_with_args(&self.data, &args)),
+        };
+
+        let args_if_needed = self.attrs.read_offset_args.as_ref().map(|args| {
+            let args = args.to_tokens_for_table_getter();
+            quote!(let args = #args;)
+        });
 
         let return_stmt = if self.is_version_dependent() && !self.is_nullable() {
             quote!(Some(result))
@@ -394,9 +402,10 @@ impl Field {
         Some(quote! {
             #[doc = #docs]
             pub fn #getter_name(&self) -> #return_type {
+                #args_if_needed
                 let range = #range_stmt;
                 let offset: #typ = self.data.read_at(range.start).unwrap();
-                let result = offset.#resolve_method(&self.data);
+                let result = offset.#resolve;
                 #return_stmt
             }
         })

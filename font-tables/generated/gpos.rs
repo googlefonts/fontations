@@ -1404,6 +1404,15 @@ impl<'a> MarkBasePosFormat1<'a> {
         let range = self.shape.base_array_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
+
+    /// Attempt to resolve [`base_array_offset`][Self::base_array_offset].
+    pub fn base_array(&self) -> Result<BaseArray<'a>, ReadError> {
+        let args = self.mark_class_count();
+        let range = self.shape.base_array_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve_with_args(&self.data, &args);
+        result
+    }
 }
 
 /// Part of [MarkBasePosFormat1]
@@ -1909,6 +1918,121 @@ impl<'a> MarkMarkPosFormat1<'a> {
     pub fn mark2_array_offset(&self) -> Offset16 {
         let range = self.shape.mark2_array_offset_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`mark2_array_offset`][Self::mark2_array_offset].
+    pub fn mark2_array(&self) -> Result<Mark2Array<'a>, ReadError> {
+        let args = self.mark_class_count();
+        let range = self.shape.mark2_array_offset_byte_range();
+        let offset: Offset16 = self.data.read_at(range.start).unwrap();
+        let result = offset.resolve_with_args(&self.data, &args);
+        result
+    }
+}
+
+/// Part of [MarkMarkPosFormat1]Class2Record
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct Mark2ArrayMarker {
+    mark_class_count: u16,
+    mark2_records_byte_len: usize,
+}
+
+impl Mark2ArrayMarker {
+    fn mark2_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn mark2_records_byte_range(&self) -> Range<usize> {
+        let start = self.mark2_count_byte_range().end;
+        start..start + self.mark2_records_byte_len
+    }
+}
+
+impl ReadArgs for Mark2ArrayMarker {
+    type Args = u16;
+}
+
+impl TableInfoWithArgs for Mark2ArrayMarker {
+    #[allow(unused_parens)]
+    fn parse_with_args<'a>(
+        data: FontData<'a>,
+        args: &u16,
+    ) -> Result<TableRef<'a, Self>, ReadError> {
+        let mark_class_count = *args;
+        let mut cursor = data.cursor();
+        let mark2_count: u16 = cursor.read()?;
+        let mark2_records_byte_len =
+            (mark2_count as usize) * <Mark2Record as ComputeSize>::compute_size(&mark_class_count);
+        cursor.advance_by(mark2_records_byte_len);
+        cursor.finish(Mark2ArrayMarker {
+            mark_class_count,
+            mark2_records_byte_len,
+        })
+    }
+}
+
+/// Part of [MarkMarkPosFormat1]Class2Record
+pub type Mark2Array<'a> = TableRef<'a, Mark2ArrayMarker>;
+
+impl<'a> Mark2Array<'a> {
+    /// Number of Mark2 records
+    pub fn mark2_count(&self) -> u16 {
+        let range = self.shape.mark2_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Array of Mark2Records, in Coverage order.
+    pub fn mark2_records(&self) -> ComputedArray<'a, Mark2Record<'a>> {
+        let range = self.shape.mark2_records_byte_range();
+        self.data
+            .read_with_args(range, &self.mark_class_count())
+            .unwrap()
+    }
+
+    pub(crate) fn mark_class_count(&self) -> u16 {
+        self.shape.mark_class_count
+    }
+}
+
+/// Part of [MarkMarkPosFormat1]
+#[derive(Clone, Debug)]
+pub struct Mark2Record<'a> {
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of Mark2Array table, in class order (offsets may
+    /// be NULL).
+    pub mark2_anchor_offsets: &'a [BigEndian<Offset16>],
+}
+
+impl<'a> Mark2Record<'a> {
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of Mark2Array table, in class order (offsets may
+    /// be NULL).
+    pub fn mark2_anchor_offsets(&self) -> &[BigEndian<Offset16>] {
+        self.mark2_anchor_offsets
+    }
+}
+
+impl ReadArgs for Mark2Record<'_> {
+    type Args = u16;
+}
+
+impl ComputeSize for Mark2Record<'_> {
+    fn compute_size(args: &u16) -> usize {
+        let mark_class_count = *args;
+        (mark_class_count as usize) * Offset16::RAW_BYTE_LEN
+    }
+}
+
+impl<'a> FontReadWithArgs<'a> for Mark2Record<'a> {
+    #[allow(unused_parens)]
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let mark_class_count = *args;
+        Ok(Self {
+            mark2_anchor_offsets: cursor
+                .read_array((mark_class_count as usize) * Offset16::RAW_BYTE_LEN)?,
+        })
     }
 }
 
