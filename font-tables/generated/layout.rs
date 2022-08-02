@@ -985,6 +985,16 @@ impl<'a> SequenceContextFormat1<'a> {
         let range = self.shape.seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
+
+    pub fn seq_rule_set(
+        &self,
+    ) -> impl Iterator<Item = Option<Result<SequenceRuleSet<'a>, ReadError>>> + '_ {
+        let result = self
+            .seq_rule_set_offsets()
+            .iter()
+            .map(move |off| off.get().resolve_nullable(&self.data));
+        result
+    }
 }
 
 /// Part of [SequenceContextFormat1]
@@ -1033,6 +1043,14 @@ impl<'a> SequenceRuleSet<'a> {
     pub fn seq_rule_offsets(&self) -> &[BigEndian<Offset16>] {
         let range = self.shape.seq_rule_offsets_byte_range();
         self.data.read_array(range).unwrap()
+    }
+
+    pub fn seq_rule(&self) -> impl Iterator<Item = Result<SequenceRule<'a>, ReadError>> + '_ {
+        let result = self
+            .seq_rule_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(&self.data));
+        result
     }
 }
 
@@ -1213,6 +1231,16 @@ impl<'a> SequenceContextFormat2<'a> {
         let range = self.shape.class_seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
+
+    pub fn class_seq_rule_set(
+        &self,
+    ) -> impl Iterator<Item = Option<Result<ClassSequenceRuleSet<'a>, ReadError>>> + '_ {
+        let result = self
+            .class_seq_rule_set_offsets()
+            .iter()
+            .map(move |off| off.get().resolve_nullable(&self.data));
+        result
+    }
 }
 
 /// Part of [SequenceContextFormat2]
@@ -1262,6 +1290,16 @@ impl<'a> ClassSequenceRuleSet<'a> {
     pub fn class_seq_rule_offsets(&self) -> &[BigEndian<Offset16>] {
         let range = self.shape.class_seq_rule_offsets_byte_range();
         self.data.read_array(range).unwrap()
+    }
+
+    pub fn class_seq_rule(
+        &self,
+    ) -> impl Iterator<Item = Result<ClassSequenceRule<'a>, ReadError>> + '_ {
+        let result = self
+            .class_seq_rule_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(&self.data));
+        result
     }
 }
 
@@ -1423,6 +1461,14 @@ impl<'a> SequenceContextFormat3<'a> {
         self.data.read_array(range).unwrap()
     }
 
+    pub fn coverage(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
+        let result = self
+            .coverage_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(&self.data));
+        result
+    }
+
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &[SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
@@ -1531,6 +1577,16 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
         let range = self.shape.chained_seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
+
+    pub fn chained_seq_rule_set(
+        &self,
+    ) -> impl Iterator<Item = Option<Result<ChainedSequenceRuleSet<'a>, ReadError>>> + '_ {
+        let result = self
+            .chained_seq_rule_set_offsets()
+            .iter()
+            .map(move |off| off.get().resolve_nullable(&self.data));
+        result
+    }
 }
 
 /// Part of [ChainedSequenceContextFormat1]
@@ -1580,6 +1636,16 @@ impl<'a> ChainedSequenceRuleSet<'a> {
     pub fn chained_seq_rule_offsets(&self) -> &[BigEndian<Offset16>] {
         let range = self.shape.chained_seq_rule_offsets_byte_range();
         self.data.read_array(range).unwrap()
+    }
+
+    pub fn chained_seq_rule(
+        &self,
+    ) -> impl Iterator<Item = Result<ChainedSequenceRule<'a>, ReadError>> + '_ {
+        let result = self
+            .chained_seq_rule_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(&self.data));
+        result
     }
 }
 
@@ -1850,6 +1916,16 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
         let range = self.shape.chained_class_seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
+
+    pub fn chained_class_seq_rule_set(
+        &self,
+    ) -> impl Iterator<Item = Option<Result<ChainedClassSequenceRuleSet<'a>, ReadError>>> + '_ {
+        let result = self
+            .chained_class_seq_rule_set_offsets()
+            .iter()
+            .map(move |off| off.get().resolve_nullable(&self.data));
+        result
+    }
 }
 
 /// Part of [ChainedSequenceContextFormat2]
@@ -1899,6 +1975,16 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
     pub fn chained_class_seq_rule_offsets(&self) -> &[BigEndian<Offset16>] {
         let range = self.shape.chained_class_seq_rule_offsets_byte_range();
         self.data.read_array(range).unwrap()
+    }
+
+    pub fn chained_class_seq_rule(
+        &self,
+    ) -> impl Iterator<Item = Result<ChainedClassSequenceRule<'a>, ReadError>> + '_ {
+        let result = self
+            .chained_class_seq_rule_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(&self.data));
+        result
     }
 }
 
@@ -2131,6 +2217,16 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
         self.data.read_array(range).unwrap()
     }
 
+    pub fn backtrack_coverage(
+        &self,
+    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
+        let result = self
+            .backtrack_coverage_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(&self.data));
+        result
+    }
+
     /// Number of glyphs in the input sequence
     pub fn input_glyph_count(&self) -> u16 {
         let range = self.shape.input_glyph_count_byte_range();
@@ -2143,6 +2239,16 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
         self.data.read_array(range).unwrap()
     }
 
+    pub fn input_coverage(
+        &self,
+    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
+        let result = self
+            .input_coverage_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(&self.data));
+        result
+    }
+
     /// Number of glyphs in the lookahead sequence
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
@@ -2153,6 +2259,16 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     pub fn lookahead_coverage_offsets(&self) -> &[BigEndian<Offset16>] {
         let range = self.shape.lookahead_coverage_offsets_byte_range();
         self.data.read_array(range).unwrap()
+    }
+
+    pub fn lookahead_coverage(
+        &self,
+    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
+        let result = self
+            .lookahead_coverage_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(&self.data));
+        result
     }
 
     /// Number of SequenceLookupRecords
@@ -2490,6 +2606,14 @@ impl<'a> ConditionSet<'a> {
     pub fn condition_offsets(&self) -> &[BigEndian<Offset32>] {
         let range = self.shape.condition_offsets_byte_range();
         self.data.read_array(range).unwrap()
+    }
+
+    pub fn condition(&self) -> impl Iterator<Item = Result<ConditionFormat1<'a>, ReadError>> + '_ {
+        let result = self
+            .condition_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(&self.data));
+        result
     }
 }
 

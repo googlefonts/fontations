@@ -368,13 +368,24 @@ impl Field {
                 typ,
                 target: Some(target),
             } => (typ, target),
+            FieldType::Array { inner_typ, .. } => match inner_typ.as_ref() {
+                FieldType::Offset {
+                    typ,
+                    target: Some(target),
+                } => (typ, target),
+                _ => return None,
+            },
             _ => return None,
         };
 
         let getter_name = self.offset_getter_name().unwrap();
         let mut return_type = quote!(Result<#target<'a>, ReadError>);
+
         if self.is_nullable() || self.attrs.available.is_some() {
             return_type = quote!(Option<#return_type>);
+        }
+        if self.is_array() {
+            return_type = quote!(impl Iterator<Item=#return_type> + '_);
         }
         let range_stmt = self.getter_range_stmt();
 
@@ -399,20 +410,43 @@ impl Field {
         let raw_name = &self.name;
         let docs = format!(" Attempt to resolve [`{raw_name}`][Self::{raw_name}].");
 
-        Some(quote! {
-            #[doc = #docs]
-            pub fn #getter_name(&self) -> #return_type {
-                #args_if_needed
-                let range = #range_stmt;
-                let offset: #typ = self.data.read_at(range.start).unwrap();
-                let result = offset.#resolve;
-                #return_stmt
+        if self.is_array() {
+            let name = &self.name;
+            Some(quote! {
+                pub fn #getter_name(&self) -> #return_type {
+                    #args_if_needed
+                    let result = self.#name().iter().map(move |off| off.get().#resolve);
+                    #return_stmt
+                }
+            })
+        } else {
+            Some(quote! {
+                #[doc = #docs]
+                pub fn #getter_name(&self) -> #return_type {
+                    #args_if_needed
+                    let range = #range_stmt;
+                    let offset: #typ = self.data.read_at(range.start).unwrap();
+                    let result = offset.#resolve;
+                    #return_stmt
+                }
+            })
+        }
+    }
+
+    fn is_offset_or_array_of_offsets(&self) -> bool {
+        match &self.typ {
+            FieldType::Offset { .. } => true,
+            FieldType::Array { inner_typ }
+                if matches!(inner_typ.as_ref(), FieldType::Offset { .. }) =>
+            {
+                true
             }
-        })
+            _ => false,
+        }
     }
 
     fn offset_getter_name(&self) -> Option<syn::Ident> {
-        if !matches!(self.typ, FieldType::Offset { .. }) {
+        if !self.is_offset_or_array_of_offsets() {
             return None;
         }
         let name_string = self.name.to_string();

@@ -183,6 +183,7 @@ table PairPosFormat1 {
     /// Array of offsets to PairSet tables. Offsets are from beginning
     /// of PairPos subtable, ordered by Coverage Index.
     #[count(pair_set_count)]
+    #[read_offset_with($value_format1, $value_format2)]
     pair_set_offsets: [BigEndian<Offset16<PairSet>>],
 }
 
@@ -372,10 +373,12 @@ table MarkLigPosFormat1 {
     mark_array_offset: BigEndian<Offset16<MarkArray>>,
     /// Offset to LigatureArray table, from beginning of MarkLigPos
     /// subtable.
+    #[read_offset_with($mark_class_count)]
     ligature_array_offset: BigEndian<Offset16<LigatureArray>>,
 }
 
 /// Part of [MarkLigPosFormat1]
+#[read_args(mark_class_count: u16)]
 table LigatureArray {
     /// Number of LigatureAttach table offsets
     #[compile(array_len($ligature_attach_offsets))]
@@ -384,6 +387,7 @@ table LigatureArray {
     /// beginning of LigatureArray table, ordered by ligatureCoverage
     /// index.
     #[count(ligature_count)]
+    #[read_offset_with($mark_class_count)]
     ligature_attach_offsets: [BigEndian<Offset16<LigatureAttach>>],
 }
 

@@ -777,6 +777,15 @@ impl<'a> PairPosFormat1<'a> {
         let range = self.shape.pair_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
+
+    pub fn pair_set(&self) -> impl Iterator<Item = Result<PairSet<'a>, ReadError>> + '_ {
+        let args = (self.value_format1(), self.value_format2());
+        let result = self
+            .pair_set_offsets()
+            .iter()
+            .map(move |off| off.get().resolve_with_args(&self.data, &args));
+        result
+    }
 }
 
 /// Part of [PairPosFormat1]
@@ -1640,9 +1649,10 @@ impl<'a> MarkLigPosFormat1<'a> {
 
     /// Attempt to resolve [`ligature_array_offset`][Self::ligature_array_offset].
     pub fn ligature_array(&self) -> Result<LigatureArray<'a>, ReadError> {
+        let args = self.mark_class_count();
         let range = self.shape.ligature_array_offset_byte_range();
         let offset: Offset16 = self.data.read_at(range.start).unwrap();
-        let result = offset.resolve(&self.data);
+        let result = offset.resolve_with_args(&self.data, &args);
         result
     }
 }
@@ -1651,6 +1661,7 @@ impl<'a> MarkLigPosFormat1<'a> {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct LigatureArrayMarker {
+    mark_class_count: u16,
     ligature_attach_offsets_byte_len: usize,
 }
 
@@ -1665,14 +1676,23 @@ impl LigatureArrayMarker {
     }
 }
 
-impl TableInfo for LigatureArrayMarker {
+impl ReadArgs for LigatureArrayMarker {
+    type Args = u16;
+}
+
+impl TableInfoWithArgs for LigatureArrayMarker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse_with_args<'a>(
+        data: FontData<'a>,
+        args: &u16,
+    ) -> Result<TableRef<'a, Self>, ReadError> {
+        let mark_class_count = *args;
         let mut cursor = data.cursor();
         let ligature_count: u16 = cursor.read()?;
         let ligature_attach_offsets_byte_len = (ligature_count as usize) * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(ligature_attach_offsets_byte_len);
         cursor.finish(LigatureArrayMarker {
+            mark_class_count,
             ligature_attach_offsets_byte_len,
         })
     }
@@ -1694,6 +1714,21 @@ impl<'a> LigatureArray<'a> {
     pub fn ligature_attach_offsets(&self) -> &[BigEndian<Offset16>] {
         let range = self.shape.ligature_attach_offsets_byte_range();
         self.data.read_array(range).unwrap()
+    }
+
+    pub fn ligature_attach(
+        &self,
+    ) -> impl Iterator<Item = Result<LigatureAttach<'a>, ReadError>> + '_ {
+        let args = self.mark_class_count();
+        let result = self
+            .ligature_attach_offsets()
+            .iter()
+            .map(move |off| off.get().resolve_with_args(&self.data, &args));
+        result
+    }
+
+    pub(crate) fn mark_class_count(&self) -> u16 {
+        self.shape.mark_class_count
     }
 }
 
