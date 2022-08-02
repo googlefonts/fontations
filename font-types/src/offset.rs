@@ -1,72 +1,13 @@
 //! Offsets to tables
 
-use crate::Uint24;
+use crate::{FixedSized, Uint24};
 
 /// A trait for the different offset representations.
-pub trait Offset: Sized + Copy {
-    /// The length in bytes of this offset type.
-    const SIZE: OffsetLen;
-
+pub trait Offset: FixedSized + Copy {
     /// Returns this offsize as a `usize`, or `None` if it is `0`.
     fn non_null(self) -> Option<usize>;
-}
-
-/// A type that contains data referenced by offsets.
-pub trait OffsetHost<'a> {
-    /// Return a slice of bytes from which offsets may be resolved.
-    ///
-    /// This should be relative to the start of the host.
-    fn bytes(&self) -> &'a [u8];
-
-    /// Return the bytes for a given offset
-    fn bytes_at_offset(&self, offset: impl Offset) -> &'a [u8] {
-        offset
-            .non_null()
-            .and_then(|off| self.bytes().get(off..))
-            .unwrap_or_default()
-    }
-}
-
-/// The byte length of some offset.
-///
-/// This is sort of redundant, but it is useful during compilation to have
-/// some token type that represents a pending offset.
-#[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
-#[repr(u8)]
-pub enum OffsetLen {
-    Offset16 = 2,
-    Offset24 = 3,
-    Offset32 = 4,
-}
-
-impl OffsetLen {
-    /// The empty represntation of this offset
-    pub fn null_bytes(self) -> &'static [u8] {
-        match self {
-            Self::Offset16 => &[0, 0],
-            Self::Offset24 => &[0, 0, 0],
-            Self::Offset32 => &[0, 0, 0, 0],
-        }
-    }
-
-    /// The maximum value for an offset of this length.
-    pub const fn max_value(self) -> u32 {
-        match self {
-            Self::Offset16 => u16::MAX as u32,
-            Self::Offset24 => (1 << 24) - 1,
-            Self::Offset32 => u32::MAX,
-        }
-    }
-}
-
-impl std::fmt::Display for OffsetLen {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        match self {
-            Self::Offset16 => write!(f, "Offset16"),
-            Self::Offset24 => write!(f, "Offset24"),
-            Self::Offset32 => write!(f, "Offset32"),
-        }
-    }
+    /// the bytes that encode a null value of for this offset
+    fn null_bytes() -> &'static [u8];
 }
 
 macro_rules! impl_offset {
@@ -99,8 +40,6 @@ macro_rules! impl_offset {
         }
 
         impl Offset for $name {
-            const SIZE: OffsetLen = OffsetLen::$name;
-
             fn non_null(self) -> Option<usize> {
                 let raw: u32 = self.0.into();
                 if raw == 0 {
@@ -108,6 +47,11 @@ macro_rules! impl_offset {
                 } else {
                     Some(raw as usize)
                 }
+            }
+
+            /// A raw byte slice of the same length as this offset.
+            fn null_bytes() -> &'static [u8] {
+                [0u8; <Self as crate::FixedSized>::RAW_BYTE_LEN].as_slice()
             }
         }
 

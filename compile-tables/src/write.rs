@@ -1,7 +1,7 @@
-use std::{collections::HashMap, fmt::Display};
+use std::collections::HashMap;
 
-use super::graph::{Graph, ObjectId, ObjectStore};
-use font_types::{Offset as AnyOffset, OffsetLen, Uint24};
+use super::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
+use font_types::{Offset as AnyOffset, Uint24};
 
 /// A type that that can be written out as part of a font file.
 ///
@@ -139,7 +139,7 @@ pub(crate) struct TableData {
 pub(crate) struct OffsetRecord {
     /// the position of the offset within the parent table
     pos: u32,
-    /// the offset type (16/24/32 bit)
+    /// the offset length in bytes
     pub(crate) len: OffsetLen,
     /// The object pointed to by the offset
     pub(crate) object: ObjectId,
@@ -149,11 +149,15 @@ impl TableData {
     fn add_offset<T: AnyOffset>(&mut self, object: ObjectId) {
         self.offsets.push(OffsetRecord {
             pos: self.bytes.len() as u32,
-            len: T::SIZE,
+            len: match T::RAW_BYTE_LEN {
+                2 => OffsetLen::Offset16,
+                3 => OffsetLen::Offset24,
+                _ => OffsetLen::Offset32,
+            },
             object,
         });
 
-        self.write(T::SIZE.null_bytes());
+        self.write(T::null_bytes());
     }
 
     fn write(&mut self, bytes: &[u8]) {

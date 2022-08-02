@@ -27,7 +27,7 @@ pub mod test_helpers;
 pub use fixed::{F2Dot14, Fixed};
 pub use fword::{FWord, UfWord};
 pub use longdatetime::LongDateTime;
-pub use offset::{Offset, Offset16, Offset24, Offset32, OffsetHost, OffsetLen};
+pub use offset::{Offset, Offset16, Offset24, Offset32};
 pub use raw::{BigEndian, FixedSized, ReadScalar, Scalar};
 pub use tag::Tag;
 pub use uint24::Uint24;

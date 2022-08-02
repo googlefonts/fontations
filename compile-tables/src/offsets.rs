@@ -71,7 +71,7 @@ impl<W: Offset, T: FontWrite> FontWrite for OffsetMarker<W, T> {
             Some(obj) => writer.write_offset::<W>(obj),
             None => {
                 eprintln!("warning: unexpected null OffsetMarker");
-                writer.write_slice(W::SIZE.null_bytes());
+                writer.write_slice(W::null_bytes());
             }
         }
     }
@@ -81,7 +81,7 @@ impl<W: Offset, T: FontWrite> FontWrite for NullableOffsetMarker<W, T> {
     fn write_into(&self, writer: &mut TableWriter) {
         match self.obj.as_ref() {
             Some(obj) => writer.write_offset::<W>(obj),
-            None => writer.write_slice(W::SIZE.null_bytes()),
+            None => writer.write_slice(W::null_bytes()),
         }
     }
 }
@@ -118,7 +118,12 @@ impl<W, T: PartialEq> PartialEq for NullableOffsetMarker<W, T> {
 
 impl<W: Offset, T: std::fmt::Debug> std::fmt::Debug for OffsetMarker<W, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(f, "OffsetMarker({}, {:?})", W::SIZE, self.obj.as_ref(),)
+        write!(
+            f,
+            "OffsetMarker({}, {:?})",
+            W::RAW_BYTE_LEN * 8,
+            self.obj.as_ref(),
+        )
     }
 }
 
@@ -127,7 +132,7 @@ impl<W: Offset, T: std::fmt::Debug> std::fmt::Debug for NullableOffsetMarker<W, 
         write!(
             f,
             "NullableOffsetMarker({}, {:?})",
-            W::SIZE,
+            W::RAW_BYTE_LEN * 8,
             self.obj.as_ref(),
         )
     }
