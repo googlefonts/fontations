@@ -95,8 +95,14 @@ fn generate_extra_traits(item: &Record) -> syn::Result<TokenStream> {
     })
 }
 
-pub(crate) fn generate_compile(item: &Record) -> syn::Result<TokenStream> {
-    generate_compile_impl(&item.name, &item.attrs, &item.fields)
+pub(crate) fn generate_compile(
+    item: &Record,
+    parse_module: &syn::Path,
+) -> syn::Result<proc_macro2::TokenStream> {
+    let mut decl = generate_compile_impl(&item.name, &item.attrs, &item.fields)?;
+    let to_owned = generate_from_obj_impl(item, parse_module)?;
+    decl.extend(to_owned);
+    Ok(decl)
 }
 
 // shared between table/record
@@ -150,6 +156,28 @@ pub(crate) fn generate_compile_impl(
 
         impl Validate for #name {
             #validation_impl
+        }
+    })
+}
+
+fn generate_from_obj_impl(item: &Record, parse_module: &syn::Path) -> syn::Result<TokenStream> {
+    let name = &item.name;
+    let lifetime = item.lifetime.is_some().then(|| quote!(<'_>));
+    let field_to_owned_stmts = item.fields.iter_from_obj_ref_stmts(true);
+    let offset_data_ident = if item.fields.from_obj_requires_offset_data(true) {
+        quote!(offset_data)
+    } else {
+        quote!(_)
+    };
+
+    Ok(quote! {
+        #[cfg(feature = "parsing")]
+        impl FromObjRef<#parse_module:: #name #lifetime> for #name {
+            fn from_obj_ref(obj: &#parse_module:: #name, #offset_data_ident: &FontData) -> Self {
+                #name {
+                    #( #field_to_owned_stmts, )*
+                }
+            }
         }
     })
 }

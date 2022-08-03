@@ -95,6 +95,50 @@ impl Validate for PositionLookup {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::PositionLookup<'_>> for PositionLookup {
+    fn from_obj_ref(from: &font_tables::layout::gpos::PositionLookup<'_>, data: &FontData) -> Self {
+        use font_tables::layout::gpos::PositionLookup as FromType;
+        match from {
+            FromType::Single(lookup) => Self::Single(lookup.to_owned_obj(data)),
+            FromType::Pair(lookup) => Self::Pair(lookup.to_owned_obj(data)),
+            FromType::Cursive(lookup) => Self::Cursive(lookup.to_owned_obj(data)),
+            FromType::MarkToBase(lookup) => Self::MarkToBase(lookup.to_owned_obj(data)),
+            FromType::MarkToLig(lookup) => Self::MarkToLig(lookup.to_owned_obj(data)),
+            FromType::MarkToMark(lookup) => Self::MarkToMark(lookup.to_owned_obj(data)),
+            FromType::Contextual(lookup) => Self::Contextual(lookup.to_owned_obj(data)),
+            FromType::ChainContextual(lookup) => Self::ChainContextual(lookup.to_owned_obj(data)),
+            FromType::Extension(lookup) => Self::Extension(lookup.to_owned_obj(data)),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::PositionLookup<'_>> for PositionLookup {}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::ExtensionSubtable<'_>> for Extension {
+    fn from_obj_ref(
+        from: &font_tables::layout::gpos::ExtensionSubtable<'_>,
+        data: &FontData,
+    ) -> Self {
+        use font_tables::layout::gpos::ExtensionSubtable as FromType;
+        match from {
+            FromType::Single(ext) => Self::Single(ext.to_owned_obj(data)),
+            FromType::Pair(ext) => Self::Pair(ext.to_owned_obj(data)),
+            FromType::Cursive(ext) => Self::Cursive(ext.to_owned_obj(data)),
+            FromType::MarkToBase(ext) => Self::MarkToBase(ext.to_owned_obj(data)),
+            FromType::MarkToLig(ext) => Self::MarkToLig(ext.to_owned_obj(data)),
+            FromType::MarkToMark(ext) => Self::MarkToMark(ext.to_owned_obj(data)),
+            FromType::Contextual(ext) => Self::Contextual(ext.to_owned_obj(data)),
+            FromType::ChainContextual(ext) => Self::ChainContextual(ext.to_owned_obj(data)),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::ExtensionSubtable<'_>> for Extension {}
+
 impl FontWrite for PositionLookupList {
     fn write_into(&self, writer: &mut TableWriter) {
         u16::try_from(self.lookup_offsets.len())
@@ -103,6 +147,24 @@ impl FontWrite for PositionLookupList {
         self.lookup_offsets.write_into(writer);
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::PositionLookupList<'_>> for PositionLookupList {
+    fn from_obj_ref(
+        from: &font_tables::layout::gpos::PositionLookupList<'_>,
+        _data: &FontData,
+    ) -> Self {
+        PositionLookupList {
+            lookup_offsets: from
+                .iter()
+                .map(|lookup| OffsetMarker::new_maybe_null(lookup.ok().map(|x| x.to_owned_table())))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::PositionLookupList<'_>> for PositionLookupList {}
 
 impl FontWrite for Extension {
     fn write_into(&self, writer: &mut TableWriter) {

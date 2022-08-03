@@ -47,6 +47,20 @@ impl Validate for Gpos {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::Gpos<'_>> for Gpos {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::Gpos, _: &FontData) -> Self {
+        Gpos {
+            script_list_offset: obj.script_list().into(),
+            feature_list_offset: obj.feature_list().into(),
+            lookup_list_offset: obj.lookup_list().into(),
+            feature_variations_offset: obj.feature_variations().into(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::Gpos<'_>> for Gpos {}
 bitflags::bitflags! { # [doc = " See [ValueRecord]"] pub struct ValueFormat : u16 { # [doc = " Includes horizontal adjustment for placement"] const X_PLACEMENT = 0x0001 ; # [doc = " Includes vertical adjustment for placement"] const Y_PLACEMENT = 0x0002 ; # [doc = " Includes horizontal adjustment for advance"] const X_ADVANCE = 0x0004 ; # [doc = " Includes vertical adjustment for advance"] const Y_ADVANCE = 0x0008 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal placement"] const X_PLACEMENT_DEVICE = 0x0010 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical placement"] const Y_PLACEMENT_DEVICE = 0x0020 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal advance"] const X_ADVANCE_DEVICE = 0x0040 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical advance"] const Y_ADVANCE_DEVICE = 0x0080 ; } }
 
 impl FontWrite for ValueFormat {
@@ -84,6 +98,21 @@ impl Validate for AnchorTable {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::AnchorTable<'_>> for AnchorTable {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::AnchorTable, _: &FontData) -> Self {
+        use font_tables::layout::gpos::AnchorTable as ObjRefType;
+        match obj {
+            ObjRefType::Format1(item) => AnchorTable::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => AnchorTable::Format2(item.to_owned_table()),
+            ObjRefType::Format3(item) => AnchorTable::Format3(item.to_owned_table()),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::AnchorTable<'_>> for AnchorTable {}
+
 /// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
 #[derive(Clone, Debug)]
 pub struct AnchorFormat1 {
@@ -104,6 +133,19 @@ impl FontWrite for AnchorFormat1 {
 impl Validate for AnchorFormat1 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::AnchorFormat1<'_>> for AnchorFormat1 {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::AnchorFormat1, _: &FontData) -> Self {
+        AnchorFormat1 {
+            x_coordinate: obj.x_coordinate(),
+            y_coordinate: obj.y_coordinate(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::AnchorFormat1<'_>> for AnchorFormat1 {}
 
 /// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
 #[derive(Clone, Debug)]
@@ -128,6 +170,20 @@ impl FontWrite for AnchorFormat2 {
 impl Validate for AnchorFormat2 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::AnchorFormat2<'_>> for AnchorFormat2 {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::AnchorFormat2, _: &FontData) -> Self {
+        AnchorFormat2 {
+            x_coordinate: obj.x_coordinate(),
+            y_coordinate: obj.y_coordinate(),
+            anchor_point: obj.anchor_point(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::AnchorFormat2<'_>> for AnchorFormat2 {}
 
 /// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
 #[derive(Clone, Debug)]
@@ -169,6 +225,21 @@ impl Validate for AnchorFormat3 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::AnchorFormat3<'_>> for AnchorFormat3 {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::AnchorFormat3, _: &FontData) -> Self {
+        AnchorFormat3 {
+            x_coordinate: obj.x_coordinate(),
+            y_coordinate: obj.y_coordinate(),
+            x_device_offset: obj.x_device().into(),
+            y_device_offset: obj.y_device().into(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::AnchorFormat3<'_>> for AnchorFormat3 {}
+
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
 #[derive(Clone, Debug)]
 pub struct MarkArray {
@@ -197,6 +268,23 @@ impl Validate for MarkArray {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::MarkArray<'_>> for MarkArray {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::MarkArray, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        MarkArray {
+            mark_records: obj
+                .mark_records()
+                .iter()
+                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::MarkArray<'_>> for MarkArray {}
+
 /// Part of [MarkArray]
 #[derive(Clone, Debug)]
 pub struct MarkRecord {
@@ -220,6 +308,16 @@ impl Validate for MarkRecord {
                 self.mark_anchor_offset.validate_impl(ctx);
             });
         })
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::MarkRecord> for MarkRecord {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::MarkRecord, offset_data: &FontData) -> Self {
+        MarkRecord {
+            mark_class: obj.mark_class(),
+            mark_anchor_offset: obj.mark_anchor(offset_data).into(),
+        }
     }
 }
 
@@ -247,6 +345,20 @@ impl Validate for SinglePos {
         }
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::SinglePos<'_>> for SinglePos {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::SinglePos, _: &FontData) -> Self {
+        use font_tables::layout::gpos::SinglePos as ObjRefType;
+        match obj {
+            ObjRefType::Format1(item) => SinglePos::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => SinglePos::Format2(item.to_owned_table()),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::SinglePos<'_>> for SinglePos {}
 
 /// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
 #[derive(Clone, Debug)]
@@ -276,6 +388,20 @@ impl Validate for SinglePosFormat1 {
         })
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::SinglePosFormat1<'_>> for SinglePosFormat1 {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::SinglePosFormat1, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        SinglePosFormat1 {
+            coverage_offset: obj.coverage().into(),
+            value_record: obj.value_record().to_owned_obj(offset_data),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::SinglePosFormat1<'_>> for SinglePosFormat1 {}
 
 /// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
 #[derive(Clone, Debug)]
@@ -312,6 +438,24 @@ impl Validate for SinglePosFormat2 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::SinglePosFormat2<'_>> for SinglePosFormat2 {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::SinglePosFormat2, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        SinglePosFormat2 {
+            coverage_offset: obj.coverage().into(),
+            value_records: obj
+                .value_records()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::SinglePosFormat2<'_>> for SinglePosFormat2 {}
+
 /// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
 #[derive(Clone, Debug)]
 pub enum PairPos {
@@ -336,6 +480,20 @@ impl Validate for PairPos {
         }
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::PairPos<'_>> for PairPos {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::PairPos, _: &FontData) -> Self {
+        use font_tables::layout::gpos::PairPos as ObjRefType;
+        match obj {
+            ObjRefType::Format1(item) => PairPos::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => PairPos::Format2(item.to_owned_table()),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::PairPos<'_>> for PairPos {}
 
 /// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
 #[derive(Clone, Debug)]
@@ -376,6 +534,19 @@ impl Validate for PairPosFormat1 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::PairPosFormat1<'_>> for PairPosFormat1 {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::PairPosFormat1, _: &FontData) -> Self {
+        PairPosFormat1 {
+            coverage_offset: obj.coverage().into(),
+            pair_set_offsets: obj.pair_set().map(|x| x.into()).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::PairPosFormat1<'_>> for PairPosFormat1 {}
+
 /// Part of [PairPosFormat1]
 #[derive(Clone, Debug)]
 pub struct PairSet {
@@ -406,6 +577,23 @@ impl Validate for PairSet {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::PairSet<'_>> for PairSet {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::PairSet, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        PairSet {
+            pair_value_records: obj
+                .pair_value_records()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::PairSet<'_>> for PairSet {}
+
 /// Part of [PairSet]
 #[derive(Clone, Debug)]
 pub struct PairValueRecord {
@@ -428,6 +616,20 @@ impl FontWrite for PairValueRecord {
 
 impl Validate for PairValueRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::PairValueRecord> for PairValueRecord {
+    fn from_obj_ref(
+        obj: &font_tables::layout::gpos::PairValueRecord,
+        offset_data: &FontData,
+    ) -> Self {
+        PairValueRecord {
+            second_glyph: obj.second_glyph(),
+            value_record1: obj.value_record1().to_owned_obj(offset_data),
+            value_record2: obj.value_record2().to_owned_obj(offset_data),
+        }
+    }
 }
 
 /// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
@@ -481,6 +683,26 @@ impl Validate for PairPosFormat2 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::PairPosFormat2<'_>> for PairPosFormat2 {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::PairPosFormat2, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        PairPosFormat2 {
+            coverage_offset: obj.coverage().into(),
+            class_def1_offset: obj.class_def1().into(),
+            class_def2_offset: obj.class_def2().into(),
+            class1_records: obj
+                .class1_records()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::PairPosFormat2<'_>> for PairPosFormat2 {}
+
 /// Part of [PairPosFormat2]
 #[derive(Clone, Debug)]
 pub struct Class1Record {
@@ -507,6 +729,19 @@ impl Validate for Class1Record {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::Class1Record<'_>> for Class1Record {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::Class1Record, offset_data: &FontData) -> Self {
+        Class1Record {
+            class2_records: obj
+                .class2_records()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
+        }
+    }
+}
+
 /// Part of [PairPosFormat2]
 #[derive(Clone, Debug)]
 pub struct Class2Record {
@@ -525,6 +760,16 @@ impl FontWrite for Class2Record {
 
 impl Validate for Class2Record {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::Class2Record> for Class2Record {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::Class2Record, offset_data: &FontData) -> Self {
+        Class2Record {
+            value_record1: obj.value_record1().to_owned_obj(offset_data),
+            value_record2: obj.value_record2().to_owned_obj(offset_data),
+        }
+    }
 }
 
 /// [Cursive Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#cursive-attachment-positioning-format1-cursive-attachment): Cursvie attachment
@@ -563,6 +808,24 @@ impl Validate for CursivePosFormat1 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::CursivePosFormat1<'_>> for CursivePosFormat1 {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::CursivePosFormat1, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        CursivePosFormat1 {
+            coverage_offset: obj.coverage().into(),
+            entry_exit_record: obj
+                .entry_exit_record()
+                .iter()
+                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::CursivePosFormat1<'_>> for CursivePosFormat1 {}
+
 /// Part of [CursivePosFormat1]
 #[derive(Clone, Debug)]
 pub struct EntryExitRecord {
@@ -591,6 +854,19 @@ impl Validate for EntryExitRecord {
                 self.exit_anchor_offset.validate_impl(ctx);
             });
         })
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::EntryExitRecord> for EntryExitRecord {
+    fn from_obj_ref(
+        obj: &font_tables::layout::gpos::EntryExitRecord,
+        offset_data: &FontData,
+    ) -> Self {
+        EntryExitRecord {
+            entry_anchor_offset: obj.entry_anchor(offset_data).into(),
+            exit_anchor_offset: obj.exit_anchor(offset_data).into(),
+        }
     }
 }
 
@@ -641,6 +917,21 @@ impl Validate for MarkBasePosFormat1 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::MarkBasePosFormat1<'_>> for MarkBasePosFormat1 {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::MarkBasePosFormat1, _: &FontData) -> Self {
+        MarkBasePosFormat1 {
+            mark_coverage_offset: obj.mark_coverage().into(),
+            base_coverage_offset: obj.base_coverage().into(),
+            mark_array_offset: obj.mark_array().into(),
+            base_array_offset: obj.base_array().into(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::MarkBasePosFormat1<'_>> for MarkBasePosFormat1 {}
+
 /// Part of [MarkBasePosFormat1]
 #[derive(Clone, Debug)]
 pub struct BaseArray {
@@ -668,6 +959,23 @@ impl Validate for BaseArray {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::BaseArray<'_>> for BaseArray {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::BaseArray, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        BaseArray {
+            base_records: obj
+                .base_records()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::BaseArray<'_>> for BaseArray {}
+
 /// Part of [BaseArray]
 #[derive(Clone, Debug)]
 pub struct BaseRecord {
@@ -693,6 +1001,15 @@ impl Validate for BaseRecord {
                 self.base_anchor_offsets.validate_impl(ctx);
             });
         })
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::BaseRecord<'_>> for BaseRecord {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::BaseRecord, offset_data: &FontData) -> Self {
+        BaseRecord {
+            base_anchor_offsets: obj.base_anchor(offset_data).map(|x| x.into()).collect(),
+        }
     }
 }
 
@@ -743,6 +1060,21 @@ impl Validate for MarkLigPosFormat1 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::MarkLigPosFormat1<'_>> for MarkLigPosFormat1 {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::MarkLigPosFormat1, _: &FontData) -> Self {
+        MarkLigPosFormat1 {
+            mark_coverage_offset: obj.mark_coverage().into(),
+            ligature_coverage_offset: obj.ligature_coverage().into(),
+            mark_array_offset: obj.mark_array().into(),
+            ligature_array_offset: obj.ligature_array().into(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::MarkLigPosFormat1<'_>> for MarkLigPosFormat1 {}
+
 /// Part of [MarkLigPosFormat1]
 #[derive(Clone, Debug)]
 pub struct LigatureArray {
@@ -774,6 +1106,18 @@ impl Validate for LigatureArray {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::LigatureArray<'_>> for LigatureArray {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::LigatureArray, _: &FontData) -> Self {
+        LigatureArray {
+            ligature_attach_offsets: obj.ligature_attach().map(|x| x.into()).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::LigatureArray<'_>> for LigatureArray {}
+
 /// Part of [MarkLigPosFormat1]
 #[derive(Clone, Debug)]
 pub struct LigatureAttach {
@@ -803,6 +1147,23 @@ impl Validate for LigatureAttach {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::LigatureAttach<'_>> for LigatureAttach {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::LigatureAttach, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        LigatureAttach {
+            component_records: obj
+                .component_records()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::LigatureAttach<'_>> for LigatureAttach {}
+
 /// Part of [MarkLigPosFormat1]
 #[derive(Clone, Debug)]
 pub struct ComponentRecord {
@@ -828,6 +1189,18 @@ impl Validate for ComponentRecord {
                 self.ligature_anchor_offsets.validate_impl(ctx);
             });
         })
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::ComponentRecord<'_>> for ComponentRecord {
+    fn from_obj_ref(
+        obj: &font_tables::layout::gpos::ComponentRecord,
+        offset_data: &FontData,
+    ) -> Self {
+        ComponentRecord {
+            ligature_anchor_offsets: obj.ligature_anchor(offset_data).map(|x| x.into()).collect(),
+        }
     }
 }
 
@@ -878,6 +1251,21 @@ impl Validate for MarkMarkPosFormat1 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::MarkMarkPosFormat1<'_>> for MarkMarkPosFormat1 {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::MarkMarkPosFormat1, _: &FontData) -> Self {
+        MarkMarkPosFormat1 {
+            mark1_coverage_offset: obj.mark1_coverage().into(),
+            mark2_coverage_offset: obj.mark2_coverage().into(),
+            mark1_array_offset: obj.mark1_array().into(),
+            mark2_array_offset: obj.mark2_array().into(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::MarkMarkPosFormat1<'_>> for MarkMarkPosFormat1 {}
+
 /// Part of [MarkMarkPosFormat1]Class2Record
 #[derive(Clone, Debug)]
 pub struct Mark2Array {
@@ -905,6 +1293,23 @@ impl Validate for Mark2Array {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::Mark2Array<'_>> for Mark2Array {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::Mark2Array, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        Mark2Array {
+            mark2_records: obj
+                .mark2_records()
+                .iter()
+                .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::gpos::Mark2Array<'_>> for Mark2Array {}
+
 /// Part of [MarkMarkPosFormat1]
 #[derive(Clone, Debug)]
 pub struct Mark2Record {
@@ -930,5 +1335,14 @@ impl Validate for Mark2Record {
                 self.mark2_anchor_offsets.validate_impl(ctx);
             });
         })
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::Mark2Record<'_>> for Mark2Record {
+    fn from_obj_ref(obj: &font_tables::layout::gpos::Mark2Record, offset_data: &FontData) -> Self {
+        Mark2Record {
+            mark2_anchor_offsets: obj.mark2_anchor(offset_data).map(|x| x.into()).collect(),
+        }
     }
 }

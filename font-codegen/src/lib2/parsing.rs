@@ -11,7 +11,7 @@ use syn::{
 };
 
 pub(crate) struct Items {
-    //pub(crate) use_stmts: Vec<SimpleUse>,
+    pub(crate) parse_module_path: syn::Path,
     pub(crate) items: Vec<Item>,
 }
 
@@ -127,6 +127,7 @@ pub(crate) struct FieldAttrs {
     pub(crate) len: Option<Attr<InlineExpr>>,
     pub(crate) read_with_args: Option<Attr<FieldReadArgs>>,
     pub(crate) read_offset_args: Option<Attr<FieldReadArgs>>,
+    pub(crate) to_owned: Option<Attr<InlineExpr>>,
 }
 
 #[derive(Debug, Clone)]
@@ -278,12 +279,31 @@ mod kw {
 
 impl Parse for Items {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        //let use_stmts = get_use_statements(input)?;
         let mut items = Vec::new();
+        let parse_module_path = get_parse_module_path(input)?;
         while !input.is_empty() {
             items.push(input.parse()?);
         }
-        Ok(Self { items })
+        Ok(Self {
+            items,
+            parse_module_path,
+        })
+    }
+}
+
+fn get_parse_module_path(input: ParseStream) -> syn::Result<syn::Path> {
+    let attrs = input.call(Attribute::parse_inner)?;
+    match attrs.as_slice() {
+        [one] if one.path.is_ident("parse_module") => one.parse_args(),
+        [one] => Err(syn::Error::new(one.span(), "unexpected attribute")),
+        [_, two, ..] => Err(syn::Error::new(
+            two.span(),
+            "expected at most one top-level attribute",
+        )),
+        [] => Err(syn::Error::new(
+            Span::call_site(),
+            "expected #![parse_module(..)] attribute",
+        )),
     }
 }
 
@@ -561,6 +581,7 @@ static COMPILE: &str = "compile";
 static COMPILE_TYPE: &str = "compile_type";
 static READ_WITH: &str = "read_with";
 static READ_OFFSET_WITH: &str = "read_offset_with";
+static TO_OWNED: &str = "to_owned";
 
 impl Parse for FieldAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -598,6 +619,8 @@ impl Parse for FieldAttrs {
                 this.compile = Some(Attr::new(ident.clone(), parse_inline_expr(attr.tokens)?));
             } else if ident == COMPILE_TYPE {
                 this.compile_type = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == TO_OWNED {
+                this.to_owned = Some(Attr::new(ident.clone(), parse_inline_expr(attr.tokens)?));
             } else if ident == AVAILABLE {
                 this.available = Some(Attr {
                     name: ident.clone(),

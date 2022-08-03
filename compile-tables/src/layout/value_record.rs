@@ -1,5 +1,8 @@
 //! The ValueRecord type used in the GPOS table
 
+#[cfg(feature = "parsing")]
+use crate::compile_prelude::{FontData, FromObjRef};
+
 use super::gpos::ValueFormat;
 use crate::{
     validate::Validate,
@@ -75,4 +78,20 @@ impl std::fmt::Debug for ValueRecord {
 
 impl Validate for ValueRecord {
     fn validate_impl(&self, _ctx: &mut crate::validate::ValidationCtx) {}
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::gpos::ValueRecord> for ValueRecord {
+    fn from_obj_ref(from: &font_tables::layout::gpos::ValueRecord, _data: &FontData) -> Self {
+        ValueRecord {
+            x_placement: from.x_placement.map(|val| val.get()),
+            y_placement: from.y_placement.map(|val| val.get()),
+            x_advance: from.x_advance.map(|val| val.get()),
+            y_advance: from.y_advance.map(|val| val.get()),
+            x_placement_device: from.x_placement_device.map(|val| val.get()),
+            y_placement_device: from.y_placement_device.map(|val| val.get()),
+            x_advance_device: from.x_advance_device.map(|val| val.get()),
+            y_advance_device: from.y_advance_device.map(|val| val.get()),
+        }
+    }
 }

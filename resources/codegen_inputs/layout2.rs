@@ -1,3 +1,6 @@
+// path (from compile crate) to the generated parse module for this table.
+#![parse_module(font_tables::layout)]
+
 /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 table ScriptList {
     /// Number of ScriptRecords
@@ -64,7 +67,6 @@ table FeatureList {
     /// Array of FeatureRecords — zero-based (first feature has
     /// FeatureIndex = 0), listed alphabetically by feature tag
     #[count(feature_count)]
-    //#[to_owned(self.feature_records_to_owned())]
     feature_records: [FeatureRecord],
 }
 
@@ -73,17 +75,16 @@ record FeatureRecord {
     /// 4-byte feature identification tag
     feature_tag: BigEndian<Tag>,
     /// Offset to Feature table, from beginning of FeatureList
+    #[read_offset_with($feature_tag)]
     feature_offset: BigEndian<Offset16<Feature>>,
 }
 
 /// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
-
-//#[skip_to_owned]
-//#[offset_host]
+#[read_args(feature_tag: Tag)]
 table Feature {
     /// Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
     #[nullable]
-    #[skip_offset_getter]
+    #[read_offset_with($feature_tag)]
     feature_params_offset: BigEndian<Offset16<FeatureParams>>,
     /// Number of LookupList indices for this feature
     #[compile(array_len($lookup_list_indices))]
@@ -95,7 +96,6 @@ table Feature {
 }
 
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
-//#[offset_host]
 #[skip_compile]
 table LookupList {
     /// Number of lookups in this table
@@ -164,7 +164,6 @@ record RangeRecord {
 }
 
 /// [Coverage Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-table)
-//#[format(u16)]
 format u16 CoverageTable {
     Format1(CoverageFormat1),
     Format2(CoverageFormat2),
@@ -525,6 +524,7 @@ table Device {
     /// Largest size to correct, in ppem
     end_size: BigEndian<u16>,
     /// Format of deltaValue array data: 0x0001, 0x0002, or 0x0003
+    #[to_owned(convert_delta_format(obj.delta_format()))]
     delta_format: BigEndian<DeltaFormat>,
     /// Array of compressed data
     #[count_expr(delta_value_count($start_size, $end_size, $delta_format))]
@@ -612,12 +612,12 @@ table FeatureTableSubstitution {
 }
 
 /// Used in [FeatureTableSubstitution]
-//#[skip_to_owned]
 record FeatureTableSubstitutionRecord {
     /// The feature table index to match.
     feature_index: BigEndian<u16>,
     /// Offset to an alternate feature table, from start of the
     /// FeatureTableSubstitution table.
+    #[skip_offset_getter] // custom impl, we need to pass a fake tag
     alternate_feature_offset: BigEndian<Offset32<Feature>>,
 }
 

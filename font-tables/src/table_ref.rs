@@ -43,6 +43,13 @@ impl<'a, T> TableRef<'a, T> {
     pub fn resolve_offset<O: Offset, R: FontRead<'a>>(&self, offset: O) -> Result<R, ReadError> {
         offset.resolve(&self.data)
     }
+
+    /// Return a reference to this table's raw data.
+    ///
+    /// We use this in the compile crate to resolve offsets.
+    pub fn offset_data(&self) -> &FontData<'a> {
+        &self.data
+    }
 }
 
 /// a (temporary?) helper trait to blanket impl a resolve method for font_types::Offset

@@ -34,6 +34,23 @@ impl Validate for ScriptList {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ScriptList<'_>> for ScriptList {
+    fn from_obj_ref(obj: &font_tables::layout::ScriptList, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        ScriptList {
+            script_records: obj
+                .script_records()
+                .iter()
+                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ScriptList<'_>> for ScriptList {}
+
 /// [Script Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 #[derive(Clone, Debug)]
 pub struct ScriptRecord {
@@ -57,6 +74,16 @@ impl Validate for ScriptRecord {
                 self.script_offset.validate_impl(ctx);
             });
         })
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ScriptRecord> for ScriptRecord {
+    fn from_obj_ref(obj: &font_tables::layout::ScriptRecord, offset_data: &FontData) -> Self {
+        ScriptRecord {
+            script_tag: obj.script_tag(),
+            script_offset: obj.script(offset_data).into(),
+        }
     }
 }
 
@@ -96,6 +123,24 @@ impl Validate for Script {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::Script<'_>> for Script {
+    fn from_obj_ref(obj: &font_tables::layout::Script, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        Script {
+            default_lang_sys_offset: obj.default_lang_sys().into(),
+            lang_sys_records: obj
+                .lang_sys_records()
+                .iter()
+                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::Script<'_>> for Script {}
+
 #[derive(Clone, Debug)]
 pub struct LangSysRecord {
     /// 4-byte LangSysTag identifier
@@ -118,6 +163,16 @@ impl Validate for LangSysRecord {
                 self.lang_sys_offset.validate_impl(ctx);
             });
         })
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::LangSysRecord> for LangSysRecord {
+    fn from_obj_ref(obj: &font_tables::layout::LangSysRecord, offset_data: &FontData) -> Self {
+        LangSysRecord {
+            lang_sys_tag: obj.lang_sys_tag(),
+            lang_sys_offset: obj.lang_sys(offset_data).into(),
+        }
     }
 }
 
@@ -154,6 +209,19 @@ impl Validate for LangSys {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::LangSys<'_>> for LangSys {
+    fn from_obj_ref(obj: &font_tables::layout::LangSys, _: &FontData) -> Self {
+        LangSys {
+            required_feature_index: obj.required_feature_index(),
+            feature_indices: obj.feature_indices().iter().map(|x| x.get()).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::LangSys<'_>> for LangSys {}
+
 /// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
 #[derive(Clone, Debug)]
 pub struct FeatureList {
@@ -184,6 +252,23 @@ impl Validate for FeatureList {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::FeatureList<'_>> for FeatureList {
+    fn from_obj_ref(obj: &font_tables::layout::FeatureList, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        FeatureList {
+            feature_records: obj
+                .feature_records()
+                .iter()
+                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::FeatureList<'_>> for FeatureList {}
+
 /// Part of [FeatureList]
 #[derive(Clone, Debug)]
 pub struct FeatureRecord {
@@ -207,6 +292,16 @@ impl Validate for FeatureRecord {
                 self.feature_offset.validate_impl(ctx);
             });
         })
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::FeatureRecord> for FeatureRecord {
+    fn from_obj_ref(obj: &font_tables::layout::FeatureRecord, offset_data: &FontData) -> Self {
+        FeatureRecord {
+            feature_tag: obj.feature_tag(),
+            feature_offset: obj.feature(offset_data).into(),
+        }
     }
 }
 
@@ -245,6 +340,19 @@ impl Validate for Feature {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::Feature<'_>> for Feature {
+    fn from_obj_ref(obj: &font_tables::layout::Feature, _: &FontData) -> Self {
+        Feature {
+            feature_params_offset: obj.feature_params().into(),
+            lookup_list_indices: obj.lookup_list_indices().iter().map(|x| x.get()).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::Feature<'_>> for Feature {}
+
 /// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
 #[derive(Clone, Debug)]
 pub struct CoverageFormat1 {
@@ -271,6 +379,18 @@ impl Validate for CoverageFormat1 {
         })
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::CoverageFormat1<'_>> for CoverageFormat1 {
+    fn from_obj_ref(obj: &font_tables::layout::CoverageFormat1, _: &FontData) -> Self {
+        CoverageFormat1 {
+            glyph_array: obj.glyph_array().iter().map(|x| x.get()).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::CoverageFormat1<'_>> for CoverageFormat1 {}
 
 /// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
 #[derive(Clone, Debug)]
@@ -300,6 +420,23 @@ impl Validate for CoverageFormat2 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::CoverageFormat2<'_>> for CoverageFormat2 {
+    fn from_obj_ref(obj: &font_tables::layout::CoverageFormat2, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        CoverageFormat2 {
+            range_records: obj
+                .range_records()
+                .iter()
+                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::CoverageFormat2<'_>> for CoverageFormat2 {}
+
 /// Used in [CoverageFormat2]
 #[derive(Clone, Debug)]
 pub struct RangeRecord {
@@ -321,6 +458,17 @@ impl FontWrite for RangeRecord {
 
 impl Validate for RangeRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::RangeRecord> for RangeRecord {
+    fn from_obj_ref(obj: &font_tables::layout::RangeRecord, _: &FontData) -> Self {
+        RangeRecord {
+            start_glyph_id: obj.start_glyph_id(),
+            end_glyph_id: obj.end_glyph_id(),
+            start_coverage_index: obj.start_coverage_index(),
+        }
+    }
 }
 
 /// [Coverage Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-table)
@@ -347,6 +495,20 @@ impl Validate for CoverageTable {
         }
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::CoverageTable<'_>> for CoverageTable {
+    fn from_obj_ref(obj: &font_tables::layout::CoverageTable, _: &FontData) -> Self {
+        use font_tables::layout::CoverageTable as ObjRefType;
+        match obj {
+            ObjRefType::Format1(item) => CoverageTable::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => CoverageTable::Format2(item.to_owned_table()),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::CoverageTable<'_>> for CoverageTable {}
 
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 #[derive(Clone, Debug)]
@@ -380,6 +542,19 @@ impl Validate for ClassDefFormat1 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ClassDefFormat1<'_>> for ClassDefFormat1 {
+    fn from_obj_ref(obj: &font_tables::layout::ClassDefFormat1, _: &FontData) -> Self {
+        ClassDefFormat1 {
+            start_glyph_id: obj.start_glyph_id(),
+            class_value_array: obj.class_value_array().iter().map(|x| x.get()).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ClassDefFormat1<'_>> for ClassDefFormat1 {}
+
 /// [Class Definition Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-2)
 #[derive(Clone, Debug)]
 pub struct ClassDefFormat2 {
@@ -410,6 +585,23 @@ impl Validate for ClassDefFormat2 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ClassDefFormat2<'_>> for ClassDefFormat2 {
+    fn from_obj_ref(obj: &font_tables::layout::ClassDefFormat2, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        ClassDefFormat2 {
+            class_range_records: obj
+                .class_range_records()
+                .iter()
+                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ClassDefFormat2<'_>> for ClassDefFormat2 {}
+
 /// Used in [ClassDefFormat2]
 #[derive(Clone, Debug)]
 pub struct ClassRangeRecord {
@@ -434,6 +626,17 @@ impl Validate for ClassRangeRecord {
         ctx.in_table("ClassRangeRecord", |ctx| {
             self.validate_glyph_range(ctx);
         })
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ClassRangeRecord> for ClassRangeRecord {
+    fn from_obj_ref(obj: &font_tables::layout::ClassRangeRecord, _: &FontData) -> Self {
+        ClassRangeRecord {
+            start_glyph_id: obj.start_glyph_id(),
+            end_glyph_id: obj.end_glyph_id(),
+            class: obj.class(),
+        }
     }
 }
 
@@ -462,6 +665,20 @@ impl Validate for ClassDef {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ClassDef<'_>> for ClassDef {
+    fn from_obj_ref(obj: &font_tables::layout::ClassDef, _: &FontData) -> Self {
+        use font_tables::layout::ClassDef as ObjRefType;
+        match obj {
+            ObjRefType::Format1(item) => ClassDef::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => ClassDef::Format2(item.to_owned_table()),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ClassDef<'_>> for ClassDef {}
+
 /// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
 #[derive(Clone, Debug)]
 pub struct SequenceLookupRecord {
@@ -480,6 +697,16 @@ impl FontWrite for SequenceLookupRecord {
 
 impl Validate for SequenceLookupRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::SequenceLookupRecord> for SequenceLookupRecord {
+    fn from_obj_ref(obj: &font_tables::layout::SequenceLookupRecord, _: &FontData) -> Self {
+        SequenceLookupRecord {
+            sequence_index: obj.sequence_index(),
+            lookup_list_index: obj.lookup_list_index(),
+        }
+    }
 }
 
 /// [Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-1-simple-glyph-contexts)
@@ -520,6 +747,19 @@ impl Validate for SequenceContextFormat1 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::SequenceContextFormat1<'_>> for SequenceContextFormat1 {
+    fn from_obj_ref(obj: &font_tables::layout::SequenceContextFormat1, _: &FontData) -> Self {
+        SequenceContextFormat1 {
+            coverage_offset: obj.coverage().into(),
+            seq_rule_set_offsets: obj.seq_rule_set().map(|x| x.into()).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::SequenceContextFormat1<'_>> for SequenceContextFormat1 {}
+
 /// Part of [SequenceContextFormat1]
 #[derive(Clone, Debug)]
 pub struct SequenceRuleSet {
@@ -549,6 +789,18 @@ impl Validate for SequenceRuleSet {
         })
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::SequenceRuleSet<'_>> for SequenceRuleSet {
+    fn from_obj_ref(obj: &font_tables::layout::SequenceRuleSet, _: &FontData) -> Self {
+        SequenceRuleSet {
+            seq_rule_offsets: obj.seq_rule().map(|x| x.into()).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::SequenceRuleSet<'_>> for SequenceRuleSet {}
 
 /// Part of [SequenceContextFormat1]
 #[derive(Clone, Debug)]
@@ -584,6 +836,24 @@ impl Validate for SequenceRule {
         })
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::SequenceRule<'_>> for SequenceRule {
+    fn from_obj_ref(obj: &font_tables::layout::SequenceRule, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        SequenceRule {
+            input_sequence: obj.input_sequence().iter().map(|x| x.get()).collect(),
+            seq_lookup_records: obj
+                .seq_lookup_records()
+                .iter()
+                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::SequenceRule<'_>> for SequenceRule {}
 
 /// [Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-2-class-based-glyph-contexts)
 #[derive(Clone, Debug)]
@@ -630,6 +900,20 @@ impl Validate for SequenceContextFormat2 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::SequenceContextFormat2<'_>> for SequenceContextFormat2 {
+    fn from_obj_ref(obj: &font_tables::layout::SequenceContextFormat2, _: &FontData) -> Self {
+        SequenceContextFormat2 {
+            coverage_offset: obj.coverage().into(),
+            class_def_offset: obj.class_def().into(),
+            class_seq_rule_set_offsets: obj.class_seq_rule_set().map(|x| x.into()).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::SequenceContextFormat2<'_>> for SequenceContextFormat2 {}
+
 /// Part of [SequenceContextFormat2]
 #[derive(Clone, Debug)]
 pub struct ClassSequenceRuleSet {
@@ -659,6 +943,18 @@ impl Validate for ClassSequenceRuleSet {
         })
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ClassSequenceRuleSet<'_>> for ClassSequenceRuleSet {
+    fn from_obj_ref(obj: &font_tables::layout::ClassSequenceRuleSet, _: &FontData) -> Self {
+        ClassSequenceRuleSet {
+            class_seq_rule_offsets: obj.class_seq_rule().map(|x| x.into()).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ClassSequenceRuleSet<'_>> for ClassSequenceRuleSet {}
 
 /// Part of [SequenceContextFormat2]
 #[derive(Clone, Debug)]
@@ -695,6 +991,24 @@ impl Validate for ClassSequenceRule {
         })
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ClassSequenceRule<'_>> for ClassSequenceRule {
+    fn from_obj_ref(obj: &font_tables::layout::ClassSequenceRule, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        ClassSequenceRule {
+            input_sequence: obj.input_sequence().iter().map(|x| x.get()).collect(),
+            seq_lookup_records: obj
+                .seq_lookup_records()
+                .iter()
+                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ClassSequenceRule<'_>> for ClassSequenceRule {}
 
 /// [Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-3-coverage-based-glyph-contexts)
 #[derive(Clone, Debug)]
@@ -739,6 +1053,24 @@ impl Validate for SequenceContextFormat3 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::SequenceContextFormat3<'_>> for SequenceContextFormat3 {
+    fn from_obj_ref(obj: &font_tables::layout::SequenceContextFormat3, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        SequenceContextFormat3 {
+            coverage_offsets: obj.coverage().map(|x| x.into()).collect(),
+            seq_lookup_records: obj
+                .seq_lookup_records()
+                .iter()
+                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::SequenceContextFormat3<'_>> for SequenceContextFormat3 {}
+
 #[derive(Clone, Debug)]
 pub enum SequenceContext {
     Format1(SequenceContextFormat1),
@@ -765,6 +1097,21 @@ impl Validate for SequenceContext {
         }
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::SequenceContext<'_>> for SequenceContext {
+    fn from_obj_ref(obj: &font_tables::layout::SequenceContext, _: &FontData) -> Self {
+        use font_tables::layout::SequenceContext as ObjRefType;
+        match obj {
+            ObjRefType::Format1(item) => SequenceContext::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => SequenceContext::Format2(item.to_owned_table()),
+            ObjRefType::Format3(item) => SequenceContext::Format3(item.to_owned_table()),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::SequenceContext<'_>> for SequenceContext {}
 
 /// [Chained Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-1-simple-glyph-contexts)
 #[derive(Clone, Debug)]
@@ -804,6 +1151,27 @@ impl Validate for ChainedSequenceContextFormat1 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ChainedSequenceContextFormat1<'_>>
+    for ChainedSequenceContextFormat1
+{
+    fn from_obj_ref(
+        obj: &font_tables::layout::ChainedSequenceContextFormat1,
+        _: &FontData,
+    ) -> Self {
+        ChainedSequenceContextFormat1 {
+            coverage_offset: obj.coverage().into(),
+            chained_seq_rule_set_offsets: obj.chained_seq_rule_set().map(|x| x.into()).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ChainedSequenceContextFormat1<'_>>
+    for ChainedSequenceContextFormat1
+{
+}
+
 /// Part of [ChainedSequenceContextFormat1]
 #[derive(Clone, Debug)]
 pub struct ChainedSequenceRuleSet {
@@ -833,6 +1201,18 @@ impl Validate for ChainedSequenceRuleSet {
         })
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ChainedSequenceRuleSet<'_>> for ChainedSequenceRuleSet {
+    fn from_obj_ref(obj: &font_tables::layout::ChainedSequenceRuleSet, _: &FontData) -> Self {
+        ChainedSequenceRuleSet {
+            chained_seq_rule_offsets: obj.chained_seq_rule().map(|x| x.into()).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ChainedSequenceRuleSet<'_>> for ChainedSequenceRuleSet {}
 
 /// Part of [ChainedSequenceContextFormat1]
 #[derive(Clone, Debug)]
@@ -890,6 +1270,26 @@ impl Validate for ChainedSequenceRule {
         })
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ChainedSequenceRule<'_>> for ChainedSequenceRule {
+    fn from_obj_ref(obj: &font_tables::layout::ChainedSequenceRule, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        ChainedSequenceRule {
+            backtrack_sequence: obj.backtrack_sequence().iter().map(|x| x.get()).collect(),
+            input_sequence: obj.input_sequence().iter().map(|x| x.get()).collect(),
+            lookahead_sequence: obj.lookahead_sequence().iter().map(|x| x.get()).collect(),
+            seq_lookup_records: obj
+                .seq_lookup_records()
+                .iter()
+                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ChainedSequenceRule<'_>> for ChainedSequenceRule {}
 
 /// [Chained Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-2-class-based-glyph-contexts)
 #[derive(Clone, Debug)]
@@ -951,6 +1351,33 @@ impl Validate for ChainedSequenceContextFormat2 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ChainedSequenceContextFormat2<'_>>
+    for ChainedSequenceContextFormat2
+{
+    fn from_obj_ref(
+        obj: &font_tables::layout::ChainedSequenceContextFormat2,
+        _: &FontData,
+    ) -> Self {
+        ChainedSequenceContextFormat2 {
+            coverage_offset: obj.coverage().into(),
+            backtrack_class_def_offset: obj.backtrack_class_def().into(),
+            input_class_def_offset: obj.input_class_def().into(),
+            lookahead_class_def_offset: obj.lookahead_class_def().into(),
+            chained_class_seq_rule_set_offsets: obj
+                .chained_class_seq_rule_set()
+                .map(|x| x.into())
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ChainedSequenceContextFormat2<'_>>
+    for ChainedSequenceContextFormat2
+{
+}
+
 /// Part of [ChainedSequenceContextFormat2]
 #[derive(Clone, Debug)]
 pub struct ChainedClassSequenceRuleSet {
@@ -979,6 +1406,26 @@ impl Validate for ChainedClassSequenceRuleSet {
             });
         })
     }
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ChainedClassSequenceRuleSet<'_>>
+    for ChainedClassSequenceRuleSet
+{
+    fn from_obj_ref(obj: &font_tables::layout::ChainedClassSequenceRuleSet, _: &FontData) -> Self {
+        ChainedClassSequenceRuleSet {
+            chained_class_seq_rule_offsets: obj
+                .chained_class_seq_rule()
+                .map(|x| x.into())
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ChainedClassSequenceRuleSet<'_>>
+    for ChainedClassSequenceRuleSet
+{
 }
 
 /// Part of [ChainedSequenceContextFormat2]
@@ -1038,6 +1485,26 @@ impl Validate for ChainedClassSequenceRule {
         })
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ChainedClassSequenceRule<'_>> for ChainedClassSequenceRule {
+    fn from_obj_ref(obj: &font_tables::layout::ChainedClassSequenceRule, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        ChainedClassSequenceRule {
+            backtrack_sequence: obj.backtrack_sequence().iter().map(|x| x.get()).collect(),
+            input_sequence: obj.input_sequence().iter().map(|x| x.get()).collect(),
+            lookahead_sequence: obj.lookahead_sequence().iter().map(|x| x.get()).collect(),
+            seq_lookup_records: obj
+                .seq_lookup_records()
+                .iter()
+                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ChainedClassSequenceRule<'_>> for ChainedClassSequenceRule {}
 
 /// [Chained Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-3-coverage-based-glyph-contexts)
 #[derive(Clone, Debug)]
@@ -1105,6 +1572,34 @@ impl Validate for ChainedSequenceContextFormat3 {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ChainedSequenceContextFormat3<'_>>
+    for ChainedSequenceContextFormat3
+{
+    fn from_obj_ref(
+        obj: &font_tables::layout::ChainedSequenceContextFormat3,
+        _: &FontData,
+    ) -> Self {
+        let offset_data = obj.offset_data();
+        ChainedSequenceContextFormat3 {
+            backtrack_coverage_offsets: obj.backtrack_coverage().map(|x| x.into()).collect(),
+            input_coverage_offsets: obj.input_coverage().map(|x| x.into()).collect(),
+            lookahead_coverage_offsets: obj.lookahead_coverage().map(|x| x.into()).collect(),
+            seq_lookup_records: obj
+                .seq_lookup_records()
+                .iter()
+                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ChainedSequenceContextFormat3<'_>>
+    for ChainedSequenceContextFormat3
+{
+}
+
 #[derive(Clone, Debug)]
 pub enum ChainedSequenceContext {
     Format1(ChainedSequenceContextFormat1),
@@ -1131,6 +1626,21 @@ impl Validate for ChainedSequenceContext {
         }
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ChainedSequenceContext<'_>> for ChainedSequenceContext {
+    fn from_obj_ref(obj: &font_tables::layout::ChainedSequenceContext, _: &FontData) -> Self {
+        use font_tables::layout::ChainedSequenceContext as ObjRefType;
+        match obj {
+            ObjRefType::Format1(item) => ChainedSequenceContext::Format1(item.to_owned_table()),
+            ObjRefType::Format2(item) => ChainedSequenceContext::Format2(item.to_owned_table()),
+            ObjRefType::Format3(item) => ChainedSequenceContext::Format3(item.to_owned_table()),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ChainedSequenceContext<'_>> for ChainedSequenceContext {}
 
 /// [Device](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
 /// delta formats
@@ -1185,6 +1695,21 @@ impl Validate for Device {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::Device<'_>> for Device {
+    fn from_obj_ref(obj: &font_tables::layout::Device, _: &FontData) -> Self {
+        Device {
+            start_size: obj.start_size(),
+            end_size: obj.end_size(),
+            delta_format: (convert_delta_format(obj.delta_format())),
+            delta_value: obj.delta_value().iter().map(|x| x.get()).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::Device<'_>> for Device {}
+
 /// Variation index table
 #[derive(Clone, Debug)]
 pub struct VariationIndex {
@@ -1209,6 +1734,20 @@ impl FontWrite for VariationIndex {
 impl Validate for VariationIndex {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::VariationIndex<'_>> for VariationIndex {
+    fn from_obj_ref(obj: &font_tables::layout::VariationIndex, _: &FontData) -> Self {
+        VariationIndex {
+            delta_set_outer_index: obj.delta_set_outer_index(),
+            delta_set_inner_index: obj.delta_set_inner_index(),
+            delta_format: obj.delta_format(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::VariationIndex<'_>> for VariationIndex {}
 
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
 #[derive(Clone, Debug)]
@@ -1240,6 +1779,23 @@ impl Validate for FeatureVariations {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::FeatureVariations<'_>> for FeatureVariations {
+    fn from_obj_ref(obj: &font_tables::layout::FeatureVariations, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        FeatureVariations {
+            feature_variation_records: obj
+                .feature_variation_records()
+                .iter()
+                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::FeatureVariations<'_>> for FeatureVariations {}
+
 /// Part of [FeatureVariations]
 #[derive(Clone, Debug)]
 pub struct FeatureVariationRecord {
@@ -1268,6 +1824,19 @@ impl Validate for FeatureVariationRecord {
                 self.feature_table_substitution_offset.validate_impl(ctx);
             });
         })
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::FeatureVariationRecord> for FeatureVariationRecord {
+    fn from_obj_ref(
+        obj: &font_tables::layout::FeatureVariationRecord,
+        offset_data: &FontData,
+    ) -> Self {
+        FeatureVariationRecord {
+            condition_set_offset: obj.condition_set(offset_data).into(),
+            feature_table_substitution_offset: obj.feature_table_substitution(offset_data).into(),
+        }
     }
 }
 
@@ -1301,6 +1870,18 @@ impl Validate for ConditionSet {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ConditionSet<'_>> for ConditionSet {
+    fn from_obj_ref(obj: &font_tables::layout::ConditionSet, _: &FontData) -> Self {
+        ConditionSet {
+            condition_offsets: obj.condition().map(|x| x.into()).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ConditionSet<'_>> for ConditionSet {}
+
 /// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
 #[derive(Clone, Debug)]
 pub struct ConditionFormat1 {
@@ -1327,6 +1908,20 @@ impl FontWrite for ConditionFormat1 {
 impl Validate for ConditionFormat1 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::ConditionFormat1<'_>> for ConditionFormat1 {
+    fn from_obj_ref(obj: &font_tables::layout::ConditionFormat1, _: &FontData) -> Self {
+        ConditionFormat1 {
+            axis_index: obj.axis_index(),
+            filter_range_min_value: obj.filter_range_min_value(),
+            filter_range_max_value: obj.filter_range_max_value(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::ConditionFormat1<'_>> for ConditionFormat1 {}
 
 /// [FeatureTableSubstitution Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featuretablesubstitution-table)
 #[derive(Clone, Debug)]
@@ -1356,6 +1951,23 @@ impl Validate for FeatureTableSubstitution {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::FeatureTableSubstitution<'_>> for FeatureTableSubstitution {
+    fn from_obj_ref(obj: &font_tables::layout::FeatureTableSubstitution, _: &FontData) -> Self {
+        let offset_data = obj.offset_data();
+        FeatureTableSubstitution {
+            substitutions: obj
+                .substitutions()
+                .iter()
+                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::FeatureTableSubstitution<'_>> for FeatureTableSubstitution {}
+
 /// Used in [FeatureTableSubstitution]
 #[derive(Clone, Debug)]
 pub struct FeatureTableSubstitutionRecord {
@@ -1380,6 +1992,21 @@ impl Validate for FeatureTableSubstitutionRecord {
                 self.alternate_feature_offset.validate_impl(ctx);
             });
         })
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::FeatureTableSubstitutionRecord>
+    for FeatureTableSubstitutionRecord
+{
+    fn from_obj_ref(
+        obj: &font_tables::layout::FeatureTableSubstitutionRecord,
+        offset_data: &FontData,
+    ) -> Self {
+        FeatureTableSubstitutionRecord {
+            feature_index: obj.feature_index(),
+            alternate_feature_offset: obj.alternate_feature(offset_data).into(),
+        }
     }
 }
 
@@ -1431,6 +2058,22 @@ impl Validate for SizeParams {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::SizeParams<'_>> for SizeParams {
+    fn from_obj_ref(obj: &font_tables::layout::SizeParams, _: &FontData) -> Self {
+        SizeParams {
+            design_size: obj.design_size(),
+            identifier: obj.identifier(),
+            name_entry: obj.name_entry(),
+            range_start: obj.range_start(),
+            range_end: obj.range_end(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::SizeParams<'_>> for SizeParams {}
+
 #[derive(Clone, Debug)]
 pub struct StylisticSetParams {
     /// The 'name' table name ID that specifies a string (or strings, for
@@ -1455,6 +2098,18 @@ impl FontWrite for StylisticSetParams {
 impl Validate for StylisticSetParams {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::StylisticSetParams<'_>> for StylisticSetParams {
+    fn from_obj_ref(obj: &font_tables::layout::StylisticSetParams, _: &FontData) -> Self {
+        StylisticSetParams {
+            ui_name_id: obj.ui_name_id(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::StylisticSetParams<'_>> for StylisticSetParams {}
 
 /// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
 #[derive(Clone, Debug)]
@@ -1505,3 +2160,20 @@ impl Validate for CharacterVariantParams {
         })
     }
 }
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::CharacterVariantParams<'_>> for CharacterVariantParams {
+    fn from_obj_ref(obj: &font_tables::layout::CharacterVariantParams, _: &FontData) -> Self {
+        CharacterVariantParams {
+            feat_ui_label_name_id: obj.feat_ui_label_name_id(),
+            feat_ui_tooltip_text_name_id: obj.feat_ui_tooltip_text_name_id(),
+            sample_text_name_id: obj.sample_text_name_id(),
+            num_named_parameters: obj.num_named_parameters(),
+            first_param_ui_label_name_id: obj.first_param_ui_label_name_id(),
+            character: obj.character().iter().map(|x| x.get()).collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::CharacterVariantParams<'_>> for CharacterVariantParams {}

@@ -96,11 +96,46 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
     }
 }
 
-pub(crate) fn generate_compile(item: &Table) -> syn::Result<TokenStream> {
-    super::record::generate_compile_impl(item.raw_name(), &item.attrs, &item.fields)
+pub(crate) fn generate_compile(item: &Table, parse_module: &syn::Path) -> syn::Result<TokenStream> {
+    let decl = super::record::generate_compile_impl(item.raw_name(), &item.attrs, &item.fields)?;
+    if decl.is_empty() {
+        return Ok(decl);
+    }
+
+    let to_owned_impl = generate_to_owned_impl(item, parse_module)?;
+    Ok(quote! {
+        #decl
+        #to_owned_impl
+    })
 }
 
-pub(crate) fn generate_format_compile(item: &TableFormat) -> syn::Result<TokenStream> {
+fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result<TokenStream> {
+    let name = item.raw_name();
+    let field_to_owned_stmts = item.fields.iter_from_obj_ref_stmts(false);
+    let maybe_bind_offset_data = item
+        .fields
+        .from_obj_requires_offset_data(false)
+        .then(|| quote!( let offset_data = obj.offset_data(); ));
+    Ok(quote! {
+        #[cfg(feature = "parsing")]
+        impl FromObjRef<#parse_module :: #name<'_>> for #name {
+            fn from_obj_ref(obj: &#parse_module :: #name, _: &FontData) -> Self {
+                #maybe_bind_offset_data
+                #name {
+                    #( #field_to_owned_stmts, )*
+                }
+            }
+        }
+
+        #[cfg(feature = "parsing")]
+        impl FromTableRef<#parse_module :: #name<'_>> for #name {}
+    })
+}
+
+pub(crate) fn generate_format_compile(
+    item: &TableFormat,
+    parse_module: &syn::Path,
+) -> syn::Result<TokenStream> {
     let name = &item.name;
     let docs = &item.docs;
     let variants = item.variants.iter().map(|variant| {
@@ -118,6 +153,11 @@ pub(crate) fn generate_format_compile(item: &TableFormat) -> syn::Result<TokenSt
     let validation_arms = item.variants.iter().map(|variant| {
         let var_name = &variant.name;
         quote!( Self::#var_name(item) => item.validate_impl(ctx), )
+    });
+
+    let to_owned_arms = item.variants.iter().map(|variant| {
+        let var_name = &variant.name;
+        quote!( ObjRefType::#var_name(item) => #name::#var_name(item.to_owned_table()), )
     });
 
     Ok(quote! {
@@ -142,6 +182,19 @@ pub(crate) fn generate_format_compile(item: &TableFormat) -> syn::Result<TokenSt
                 }
             }
         }
+
+        #[cfg(feature = "parsing")]
+        impl FromObjRef<#parse_module:: #name<'_>> for #name {
+            fn from_obj_ref(obj: &#parse_module:: #name, _: &FontData) -> Self {
+                use #parse_module::#name as ObjRefType;
+                match obj {
+                    #( #to_owned_arms )*
+                }
+            }
+        }
+
+        #[cfg(feature = "parsing")]
+        impl FromTableRef<#parse_module::#name<'_>> for #name {}
     })
 }
 

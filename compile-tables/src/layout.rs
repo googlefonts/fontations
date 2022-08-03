@@ -2,6 +2,9 @@
 
 use std::collections::HashSet;
 
+#[cfg(feature = "parsing")]
+use font_tables::parse_prelude::FontRead;
+
 pub mod gpos;
 mod value_record;
 
@@ -57,6 +60,44 @@ impl<T: Validate> Validate for ExtensionSubtable<T> {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl<'a, U, T> FromObjRef<font_tables::layout::TypedLookup<'a, U>> for Lookup<T>
+where
+    U: FontRead<'a>,
+    T: FromTableRef<U> + 'static,
+{
+    fn from_obj_ref(from: &font_tables::layout::TypedLookup<'a, U>, _data: &FontData) -> Self {
+        Lookup {
+            lookup_flag: from.lookup_flag(),
+            mark_filtering_set: from.mark_filtering_set(),
+            subtables: from
+                .subtable_offsets()
+                .iter()
+                .map(|off| {
+                    let table_ref = from.get_subtable(off.get());
+                    table_ref.into()
+                })
+                .collect(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl<'a, U, T> FromObjRef<font_tables::layout::gpos::TypedExtension<'a, U>> for ExtensionSubtable<T>
+where
+    U: FontRead<'a>,
+    T: FromTableRef<U> + 'static,
+{
+    fn from_obj_ref(
+        from: &font_tables::layout::gpos::TypedExtension<'a, U>,
+        _data: &FontData,
+    ) -> Self {
+        ExtensionSubtable {
+            extension_offset: from.get().into(),
+        }
+    }
+}
+
 /// A utility trait for writing lookup tables
 pub trait LookupType {
     /// The format type of this subtable.
@@ -108,6 +149,25 @@ impl Validate for FeatureParams {
     }
 }
 
+#[cfg(feature = "parsing")]
+impl FromObjRef<font_tables::layout::FeatureParams<'_>> for FeatureParams {
+    fn from_obj_ref(from: &font_tables::layout::FeatureParams, data: &FontData) -> Self {
+        use font_tables::layout::FeatureParams as FromType;
+        match from {
+            FromType::Size(thing) => Self::Size(SizeParams::from_obj_ref(thing, data)),
+            FromType::StylisticSet(thing) => {
+                Self::StylisticSet(FromObjRef::from_obj_ref(thing, data))
+            }
+            FromType::CharacterVariant(thing) => {
+                Self::CharacterVariant(FromObjRef::from_obj_ref(thing, data))
+            }
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<font_tables::layout::FeatureParams<'_>> for FeatureParams {}
+
 impl ClassDefFormat1 {
     fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
         self.class_value_array
@@ -155,6 +215,22 @@ impl ClassDef {
             .len()
             .try_into()
             .unwrap()
+    }
+}
+
+#[cfg(feature = "parsing")]
+fn convert_delta_format(from: font_tables::layout::DeltaFormat) -> DeltaFormat {
+    match from as u16 {
+        0x0002 => DeltaFormat::Local4BitDeltas,
+        0x0003 => DeltaFormat::Local8BitDeltas,
+        0x8000 => DeltaFormat::VariationIndex,
+        _ => DeltaFormat::Local2BitDeltas,
+    }
+}
+
+impl Default for DeltaFormat {
+    fn default() -> Self {
+        Self::Local2BitDeltas
     }
 }
 

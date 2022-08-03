@@ -5,7 +5,11 @@ edition = "2021"
 license = "MIT/Apache-2.0"
 
 
+[features]
+parsing = ["font-tables"]
+default = ["parsing"]
+
 [dependencies]
 font-types = { path = "../font-types" }
-#font-tables = { path = "../font-tables", features = ["compile"] }
+font-tables = { path = "../font-tables", optional = true }
 bitflags = "1.3"

@@ -37,9 +37,9 @@ pub fn generate_compile_module(code: &str) -> Result<proc_macro2::TokenStream, s
         .items
         .iter()
         .map(|item| match item {
-            Item::Record(item) => record::generate_compile(&item),
-            Item::Table(item) => table::generate_compile(&item),
-            Item::Format(item) => table::generate_format_compile(&item),
+            Item::Record(item) => record::generate_compile(&item, &items.parse_module_path),
+            Item::Table(item) => table::generate_compile(&item, &items.parse_module_path),
+            Item::Format(item) => table::generate_format_compile(&item, &items.parse_module_path),
             Item::RawEnum(item) => Ok(flags_enums::generate_raw_enum_compile(&item)),
             Item::Flags(item) => Ok(flags_enums::generate_flags_compile(&item)),
         })

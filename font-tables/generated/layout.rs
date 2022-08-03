@@ -322,7 +322,8 @@ impl FeatureRecord {
 
     /// Attempt to resolve [`feature_offset`][Self::feature_offset].
     pub fn feature<'a>(&self, data: &'a FontData<'a>) -> Result<Feature<'a>, ReadError> {
-        self.feature_offset().resolve(data)
+        let args = self.feature_tag();
+        self.feature_offset().resolve_with_args(data, &args)
     }
 }
 
@@ -334,6 +335,7 @@ impl FixedSized for FeatureRecord {
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct FeatureMarker {
+    feature_tag: Tag,
     lookup_list_indices_byte_len: usize,
 }
 
@@ -352,15 +354,24 @@ impl FeatureMarker {
     }
 }
 
-impl TableInfo for FeatureMarker {
+impl ReadArgs for FeatureMarker {
+    type Args = Tag;
+}
+
+impl TableInfoWithArgs for FeatureMarker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse_with_args<'a>(
+        data: FontData<'a>,
+        args: &Tag,
+    ) -> Result<TableRef<'a, Self>, ReadError> {
+        let feature_tag = *args;
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
         let lookup_index_count: u16 = cursor.read()?;
         let lookup_list_indices_byte_len = (lookup_index_count as usize) * u16::RAW_BYTE_LEN;
         cursor.advance_by(lookup_list_indices_byte_len);
         cursor.finish(FeatureMarker {
+            feature_tag,
             lookup_list_indices_byte_len,
         })
     }
@@ -376,6 +387,14 @@ impl<'a> Feature<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Attempt to resolve [`feature_params_offset`][Self::feature_params_offset].
+    pub fn feature_params(&self) -> Option<Result<FeatureParams<'a>, ReadError>> {
+        let data = &self.data;
+        let args = self.feature_tag();
+        self.feature_params_offset()
+            .resolve_nullable_with_args(data, &args)
+    }
+
     /// Number of LookupList indices for this feature
     pub fn lookup_index_count(&self) -> u16 {
         let range = self.shape.lookup_index_count_byte_range();
@@ -387,6 +406,10 @@ impl<'a> Feature<'a> {
     pub fn lookup_list_indices(&self) -> &[BigEndian<u16>] {
         let range = self.shape.lookup_list_indices_byte_range();
         self.data.read_array(range).unwrap()
+    }
+
+    pub(crate) fn feature_tag(&self) -> Tag {
+        self.shape.feature_tag
     }
 }
 
@@ -2767,11 +2790,6 @@ impl FeatureTableSubstitutionRecord {
     /// FeatureTableSubstitution table.
     pub fn alternate_feature_offset(&self) -> Offset32 {
         self.alternate_feature_offset.get()
-    }
-
-    /// Attempt to resolve [`alternate_feature_offset`][Self::alternate_feature_offset].
-    pub fn alternate_feature<'a>(&self, data: &'a FontData<'a>) -> Result<Feature<'a>, ReadError> {
-        self.alternate_feature_offset().resolve(data)
     }
 }
 

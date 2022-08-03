@@ -7,11 +7,14 @@ mod valuerecord;
 
 use crate::array::ComputedArray;
 
-use super::{
+/// reexport stuff from layout that we use
+pub use super::{
     ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
     Lookup, LookupList, ScriptList, SequenceContext, TypedLookup,
 };
 pub use valuerecord::ValueRecord;
+
+use crate::parse_prelude::*;
 
 include!("../../generated/gpos.rs");
 
@@ -28,7 +31,48 @@ pub enum PositionLookup<'a> {
     MarkToLig(TypedLookup<'a, MarkLigPosFormat1<'a>>),
     Contextual(TypedLookup<'a, SequenceContext<'a>>),
     ChainContextual(TypedLookup<'a, ChainedSequenceContext<'a>>),
-    Extension(TypedLookup<'a, ExtensionPosFormat1<'a>>),
+    Extension(TypedLookup<'a, ExtensionSubtable<'a>>),
+}
+
+/// A typed extension subtable
+//TODO: would be very nice to have codegen for this pattern...
+pub enum ExtensionSubtable<'a> {
+    Single(TypedExtension<'a, SinglePos<'a>>),
+    Pair(TypedExtension<'a, PairPos<'a>>),
+    Cursive(TypedExtension<'a, CursivePosFormat1<'a>>),
+    MarkToBase(TypedExtension<'a, MarkBasePosFormat1<'a>>),
+    MarkToLig(TypedExtension<'a, MarkLigPosFormat1<'a>>),
+    MarkToMark(TypedExtension<'a, MarkMarkPosFormat1<'a>>),
+    Contextual(TypedExtension<'a, SequenceContext<'a>>),
+    ChainContextual(TypedExtension<'a, ChainedSequenceContext<'a>>),
+}
+
+/// A typed position extension table.
+///
+/// This is a way of associating generic type information.
+pub struct TypedExtension<'a, T> {
+    inner: ExtensionPosFormat1<'a>,
+    phantom: std::marker::PhantomData<T>,
+}
+
+impl<'a, T: FontRead<'a>> TypedExtension<'a, T> {
+    fn new(inner: ExtensionPosFormat1<'a>) -> Self {
+        TypedExtension {
+            inner,
+            phantom: std::marker::PhantomData,
+        }
+    }
+
+    pub fn get(&self) -> Result<T, ReadError> {
+        self.inner.extension_offset().resolve(&self.inner.data)
+    }
+}
+
+impl<'a, T> std::ops::Deref for TypedExtension<'a, T> {
+    type Target = ExtensionPosFormat1<'a>;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
 }
 
 impl<'a> PositionLookupList<'a> {
@@ -36,11 +80,11 @@ impl<'a> PositionLookupList<'a> {
         self.0.lookup_count()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = PositionLookup<'a>> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = Result<PositionLookup<'a>, ReadError>> + '_ {
         self.0
             .lookup_offsets()
             .iter()
-            .flat_map(|off| self.0.resolve_offset(off.get()))
+            .map(|off| self.0.resolve_offset(off.get()))
     }
 }
 
@@ -79,8 +123,40 @@ impl<'a> std::ops::Deref for PositionLookup<'a> {
     }
 }
 
+impl<'a> std::ops::Deref for PositionLookupList<'a> {
+    type Target = LookupList<'a>;
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
 impl<'a> FontRead<'a> for PositionLookupList<'a> {
     fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
         LookupList::read(bytes).map(Self)
+    }
+}
+
+impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let extension = ExtensionPosFormat1::read(data)?;
+        match extension.extension_lookup_type() {
+            1 => Ok(ExtensionSubtable::Single(TypedExtension::new(extension))),
+            2 => Ok(ExtensionSubtable::Pair(TypedExtension::new(extension))),
+            3 => Ok(ExtensionSubtable::Cursive(TypedExtension::new(extension))),
+            4 => Ok(ExtensionSubtable::MarkToBase(TypedExtension::new(
+                extension,
+            ))),
+            5 => Ok(ExtensionSubtable::MarkToMark(TypedExtension::new(
+                extension,
+            ))),
+            6 => Ok(ExtensionSubtable::MarkToLig(TypedExtension::new(extension))),
+            7 => Ok(ExtensionSubtable::Contextual(TypedExtension::new(
+                extension,
+            ))),
+            8 => Ok(ExtensionSubtable::ChainContextual(TypedExtension::new(
+                extension,
+            ))),
+            other => Err(ReadError::InvalidFormat(other)),
+        }
     }
 }

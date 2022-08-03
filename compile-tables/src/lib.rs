@@ -1,5 +1,7 @@
 //! Raw types for compiling opentype tables
 
+#[cfg(feature = "parsing")]
+mod from_obj;
 mod graph;
 pub mod layout;
 mod offsets;
@@ -15,6 +17,13 @@ pub mod compile_prelude {
     pub use super::validate::{Validate, ValidationCtx};
     pub use super::write::{FontWrite, TableWriter};
     pub use font_types::*;
+
+    #[cfg(feature = "parsing")]
+    pub use super::from_obj::{FromObjRef, FromTableRef, ToOwnedObj, ToOwnedTable};
+    #[cfg(feature = "parsing")]
+    pub use font_tables::parse_prelude::{
+        FontData, FontRead, FontReadWithArgs, ReadArgs, ReadError, ResolveOffset,
+    };
 
     /// checked conversion to u16
     pub fn array_len<T>(s: &[T]) -> Result<u16, TryFromIntError> {

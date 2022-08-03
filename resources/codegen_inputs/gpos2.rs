@@ -1,3 +1,6 @@
+// path (from compile crate) to the generated parse module for this table.
+#![parse_module(font_tables::layout::gpos)]
+
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 table Gpos {
@@ -49,7 +52,6 @@ format u16 AnchorTable {
 }
 
 /// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
-//#[format(u16 = 1)]
 table AnchorFormat1 {
     /// Format identifier, = 1
     #[format = 1]
@@ -160,7 +162,6 @@ format u16 PairPos {
     Format1(PairPosFormat1),
     Format2(PairPosFormat2),
 }
-
 
 /// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
 table PairPosFormat1 {
@@ -325,7 +326,6 @@ table MarkBasePosFormat1 {
     mark_array_offset: BigEndian<Offset16<MarkArray>>,
     /// Offset to BaseArray table, from beginning of MarkBasePos
     /// subtable.
-    //#[to_owned(self.base_array_to_owned())]
     #[read_offset_with($mark_class_count)]
     base_array_offset: BigEndian<Offset16<BaseArray>>,
 }
@@ -344,7 +344,6 @@ table BaseArray {
 
 /// Part of [BaseArray]
 #[read_args(mark_class_count: u16)]
-//#[skip_parse]
 record BaseRecord<'a> {
     /// Array of offsets (one per mark class) to Anchor tables. Offsets
     /// are from beginning of BaseArray table, ordered by class
@@ -392,7 +391,6 @@ table LigatureArray {
 }
 
 /// Part of [MarkLigPosFormat1]
-//#[offset_host]
 #[read_args(mark_class_count: u16)]
 table LigatureAttach {
     /// Number of ComponentRecords in this ligature
@@ -434,7 +432,6 @@ table MarkMarkPosFormat1 {
     mark1_array_offset: BigEndian<Offset16<MarkArray>>,
     /// Offset to Mark2Array table for mark2, from beginning of
     /// MarkMarkPos subtable.
-    //#[to_owned(self.mark2_array_to_owned())]
     #[read_offset_with($mark_class_count)]
     mark2_array_offset: BigEndian<Offset16<Mark2Array>>,
 }

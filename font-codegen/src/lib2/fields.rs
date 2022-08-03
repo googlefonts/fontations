@@ -100,6 +100,19 @@ impl Fields {
         }
         stmts
     }
+
+    pub(crate) fn from_obj_requires_offset_data(&self, in_record: bool) -> bool {
+        self.iter()
+            .any(|fld| fld.from_obj_requires_offset_data(in_record))
+    }
+
+    pub(crate) fn iter_from_obj_ref_stmts<'a>(
+        &'a self,
+        in_record: bool,
+    ) -> impl Iterator<Item = TokenStream> + 'a {
+        self.iter()
+            .flat_map(move |fld| fld.from_obj_ref_stmt(in_record))
+    }
 }
 
 impl Field {
@@ -634,6 +647,59 @@ impl Field {
                 _ => false,
             },
         }
+    }
+
+    fn from_obj_requires_offset_data(&self, in_record: bool) -> bool {
+        match &self.typ {
+            FieldType::Offset { .. } => in_record,
+            FieldType::ComputedArray(_) => true,
+            FieldType::Other { .. } => true,
+            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+                FieldType::Offset { .. } => in_record,
+                FieldType::Other { .. } => true,
+                _ => false,
+            },
+            _ => false,
+        }
+    }
+
+    fn from_obj_ref_stmt(&self, in_record: bool) -> Option<TokenStream> {
+        if self.is_computed() {
+            return None;
+        }
+
+        let pass_offset_data = in_record.then(|| quote!(offset_data));
+
+        let name = &self.name;
+        let init_stmt = match &self.typ {
+            _ if self.attrs.to_owned.is_some() => {
+                self.attrs.to_owned.as_ref().unwrap().expr.to_token_stream()
+            }
+            FieldType::Scalar { .. } => quote!(obj.#name()),
+            FieldType::Other { .. } => quote!(obj.#name().to_owned_obj(offset_data)),
+            FieldType::Offset {
+                target: Some(_), ..
+            } => {
+                let offset_getter = self.offset_getter_name().unwrap();
+                quote!(obj.#offset_getter(#pass_offset_data).into())
+            }
+            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+                FieldType::Scalar { .. } => quote!(obj.#name().iter().map(|x| x.get()).collect()),
+                FieldType::Offset { .. } => {
+                    let offset_getter = self.offset_getter_name().unwrap();
+                    quote!(obj.#offset_getter(#pass_offset_data).map(|x| x.into()).collect())
+                }
+                FieldType::Other { .. } => {
+                    quote!(obj.#name().iter().map(|x| FromObjRef::from_obj_ref(x, offset_data)).collect())
+                }
+                _ => quote!(compile_error!("requires custom to_owned impl")),
+            },
+            FieldType::ComputedArray(_array) => {
+                quote!(obj.#name().iter().filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok()).collect())
+            }
+            _ => quote!(compile_error!("requires custom to_owned impl")),
+        };
+        Some(quote!( #name: #init_stmt ))
     }
 }
 

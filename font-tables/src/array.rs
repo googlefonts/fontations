@@ -42,7 +42,7 @@ where
 
 impl<'a, T> ComputedArray<'a, T>
 where
-    T: FontReadWithArgs<'a> + Default,
+    T: FontReadWithArgs<'a>,
 {
     pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = Result<T, ReadError>> + 'b {
         let mut i = 0;

@@ -2,7 +2,7 @@
 
 mod array;
 mod font_data;
-mod layout;
+pub mod layout;
 mod read;
 mod table_ref;
 

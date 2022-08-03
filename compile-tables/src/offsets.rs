@@ -2,6 +2,9 @@
 
 use font_types::Offset;
 
+#[cfg(feature = "parsing")]
+use super::compile_prelude::{FromTableRef, ReadError};
+
 use super::write::{FontWrite, TableWriter};
 
 /// An offset subtable.
@@ -83,6 +86,33 @@ impl<W: Offset, T: FontWrite> FontWrite for NullableOffsetMarker<W, T> {
             Some(obj) => writer.write_offset::<W>(obj),
             None => writer.write_slice(W::null_bytes()),
         }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl<W, T, U> From<Result<U, ReadError>> for OffsetMarker<W, T>
+where
+    W: Offset,
+    T: FromTableRef<U>,
+{
+    fn from(from: Result<U, ReadError>) -> Self {
+        OffsetMarker::new_maybe_null(from.ok().map(|x| T::from_table_ref(&x)))
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl<W, T, U> From<Option<Result<U, ReadError>>> for NullableOffsetMarker<W, T>
+where
+    W: Offset,
+    T: FromTableRef<U>,
+{
+    fn from(from: Option<Result<U, ReadError>>) -> Self {
+        NullableOffsetMarker::new(
+            from.transpose()
+                .ok()
+                .flatten()
+                .map(|x| T::from_table_ref(&x)),
+        )
     }
 }
 
