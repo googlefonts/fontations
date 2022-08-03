@@ -1,93 +1,94 @@
 # This is a 'codegen plan': it describes a series of steps to perform
 # in order to regenerate all of this project's generated code.
 
-# a list of files/directories
-clean = ["font-tables/generated"]
+# a list of directories that will be cleaned
+clean = ["font-tables/generated", "compile-tables/generated"]
 
 # TODO: support a 'copy' step
 
 # a mapping of files to generate, and their sources
-[[generate]]
-mode = "parse"
-source = "resources/codegen_inputs/font.rs"
-target = "font-tables/generated/generated_font_parse.rs"
 
-[[generate]]
-mode = "compile"
-source = "resources/codegen_inputs/font.rs"
-target = "font-tables/generated/generated_font_compile.rs"
+#[[generate]]
+#mode = "parse"
+#source = "resources/codegen_inputs/font.rs"
+#target = "font-tables/generated/generated_font_parse.rs"
+
+#[[generate]]
+#mode = "compile"
+#source = "resources/codegen_inputs/font.rs"
+#target = "font-tables/generated/generated_font_compile.rs"
 
 [[generate]]
 mode = "parse"
 source = "resources/codegen_inputs/layout.rs"
-target = "font-tables/generated/generated_layout_parse.rs"
+target = "font-tables/generated/layout.rs"
 
 [[generate]]
 mode = "compile"
 source = "resources/codegen_inputs/layout.rs"
-target = "font-tables/generated/generated_layout_compile.rs"
-
-[[generate]]
-mode = "parse"
-source = "resources/codegen_inputs/cmap.rs"
-target = "font-tables/generated/generated_cmap.rs"
-
-[[generate]]
-mode = "parse"
-source = "resources/codegen_inputs/head.rs"
-target = "font-tables/generated/generated_head.rs"
-
-[[generate]]
-mode = "parse"
-source = "resources/codegen_inputs/name.rs"
-target = "font-tables/generated/generated_name.rs"
-
-[[generate]]
-mode = "parse"
-source = "resources/codegen_inputs/post.rs"
-target = "font-tables/generated/generated_post.rs"
-
-[[generate]]
-mode = "parse"
-source = "resources/codegen_inputs/hhea.rs"
-target = "font-tables/generated/generated_hhea.rs"
-
-[[generate]]
-mode = "parse"
-source = "resources/codegen_inputs/hmtx.rs"
-target = "font-tables/generated/generated_hmtx.rs"
-
-[[generate]]
-mode = "parse"
-source = "resources/codegen_inputs/maxp.rs"
-target = "font-tables/generated/generated_maxp.rs"
-
-[[generate]]
-mode = "parse"
-source = "resources/codegen_inputs/stat.rs"
-target = "font-tables/generated/generated_stat.rs"
-
-[[generate]]
-mode = "parse"
-source = "resources/codegen_inputs/glyf.rs"
-target = "font-tables/generated/generated_glyf.rs"
-
-[[generate]]
-mode = "parse"
-source = "resources/codegen_inputs/gdef.rs"
-target = "font-tables/generated/generated_gdef_parse.rs"
-
-[[generate]]
-mode = "compile"
-source = "resources/codegen_inputs/gdef.rs"
-target = "font-tables/generated/generated_gdef_compile.rs"
+target = "compile-tables/generated/layout.rs"
 
 [[generate]]
 mode = "parse"
 source = "resources/codegen_inputs/gpos.rs"
-target = "font-tables/generated/generated_gpos_parse.rs"
+target = "font-tables/generated/gpos.rs"
 
 [[generate]]
 mode = "compile"
 source = "resources/codegen_inputs/gpos.rs"
-target = "font-tables/generated/generated_gpos_compile.rs"
+target = "compile-tables/generated/gpos.rs"
+
+#[[generate]]
+#mode = "parse"
+#source = "resources/codegen_inputs/cmap.rs"
+#target = "font-tables/generated/generated_cmap.rs"
+
+#[[generate]]
+#mode = "parse"
+#source = "resources/codegen_inputs/head.rs"
+#target = "font-tables/generated/generated_head.rs"
+
+#[[generate]]
+#mode = "parse"
+#source = "resources/codegen_inputs/name.rs"
+#target = "font-tables/generated/generated_name.rs"
+
+#[[generate]]
+#mode = "parse"
+#source = "resources/codegen_inputs/post.rs"
+#target = "font-tables/generated/generated_post.rs"
+
+#[[generate]]
+#mode = "parse"
+#source = "resources/codegen_inputs/hhea.rs"
+#target = "font-tables/generated/generated_hhea.rs"
+
+#[[generate]]
+#mode = "parse"
+#source = "resources/codegen_inputs/hmtx.rs"
+#target = "font-tables/generated/generated_hmtx.rs"
+
+#[[generate]]
+#mode = "parse"
+#source = "resources/codegen_inputs/maxp.rs"
+#target = "font-tables/generated/generated_maxp.rs"
+
+#[[generate]]
+#mode = "parse"
+#source = "resources/codegen_inputs/stat.rs"
+#target = "font-tables/generated/generated_stat.rs"
+
+#[[generate]]
+#mode = "parse"
+#source = "resources/codegen_inputs/glyf.rs"
+#target = "font-tables/generated/generated_glyf.rs"
+
+#[[generate]]
+#mode = "parse"
+#source = "resources/codegen_inputs/gdef.rs"
+#target = "font-tables/generated/generated_gdef_parse.rs"
+
+#[[generate]]
+#mode = "compile"
+#source = "resources/codegen_inputs/gdef.rs"
+#target = "font-tables/generated/generated_gdef_compile.rs"

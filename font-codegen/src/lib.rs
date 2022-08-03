@@ -1,12 +1,15 @@
-use std::collections::BTreeMap;
+//! Generating types from the opentype spec
 
-use quote::{quote, quote_spanned, ToTokens};
-use syn::spanned::Spanned;
+use quote::quote;
 
-mod compile_types;
 mod error;
-mod lib2;
-mod parse;
+mod fields;
+mod flags_enums;
+mod parsing;
+mod record;
+mod table;
+
+use parsing::{Item, Items};
 
 pub use error::ErrorReport;
 
@@ -16,20 +19,14 @@ pub use error::ErrorReport;
 pub enum Mode {
     /// Generate parsing code
     Parse,
-    /// Generate new-style parsing code
-    Parse2,
     /// Generate compilation code
     Compile,
-    /// Generate new-style-compatible compilation code
-    Compile2,
 }
 
 pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
     let tables = match mode {
-        Mode::Parse => generate_parse_module(&syn::parse_str(code_str)?),
-        Mode::Parse2 => lib2::generate_parse_module(&code_str),
-        Mode::Compile2 => lib2::generate_compile_module(&code_str),
-        Mode::Compile => compile_types::generate_compile_module(&syn::parse_str(code_str)?),
+        Mode::Parse => generate_parse_module(&code_str),
+        Mode::Compile => generate_compile_module(&code_str),
     }?;
     // if this is not valid code just pass it through directly, and then we
     // can see the compiler errors
@@ -57,533 +54,50 @@ pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
     ))
 }
 
-fn generate_parse_module(items: &parse::Items) -> Result<proc_macro2::TokenStream, syn::Error> {
+pub fn generate_parse_module(code: &str) -> Result<proc_macro2::TokenStream, syn::Error> {
+    let items: Items = syn::parse_str(code)?;
+    items.sanity_check()?;
     let mut code = Vec::new();
     for item in &items.items {
         let item_code = match item {
-            parse::Item::Single(item) => generate_item_code(item),
-            parse::Item::Group(group) => generate_group(group, &items.items)?,
-            parse::Item::RawEnum(raw_enum) => generate_raw_enum(raw_enum),
-            parse::Item::Flags(flags) => generate_flags(flags),
+            Item::Record(item) => record::generate(item)?,
+            Item::Table(item) => table::generate(item)?,
+            Item::Format(item) => table::generate_format_group(item)?,
+            Item::RawEnum(item) => flags_enums::generate_raw_enum(&item),
+            Item::Flags(item) => flags_enums::generate_flags(&item),
         };
         code.push(item_code);
     }
 
-    let use_stmts = &items.use_stmts;
     Ok(quote! {
-        #(#use_stmts)*
         #[allow(unused_imports)]
-        use font_types::*;
+        use crate::parse_prelude::*;
         #(#code)*
     })
 }
 
-fn generate_item_code(item: &parse::SingleItem) -> proc_macro2::TokenStream {
-    if item.gets_zerocopy_impl() {
-        generate_zerocopy_impls(item)
-    } else {
-        generate_view_impls(item)
-    }
-}
+pub fn generate_compile_module(code: &str) -> Result<proc_macro2::TokenStream, syn::Error> {
+    let items: Items = syn::parse_str(code)?;
+    items.sanity_check()?;
 
-fn generate_group(
-    group: &parse::ItemGroup,
-    all_items: &[parse::Item],
-) -> Result<proc_macro2::TokenStream, syn::Error> {
-    let name = &group.name;
-    let lifetime = group.lifetime.as_ref().map(|_| quote!(<'a>));
-    let docs = &group.docs;
-    let shared_getter_impl = if group.generate_getters.is_some() {
-        Some(generate_group_getter_impl(group, all_items)?)
-    } else {
-        None
-    };
-
-    let variants = group.variants.iter().map(|variant| {
-        let name = &variant.name;
-        let typ = &variant.typ;
-        let docs = variant.docs.iter();
-        let lifetime = variant.typ_lifetime.as_ref().map(|_| quote!(<'a>));
-        quote! {
-                #( #docs )*
-                #name(#typ #lifetime)
-        }
-    });
-
-    let format = &group.format_typ;
-    let match_arms = group.variants.iter().map(|variant| {
-        let name = &variant.name;
-        let version = &variant.version;
-        quote! {
-            #version => {
-                Some(Self::#name(font_types::FontRead::read(bytes)?))
-            }
-        }
-    });
-
-    let var_versions = group
-        .variants
+    let code = items
+        .items
         .iter()
-        .filter_map(|v| v.version.const_version_tokens());
-
-    // ensure that constants passed in as versions actually exist, and that we
-    // aren't just using them as bindings
-    let validation_check = quote! {
-        #( const _: #format = #var_versions; )*
-    };
-    let font_read = quote! {
-
-        impl<'a> font_types::FontRead<'a> for #name #lifetime {
-            fn read(bytes: &'a [u8]) -> Option<Self> {
-                #validation_check
-                let version: BigEndian<#format> = font_types::FontRead::read(bytes)?;
-                match version.get() {
-                    #( #match_arms ),*
-
-                        _other => {
-                            #[cfg(feature = "std")]
-                            {
-                            eprintln!("unknown enum variant {:?} (table {})", version, stringify!(#name));
-                            }
-                            None
-                        }
-                }
-            }
-        }
-    };
+        .map(|item| match item {
+            Item::Record(item) => record::generate_compile(&item, &items.parse_module_path),
+            Item::Table(item) => table::generate_compile(&item, &items.parse_module_path),
+            Item::Format(item) => table::generate_format_compile(&item, &items.parse_module_path),
+            Item::RawEnum(item) => Ok(flags_enums::generate_raw_enum_compile(&item)),
+            Item::Flags(item) => Ok(flags_enums::generate_flags_compile(&item)),
+        })
+        .collect::<Result<Vec<_>, _>>()?;
 
     Ok(quote! {
-        #( #docs )*
-        pub enum #name #lifetime {
-            #( #variants ),*
-        }
+        #[allow(unused_imports)]
+        use crate::compile_prelude::*;
 
-        #font_read
-
-        #shared_getter_impl
+        #( #code )*
     })
-}
-
-/// a field that receives a getter; either for the concrete type of the field,
-/// or for the type pointed to by an offset.
-enum Getter<'a> {
-    Field(&'a parse::Field),
-    OffsetTarget(&'a parse::Field),
-}
-
-impl Getter<'_> {
-    fn is_offset_target(&self) -> bool {
-        matches!(self, Getter::OffsetTarget(_))
-    }
-
-    fn name(&self) -> syn::Ident {
-        match self {
-            Getter::Field(field) => field.name().clone(),
-            Getter::OffsetTarget(field) => field.offset_getter_name().unwrap(),
-        }
-    }
-
-    fn docs(&self) -> &[syn::Attribute] {
-        match self {
-            Getter::Field(field) => field.docs(),
-            _ => &[],
-        }
-    }
-
-    fn getter_return_type(&self) -> proc_macro2::TokenStream {
-        match self {
-            Getter::Field(field) => field.getter_return_type(),
-            Getter::OffsetTarget(field) => {
-                let target = field.offset_target();
-                quote!(Option<#target>)
-            }
-        }
-    }
-}
-
-fn generate_group_getter_impl(
-    group: &parse::ItemGroup,
-    all_items: &[parse::Item],
-) -> Result<proc_macro2::TokenStream, syn::Error> {
-    let items = group.variants.iter().map(|var|
-        all_items
-        .iter()
-        .find_map(|item|  match item {
-            parse::Item::Single(x) if x.name == var.typ => Some(x),
-            _ => None,
-        })
-        .ok_or_else(|| syn::Error::new(var.typ.span(), "type not in scope (#[generate_getters] requires all items in same macro block)")))
-        .collect::<Result<Vec<_>,_>>()?;
-
-    let mut fields = BTreeMap::new();
-    for item in &items {
-        for field in item.fields.iter().filter(|fld| fld.visible()) {
-            fields
-                .entry(field.name().clone())
-                .or_insert_with(|| (Getter::Field(field), Vec::new()))
-                .1
-                .push(&item.name);
-
-            if let Some(offset_getter) = field.offset_getter_name() {
-                fields
-                    .entry(offset_getter)
-                    .or_insert_with(|| (Getter::OffsetTarget(field), Vec::new()))
-                    .1
-                    .push(&item.name);
-            }
-        }
-    }
-
-    let match_left_sides = group
-        .variants
-        .iter()
-        .map(|var| {
-            let name = &var.name;
-            let span = name.span();
-            quote_spanned!(span=> Self::#name(_inner))
-        })
-        .collect::<Vec<_>>();
-
-    let n_variants = group.variants.len();
-    let mut getters = Vec::new();
-
-    for (field, variants) in fields.values() {
-        let field_name = field.name();
-        let docs = field.docs();
-        let (ret_type, match_right_sides) = if variants.len() == n_variants {
-            let match_right_sides = (0..n_variants)
-                .map(|_| quote!(_inner.#field_name()))
-                .collect::<Vec<_>>();
-            (field.getter_return_type(), match_right_sides)
-        } else {
-            let ret_type = field.getter_return_type();
-            // offsets are already always option
-            let ret_type = if field.is_offset_target() {
-                ret_type
-            } else {
-                quote!(Option<#ret_type>)
-            };
-            let match_right_sides = group
-                .variants
-                .iter()
-                .map(|var| {
-                    if variants.contains(&&var.typ) {
-                        if field.is_offset_target() {
-                            quote!(_inner.#field_name())
-                        } else {
-                            quote!( Some(_inner.#field_name()) )
-                        }
-                    } else {
-                        quote!(None)
-                    }
-                })
-                .collect();
-            (ret_type, match_right_sides)
-        };
-
-        getters.push(quote! {
-            #( #docs )*
-            pub fn #field_name(&self) -> #ret_type {
-                match self {
-                    #( #match_left_sides => #match_right_sides, )*
-                }
-            }
-        });
-    }
-
-    let name = &group.name;
-    let lifetime = group.lifetime.as_ref().map(|_| quote!(<'a>));
-
-    let offset_host_impl = if items.iter().all(|item| item.offset_host.is_some()) {
-        Some(quote! {
-            impl<'a> font_types::OffsetHost<'a> for #name #lifetime {
-                fn bytes(&self) -> &'a [u8] {
-                    match self {
-                        #( #match_left_sides => _inner.bytes(), )*
-                    }
-                }
-            }
-        })
-    } else {
-        None
-    };
-
-    Ok(quote! {
-        impl #lifetime #name #lifetime {
-            #( #getters )*
-        }
-
-        #offset_host_impl
-    })
-}
-
-fn generate_flags(raw: &parse::BitFlags) -> proc_macro2::TokenStream {
-    let name = &raw.name;
-    let docs = &raw.docs;
-    let type_ = &raw.type_;
-    let variants = raw.variants.iter().map(|variant| {
-        let name = &variant.name;
-        let value = &variant.value;
-        let docs = &variant.docs;
-        quote! {
-            #( #docs )*
-            const #name = #value;
-        }
-    });
-
-    quote! {
-        bitflags::bitflags! {
-            #( #docs )*
-            pub struct #name: #type_ {
-                #( #variants )*
-            }
-        }
-
-        impl font_types::Scalar for #name {
-            type Raw = <#type_ as font_types::Scalar>::Raw;
-
-            fn to_raw(self) -> Self::Raw {
-                self.bits().to_raw()
-            }
-
-            fn from_raw(raw: Self::Raw) -> Self {
-                let t = <#type_>::from_raw(raw);
-                Self::from_bits_truncate(t)
-            }
-        }
-    }
-}
-
-fn generate_raw_enum(raw: &parse::RawEnum) -> proc_macro2::TokenStream {
-    let name = &raw.name;
-    let docs = &raw.docs;
-    let repr = &raw.repr;
-    let variants = raw.variants.iter().map(|variant| {
-        let name = &variant.name;
-        let value = &variant.value;
-        let docs = &variant.docs;
-        quote! {
-            #( #docs )*
-            #name = #value,
-        }
-    });
-    let variant_inits = raw.variants.iter().map(|variant| {
-        let name = &variant.name;
-        let value = &variant.value;
-        quote!(#value => Self::#name,)
-    });
-
-    quote! {
-        #( #docs )*
-        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-        #[repr(#repr)]
-        pub enum #name {
-            #( #variants )*
-            Unknown,
-        }
-
-        impl #name {
-            /// Create from a raw scalar.
-            ///
-            /// This will never fail; unknown values will be mapped to the `Unknown` variant
-            pub fn new(raw: #repr) -> Self {
-                match raw {
-                    #( #variant_inits )*
-                    _ => Self::Unknown,
-                }
-            }
-        }
-    }
-}
-
-fn generate_zerocopy_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
-    assert!(item.lifetime.is_none());
-    let name = &item.name;
-    let field_names = item
-        .fields
-        .iter()
-        .map(|field| &field.as_single().unwrap().name);
-    let docs = &item.docs;
-    let field_types = item
-        .fields
-        .iter()
-        .map(|field| field.as_single().unwrap().typ.view_field_tokens());
-    let field_docs = item
-        .fields
-        .iter()
-        .map(|fld| {
-            let docs = &fld.as_single().unwrap().docs;
-            quote!( #( #docs )* )
-        })
-        .collect::<Vec<_>>();
-
-    let getters = item.fields.iter().map(parse::Field::view_getter_fn);
-
-    quote! {
-        #( #docs )*
-        #[derive(Clone, Copy, Debug, zerocopy::FromBytes, zerocopy::Unaligned)]
-        #[repr(C)]
-        pub struct #name {
-            #( #field_docs pub #field_names: #field_types, )*
-        }
-
-        impl #name {
-            #(
-                #getters
-            )*
-        }
-
-    }
-}
-
-fn generate_view_impls(item: &parse::SingleItem) -> proc_macro2::TokenStream {
-    let name = &item.name;
-    let docs = &item.docs;
-    let lifetime = item.lifetime.is_some().then(|| quote!(<'a>));
-
-    // these are fields which are inputs to the size calculations of *other fields.
-    // For each of these field, we generate a 'resolved' identifier, and we assign the
-    // value of this field to that identifier at init time. Subsequent fields can then
-    // access that identifier in their own generated code, to determine the runtime
-    // value of something.
-    #[allow(clippy::needless_collect)] // bad clippy
-    let fields_used_as_inputs = item
-        .fields
-        .iter()
-        .filter_map(parse::Field::input_fields)
-        .flatten()
-        .collect::<Vec<_>>();
-
-    // The fields in the declaration of the struct.
-    let mut field_decls = Vec::new();
-    // the getters for those fields that have getters
-    let mut getters = Vec::new();
-    // just the names; we use these at the end to assemble the struct (shorthand initializer syntax)
-    let mut used_field_names = Vec::new();
-    // the code to intiailize each field. each block of code is expected to take the form,
-    // `let (field_name, bytes) = $expr`, where 'bytes' is the whatever is left over
-    // from the input bytes after validating this field.
-    let mut field_inits = Vec::new();
-
-    for field in &item.fields {
-        if matches!(field, parse::Field::Array(arr) if arr.variable_size.is_some()) {
-            continue;
-        }
-
-        let name = field.name();
-        let span = name.span();
-
-        field_decls.push(field.view_field_decl());
-        used_field_names.push(field.name().to_owned());
-
-        if let Some(getter) = field.view_getter_fn() {
-            getters.push(getter);
-        }
-        if item.offset_host.is_some() {
-            getters.extend(field.typed_offset_getter_fn());
-        }
-
-        let field_init = field.view_init_expr();
-        // if this field is used by another field, resolve it's current value
-        let maybe_resolved_value = fields_used_as_inputs.contains(&name).then(|| {
-            let resolved_ident = make_resolved_ident(name);
-            let resolve_expr = field.resolve_expr();
-            quote_spanned!(span=> let #resolved_ident = #resolve_expr;)
-        });
-
-        field_inits.push(quote! {
-            #field_init
-            #maybe_resolved_value
-        });
-    }
-
-    let mut offset_host_impl = None;
-    if let Some(attr) = item.offset_host.as_ref() {
-        let span = attr.span();
-        field_decls.push(quote_spanned!(span=> offset_bytes: &'a [u8]));
-        used_field_names.push(syn::Ident::new("offset_bytes", span));
-        // this needs to be the first item, otherwise offsets will be miscalculated,
-        // since 'bytes' is consumed as we init items
-        field_inits.insert(0, quote_spanned!(span=> let offset_bytes = bytes;));
-        offset_host_impl = Some(quote_spanned! {span=>
-            impl<'a> font_types::OffsetHost<'a> for #name #lifetime {
-                fn bytes(&self) -> &'a [u8] {
-                    self.offset_bytes
-                }
-            }
-        });
-    }
-
-    let init_body = quote! {
-        #( #field_inits )*
-        let _bytes = bytes;
-        let result = #name {
-            #( #used_field_names, )*
-        };
-    };
-
-    let init_impl = if item.init.is_empty() {
-        quote! {
-            impl<'a> font_types::FontRead<'a> for #name #lifetime {
-                fn read(bytes: &'a [u8]) -> Option<Self> {
-                    #init_body
-                    Some(result)
-                }
-            }
-        }
-    } else {
-        let (arg_type, init_args, init_aliases) = match item.init.as_slice() {
-            [(arg, typ)] => {
-                let span = arg.span();
-                let resolved = make_resolved_ident(&arg);
-                (
-                    typ.to_token_stream(),
-                    quote_spanned!(span=> #arg: &#typ),
-                    quote_spanned!(span=> let #resolved = *#arg;),
-                )
-            }
-            slice => {
-                let types = slice.iter().map(|(_, typ)| typ);
-                let arg_type = quote!( ( #( #types ),* ) );
-                let args = quote!(  args: &#arg_type );
-                let aliases = slice.iter().enumerate().map(|(i, (arg, _))| {
-                    let span = arg.span();
-                    let resolved = make_resolved_ident(arg);
-                    let index = syn::Index::from(i);
-                    quote_spanned!(span=> let #resolved = args.#index;)
-                });
-                (arg_type, args, quote!( #(#aliases)* ))
-            }
-        };
-
-        quote! {
-            impl<'a> font_types::FontReadWithArgs<'a, #arg_type> for #name #lifetime {
-                fn read_with_args(bytes: &'a [u8], #init_args ) -> Option<(Self, &'a [u8])> {
-                    #init_aliases
-                    #init_body
-                    Some((result, _bytes))
-                }
-            }
-        }
-    };
-
-    quote! {
-        #( #docs )*
-        pub struct #name #lifetime {
-            #( #field_decls ),*
-        }
-
-        #init_impl
-        impl #lifetime #name #lifetime {
-            #( #getters )*
-        }
-
-        #offset_host_impl
-    }
-}
-
-fn make_resolved_ident(ident: &syn::Ident) -> syn::Ident {
-    quote::format_ident!("__resolved_{}", ident)
 }
 
 impl std::str::FromStr for Mode {

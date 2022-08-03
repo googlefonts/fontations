@@ -5,7 +5,7 @@ use std::collections::HashSet;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
-use crate::lib2::parsing::Count;
+use crate::parsing::Count;
 
 use super::parsing::{Field, FieldReadArgs, FieldType, Fields, Record};
 
