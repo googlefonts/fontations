@@ -22,7 +22,7 @@ pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
         let docs = &fld.attrs.docs;
         quote!( #( #docs )* )
     });
-    let getters = item.fields.iter().map(Field::record_getter);
+    let getters = item.fields.iter().map(|fld| fld.record_getter(item));
     let extra_traits = generate_extra_traits(item)?;
     let repr_packed = item.lifetime.is_none().then(|| {
         quote! {

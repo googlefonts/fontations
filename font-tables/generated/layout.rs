@@ -74,6 +74,11 @@ impl ScriptRecord {
     pub fn script_offset(&self) -> Offset16 {
         self.script_offset.get()
     }
+
+    /// Attempt to resolve [`script_offset`][Self::script_offset].
+    pub fn script<'a>(&self, data: &'a FontData<'a>) -> Result<Script<'a>, ReadError> {
+        self.script_offset().resolve(data)
+    }
 }
 
 impl FixedSized for ScriptRecord {
@@ -129,10 +134,8 @@ impl<'a> Script<'a> {
 
     /// Attempt to resolve [`default_lang_sys_offset`][Self::default_lang_sys_offset].
     pub fn default_lang_sys(&self) -> Option<Result<LangSys<'a>, ReadError>> {
-        let range = self.shape.default_lang_sys_offset_byte_range();
-        let offset: Offset16 = self.data.read_at(range.start).unwrap();
-        let result = offset.resolve_nullable(&self.data);
-        result
+        let data = &self.data;
+        self.default_lang_sys_offset().resolve_nullable(data)
     }
 
     /// Number of LangSysRecords for this script — excluding the
@@ -168,6 +171,11 @@ impl LangSysRecord {
     /// Offset to LangSys table, from beginning of Script table
     pub fn lang_sys_offset(&self) -> Offset16 {
         self.lang_sys_offset.get()
+    }
+
+    /// Attempt to resolve [`lang_sys_offset`][Self::lang_sys_offset].
+    pub fn lang_sys<'a>(&self, data: &'a FontData<'a>) -> Result<LangSys<'a>, ReadError> {
+        self.lang_sys_offset().resolve(data)
     }
 }
 
@@ -310,6 +318,11 @@ impl FeatureRecord {
     /// Offset to Feature table, from beginning of FeatureList
     pub fn feature_offset(&self) -> Offset16 {
         self.feature_offset.get()
+    }
+
+    /// Attempt to resolve [`feature_offset`][Self::feature_offset].
+    pub fn feature<'a>(&self, data: &'a FontData<'a>) -> Result<Feature<'a>, ReadError> {
+        self.feature_offset().resolve(data)
     }
 }
 
@@ -967,10 +980,8 @@ impl<'a> SequenceContextFormat1<'a> {
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let range = self.shape.coverage_offset_byte_range();
-        let offset: Offset16 = self.data.read_at(range.start).unwrap();
-        let result = offset.resolve(&self.data);
-        result
+        let data = &self.data;
+        self.coverage_offset().resolve(data)
     }
 
     /// Number of SequenceRuleSet tables
@@ -989,11 +1000,10 @@ impl<'a> SequenceContextFormat1<'a> {
     pub fn seq_rule_set(
         &self,
     ) -> impl Iterator<Item = Option<Result<SequenceRuleSet<'a>, ReadError>>> + '_ {
-        let result = self
-            .seq_rule_set_offsets()
+        let data = &self.data;
+        self.seq_rule_set_offsets()
             .iter()
-            .map(move |off| off.get().resolve_nullable(&self.data));
-        result
+            .map(move |off| off.get().resolve_nullable(data))
     }
 }
 
@@ -1046,11 +1056,10 @@ impl<'a> SequenceRuleSet<'a> {
     }
 
     pub fn seq_rule(&self) -> impl Iterator<Item = Result<SequenceRule<'a>, ReadError>> + '_ {
-        let result = self
-            .seq_rule_offsets()
+        let data = &self.data;
+        self.seq_rule_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&self.data));
-        result
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -1198,10 +1207,8 @@ impl<'a> SequenceContextFormat2<'a> {
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let range = self.shape.coverage_offset_byte_range();
-        let offset: Offset16 = self.data.read_at(range.start).unwrap();
-        let result = offset.resolve(&self.data);
-        result
+        let data = &self.data;
+        self.coverage_offset().resolve(data)
     }
 
     /// Offset to ClassDef table, from beginning of
@@ -1213,10 +1220,8 @@ impl<'a> SequenceContextFormat2<'a> {
 
     /// Attempt to resolve [`class_def_offset`][Self::class_def_offset].
     pub fn class_def(&self) -> Result<ClassDef<'a>, ReadError> {
-        let range = self.shape.class_def_offset_byte_range();
-        let offset: Offset16 = self.data.read_at(range.start).unwrap();
-        let result = offset.resolve(&self.data);
-        result
+        let data = &self.data;
+        self.class_def_offset().resolve(data)
     }
 
     /// Number of ClassSequenceRuleSet tables
@@ -1235,11 +1240,10 @@ impl<'a> SequenceContextFormat2<'a> {
     pub fn class_seq_rule_set(
         &self,
     ) -> impl Iterator<Item = Option<Result<ClassSequenceRuleSet<'a>, ReadError>>> + '_ {
-        let result = self
-            .class_seq_rule_set_offsets()
+        let data = &self.data;
+        self.class_seq_rule_set_offsets()
             .iter()
-            .map(move |off| off.get().resolve_nullable(&self.data));
-        result
+            .map(move |off| off.get().resolve_nullable(data))
     }
 }
 
@@ -1295,11 +1299,10 @@ impl<'a> ClassSequenceRuleSet<'a> {
     pub fn class_seq_rule(
         &self,
     ) -> impl Iterator<Item = Result<ClassSequenceRule<'a>, ReadError>> + '_ {
-        let result = self
-            .class_seq_rule_offsets()
+        let data = &self.data;
+        self.class_seq_rule_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&self.data));
-        result
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -1462,11 +1465,10 @@ impl<'a> SequenceContextFormat3<'a> {
     }
 
     pub fn coverage(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
-        let result = self
-            .coverage_offsets()
+        let data = &self.data;
+        self.coverage_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&self.data));
-        result
+            .map(move |off| off.get().resolve(data))
     }
 
     /// Array of SequenceLookupRecords
@@ -1559,10 +1561,8 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let range = self.shape.coverage_offset_byte_range();
-        let offset: Offset16 = self.data.read_at(range.start).unwrap();
-        let result = offset.resolve(&self.data);
-        result
+        let data = &self.data;
+        self.coverage_offset().resolve(data)
     }
 
     /// Number of ChainedSequenceRuleSet tables
@@ -1581,11 +1581,10 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     pub fn chained_seq_rule_set(
         &self,
     ) -> impl Iterator<Item = Option<Result<ChainedSequenceRuleSet<'a>, ReadError>>> + '_ {
-        let result = self
-            .chained_seq_rule_set_offsets()
+        let data = &self.data;
+        self.chained_seq_rule_set_offsets()
             .iter()
-            .map(move |off| off.get().resolve_nullable(&self.data));
-        result
+            .map(move |off| off.get().resolve_nullable(data))
     }
 }
 
@@ -1641,11 +1640,10 @@ impl<'a> ChainedSequenceRuleSet<'a> {
     pub fn chained_seq_rule(
         &self,
     ) -> impl Iterator<Item = Result<ChainedSequenceRule<'a>, ReadError>> + '_ {
-        let result = self
-            .chained_seq_rule_offsets()
+        let data = &self.data;
+        self.chained_seq_rule_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&self.data));
-        result
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -1853,10 +1851,8 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let range = self.shape.coverage_offset_byte_range();
-        let offset: Offset16 = self.data.read_at(range.start).unwrap();
-        let result = offset.resolve(&self.data);
-        result
+        let data = &self.data;
+        self.coverage_offset().resolve(data)
     }
 
     /// Offset to ClassDef table containing backtrack sequence context,
@@ -1868,10 +1864,8 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
 
     /// Attempt to resolve [`backtrack_class_def_offset`][Self::backtrack_class_def_offset].
     pub fn backtrack_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
-        let range = self.shape.backtrack_class_def_offset_byte_range();
-        let offset: Offset16 = self.data.read_at(range.start).unwrap();
-        let result = offset.resolve(&self.data);
-        result
+        let data = &self.data;
+        self.backtrack_class_def_offset().resolve(data)
     }
 
     /// Offset to ClassDef table containing input sequence context,
@@ -1883,10 +1877,8 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
 
     /// Attempt to resolve [`input_class_def_offset`][Self::input_class_def_offset].
     pub fn input_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
-        let range = self.shape.input_class_def_offset_byte_range();
-        let offset: Offset16 = self.data.read_at(range.start).unwrap();
-        let result = offset.resolve(&self.data);
-        result
+        let data = &self.data;
+        self.input_class_def_offset().resolve(data)
     }
 
     /// Offset to ClassDef table containing lookahead sequence context,
@@ -1898,10 +1890,8 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
 
     /// Attempt to resolve [`lookahead_class_def_offset`][Self::lookahead_class_def_offset].
     pub fn lookahead_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
-        let range = self.shape.lookahead_class_def_offset_byte_range();
-        let offset: Offset16 = self.data.read_at(range.start).unwrap();
-        let result = offset.resolve(&self.data);
-        result
+        let data = &self.data;
+        self.lookahead_class_def_offset().resolve(data)
     }
 
     /// Number of ChainedClassSequenceRuleSet tables
@@ -1920,11 +1910,10 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     pub fn chained_class_seq_rule_set(
         &self,
     ) -> impl Iterator<Item = Option<Result<ChainedClassSequenceRuleSet<'a>, ReadError>>> + '_ {
-        let result = self
-            .chained_class_seq_rule_set_offsets()
+        let data = &self.data;
+        self.chained_class_seq_rule_set_offsets()
             .iter()
-            .map(move |off| off.get().resolve_nullable(&self.data));
-        result
+            .map(move |off| off.get().resolve_nullable(data))
     }
 }
 
@@ -1980,11 +1969,10 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
     pub fn chained_class_seq_rule(
         &self,
     ) -> impl Iterator<Item = Result<ChainedClassSequenceRule<'a>, ReadError>> + '_ {
-        let result = self
-            .chained_class_seq_rule_offsets()
+        let data = &self.data;
+        self.chained_class_seq_rule_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&self.data));
-        result
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -2220,11 +2208,10 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     pub fn backtrack_coverage(
         &self,
     ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
-        let result = self
-            .backtrack_coverage_offsets()
+        let data = &self.data;
+        self.backtrack_coverage_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&self.data));
-        result
+            .map(move |off| off.get().resolve(data))
     }
 
     /// Number of glyphs in the input sequence
@@ -2242,11 +2229,10 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     pub fn input_coverage(
         &self,
     ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
-        let result = self
-            .input_coverage_offsets()
+        let data = &self.data;
+        self.input_coverage_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&self.data));
-        result
+            .map(move |off| off.get().resolve(data))
     }
 
     /// Number of glyphs in the lookahead sequence
@@ -2264,11 +2250,10 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     pub fn lookahead_coverage(
         &self,
     ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
-        let result = self
-            .lookahead_coverage_offsets()
+        let data = &self.data;
+        self.lookahead_coverage_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&self.data));
-        result
+            .map(move |off| off.get().resolve(data))
     }
 
     /// Number of SequenceLookupRecords
@@ -2549,10 +2534,23 @@ impl FeatureVariationRecord {
         self.condition_set_offset.get()
     }
 
+    /// Attempt to resolve [`condition_set_offset`][Self::condition_set_offset].
+    pub fn condition_set<'a>(&self, data: &'a FontData<'a>) -> Result<ConditionSet<'a>, ReadError> {
+        self.condition_set_offset().resolve(data)
+    }
+
     /// Offset to a feature table substitution table, from beginning of
     /// the FeatureVariations table.
     pub fn feature_table_substitution_offset(&self) -> Offset32 {
         self.feature_table_substitution_offset.get()
+    }
+
+    /// Attempt to resolve [`feature_table_substitution_offset`][Self::feature_table_substitution_offset].
+    pub fn feature_table_substitution<'a>(
+        &self,
+        data: &'a FontData<'a>,
+    ) -> Result<FeatureTableSubstitution<'a>, ReadError> {
+        self.feature_table_substitution_offset().resolve(data)
     }
 }
 
@@ -2609,11 +2607,10 @@ impl<'a> ConditionSet<'a> {
     }
 
     pub fn condition(&self) -> impl Iterator<Item = Result<ConditionFormat1<'a>, ReadError>> + '_ {
-        let result = self
-            .condition_offsets()
+        let data = &self.data;
+        self.condition_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&self.data));
-        result
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -2770,6 +2767,11 @@ impl FeatureTableSubstitutionRecord {
     /// FeatureTableSubstitution table.
     pub fn alternate_feature_offset(&self) -> Offset32 {
         self.alternate_feature_offset.get()
+    }
+
+    /// Attempt to resolve [`alternate_feature_offset`][Self::alternate_feature_offset].
+    pub fn alternate_feature<'a>(&self, data: &'a FontData<'a>) -> Result<Feature<'a>, ReadError> {
+        self.alternate_feature_offset().resolve(data)
     }
 }
 

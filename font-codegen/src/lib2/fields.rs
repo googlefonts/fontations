@@ -7,7 +7,7 @@ use quote::{quote, ToTokens};
 
 use crate::lib2::parsing::Count;
 
-use super::parsing::{Field, FieldReadArgs, FieldType, Fields};
+use super::parsing::{Field, FieldReadArgs, FieldType, Fields, Record};
 
 impl Fields {
     pub(crate) fn new(mut fields: Vec<Field>) -> syn::Result<Self> {
@@ -312,7 +312,7 @@ impl Field {
         }
 
         let docs = &self.attrs.docs;
-        let offset_getter = self.typed_offset_field_getter();
+        let offset_getter = self.typed_offset_field_getter(None);
 
         Some(quote! {
             #( #docs )*
@@ -325,7 +325,7 @@ impl Field {
         })
     }
 
-    pub(crate) fn record_getter(&self) -> Option<TokenStream> {
+    pub(crate) fn record_getter(&self, record: &Record) -> Option<TokenStream> {
         if !self.has_getter() {
             return None;
         }
@@ -347,11 +347,14 @@ impl Field {
             FieldType::Array { .. } => quote!(self.#name),
         };
 
+        let offset_getter = self.typed_offset_field_getter(Some(record));
         Some(quote! {
             #(#docs)*
             pub fn #name(&self) -> #add_borrow_just_for_record #return_type {
                 #getter_expr
             }
+
+            #offset_getter
         })
     }
 
@@ -361,8 +364,8 @@ impl Field {
         quote!( self.shape.#shape_range_fn_name() #try_op )
     }
 
-    fn typed_offset_field_getter(&self) -> Option<TokenStream> {
-        let (typ, target) = match &self.typ {
+    fn typed_offset_field_getter(&self, record: Option<&Record>) -> Option<TokenStream> {
+        let (_, target) = match &self.typ {
             _ if self.attrs.skip_offset_getter.is_some() => return None,
             FieldType::Offset {
                 typ,
@@ -378,6 +381,7 @@ impl Field {
             _ => return None,
         };
 
+        let raw_name = &self.name;
         let getter_name = self.offset_getter_name().unwrap();
         let mut return_type = quote!(Result<#target<'a>, ReadError>);
 
@@ -387,13 +391,12 @@ impl Field {
         if self.is_array() {
             return_type = quote!(impl Iterator<Item=#return_type> + '_);
         }
-        let range_stmt = self.getter_range_stmt();
 
         let resolve = match (self.attrs.read_offset_args.as_deref(), self.is_nullable()) {
-            (None, true) => quote!(resolve_nullable(&self.data)),
-            (None, false) => quote!(resolve(&self.data)),
-            (Some(_), true) => quote!(resolve_nullable_with_args(&self.data, &args)),
-            (Some(_), false) => quote!(resolve_with_args(&self.data, &args)),
+            (None, true) => quote!(resolve_nullable(data)),
+            (None, false) => quote!(resolve(data)),
+            (Some(_), true) => quote!(resolve_nullable_with_args(data, &args)),
+            (Some(_), false) => quote!(resolve_with_args(data, &args)),
         };
 
         let args_if_needed = self.attrs.read_offset_args.as_ref().map(|args| {
@@ -401,33 +404,34 @@ impl Field {
             quote!(let args = #args;)
         });
 
-        let return_stmt = if self.is_version_dependent() && !self.is_nullable() {
-            quote!(Some(result))
-        } else {
-            quote!(result)
-        };
+        // if a record, data is passed in
+        let input_data_if_needed = record.is_some().then(|| quote!(, data: &'a FontData<'a>));
+        let decl_lifetime_if_needed =
+            record.and_then(|x| x.lifetime.is_none().then(|| quote!(<'a>)));
+        // if a table, data is self.data
+        let data_alias_if_needed = record.is_none().then(|| quote!(let data = &self.data;));
 
-        let raw_name = &self.name;
+        // if this is version dependent we append ? when we call the offset getter
+        let try_op = self.is_version_dependent().then(|| quote!(?));
+
         let docs = format!(" Attempt to resolve [`{raw_name}`][Self::{raw_name}].");
 
         if self.is_array() {
             let name = &self.name;
             Some(quote! {
-                pub fn #getter_name(&self) -> #return_type {
+                pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type {
+                    #data_alias_if_needed
                     #args_if_needed
-                    let result = self.#name().iter().map(move |off| off.get().#resolve);
-                    #return_stmt
+                    self.#name().iter().map(move |off| off.get().#resolve)
                 }
             })
         } else {
             Some(quote! {
                 #[doc = #docs]
-                pub fn #getter_name(&self) -> #return_type {
+                pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type {
+                    #data_alias_if_needed
                     #args_if_needed
-                    let range = #range_stmt;
-                    let offset: #typ = self.data.read_at(range.start).unwrap();
-                    let result = offset.#resolve;
-                    #return_stmt
+                    self.#raw_name() #try_op .#resolve
                 }
             })
         }
