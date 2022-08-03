@@ -48,6 +48,7 @@ pub trait ComputeSize: ReadArgs {
 pub enum ReadError {
     OutOfBounds,
     InvalidFormat(u16),
+    InvalidSfnt(u32),
     InvalidArrayLen,
     ValidationError,
     NullOffset,

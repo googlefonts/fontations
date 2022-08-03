@@ -16,6 +16,9 @@ pub use valuerecord::ValueRecord;
 
 use crate::parse_prelude::*;
 
+/// 'GPOS'
+pub const TAG: Tag = Tag::new(b"GPOS");
+
 include!("../../generated/gpos.rs");
 
 /// A typed GPOS LookupList table
@@ -76,11 +79,7 @@ impl<'a, T> std::ops::Deref for TypedExtension<'a, T> {
 }
 
 impl<'a> PositionLookupList<'a> {
-    pub fn lookup_count(&self) -> u16 {
-        self.0.lookup_count()
-    }
-
-    pub fn iter(&self) -> impl Iterator<Item = Result<PositionLookup<'a>, ReadError>> + '_ {
+    pub fn lookups(&self) -> impl Iterator<Item = Result<PositionLookup<'a>, ReadError>> + '_ {
         self.0
             .lookup_offsets()
             .iter()

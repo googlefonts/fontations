@@ -1,8 +1,8 @@
+#![parse_module(font_tables::font)]
 
-#[skip_to_owned]
-TableDirectory<'a> {
+table TableDirectory {
     sfnt_version: BigEndian<u32>,
-    #[compute_count(table_records)]
+    #[compile(array_len($table_records))]
     num_tables: BigEndian<u16>,
     search_range: BigEndian<u16>,
     entry_selector: BigEndian<u16>,
@@ -12,8 +12,7 @@ TableDirectory<'a> {
 }
 
 /// Record for a table in a font.
-#[skip_to_owned]
-TableRecord {
+record TableRecord {
     /// Table identifier.
     tag: BigEndian<Tag>,
     /// Checksum for the table.

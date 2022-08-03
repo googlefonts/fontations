@@ -156,7 +156,7 @@ impl FromObjRef<font_tables::layout::gpos::PositionLookupList<'_>> for PositionL
     ) -> Self {
         PositionLookupList {
             lookup_offsets: from
-                .iter()
+                .lookups()
                 .map(|lookup| OffsetMarker::new_maybe_null(lookup.ok().map(|x| x.to_owned_table())))
                 .collect(),
         }

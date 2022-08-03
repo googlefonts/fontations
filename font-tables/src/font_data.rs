@@ -38,6 +38,16 @@ impl<'a> FontData<'a> {
         }
     }
 
+    /// The length of the data, in bytes
+    pub fn len(&self) -> usize {
+        self.bytes.len()
+    }
+
+    /// `true` if the data has a length of zero bytes.
+    pub fn is_empty(&self) -> bool {
+        self.bytes.is_empty()
+    }
+
     pub fn split_off(&self, pos: usize) -> Option<FontData<'a>> {
         self.bytes.get(pos..).map(|bytes| FontData {
             bytes,
@@ -61,7 +71,7 @@ impl<'a> FontData<'a> {
 
     pub fn read_at<T: ReadScalar>(&self, offset: usize) -> Result<T, ReadError> {
         self.bytes
-            .get(offset..)
+            .get(offset..offset + T::RAW_BYTE_LEN)
             .and_then(T::read)
             .ok_or_else(|| ReadError::OutOfBounds)
     }
