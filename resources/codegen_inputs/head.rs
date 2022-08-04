@@ -3,6 +3,7 @@
 /// <https://docs.microsoft.com/en-us/typography/opentype/spec/head>
 table Head {
     /// Version number of the font header table, set to (1, 0)
+    #[compile(MajorMinor::VERSION_1_0)]
     version: BigEndian<MajorMinor>,
     /// Set by font manufacturer.
     font_revision: BigEndian<Fixed>,
@@ -13,6 +14,7 @@ table Head {
     /// directory, and must be ignored.
     checksum_adjustment: BigEndian<u32>,
     /// Set to 0x5F0F3CF5.
+    #[compile(0x5F0F3CF5)]
     magic_number: BigEndian<u32>,
     /// See the flags enum
     flags: BigEndian<u16>,
@@ -40,9 +42,11 @@ table Head {
     /// Smallest readable size in pixels.
     lowest_rec_ppem: BigEndian<u16>,
     /// Deprecated (Set to 2).
+    #[compile(2)]
     font_direction_hint: BigEndian<i16>,
     /// 0 for short offsets (Offset16), 1 for long (Offset32).
     index_to_loc_format: BigEndian<i16>,
     /// 0 for current format.
+    #[compile(0)]
     glyph_data_format: BigEndian<i16>,
 }

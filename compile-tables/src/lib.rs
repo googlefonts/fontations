@@ -7,6 +7,7 @@ mod graph;
 mod hex_diff;
 pub mod layout;
 mod offsets;
+pub mod tables;
 mod validate;
 mod write;
 
