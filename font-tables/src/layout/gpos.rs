@@ -16,6 +16,10 @@ pub use valuerecord::ValueRecord;
 
 use crate::parse_prelude::*;
 
+#[cfg(test)]
+#[path = "../tests/gpos.rs"]
+mod tests;
+
 /// 'GPOS'
 pub const TAG: Tag = Tag::new(b"GPOS");
 

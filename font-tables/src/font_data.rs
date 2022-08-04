@@ -31,7 +31,7 @@ impl<'a> FontData<'a> {
     ///
     /// You generally don't need to do this? It is handled for you when loading
     /// data from disk, but may be useful in tests.
-    pub fn new(bytes: &'a [u8]) -> Self {
+    pub const fn new(bytes: &'a [u8]) -> Self {
         FontData {
             total_pos: 0,
             bytes,
@@ -96,6 +96,25 @@ impl<'a> FontData<'a> {
             .map(|_| ())
     }
 
+    //NOTE: this is definitely unsound, since FixedSized isn't private,
+    // and we don't enforce all soundness requirements: for instance, you could
+    // use this to create an enum with an invalid discriminant, which is UB
+    pub fn read_ref_at<T: FixedSized>(&self, offset: usize) -> Result<&'a T, ReadError> {
+        assert_ne!(std::mem::size_of::<T>(), 0);
+        assert_eq!(std::mem::align_of::<T>(), 1);
+        self.bytes
+            .get(offset..offset + T::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+
+        unsafe { Ok(self.read_ref_unchecked(offset)) }
+    }
+
+    unsafe fn read_ref_unchecked<T: FixedSized>(&self, offset: usize) -> &'a T {
+        let bytes = self.bytes.get_unchecked(offset..offset + T::RAW_BYTE_LEN);
+        &*(bytes.as_ptr() as *const T)
+    }
+
+    //NOTE: unsound, see the note on read_ref_at
     pub fn read_array<T: FixedSized>(&self, range: Range<usize>) -> Result<&'a [T], ReadError> {
         assert_ne!(std::mem::size_of::<T>(), 0);
         assert_eq!(std::mem::align_of::<T>(), 1);

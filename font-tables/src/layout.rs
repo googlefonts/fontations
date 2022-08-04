@@ -68,6 +68,27 @@ impl FeatureTableSubstitutionRecord {
     }
 }
 
+impl CoverageTable<'_> {
+    pub fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+        // all one expression so that we have a single return type
+        let (iter1, iter2) = match self {
+            CoverageTable::Format1(t) => (Some(t.glyph_array().iter().map(|g| g.get())), None),
+            CoverageTable::Format2(t) => {
+                let iter = t
+                    .range_records()
+                    .iter()
+                    .flat_map(|rcd| rcd.start_glyph_id()..=rcd.end_glyph_id());
+                (None, Some(iter))
+            }
+        };
+
+        iter1
+            .into_iter()
+            .flatten()
+            .chain(iter2.into_iter().flatten())
+    }
+}
+
 impl Default for DeltaFormat {
     fn default() -> Self {
         DeltaFormat::Local2BitDeltas

@@ -14,6 +14,11 @@ impl ValueFormat {
     }
 }
 
+/// A Positioning ValueRecord.
+///
+/// NOTE: we create these manually, since parsing is weird and depends on the
+/// associated valueformat. That said, this isn't a great representation?
+/// we could definitely do something much more in the zero-copy mode..
 #[derive(Clone, Default, PartialEq)]
 pub struct ValueRecord {
     pub x_placement: Option<BigEndian<i16>>,
@@ -61,6 +66,38 @@ impl ValueRecord {
             this.y_advance_device = Some(cursor.read()?);
         }
         Ok(this)
+    }
+
+    pub fn x_placement(&self) -> Option<i16> {
+        self.x_placement.map(|val| val.get())
+    }
+
+    pub fn y_placement(&self) -> Option<i16> {
+        self.y_placement.map(|val| val.get())
+    }
+
+    pub fn x_advance(&self) -> Option<i16> {
+        self.x_advance.map(|val| val.get())
+    }
+
+    pub fn y_advance(&self) -> Option<i16> {
+        self.y_advance.map(|val| val.get())
+    }
+
+    pub fn x_placement_device(&self) -> Option<i16> {
+        self.x_placement_device.map(|val| val.get())
+    }
+
+    pub fn y_placement_device(&self) -> Option<i16> {
+        self.y_placement_device.map(|val| val.get())
+    }
+
+    pub fn x_advance_device(&self) -> Option<i16> {
+        self.x_advance_device.map(|val| val.get())
+    }
+
+    pub fn y_advance_device(&self) -> Option<i16> {
+        self.y_advance_device.map(|val| val.get())
     }
 }
 

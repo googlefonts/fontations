@@ -7,6 +7,10 @@ mod read;
 mod table_provider;
 mod table_ref;
 
+#[cfg(any(test, feature = "test_data"))]
+#[path = "tests/test_data.rs"]
+pub mod test_data;
+
 pub use font_data::FontData;
 pub use read::{FontRead, FontReadWithArgs, ReadError};
 pub use table_provider::TableProvider;
@@ -16,11 +20,7 @@ pub mod parse_prelude {
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::read::{ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError};
     pub use crate::table_ref::{ResolveOffset, TableInfo, TableInfoWithArgs, TableRef};
-
-    pub use font_types::{
-        BigEndian, F2Dot14, FWord, Fixed, FixedSized, LongDateTime, MajorMinor, Offset, Offset16,
-        Offset24, Offset32, ReadScalar, Scalar, Tag, UfWord, Uint24, Version16Dot16,
-    };
+    pub use font_types::*;
     pub use std::ops::Range;
 }
 
