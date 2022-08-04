@@ -621,11 +621,12 @@ impl Field {
             let typ = self.typ.cooked_type_tokens();
             quote!( (#format as #typ) )
         } else if let Some(computed) = &self.attrs.compile {
+            let typ = self.typ.cooked_type_tokens();
             let expr = computed.compile_expr();
             if !computed.referenced_fields.is_empty() {
-                quote!( #expr.unwrap() )
+                quote!( (#expr.unwrap() as #typ) )
             } else {
-                quote!( #expr )
+                quote!( (#expr as #typ) )
             }
             // not computed
         } else {

@@ -20,7 +20,7 @@ pub struct Gpos {
 
 impl FontWrite for Gpos {
     fn write_into(&self, writer: &mut TableWriter) {
-        (self.compute_version()).write_into(writer);
+        ((self.compute_version()) as MajorMinor).write_into(writer);
         self.script_list_offset.write_into(writer);
         self.feature_list_offset.write_into(writer);
         self.lookup_list_offset.write_into(writer);
@@ -289,7 +289,7 @@ pub struct MarkArray {
 
 impl FontWrite for MarkArray {
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.mark_records)).unwrap().write_into(writer);
+        ((array_len(&self.mark_records)).unwrap() as u16).write_into(writer);
         self.mark_records.write_into(writer);
     }
 }
@@ -427,7 +427,7 @@ impl FontWrite for SinglePosFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coverage_offset.write_into(writer);
-        (self.compute_value_format()).write_into(writer);
+        ((self.compute_value_format()) as ValueFormat).write_into(writer);
         self.value_record.write_into(writer);
     }
 }
@@ -477,8 +477,8 @@ impl FontWrite for SinglePosFormat2 {
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
         self.coverage_offset.write_into(writer);
-        (self.compute_value_format()).write_into(writer);
-        (array_len(&self.value_records)).unwrap().write_into(writer);
+        ((self.compute_value_format()) as ValueFormat).write_into(writer);
+        ((array_len(&self.value_records)).unwrap() as u16).write_into(writer);
         self.value_records.write_into(writer);
     }
 }
@@ -585,11 +585,9 @@ impl FontWrite for PairPosFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coverage_offset.write_into(writer);
-        (self.compute_value_format1()).write_into(writer);
-        (self.compute_value_format2()).write_into(writer);
-        (array_len(&self.pair_set_offsets))
-            .unwrap()
-            .write_into(writer);
+        ((self.compute_value_format1()) as ValueFormat).write_into(writer);
+        ((self.compute_value_format2()) as ValueFormat).write_into(writer);
+        ((array_len(&self.pair_set_offsets)).unwrap() as u16).write_into(writer);
         self.pair_set_offsets.write_into(writer);
     }
 }
@@ -641,9 +639,7 @@ pub struct PairSet {
 
 impl FontWrite for PairSet {
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.pair_value_records))
-            .unwrap()
-            .write_into(writer);
+        ((array_len(&self.pair_value_records)).unwrap() as u16).write_into(writer);
         self.pair_value_records.write_into(writer);
     }
 }
@@ -735,12 +731,12 @@ impl FontWrite for PairPosFormat2 {
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
         self.coverage_offset.write_into(writer);
-        (self.compute_value_format1()).write_into(writer);
-        (self.compute_value_format2()).write_into(writer);
+        ((self.compute_value_format1()) as ValueFormat).write_into(writer);
+        ((self.compute_value_format2()) as ValueFormat).write_into(writer);
         self.class_def1_offset.write_into(writer);
         self.class_def2_offset.write_into(writer);
-        (self.compute_class1_count()).write_into(writer);
-        (self.compute_class2_count()).write_into(writer);
+        ((self.compute_class1_count()) as u16).write_into(writer);
+        ((self.compute_class2_count()) as u16).write_into(writer);
         self.class1_records.write_into(writer);
     }
 }
@@ -877,9 +873,7 @@ impl FontWrite for CursivePosFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coverage_offset.write_into(writer);
-        (array_len(&self.entry_exit_record))
-            .unwrap()
-            .write_into(writer);
+        ((array_len(&self.entry_exit_record)).unwrap() as u16).write_into(writer);
         self.entry_exit_record.write_into(writer);
     }
 }
@@ -992,7 +986,7 @@ impl FontWrite for MarkBasePosFormat1 {
         (1 as u16).write_into(writer);
         self.mark_coverage_offset.write_into(writer);
         self.base_coverage_offset.write_into(writer);
-        (self.compute_mark_class_count()).write_into(writer);
+        ((self.compute_mark_class_count()) as u16).write_into(writer);
         self.mark_array_offset.write_into(writer);
         self.base_array_offset.write_into(writer);
     }
@@ -1049,7 +1043,7 @@ pub struct BaseArray {
 
 impl FontWrite for BaseArray {
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.base_records)).unwrap().write_into(writer);
+        ((array_len(&self.base_records)).unwrap() as u16).write_into(writer);
         self.base_records.write_into(writer);
     }
 }
@@ -1143,7 +1137,7 @@ impl FontWrite for MarkLigPosFormat1 {
         (1 as u16).write_into(writer);
         self.mark_coverage_offset.write_into(writer);
         self.ligature_coverage_offset.write_into(writer);
-        (self.compute_mark_class_count()).write_into(writer);
+        ((self.compute_mark_class_count()) as u16).write_into(writer);
         self.mark_array_offset.write_into(writer);
         self.ligature_array_offset.write_into(writer);
     }
@@ -1202,9 +1196,7 @@ pub struct LigatureArray {
 
 impl FontWrite for LigatureArray {
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.ligature_attach_offsets))
-            .unwrap()
-            .write_into(writer);
+        ((array_len(&self.ligature_attach_offsets)).unwrap() as u16).write_into(writer);
         self.ligature_attach_offsets.write_into(writer);
     }
 }
@@ -1243,9 +1235,7 @@ pub struct LigatureAttach {
 
 impl FontWrite for LigatureAttach {
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.component_records))
-            .unwrap()
-            .write_into(writer);
+        ((array_len(&self.component_records)).unwrap() as u16).write_into(writer);
         self.component_records.write_into(writer);
     }
 }
@@ -1342,7 +1332,7 @@ impl FontWrite for MarkMarkPosFormat1 {
         (1 as u16).write_into(writer);
         self.mark1_coverage_offset.write_into(writer);
         self.mark2_coverage_offset.write_into(writer);
-        (self.compute_mark_class_count()).write_into(writer);
+        ((self.compute_mark_class_count()) as u16).write_into(writer);
         self.mark1_array_offset.write_into(writer);
         self.mark2_array_offset.write_into(writer);
     }
@@ -1399,7 +1389,7 @@ pub struct Mark2Array {
 
 impl FontWrite for Mark2Array {
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.mark2_records)).unwrap().write_into(writer);
+        ((array_len(&self.mark2_records)).unwrap() as u16).write_into(writer);
         self.mark2_records.write_into(writer);
     }
 }
