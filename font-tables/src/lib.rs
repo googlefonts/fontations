@@ -10,6 +10,9 @@ mod table_ref;
 #[cfg(any(test, feature = "test_data"))]
 #[path = "tests/test_data.rs"]
 pub mod test_data;
+#[cfg(any(test, feature = "test_data"))]
+#[path = "tests/test_helpers.rs"]
+pub mod test_helpers;
 
 pub use font_data::FontData;
 pub use read::{FontRead, FontReadWithArgs, ReadError};
