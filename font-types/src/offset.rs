@@ -25,6 +25,12 @@ macro_rules! impl_offset {
             pub fn new(raw: $rawty) -> Self {
                 Self(raw)
             }
+
+            /// Return `true` if this offset is null.
+            pub fn is_null(self) -> bool {
+                let as_u32: u32 = self.0.into();
+                as_u32 == 0
+            }
         }
 
         impl crate::raw::Scalar for $name {

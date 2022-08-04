@@ -2,6 +2,10 @@
 
 pub mod gpos;
 
+#[cfg(test)]
+#[path = "./tests/layout.rs"]
+mod tests;
+
 include!("../generated/layout.rs");
 
 /// A typed lookup table.

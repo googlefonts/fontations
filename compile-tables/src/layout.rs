@@ -8,6 +8,10 @@ use font_tables::FontRead;
 pub mod gpos;
 mod value_record;
 
+#[cfg(test)]
+#[path = "./tests/layout.rs"]
+mod spec_tests;
+
 include!("../generated/layout.rs");
 
 /// A lookup table that is generic over the lookup type.
