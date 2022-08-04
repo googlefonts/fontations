@@ -112,6 +112,19 @@ pub(crate) fn generate_compile(item: &Table, parse_module: &syn::Path) -> syn::R
 fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result<TokenStream> {
     let name = item.raw_name();
     let field_to_owned_stmts = item.fields.iter_from_obj_ref_stmts(false);
+
+    let maybe_font_read = item.attrs.read_args.is_none().then(|| {
+        quote! {
+            #[cfg(feature = "parsing")]
+            impl<'a> FontRead<'a> for #name {
+                fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+                    <#parse_module :: #name as FontRead>::read(data)
+                        .map(|x| x.to_owned_table())
+                }
+            }
+        }
+    });
+
     let maybe_bind_offset_data = item
         .fields
         .from_obj_requires_offset_data(false)
@@ -129,6 +142,8 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
 
         #[cfg(feature = "parsing")]
         impl FromTableRef<#parse_module :: #name<'_>> for #name {}
+
+        #maybe_font_read
     })
 }
 
@@ -195,6 +210,13 @@ pub(crate) fn generate_format_compile(
 
         #[cfg(feature = "parsing")]
         impl FromTableRef<#parse_module::#name<'_>> for #name {}
+
+        #[cfg(feature = "parsing")]
+        impl<'a> FontRead<'a> for #name {
+            fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+                <#parse_module :: #name as FontRead>::read(data).map(|x| x.to_owned_table())
+            }
+        }
     })
 }
 

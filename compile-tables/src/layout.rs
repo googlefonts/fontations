@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 #[cfg(feature = "parsing")]
-use font_tables::parse_prelude::FontRead;
+use font_tables::FontRead;
 
 pub mod gpos;
 mod value_record;

@@ -51,6 +51,13 @@ impl FromObjRef<font_tables::layout::ScriptList<'_>> for ScriptList {
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::ScriptList<'_>> for ScriptList {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ScriptList {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ScriptList as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 /// [Script Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 #[derive(Clone, Debug)]
 pub struct ScriptRecord {
@@ -141,6 +148,13 @@ impl FromObjRef<font_tables::layout::Script<'_>> for Script {
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::Script<'_>> for Script {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for Script {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::Script as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct LangSysRecord {
     /// 4-byte LangSysTag identifier
@@ -222,6 +236,13 @@ impl FromObjRef<font_tables::layout::LangSys<'_>> for LangSys {
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::LangSys<'_>> for LangSys {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for LangSys {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::LangSys as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 /// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
 #[derive(Clone, Debug)]
 pub struct FeatureList {
@@ -268,6 +289,13 @@ impl FromObjRef<font_tables::layout::FeatureList<'_>> for FeatureList {
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::FeatureList<'_>> for FeatureList {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for FeatureList {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::FeatureList as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
 
 /// Part of [FeatureList]
 #[derive(Clone, Debug)]
@@ -392,6 +420,13 @@ impl FromObjRef<font_tables::layout::CoverageFormat1<'_>> for CoverageFormat1 {
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::CoverageFormat1<'_>> for CoverageFormat1 {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for CoverageFormat1 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::CoverageFormat1 as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 /// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
 #[derive(Clone, Debug)]
 pub struct CoverageFormat2 {
@@ -436,6 +471,13 @@ impl FromObjRef<font_tables::layout::CoverageFormat2<'_>> for CoverageFormat2 {
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::CoverageFormat2<'_>> for CoverageFormat2 {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for CoverageFormat2 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::CoverageFormat2 as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
 
 /// Used in [CoverageFormat2]
 #[derive(Clone, Debug)]
@@ -510,6 +552,13 @@ impl FromObjRef<font_tables::layout::CoverageTable<'_>> for CoverageTable {
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::CoverageTable<'_>> for CoverageTable {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for CoverageTable {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::CoverageTable as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 #[derive(Clone, Debug)]
 pub struct ClassDefFormat1 {
@@ -554,6 +603,13 @@ impl FromObjRef<font_tables::layout::ClassDefFormat1<'_>> for ClassDefFormat1 {
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::ClassDefFormat1<'_>> for ClassDefFormat1 {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ClassDefFormat1 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ClassDefFormat1 as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
 
 /// [Class Definition Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-2)
 #[derive(Clone, Debug)]
@@ -601,6 +657,13 @@ impl FromObjRef<font_tables::layout::ClassDefFormat2<'_>> for ClassDefFormat2 {
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::ClassDefFormat2<'_>> for ClassDefFormat2 {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ClassDefFormat2 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ClassDefFormat2 as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
 
 /// Used in [ClassDefFormat2]
 #[derive(Clone, Debug)]
@@ -678,6 +741,13 @@ impl FromObjRef<font_tables::layout::ClassDef<'_>> for ClassDef {
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::ClassDef<'_>> for ClassDef {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ClassDef {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ClassDef as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
 
 /// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
 #[derive(Clone, Debug)]
@@ -760,6 +830,14 @@ impl FromObjRef<font_tables::layout::SequenceContextFormat1<'_>> for SequenceCon
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::SequenceContextFormat1<'_>> for SequenceContextFormat1 {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for SequenceContextFormat1 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::SequenceContextFormat1 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
 /// Part of [SequenceContextFormat1]
 #[derive(Clone, Debug)]
 pub struct SequenceRuleSet {
@@ -801,6 +879,13 @@ impl FromObjRef<font_tables::layout::SequenceRuleSet<'_>> for SequenceRuleSet {
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::SequenceRuleSet<'_>> for SequenceRuleSet {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for SequenceRuleSet {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::SequenceRuleSet as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
 
 /// Part of [SequenceContextFormat1]
 #[derive(Clone, Debug)]
@@ -854,6 +939,13 @@ impl FromObjRef<font_tables::layout::SequenceRule<'_>> for SequenceRule {
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::SequenceRule<'_>> for SequenceRule {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for SequenceRule {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::SequenceRule as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
 
 /// [Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-2-class-based-glyph-contexts)
 #[derive(Clone, Debug)]
@@ -914,6 +1006,14 @@ impl FromObjRef<font_tables::layout::SequenceContextFormat2<'_>> for SequenceCon
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::SequenceContextFormat2<'_>> for SequenceContextFormat2 {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for SequenceContextFormat2 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::SequenceContextFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
 /// Part of [SequenceContextFormat2]
 #[derive(Clone, Debug)]
 pub struct ClassSequenceRuleSet {
@@ -955,6 +1055,14 @@ impl FromObjRef<font_tables::layout::ClassSequenceRuleSet<'_>> for ClassSequence
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::ClassSequenceRuleSet<'_>> for ClassSequenceRuleSet {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ClassSequenceRuleSet {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ClassSequenceRuleSet as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
 
 /// Part of [SequenceContextFormat2]
 #[derive(Clone, Debug)]
@@ -1009,6 +1117,13 @@ impl FromObjRef<font_tables::layout::ClassSequenceRule<'_>> for ClassSequenceRul
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::ClassSequenceRule<'_>> for ClassSequenceRule {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ClassSequenceRule {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ClassSequenceRule as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
 
 /// [Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-3-coverage-based-glyph-contexts)
 #[derive(Clone, Debug)]
@@ -1071,6 +1186,14 @@ impl FromObjRef<font_tables::layout::SequenceContextFormat3<'_>> for SequenceCon
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::SequenceContextFormat3<'_>> for SequenceContextFormat3 {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for SequenceContextFormat3 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::SequenceContextFormat3 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum SequenceContext {
     Format1(SequenceContextFormat1),
@@ -1112,6 +1235,13 @@ impl FromObjRef<font_tables::layout::SequenceContext<'_>> for SequenceContext {
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::SequenceContext<'_>> for SequenceContext {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for SequenceContext {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::SequenceContext as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
 
 /// [Chained Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-1-simple-glyph-contexts)
 #[derive(Clone, Debug)]
@@ -1172,6 +1302,14 @@ impl FromTableRef<font_tables::layout::ChainedSequenceContextFormat1<'_>>
 {
 }
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ChainedSequenceContextFormat1 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ChainedSequenceContextFormat1 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
 /// Part of [ChainedSequenceContextFormat1]
 #[derive(Clone, Debug)]
 pub struct ChainedSequenceRuleSet {
@@ -1213,6 +1351,14 @@ impl FromObjRef<font_tables::layout::ChainedSequenceRuleSet<'_>> for ChainedSequ
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::ChainedSequenceRuleSet<'_>> for ChainedSequenceRuleSet {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ChainedSequenceRuleSet {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ChainedSequenceRuleSet as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
 
 /// Part of [ChainedSequenceContextFormat1]
 #[derive(Clone, Debug)]
@@ -1290,6 +1436,14 @@ impl FromObjRef<font_tables::layout::ChainedSequenceRule<'_>> for ChainedSequenc
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::ChainedSequenceRule<'_>> for ChainedSequenceRule {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ChainedSequenceRule {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ChainedSequenceRule as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
 
 /// [Chained Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-2-class-based-glyph-contexts)
 #[derive(Clone, Debug)]
@@ -1378,6 +1532,14 @@ impl FromTableRef<font_tables::layout::ChainedSequenceContextFormat2<'_>>
 {
 }
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ChainedSequenceContextFormat2 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ChainedSequenceContextFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
 /// Part of [ChainedSequenceContextFormat2]
 #[derive(Clone, Debug)]
 pub struct ChainedClassSequenceRuleSet {
@@ -1426,6 +1588,14 @@ impl FromObjRef<font_tables::layout::ChainedClassSequenceRuleSet<'_>>
 impl FromTableRef<font_tables::layout::ChainedClassSequenceRuleSet<'_>>
     for ChainedClassSequenceRuleSet
 {
+}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ChainedClassSequenceRuleSet as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
 }
 
 /// Part of [ChainedSequenceContextFormat2]
@@ -1505,6 +1675,14 @@ impl FromObjRef<font_tables::layout::ChainedClassSequenceRule<'_>> for ChainedCl
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::ChainedClassSequenceRule<'_>> for ChainedClassSequenceRule {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ChainedClassSequenceRule {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ChainedClassSequenceRule as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
 
 /// [Chained Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-3-coverage-based-glyph-contexts)
 #[derive(Clone, Debug)]
@@ -1600,6 +1778,14 @@ impl FromTableRef<font_tables::layout::ChainedSequenceContextFormat3<'_>>
 {
 }
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ChainedSequenceContextFormat3 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ChainedSequenceContextFormat3 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
 #[derive(Clone, Debug)]
 pub enum ChainedSequenceContext {
     Format1(ChainedSequenceContextFormat1),
@@ -1641,6 +1827,14 @@ impl FromObjRef<font_tables::layout::ChainedSequenceContext<'_>> for ChainedSequ
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::ChainedSequenceContext<'_>> for ChainedSequenceContext {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ChainedSequenceContext {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ChainedSequenceContext as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
 
 /// [Device](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
 /// delta formats
@@ -1710,6 +1904,13 @@ impl FromObjRef<font_tables::layout::Device<'_>> for Device {
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::Device<'_>> for Device {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for Device {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::Device as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 /// Variation index table
 #[derive(Clone, Debug)]
 pub struct VariationIndex {
@@ -1748,6 +1949,13 @@ impl FromObjRef<font_tables::layout::VariationIndex<'_>> for VariationIndex {
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::VariationIndex<'_>> for VariationIndex {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for VariationIndex {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::VariationIndex as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
 
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
 #[derive(Clone, Debug)]
@@ -1795,6 +2003,13 @@ impl FromObjRef<font_tables::layout::FeatureVariations<'_>> for FeatureVariation
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::FeatureVariations<'_>> for FeatureVariations {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for FeatureVariations {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::FeatureVariations as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
 
 /// Part of [FeatureVariations]
 #[derive(Clone, Debug)]
@@ -1882,6 +2097,13 @@ impl FromObjRef<font_tables::layout::ConditionSet<'_>> for ConditionSet {
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::ConditionSet<'_>> for ConditionSet {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ConditionSet {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ConditionSet as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 /// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
 #[derive(Clone, Debug)]
 pub struct ConditionFormat1 {
@@ -1922,6 +2144,13 @@ impl FromObjRef<font_tables::layout::ConditionFormat1<'_>> for ConditionFormat1 
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::ConditionFormat1<'_>> for ConditionFormat1 {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for ConditionFormat1 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::ConditionFormat1 as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
 
 /// [FeatureTableSubstitution Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featuretablesubstitution-table)
 #[derive(Clone, Debug)]
@@ -1967,6 +2196,14 @@ impl FromObjRef<font_tables::layout::FeatureTableSubstitution<'_>> for FeatureTa
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::FeatureTableSubstitution<'_>> for FeatureTableSubstitution {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for FeatureTableSubstitution {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::FeatureTableSubstitution as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
 
 /// Used in [FeatureTableSubstitution]
 #[derive(Clone, Debug)]
@@ -2074,6 +2311,13 @@ impl FromObjRef<font_tables::layout::SizeParams<'_>> for SizeParams {
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::SizeParams<'_>> for SizeParams {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for SizeParams {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::SizeParams as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct StylisticSetParams {
     /// The 'name' table name ID that specifies a string (or strings, for
@@ -2110,6 +2354,14 @@ impl FromObjRef<font_tables::layout::StylisticSetParams<'_>> for StylisticSetPar
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::StylisticSetParams<'_>> for StylisticSetParams {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for StylisticSetParams {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::StylisticSetParams as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
 
 /// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
 #[derive(Clone, Debug)]
@@ -2177,3 +2429,11 @@ impl FromObjRef<font_tables::layout::CharacterVariantParams<'_>> for CharacterVa
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::CharacterVariantParams<'_>> for CharacterVariantParams {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for CharacterVariantParams {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::CharacterVariantParams as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}

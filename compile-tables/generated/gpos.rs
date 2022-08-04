@@ -61,6 +61,14 @@ impl FromObjRef<font_tables::layout::gpos::Gpos<'_>> for Gpos {
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::Gpos<'_>> for Gpos {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for Gpos {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::Gpos as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 bitflags::bitflags! { # [doc = " See [ValueRecord]"] pub struct ValueFormat : u16 { # [doc = " Includes horizontal adjustment for placement"] const X_PLACEMENT = 0x0001 ; # [doc = " Includes vertical adjustment for placement"] const Y_PLACEMENT = 0x0002 ; # [doc = " Includes horizontal adjustment for advance"] const X_ADVANCE = 0x0004 ; # [doc = " Includes vertical adjustment for advance"] const Y_ADVANCE = 0x0008 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal placement"] const X_PLACEMENT_DEVICE = 0x0010 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical placement"] const Y_PLACEMENT_DEVICE = 0x0020 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal advance"] const X_ADVANCE_DEVICE = 0x0040 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical advance"] const Y_ADVANCE_DEVICE = 0x0080 ; } }
 
 impl FontWrite for ValueFormat {
@@ -113,6 +121,13 @@ impl FromObjRef<font_tables::layout::gpos::AnchorTable<'_>> for AnchorTable {
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::AnchorTable<'_>> for AnchorTable {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for AnchorTable {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::AnchorTable as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 /// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
 #[derive(Clone, Debug)]
 pub struct AnchorFormat1 {
@@ -146,6 +161,14 @@ impl FromObjRef<font_tables::layout::gpos::AnchorFormat1<'_>> for AnchorFormat1 
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::AnchorFormat1<'_>> for AnchorFormat1 {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for AnchorFormat1 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::AnchorFormat1 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
 
 /// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
 #[derive(Clone, Debug)]
@@ -184,6 +207,14 @@ impl FromObjRef<font_tables::layout::gpos::AnchorFormat2<'_>> for AnchorFormat2 
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::AnchorFormat2<'_>> for AnchorFormat2 {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for AnchorFormat2 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::AnchorFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
 
 /// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
 #[derive(Clone, Debug)]
@@ -240,6 +271,14 @@ impl FromObjRef<font_tables::layout::gpos::AnchorFormat3<'_>> for AnchorFormat3 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::AnchorFormat3<'_>> for AnchorFormat3 {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for AnchorFormat3 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::AnchorFormat3 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
 #[derive(Clone, Debug)]
 pub struct MarkArray {
@@ -284,6 +323,13 @@ impl FromObjRef<font_tables::layout::gpos::MarkArray<'_>> for MarkArray {
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::MarkArray<'_>> for MarkArray {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for MarkArray {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::MarkArray as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
 
 /// Part of [MarkArray]
 #[derive(Clone, Debug)]
@@ -360,6 +406,13 @@ impl FromObjRef<font_tables::layout::gpos::SinglePos<'_>> for SinglePos {
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::SinglePos<'_>> for SinglePos {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for SinglePos {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::SinglePos as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
 /// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
 #[derive(Clone, Debug)]
 pub struct SinglePosFormat1 {
@@ -402,6 +455,14 @@ impl FromObjRef<font_tables::layout::gpos::SinglePosFormat1<'_>> for SinglePosFo
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::SinglePosFormat1<'_>> for SinglePosFormat1 {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for SinglePosFormat1 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::SinglePosFormat1 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
 
 /// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
 #[derive(Clone, Debug)]
@@ -456,6 +517,14 @@ impl FromObjRef<font_tables::layout::gpos::SinglePosFormat2<'_>> for SinglePosFo
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::SinglePosFormat2<'_>> for SinglePosFormat2 {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for SinglePosFormat2 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::SinglePosFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
 /// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
 #[derive(Clone, Debug)]
 pub enum PairPos {
@@ -494,6 +563,13 @@ impl FromObjRef<font_tables::layout::gpos::PairPos<'_>> for PairPos {
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::PairPos<'_>> for PairPos {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for PairPos {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::PairPos as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
 
 /// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
 #[derive(Clone, Debug)]
@@ -546,6 +622,14 @@ impl FromObjRef<font_tables::layout::gpos::PairPosFormat1<'_>> for PairPosFormat
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::PairPosFormat1<'_>> for PairPosFormat1 {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for PairPosFormat1 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::PairPosFormat1 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
 
 /// Part of [PairPosFormat1]
 #[derive(Clone, Debug)]
@@ -703,6 +787,14 @@ impl FromObjRef<font_tables::layout::gpos::PairPosFormat2<'_>> for PairPosFormat
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::PairPosFormat2<'_>> for PairPosFormat2 {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for PairPosFormat2 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::PairPosFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
 /// Part of [PairPosFormat2]
 #[derive(Clone, Debug)]
 pub struct Class1Record {
@@ -826,6 +918,14 @@ impl FromObjRef<font_tables::layout::gpos::CursivePosFormat1<'_>> for CursivePos
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::CursivePosFormat1<'_>> for CursivePosFormat1 {}
 
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for CursivePosFormat1 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::CursivePosFormat1 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
 /// Part of [CursivePosFormat1]
 #[derive(Clone, Debug)]
 pub struct EntryExitRecord {
@@ -931,6 +1031,14 @@ impl FromObjRef<font_tables::layout::gpos::MarkBasePosFormat1<'_>> for MarkBaseP
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::MarkBasePosFormat1<'_>> for MarkBasePosFormat1 {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for MarkBasePosFormat1 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::MarkBasePosFormat1 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
 
 /// Part of [MarkBasePosFormat1]
 #[derive(Clone, Debug)]
@@ -1074,6 +1182,14 @@ impl FromObjRef<font_tables::layout::gpos::MarkLigPosFormat1<'_>> for MarkLigPos
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::MarkLigPosFormat1<'_>> for MarkLigPosFormat1 {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for MarkLigPosFormat1 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::MarkLigPosFormat1 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
 
 /// Part of [MarkLigPosFormat1]
 #[derive(Clone, Debug)]
@@ -1265,6 +1381,14 @@ impl FromObjRef<font_tables::layout::gpos::MarkMarkPosFormat1<'_>> for MarkMarkP
 
 #[cfg(feature = "parsing")]
 impl FromTableRef<font_tables::layout::gpos::MarkMarkPosFormat1<'_>> for MarkMarkPosFormat1 {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for MarkMarkPosFormat1 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <font_tables::layout::gpos::MarkMarkPosFormat1 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
 
 /// Part of [MarkMarkPosFormat1]Class2Record
 #[derive(Clone, Debug)]
