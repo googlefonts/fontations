@@ -12,14 +12,18 @@ use crate::read::{ComputeSize, FontReadWithArgs, ReadArgs};
 pub struct ComputedArray<'a, T: ReadArgs> {
     // the length of each item
     item_len: usize,
+    len: usize,
     data: FontData<'a>,
     args: T::Args,
 }
 
 impl<'a, T: ComputeSize> ComputedArray<'a, T> {
     pub fn new(data: FontData<'a>, args: T::Args) -> Self {
+        let item_len = T::compute_size(&args);
+        let len = data.len() / item_len;
         ComputedArray {
-            item_len: T::compute_size(&args),
+            item_len,
+            len,
             data,
             args,
         }
@@ -43,14 +47,24 @@ where
 impl<'a, T> ComputedArray<'a, T>
 where
     T: FontReadWithArgs<'a>,
+    T::Args: Copy + 'static,
 {
-    pub fn iter<'b: 'a>(&'b self) -> impl Iterator<Item = Result<T, ReadError>> + 'b {
+    pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a {
         let mut i = 0;
+        let data = self.data.clone();
+        let args = self.args;
+        let item_len = self.item_len;
+        let len = self.len;
+
         std::iter::from_fn(move || {
-            let item_start = self.item_len * i;
+            let args = args;
+            if i == len {
+                return None;
+            }
+            let item_start = item_len * i;
             i += 1;
-            let data = self.data.split_off(item_start)?;
-            Some(T::read_with_args(data, &self.args))
+            let data = data.split_off(item_start)?;
+            Some(T::read_with_args(data, &args))
         })
     }
 
