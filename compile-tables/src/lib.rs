@@ -3,6 +3,8 @@
 #[cfg(feature = "parsing")]
 mod from_obj;
 mod graph;
+#[cfg(test)]
+mod hex_diff;
 pub mod layout;
 mod offsets;
 mod validate;

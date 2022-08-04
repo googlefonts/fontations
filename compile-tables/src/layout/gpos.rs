@@ -12,6 +12,10 @@ use super::{
     FeatureVariations, Lookup, ScriptList, SequenceContext,
 };
 
+#[cfg(all(test, feature = "parsing"))]
+#[path = "../tests/gpos.rs"]
+mod tests;
+
 /// A GPOS lookup list table.
 #[derive(Debug, Clone)]
 pub struct PositionLookupList {

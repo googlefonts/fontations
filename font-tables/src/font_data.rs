@@ -231,3 +231,9 @@ impl<'a> Cursor<'a> {
         Ok(TableRef { data, shape })
     }
 }
+
+impl AsRef<[u8]> for FontData<'_> {
+    fn as_ref(&self) -> &[u8] {
+        self.bytes
+    }
+}
