@@ -1519,8 +1519,7 @@ impl<'a> FontReadWithArgs<'a> for BaseRecord<'a> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
         Ok(Self {
-            base_anchor_offsets: cursor
-                .read_array((mark_class_count as usize) * Offset16::RAW_BYTE_LEN)?,
+            base_anchor_offsets: cursor.read_array((mark_class_count as usize))?,
         })
     }
 }
@@ -1827,8 +1826,7 @@ impl<'a> FontReadWithArgs<'a> for ComponentRecord<'a> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
         Ok(Self {
-            ligature_anchor_offsets: cursor
-                .read_array((mark_class_count as usize) * Offset16::RAW_BYTE_LEN)?,
+            ligature_anchor_offsets: cursor.read_array((mark_class_count as usize))?,
         })
     }
 }
@@ -2061,8 +2059,7 @@ impl<'a> FontReadWithArgs<'a> for Mark2Record<'a> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
         Ok(Self {
-            mark2_anchor_offsets: cursor
-                .read_array((mark_class_count as usize) * Offset16::RAW_BYTE_LEN)?,
+            mark2_anchor_offsets: cursor.read_array((mark_class_count as usize))?,
         })
     }
 }

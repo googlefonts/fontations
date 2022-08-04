@@ -578,10 +578,8 @@ impl Field {
         let name = &self.name;
         let rhs = match &self.typ {
             FieldType::Array { .. } => {
-                let len_expr = self
-                    .computed_len_expr()
-                    .expect("array always has computed len");
-                quote!(cursor.read_array(#len_expr)?)
+                let count_expr = self.attrs.count.as_ref().unwrap().count_expr();
+                quote!(cursor.read_array(#count_expr)?)
             }
             FieldType::ComputedArray(_) => {
                 let args = self
