@@ -1,4 +1,4 @@
-use font_tables::{FontData, FontRef, TableProvider};
+use font_tables::{FontData, FontRef, ReadError, TableProvider};
 
 fn main() {
     let path = std::env::args().nth(1).expect("missing path argument");
@@ -6,14 +6,14 @@ fn main() {
     let data = FontData::new(&bytes);
     let font = FontRef::new(data).unwrap();
     let gpos = match font.gpos() {
-        Some(Ok(gpos)) => gpos,
-        Some(Err(e)) => {
-            eprintln!("Failed to parse GPOS: '{e}'");
-            std::process::exit(1);
-        }
-        None => {
+        Ok(gpos) => gpos,
+        Err(ReadError::TableIsMissing(_)) => {
             println!("No GPOS table found");
             return;
+        }
+        Err(e) => {
+            eprintln!("Failed to parse GPOS: '{e}'");
+            std::process::exit(1);
         }
     };
 

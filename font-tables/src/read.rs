@@ -1,5 +1,7 @@
 //! Traits for interpreting font data
 
+use font_types::Tag;
+
 use crate::font_data::FontData;
 
 /// A type that can be parsed from raw table data.
@@ -52,6 +54,7 @@ pub enum ReadError {
     InvalidArrayLen,
     ValidationError,
     NullOffset,
+    TableIsMissing(Tag),
 }
 
 impl std::fmt::Display for ReadError {

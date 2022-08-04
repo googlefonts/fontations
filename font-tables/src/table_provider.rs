@@ -8,9 +8,9 @@ use crate::{tables, FontData, FontRead, ReadError};
 pub trait TableProvider {
     fn data_for_tag(&self, tag: Tag) -> Option<FontData>;
 
-    //fn head(&self) -> Option<head::Head> {
-    //self.data_for_tag(head::TAG).and_then(head::Head::read)
-    //}
+    fn expect_data_for_tag(&self, tag: Tag) -> Result<FontData, ReadError> {
+        self.data_for_tag(tag).ok_or(ReadError::TableIsMissing(tag))
+    }
 
     //fn name(&self) -> Option<name::Name> {
     //self.data_for_tag(name::TAG).and_then(name::Name::read)
@@ -58,7 +58,8 @@ pub trait TableProvider {
     //self.data_for_tag(gdef::TAG).and_then(gdef::Gdef::read)
     //}
 
-    fn gpos(&self) -> Option<Result<tables::gpos::Gpos, ReadError>> {
-        self.data_for_tag(tables::gpos::TAG).map(FontRead::read)
+    fn gpos(&self) -> Result<tables::gpos::Gpos, ReadError> {
+        self.expect_data_for_tag(tables::gpos::TAG)
+            .and_then(FontRead::read)
     }
 }
