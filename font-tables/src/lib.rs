@@ -6,6 +6,7 @@ pub mod layout;
 mod read;
 mod table_provider;
 mod table_ref;
+pub mod tables;
 
 #[cfg(any(test, feature = "test_data"))]
 #[path = "tests/test_data.rs"]
@@ -25,10 +26,6 @@ pub mod parse_prelude {
     pub use crate::table_ref::{ResolveOffset, TableInfo, TableInfoWithArgs, TableRef};
     pub use font_types::*;
     pub use std::ops::Range;
-}
-
-pub mod tables {
-    pub use super::layout::gpos;
 }
 
 include!("../generated/font.rs");

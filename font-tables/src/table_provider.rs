@@ -12,6 +12,11 @@ pub trait TableProvider {
         self.data_for_tag(tag).ok_or(ReadError::TableIsMissing(tag))
     }
 
+    fn head(&self) -> Result<tables::head::Head, ReadError> {
+        self.expect_data_for_tag(tables::head::TAG)
+            .and_then(FontRead::read)
+    }
+
     //fn name(&self) -> Option<name::Name> {
     //self.data_for_tag(name::TAG).and_then(name::Name::read)
     //}

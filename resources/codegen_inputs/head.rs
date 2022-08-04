@@ -1,9 +1,9 @@
+#![parse_module(font_tables::tables::head)]
+
 /// <https://docs.microsoft.com/en-us/typography/opentype/spec/head>
-Head {
-    /// Major version number of the font header table — set to 1.
-    major_version: BigEndian<u16>,
-    /// Minor version number of the font header table — set to 0.
-    minor_version: BigEndian<u16>,
+table Head {
+    /// Version number of the font header table, set to (1, 0)
+    version: BigEndian<MajorMinor>,
     /// Set by font manufacturer.
     font_revision: BigEndian<Fixed>,
     /// To compute: set it to 0, sum the entire font as uint32, then
