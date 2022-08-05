@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use crate::{compile_prelude::Validate, validate::ValidationReport};
+
 use super::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
 use font_types::{Offset as AnyOffset, Uint24};
 
@@ -22,12 +24,13 @@ pub struct TableWriter {
     stack: Vec<TableData>,
 }
 
-pub fn dump_table<T: FontWrite>(table: &T) -> Vec<u8> {
+pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, ValidationReport> {
+    table.validate()?;
     let mut writer = TableWriter::default();
     table.write_into(&mut writer);
     let mut graph = writer.finish();
     graph.topological_sort();
-    dump_impl(&graph.order, &graph.objects)
+    Ok(dump_impl(&graph.order, &graph.objects))
 }
 
 fn dump_impl(order: &[ObjectId], nodes: &HashMap<ObjectId, TableData>) -> Vec<u8> {
