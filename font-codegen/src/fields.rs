@@ -552,6 +552,8 @@ impl Field {
 
         let len_expr = if let Some(expr) = &self.attrs.len {
             expr.expr.to_token_stream()
+        } else if let Some(Count::All) = self.attrs.count.as_deref() {
+            quote!(cursor.remaining_bytes())
         } else {
             let count_expr = self
                 .attrs

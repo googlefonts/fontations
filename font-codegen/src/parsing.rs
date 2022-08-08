@@ -172,6 +172,7 @@ pub(crate) struct FieldReadArgs {
 pub(crate) enum Count {
     Field(syn::Ident),
     Expr(InlineExpr),
+    All,
 }
 
 /// an inline expression used in an attribute
@@ -572,6 +573,7 @@ static NULLABLE: &str = "nullable";
 static SKIP_GETTER: &str = "skip_getter";
 static COUNT: &str = "count";
 static COUNT_EXPR: &str = "count_expr";
+static COUNT_ALL: &str = "count_all";
 static LEN: &str = "len_expr";
 static AVAILABLE: &str = "available";
 static FORMAT: &str = "format";
@@ -615,6 +617,8 @@ impl Parse for FieldAttrs {
                         syn::Error::new(err.span(), "Expected single field name")
                     })?),
                 ));
+            } else if ident == COUNT_ALL {
+                this.count = Some(Attr::new(ident.clone(), Count::All));
             } else if ident == COMPILE {
                 this.compile = Some(Attr::new(ident.clone(), parse_inline_expr(attr.tokens)?));
             } else if ident == COMPILE_TYPE {
@@ -724,6 +728,7 @@ impl Count {
     pub(crate) fn iter_referenced_fields(&self) -> impl Iterator<Item = &syn::Ident> {
         let (one, two) = match self {
             Count::Field(ident) => (Some(ident), None),
+            Count::All => (None, None),
             Count::Expr(InlineExpr {
                 referenced_fields, ..
             }) => (None, Some(referenced_fields.iter())),
@@ -736,6 +741,7 @@ impl Count {
         match self {
             Count::Field(field) => quote!( (#field as usize) ),
             Count::Expr(expr) => expr.expr.to_token_stream(),
+            Count::All => panic!("count_to annotation is handled before here"),
         }
     }
 }

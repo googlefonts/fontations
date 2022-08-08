@@ -853,7 +853,7 @@ impl<'a> PairSet<'a> {
 pub struct PairValueRecord {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
-    pub second_glyph: BigEndian<u16>,
+    pub second_glyph: BigEndian<GlyphId>,
     /// Positioning data for the first glyph in the pair.
     pub value_record1: ValueRecord,
     /// Positioning data for the second glyph in the pair.
@@ -863,7 +863,7 @@ pub struct PairValueRecord {
 impl PairValueRecord {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
-    pub fn second_glyph(&self) -> u16 {
+    pub fn second_glyph(&self) -> GlyphId {
         self.second_glyph.get()
     }
 
@@ -885,7 +885,7 @@ impl ReadArgs for PairValueRecord {
 impl ComputeSize for PairValueRecord {
     fn compute_size(args: &(ValueFormat, ValueFormat)) -> usize {
         let (value_format1, value_format2) = *args;
-        u16::RAW_BYTE_LEN
+        GlyphId::RAW_BYTE_LEN
             + <ValueRecord as ComputeSize>::compute_size(&value_format1)
             + <ValueRecord as ComputeSize>::compute_size(&value_format2)
     }

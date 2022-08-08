@@ -55,9 +55,10 @@ pub trait TableProvider {
     //self.data_for_tag(glyf::TAG).and_then(glyf::Glyf::read)
     //}
 
-    //fn cmap(&self) -> Option<cmap::Cmap> {
-    //self.data_for_tag(cmap::TAG).and_then(cmap::Cmap::read)
-    //}
+    fn cmap(&self) -> Result<tables::cmap::Cmap, ReadError> {
+        self.expect_data_for_tag(tables::cmap::TAG)
+            .and_then(FontRead::read)
+    }
 
     //fn gdef(&self) -> Option<gdef::Gdef> {
     //self.data_for_tag(gdef::TAG).and_then(gdef::Gdef::read)

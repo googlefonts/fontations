@@ -225,6 +225,12 @@ impl<'a> Cursor<'a> {
         self.data.check_in_bounds(self.pos).map(|_| self.pos)
     }
 
+    // used when handling fields with an implicit length, which must be at the
+    // end of a table.
+    pub(crate) fn remaining_bytes(&self) -> usize {
+        self.data.len().saturating_sub(self.pos)
+    }
+
     pub(crate) fn finish<T>(self, shape: T) -> Result<TableRef<'a, T>, ReadError> {
         let data = self.data;
         data.check_in_bounds(self.pos)?;
