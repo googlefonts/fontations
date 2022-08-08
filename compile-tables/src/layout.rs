@@ -18,7 +18,7 @@ include!("../generated/layout.rs");
 #[derive(Debug, Clone)]
 pub struct Lookup<T> {
     pub lookup_flag: u16,
-    pub subtables: Vec<OffsetMarker<Offset16, T>>,
+    pub subtables: Vec<OffsetMarker<T>>,
     pub mark_filtering_set: u16,
 }
 
@@ -45,7 +45,7 @@ impl<T: Validate> Validate for Lookup<T> {
 /// An extension table that is generic over the subtable type.
 #[derive(Debug, Clone)]
 pub struct ExtensionSubtable<T> {
-    pub extension_offset: OffsetMarker<Offset32, T>,
+    pub extension_offset: OffsetMarker<T, 4>,
 }
 
 impl<T: LookupType + FontWrite> FontWrite for ExtensionSubtable<T> {

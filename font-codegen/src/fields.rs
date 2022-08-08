@@ -725,10 +725,11 @@ impl FieldType {
                     .as_ref()
                     .map(|t| t.into_token_stream())
                     .unwrap_or_else(|| quote!(Box<dyn FontWrite>));
+                let width = width_for_offset(typ);
                 if nullable {
-                    quote!(NullableOffsetMarker<#typ, #target>)
+                    quote!(NullableOffsetMarker<#target, #width>)
                 } else {
-                    quote!(OffsetMarker<#typ, #target>)
+                    quote!(OffsetMarker<#target, #width>)
                 }
             }
             FieldType::Array { inner_typ } => {
@@ -741,6 +742,19 @@ impl FieldType {
             }
             FieldType::ComputedArray(array) => array.compile_type(),
         }
+    }
+}
+
+fn width_for_offset(offset: &syn::Ident) -> Option<syn::Ident> {
+    if offset == "Offset16" {
+        // the default
+        None
+    } else if offset == "Offset24" {
+        Some(syn::Ident::new("WIDTH_24", offset.span()))
+    } else if offset == "Offset32" {
+        Some(syn::Ident::new("WIDTH_32", offset.span()))
+    } else {
+        panic!("not an offset: {offset}")
     }
 }
 

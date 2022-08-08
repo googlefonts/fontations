@@ -2,7 +2,34 @@
 
 use super::read::{FontRead, ReadError};
 use crate::{font_data::FontData, read::FontReadWithArgs};
-use font_types::Offset;
+use font_types::{Offset16, Offset24, Offset32};
+
+/// Any offset type.
+pub trait Offset: Copy {
+    fn to_usize(self) -> usize;
+
+    fn non_null(self) -> Option<usize> {
+        match self.to_usize() {
+            0 => None,
+            other => Some(other),
+        }
+    }
+}
+
+macro_rules! impl_offset {
+    ($name:ident, $width:literal) => {
+        impl Offset for $name {
+            #[inline]
+            fn to_usize(self) -> usize {
+                self.to_u32() as _
+            }
+        }
+    };
+}
+
+impl_offset!(Offset16, 2);
+impl_offset!(Offset24, 3);
+impl_offset!(Offset32, 4);
 
 /// a (temporary?) helper trait to blanket impl a resolve method for font_types::Offset
 pub trait ResolveOffset {

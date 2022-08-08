@@ -19,7 +19,7 @@ mod tests;
 /// A GPOS lookup list table.
 #[derive(Debug, Clone)]
 pub struct PositionLookupList {
-    pub lookup_offsets: Vec<OffsetMarker<Offset16, PositionLookup>>,
+    pub lookup_offsets: Vec<OffsetMarker<PositionLookup>>,
 }
 
 impl Validate for PositionLookupList {

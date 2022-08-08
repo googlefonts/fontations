@@ -62,7 +62,7 @@ pub struct ScriptRecord {
     /// 4-byte script tag identifier
     pub script_tag: Tag,
     /// Offset to Script table, from beginning of ScriptList
-    pub script_offset: OffsetMarker<Offset16, Script>,
+    pub script_offset: OffsetMarker<Script>,
 }
 
 impl FontWrite for ScriptRecord {
@@ -97,7 +97,7 @@ impl FromObjRef<font_tables::layout::ScriptRecord> for ScriptRecord {
 pub struct Script {
     /// Offset to default LangSys table, from beginning of Script table
     /// — may be NULL
-    pub default_lang_sys_offset: NullableOffsetMarker<Offset16, LangSys>,
+    pub default_lang_sys_offset: NullableOffsetMarker<LangSys>,
     /// Array of LangSysRecords, listed alphabetically by LangSys tag
     pub lang_sys_records: Vec<LangSysRecord>,
 }
@@ -156,7 +156,7 @@ pub struct LangSysRecord {
     /// 4-byte LangSysTag identifier
     pub lang_sys_tag: Tag,
     /// Offset to LangSys table, from beginning of Script table
-    pub lang_sys_offset: OffsetMarker<Offset16, LangSys>,
+    pub lang_sys_offset: OffsetMarker<LangSys>,
 }
 
 impl FontWrite for LangSysRecord {
@@ -295,7 +295,7 @@ pub struct FeatureRecord {
     /// 4-byte feature identification tag
     pub feature_tag: Tag,
     /// Offset to Feature table, from beginning of FeatureList
-    pub feature_offset: OffsetMarker<Offset16, Feature>,
+    pub feature_offset: OffsetMarker<Feature>,
 }
 
 impl FontWrite for FeatureRecord {
@@ -329,7 +329,7 @@ impl FromObjRef<font_tables::layout::FeatureRecord> for FeatureRecord {
 #[derive(Clone, Debug)]
 pub struct Feature {
     /// Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
-    pub feature_params_offset: NullableOffsetMarker<Offset16, FeatureParams>,
+    pub feature_params_offset: NullableOffsetMarker<FeatureParams>,
     /// Array of indices into the LookupList — zero-based (first
     /// lookup is LookupListIndex = 0)
     pub lookup_list_indices: Vec<u16>,
@@ -770,10 +770,10 @@ impl FromObjRef<font_tables::layout::SequenceLookupRecord> for SequenceLookupRec
 pub struct SequenceContextFormat1 {
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat1 table
-    pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    pub coverage_offset: OffsetMarker<CoverageTable>,
     /// Array of offsets to SequenceRuleSet tables, from beginning of
     /// SequenceContextFormat1 table (offsets may be NULL)
-    pub seq_rule_set_offsets: Vec<NullableOffsetMarker<Offset16, SequenceRuleSet>>,
+    pub seq_rule_set_offsets: Vec<NullableOffsetMarker<SequenceRuleSet>>,
 }
 
 impl FontWrite for SequenceContextFormat1 {
@@ -827,7 +827,7 @@ impl<'a> FontRead<'a> for SequenceContextFormat1 {
 pub struct SequenceRuleSet {
     /// Array of offsets to SequenceRule tables, from beginning of the
     /// SequenceRuleSet table
-    pub seq_rule_offsets: Vec<OffsetMarker<Offset16, SequenceRule>>,
+    pub seq_rule_offsets: Vec<OffsetMarker<SequenceRule>>,
 }
 
 impl FontWrite for SequenceRuleSet {
@@ -930,13 +930,13 @@ impl<'a> FontRead<'a> for SequenceRule {
 pub struct SequenceContextFormat2 {
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat2 table
-    pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    pub coverage_offset: OffsetMarker<CoverageTable>,
     /// Offset to ClassDef table, from beginning of
     /// SequenceContextFormat2 table
-    pub class_def_offset: OffsetMarker<Offset16, ClassDef>,
+    pub class_def_offset: OffsetMarker<ClassDef>,
     /// Array of offsets to ClassSequenceRuleSet tables, from beginning
     /// of SequenceContextFormat2 table (may be NULL)
-    pub class_seq_rule_set_offsets: Vec<NullableOffsetMarker<Offset16, ClassSequenceRuleSet>>,
+    pub class_seq_rule_set_offsets: Vec<NullableOffsetMarker<ClassSequenceRuleSet>>,
 }
 
 impl FontWrite for SequenceContextFormat2 {
@@ -995,7 +995,7 @@ impl<'a> FontRead<'a> for SequenceContextFormat2 {
 pub struct ClassSequenceRuleSet {
     /// Array of offsets to ClassSequenceRule tables, from beginning of
     /// ClassSequenceRuleSet table
-    pub class_seq_rule_offsets: Vec<OffsetMarker<Offset16, ClassSequenceRule>>,
+    pub class_seq_rule_offsets: Vec<OffsetMarker<ClassSequenceRule>>,
 }
 
 impl FontWrite for ClassSequenceRuleSet {
@@ -1100,7 +1100,7 @@ impl<'a> FontRead<'a> for ClassSequenceRule {
 pub struct SequenceContextFormat3 {
     /// Array of offsets to Coverage tables, from beginning of
     /// SequenceContextFormat3 subtable
-    pub coverage_offsets: Vec<OffsetMarker<Offset16, CoverageTable>>,
+    pub coverage_offsets: Vec<OffsetMarker<CoverageTable>>,
     /// Array of SequenceLookupRecords
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
 }
@@ -1214,10 +1214,10 @@ impl<'a> FontRead<'a> for SequenceContext {
 pub struct ChainedSequenceContextFormat1 {
     /// Offset to Coverage table, from beginning of
     /// ChainSequenceContextFormat1 table
-    pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    pub coverage_offset: OffsetMarker<CoverageTable>,
     /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
     /// ChainedSequenceContextFormat1 table (may be NULL)
-    pub chained_seq_rule_set_offsets: Vec<NullableOffsetMarker<Offset16, ChainedSequenceRuleSet>>,
+    pub chained_seq_rule_set_offsets: Vec<NullableOffsetMarker<ChainedSequenceRuleSet>>,
 }
 
 impl FontWrite for ChainedSequenceContextFormat1 {
@@ -1279,7 +1279,7 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat1 {
 pub struct ChainedSequenceRuleSet {
     /// Array of offsets to ChainedSequenceRule tables, from beginning
     /// of ChainedSequenceRuleSet table
-    pub chained_seq_rule_offsets: Vec<OffsetMarker<Offset16, ChainedSequenceRule>>,
+    pub chained_seq_rule_offsets: Vec<OffsetMarker<ChainedSequenceRule>>,
 }
 
 impl FontWrite for ChainedSequenceRuleSet {
@@ -1404,20 +1404,19 @@ impl<'a> FontRead<'a> for ChainedSequenceRule {
 pub struct ChainedSequenceContextFormat2 {
     /// Offset to Coverage table, from beginning of
     /// ChainedSequenceContextFormat2 table
-    pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    pub coverage_offset: OffsetMarker<CoverageTable>,
     /// Offset to ClassDef table containing backtrack sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
-    pub backtrack_class_def_offset: OffsetMarker<Offset16, ClassDef>,
+    pub backtrack_class_def_offset: OffsetMarker<ClassDef>,
     /// Offset to ClassDef table containing input sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
-    pub input_class_def_offset: OffsetMarker<Offset16, ClassDef>,
+    pub input_class_def_offset: OffsetMarker<ClassDef>,
     /// Offset to ClassDef table containing lookahead sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
-    pub lookahead_class_def_offset: OffsetMarker<Offset16, ClassDef>,
+    pub lookahead_class_def_offset: OffsetMarker<ClassDef>,
     /// Array of offsets to ChainedClassSequenceRuleSet tables, from
     /// beginning of ChainedSequenceContextFormat2 table (may be NULL)
-    pub chained_class_seq_rule_set_offsets:
-        Vec<NullableOffsetMarker<Offset16, ChainedClassSequenceRuleSet>>,
+    pub chained_class_seq_rule_set_offsets: Vec<NullableOffsetMarker<ChainedClassSequenceRuleSet>>,
 }
 
 impl FontWrite for ChainedSequenceContextFormat2 {
@@ -1497,7 +1496,7 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat2 {
 pub struct ChainedClassSequenceRuleSet {
     /// Array of offsets to ChainedClassSequenceRule tables, from
     /// beginning of ChainedClassSequenceRuleSet
-    pub chained_class_seq_rule_offsets: Vec<OffsetMarker<Offset16, ChainedClassSequenceRule>>,
+    pub chained_class_seq_rule_offsets: Vec<OffsetMarker<ChainedClassSequenceRule>>,
 }
 
 impl FontWrite for ChainedClassSequenceRuleSet {
@@ -1630,11 +1629,11 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRule {
 #[derive(Clone, Debug)]
 pub struct ChainedSequenceContextFormat3 {
     /// Array of offsets to coverage tables for the backtrack sequence
-    pub backtrack_coverage_offsets: Vec<OffsetMarker<Offset16, CoverageTable>>,
+    pub backtrack_coverage_offsets: Vec<OffsetMarker<CoverageTable>>,
     /// Array of offsets to coverage tables for the input sequence
-    pub input_coverage_offsets: Vec<OffsetMarker<Offset16, CoverageTable>>,
+    pub input_coverage_offsets: Vec<OffsetMarker<CoverageTable>>,
     /// Array of offsets to coverage tables for the lookahead sequence
-    pub lookahead_coverage_offsets: Vec<OffsetMarker<Offset16, CoverageTable>>,
+    pub lookahead_coverage_offsets: Vec<OffsetMarker<CoverageTable>>,
     /// Array of SequenceLookupRecords
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
 }
@@ -1948,10 +1947,10 @@ impl<'a> FontRead<'a> for FeatureVariations {
 pub struct FeatureVariationRecord {
     /// Offset to a condition set table, from beginning of
     /// FeatureVariations table.
-    pub condition_set_offset: OffsetMarker<Offset32, ConditionSet>,
+    pub condition_set_offset: OffsetMarker<ConditionSet, WIDTH_32>,
     /// Offset to a feature table substitution table, from beginning of
     /// the FeatureVariations table.
-    pub feature_table_substitution_offset: OffsetMarker<Offset32, FeatureTableSubstitution>,
+    pub feature_table_substitution_offset: OffsetMarker<FeatureTableSubstitution, WIDTH_32>,
 }
 
 impl FontWrite for FeatureVariationRecord {
@@ -1992,7 +1991,7 @@ impl FromObjRef<font_tables::layout::FeatureVariationRecord> for FeatureVariatio
 pub struct ConditionSet {
     /// Array of offsets to condition tables, from beginning of the
     /// ConditionSet table.
-    pub condition_offsets: Vec<OffsetMarker<Offset32, ConditionFormat1>>,
+    pub condition_offsets: Vec<OffsetMarker<ConditionFormat1, WIDTH_32>>,
 }
 
 impl FontWrite for ConditionSet {
@@ -2142,7 +2141,7 @@ pub struct FeatureTableSubstitutionRecord {
     pub feature_index: u16,
     /// Offset to an alternate feature table, from start of the
     /// FeatureTableSubstitution table.
-    pub alternate_feature_offset: OffsetMarker<Offset32, Feature>,
+    pub alternate_feature_offset: OffsetMarker<Feature, WIDTH_32>,
 }
 
 impl FontWrite for FeatureTableSubstitutionRecord {

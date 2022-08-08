@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use crate::{compile_prelude::Validate, validate::ValidationReport};
 
 use super::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
-use font_types::{Offset as AnyOffset, Uint24};
+use font_types::Uint24;
 
 /// A type that that can be written out as part of a font file.
 ///
@@ -105,10 +105,10 @@ impl TableWriter {
             .extend_from_slice(bytes)
     }
 
-    pub fn write_offset<T: AnyOffset>(&mut self, obj: &dyn FontWrite) {
+    pub fn write_offset(&mut self, obj: &dyn FontWrite, width: usize) {
         let obj_id = self.add_table(obj);
         let data = self.stack.last_mut().unwrap();
-        data.add_offset::<T>(obj_id);
+        data.add_offset(obj_id, width);
     }
 
     /// used when writing top-level font objects, which are done more manually.
@@ -149,18 +149,19 @@ pub(crate) struct OffsetRecord {
 }
 
 impl TableData {
-    fn add_offset<T: AnyOffset>(&mut self, object: ObjectId) {
+    fn add_offset(&mut self, object: ObjectId, width: usize) {
         self.offsets.push(OffsetRecord {
             pos: self.bytes.len() as u32,
-            len: match T::RAW_BYTE_LEN {
+            len: match width {
                 2 => OffsetLen::Offset16,
                 3 => OffsetLen::Offset24,
                 _ => OffsetLen::Offset32,
             },
             object,
         });
+        let null_bytes = &[0u8, 0, 0, 0].get(..width.min(4)).unwrap();
 
-        self.write(T::null_bytes());
+        self.write(&null_bytes);
     }
 
     fn write(&mut self, bytes: &[u8]) {

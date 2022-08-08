@@ -199,7 +199,7 @@ impl<T: Validate> Validate for Vec<T> {
     }
 }
 
-impl<W, T: Validate> Validate for OffsetMarker<W, T> {
+impl<const N: usize, T: Validate> Validate for OffsetMarker<T, N> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self.get() {
             Some(item) => item.validate_impl(ctx),
@@ -208,7 +208,7 @@ impl<W, T: Validate> Validate for OffsetMarker<W, T> {
     }
 }
 
-impl<W, T: Validate> Validate for NullableOffsetMarker<W, T> {
+impl<const N: usize, T: Validate> Validate for NullableOffsetMarker<T, N> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         if let Some(item) = self.get() {
             item.validate_impl(ctx)

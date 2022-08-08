@@ -3,10 +3,9 @@
 use super::read::{FontRead, Format, ReadError};
 use crate::{
     font_data::FontData,
-    offset::ResolveOffset,
+    offset::{Offset, ResolveOffset},
     read::{FontReadWithArgs, ReadArgs},
 };
-use font_types::Offset;
 
 /// Typed access to raw table data.
 pub struct TableRef<'a, T> {

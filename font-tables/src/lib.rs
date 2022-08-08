@@ -20,10 +20,12 @@ pub use font_data::FontData;
 pub use read::{FontRead, FontReadWithArgs, ReadError};
 pub use table_provider::TableProvider;
 
+use offset::Offset;
+
 pub mod parse_prelude {
     pub use crate::array::ComputedArray;
     pub use crate::font_data::{Cursor, FontData};
-    pub use crate::offset::ResolveOffset;
+    pub use crate::offset::{Offset, ResolveOffset};
     pub use crate::read::{ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError};
     pub use crate::table_ref::{TableInfo, TableInfoWithArgs, TableRef};
     pub use font_types::*;

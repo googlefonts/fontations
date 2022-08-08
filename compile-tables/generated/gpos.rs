@@ -10,12 +10,12 @@ use crate::compile_prelude::*;
 #[derive(Clone, Debug)]
 pub struct Gpos {
     /// Offset to ScriptList table, from beginning of GPOS table
-    pub script_list_offset: OffsetMarker<Offset16, ScriptList>,
+    pub script_list_offset: OffsetMarker<ScriptList>,
     /// Offset to FeatureList table, from beginning of GPOS table
-    pub feature_list_offset: OffsetMarker<Offset16, FeatureList>,
+    pub feature_list_offset: OffsetMarker<FeatureList>,
     /// Offset to LookupList table, from beginning of GPOS table
-    pub lookup_list_offset: OffsetMarker<Offset16, PositionLookupList>,
-    pub feature_variations_offset: NullableOffsetMarker<Offset32, FeatureVariations>,
+    pub lookup_list_offset: OffsetMarker<PositionLookupList>,
+    pub feature_variations_offset: NullableOffsetMarker<FeatureVariations, WIDTH_32>,
 }
 
 impl FontWrite for Gpos {
@@ -226,11 +226,11 @@ pub struct AnchorFormat3 {
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for X coordinate, from beginning of
     /// Anchor table (may be NULL)
-    pub x_device_offset: NullableOffsetMarker<Offset16, Device>,
+    pub x_device_offset: NullableOffsetMarker<Device>,
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for Y coordinate, from beginning of
     /// Anchor table (may be NULL)
-    pub y_device_offset: NullableOffsetMarker<Offset16, Device>,
+    pub y_device_offset: NullableOffsetMarker<Device>,
 }
 
 impl FontWrite for AnchorFormat3 {
@@ -337,7 +337,7 @@ pub struct MarkRecord {
     /// Class defined for the associated mark.
     pub mark_class: u16,
     /// Offset to Anchor table, from beginning of MarkArray table.
-    pub mark_anchor_offset: OffsetMarker<Offset16, AnchorTable>,
+    pub mark_anchor_offset: OffsetMarker<AnchorTable>,
 }
 
 impl FontWrite for MarkRecord {
@@ -417,7 +417,7 @@ impl<'a> FontRead<'a> for SinglePos {
 #[derive(Clone, Debug)]
 pub struct SinglePosFormat1 {
     /// Offset to Coverage table, from beginning of SinglePos subtable.
-    pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    pub coverage_offset: OffsetMarker<CoverageTable>,
     /// Defines positioning value(s) — applied to all glyphs in the
     /// Coverage table.
     pub value_record: ValueRecord,
@@ -468,7 +468,7 @@ impl<'a> FontRead<'a> for SinglePosFormat1 {
 #[derive(Clone, Debug)]
 pub struct SinglePosFormat2 {
     /// Offset to Coverage table, from beginning of SinglePos subtable.
-    pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    pub coverage_offset: OffsetMarker<CoverageTable>,
     /// Array of ValueRecords — positioning values applied to glyphs.
     pub value_records: Vec<ValueRecord>,
 }
@@ -575,10 +575,10 @@ impl<'a> FontRead<'a> for PairPos {
 #[derive(Clone, Debug)]
 pub struct PairPosFormat1 {
     /// Offset to Coverage table, from beginning of PairPos subtable.
-    pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    pub coverage_offset: OffsetMarker<CoverageTable>,
     /// Array of offsets to PairSet tables. Offsets are from beginning
     /// of PairPos subtable, ordered by Coverage Index.
-    pub pair_set_offsets: Vec<OffsetMarker<Offset16, PairSet>>,
+    pub pair_set_offsets: Vec<OffsetMarker<PairSet>>,
 }
 
 impl FontWrite for PairPosFormat1 {
@@ -716,13 +716,13 @@ impl FromObjRef<font_tables::layout::gpos::PairValueRecord> for PairValueRecord 
 #[derive(Clone, Debug)]
 pub struct PairPosFormat2 {
     /// Offset to Coverage table, from beginning of PairPos subtable.
-    pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    pub coverage_offset: OffsetMarker<CoverageTable>,
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the first glyph of the pair.
-    pub class_def1_offset: OffsetMarker<Offset16, ClassDef>,
+    pub class_def1_offset: OffsetMarker<ClassDef>,
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the second glyph of the pair.
-    pub class_def2_offset: OffsetMarker<Offset16, ClassDef>,
+    pub class_def2_offset: OffsetMarker<ClassDef>,
     /// Array of Class1 records, ordered by classes in classDef1.
     pub class1_records: Vec<Class1Record>,
 }
@@ -864,7 +864,7 @@ impl FromObjRef<font_tables::layout::gpos::Class2Record> for Class2Record {
 #[derive(Clone, Debug)]
 pub struct CursivePosFormat1 {
     /// Offset to Coverage table, from beginning of CursivePos subtable.
-    pub coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    pub coverage_offset: OffsetMarker<CoverageTable>,
     /// Array of EntryExit records, in Coverage index order.
     pub entry_exit_record: Vec<EntryExitRecord>,
 }
@@ -925,10 +925,10 @@ impl<'a> FontRead<'a> for CursivePosFormat1 {
 pub struct EntryExitRecord {
     /// Offset to entryAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
-    pub entry_anchor_offset: NullableOffsetMarker<Offset16, AnchorTable>,
+    pub entry_anchor_offset: NullableOffsetMarker<AnchorTable>,
     /// Offset to exitAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
-    pub exit_anchor_offset: NullableOffsetMarker<Offset16, AnchorTable>,
+    pub exit_anchor_offset: NullableOffsetMarker<AnchorTable>,
 }
 
 impl FontWrite for EntryExitRecord {
@@ -969,16 +969,16 @@ impl FromObjRef<font_tables::layout::gpos::EntryExitRecord> for EntryExitRecord 
 pub struct MarkBasePosFormat1 {
     /// Offset to markCoverage table, from beginning of MarkBasePos
     /// subtable.
-    pub mark_coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    pub mark_coverage_offset: OffsetMarker<CoverageTable>,
     /// Offset to baseCoverage table, from beginning of MarkBasePos
     /// subtable.
-    pub base_coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    pub base_coverage_offset: OffsetMarker<CoverageTable>,
     /// Offset to MarkArray table, from beginning of MarkBasePos
     /// subtable.
-    pub mark_array_offset: OffsetMarker<Offset16, MarkArray>,
+    pub mark_array_offset: OffsetMarker<MarkArray>,
     /// Offset to BaseArray table, from beginning of MarkBasePos
     /// subtable.
-    pub base_array_offset: OffsetMarker<Offset16, BaseArray>,
+    pub base_array_offset: OffsetMarker<BaseArray>,
 }
 
 impl FontWrite for MarkBasePosFormat1 {
@@ -1084,7 +1084,7 @@ pub struct BaseRecord {
     /// Array of offsets (one per mark class) to Anchor tables. Offsets
     /// are from beginning of BaseArray table, ordered by class
     /// (offsets may be NULL).
-    pub base_anchor_offsets: Vec<NullableOffsetMarker<Offset16, AnchorTable>>,
+    pub base_anchor_offsets: Vec<NullableOffsetMarker<AnchorTable>>,
 }
 
 impl FontWrite for BaseRecord {
@@ -1120,16 +1120,16 @@ impl FromObjRef<font_tables::layout::gpos::BaseRecord<'_>> for BaseRecord {
 pub struct MarkLigPosFormat1 {
     /// Offset to markCoverage table, from beginning of MarkLigPos
     /// subtable.
-    pub mark_coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    pub mark_coverage_offset: OffsetMarker<CoverageTable>,
     /// Offset to ligatureCoverage table, from beginning of MarkLigPos
     /// subtable.
-    pub ligature_coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    pub ligature_coverage_offset: OffsetMarker<CoverageTable>,
     /// Offset to MarkArray table, from beginning of MarkLigPos
     /// subtable.
-    pub mark_array_offset: OffsetMarker<Offset16, MarkArray>,
+    pub mark_array_offset: OffsetMarker<MarkArray>,
     /// Offset to LigatureArray table, from beginning of MarkLigPos
     /// subtable.
-    pub ligature_array_offset: OffsetMarker<Offset16, LigatureArray>,
+    pub ligature_array_offset: OffsetMarker<LigatureArray>,
 }
 
 impl FontWrite for MarkLigPosFormat1 {
@@ -1191,7 +1191,7 @@ pub struct LigatureArray {
     /// Array of offsets to LigatureAttach tables. Offsets are from
     /// beginning of LigatureArray table, ordered by ligatureCoverage
     /// index.
-    pub ligature_attach_offsets: Vec<OffsetMarker<Offset16, LigatureAttach>>,
+    pub ligature_attach_offsets: Vec<OffsetMarker<LigatureAttach>>,
 }
 
 impl FontWrite for LigatureArray {
@@ -1276,7 +1276,7 @@ pub struct ComponentRecord {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of LigatureAttach table, ordered by class
     /// (offsets may be NULL).
-    pub ligature_anchor_offsets: Vec<NullableOffsetMarker<Offset16, AnchorTable>>,
+    pub ligature_anchor_offsets: Vec<NullableOffsetMarker<AnchorTable>>,
 }
 
 impl FontWrite for ComponentRecord {
@@ -1315,16 +1315,16 @@ impl FromObjRef<font_tables::layout::gpos::ComponentRecord<'_>> for ComponentRec
 pub struct MarkMarkPosFormat1 {
     /// Offset to Combining Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
-    pub mark1_coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    pub mark1_coverage_offset: OffsetMarker<CoverageTable>,
     /// Offset to Base Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
-    pub mark2_coverage_offset: OffsetMarker<Offset16, CoverageTable>,
+    pub mark2_coverage_offset: OffsetMarker<CoverageTable>,
     /// Offset to MarkArray table for mark1, from beginning of
     /// MarkMarkPos subtable.
-    pub mark1_array_offset: OffsetMarker<Offset16, MarkArray>,
+    pub mark1_array_offset: OffsetMarker<MarkArray>,
     /// Offset to Mark2Array table for mark2, from beginning of
     /// MarkMarkPos subtable.
-    pub mark2_array_offset: OffsetMarker<Offset16, Mark2Array>,
+    pub mark2_array_offset: OffsetMarker<Mark2Array>,
 }
 
 impl FontWrite for MarkMarkPosFormat1 {
@@ -1430,7 +1430,7 @@ pub struct Mark2Record {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of Mark2Array table, in class order (offsets may
     /// be NULL).
-    pub mark2_anchor_offsets: Vec<NullableOffsetMarker<Offset16, AnchorTable>>,
+    pub mark2_anchor_offsets: Vec<NullableOffsetMarker<AnchorTable>>,
 }
 
 impl FontWrite for Mark2Record {

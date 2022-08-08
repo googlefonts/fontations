@@ -1,14 +1,6 @@
 //! Offsets to tables
 
-use crate::{FixedSized, Uint24};
-
-/// A trait for the different offset representations.
-pub trait Offset: FixedSized + Copy {
-    /// Returns this offsize as a `usize`, or `None` if it is `0`.
-    fn non_null(self) -> Option<usize>;
-    /// the bytes that encode a null value of for this offset
-    fn null_bytes() -> &'static [u8];
-}
+use crate::Uint24;
 
 macro_rules! impl_offset {
     ($name:ident, $bits:literal, $rawty:ty) => {
@@ -22,14 +14,20 @@ macro_rules! impl_offset {
 
         impl $name {
             /// Create a new offset.
+            #[inline]
             pub fn new(raw: $rawty) -> Self {
                 Self(raw)
             }
 
             /// Return `true` if this offset is null.
+            #[inline]
             pub fn is_null(self) -> bool {
-                let as_u32: u32 = self.0.into();
-                as_u32 == 0
+                self.to_u32() == 0
+            }
+
+            #[inline]
+            pub fn to_u32(self) -> u32 {
+                self.0.into()
             }
         }
 
@@ -45,26 +43,10 @@ macro_rules! impl_offset {
             }
         }
 
-        impl Offset for $name {
-            fn non_null(self) -> Option<usize> {
-                let raw: u32 = self.0.into();
-                if raw == 0 {
-                    None
-                } else {
-                    Some(raw as usize)
-                }
-            }
-
-            /// A raw byte slice of the same length as this offset.
-            fn null_bytes() -> &'static [u8] {
-                [0u8; <Self as crate::FixedSized>::RAW_BYTE_LEN].as_slice()
-            }
-        }
-
         // useful for debugging
         impl PartialEq<u32> for $name {
             fn eq(&self, other: &u32) -> bool {
-                self.non_null().unwrap_or_default() as u32 == *other
+                self.to_u32() == *other
             }
         }
     };

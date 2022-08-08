@@ -1,27 +1,34 @@
 //! compile-time representations of offsets
 
-use font_types::Offset;
-
 #[cfg(feature = "parsing")]
 use super::compile_prelude::{FromTableRef, ReadError};
 
 use super::write::{FontWrite, TableWriter};
 
+/// The width in bytes of an Offset16
+pub const WIDTH_16: usize = 2;
+/// The width in bytes of an Offset24
+pub const WIDTH_24: usize = 3;
+/// The width in bytes of an Offset32
+pub const WIDTH_32: usize = 4;
+
 /// An offset subtable.
-#[derive(Clone)]
-pub struct OffsetMarker<W, T> {
-    width: std::marker::PhantomData<W>,
+///
+/// The generic const `N` is the width of the offset, in bytes.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct OffsetMarker<T, const N: usize = WIDTH_16> {
     obj: Option<T>,
 }
 
 /// An offset subtable which may be null.
-#[derive(Clone)]
-pub struct NullableOffsetMarker<W, T> {
-    width: std::marker::PhantomData<W>,
+///
+/// The generic const `N` is the width of the offset, in bytes.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct NullableOffsetMarker<T, const N: usize = WIDTH_16> {
     obj: Option<T>,
 }
 
-impl<W, T> OffsetMarker<W, T> {
+impl<const N: usize, T> OffsetMarker<T, N> {
     //TODO: how do we handle malformed inputs? do we error earlier than this?
     /// Get the object. Fonts in the wild may be malformed, so this still returns
     /// an option?
@@ -30,13 +37,10 @@ impl<W, T> OffsetMarker<W, T> {
     }
 }
 
-impl<W: Offset, T> OffsetMarker<W, T> {
+impl<const N: usize, T> OffsetMarker<T, N> {
     /// Create a new marker.
     pub fn new(obj: T) -> Self {
-        OffsetMarker {
-            width: std::marker::PhantomData,
-            obj: Some(obj),
-        }
+        OffsetMarker { obj: Some(obj) }
     }
 
     /// Creates a new marker with an object that may be null.
@@ -44,14 +48,11 @@ impl<W: Offset, T> OffsetMarker<W, T> {
     //are allowed to be null, but even offsets that aren't *may* be null,
     //and we should handle this.
     pub fn new_maybe_null(obj: Option<T>) -> Self {
-        OffsetMarker {
-            width: std::marker::PhantomData,
-            obj,
-        }
+        OffsetMarker { obj }
     }
 }
 
-impl<W, T> NullableOffsetMarker<W, T> {
+impl<const N: usize, T> NullableOffsetMarker<T, N> {
     //TODO: how do we handle malformed inputs? do we error earlier than this?
     /// Get the object, if it exists.
     pub fn get(&self) -> Option<&T> {
@@ -59,40 +60,36 @@ impl<W, T> NullableOffsetMarker<W, T> {
     }
 }
 
-impl<W: Offset, T> NullableOffsetMarker<W, T> {
+impl<const N: usize, T> NullableOffsetMarker<T, N> {
     pub fn new(obj: Option<T>) -> Self {
-        NullableOffsetMarker {
-            width: std::marker::PhantomData,
-            obj,
-        }
+        NullableOffsetMarker { obj }
     }
 }
 
-impl<W: Offset, T: FontWrite> FontWrite for OffsetMarker<W, T> {
+impl<const N: usize, T: FontWrite> FontWrite for OffsetMarker<T, N> {
     fn write_into(&self, writer: &mut TableWriter) {
         match self.obj.as_ref() {
-            Some(obj) => writer.write_offset::<W>(obj),
+            Some(obj) => writer.write_offset(obj, N),
             None => {
                 eprintln!("warning: unexpected null OffsetMarker");
-                writer.write_slice(W::null_bytes());
+                writer.write_slice([0u8; N].as_slice());
             }
         }
     }
 }
 
-impl<W: Offset, T: FontWrite> FontWrite for NullableOffsetMarker<W, T> {
+impl<const N: usize, T: FontWrite> FontWrite for NullableOffsetMarker<T, N> {
     fn write_into(&self, writer: &mut TableWriter) {
         match self.obj.as_ref() {
-            Some(obj) => writer.write_offset::<W>(obj),
-            None => writer.write_slice(W::null_bytes()),
+            Some(obj) => writer.write_offset(obj, N),
+            None => writer.write_slice([0u8; N].as_slice()),
         }
     }
 }
 
 #[cfg(feature = "parsing")]
-impl<W, T, U> From<Result<U, ReadError>> for OffsetMarker<W, T>
+impl<const N: usize, T, U> From<Result<U, ReadError>> for OffsetMarker<T, N>
 where
-    W: Offset,
     T: FromTableRef<U>,
 {
     fn from(from: Result<U, ReadError>) -> Self {
@@ -101,9 +98,8 @@ where
 }
 
 #[cfg(feature = "parsing")]
-impl<W, T, U> From<Option<Result<U, ReadError>>> for NullableOffsetMarker<W, T>
+impl<const N: usize, T, U> From<Option<Result<U, ReadError>>> for NullableOffsetMarker<T, N>
 where
-    W: Offset,
     T: FromTableRef<U>,
 {
     fn from(from: Option<Result<U, ReadError>>) -> Self {
@@ -116,54 +112,21 @@ where
     }
 }
 
-impl<W, T> Default for OffsetMarker<W, T> {
-    fn default() -> Self {
-        OffsetMarker {
-            width: std::marker::PhantomData,
-            obj: None,
-        }
-    }
-}
+// In case I still want to use these?
 
-impl<W, T> Default for NullableOffsetMarker<W, T> {
-    fn default() -> Self {
-        NullableOffsetMarker {
-            width: std::marker::PhantomData,
-            obj: None,
-        }
-    }
-}
+//impl<T: std::fmt::Debug, const N: usize> std::fmt::Debug for OffsetMarker<T, N> {
+//fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+//write!(f, "OffsetMarker({}, {:?})", N * 8, self.obj.as_ref(),)
+//}
+//}
 
-impl<W, T: PartialEq> PartialEq for OffsetMarker<W, T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.obj == other.obj
-    }
-}
-
-impl<W, T: PartialEq> PartialEq for NullableOffsetMarker<W, T> {
-    fn eq(&self, other: &Self) -> bool {
-        self.obj == other.obj
-    }
-}
-
-impl<W: Offset, T: std::fmt::Debug> std::fmt::Debug for OffsetMarker<W, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "OffsetMarker({}, {:?})",
-            W::RAW_BYTE_LEN * 8,
-            self.obj.as_ref(),
-        )
-    }
-}
-
-impl<W: Offset, T: std::fmt::Debug> std::fmt::Debug for NullableOffsetMarker<W, T> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
-        write!(
-            f,
-            "NullableOffsetMarker({}, {:?})",
-            W::RAW_BYTE_LEN * 8,
-            self.obj.as_ref(),
-        )
-    }
-}
+//impl<const N: usize, T: std::fmt::Debug> std::fmt::Debug for NullableOffsetMarker<T, N> {
+//fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+//write!(
+//f,
+//"NullableOffsetMarker({}, {:?})",
+//N * 8,
+//self.obj.as_ref(),
+//)
+//}
+//}

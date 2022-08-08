@@ -16,7 +16,7 @@ pub use write::dump_table;
 pub mod compile_prelude {
     use std::num::TryFromIntError;
 
-    pub use super::offsets::{NullableOffsetMarker, OffsetMarker};
+    pub use super::offsets::{NullableOffsetMarker, OffsetMarker, WIDTH_16, WIDTH_24, WIDTH_32};
     pub use super::validate::{Validate, ValidationCtx};
     pub use super::write::{FontWrite, TableWriter};
     pub use font_types::*;
