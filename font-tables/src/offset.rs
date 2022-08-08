@@ -2,7 +2,7 @@
 
 use super::read::{FontRead, ReadError};
 use crate::{font_data::FontData, read::FontReadWithArgs};
-use font_types::{Offset16, Offset24, Offset32};
+use font_types::{Offset16, Offset24, Offset32, Scalar};
 
 /// Any offset type.
 pub trait Offset: Copy {
@@ -13,6 +13,28 @@ pub trait Offset: Copy {
             0 => None,
             other => Some(other),
         }
+    }
+}
+
+/// An offset of a given width for which NULL (zero) is a valid value.
+#[derive(Debug, Clone, Copy)]
+pub struct Nullable<T>(T);
+
+impl<T: Scalar> Scalar for Nullable<T> {
+    type Raw = T::Raw;
+
+    fn from_raw(raw: Self::Raw) -> Self {
+        Self(T::from_raw(raw))
+    }
+
+    fn to_raw(self) -> Self::Raw {
+        self.0.to_raw()
+    }
+}
+
+impl<T: Offset> Nullable<T> {
+    pub fn is_null(&self) -> bool {
+        self.0.non_null().is_none()
     }
 }
 
@@ -40,24 +62,24 @@ pub trait ResolveOffset {
         data: &FontData<'a>,
         args: &T::Args,
     ) -> Result<T, ReadError>;
+}
 
-    fn resolve_nullable<'a, T: FontRead<'a>>(
-        &self,
-        data: &FontData<'a>,
-    ) -> Option<Result<T, ReadError>>;
+pub trait ResolveNullableOffset {
+    fn resolve<'a, T: FontRead<'a>>(&self, data: &FontData<'a>) -> Option<Result<T, ReadError>>;
 
-    fn resolve_nullable_with_args<'a, T: FontReadWithArgs<'a>>(
+    fn resolve_with_args<'a, T: FontReadWithArgs<'a>>(
         &self,
         data: &FontData<'a>,
         args: &T::Args,
     ) -> Option<Result<T, ReadError>>;
 }
 
-impl<O: Offset> ResolveOffset for O {
-    fn resolve<'a, T: FontRead<'a>>(&self, data: &FontData<'a>) -> Result<T, ReadError> {
-        match self.resolve_nullable(data) {
-            Some(x) => x,
-            None => Err(ReadError::NullOffset),
+impl<O: Offset> ResolveNullableOffset for Nullable<O> {
+    fn resolve<'a, T: FontRead<'a>>(&self, data: &FontData<'a>) -> Option<Result<T, ReadError>> {
+        match self.0.resolve(data) {
+            Ok(thing) => Some(Ok(thing)),
+            Err(ReadError::NullOffset) => None,
+            Err(e) => Some(Err(e)),
         }
     }
 
@@ -65,35 +87,31 @@ impl<O: Offset> ResolveOffset for O {
         &self,
         data: &FontData<'a>,
         args: &T::Args,
-    ) -> Result<T, ReadError> {
-        match self.resolve_nullable_with_args(data, args) {
-            Some(x) => x,
-            None => Err(ReadError::NullOffset),
+    ) -> Option<Result<T, ReadError>> {
+        match self.0.resolve_with_args(data, args) {
+            Ok(thing) => Some(Ok(thing)),
+            Err(ReadError::NullOffset) => None,
+            Err(e) => Some(Err(e)),
         }
     }
+}
 
-    fn resolve_nullable<'a, T: FontRead<'a>>(
-        &self,
-        data: &FontData<'a>,
-    ) -> Option<Result<T, ReadError>> {
-        let non_null = self.non_null()?;
-        Some(
-            data.split_off(non_null)
-                .ok_or(ReadError::OutOfBounds)
-                .and_then(T::read),
-        )
+impl<O: Offset> ResolveOffset for O {
+    fn resolve<'a, T: FontRead<'a>>(&self, data: &FontData<'a>) -> Result<T, ReadError> {
+        self.non_null()
+            .ok_or(ReadError::NullOffset)
+            .and_then(|off| data.split_off(off).ok_or(ReadError::OutOfBounds))
+            .and_then(T::read)
     }
 
-    fn resolve_nullable_with_args<'a, T: FontReadWithArgs<'a>>(
+    fn resolve_with_args<'a, T: FontReadWithArgs<'a>>(
         &self,
         data: &FontData<'a>,
         args: &T::Args,
-    ) -> Option<Result<T, ReadError>> {
-        let non_null = self.non_null()?;
-        Some(
-            data.split_off(non_null)
-                .ok_or(ReadError::OutOfBounds)
-                .and_then(|data| T::read_with_args(data, args)),
-        )
+    ) -> Result<T, ReadError> {
+        self.non_null()
+            .ok_or(ReadError::NullOffset)
+            .and_then(|off| data.split_off(off).ok_or(ReadError::OutOfBounds))
+            .and_then(|data| T::read_with_args(data, args))
     }
 }

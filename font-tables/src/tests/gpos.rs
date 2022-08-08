@@ -92,6 +92,7 @@ fn cursiveposformat1() {
     let entry2: AnchorFormat1 = record2
         .entry_anchor_offset()
         .resolve(table.offset_data())
+        .unwrap()
         .unwrap();
     assert_eq!(entry2.x_coordinate(), 1500);
     assert_eq!(entry2.y_coordinate(), 44);
@@ -108,6 +109,7 @@ fn markbaseposformat1() {
     let anchor1: AnchorFormat1 = record.base_anchor_offsets[1]
         .get()
         .resolve(base_array.offset_data())
+        .unwrap()
         .unwrap();
     assert_eq!(anchor1.x_coordinate(), 830);
 }
@@ -127,14 +129,8 @@ fn markligposformat1() {
         .nth(2)
         .unwrap()
         .unwrap();
-    assert!(comp_record.ligature_anchor_offsets[0]
-        .get()
-        .non_null()
-        .is_none());
-    assert!(comp_record.ligature_anchor_offsets[1]
-        .get()
-        .non_null()
-        .is_none());
+    assert!(comp_record.ligature_anchor_offsets[0].get().is_null());
+    assert!(comp_record.ligature_anchor_offsets[1].get().is_null());
 }
 
 #[test]
@@ -150,7 +146,10 @@ fn markmarkposformat1() {
     let record = mark2array.mark2_records().get(0).unwrap();
     assert_eq!(record.mark2_anchor_offsets.len(), 1);
     let anchor_off = record.mark2_anchor_offsets[0].get();
-    let anchor: AnchorFormat1 = anchor_off.resolve(mark2array.offset_data()).unwrap();
+    let anchor: AnchorFormat1 = anchor_off
+        .resolve(mark2array.offset_data())
+        .unwrap()
+        .unwrap();
     assert_eq!(anchor.x_coordinate(), 221);
     assert_eq!(anchor.y_coordinate(), 301);
 }

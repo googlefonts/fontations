@@ -127,7 +127,7 @@ pub type Script<'a> = TableRef<'a, ScriptMarker>;
 impl<'a> Script<'a> {
     /// Offset to default LangSys table, from beginning of Script table
     /// — may be NULL
-    pub fn default_lang_sys_offset(&self) -> Offset16 {
+    pub fn default_lang_sys_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.default_lang_sys_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -135,7 +135,7 @@ impl<'a> Script<'a> {
     /// Attempt to resolve [`default_lang_sys_offset`][Self::default_lang_sys_offset].
     pub fn default_lang_sys(&self) -> Option<Result<LangSys<'a>, ReadError>> {
         let data = &self.data;
-        self.default_lang_sys_offset().resolve_nullable(data)
+        self.default_lang_sys_offset().resolve(data)
     }
 
     /// Number of LangSysRecords for this script — excluding the
@@ -382,7 +382,7 @@ pub type Feature<'a> = TableRef<'a, FeatureMarker>;
 
 impl<'a> Feature<'a> {
     /// Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
-    pub fn feature_params_offset(&self) -> Offset16 {
+    pub fn feature_params_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.feature_params_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -391,8 +391,7 @@ impl<'a> Feature<'a> {
     pub fn feature_params(&self) -> Option<Result<FeatureParams<'a>, ReadError>> {
         let data = &self.data;
         let args = self.feature_tag();
-        self.feature_params_offset()
-            .resolve_nullable_with_args(data, &args)
+        self.feature_params_offset().resolve_with_args(data, &args)
     }
 
     /// Number of LookupList indices for this feature
@@ -1015,7 +1014,7 @@ impl<'a> SequenceContextFormat1<'a> {
 
     /// Array of offsets to SequenceRuleSet tables, from beginning of
     /// SequenceContextFormat1 table (offsets may be NULL)
-    pub fn seq_rule_set_offsets(&self) -> &[BigEndian<Offset16>] {
+    pub fn seq_rule_set_offsets(&self) -> &[BigEndian<Nullable<Offset16>>] {
         let range = self.shape.seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1026,7 +1025,7 @@ impl<'a> SequenceContextFormat1<'a> {
         let data = &self.data;
         self.seq_rule_set_offsets()
             .iter()
-            .map(move |off| off.get().resolve_nullable(data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -1255,7 +1254,7 @@ impl<'a> SequenceContextFormat2<'a> {
 
     /// Array of offsets to ClassSequenceRuleSet tables, from beginning
     /// of SequenceContextFormat2 table (may be NULL)
-    pub fn class_seq_rule_set_offsets(&self) -> &[BigEndian<Offset16>] {
+    pub fn class_seq_rule_set_offsets(&self) -> &[BigEndian<Nullable<Offset16>>] {
         let range = self.shape.class_seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1266,7 +1265,7 @@ impl<'a> SequenceContextFormat2<'a> {
         let data = &self.data;
         self.class_seq_rule_set_offsets()
             .iter()
-            .map(move |off| off.get().resolve_nullable(data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -1596,7 +1595,7 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
 
     /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
     /// ChainedSequenceContextFormat1 table (may be NULL)
-    pub fn chained_seq_rule_set_offsets(&self) -> &[BigEndian<Offset16>] {
+    pub fn chained_seq_rule_set_offsets(&self) -> &[BigEndian<Nullable<Offset16>>] {
         let range = self.shape.chained_seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1607,7 +1606,7 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
         let data = &self.data;
         self.chained_seq_rule_set_offsets()
             .iter()
-            .map(move |off| off.get().resolve_nullable(data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -1925,7 +1924,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
 
     /// Array of offsets to ChainedClassSequenceRuleSet tables, from
     /// beginning of ChainedSequenceContextFormat2 table (may be NULL)
-    pub fn chained_class_seq_rule_set_offsets(&self) -> &[BigEndian<Offset16>] {
+    pub fn chained_class_seq_rule_set_offsets(&self) -> &[BigEndian<Nullable<Offset16>>] {
         let range = self.shape.chained_class_seq_rule_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1936,7 +1935,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
         let data = &self.data;
         self.chained_class_seq_rule_set_offsets()
             .iter()
-            .map(move |off| off.get().resolve_nullable(data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 

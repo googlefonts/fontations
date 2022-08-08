@@ -103,7 +103,7 @@ impl<'a> Gpos<'a> {
         self.lookup_list_offset().resolve(data)
     }
 
-    pub fn feature_variations_offset(&self) -> Option<Offset32> {
+    pub fn feature_variations_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.feature_variations_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
@@ -111,7 +111,7 @@ impl<'a> Gpos<'a> {
     /// Attempt to resolve [`feature_variations_offset`][Self::feature_variations_offset].
     pub fn feature_variations(&self) -> Option<Result<FeatureVariations<'a>, ReadError>> {
         let data = &self.data;
-        self.feature_variations_offset()?.resolve_nullable(data)
+        self.feature_variations_offset()?.resolve(data)
     }
 }
 
@@ -342,7 +342,7 @@ impl<'a> AnchorFormat3<'a> {
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for X coordinate, from beginning of
     /// Anchor table (may be NULL)
-    pub fn x_device_offset(&self) -> Offset16 {
+    pub fn x_device_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.x_device_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -350,13 +350,13 @@ impl<'a> AnchorFormat3<'a> {
     /// Attempt to resolve [`x_device_offset`][Self::x_device_offset].
     pub fn x_device(&self) -> Option<Result<Device<'a>, ReadError>> {
         let data = &self.data;
-        self.x_device_offset().resolve_nullable(data)
+        self.x_device_offset().resolve(data)
     }
 
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for Y coordinate, from beginning of
     /// Anchor table (may be NULL)
-    pub fn y_device_offset(&self) -> Offset16 {
+    pub fn y_device_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.y_device_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -364,7 +364,7 @@ impl<'a> AnchorFormat3<'a> {
     /// Attempt to resolve [`y_device_offset`][Self::y_device_offset].
     pub fn y_device(&self) -> Option<Result<Device<'a>, ReadError>> {
         let data = &self.data;
-        self.y_device_offset().resolve_nullable(data)
+        self.y_device_offset().resolve(data)
     }
 }
 
@@ -1251,16 +1251,16 @@ impl<'a> CursivePosFormat1<'a> {
 pub struct EntryExitRecord {
     /// Offset to entryAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
-    pub entry_anchor_offset: BigEndian<Offset16>,
+    pub entry_anchor_offset: BigEndian<Nullable<Offset16>>,
     /// Offset to exitAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
-    pub exit_anchor_offset: BigEndian<Offset16>,
+    pub exit_anchor_offset: BigEndian<Nullable<Offset16>>,
 }
 
 impl EntryExitRecord {
     /// Offset to entryAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
-    pub fn entry_anchor_offset(&self) -> Offset16 {
+    pub fn entry_anchor_offset(&self) -> Nullable<Offset16> {
         self.entry_anchor_offset.get()
     }
 
@@ -1269,12 +1269,12 @@ impl EntryExitRecord {
         &self,
         data: &'a FontData<'a>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
-        self.entry_anchor_offset().resolve_nullable(data)
+        self.entry_anchor_offset().resolve(data)
     }
 
     /// Offset to exitAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
-    pub fn exit_anchor_offset(&self) -> Offset16 {
+    pub fn exit_anchor_offset(&self) -> Nullable<Offset16> {
         self.exit_anchor_offset.get()
     }
 
@@ -1283,7 +1283,7 @@ impl EntryExitRecord {
         &self,
         data: &'a FontData<'a>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
-        self.exit_anchor_offset().resolve_nullable(data)
+        self.exit_anchor_offset().resolve(data)
     }
 }
 
@@ -1481,14 +1481,14 @@ pub struct BaseRecord<'a> {
     /// Array of offsets (one per mark class) to Anchor tables. Offsets
     /// are from beginning of BaseArray table, ordered by class
     /// (offsets may be NULL).
-    pub base_anchor_offsets: &'a [BigEndian<Offset16>],
+    pub base_anchor_offsets: &'a [BigEndian<Nullable<Offset16>>],
 }
 
 impl<'a> BaseRecord<'a> {
     /// Array of offsets (one per mark class) to Anchor tables. Offsets
     /// are from beginning of BaseArray table, ordered by class
     /// (offsets may be NULL).
-    pub fn base_anchor_offsets(&self) -> &[BigEndian<Offset16>] {
+    pub fn base_anchor_offsets(&self) -> &[BigEndian<Nullable<Offset16>>] {
         self.base_anchor_offsets
     }
 
@@ -1498,7 +1498,7 @@ impl<'a> BaseRecord<'a> {
     ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + '_ {
         self.base_anchor_offsets()
             .iter()
-            .map(move |off| off.get().resolve_nullable(data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -1788,14 +1788,14 @@ pub struct ComponentRecord<'a> {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of LigatureAttach table, ordered by class
     /// (offsets may be NULL).
-    pub ligature_anchor_offsets: &'a [BigEndian<Offset16>],
+    pub ligature_anchor_offsets: &'a [BigEndian<Nullable<Offset16>>],
 }
 
 impl<'a> ComponentRecord<'a> {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of LigatureAttach table, ordered by class
     /// (offsets may be NULL).
-    pub fn ligature_anchor_offsets(&self) -> &[BigEndian<Offset16>] {
+    pub fn ligature_anchor_offsets(&self) -> &[BigEndian<Nullable<Offset16>>] {
         self.ligature_anchor_offsets
     }
 
@@ -1805,7 +1805,7 @@ impl<'a> ComponentRecord<'a> {
     ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + '_ {
         self.ligature_anchor_offsets()
             .iter()
-            .map(move |off| off.get().resolve_nullable(data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -2021,14 +2021,14 @@ pub struct Mark2Record<'a> {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of Mark2Array table, in class order (offsets may
     /// be NULL).
-    pub mark2_anchor_offsets: &'a [BigEndian<Offset16>],
+    pub mark2_anchor_offsets: &'a [BigEndian<Nullable<Offset16>>],
 }
 
 impl<'a> Mark2Record<'a> {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of Mark2Array table, in class order (offsets may
     /// be NULL).
-    pub fn mark2_anchor_offsets(&self) -> &[BigEndian<Offset16>] {
+    pub fn mark2_anchor_offsets(&self) -> &[BigEndian<Nullable<Offset16>>] {
         self.mark2_anchor_offsets
     }
 
@@ -2038,7 +2038,7 @@ impl<'a> Mark2Record<'a> {
     ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + '_ {
         self.mark2_anchor_offsets()
             .iter()
-            .map(move |off| off.get().resolve_nullable(data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 

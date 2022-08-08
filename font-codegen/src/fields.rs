@@ -118,6 +118,9 @@ impl Fields {
 impl Field {
     pub(crate) fn type_for_record(&self) -> TokenStream {
         match &self.typ {
+            FieldType::Offset { typ, .. } if self.is_nullable() => {
+                quote!(BigEndian<Nullable<#typ>>)
+            }
             FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => quote!(BigEndian<#typ>),
             FieldType::Other { typ } => typ.to_token_stream(),
             FieldType::ComputedArray(array) => {
@@ -125,6 +128,9 @@ impl Field {
                 quote!(ComputedArray<'a, #inner>)
             }
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+                FieldType::Offset { typ, .. } if self.is_nullable() => {
+                    quote!(&'a [BigEndian<Nullable<#typ>>])
+                }
                 FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
                     quote!(&'a [BigEndian<#typ>])
                 }
@@ -274,9 +280,13 @@ impl Field {
     /// 'raw' as in this does not include handling offset resolution
     pub(crate) fn raw_getter_return_type(&self) -> TokenStream {
         match &self.typ {
+            FieldType::Offset { typ, .. } if self.is_nullable() => quote!(Nullable<#typ>),
             FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => typ.to_token_stream(),
             FieldType::Other { typ } => typ.to_token_stream(),
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+                FieldType::Offset { typ, .. } if self.is_nullable() => {
+                    quote!(&[BigEndian<Nullable<#typ>>])
+                }
                 FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
                     quote!(&[BigEndian<#typ>])
                 }
@@ -405,11 +415,9 @@ impl Field {
             return_type = quote!(impl Iterator<Item=#return_type> + '_);
         }
 
-        let resolve = match (self.attrs.read_offset_args.as_deref(), self.is_nullable()) {
-            (None, true) => quote!(resolve_nullable(data)),
-            (None, false) => quote!(resolve(data)),
-            (Some(_), true) => quote!(resolve_nullable_with_args(data, &args)),
-            (Some(_), false) => quote!(resolve_with_args(data, &args)),
+        let resolve = match self.attrs.read_offset_args.as_deref() {
+            None => quote!(resolve(data)),
+            Some(_) => quote!(resolve_with_args(data, &args)),
         };
 
         let args_if_needed = self.attrs.read_offset_args.as_ref().map(|args| {

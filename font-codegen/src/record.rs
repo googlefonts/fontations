@@ -55,7 +55,7 @@ fn generate_extra_traits(item: &Record) -> syn::Result<TokenStream> {
     let anon_lifetime = lifetime.is_some().then(|| quote!(<'_>));
 
     if item.attrs.read_args.is_none() {
-        let inner_types = item.fields.iter().map(|fld| fld.raw_getter_return_type());
+        let inner_types = item.fields.iter().map(|fld| fld.typ.cooked_type_tokens());
         return Ok(quote! {
             impl FixedSized for #name {
                 const RAW_BYTE_LEN: usize = #( #inner_types::RAW_BYTE_LEN )+*;
