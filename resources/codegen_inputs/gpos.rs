@@ -206,7 +206,7 @@ table PairSet {
 record PairValueRecord {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
-    second_glyph: BigEndian<u16>,
+    second_glyph: BigEndian<GlyphId>,
     /// Positioning data for the first glyph in the pair.
     #[read_with($value_format1)]
     value_record1: ValueRecord,

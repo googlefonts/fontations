@@ -78,10 +78,7 @@ impl CoverageTable<'_> {
         let (iter1, iter2) = match self {
             CoverageTable::Format1(t) => (Some(t.glyph_array().iter().map(|g| g.get())), None),
             CoverageTable::Format2(t) => {
-                let iter = t
-                    .range_records()
-                    .iter()
-                    .flat_map(|rcd| rcd.start_glyph_id()..=rcd.end_glyph_id());
+                let iter = t.range_records().iter().flat_map(RangeRecord::iter);
                 (None, Some(iter))
             }
         };
@@ -90,6 +87,12 @@ impl CoverageTable<'_> {
             .into_iter()
             .flatten()
             .chain(iter2.into_iter().flatten())
+    }
+}
+
+impl RangeRecord {
+    fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+        (self.start_glyph_id().to_u16()..=self.end_glyph_id().to_u16()).map(GlyphId::new)
     }
 }
 

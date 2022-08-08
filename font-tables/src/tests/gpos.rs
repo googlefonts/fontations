@@ -51,12 +51,12 @@ fn pairposformat1() {
     let rec1 = set1.pair_value_records().get(0).unwrap();
     let rec2 = set2.pair_value_records().get(0).unwrap();
 
-    assert_eq!(rec1.second_glyph(), 0x59);
+    assert_eq!(rec1.second_glyph(), GlyphId::new(0x59));
     assert_eq!(rec1.value_record1().x_advance(), Some(-30));
     assert!(rec1.value_record1().x_placement().is_none());
     assert_eq!(rec1.value_record2().x_placement(), Some(-20));
 
-    assert_eq!(rec2.second_glyph(), 0x59);
+    assert_eq!(rec2.second_glyph(), GlyphId::new(0x59));
     assert_eq!(rec2.value_record1().x_advance(), Some(-40));
     assert_eq!(rec2.value_record2().x_placement(), Some(-25));
 }
@@ -75,7 +75,10 @@ fn pairposformat2() {
     match class2 {
         ClassDef::Format1(_) => panic!("expected format2"),
         ClassDef::Format2(cls) => {
-            assert_eq!(cls.class_range_records()[0].start_glyph_id.get(), 0x6A);
+            assert_eq!(
+                cls.class_range_records()[0].start_glyph_id.get(),
+                GlyphId::new(0x6A)
+            );
         }
     }
 }

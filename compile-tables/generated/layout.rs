@@ -375,7 +375,7 @@ impl FromTableRef<font_tables::layout::Feature<'_>> for Feature {}
 #[derive(Clone, Debug)]
 pub struct CoverageFormat1 {
     /// Array of glyph IDs — in numerical order
-    pub glyph_array: Vec<u16>,
+    pub glyph_array: Vec<GlyphId>,
 }
 
 impl FontWrite for CoverageFormat1 {
@@ -473,9 +473,9 @@ impl<'a> FontRead<'a> for CoverageFormat2 {
 #[derive(Clone, Debug)]
 pub struct RangeRecord {
     /// First glyph ID in the range
-    pub start_glyph_id: u16,
+    pub start_glyph_id: GlyphId,
     /// Last glyph ID in the range
-    pub end_glyph_id: u16,
+    pub end_glyph_id: GlyphId,
     /// Coverage Index of first glyph ID in range
     pub start_coverage_index: u16,
 }
@@ -553,7 +553,7 @@ impl<'a> FontRead<'a> for CoverageTable {
 #[derive(Clone, Debug)]
 pub struct ClassDefFormat1 {
     /// First glyph ID of the classValueArray
-    pub start_glyph_id: u16,
+    pub start_glyph_id: GlyphId,
     /// Array of Class Values — one per glyph ID
     pub class_value_array: Vec<u16>,
 }
@@ -655,9 +655,9 @@ impl<'a> FontRead<'a> for ClassDefFormat2 {
 #[derive(Clone, Debug)]
 pub struct ClassRangeRecord {
     /// First glyph ID in the range
-    pub start_glyph_id: u16,
+    pub start_glyph_id: GlyphId,
     /// Last glyph ID in the range
-    pub end_glyph_id: u16,
+    pub end_glyph_id: GlyphId,
     /// Applied to all glyphs in the range
     pub class: u16,
 }

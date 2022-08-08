@@ -209,6 +209,7 @@ write_be_bytes!(font_types::LongDateTime);
 write_be_bytes!(font_types::Tag);
 write_be_bytes!(font_types::Version16Dot16);
 write_be_bytes!(font_types::MajorMinor);
+write_be_bytes!(font_types::GlyphId);
 
 impl<T: FontWrite> FontWrite for [T] {
     fn write_into(&self, writer: &mut TableWriter) {

@@ -137,7 +137,7 @@ table CoverageFormat1 {
     glyph_count: BigEndian<u16>,
     /// Array of glyph IDs — in numerical order
     #[count(glyph_count)]
-    glyph_array: [BigEndian<u16>],
+    glyph_array: [BigEndian<GlyphId>],
 }
 
 /// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
@@ -156,9 +156,9 @@ table CoverageFormat2 {
 /// Used in [CoverageFormat2]
 record RangeRecord {
     /// First glyph ID in the range
-    start_glyph_id: BigEndian<u16>,
+    start_glyph_id: BigEndian<GlyphId>,
     /// Last glyph ID in the range
-    end_glyph_id: BigEndian<u16>,
+    end_glyph_id: BigEndian<GlyphId>,
     /// Coverage Index of first glyph ID in range
     start_coverage_index: BigEndian<u16>,
 }
@@ -175,7 +175,7 @@ table ClassDefFormat1 {
     #[format = 1]
     class_format: BigEndian<u16>,
     /// First glyph ID of the classValueArray
-    start_glyph_id: BigEndian<u16>,
+    start_glyph_id: BigEndian<GlyphId>,
     /// Size of the classValueArray
     #[compile(array_len($class_value_array))]
     glyph_count: BigEndian<u16>,
@@ -201,9 +201,9 @@ table ClassDefFormat2 {
 #[validation_method(validate_glyph_range)]
 record ClassRangeRecord {
     /// First glyph ID in the range
-    start_glyph_id: BigEndian<u16>,
+    start_glyph_id: BigEndian<GlyphId>,
     /// Last glyph ID in the range
-    end_glyph_id: BigEndian<u16>,
+    end_glyph_id: BigEndian<GlyphId>,
     /// Applied to all glyphs in the range
     class: BigEndian<u16>,
 }

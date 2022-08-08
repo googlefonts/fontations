@@ -577,7 +577,7 @@ impl TableInfo for CoverageFormat1Marker {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let glyph_count: u16 = cursor.read()?;
-        let glyph_array_byte_len = (glyph_count as usize) * u16::RAW_BYTE_LEN;
+        let glyph_array_byte_len = (glyph_count as usize) * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(glyph_array_byte_len);
         cursor.finish(CoverageFormat1Marker {
             glyph_array_byte_len,
@@ -602,7 +602,7 @@ impl<'a> CoverageFormat1<'a> {
     }
 
     /// Array of glyph IDs — in numerical order
-    pub fn glyph_array(&self) -> &[BigEndian<u16>] {
+    pub fn glyph_array(&self) -> &[BigEndian<GlyphId>] {
         let range = self.shape.glyph_array_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -677,21 +677,21 @@ impl<'a> CoverageFormat2<'a> {
 #[repr(packed)]
 pub struct RangeRecord {
     /// First glyph ID in the range
-    pub start_glyph_id: BigEndian<u16>,
+    pub start_glyph_id: BigEndian<GlyphId>,
     /// Last glyph ID in the range
-    pub end_glyph_id: BigEndian<u16>,
+    pub end_glyph_id: BigEndian<GlyphId>,
     /// Coverage Index of first glyph ID in range
     pub start_coverage_index: BigEndian<u16>,
 }
 
 impl RangeRecord {
     /// First glyph ID in the range
-    pub fn start_glyph_id(&self) -> u16 {
+    pub fn start_glyph_id(&self) -> GlyphId {
         self.start_glyph_id.get()
     }
 
     /// Last glyph ID in the range
-    pub fn end_glyph_id(&self) -> u16 {
+    pub fn end_glyph_id(&self) -> GlyphId {
         self.end_glyph_id.get()
     }
 
@@ -702,7 +702,7 @@ impl RangeRecord {
 }
 
 impl FixedSized for RangeRecord {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// [Coverage Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-table)
@@ -740,7 +740,7 @@ impl ClassDefFormat1Marker {
     }
     fn start_glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.class_format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + GlyphId::RAW_BYTE_LEN
     }
     fn glyph_count_byte_range(&self) -> Range<usize> {
         let start = self.start_glyph_id_byte_range().end;
@@ -757,7 +757,7 @@ impl TableInfo for ClassDefFormat1Marker {
     fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
-        cursor.advance::<u16>();
+        cursor.advance::<GlyphId>();
         let glyph_count: u16 = cursor.read()?;
         let class_value_array_byte_len = (glyph_count as usize) * u16::RAW_BYTE_LEN;
         cursor.advance_by(class_value_array_byte_len);
@@ -778,7 +778,7 @@ impl<'a> ClassDefFormat1<'a> {
     }
 
     /// First glyph ID of the classValueArray
-    pub fn start_glyph_id(&self) -> u16 {
+    pub fn start_glyph_id(&self) -> GlyphId {
         let range = self.shape.start_glyph_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -866,21 +866,21 @@ impl<'a> ClassDefFormat2<'a> {
 #[repr(packed)]
 pub struct ClassRangeRecord {
     /// First glyph ID in the range
-    pub start_glyph_id: BigEndian<u16>,
+    pub start_glyph_id: BigEndian<GlyphId>,
     /// Last glyph ID in the range
-    pub end_glyph_id: BigEndian<u16>,
+    pub end_glyph_id: BigEndian<GlyphId>,
     /// Applied to all glyphs in the range
     pub class: BigEndian<u16>,
 }
 
 impl ClassRangeRecord {
     /// First glyph ID in the range
-    pub fn start_glyph_id(&self) -> u16 {
+    pub fn start_glyph_id(&self) -> GlyphId {
         self.start_glyph_id.get()
     }
 
     /// Last glyph ID in the range
-    pub fn end_glyph_id(&self) -> u16 {
+    pub fn end_glyph_id(&self) -> GlyphId {
         self.end_glyph_id.get()
     }
 
@@ -891,7 +891,7 @@ impl ClassRangeRecord {
 }
 
 impl FixedSized for ClassRangeRecord {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 /// A [Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table)

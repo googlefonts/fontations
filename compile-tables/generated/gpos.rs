@@ -679,7 +679,7 @@ impl FromTableRef<font_tables::layout::gpos::PairSet<'_>> for PairSet {}
 pub struct PairValueRecord {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
-    pub second_glyph: u16,
+    pub second_glyph: GlyphId,
     /// Positioning data for the first glyph in the pair.
     pub value_record1: ValueRecord,
     /// Positioning data for the second glyph in the pair.

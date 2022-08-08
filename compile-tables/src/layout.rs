@@ -174,10 +174,12 @@ impl FromTableRef<font_tables::layout::FeatureParams<'_>> for FeatureParams {}
 
 impl ClassDefFormat1 {
     fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
-        self.class_value_array
-            .iter()
-            .enumerate()
-            .map(|(i, cls)| (self.start_glyph_id.saturating_add(i as u16), *cls))
+        self.class_value_array.iter().enumerate().map(|(i, cls)| {
+            (
+                GlyphId::new(self.start_glyph_id.to_u16().saturating_add(i as u16)),
+                *cls,
+            )
+        })
     }
 }
 
@@ -194,9 +196,10 @@ impl ClassRangeRecord {
 
 impl ClassDefFormat2 {
     fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
-        self.class_range_records
-            .iter()
-            .flat_map(|rcd| (rcd.start_glyph_id..=rcd.end_glyph_id).map(|gid| (gid, rcd.class)))
+        self.class_range_records.iter().flat_map(|rcd| {
+            (rcd.start_glyph_id.to_u16()..=rcd.end_glyph_id.to_u16())
+                .map(|gid| (GlyphId::new(gid), rcd.class))
+        })
     }
 }
 
@@ -269,8 +272,8 @@ mod tests {
     fn validate_classdef_ranges() {
         let classdef = ClassDefFormat2 {
             class_range_records: vec![ClassRangeRecord {
-                start_glyph_id: 12,
-                end_glyph_id: 3,
+                start_glyph_id: GlyphId::new(12),
+                end_glyph_id: GlyphId::new(3),
                 class: 7,
             }],
         };
