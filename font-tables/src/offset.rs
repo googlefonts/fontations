@@ -38,6 +38,12 @@ impl<T: Offset> Nullable<T> {
     }
 }
 
+impl<T: Offset> PartialEq<usize> for Nullable<T> {
+    fn eq(&self, other: &usize) -> bool {
+        self.0.to_usize() == *other
+    }
+}
+
 macro_rules! impl_offset {
     ($name:ident, $width:literal) => {
         impl Offset for $name {

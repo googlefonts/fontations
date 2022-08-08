@@ -58,6 +58,16 @@ impl<const N: usize, T> NullableOffsetMarker<T, N> {
     pub fn get(&self) -> Option<&T> {
         self.obj.as_ref()
     }
+
+    /// `true` if the offset is non-null
+    pub fn is_some(&self) -> bool {
+        self.obj.is_some()
+    }
+
+    /// `true` if the offset is null
+    pub fn is_none(&self) -> bool {
+        self.obj.is_none()
+    }
 }
 
 impl<const N: usize, T> NullableOffsetMarker<T, N> {

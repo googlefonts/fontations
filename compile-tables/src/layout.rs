@@ -5,6 +5,7 @@ use std::collections::HashSet;
 #[cfg(feature = "parsing")]
 use font_tables::FontRead;
 
+pub mod gdef;
 pub mod gpos;
 mod value_record;
 

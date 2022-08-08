@@ -60,6 +60,11 @@ pub trait TableProvider {
             .and_then(FontRead::read)
     }
 
+    fn gdef(&self) -> Result<tables::gdef::Gdef, ReadError> {
+        self.expect_data_for_tag(tables::gdef::TAG)
+            .and_then(FontRead::read)
+    }
+
     //fn gdef(&self) -> Option<gdef::Gdef> {
     //self.data_for_tag(gdef::TAG).and_then(gdef::Gdef::read)
     //}

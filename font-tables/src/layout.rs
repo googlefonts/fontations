@@ -1,5 +1,6 @@
 //! OpenType Layout
 
+pub mod gdef;
 pub mod gpos;
 
 #[cfg(test)]
@@ -103,7 +104,7 @@ impl Default for DeltaFormat {
 }
 
 fn delta_value_count(start_size: u16, end_size: u16, delta_format: DeltaFormat) -> usize {
-    let range_len = start_size.saturating_add(1).saturating_sub(end_size) as usize;
+    let range_len = end_size.saturating_add(1).saturating_sub(start_size) as usize;
     let val_per_word = match delta_format {
         DeltaFormat::Local2BitDeltas => 8,
         DeltaFormat::Local4BitDeltas => 4,
