@@ -3,6 +3,7 @@
 mod array;
 mod font_data;
 pub mod layout;
+mod offset;
 mod read;
 mod table_provider;
 mod table_ref;
@@ -22,8 +23,9 @@ pub use table_provider::TableProvider;
 pub mod parse_prelude {
     pub use crate::array::ComputedArray;
     pub use crate::font_data::{Cursor, FontData};
+    pub use crate::offset::ResolveOffset;
     pub use crate::read::{ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError};
-    pub use crate::table_ref::{ResolveOffset, TableInfo, TableInfoWithArgs, TableRef};
+    pub use crate::table_ref::{TableInfo, TableInfoWithArgs, TableRef};
     pub use font_types::*;
     pub use std::ops::Range;
 }
