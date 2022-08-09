@@ -30,4 +30,4 @@ pub use offset::{Nullable, Offset16, Offset24, Offset32};
 pub use raw::{BigEndian, FixedSized, ReadScalar, Scalar};
 pub use tag::Tag;
 pub use uint24::Uint24;
-pub use version::{MajorMinor, Version16Dot16};
+pub use version::{Compatible, MajorMinor, Version16Dot16};

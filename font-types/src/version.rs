@@ -21,6 +21,15 @@ pub struct MajorMinor {
     pub minor: u16,
 }
 
+/// Version compatibility
+pub trait Compatible: Sized {
+    /// return `true` if this version is field-compatible with `other`.
+    ///
+    /// This is kind of poorly defined, but basically means 'same major version,
+    /// greater than or equal minor version'.
+    fn compatible(&self, other: Self) -> bool;
+}
+
 impl Version16Dot16 {
     /// Version 0.5
     pub const VERSION_0_5: Version16Dot16 = Version16Dot16::new(0, 5);
@@ -44,14 +53,6 @@ impl Version16Dot16 {
         assert!(minor < 10, "minor version must be in the range [0, 9)");
         let version = (major as u32) << 16 | (minor as u32) << 12;
         Version16Dot16(version)
-    }
-
-    /// `true` if major == major, and self.minor is >= other.minor
-    #[inline]
-    pub const fn compatible(self, other: Version16Dot16) -> bool {
-        let (self_major, self_minor) = self.to_major_minor();
-        let (other_major, other_minor) = other.to_major_minor();
-        self_major == other_major && self_minor >= other_minor
     }
 
     /// Return the separate major & minor version numbers.
@@ -86,12 +87,6 @@ impl MajorMinor {
         MajorMinor { major, minor }
     }
 
-    /// `true` if major == major, and self.minor is >= other.minor
-    #[inline]
-    pub const fn compatible(self, other: MajorMinor) -> bool {
-        self.major == other.major && self.minor >= other.minor
-    }
-
     /// The representation of this version as a big-endian byte array.
     #[inline]
     pub fn to_be_bytes(self) -> [u8; 4] {
@@ -112,6 +107,29 @@ impl crate::Scalar for MajorMinor {
 
     fn to_raw(self) -> Self::Raw {
         self.to_be_bytes()
+    }
+}
+
+impl Compatible for Version16Dot16 {
+    #[inline]
+    fn compatible(&self, other: Self) -> bool {
+        let (self_major, self_minor) = self.to_major_minor();
+        let (other_major, other_minor) = other.to_major_minor();
+        self_major == other_major && self_minor >= other_minor
+    }
+}
+
+impl Compatible for MajorMinor {
+    #[inline]
+    fn compatible(&self, other: Self) -> bool {
+        self.major == other.major && self.minor >= other.minor
+    }
+}
+
+impl Compatible for u16 {
+    #[inline]
+    fn compatible(&self, other: Self) -> bool {
+        *self >= other
     }
 }
 
