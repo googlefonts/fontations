@@ -1,5 +1,7 @@
 //! raw parsing code
 
+use std::collections::HashMap;
+
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{
@@ -102,6 +104,17 @@ pub(crate) struct Fields {
     // not parsed, but set when the table/record is parsed
     pub(crate) read_args: Option<TableReadArgs>,
     pub(crate) fields: Vec<Field>,
+    pub(crate) referenced_fields: ReferencedFields,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct ReferencedFields(HashMap<syn::Ident, NeededWhen>);
+
+#[derive(Debug, Clone, Copy)]
+pub(crate) enum NeededWhen {
+    Parse,
+    Runtime,
+    Both,
 }
 
 #[derive(Debug, Clone)]
@@ -810,6 +823,38 @@ fn parse_inline_expr(tokens: TokenStream) -> syn::Result<InlineExpr> {
         compile_expr,
         referenced_fields: idents,
     })
+}
+
+impl NeededWhen {
+    fn at_parsetime(&self) -> bool {
+        matches!(self, NeededWhen::Parse | NeededWhen::Both)
+    }
+
+    fn at_runtime(&self) -> bool {
+        matches!(self, NeededWhen::Runtime | NeededWhen::Both)
+    }
+}
+
+impl ReferencedFields {
+    pub(crate) fn needs_at_parsetime(&self, ident: &syn::Ident) -> bool {
+        self.0
+            .get(ident)
+            .map(NeededWhen::at_parsetime)
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn needs_at_runtime(&self, ident: &syn::Ident) -> bool {
+        self.0
+            .get(ident)
+            .map(NeededWhen::at_runtime)
+            .unwrap_or(false)
+    }
+}
+
+impl FromIterator<(syn::Ident, NeededWhen)> for ReferencedFields {
+    fn from_iter<T: IntoIterator<Item = (syn::Ident, NeededWhen)>>(iter: T) -> Self {
+        Self(iter.into_iter().collect())
+    }
 }
 
 fn parse_attr_eq_value<T: Parse>(tokens: TokenStream) -> syn::Result<T> {

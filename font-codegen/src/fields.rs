@@ -1,11 +1,9 @@
 //! methods on fields
 
-use std::collections::HashSet;
-
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
-use crate::parsing::Count;
+use crate::parsing::{Count, NeededWhen, ReferencedFields};
 
 use super::parsing::{Field, FieldReadArgs, FieldType, Fields, Record};
 
@@ -14,17 +12,17 @@ impl Fields {
         let referenced_fields = fields
             .iter()
             .flat_map(Field::input_fields)
-            .cloned()
-            .collect::<HashSet<_>>();
+            .collect::<ReferencedFields>();
 
         for field in fields.iter_mut() {
             field.read_at_parse_time =
-                field.attrs.version.is_some() || referenced_fields.contains(&field.name);
+                field.attrs.version.is_some() || referenced_fields.needs_at_parsetime(&field.name);
         }
 
         Ok(Fields {
             fields,
             read_args: None,
+            referenced_fields,
         })
     }
 
@@ -254,27 +252,42 @@ impl Field {
         }
     }
 
-    /// iterate other named fields that are used as in input to a calculation
-    /// done when parsing this field.
-    fn input_fields(&self) -> impl Iterator<Item = &syn::Ident> {
+    /// iterate the names of fields that are required for parsing or instantiating
+    /// this field.
+    fn input_fields(&self) -> impl Iterator<Item = (syn::Ident, NeededWhen)> + '_ {
         self.attrs
             .count
             .as_ref()
             .into_iter()
-            .flat_map(|count| count.iter_referenced_fields())
-            .chain(
-                self.attrs
-                    .len
-                    .as_ref()
-                    .into_iter()
-                    .flat_map(|expr| expr.referenced_fields.iter()),
-            )
+            .flat_map(|count| {
+                count
+                    .iter_referenced_fields()
+                    .cloned()
+                    .map(|fld| (fld, NeededWhen::Parse))
+            })
+            .chain(self.attrs.len.as_ref().into_iter().flat_map(|expr| {
+                expr.referenced_fields
+                    .iter()
+                    .map(|x| (x.clone(), NeededWhen::Parse))
+            }))
             .chain(
                 self.attrs
                     .read_with_args
                     .as_ref()
                     .into_iter()
-                    .flat_map(|args| args.inputs.iter()),
+                    .flat_map(|args| args.inputs.iter().map(|x| (x.clone(), NeededWhen::Both))),
+            )
+            .chain(
+                self.attrs
+                    .read_offset_args
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(|args| {
+                        args.inputs
+                            .iter()
+                            .cloned()
+                            .map(|arg| (arg, NeededWhen::Runtime))
+                    }),
             )
     }
 

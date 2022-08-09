@@ -3,6 +3,8 @@
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
+use crate::parsing::ReferencedFields;
+
 use super::parsing::{Field, Table, TableFormat, TableReadArg, TableReadArgs};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
@@ -327,14 +329,14 @@ impl Table {
 
     fn iter_shape_field_names_and_types(&self) -> Vec<(syn::Ident, TokenStream)> {
         let mut result = Vec::new();
-        // we always save input args in the shape. We could be more judicious,
-        // but this is an uncommon case
+        // if an input arg is needed later, save it in the shape.
         if let Some(args) = &self.attrs.read_args {
-            result.extend(
-                args.args
-                    .iter()
-                    .map(|arg| (arg.ident.clone(), arg.typ.to_token_stream())),
-            );
+            result.extend(args.args.iter().filter_map(|arg| {
+                self.fields
+                    .referenced_fields
+                    .needs_at_runtime(&arg.ident)
+                    .then(|| (arg.ident.clone(), arg.typ.to_token_stream()))
+            }));
         }
 
         for next in self.fields.iter() {
@@ -370,7 +372,7 @@ impl Table {
                 .read_args
                 .as_ref()
                 .into_iter()
-                .flat_map(|args| args.iter_table_ref_getters()),
+                .flat_map(|args| args.iter_table_ref_getters(&self.fields.referenced_fields)),
         )
     }
 
@@ -409,13 +411,18 @@ impl TableReadArgs {
         }
     }
 
-    fn iter_table_ref_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {
-        self.args.iter().map(|TableReadArg { ident, typ }| {
-            quote! {
-                pub(crate) fn #ident(&self) -> #typ {
-                    self.shape.#ident
+    fn iter_table_ref_getters<'a>(
+        &'a self,
+        referenced_fields: &'a ReferencedFields,
+    ) -> impl Iterator<Item = TokenStream> + 'a {
+        self.args.iter().filter_map(|TableReadArg { ident, typ }| {
+            referenced_fields.needs_at_runtime(ident).then(|| {
+                quote! {
+                    pub(crate) fn #ident(&self) -> #typ {
+                        self.shape.#ident
+                    }
                 }
-            }
+            })
         })
     }
 }
