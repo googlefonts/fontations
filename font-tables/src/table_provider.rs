@@ -17,9 +17,10 @@ pub trait TableProvider {
             .and_then(FontRead::read)
     }
 
-    //fn name(&self) -> Option<name::Name> {
-    //self.data_for_tag(name::TAG).and_then(name::Name::read)
-    //}
+    fn name(&self) -> Result<tables::name::Name, ReadError> {
+        self.expect_data_for_tag(tables::name::TAG)
+            .and_then(FontRead::read)
+    }
 
     //fn hhea(&self) -> Option<hhea::Hhea> {
     //self.data_for_tag(hhea::TAG).and_then(hhea::Hhea::read)

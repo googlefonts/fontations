@@ -248,7 +248,8 @@ impl Field {
             }
             FieldType::Other { .. } | FieldType::Array { .. } | FieldType::ComputedArray { .. } => {
                 let len_field = self.shape_byte_len_field_name();
-                quote!(self.#len_field)
+                let try_op = self.is_version_dependent().then(|| quote!(?));
+                quote!(self.#len_field #try_op)
             }
         }
     }
@@ -513,16 +514,21 @@ impl Field {
                     cursor.advance_by(#len_field_name);
                 },
             }
-        } else if self.read_at_parse_time {
-            assert!(!self.is_version_dependent(), "does this happen?");
-            let typ = self.typ.cooked_type_tokens();
-            quote! ( let #name: #typ = cursor.read()?; )
         } else if let Some(available) = &self.attrs.available {
             assert!(!self.is_array());
             let typ = self.typ.cooked_type_tokens();
-            quote! {
-            version.compatible(#available).then(|| cursor.advance::<#typ>());
+            if self.read_at_parse_time {
+                quote! {
+                    let #name = version.compatible(#available).then(|| cursor.read::<#typ>()).transpose()?.unwrap_or(0);
+                }
+            } else {
+                quote! {
+                    version.compatible(#available).then(|| cursor.advance::<#typ>());
+                }
             }
+        } else if self.read_at_parse_time {
+            let typ = self.typ.cooked_type_tokens();
+            quote! ( let #name: #typ = cursor.read()?; )
         } else {
             panic!("who wrote this garbage anyway?");
         };

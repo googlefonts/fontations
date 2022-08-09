@@ -121,7 +121,7 @@ pub(crate) struct Field {
 pub(crate) struct FieldAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) nullable: Option<syn::Path>,
-    pub(crate) available: Option<Attr<syn::Path>>,
+    pub(crate) available: Option<Attr<syn::Expr>>,
     pub(crate) skip_getter: Option<syn::Path>,
     /// if present, we will not try to resolve this offset
     pub(crate) skip_offset_getter: Option<syn::Path>,

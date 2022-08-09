@@ -147,6 +147,10 @@ impl<'a> FontData<'a> {
             data: self.clone(),
         }
     }
+
+    pub(crate) fn as_bytes(&self) -> &'a [u8] {
+        self.bytes
+    }
 }
 
 impl<'a> Cursor<'a> {

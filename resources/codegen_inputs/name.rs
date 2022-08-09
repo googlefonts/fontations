@@ -1,21 +1,8 @@
-/// [Naming table version 0](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-0)
-#[offset_host]
-Name0<'a> {
-    /// Table version number (=0).
-    version: BigEndian<u16>,
-    /// Number of name records.
-    count: BigEndian<u16>,
-    /// Offset to start of string storage (from start of table).
-    storage_offset: BigEndian<Offset16>,
-    /// The name records where count is the number of records.
-    #[count(count)]
-    name_record: [NameRecord],
-}
-
+#![parse_module(font_tables::tables::name)]
 /// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
-#[offset_host]
-Name1<'a> {
-    /// Table version number (=0).
+table Name {
+    /// Table version number (0 or 1)
+    #[version]
     version: BigEndian<u16>,
     /// Number of name records.
     count: BigEndian<u16>,
@@ -25,23 +12,16 @@ Name1<'a> {
     #[count(count)]
     name_record: [NameRecord],
     /// Number of language-tag records.
+    #[available(1)]
     lang_tag_count: BigEndian<u16>,
     /// The language-tag records where langTagCount is the number of records.
     #[count(lang_tag_count)]
+    #[available(1)]
     lang_tag_record: [LangTagRecord],
 }
 
-#[format(u16)]
-#[generate_getters]
-enum Name<'a> {
-    #[version(0)]
-    Version0(Name0<'a>),
-    #[version(1)]
-    Version1(Name1<'a>),
-}
-
 /// Part of [Name1]
-LangTagRecord {
+record LangTagRecord {
     /// Language-tag string length (in bytes)
     length: BigEndian<u16>,
     /// Language-tag string offset from start of storage area (in
@@ -50,7 +30,7 @@ LangTagRecord {
 }
 
 ///[Name Records](https://docs.microsoft.com/en-us/typography/opentype/spec/name#name-records)
-NameRecord {
+record NameRecord {
     /// Platform ID.
     platform_id: BigEndian<u16>,
     /// Platform-specific encoding ID.
