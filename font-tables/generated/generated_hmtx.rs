@@ -39,7 +39,7 @@ impl TableInfoWithArgs for HmtxMarker {
         let h_metrics_byte_len = (number_of_h_metrics as usize) * LongHorMetric::RAW_BYTE_LEN;
         cursor.advance_by(h_metrics_byte_len);
         let left_side_bearings_byte_len =
-            (num_glyphs.saturating_sub(number_of_h_metrics) as usize) * i16::RAW_BYTE_LEN;
+            num_glyphs.saturating_sub(number_of_h_metrics) as usize * i16::RAW_BYTE_LEN;
         cursor.advance_by(left_side_bearings_byte_len);
         cursor.finish(HmtxMarker {
             h_metrics_byte_len,

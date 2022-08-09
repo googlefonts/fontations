@@ -617,8 +617,6 @@ static DOC: &str = "doc";
 static NULLABLE: &str = "nullable";
 static SKIP_GETTER: &str = "skip_getter";
 static COUNT: &str = "count";
-static COUNT_EXPR: &str = "count_expr";
-static COUNT_ALL: &str = "count_all";
 static LEN: &str = "len_expr";
 static AVAILABLE: &str = "available";
 static FORMAT: &str = "format";
@@ -650,20 +648,8 @@ impl Parse for FieldAttrs {
                 this.skip_offset_getter = Some(attr.path);
             } else if ident == VERSION {
                 this.version = Some(attr.path);
-            } else if ident == COUNT_EXPR {
-                this.count = Some(Attr::new(
-                    ident.clone(),
-                    Count::Expr(parse_inline_expr(attr.tokens)?),
-                ));
             } else if ident == COUNT {
-                this.count = Some(Attr::new(
-                    ident.clone(),
-                    Count::Field(attr.parse_args().map_err(|err| {
-                        syn::Error::new(err.span(), "Expected single field name")
-                    })?),
-                ));
-            } else if ident == COUNT_ALL {
-                this.count = Some(Attr::new(ident.clone(), Count::All));
+                this.count = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == COMPILE {
                 this.compile = Some(Attr::new(ident.clone(), parse_inline_expr(attr.tokens)?));
             } else if ident == COMPILE_TYPE {
@@ -769,6 +755,27 @@ impl Item {
     }
 }
 
+impl Parse for Count {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let fork = input.fork();
+        if fork.parse::<Token![$]>().is_ok()
+            && fork.parse::<syn::Ident>().is_ok()
+            && fork.is_empty()
+        {
+            input.parse::<Token![$]>()?;
+            return Ok(Self::Field(input.parse()?));
+        }
+
+        if input.peek(Token![..]) {
+            input.parse::<Token![..]>()?;
+            Ok(Self::All)
+        } else {
+            let tokens: TokenStream = input.parse()?;
+            Ok(Self::Expr(parse_inline_expr(tokens)?))
+        }
+    }
+}
+
 impl Count {
     pub(crate) fn iter_referenced_fields(&self) -> impl Iterator<Item = &syn::Ident> {
         let (one, two) = match self {
@@ -792,6 +799,7 @@ impl Count {
 }
 
 fn parse_inline_expr(tokens: TokenStream) -> syn::Result<InlineExpr> {
+    let span = tokens.span();
     let s = tokens.to_string();
     let mut idents = Vec::new();
     let find_dollar_idents = regex::Regex::new(r#"(\$) (\w+)"#).unwrap();
@@ -806,7 +814,8 @@ fn parse_inline_expr(tokens: TokenStream) -> syn::Result<InlineExpr> {
     } else {
         let new_source = find_dollar_idents.replace_all(&s, "$2");
         syn::parse_str(&new_source)
-    }?;
+    }
+    .map_err(|_| syn::Error::new(span, "failed to parse expression"))?;
 
     let compile_expr = (!idents.is_empty())
         .then(|| {

@@ -9,13 +9,13 @@ table Name {
     /// Offset to start of string storage (from start of table).
     storage_offset: BigEndian<Offset16>,
     /// The name records where count is the number of records.
-    #[count(count)]
+    #[count($count)]
     name_record: [NameRecord],
     /// Number of language-tag records.
     #[available(1)]
     lang_tag_count: BigEndian<u16>,
     /// The language-tag records where langTagCount is the number of records.
-    #[count(lang_tag_count)]
+    #[count($lang_tag_count)]
     #[available(1)]
     lang_tag_record: [LangTagRecord],
 }

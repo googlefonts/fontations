@@ -35,16 +35,16 @@ table SimpleGlyph {
     y_max: BigEndian<i16>,
     /// Array of point indices for the last point of each contour,
     /// in increasing numeric order
-    #[count_expr($number_of_contours.max(0) as usize)]
+    #[count($number_of_contours.max(0) as usize)]
     end_pts_of_contours: [BigEndian<u16>],
     /// Total number of bytes for instructions. If instructionLength is
     /// zero, no instructions are present for this glyph, and this
     /// field is followed directly by the flags field.
     instruction_length: BigEndian<u16>,
     /// Array of instruction byte code for the glyph.
-    #[count(instruction_length)]
+    #[count($instruction_length)]
     instructions: [BigEndian<u8>],
-    #[count_all]
+    #[count(..)]
     //#[hidden]
     /// the raw data for flags & x/y coordinates
     glyph_data: [u8],
@@ -157,7 +157,7 @@ table CompositeGlyph {
     flags: BigEndian<CompositeGlyphFlags>,
     /// glyph index of component
     glyph_index: BigEndian<u16>,
-    #[count_all]
+    #[count(..)]
     component_data: [u8],
 
     ///// x-offset for component or point number; type depends on bits 0

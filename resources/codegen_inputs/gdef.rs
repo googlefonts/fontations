@@ -51,7 +51,7 @@ table AttachList {
     glyph_count: BigEndian<u16>,
     /// Array of offsets to AttachPoint tables-from beginning of
     /// AttachList table-in Coverage Index order
-    #[count(glyph_count)]
+    #[count($glyph_count)]
     attach_point_offsets: [BigEndian<Offset16<AttachPoint>>],
 }
 
@@ -61,7 +61,7 @@ table AttachPoint {
     #[compile(array_len($point_indices))]
     point_count: BigEndian<u16>,
     /// Array of contour point indices -in increasing numerical order
-    #[count(point_count)]
+    #[count($point_count)]
     point_indices: [BigEndian<u16>],
 }
 
@@ -74,7 +74,7 @@ table LigCaretList {
     lig_glyph_count: BigEndian<u16>,
     /// Array of offsets to LigGlyph tables, from beginning of
     /// LigCaretList table —in Coverage Index order
-    #[count(lig_glyph_count)]
+    #[count($lig_glyph_count)]
     lig_glyph_offsets: [BigEndian<Offset16<LigGlyph>>],
 }
 
@@ -85,7 +85,7 @@ table LigGlyph {
     caret_count: BigEndian<u16>,
     /// Array of offsets to CaretValue tables, from beginning of
     /// LigGlyph table — in increasing coordinate order
-    #[count(caret_count)]
+    #[count($caret_count)]
     caret_value_offsets: [BigEndian<Offset16<CaretValue>>],
 }
 
@@ -138,6 +138,6 @@ table MarkGlyphSets {
     mark_glyph_set_count: BigEndian<u16>,
     /// Array of offsets to mark glyph set coverage tables, from the
     /// start of the MarkGlyphSets table.
-    #[count(mark_glyph_set_count)]
+    #[count($mark_glyph_set_count)]
     coverage_offsets: [BigEndian<Offset32<CoverageTable>>],
 }

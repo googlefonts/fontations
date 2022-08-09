@@ -7,7 +7,7 @@ table TableDirectory {
     search_range: BigEndian<u16>,
     entry_selector: BigEndian<u16>,
     range_shift: BigEndian<u16>,
-    #[count(num_tables)]
+    #[count($num_tables)]
     table_records: [ TableRecord ],
 }
 

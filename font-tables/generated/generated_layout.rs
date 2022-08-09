@@ -1118,7 +1118,7 @@ impl TableInfo for SequenceRuleMarker {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
         let seq_lookup_count: u16 = cursor.read()?;
-        let input_sequence_byte_len = (minus_one(glyph_count)) * u16::RAW_BYTE_LEN;
+        let input_sequence_byte_len = minus_one(glyph_count) * u16::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let seq_lookup_records_byte_len =
             (seq_lookup_count as usize) * SequenceLookupRecord::RAW_BYTE_LEN;
@@ -1361,7 +1361,7 @@ impl TableInfo for ClassSequenceRuleMarker {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
         let seq_lookup_count: u16 = cursor.read()?;
-        let input_sequence_byte_len = (minus_one(glyph_count)) * u16::RAW_BYTE_LEN;
+        let input_sequence_byte_len = minus_one(glyph_count) * u16::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let seq_lookup_records_byte_len =
             (seq_lookup_count as usize) * SequenceLookupRecord::RAW_BYTE_LEN;
@@ -1722,7 +1722,7 @@ impl TableInfo for ChainedSequenceRuleMarker {
         let backtrack_sequence_byte_len = (backtrack_glyph_count as usize) * u16::RAW_BYTE_LEN;
         cursor.advance_by(backtrack_sequence_byte_len);
         let input_glyph_count: u16 = cursor.read()?;
-        let input_sequence_byte_len = (minus_one(input_glyph_count)) * u16::RAW_BYTE_LEN;
+        let input_sequence_byte_len = minus_one(input_glyph_count) * u16::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let lookahead_glyph_count: u16 = cursor.read()?;
         let lookahead_sequence_byte_len = (lookahead_glyph_count as usize) * u16::RAW_BYTE_LEN;
@@ -2051,7 +2051,7 @@ impl TableInfo for ChainedClassSequenceRuleMarker {
         let backtrack_sequence_byte_len = (backtrack_glyph_count as usize) * u16::RAW_BYTE_LEN;
         cursor.advance_by(backtrack_sequence_byte_len);
         let input_glyph_count: u16 = cursor.read()?;
-        let input_sequence_byte_len = (minus_one(input_glyph_count)) * u16::RAW_BYTE_LEN;
+        let input_sequence_byte_len = minus_one(input_glyph_count) * u16::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let lookahead_glyph_count: u16 = cursor.read()?;
         let lookahead_sequence_byte_len = (lookahead_glyph_count as usize) * u16::RAW_BYTE_LEN;
@@ -2385,7 +2385,7 @@ impl TableInfo for DeviceMarker {
         let end_size: u16 = cursor.read()?;
         let delta_format: DeltaFormat = cursor.read()?;
         let delta_value_byte_len =
-            (delta_value_count(start_size, end_size, delta_format)) * u16::RAW_BYTE_LEN;
+            delta_value_count(start_size, end_size, delta_format) * u16::RAW_BYTE_LEN;
         cursor.advance_by(delta_value_byte_len);
         cursor.finish(DeviceMarker {
             delta_value_byte_len,

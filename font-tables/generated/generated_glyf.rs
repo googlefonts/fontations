@@ -81,7 +81,7 @@ impl TableInfo for SimpleGlyphMarker {
         cursor.advance::<i16>();
         cursor.advance::<i16>();
         cursor.advance::<i16>();
-        let end_pts_of_contours_byte_len = (number_of_contours.max(0) as usize) * u16::RAW_BYTE_LEN;
+        let end_pts_of_contours_byte_len = number_of_contours.max(0) as usize * u16::RAW_BYTE_LEN;
         cursor.advance_by(end_pts_of_contours_byte_len);
         let instruction_length: u16 = cursor.read()?;
         let instructions_byte_len = (instruction_length as usize) * u8::RAW_BYTE_LEN;

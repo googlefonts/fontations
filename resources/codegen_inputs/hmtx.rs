@@ -5,11 +5,11 @@
 table Hmtx {
     /// Paired advance width and left side bearing values for each
     /// glyph. Records are indexed by glyph ID.
-    #[count(number_of_h_metrics)]
+    #[count($number_of_h_metrics)]
     h_metrics: [LongHorMetric],
     /// Left side bearings for glyph IDs greater than or equal to
     /// numberOfHMetrics.
-    #[count_expr($num_glyphs.saturating_sub($number_of_h_metrics) as usize)]
+    #[count($num_glyphs.saturating_sub($number_of_h_metrics) as usize)]
     left_side_bearings: [BigEndian<i16>],
 }
 

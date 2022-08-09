@@ -103,7 +103,7 @@ table MarkArray {
     mark_count: BigEndian<u16>,
     /// Array of MarkRecords, ordered by corresponding glyphs in the
     /// associated mark Coverage table.
-    #[count(mark_count)]
+    #[count($mark_count)]
     mark_records: [MarkRecord],
 }
 
@@ -152,7 +152,7 @@ table SinglePosFormat2 {
     #[compile(array_len($value_records))]
     value_count: BigEndian<u16>,
     /// Array of ValueRecords — positioning values applied to glyphs.
-    #[count(value_count)]
+    #[count($value_count)]
     #[read_with($value_format)]
     value_records: ComputedArray<ValueRecord>,
 }
@@ -183,7 +183,7 @@ table PairPosFormat1 {
     pair_set_count: BigEndian<u16>,
     /// Array of offsets to PairSet tables. Offsets are from beginning
     /// of PairPos subtable, ordered by Coverage Index.
-    #[count(pair_set_count)]
+    #[count($pair_set_count)]
     #[read_offset_with($value_format1, $value_format2)]
     pair_set_offsets: [BigEndian<Offset16<PairSet>>],
 }
@@ -196,7 +196,7 @@ table PairSet {
     pair_value_count: BigEndian<u16>,
     /// Array of PairValueRecords, ordered by glyph ID of the second
     /// glyph.
-    #[count(pair_value_count)]
+    #[count($pair_value_count)]
     #[read_with($value_format1, $value_format2)]
     pair_value_records: ComputedArray<PairValueRecord>,
 }
@@ -244,7 +244,7 @@ table PairPosFormat2 {
     class2_count: BigEndian<u16>,
     /// Array of Class1 records, ordered by classes in classDef1.
     #[read_with($class2_count, $value_format1, $value_format2)]
-    #[count(class1_count)]
+    #[count($class1_count)]
     class1_records: ComputedArray<Class1Record<'a>>,
 }
 
@@ -252,7 +252,7 @@ table PairPosFormat2 {
 #[read_args(class2_count: u16, value_format1: ValueFormat, value_format2: ValueFormat)]
 record Class1Record<'a> {
     /// Array of Class2 records, ordered by classes in classDef2.
-    #[count(class2_count)]
+    #[count($class2_count)]
     #[read_with($value_format1, $value_format2)]
     class2_records: ComputedArray<Class2Record>,
 }
@@ -285,7 +285,7 @@ table CursivePosFormat1 {
     #[compile(array_len($entry_exit_record))]
     entry_exit_count: BigEndian<u16>,
     /// Array of EntryExit records, in Coverage index order.
-    #[count(entry_exit_count)]
+    #[count($entry_exit_count)]
     entry_exit_record: [EntryExitRecord],
 }
 
@@ -337,7 +337,7 @@ table BaseArray {
     #[compile(array_len($base_records))]
     base_count: BigEndian<u16>,
     /// Array of BaseRecords, in order of baseCoverage Index.
-    #[count(base_count)]
+    #[count($base_count)]
     #[read_with($mark_class_count)]
     base_records: ComputedArray<BaseRecord<'a>>
 }
@@ -349,7 +349,7 @@ record BaseRecord<'a> {
     /// are from beginning of BaseArray table, ordered by class
     /// (offsets may be NULL).
     #[nullable]
-    #[count(mark_class_count)]
+    #[count($mark_class_count)]
     base_anchor_offsets: [BigEndian<Offset16<AnchorTable>>],
 }
 
@@ -385,7 +385,7 @@ table LigatureArray {
     /// Array of offsets to LigatureAttach tables. Offsets are from
     /// beginning of LigatureArray table, ordered by ligatureCoverage
     /// index.
-    #[count(ligature_count)]
+    #[count($ligature_count)]
     #[read_offset_with($mark_class_count)]
     ligature_attach_offsets: [BigEndian<Offset16<LigatureAttach>>],
 }
@@ -397,7 +397,7 @@ table LigatureAttach {
     #[compile(array_len($component_records))]
     component_count: BigEndian<u16>,
     /// Array of Component records, ordered in writing direction.
-    #[count(component_count)]
+    #[count($component_count)]
     #[read_with($mark_class_count)]
     component_records: ComputedArray<ComponentRecord<'a>>,
 }
@@ -409,7 +409,7 @@ record ComponentRecord<'a> {
     /// from beginning of LigatureAttach table, ordered by class
     /// (offsets may be NULL).
     #[nullable]
-    #[count(mark_class_count)]
+    #[count($mark_class_count)]
     ligature_anchor_offsets: [BigEndian<Offset16<AnchorTable>>],
 }
 
@@ -443,7 +443,7 @@ table Mark2Array {
     #[compile(array_len($mark2_records))]
     mark2_count: BigEndian<u16>,
     /// Array of Mark2Records, in Coverage order.
-    #[count(mark2_count)]
+    #[count($mark2_count)]
     #[read_with($mark_class_count)]
     mark2_records: ComputedArray<Mark2Record<'a>>,
 }
@@ -454,7 +454,7 @@ record Mark2Record<'a> {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of Mark2Array table, in class order (offsets may
     /// be NULL).
-    #[count(mark_class_count)]
+    #[count($mark_class_count)]
     #[nullable]
     mark2_anchor_offsets: [BigEndian<Offset16<AnchorTable>>],
 }

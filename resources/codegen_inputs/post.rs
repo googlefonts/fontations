@@ -42,11 +42,11 @@ table Post {
     #[available(Version16Dot16::VERSION_2_0)]
     num_glyphs: BigEndian<u16>,
     /// Array of indices into the string data. See below for details.
-    #[count(num_glyphs)]
+    #[count($num_glyphs)]
     #[available(Version16Dot16::VERSION_2_0)]
     glyph_name_index: [BigEndian<u16>],
     /// Storage for the string data.
-    #[count_all]
+    #[count(..)]
     #[available(Version16Dot16::VERSION_2_0)]
     string_data: [u8],
 }
