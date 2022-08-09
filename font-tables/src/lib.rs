@@ -25,7 +25,7 @@ use offset::Offset;
 pub mod parse_prelude {
     pub use crate::array::ComputedArray;
     pub use crate::font_data::{Cursor, FontData};
-    pub use crate::offset::{Nullable, Offset, ResolveNullableOffset, ResolveOffset};
+    pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
     pub use crate::read::{ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError};
     pub use crate::table_ref::{TableInfo, TableInfoWithArgs, TableRef};
     pub use font_types::*;

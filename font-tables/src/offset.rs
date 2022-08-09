@@ -2,7 +2,7 @@
 
 use super::read::{FontRead, ReadError};
 use crate::{font_data::FontData, read::FontReadWithArgs};
-use font_types::{Offset16, Offset24, Offset32, Scalar};
+use font_types::{Nullable, Offset16, Offset24, Offset32};
 
 /// Any offset type.
 pub trait Offset: Copy {
@@ -13,34 +13,6 @@ pub trait Offset: Copy {
             0 => None,
             other => Some(other),
         }
-    }
-}
-
-/// An offset of a given width for which NULL (zero) is a valid value.
-#[derive(Debug, Clone, Copy)]
-pub struct Nullable<T>(T);
-
-impl<T: Scalar> Scalar for Nullable<T> {
-    type Raw = T::Raw;
-
-    fn from_raw(raw: Self::Raw) -> Self {
-        Self(T::from_raw(raw))
-    }
-
-    fn to_raw(self) -> Self::Raw {
-        self.0.to_raw()
-    }
-}
-
-impl<T: Offset> Nullable<T> {
-    pub fn is_null(&self) -> bool {
-        self.0.non_null().is_none()
-    }
-}
-
-impl<T: Offset> PartialEq<usize> for Nullable<T> {
-    fn eq(&self, other: &usize) -> bool {
-        self.0.to_usize() == *other
     }
 }
 
@@ -82,7 +54,7 @@ pub trait ResolveNullableOffset {
 
 impl<O: Offset> ResolveNullableOffset for Nullable<O> {
     fn resolve<'a, T: FontRead<'a>>(&self, data: &FontData<'a>) -> Option<Result<T, ReadError>> {
-        match self.0.resolve(data) {
+        match self.offset().resolve(data) {
             Ok(thing) => Some(Ok(thing)),
             Err(ReadError::NullOffset) => None,
             Err(e) => Some(Err(e)),
@@ -94,7 +66,7 @@ impl<O: Offset> ResolveNullableOffset for Nullable<O> {
         data: &FontData<'a>,
         args: &T::Args,
     ) -> Option<Result<T, ReadError>> {
-        match self.0.resolve_with_args(data, args) {
+        match self.offset().resolve_with_args(data, args) {
             Ok(thing) => Some(Ok(thing)),
             Err(ReadError::NullOffset) => None,
             Err(e) => Some(Err(e)),

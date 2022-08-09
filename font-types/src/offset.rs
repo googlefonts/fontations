@@ -1,6 +1,46 @@
 //! Offsets to tables
 
-use crate::Uint24;
+use crate::{Scalar, Uint24};
+
+/// An offset of a given width for which NULL (zero) is a valid value.
+#[derive(Debug, Clone, Copy)]
+pub struct Nullable<T>(T);
+
+impl<T: Scalar> Scalar for Nullable<T> {
+    type Raw = T::Raw;
+
+    #[inline]
+    fn from_raw(raw: Self::Raw) -> Self {
+        Self(T::from_raw(raw))
+    }
+
+    #[inline]
+    fn to_raw(self) -> Self::Raw {
+        self.0.to_raw()
+    }
+}
+
+impl<T> Nullable<T> {
+    /// Return a reference to the inner offset
+    #[inline]
+    pub fn offset(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T: PartialEq<u32>> Nullable<T> {
+    #[inline]
+    pub fn is_null(&self) -> bool {
+        self.0 == 0
+    }
+}
+
+impl<T: PartialEq<u32>> PartialEq<u32> for Nullable<T> {
+    #[inline]
+    fn eq(&self, other: &u32) -> bool {
+        self.0 == *other
+    }
+}
 
 macro_rules! impl_offset {
     ($name:ident, $bits:literal, $rawty:ty) => {

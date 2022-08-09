@@ -26,7 +26,7 @@ pub use fixed::{F2Dot14, Fixed};
 pub use fword::{FWord, UfWord};
 pub use glyph_id::GlyphId;
 pub use longdatetime::LongDateTime;
-pub use offset::{Offset16, Offset24, Offset32};
+pub use offset::{Nullable, Offset16, Offset24, Offset32};
 pub use raw::{BigEndian, FixedSized, ReadScalar, Scalar};
 pub use tag::Tag;
 pub use uint24::Uint24;
