@@ -60,6 +60,10 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
         .any(|fld| fld.has_computed_len())
         .then(|| quote!(#[allow(unused_parens)]));
 
+    // the cursor doesn't need to be mut if there are no fields,
+    // which happens at least once (in glyf)?
+    let maybe_mut_kw = (!item.fields.fields.is_empty()).then(|| quote!(mut));
+
     if let Some(read_args) = &item.attrs.read_args {
         let args_type = read_args.args_type();
         let destructure_pattern = read_args.destructure_pattern();
@@ -72,7 +76,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
                 #ignore_parens
                 fn parse_with_args<'a>(data: FontData<'a>, args: &#args_type) -> Result<TableRef<'a, Self>, ReadError> {
                     let #destructure_pattern = *args;
-                    let mut cursor = data.cursor();
+                    let #maybe_mut_kw cursor = data.cursor();
                     #( #field_validation_stmts )*
                     cursor.finish( #marker_name {
                         #( #shape_field_names, )*
@@ -85,7 +89,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
             impl TableInfo for #marker_name {
             #ignore_parens
             fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
-                let mut cursor = data.cursor();
+                let #maybe_mut_kw cursor = data.cursor();
                 #( #field_validation_stmts )*
                 cursor.finish( #marker_name {
                     #( #shape_field_names, )*

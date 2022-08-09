@@ -51,9 +51,10 @@ pub trait TableProvider {
     //loca::Loca::read(bytes, num_glyphs, is_long)
     //}
 
-    //fn glyf(&self) -> Option<glyf::Glyf> {
-    //self.data_for_tag(glyf::TAG).and_then(glyf::Glyf::read)
-    //}
+    fn glyf(&self) -> Result<tables::glyf::Glyf, ReadError> {
+        self.expect_data_for_tag(tables::glyf::TAG)
+            .and_then(FontRead::read)
+    }
 
     fn cmap(&self) -> Result<tables::cmap::Cmap, ReadError> {
         self.expect_data_for_tag(tables::cmap::TAG)
@@ -64,10 +65,6 @@ pub trait TableProvider {
         self.expect_data_for_tag(tables::gdef::TAG)
             .and_then(FontRead::read)
     }
-
-    //fn gdef(&self) -> Option<gdef::Gdef> {
-    //self.data_for_tag(gdef::TAG).and_then(gdef::Gdef::read)
-    //}
 
     fn gpos(&self) -> Result<tables::gpos::Gpos, ReadError> {
         self.expect_data_for_tag(tables::gpos::TAG)
