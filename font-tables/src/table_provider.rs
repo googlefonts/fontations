@@ -2,7 +2,7 @@
 
 use font_types::Tag;
 
-use crate::{tables, FontData, FontRead, ReadError};
+use crate::{tables, FontData, FontRead, FontReadWithArgs, ReadError};
 
 /// An interface for accessing tables from a font (or font-like object)
 pub trait TableProvider {
@@ -46,10 +46,10 @@ pub trait TableProvider {
     //self.data_for_tag(stat::TAG).and_then(stat::Stat::read)
     //}
 
-    //fn loca(&self, num_glyphs: u16, is_long: bool) -> Option<loca::Loca> {
-    //let bytes = self.data_for_tag(loca::TAG)?;
-    //loca::Loca::read(bytes, num_glyphs, is_long)
-    //}
+    fn loca(&self, is_long: bool) -> Result<tables::loca::Loca, ReadError> {
+        self.expect_data_for_tag(tables::loca::TAG)
+            .and_then(|data| FontReadWithArgs::read_with_args(data, &is_long))
+    }
 
     fn glyf(&self) -> Result<tables::glyf::Glyf, ReadError> {
         self.expect_data_for_tag(tables::glyf::TAG)
