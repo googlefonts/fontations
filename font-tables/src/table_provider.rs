@@ -27,14 +27,15 @@ pub trait TableProvider {
             .and_then(FontRead::read)
     }
 
-    //fn hmtx(&self) -> Option<hmtx::Hmtx> {
-    ////FIXME: should we make the user pass these in?
-    //let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
-    //let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_h_metrics())?;
-    //self.data_for_tag(hmtx::TAG)
-    //.and_then(|data| hmtx::Hmtx::read_with_args(data, &(num_glyphs, number_of_h_metrics)))
-    //.map(|(table, _)| table)
-    //}
+    fn hmtx(&self) -> Result<tables::hmtx::Hmtx, ReadError> {
+        //FIXME: should we make the user pass these in?
+        let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
+        let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_h_metrics())?;
+        self.expect_data_for_tag(tables::hmtx::TAG)
+            .and_then(|data| {
+                FontReadWithArgs::read_with_args(data, &(num_glyphs, number_of_h_metrics))
+            })
+    }
 
     fn maxp(&self) -> Result<tables::maxp::Maxp, ReadError> {
         self.expect_data_for_tag(tables::maxp::TAG)
