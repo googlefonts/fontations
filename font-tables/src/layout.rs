@@ -7,7 +7,7 @@ pub mod gpos;
 #[path = "./tests/layout.rs"]
 mod tests;
 
-include!("../generated/layout.rs");
+include!("../generated/generated_layout.rs");
 
 /// A typed lookup table.
 ///

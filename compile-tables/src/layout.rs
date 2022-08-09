@@ -13,7 +13,7 @@ mod value_record;
 #[path = "./tests/layout.rs"]
 mod spec_tests;
 
-include!("../generated/layout.rs");
+include!("../generated/generated_layout.rs");
 
 /// A lookup table that is generic over the lookup type.
 #[derive(Debug, Clone)]

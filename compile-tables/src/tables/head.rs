@@ -1,3 +1,3 @@
 //! The head table
 
-include!("../../generated/head.rs");
+include!("../../generated/generated_head.rs");

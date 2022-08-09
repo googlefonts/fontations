@@ -23,7 +23,7 @@ mod tests;
 /// 'GPOS'
 pub const TAG: Tag = Tag::new(b"GPOS");
 
-include!("../../generated/gpos.rs");
+include!("../../generated/generated_gpos.rs");
 
 /// A typed GPOS LookupList table
 pub struct PositionLookupList<'a>(LookupList<'a>);

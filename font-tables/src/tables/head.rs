@@ -5,7 +5,7 @@ use font_types::Tag;
 /// 'head'
 pub const TAG: Tag = Tag::new(b"head");
 
-include!("../../generated/head.rs");
+include!("../../generated/generated_head.rs");
 
 #[cfg(test)]
 mod tests {

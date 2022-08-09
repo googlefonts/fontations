@@ -2,7 +2,7 @@
 //!
 //! [GPOS]: https://docs.microsoft.com/en-us/typography/opentype/spec/gpos
 
-include!("../../generated/gpos.rs");
+include!("../../generated/generated_gpos.rs");
 
 use std::collections::HashSet;
 
