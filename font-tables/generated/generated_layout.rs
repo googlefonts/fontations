@@ -717,7 +717,7 @@ impl<'a> FontRead<'a> for CoverageTable<'a> {
         match format {
             CoverageFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             CoverageFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other)),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }
@@ -906,7 +906,7 @@ impl<'a> FontRead<'a> for ClassDef<'a> {
         match format {
             ClassDefFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             ClassDefFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other)),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }
@@ -1513,7 +1513,7 @@ impl<'a> FontRead<'a> for SequenceContext<'a> {
             SequenceContextFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             SequenceContextFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
             SequenceContextFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other)),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }
@@ -2304,7 +2304,7 @@ impl<'a> FontRead<'a> for ChainedSequenceContext<'a> {
             ChainedSequenceContextFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             ChainedSequenceContextFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
             ChainedSequenceContextFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other)),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }

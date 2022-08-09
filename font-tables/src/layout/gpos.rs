@@ -104,7 +104,7 @@ impl<'a> FontRead<'a> for PositionLookup<'a> {
             7 => Ok(PositionLookup::Contextual(TypedLookup::new(lookup))),
             8 => Ok(PositionLookup::ChainContextual(TypedLookup::new(lookup))),
             9 => Ok(PositionLookup::Extension(TypedLookup::new(lookup))),
-            other => Err(ReadError::InvalidFormat(other)),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }
@@ -159,7 +159,7 @@ impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
             8 => Ok(ExtensionSubtable::ChainContextual(TypedExtension::new(
                 extension,
             ))),
-            other => Err(ReadError::InvalidFormat(other)),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }

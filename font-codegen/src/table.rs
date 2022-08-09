@@ -258,7 +258,7 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
                 let format: #format = data.read_at(0)?;
                 match format {
                     #( #match_arms ),*
-                    other => Err(ReadError::InvalidFormat(other)),
+                    other => Err(ReadError::InvalidFormat(other.into())),
                 }
             }
         }

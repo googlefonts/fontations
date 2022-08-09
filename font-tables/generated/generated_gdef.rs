@@ -463,7 +463,7 @@ impl<'a> FontRead<'a> for CaretValue<'a> {
             CaretValueFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             CaretValueFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
             CaretValueFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other)),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }

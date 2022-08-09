@@ -143,7 +143,7 @@ impl<'a> FontRead<'a> for AnchorTable<'a> {
             AnchorFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             AnchorFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
             AnchorFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other)),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }
@@ -461,7 +461,7 @@ impl<'a> FontRead<'a> for SinglePos<'a> {
         match format {
             SinglePosFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             SinglePosFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other)),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }
@@ -656,7 +656,7 @@ impl<'a> FontRead<'a> for PairPos<'a> {
         match format {
             PairPosFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             PairPosFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other)),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }

@@ -169,7 +169,7 @@ impl<'a> FontRead<'a> for CmapSubtable<'a> {
             Cmap12Marker::FORMAT => Ok(Self::Format12(FontRead::read(data)?)),
             Cmap13Marker::FORMAT => Ok(Self::Format13(FontRead::read(data)?)),
             Cmap14Marker::FORMAT => Ok(Self::Format14(FontRead::read(data)?)),
-            other => Err(ReadError::InvalidFormat(other)),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }

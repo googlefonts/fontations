@@ -49,7 +49,8 @@ pub trait ComputeSize: ReadArgs {
 #[derive(Debug, Clone)]
 pub enum ReadError {
     OutOfBounds,
-    InvalidFormat(u16),
+    // i64 is flexible enough to store any value we might encounter
+    InvalidFormat(i64),
     InvalidSfnt(u32),
     InvalidArrayLen,
     ValidationError,
