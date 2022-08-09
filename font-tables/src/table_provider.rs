@@ -42,9 +42,10 @@ pub trait TableProvider {
             .and_then(FontRead::read)
     }
 
-    //fn post(&self) -> Option<post::Post> {
-    //self.data_for_tag(post::TAG).and_then(post::Post::read)
-    //}
+    fn post(&self) -> Result<tables::post::Post, ReadError> {
+        self.expect_data_for_tag(tables::post::TAG)
+            .and_then(FontRead::read)
+    }
 
     //fn stat(&self) -> Option<stat::Stat> {
     //self.data_for_tag(stat::TAG).and_then(stat::Stat::read)
