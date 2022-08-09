@@ -76,9 +76,15 @@ pub(crate) struct TableFormat {
 
 #[derive(Debug, Clone)]
 pub(crate) struct Variant {
-    pub(crate) docs: Vec<syn::Attribute>,
+    pub(crate) attrs: VariantAttrs,
     pub(crate) name: syn::Ident,
     typ: syn::Ident,
+}
+
+#[derive(Clone, Debug, Default)]
+pub(crate) struct VariantAttrs {
+    pub(crate) docs: Vec<syn::Attribute>,
+    pub(crate) match_stmt: Option<Attr<InlineExpr>>,
 }
 
 impl Variant {
@@ -427,7 +433,7 @@ impl Parse for TableFormat {
         let docs = get_optional_docs(input)?;
         let _kw = input.parse::<kw::format>()?;
         let format: syn::Ident = input.parse()?;
-        validate_ident(&format, &["u16"], "unexpected format type")?;
+        validate_ident(&format, &["u16", "i16"], "unexpected format type")?;
         let name = input.parse::<syn::Ident>()?;
 
         let content;
@@ -458,7 +464,6 @@ impl Parse for Fields {
 
 impl Parse for Field {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        //let _attrs = get_optional_attributes(input)?;
         let attrs = input.parse()?;
         let name = input.parse::<syn::Ident>().unwrap();
         let _ = input.parse::<Token![:]>()?;
@@ -559,12 +564,39 @@ impl Parse for RawVariant {
 
 impl Parse for Variant {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        let docs = get_optional_docs(input)?;
+        let attrs = input.parse()?;
         let name = input.parse::<syn::Ident>()?;
         let content;
         parenthesized!(content in input);
         let typ = content.parse::<syn::Ident>()?;
-        Ok(Self { docs, name, typ })
+        Ok(Self { attrs, name, typ })
+    }
+}
+
+static MATCH_IF: &str = "match_if";
+
+impl Parse for VariantAttrs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut this = VariantAttrs::default();
+        let attrs = Attribute::parse_outer(input)
+            .map_err(|e| syn::Error::new(e.span(), format!("hmm: '{e}'")))?;
+
+        for attr in attrs {
+            let ident = attr.path.get_ident().ok_or_else(|| {
+                syn::Error::new(attr.path.span(), "attr paths should be a single identifer")
+            })?;
+            if ident == DOC {
+                this.docs.push(attr);
+            } else if ident == MATCH_IF {
+                this.match_stmt = Some(Attr::new(ident.clone(), parse_inline_expr(attr.tokens)?));
+            } else {
+                return Err(syn::Error::new(
+                    ident.span(),
+                    format!("unknown variant attribute {ident}"),
+                ));
+            }
+        }
+        Ok(this)
     }
 }
 

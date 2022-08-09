@@ -156,7 +156,7 @@ pub(crate) fn generate_format_compile(
     let variants = item.variants.iter().map(|variant| {
         let name = &variant.name;
         let typ = variant.type_name();
-        let docs = &variant.docs;
+        let docs = &variant.attrs.docs;
         quote! ( #( #docs )* #name(#typ) )
     });
 
@@ -226,16 +226,22 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
     let variants = item.variants.iter().map(|variant| {
         let name = &variant.name;
         let typ = variant.type_name();
-        let docs = &variant.docs;
+        let docs = &variant.attrs.docs;
         quote! ( #( #docs )* #name(#typ<'a>) )
     });
 
     let format = &item.format;
     let match_arms = item.variants.iter().map(|variant| {
         let name = &variant.name;
-        let typ = variant.marker_name();
+        let lhs = if let Some(expr) = variant.attrs.match_stmt.as_deref() {
+            let expr = &expr.expr;
+            quote!(format if #expr)
+        } else {
+            let typ = variant.marker_name();
+            quote!(#typ::FORMAT)
+        };
         quote! {
-            #typ::FORMAT => {
+            #lhs => {
                 Ok(Self::#name(FontRead::read(data)?))
             }
         }
