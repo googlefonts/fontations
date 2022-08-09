@@ -34,9 +34,10 @@ pub trait TableProvider {
     //.map(|(table, _)| table)
     //}
 
-    //fn maxp(&self) -> Option<maxp::Maxp> {
-    //self.data_for_tag(maxp::TAG).and_then(maxp::Maxp::read)
-    //}
+    fn maxp(&self) -> Result<tables::maxp::Maxp, ReadError> {
+        self.expect_data_for_tag(tables::maxp::TAG)
+            .and_then(FontRead::read)
+    }
 
     //fn post(&self) -> Option<post::Post> {
     //self.data_for_tag(post::TAG).and_then(post::Post::read)

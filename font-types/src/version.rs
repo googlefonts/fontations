@@ -46,6 +46,14 @@ impl Version16Dot16 {
         Version16Dot16(version)
     }
 
+    /// `true` if major == major, and self.minor is >= other.minor
+    #[inline]
+    pub const fn compatible(self, other: Version16Dot16) -> bool {
+        let (self_major, self_minor) = self.to_major_minor();
+        let (other_major, other_minor) = other.to_major_minor();
+        self_major == other_major && self_minor >= other_minor
+    }
+
     /// Return the separate major & minor version numbers.
     pub const fn to_major_minor(self) -> (u16, u16) {
         let major = (self.0 >> 16) as u16;
