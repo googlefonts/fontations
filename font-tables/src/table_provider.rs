@@ -22,9 +22,10 @@ pub trait TableProvider {
             .and_then(FontRead::read)
     }
 
-    //fn hhea(&self) -> Option<hhea::Hhea> {
-    //self.data_for_tag(hhea::TAG).and_then(hhea::Hhea::read)
-    //}
+    fn hhea(&self) -> Result<tables::hhea::Hhea, ReadError> {
+        self.expect_data_for_tag(tables::hhea::TAG)
+            .and_then(FontRead::read)
+    }
 
     //fn hmtx(&self) -> Option<hmtx::Hmtx> {
     ////FIXME: should we make the user pass these in?
