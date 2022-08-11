@@ -102,7 +102,7 @@ impl<'a> Name<'a> {
     }
 
     /// The name records where count is the number of records.
-    pub fn name_record(&self) -> &[NameRecord] {
+    pub fn name_record(&self) -> &'a [NameRecord] {
         let range = self.shape.name_record_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -114,7 +114,7 @@ impl<'a> Name<'a> {
     }
 
     /// The language-tag records where langTagCount is the number of records.
-    pub fn lang_tag_record(&self) -> Option<&[LangTagRecord]> {
+    pub fn lang_tag_record(&self) -> Option<&'a [LangTagRecord]> {
         let range = self.shape.lang_tag_record_byte_range()?;
         Some(self.data.read_array(range).unwrap())
     }
@@ -133,9 +133,21 @@ impl<'a> SomeTable<'a> for Name<'a> {
                 "storage_offset",
                 self.storage_offset().to_usize() as u32,
             )),
-            3usize => Some(Field::new("name_record", ())),
+            3usize => Some(Field::new(
+                "name_record",
+                traversal::ArrayOfRecords::make_field(
+                    self.name_record(),
+                    self.offset_data().clone(),
+                ),
+            )),
             4usize => Some(Field::new("lang_tag_count", self.lang_tag_count())),
-            5usize => Some(Field::new("lang_tag_record", ())),
+            5usize => Some(Field::new(
+                "lang_tag_record",
+                traversal::ArrayOfRecords::make_field(
+                    self.lang_tag_record(),
+                    self.offset_data().clone(),
+                ),
+            )),
             _ => None,
         }
     }
@@ -144,7 +156,7 @@ impl<'a> SomeTable<'a> for Name<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Name<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -175,6 +187,24 @@ impl LangTagRecord {
 
 impl FixedSized for LangTagRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for LangTagRecord {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "LangTagRecord",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("length", self.length())),
+                1usize => Some(Field::new(
+                    "lang_tag_offset",
+                    self.lang_tag_offset().to_usize() as u32,
+                )),
+                _ => None,
+            }),
+            data,
+        }
+    }
 }
 
 ///[Name Records](https://docs.microsoft.com/en-us/typography/opentype/spec/name#name-records)
@@ -235,4 +265,26 @@ impl FixedSized for NameRecord {
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for NameRecord {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "NameRecord",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("platform_id", self.platform_id())),
+                1usize => Some(Field::new("encoding_id", self.encoding_id())),
+                2usize => Some(Field::new("language_id", self.language_id())),
+                3usize => Some(Field::new("name_id", self.name_id())),
+                4usize => Some(Field::new("length", self.length())),
+                5usize => Some(Field::new(
+                    "string_offset",
+                    self.string_offset().to_usize() as u32,
+                )),
+                _ => None,
+            }),
+            data,
+        }
+    }
 }

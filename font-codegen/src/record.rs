@@ -24,6 +24,8 @@ pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
     });
     let getters = item.fields.iter().map(|fld| fld.record_getter(item));
     let extra_traits = generate_extra_traits(item)?;
+    let traversal_impl = generate_traversal(item)?;
+
     let repr_packed = item.lifetime.is_none().then(|| {
         quote! {
             #[repr(C)]
@@ -46,6 +48,7 @@ pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
     }
 
     #extra_traits
+    #traversal_impl
         })
 }
 
@@ -90,6 +93,29 @@ fn generate_extra_traits(item: &Record) -> syn::Result<TokenStream> {
                     #( #field_inits, )*
                 })
 
+            }
+        }
+    })
+}
+
+fn generate_traversal(item: &Record) -> syn::Result<TokenStream> {
+    let name = &item.name;
+    let name_str = name.to_string();
+    let lifetime = &item.lifetime;
+    let field_arms = item.fields.iter_field_traversal_match_arms(true);
+
+    Ok(quote! {
+        #[cfg(feature = "traversal")]
+        impl<'a> SomeRecord<'a> for #name #lifetime {
+            fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+                RecordResolver {
+                    name: #name_str,
+                    get_field: Box::new(|idx, _data| match idx {
+                        #( #field_arms, )*
+                        _ => None,
+                    }),
+                    data,
+                }
             }
         }
     })

@@ -119,6 +119,64 @@ impl Fields {
         self.iter()
             .flat_map(move |fld| fld.from_obj_ref_stmt(in_record))
     }
+
+    pub(crate) fn iter_field_traversal_match_arms(
+        &self,
+        in_record: bool,
+    ) -> impl Iterator<Item = TokenStream> + '_ {
+        let pass_data = in_record.then(|| quote!(&_data));
+        self.fields
+            .iter()
+            .filter(|fld| fld.has_getter())
+            .enumerate()
+            .map(move |(i, fld)| {
+                let name_str = &fld.name.to_string();
+                let name = &fld.name;
+                let rhs = match &fld.typ {
+                    FieldType::Offset {
+                        target: Some(_), ..
+                    } => {
+                        let getter = fld.offset_getter_name();
+                        quote!(Field::new(#name_str, self.#getter(#pass_data)))
+                    }
+                    FieldType::Offset { .. } => {
+                        quote!(Field::new(#name_str, self.#name().to_usize() as u32))
+                    }
+
+                    FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name())),
+
+                    FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+                        FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name())),
+                        //HACK: glyf has fields that are [u8]
+                        FieldType::Other { typ } if typ.is_ident("u8") => {
+                            quote!(Field::new( #name_str, self.#name()))
+                        }
+                        FieldType::Other { .. } if !in_record => {
+                            quote!(Field::new(
+                                    #name_str,
+                                    traversal::ArrayOfRecords::make_field(
+                                        self.#name(),
+                                        self.offset_data().clone(),
+                                    )
+                            ))
+                        }
+
+                        //FieldType::Offset {
+                        //target: Some(_), ..
+                        //} => {
+                        //let getter = fld.offset_getter_name();
+                        //quote!(Field::new(#name_str, self.#getter(#pass_data)))
+                        //}
+                        _ => quote!(Field::new(#name_str, ())),
+                    },
+                    _ => quote!(Field::new(#name_str, ())),
+                    //FieldType::Other { typ } => todo!(),
+                    //FieldType::Array { inner_typ } => todo!(),
+                    //FieldType::ComputedArray(_) => todo!(),
+                };
+                quote!( #i => Some(#rhs) )
+            })
+    }
 }
 
 impl Field {
@@ -303,12 +361,12 @@ impl Field {
             FieldType::Other { typ } => typ.to_token_stream(),
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
                 FieldType::Offset { typ, .. } if self.is_nullable() => {
-                    quote!(&[BigEndian<Nullable<#typ>>])
+                    quote!(&'a [BigEndian<Nullable<#typ>>])
                 }
                 FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
-                    quote!(&[BigEndian<#typ>])
+                    quote!(&'a [BigEndian<#typ>])
                 }
-                FieldType::Other { typ } => quote!( &[#typ] ),
+                FieldType::Other { typ } => quote!( &'a [#typ] ),
                 _ => unreachable!(),
             },
             FieldType::ComputedArray(array) => {
@@ -433,9 +491,11 @@ impl Field {
             return_type = quote!(impl Iterator<Item=#return_type> + '_);
         }
 
+        let add_back_borrow = (record.is_some() && self.is_array()).then(|| quote!(&));
+
         let resolve = match self.attrs.read_offset_args.as_deref() {
-            None => quote!(resolve(data)),
-            Some(_) => quote!(resolve_with_args(data, &args)),
+            None => quote!(resolve( #add_back_borrow data)),
+            Some(_) => quote!(resolve_with_args(#add_back_borrow data, &args)),
         };
 
         let args_if_needed = self.attrs.read_offset_args.as_ref().map(|args| {
@@ -444,11 +504,18 @@ impl Field {
         });
 
         // if a record, data is passed in
-        let input_data_if_needed = record.is_some().then(|| quote!(, data: &'a FontData<'a>));
+        let input_data_if_needed = record.is_some().then(|| quote!(, data: &FontData<'a>));
         let decl_lifetime_if_needed =
             record.and_then(|x| x.lifetime.is_none().then(|| quote!(<'a>)));
-        // if a table, data is self.data
-        let data_alias_if_needed = record.is_none().then(|| quote!(let data = &self.data;));
+
+        let data_alias_if_needed = match record {
+            // if a table, data is self.data
+            None => Some(quote!(let data = &self.data;)),
+            // if this is an offset getter for an array we need to clone
+            // data so it is owned by closure
+            Some(_) if self.is_array() => Some(quote!(let data = data.clone();)),
+            _ => None,
+        };
 
         // if this is version dependent we append ? when we call the offset getter
         let try_op = self.is_version_dependent().then(|| quote!(?));

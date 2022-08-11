@@ -6,10 +6,11 @@
 use std::{fmt::Debug, ops::Deref};
 
 use font_types::{
-    F2Dot14, FWord, Fixed, GlyphId, LongDateTime, MajorMinor, Tag, UfWord, Uint24, Version16Dot16,
+    BigEndian, F2Dot14, FWord, Fixed, GlyphId, LongDateTime, MajorMinor, Scalar, Tag, UfWord,
+    Uint24, Version16Dot16,
 };
 
-use crate::ReadError;
+use crate::{FontData, ReadError};
 
 /// Types of fields in font tables.
 ///
@@ -31,7 +32,9 @@ pub enum FieldType<'a> {
     Fixed(Fixed),
     LongDateTime(LongDateTime),
     GlyphId(GlyphId),
-    Offset(Result<Box<dyn SomeTable<'a> + 'a>, ReadError>),
+    ResolvedOffset(Result<Box<dyn SomeTable<'a> + 'a>, ReadError>),
+    Record(RecordResolver<'a>),
+    Array(Box<dyn SomeArray<'a> + 'a>),
     Unimplemented,
     // used for fields in other versions of a table
     None,
@@ -48,6 +51,29 @@ pub trait SomeTable<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>>;
 }
 
+/// A generic trait for records, which need to be passed in data
+/// in order to fully resolve themselves.
+pub trait SomeRecord<'a> {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a>;
+}
+
+pub struct RecordResolver<'a> {
+    pub(crate) name: &'static str,
+    pub(crate) get_field: Box<dyn Fn(usize, FontData<'a>) -> Option<Field<'a>> + 'a>,
+    pub(crate) data: FontData<'a>,
+}
+
+// used to give us an auto-impl of Debug
+impl<'a> SomeTable<'a> for RecordResolver<'a> {
+    fn type_name(&self) -> &str {
+        self.name
+    }
+
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        (self.get_field)(idx, self.data)
+    }
+}
+
 impl<'a> SomeTable<'a> for Box<dyn SomeTable<'a> + 'a> {
     fn type_name(&self) -> &str {
         self.deref().type_name()
@@ -62,9 +88,64 @@ fn iter_fields<'a, 'b>(table: &'b (dyn SomeTable<'a> + 'b)) -> FieldIter<'a, 'b>
     FieldIter { table, idx: 0 }
 }
 
+fn iter_array<'a, 'b>(array: &'b (dyn SomeArray<'a> + 'b)) -> ArrayIter<'a, 'b> {
+    ArrayIter { array, idx: 0 }
+}
+
 pub trait SomeArray<'a> {
     fn len(&self) -> usize;
     fn get(&self, idx: usize) -> Option<FieldType<'a>>;
+}
+
+impl<'a, T: Scalar + Into<FieldType<'a>>> SomeArray<'a> for &'a [BigEndian<T>]
+where
+    BigEndian<T>: Copy, // i don't know why i need this??
+{
+    fn len(&self) -> usize {
+        (*self).len()
+    }
+
+    fn get(&self, idx: usize) -> Option<FieldType<'a>> {
+        (*self).get(idx).map(|val| val.get().into())
+    }
+}
+
+impl<'a> SomeArray<'a> for &'a [u8] {
+    fn len(&self) -> usize {
+        (*self).len()
+    }
+
+    fn get(&self, idx: usize) -> Option<FieldType<'a>> {
+        (*self).get(idx).copied().map(Into::into)
+    }
+}
+
+pub struct ArrayOfRecords<'a, T> {
+    pub(crate) data: FontData<'a>,
+    pub(crate) records: &'a [T],
+}
+
+impl<'a, T: SomeRecord<'a> + 'a> ArrayOfRecords<'a, T> {
+    /// makes a field, handling the case where this array may not be present in
+    /// all versions
+    pub fn make_field(records: impl Into<Option<&'a [T]>>, data: FontData<'a>) -> FieldType<'a> {
+        match records.into() {
+            None => FieldType::None,
+            Some(records) => ArrayOfRecords { data, records }.into(),
+        }
+    }
+}
+
+impl<'a, T: SomeRecord<'a>> SomeArray<'a> for ArrayOfRecords<'a, T> {
+    fn len(&self) -> usize {
+        self.records.len()
+    }
+
+    fn get(&self, idx: usize) -> Option<FieldType<'a>> {
+        self.records
+            .get(idx)
+            .map(|record| record.traverse(self.data).into())
+    }
 }
 
 pub struct FieldIter<'a, 'b> {
@@ -110,7 +191,7 @@ impl<'a> Field<'a> {
 pub struct DebugPrintTable<'a, 'b>(pub &'b dyn SomeTable<'a>);
 
 /// A wrapper type that implements `Debug` for any array.
-pub struct DebugPrintArray<'a, 'b>(pub &'b dyn SomeArray<'a>);
+struct DebugPrintArray<'a, 'b>(pub &'b dyn SomeArray<'a>);
 
 impl<'a> Debug for FieldType<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -132,8 +213,9 @@ impl<'a> Debug for FieldType<'a> {
             Self::LongDateTime(arg0) => arg0.fmt(f),
             Self::GlyphId(arg0) => arg0.fmt(f),
             Self::None => write!(f, "None"),
-
-            Self::Offset(arg0) => arg0.fmt(f),
+            Self::ResolvedOffset(arg0) => arg0.fmt(f),
+            Self::Record(arg0) => (arg0 as &(dyn SomeTable<'a> + 'a)).fmt(f),
+            Self::Array(arg0) => arg0.fmt(f),
             Self::Unimplemented => write!(f, "Unimplemented"),
         }
     }
@@ -152,6 +234,22 @@ impl<'a, 'b> std::fmt::Debug for DebugPrintTable<'a, 'b> {
 impl<'a> Debug for dyn SomeTable<'a> + 'a {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         DebugPrintTable(self).fmt(f)
+    }
+}
+
+impl<'a, 'b> std::fmt::Debug for DebugPrintArray<'a, 'b> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let mut debug_list = f.debug_list();
+        for item in iter_array(self.0) {
+            debug_list.entry(&item);
+        }
+        debug_list.finish()
+    }
+}
+
+impl<'a> Debug for dyn SomeArray<'a> + 'a {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintArray(self).fmt(f)
     }
 }
 
@@ -262,7 +360,19 @@ impl<'a, T: Into<FieldType<'a>>> From<Option<T>> for FieldType<'a> {
 
 impl<'a, T: SomeTable<'a> + 'a> From<Result<T, ReadError>> for FieldType<'a> {
     fn from(src: Result<T, ReadError>) -> Self {
-        FieldType::Offset(src.map(|table| Box::new(table) as Box<dyn SomeTable<'a>>))
+        FieldType::ResolvedOffset(src.map(|table| Box::new(table) as Box<dyn SomeTable<'a>>))
+    }
+}
+
+impl<'a> From<RecordResolver<'a>> for FieldType<'a> {
+    fn from(src: RecordResolver<'a>) -> Self {
+        FieldType::Record(src)
+    }
+}
+
+impl<'a, T: SomeArray<'a> + 'a> From<T> for FieldType<'a> {
+    fn from(src: T) -> Self {
+        FieldType::Array(Box::new(src))
     }
 }
 
