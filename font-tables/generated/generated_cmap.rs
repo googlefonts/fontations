@@ -124,7 +124,7 @@ impl EncodingRecord {
 
     /// Attempt to resolve [`subtable_offset`][Self::subtable_offset].
     pub fn subtable<'a>(&self, data: &FontData<'a>) -> Result<CmapSubtable<'a>, ReadError> {
-        self.subtable_offset().resolve(data)
+        self.subtable_offset().resolve(&data)
     }
 }
 
@@ -137,7 +137,7 @@ impl<'a> SomeRecord<'a> for EncodingRecord {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "EncodingRecord",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("platform_id", self.platform_id())),
                 1usize => Some(Field::new("encoding_id", self.encoding_id())),
                 2usize => Some(Field::new("subtable_offset", self.subtable(&_data))),
@@ -503,7 +503,7 @@ impl<'a> SomeRecord<'a> for SubHeader {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "SubHeader",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("first_code", self.first_code())),
                 1usize => Some(Field::new("entry_count", self.entry_count())),
                 2usize => Some(Field::new("id_delta", self.id_delta())),
@@ -1034,7 +1034,7 @@ impl<'a> SomeRecord<'a> for SequentialMapGroup {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "SequentialMapGroup",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("start_char_code", self.start_char_code())),
                 1usize => Some(Field::new("end_char_code", self.end_char_code())),
                 2usize => Some(Field::new("start_glyph_id", self.start_glyph_id())),
@@ -1445,7 +1445,7 @@ impl<'a> SomeRecord<'a> for ConstantMapGroup {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "ConstantMapGroup",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("start_char_code", self.start_char_code())),
                 1usize => Some(Field::new("end_char_code", self.end_char_code())),
                 2usize => Some(Field::new("glyph_id", self.glyph_id())),
@@ -1607,7 +1607,7 @@ impl<'a> SomeRecord<'a> for VariationSelector {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "VariationSelector",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("var_selector", self.var_selector())),
                 1usize => Some(Field::new(
                     "default_uvs_offset",
@@ -1729,7 +1729,7 @@ impl<'a> SomeRecord<'a> for UVSMapping {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "UVSMapping",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("unicode_value", self.unicode_value())),
                 1usize => Some(Field::new("glyph_id", self.glyph_id())),
                 _ => None,
@@ -1771,7 +1771,7 @@ impl<'a> SomeRecord<'a> for UnicodeRange {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "UnicodeRange",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new(
                     "start_unicode_value",
                     self.start_unicode_value(),

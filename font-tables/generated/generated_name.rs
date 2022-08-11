@@ -194,7 +194,7 @@ impl<'a> SomeRecord<'a> for LangTagRecord {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "LangTagRecord",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("length", self.length())),
                 1usize => Some(Field::new(
                     "lang_tag_offset",
@@ -272,7 +272,7 @@ impl<'a> SomeRecord<'a> for NameRecord {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "NameRecord",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("platform_id", self.platform_id())),
                 1usize => Some(Field::new("encoding_id", self.encoding_id())),
                 2usize => Some(Field::new("language_id", self.language_id())),

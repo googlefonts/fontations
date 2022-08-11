@@ -104,7 +104,7 @@ impl ScriptRecord {
 
     /// Attempt to resolve [`script_offset`][Self::script_offset].
     pub fn script<'a>(&self, data: &FontData<'a>) -> Result<Script<'a>, ReadError> {
-        self.script_offset().resolve(data)
+        self.script_offset().resolve(&data)
     }
 }
 
@@ -117,7 +117,7 @@ impl<'a> SomeRecord<'a> for ScriptRecord {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "ScriptRecord",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("script_tag", self.script_tag())),
                 1usize => Some(Field::new("script_offset", self.script(&_data))),
                 _ => None,
@@ -248,7 +248,7 @@ impl LangSysRecord {
 
     /// Attempt to resolve [`lang_sys_offset`][Self::lang_sys_offset].
     pub fn lang_sys<'a>(&self, data: &FontData<'a>) -> Result<LangSys<'a>, ReadError> {
-        self.lang_sys_offset().resolve(data)
+        self.lang_sys_offset().resolve(&data)
     }
 }
 
@@ -261,7 +261,7 @@ impl<'a> SomeRecord<'a> for LangSysRecord {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "LangSysRecord",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("lang_sys_tag", self.lang_sys_tag())),
                 1usize => Some(Field::new("lang_sys_offset", self.lang_sys(&_data))),
                 _ => None,
@@ -466,7 +466,7 @@ impl FeatureRecord {
     /// Attempt to resolve [`feature_offset`][Self::feature_offset].
     pub fn feature<'a>(&self, data: &FontData<'a>) -> Result<Feature<'a>, ReadError> {
         let args = self.feature_tag();
-        self.feature_offset().resolve_with_args(data, &args)
+        self.feature_offset().resolve_with_args(&data, &args)
     }
 }
 
@@ -479,7 +479,7 @@ impl<'a> SomeRecord<'a> for FeatureRecord {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "FeatureRecord",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("feature_tag", self.feature_tag())),
                 1usize => Some(Field::new("feature_offset", self.feature(&_data))),
                 _ => None,
@@ -988,7 +988,7 @@ impl<'a> SomeRecord<'a> for RangeRecord {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "RangeRecord",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("start_glyph_id", self.start_glyph_id())),
                 1usize => Some(Field::new("end_glyph_id", self.end_glyph_id())),
                 2usize => Some(Field::new(
@@ -1274,7 +1274,7 @@ impl<'a> SomeRecord<'a> for ClassRangeRecord {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "ClassRangeRecord",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("start_glyph_id", self.start_glyph_id())),
                 1usize => Some(Field::new("end_glyph_id", self.end_glyph_id())),
                 2usize => Some(Field::new("class", self.class())),
@@ -1361,7 +1361,7 @@ impl<'a> SomeRecord<'a> for SequenceLookupRecord {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "SequenceLookupRecord",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("sequence_index", self.sequence_index())),
                 1usize => Some(Field::new("lookup_list_index", self.lookup_list_index())),
                 _ => None,
@@ -1454,11 +1454,11 @@ impl<'a> SequenceContextFormat1<'a> {
 
     pub fn seq_rule_set(
         &self,
-    ) -> impl Iterator<Item = Option<Result<SequenceRuleSet<'a>, ReadError>>> + '_ {
-        let data = &self.data;
+    ) -> impl Iterator<Item = Option<Result<SequenceRuleSet<'a>, ReadError>>> + 'a {
+        let data = self.data.clone();
         self.seq_rule_set_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -1472,7 +1472,16 @@ impl<'a> SomeTable<'a> for SequenceContextFormat1<'a> {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("coverage_offset", self.coverage())),
             2usize => Some(Field::new("seq_rule_set_count", self.seq_rule_set_count())),
-            3usize => Some(Field::new("seq_rule_set_offsets", ())),
+            3usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "seq_rule_set_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.seq_rule_set().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             _ => None,
         }
     }
@@ -1533,11 +1542,11 @@ impl<'a> SequenceRuleSet<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    pub fn seq_rule(&self) -> impl Iterator<Item = Result<SequenceRule<'a>, ReadError>> + '_ {
-        let data = &self.data;
+    pub fn seq_rule(&self) -> impl Iterator<Item = Result<SequenceRule<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         self.seq_rule_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -1549,7 +1558,16 @@ impl<'a> SomeTable<'a> for SequenceRuleSet<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("seq_rule_count", self.seq_rule_count())),
-            1usize => Some(Field::new("seq_rule_offsets", ())),
+            1usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "seq_rule_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.seq_rule().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             _ => None,
         }
     }
@@ -1767,11 +1785,11 @@ impl<'a> SequenceContextFormat2<'a> {
 
     pub fn class_seq_rule_set(
         &self,
-    ) -> impl Iterator<Item = Option<Result<ClassSequenceRuleSet<'a>, ReadError>>> + '_ {
-        let data = &self.data;
+    ) -> impl Iterator<Item = Option<Result<ClassSequenceRuleSet<'a>, ReadError>>> + 'a {
+        let data = self.data.clone();
         self.class_seq_rule_set_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -1789,7 +1807,16 @@ impl<'a> SomeTable<'a> for SequenceContextFormat2<'a> {
                 "class_seq_rule_set_count",
                 self.class_seq_rule_set_count(),
             )),
-            4usize => Some(Field::new("class_seq_rule_set_offsets", ())),
+            4usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "class_seq_rule_set_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.class_seq_rule_set().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             _ => None,
         }
     }
@@ -1853,11 +1880,11 @@ impl<'a> ClassSequenceRuleSet<'a> {
 
     pub fn class_seq_rule(
         &self,
-    ) -> impl Iterator<Item = Result<ClassSequenceRule<'a>, ReadError>> + '_ {
-        let data = &self.data;
+    ) -> impl Iterator<Item = Result<ClassSequenceRule<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         self.class_seq_rule_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -1872,7 +1899,16 @@ impl<'a> SomeTable<'a> for ClassSequenceRuleSet<'a> {
                 "class_seq_rule_count",
                 self.class_seq_rule_count(),
             )),
-            1usize => Some(Field::new("class_seq_rule_offsets", ())),
+            1usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "class_seq_rule_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.class_seq_rule().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             _ => None,
         }
     }
@@ -2072,11 +2108,11 @@ impl<'a> SequenceContextFormat3<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    pub fn coverage(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
-        let data = &self.data;
+    pub fn coverage(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         self.coverage_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 
     /// Array of SequenceLookupRecords
@@ -2096,7 +2132,16 @@ impl<'a> SomeTable<'a> for SequenceContextFormat3<'a> {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("glyph_count", self.glyph_count())),
             2usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
-            3usize => Some(Field::new("coverage_offsets", ())),
+            3usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "coverage_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.coverage().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             4usize => Some(Field::new(
                 "seq_lookup_records",
                 traversal::ArrayOfRecords::make_field(
@@ -2246,11 +2291,11 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
 
     pub fn chained_seq_rule_set(
         &self,
-    ) -> impl Iterator<Item = Option<Result<ChainedSequenceRuleSet<'a>, ReadError>>> + '_ {
-        let data = &self.data;
+    ) -> impl Iterator<Item = Option<Result<ChainedSequenceRuleSet<'a>, ReadError>>> + 'a {
+        let data = self.data.clone();
         self.chained_seq_rule_set_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -2267,7 +2312,16 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat1<'a> {
                 "chained_seq_rule_set_count",
                 self.chained_seq_rule_set_count(),
             )),
-            3usize => Some(Field::new("chained_seq_rule_set_offsets", ())),
+            3usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "chained_seq_rule_set_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.chained_seq_rule_set().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             _ => None,
         }
     }
@@ -2331,11 +2385,11 @@ impl<'a> ChainedSequenceRuleSet<'a> {
 
     pub fn chained_seq_rule(
         &self,
-    ) -> impl Iterator<Item = Result<ChainedSequenceRule<'a>, ReadError>> + '_ {
-        let data = &self.data;
+    ) -> impl Iterator<Item = Result<ChainedSequenceRule<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         self.chained_seq_rule_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -2350,7 +2404,16 @@ impl<'a> SomeTable<'a> for ChainedSequenceRuleSet<'a> {
                 "chained_seq_rule_count",
                 self.chained_seq_rule_count(),
             )),
-            1usize => Some(Field::new("chained_seq_rule_offsets", ())),
+            1usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "chained_seq_rule_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.chained_seq_rule().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             _ => None,
         }
     }
@@ -2664,11 +2727,11 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
 
     pub fn chained_class_seq_rule_set(
         &self,
-    ) -> impl Iterator<Item = Option<Result<ChainedClassSequenceRuleSet<'a>, ReadError>>> + '_ {
-        let data = &self.data;
+    ) -> impl Iterator<Item = Option<Result<ChainedClassSequenceRuleSet<'a>, ReadError>>> + 'a {
+        let data = self.data.clone();
         self.chained_class_seq_rule_set_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -2694,7 +2757,16 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat2<'a> {
                 "chained_class_seq_rule_set_count",
                 self.chained_class_seq_rule_set_count(),
             )),
-            6usize => Some(Field::new("chained_class_seq_rule_set_offsets", ())),
+            6usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "chained_class_seq_rule_set_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.chained_class_seq_rule_set().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             _ => None,
         }
     }
@@ -2758,11 +2830,11 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
 
     pub fn chained_class_seq_rule(
         &self,
-    ) -> impl Iterator<Item = Result<ChainedClassSequenceRule<'a>, ReadError>> + '_ {
-        let data = &self.data;
+    ) -> impl Iterator<Item = Result<ChainedClassSequenceRule<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         self.chained_class_seq_rule_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -2777,7 +2849,16 @@ impl<'a> SomeTable<'a> for ChainedClassSequenceRuleSet<'a> {
                 "chained_class_seq_rule_count",
                 self.chained_class_seq_rule_count(),
             )),
-            1usize => Some(Field::new("chained_class_seq_rule_offsets", ())),
+            1usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "chained_class_seq_rule_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.chained_class_seq_rule().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             _ => None,
         }
     }
@@ -3060,11 +3141,11 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
 
     pub fn backtrack_coverage(
         &self,
-    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
-        let data = &self.data;
+    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         self.backtrack_coverage_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 
     /// Number of glyphs in the input sequence
@@ -3081,11 +3162,11 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
 
     pub fn input_coverage(
         &self,
-    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
-        let data = &self.data;
+    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         self.input_coverage_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 
     /// Number of glyphs in the lookahead sequence
@@ -3102,11 +3183,11 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
 
     pub fn lookahead_coverage(
         &self,
-    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
-        let data = &self.data;
+    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         self.lookahead_coverage_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 
     /// Number of SequenceLookupRecords
@@ -3134,14 +3215,41 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                 "backtrack_glyph_count",
                 self.backtrack_glyph_count(),
             )),
-            2usize => Some(Field::new("backtrack_coverage_offsets", ())),
+            2usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "backtrack_coverage_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.backtrack_coverage().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             3usize => Some(Field::new("input_glyph_count", self.input_glyph_count())),
-            4usize => Some(Field::new("input_coverage_offsets", ())),
+            4usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "input_coverage_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.input_coverage().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             5usize => Some(Field::new(
                 "lookahead_glyph_count",
                 self.lookahead_glyph_count(),
             )),
-            6usize => Some(Field::new("lookahead_coverage_offsets", ())),
+            6usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "lookahead_coverage_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.lookahead_coverage().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             7usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
             8usize => Some(Field::new(
                 "seq_lookup_records",
@@ -3546,7 +3654,7 @@ impl FeatureVariationRecord {
 
     /// Attempt to resolve [`condition_set_offset`][Self::condition_set_offset].
     pub fn condition_set<'a>(&self, data: &FontData<'a>) -> Result<ConditionSet<'a>, ReadError> {
-        self.condition_set_offset().resolve(data)
+        self.condition_set_offset().resolve(&data)
     }
 
     /// Offset to a feature table substitution table, from beginning of
@@ -3560,7 +3668,7 @@ impl FeatureVariationRecord {
         &self,
         data: &FontData<'a>,
     ) -> Result<FeatureTableSubstitution<'a>, ReadError> {
-        self.feature_table_substitution_offset().resolve(data)
+        self.feature_table_substitution_offset().resolve(&data)
     }
 }
 
@@ -3573,7 +3681,7 @@ impl<'a> SomeRecord<'a> for FeatureVariationRecord {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "FeatureVariationRecord",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new(
                     "condition_set_offset",
                     self.condition_set(&_data),
@@ -3637,11 +3745,11 @@ impl<'a> ConditionSet<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    pub fn condition(&self) -> impl Iterator<Item = Result<ConditionFormat1<'a>, ReadError>> + '_ {
-        let data = &self.data;
+    pub fn condition(&self) -> impl Iterator<Item = Result<ConditionFormat1<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         self.condition_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -3653,7 +3761,16 @@ impl<'a> SomeTable<'a> for ConditionSet<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("condition_count", self.condition_count())),
-            1usize => Some(Field::new("condition_offsets", ())),
+            1usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "condition_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.condition().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             _ => None,
         }
     }
@@ -3888,7 +4005,7 @@ impl<'a> SomeRecord<'a> for FeatureTableSubstitutionRecord {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "FeatureTableSubstitutionRecord",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("feature_index", self.feature_index())),
                 1usize => Some(Field::new(
                     "alternate_feature_offset",

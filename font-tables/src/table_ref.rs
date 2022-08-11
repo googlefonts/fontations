@@ -52,6 +52,18 @@ impl<'a, T> TableRef<'a, T> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a, T: Copy> TableRef<'a, T> {
+    // used to get around the borrow checker when dealing with things like
+    // arrays of that we want to iterate
+    pub(crate) fn sneaky_copy(&self) -> Self {
+        Self {
+            data: self.data.clone(),
+            shape: self.shape,
+        }
+    }
+}
+
 // a blanket impl so that the format is available through a TableRef
 impl<U, T: TableInfo + Format<U>> Format<U> for TableRef<'_, T> {
     const FORMAT: U = T::FORMAT;

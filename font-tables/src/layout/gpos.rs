@@ -86,11 +86,12 @@ impl<'a, T> std::ops::Deref for TypedExtension<'a, T> {
 }
 
 impl<'a> PositionLookupList<'a> {
-    pub fn lookups(&self) -> impl Iterator<Item = Result<PositionLookup<'a>, ReadError>> + '_ {
+    pub fn lookups(&self) -> impl Iterator<Item = Result<PositionLookup<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         self.0
             .lookup_offsets()
             .iter()
-            .map(|off| self.0.resolve_offset(off.get()))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -149,7 +150,39 @@ impl<'a> SomeTable<'a> for PositionLookupList<'a> {
     }
 
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.deref().get_field(idx)
+        let this = PositionLookupList(self.0.sneaky_copy());
+        match idx {
+            0 => Some(Field::new("lookup_count", self.lookup_count())),
+            1 => Some(Field::new(
+                "lookup_offsets",
+                FieldType::offset_iter(move || {
+                    Box::new(this.lookups().map(|item| item.into()))
+                        as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                }),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for PositionLookup<'a> {
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match self {
+            PositionLookup::Single(table) => table.get_field(idx),
+            PositionLookup::Pair(table) => table.get_field(idx),
+            PositionLookup::Cursive(table) => table.get_field(idx),
+            PositionLookup::MarkToBase(table) => table.get_field(idx),
+            PositionLookup::MarkToMark(table) => table.get_field(idx),
+            PositionLookup::MarkToLig(table) => table.get_field(idx),
+            PositionLookup::Contextual(table) => table.get_field(idx),
+            PositionLookup::ChainContextual(table) => table.get_field(idx),
+            PositionLookup::Extension(table) => table.get_field(idx),
+        }
+    }
+
+    fn type_name(&self) -> &str {
+        "Lookup"
     }
 }
 
