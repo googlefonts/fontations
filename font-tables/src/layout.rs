@@ -66,6 +66,25 @@ impl<'a> FontReadWithArgs<'a> for FeatureParams<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for FeatureParams<'a> {
+    fn type_name(&self) -> &str {
+        match self {
+            FeatureParams::StylisticSet(table) => table.type_name(),
+            FeatureParams::Size(table) => table.type_name(),
+            FeatureParams::CharacterVariant(table) => table.type_name(),
+        }
+    }
+
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match self {
+            FeatureParams::StylisticSet(table) => table.get_field(idx),
+            FeatureParams::Size(table) => table.get_field(idx),
+            FeatureParams::CharacterVariant(table) => table.get_field(idx),
+        }
+    }
+}
+
 impl FeatureTableSubstitutionRecord {
     pub fn alternate_feature<'a>(&self, data: &FontData<'a>) -> Result<Feature<'a>, ReadError> {
         self.alternate_feature_offset()

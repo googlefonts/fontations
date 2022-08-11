@@ -63,6 +63,28 @@ impl<'a> Cmap<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Cmap<'a> {
+    fn type_name(&self) -> &str {
+        "Cmap"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new("num_tables", self.num_tables())),
+            2usize => Some(Field::new("encoding_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Cmap<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
 #[derive(Clone, Debug)]
 #[repr(C)]
@@ -143,6 +165,13 @@ impl font_types::Scalar for PlatformId {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> From<PlatformId> for FieldType<'a> {
+    fn from(src: PlatformId) -> FieldType<'a> {
+        (src as u16).into()
+    }
+}
+
 /// The different cmap subtable formats.
 pub enum CmapSubtable<'a> {
     Format0(Cmap0<'a>),
@@ -171,6 +200,40 @@ impl<'a> FontRead<'a> for CmapSubtable<'a> {
             Cmap14Marker::FORMAT => Ok(Self::Format14(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> CmapSubtable<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format0(table) => table,
+            Self::Format2(table) => table,
+            Self::Format4(table) => table,
+            Self::Format6(table) => table,
+            Self::Format8(table) => table,
+            Self::Format10(table) => table,
+            Self::Format12(table) => table,
+            Self::Format13(table) => table,
+            Self::Format14(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for CmapSubtable<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self.dyn_inner()).fmt(f)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for CmapSubtable<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -249,6 +312,29 @@ impl<'a> Cmap0<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Cmap0<'a> {
+    fn type_name(&self) -> &str {
+        "Cmap0"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("length", self.length())),
+            2usize => Some(Field::new("language", self.language())),
+            3usize => Some(Field::new("glyph_id_array", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Cmap0<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 impl Format<u16> for Cmap2Marker {
     const FORMAT: u16 = 2;
 }
@@ -322,6 +408,29 @@ impl<'a> Cmap2<'a> {
     pub fn sub_header_keys(&self) -> &[BigEndian<u16>] {
         let range = self.shape.sub_header_keys_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Cmap2<'a> {
+    fn type_name(&self) -> &str {
+        "Cmap2"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("length", self.length())),
+            2usize => Some(Field::new("language", self.language())),
+            3usize => Some(Field::new("sub_header_keys", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Cmap2<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -551,6 +660,37 @@ impl<'a> Cmap4<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Cmap4<'a> {
+    fn type_name(&self) -> &str {
+        "Cmap4"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("length", self.length())),
+            2usize => Some(Field::new("language", self.language())),
+            3usize => Some(Field::new("seg_count_x2", self.seg_count_x2())),
+            4usize => Some(Field::new("search_range", self.search_range())),
+            5usize => Some(Field::new("entry_selector", self.entry_selector())),
+            6usize => Some(Field::new("range_shift", self.range_shift())),
+            7usize => Some(Field::new("end_code", ())),
+            8usize => Some(Field::new("start_code", ())),
+            9usize => Some(Field::new("id_delta", ())),
+            10usize => Some(Field::new("id_range_offsets", ())),
+            11usize => Some(Field::new("glyph_id_array", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Cmap4<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 impl Format<u16> for Cmap6Marker {
     const FORMAT: u16 = 6;
 }
@@ -645,6 +785,31 @@ impl<'a> Cmap6<'a> {
     pub fn glyph_id_array(&self) -> &[BigEndian<u16>] {
         let range = self.shape.glyph_id_array_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Cmap6<'a> {
+    fn type_name(&self) -> &str {
+        "Cmap6"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("length", self.length())),
+            2usize => Some(Field::new("language", self.language())),
+            3usize => Some(Field::new("first_code", self.first_code())),
+            4usize => Some(Field::new("entry_count", self.entry_count())),
+            5usize => Some(Field::new("glyph_id_array", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Cmap6<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -752,6 +917,31 @@ impl<'a> Cmap8<'a> {
     pub fn groups(&self) -> &[SequentialMapGroup] {
         let range = self.shape.groups_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Cmap8<'a> {
+    fn type_name(&self) -> &str {
+        "Cmap8"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("length", self.length())),
+            2usize => Some(Field::new("language", self.language())),
+            3usize => Some(Field::new("is32", ())),
+            4usize => Some(Field::new("num_groups", self.num_groups())),
+            5usize => Some(Field::new("groups", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Cmap8<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -899,6 +1089,31 @@ impl<'a> Cmap10<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Cmap10<'a> {
+    fn type_name(&self) -> &str {
+        "Cmap10"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("length", self.length())),
+            2usize => Some(Field::new("language", self.language())),
+            3usize => Some(Field::new("start_char_code", self.start_char_code())),
+            4usize => Some(Field::new("num_chars", self.num_chars())),
+            5usize => Some(Field::new("glyph_id_array", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Cmap10<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 impl Format<u16> for Cmap12Marker {
     const FORMAT: u16 = 12;
 }
@@ -988,6 +1203,30 @@ impl<'a> Cmap12<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Cmap12<'a> {
+    fn type_name(&self) -> &str {
+        "Cmap12"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("length", self.length())),
+            2usize => Some(Field::new("language", self.language())),
+            3usize => Some(Field::new("num_groups", self.num_groups())),
+            4usize => Some(Field::new("groups", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Cmap12<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 impl Format<u16> for Cmap13Marker {
     const FORMAT: u16 = 13;
 }
@@ -1074,6 +1313,30 @@ impl<'a> Cmap13<'a> {
     pub fn groups(&self) -> &[ConstantMapGroup] {
         let range = self.shape.groups_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Cmap13<'a> {
+    fn type_name(&self) -> &str {
+        "Cmap13"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("length", self.length())),
+            2usize => Some(Field::new("language", self.language())),
+            3usize => Some(Field::new("num_groups", self.num_groups())),
+            4usize => Some(Field::new("groups", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Cmap13<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1188,6 +1451,32 @@ impl<'a> Cmap14<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Cmap14<'a> {
+    fn type_name(&self) -> &str {
+        "Cmap14"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("length", self.length())),
+            2usize => Some(Field::new(
+                "num_var_selector_records",
+                self.num_var_selector_records(),
+            )),
+            3usize => Some(Field::new("var_selector", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Cmap14<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Part of [Cmap14]
 #[derive(Clone, Debug)]
 #[repr(C)]
@@ -1270,6 +1559,30 @@ impl<'a> DefaultUvs<'a> {
     pub fn ranges(&self) -> &[UnicodeRange] {
         let range = self.shape.ranges_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for DefaultUvs<'a> {
+    fn type_name(&self) -> &str {
+        "DefaultUvs"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new(
+                "num_unicode_value_ranges",
+                self.num_unicode_value_ranges(),
+            )),
+            1usize => Some(Field::new("ranges", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for DefaultUvs<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 

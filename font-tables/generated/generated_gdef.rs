@@ -162,6 +162,38 @@ impl<'a> Gdef<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Gdef<'a> {
+    fn type_name(&self) -> &str {
+        "Gdef"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new("glyph_class_def_offset", self.glyph_class_def())),
+            2usize => Some(Field::new("attach_list_offset", self.attach_list())),
+            3usize => Some(Field::new("lig_caret_list_offset", self.lig_caret_list())),
+            4usize => Some(Field::new(
+                "mark_attach_class_def_offset",
+                self.mark_attach_class_def(),
+            )),
+            5usize => Some(Field::new(
+                "mark_glyph_sets_def_offset",
+                self.mark_glyph_sets_def(),
+            )),
+            6usize => Some(Field::new("item_var_store_offset", self.item_var_store())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Gdef<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Used in the [Glyph Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#glyph-class-definition-table)
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u16)]
@@ -196,6 +228,13 @@ impl font_types::Scalar for GlyphClassDef {
     fn from_raw(raw: Self::Raw) -> Self {
         let t = <u16>::from_raw(raw);
         Self::new(t)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> From<GlyphClassDef> for FieldType<'a> {
+    fn from(src: GlyphClassDef) -> FieldType<'a> {
+        (src as u16).into()
     }
 }
 
@@ -272,6 +311,28 @@ impl<'a> AttachList<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for AttachList<'a> {
+    fn type_name(&self) -> &str {
+        "AttachList"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("coverage_offset", self.coverage())),
+            1usize => Some(Field::new("glyph_count", self.glyph_count())),
+            2usize => Some(Field::new("attach_point_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for AttachList<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Part of [AttachList]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -317,6 +378,27 @@ impl<'a> AttachPoint<'a> {
     pub fn point_indices(&self) -> &[BigEndian<u16>] {
         let range = self.shape.point_indices_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for AttachPoint<'a> {
+    fn type_name(&self) -> &str {
+        "AttachPoint"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("point_count", self.point_count())),
+            1usize => Some(Field::new("point_indices", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for AttachPoint<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -393,6 +475,28 @@ impl<'a> LigCaretList<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for LigCaretList<'a> {
+    fn type_name(&self) -> &str {
+        "LigCaretList"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("coverage_offset", self.coverage())),
+            1usize => Some(Field::new("lig_glyph_count", self.lig_glyph_count())),
+            2usize => Some(Field::new("lig_glyph_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for LigCaretList<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// [Ligature Glyph Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-glyph-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -449,6 +553,27 @@ impl<'a> LigGlyph<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for LigGlyph<'a> {
+    fn type_name(&self) -> &str {
+        "LigGlyph"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("caret_count", self.caret_count())),
+            1usize => Some(Field::new("caret_value_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for LigGlyph<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// [Caret Value Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caret-value-tables)
 pub enum CaretValue<'a> {
     Format1(CaretValueFormat1<'a>),
@@ -465,6 +590,34 @@ impl<'a> FontRead<'a> for CaretValue<'a> {
             CaretValueFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> CaretValue<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+            Self::Format3(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for CaretValue<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self.dyn_inner()).fmt(f)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for CaretValue<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -514,6 +667,27 @@ impl<'a> CaretValueFormat1<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for CaretValueFormat1<'a> {
+    fn type_name(&self) -> &str {
+        "CaretValueFormat1"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("caret_value_format", self.caret_value_format())),
+            1usize => Some(Field::new("coordinate", self.coordinate())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for CaretValueFormat1<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 impl Format<u16> for CaretValueFormat2Marker {
     const FORMAT: u16 = 2;
 }
@@ -557,6 +731,30 @@ impl<'a> CaretValueFormat2<'a> {
     pub fn caret_value_point_index(&self) -> u16 {
         let range = self.shape.caret_value_point_index_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for CaretValueFormat2<'a> {
+    fn type_name(&self) -> &str {
+        "CaretValueFormat2"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("caret_value_format", self.caret_value_format())),
+            1usize => Some(Field::new(
+                "caret_value_point_index",
+                self.caret_value_point_index(),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for CaretValueFormat2<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -622,6 +820,28 @@ impl<'a> CaretValueFormat3<'a> {
     pub fn device(&self) -> Result<Device<'a>, ReadError> {
         let data = &self.data;
         self.device_offset().resolve(data)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for CaretValueFormat3<'a> {
+    fn type_name(&self) -> &str {
+        "CaretValueFormat3"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("caret_value_format", self.caret_value_format())),
+            1usize => Some(Field::new("coordinate", self.coordinate())),
+            2usize => Some(Field::new("device_offset", self.device())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for CaretValueFormat3<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -693,5 +913,30 @@ impl<'a> MarkGlyphSets<'a> {
         self.coverage_offsets()
             .iter()
             .map(move |off| off.get().resolve(data))
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
+    fn type_name(&self) -> &str {
+        "MarkGlyphSets"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new(
+                "mark_glyph_set_count",
+                self.mark_glyph_set_count(),
+            )),
+            2usize => Some(Field::new("coverage_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for MarkGlyphSets<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }

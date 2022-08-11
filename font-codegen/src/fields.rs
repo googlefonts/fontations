@@ -488,7 +488,7 @@ impl Field {
         }
     }
 
-    fn offset_getter_name(&self) -> Option<syn::Ident> {
+    pub(crate) fn offset_getter_name(&self) -> Option<syn::Ident> {
         if !self.is_offset_or_array_of_offsets() {
             return None;
         }

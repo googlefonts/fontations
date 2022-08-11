@@ -8,6 +8,8 @@ license = "MIT/Apache-2.0"
 [features]
 std = []
 test_data = []
+traversal = ["std"]
+default = ["traversal"]
 
 [dependencies]
 font-types = { path = "../font-types" }

@@ -5,6 +5,9 @@
 #[path = "./value_record.rs"]
 mod value_record;
 
+#[cfg(feature = "traversal")]
+use std::ops::Deref;
+
 use crate::array::ComputedArray;
 
 /// reexport stuff from layout that we use
@@ -136,6 +139,17 @@ impl<'a> std::ops::Deref for PositionLookupList<'a> {
 impl<'a> FontRead<'a> for PositionLookupList<'a> {
     fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
         LookupList::read(bytes).map(Self)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for PositionLookupList<'a> {
+    fn type_name(&self) -> &str {
+        self.deref().type_name()
+    }
+
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.deref().get_field(idx)
     }
 }
 

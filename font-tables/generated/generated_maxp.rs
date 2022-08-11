@@ -299,3 +299,58 @@ impl<'a> Maxp<'a> {
         Some(self.data.read_at(range.start).unwrap())
     }
 }
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Maxp<'a> {
+    fn type_name(&self) -> &str {
+        "Maxp"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new("num_glyphs", self.num_glyphs())),
+            2usize => Some(Field::new("max_points", self.max_points())),
+            3usize => Some(Field::new("max_contours", self.max_contours())),
+            4usize => Some(Field::new(
+                "max_composite_points",
+                self.max_composite_points(),
+            )),
+            5usize => Some(Field::new(
+                "max_composite_contours",
+                self.max_composite_contours(),
+            )),
+            6usize => Some(Field::new("max_zones", self.max_zones())),
+            7usize => Some(Field::new(
+                "max_twilight_points",
+                self.max_twilight_points(),
+            )),
+            8usize => Some(Field::new("max_storage", self.max_storage())),
+            9usize => Some(Field::new("max_function_defs", self.max_function_defs())),
+            10usize => Some(Field::new(
+                "max_instruction_defs",
+                self.max_instruction_defs(),
+            )),
+            11usize => Some(Field::new("max_stack_elements", self.max_stack_elements())),
+            12usize => Some(Field::new(
+                "max_size_of_instructions",
+                self.max_size_of_instructions(),
+            )),
+            13usize => Some(Field::new(
+                "max_component_elements",
+                self.max_component_elements(),
+            )),
+            14usize => Some(Field::new(
+                "max_component_depth",
+                self.max_component_depth(),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Maxp<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}

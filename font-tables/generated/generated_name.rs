@@ -120,6 +120,34 @@ impl<'a> Name<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Name<'a> {
+    fn type_name(&self) -> &str {
+        "Name"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new("count", self.count())),
+            2usize => Some(Field::new(
+                "storage_offset",
+                self.storage_offset().to_usize() as u32,
+            )),
+            3usize => Some(Field::new("name_record", ())),
+            4usize => Some(Field::new("lang_tag_count", self.lang_tag_count())),
+            5usize => Some(Field::new("lang_tag_record", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Name<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Part of [Name]
 #[derive(Clone, Debug)]
 #[repr(C)]

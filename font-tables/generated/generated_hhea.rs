@@ -194,3 +194,44 @@ impl<'a> Hhea<'a> {
         self.data.read_at(range.start).unwrap()
     }
 }
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Hhea<'a> {
+    fn type_name(&self) -> &str {
+        "Hhea"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new("ascender", self.ascender())),
+            2usize => Some(Field::new("descender", self.descender())),
+            3usize => Some(Field::new("line_gap", self.line_gap())),
+            4usize => Some(Field::new("advance_width_max", self.advance_width_max())),
+            5usize => Some(Field::new(
+                "min_left_side_bearing",
+                self.min_left_side_bearing(),
+            )),
+            6usize => Some(Field::new(
+                "min_right_side_bearing",
+                self.min_right_side_bearing(),
+            )),
+            7usize => Some(Field::new("x_max_extent", self.x_max_extent())),
+            8usize => Some(Field::new("caret_slope_rise", self.caret_slope_rise())),
+            9usize => Some(Field::new("caret_slope_run", self.caret_slope_run())),
+            10usize => Some(Field::new("caret_offset", self.caret_offset())),
+            11usize => Some(Field::new("metric_data_format", self.metric_data_format())),
+            12usize => Some(Field::new(
+                "number_of_h_metrics",
+                self.number_of_h_metrics(),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Hhea<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}

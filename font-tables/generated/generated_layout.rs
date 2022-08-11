@@ -53,6 +53,27 @@ impl<'a> ScriptList<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ScriptList<'a> {
+    fn type_name(&self) -> &str {
+        "ScriptList"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("script_count", self.script_count())),
+            1usize => Some(Field::new("script_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ScriptList<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// [Script Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 #[derive(Clone, Debug)]
 #[repr(C)]
@@ -149,6 +170,31 @@ impl<'a> Script<'a> {
     pub fn lang_sys_records(&self) -> &[LangSysRecord] {
         let range = self.shape.lang_sys_records_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Script<'a> {
+    fn type_name(&self) -> &str {
+        "Script"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new(
+                "default_lang_sys_offset",
+                self.default_lang_sys(),
+            )),
+            1usize => Some(Field::new("lang_sys_count", self.lang_sys_count())),
+            2usize => Some(Field::new("lang_sys_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Script<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -249,6 +295,34 @@ impl<'a> LangSys<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for LangSys<'a> {
+    fn type_name(&self) -> &str {
+        "LangSys"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new(
+                "required_feature_index",
+                self.required_feature_index(),
+            )),
+            1usize => Some(Field::new(
+                "feature_index_count",
+                self.feature_index_count(),
+            )),
+            2usize => Some(Field::new("feature_indices", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for LangSys<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -295,6 +369,27 @@ impl<'a> FeatureList<'a> {
     pub fn feature_records(&self) -> &[FeatureRecord] {
         let range = self.shape.feature_records_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for FeatureList<'a> {
+    fn type_name(&self) -> &str {
+        "FeatureList"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("feature_count", self.feature_count())),
+            1usize => Some(Field::new("feature_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for FeatureList<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -412,6 +507,28 @@ impl<'a> Feature<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Feature<'a> {
+    fn type_name(&self) -> &str {
+        "Feature"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("feature_params_offset", self.feature_params())),
+            1usize => Some(Field::new("lookup_index_count", self.lookup_index_count())),
+            2usize => Some(Field::new("lookup_list_indices", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Feature<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -458,6 +575,27 @@ impl<'a> LookupList<'a> {
     pub fn lookup_offsets(&self) -> &[BigEndian<Offset16>] {
         let range = self.shape.lookup_offsets_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for LookupList<'a> {
+    fn type_name(&self) -> &str {
+        "LookupList"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("lookup_count", self.lookup_count())),
+            1usize => Some(Field::new("lookup_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for LookupList<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -545,6 +683,30 @@ impl<'a> Lookup<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Lookup<'a> {
+    fn type_name(&self) -> &str {
+        "Lookup"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("lookup_type", self.lookup_type())),
+            1usize => Some(Field::new("lookup_flag", self.lookup_flag())),
+            2usize => Some(Field::new("sub_table_count", self.sub_table_count())),
+            3usize => Some(Field::new("subtable_offsets", ())),
+            4usize => Some(Field::new("mark_filtering_set", self.mark_filtering_set())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Lookup<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 impl Format<u16> for CoverageFormat1Marker {
     const FORMAT: u16 = 1;
 }
@@ -605,6 +767,28 @@ impl<'a> CoverageFormat1<'a> {
     pub fn glyph_array(&self) -> &[BigEndian<GlyphId>] {
         let range = self.shape.glyph_array_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for CoverageFormat1<'a> {
+    fn type_name(&self) -> &str {
+        "CoverageFormat1"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("coverage_format", self.coverage_format())),
+            1usize => Some(Field::new("glyph_count", self.glyph_count())),
+            2usize => Some(Field::new("glyph_array", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for CoverageFormat1<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -671,6 +855,28 @@ impl<'a> CoverageFormat2<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for CoverageFormat2<'a> {
+    fn type_name(&self) -> &str {
+        "CoverageFormat2"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("coverage_format", self.coverage_format())),
+            1usize => Some(Field::new("range_count", self.range_count())),
+            2usize => Some(Field::new("range_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for CoverageFormat2<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Used in [CoverageFormat2]
 #[derive(Clone, Debug)]
 #[repr(C)]
@@ -719,6 +925,33 @@ impl<'a> FontRead<'a> for CoverageTable<'a> {
             CoverageFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> CoverageTable<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for CoverageTable<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self.dyn_inner()).fmt(f)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for CoverageTable<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -796,6 +1029,29 @@ impl<'a> ClassDefFormat1<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ClassDefFormat1<'a> {
+    fn type_name(&self) -> &str {
+        "ClassDefFormat1"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("class_format", self.class_format())),
+            1usize => Some(Field::new("start_glyph_id", self.start_glyph_id())),
+            2usize => Some(Field::new("glyph_count", self.glyph_count())),
+            3usize => Some(Field::new("class_value_array", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ClassDefFormat1<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 impl Format<u16> for ClassDefFormat2Marker {
     const FORMAT: u16 = 2;
 }
@@ -860,6 +1116,28 @@ impl<'a> ClassDefFormat2<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ClassDefFormat2<'a> {
+    fn type_name(&self) -> &str {
+        "ClassDefFormat2"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("class_format", self.class_format())),
+            1usize => Some(Field::new("class_range_count", self.class_range_count())),
+            2usize => Some(Field::new("class_range_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ClassDefFormat2<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Used in [ClassDefFormat2]
 #[derive(Clone, Debug)]
 #[repr(C)]
@@ -908,6 +1186,33 @@ impl<'a> FontRead<'a> for ClassDef<'a> {
             ClassDefFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> ClassDef<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ClassDef<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self.dyn_inner()).fmt(f)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ClassDef<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -1029,6 +1334,29 @@ impl<'a> SequenceContextFormat1<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for SequenceContextFormat1<'a> {
+    fn type_name(&self) -> &str {
+        "SequenceContextFormat1"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            2usize => Some(Field::new("seq_rule_set_count", self.seq_rule_set_count())),
+            3usize => Some(Field::new("seq_rule_set_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for SequenceContextFormat1<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Part of [SequenceContextFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1082,6 +1410,27 @@ impl<'a> SequenceRuleSet<'a> {
         self.seq_rule_offsets()
             .iter()
             .map(move |off| off.get().resolve(data))
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for SequenceRuleSet<'a> {
+    fn type_name(&self) -> &str {
+        "SequenceRuleSet"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("seq_rule_count", self.seq_rule_count())),
+            1usize => Some(Field::new("seq_rule_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for SequenceRuleSet<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1156,6 +1505,29 @@ impl<'a> SequenceRule<'a> {
     pub fn seq_lookup_records(&self) -> &[SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for SequenceRule<'a> {
+    fn type_name(&self) -> &str {
+        "SequenceRule"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("glyph_count", self.glyph_count())),
+            1usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
+            2usize => Some(Field::new("input_sequence", ())),
+            3usize => Some(Field::new("seq_lookup_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for SequenceRule<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1269,6 +1641,33 @@ impl<'a> SequenceContextFormat2<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for SequenceContextFormat2<'a> {
+    fn type_name(&self) -> &str {
+        "SequenceContextFormat2"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            2usize => Some(Field::new("class_def_offset", self.class_def())),
+            3usize => Some(Field::new(
+                "class_seq_rule_set_count",
+                self.class_seq_rule_set_count(),
+            )),
+            4usize => Some(Field::new("class_seq_rule_set_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for SequenceContextFormat2<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Part of [SequenceContextFormat2]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1325,6 +1724,30 @@ impl<'a> ClassSequenceRuleSet<'a> {
         self.class_seq_rule_offsets()
             .iter()
             .map(move |off| off.get().resolve(data))
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ClassSequenceRuleSet<'a> {
+    fn type_name(&self) -> &str {
+        "ClassSequenceRuleSet"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new(
+                "class_seq_rule_count",
+                self.class_seq_rule_count(),
+            )),
+            1usize => Some(Field::new("class_seq_rule_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ClassSequenceRuleSet<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1400,6 +1823,29 @@ impl<'a> ClassSequenceRule<'a> {
     pub fn seq_lookup_records(&self) -> &[SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ClassSequenceRule<'a> {
+    fn type_name(&self) -> &str {
+        "ClassSequenceRule"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("glyph_count", self.glyph_count())),
+            1usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
+            2usize => Some(Field::new("input_sequence", ())),
+            3usize => Some(Field::new("seq_lookup_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ClassSequenceRule<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1500,6 +1946,30 @@ impl<'a> SequenceContextFormat3<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for SequenceContextFormat3<'a> {
+    fn type_name(&self) -> &str {
+        "SequenceContextFormat3"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("glyph_count", self.glyph_count())),
+            2usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
+            3usize => Some(Field::new("coverage_offsets", ())),
+            4usize => Some(Field::new("seq_lookup_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for SequenceContextFormat3<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 pub enum SequenceContext<'a> {
     Format1(SequenceContextFormat1<'a>),
     Format2(SequenceContextFormat2<'a>),
@@ -1515,6 +1985,34 @@ impl<'a> FontRead<'a> for SequenceContext<'a> {
             SequenceContextFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SequenceContext<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+            Self::Format3(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for SequenceContext<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self.dyn_inner()).fmt(f)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for SequenceContext<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -1610,6 +2108,32 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ChainedSequenceContextFormat1<'a> {
+    fn type_name(&self) -> &str {
+        "ChainedSequenceContextFormat1"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            2usize => Some(Field::new(
+                "chained_seq_rule_set_count",
+                self.chained_seq_rule_set_count(),
+            )),
+            3usize => Some(Field::new("chained_seq_rule_set_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ChainedSequenceContextFormat1<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Part of [ChainedSequenceContextFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1666,6 +2190,30 @@ impl<'a> ChainedSequenceRuleSet<'a> {
         self.chained_seq_rule_offsets()
             .iter()
             .map(move |off| off.get().resolve(data))
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ChainedSequenceRuleSet<'a> {
+    fn type_name(&self) -> &str {
+        "ChainedSequenceRuleSet"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new(
+                "chained_seq_rule_count",
+                self.chained_seq_rule_count(),
+            )),
+            1usize => Some(Field::new("chained_seq_rule_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ChainedSequenceRuleSet<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1790,6 +2338,39 @@ impl<'a> ChainedSequenceRule<'a> {
     pub fn seq_lookup_records(&self) -> &[SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ChainedSequenceRule<'a> {
+    fn type_name(&self) -> &str {
+        "ChainedSequenceRule"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new(
+                "backtrack_glyph_count",
+                self.backtrack_glyph_count(),
+            )),
+            1usize => Some(Field::new("backtrack_sequence", ())),
+            2usize => Some(Field::new("input_glyph_count", self.input_glyph_count())),
+            3usize => Some(Field::new("input_sequence", ())),
+            4usize => Some(Field::new(
+                "lookahead_glyph_count",
+                self.lookahead_glyph_count(),
+            )),
+            5usize => Some(Field::new("lookahead_sequence", ())),
+            6usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
+            7usize => Some(Field::new("seq_lookup_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ChainedSequenceRule<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1939,6 +2520,41 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ChainedSequenceContextFormat2<'a> {
+    fn type_name(&self) -> &str {
+        "ChainedSequenceContextFormat2"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            2usize => Some(Field::new(
+                "backtrack_class_def_offset",
+                self.backtrack_class_def(),
+            )),
+            3usize => Some(Field::new("input_class_def_offset", self.input_class_def())),
+            4usize => Some(Field::new(
+                "lookahead_class_def_offset",
+                self.lookahead_class_def(),
+            )),
+            5usize => Some(Field::new(
+                "chained_class_seq_rule_set_count",
+                self.chained_class_seq_rule_set_count(),
+            )),
+            6usize => Some(Field::new("chained_class_seq_rule_set_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ChainedSequenceContextFormat2<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Part of [ChainedSequenceContextFormat2]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1995,6 +2611,30 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
         self.chained_class_seq_rule_offsets()
             .iter()
             .map(move |off| off.get().resolve(data))
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ChainedClassSequenceRuleSet<'a> {
+    fn type_name(&self) -> &str {
+        "ChainedClassSequenceRuleSet"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new(
+                "chained_class_seq_rule_count",
+                self.chained_class_seq_rule_count(),
+            )),
+            1usize => Some(Field::new("chained_class_seq_rule_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ChainedClassSequenceRuleSet<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -2120,6 +2760,39 @@ impl<'a> ChainedClassSequenceRule<'a> {
     pub fn seq_lookup_records(&self) -> &[SequenceLookupRecord] {
         let range = self.shape.seq_lookup_records_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ChainedClassSequenceRule<'a> {
+    fn type_name(&self) -> &str {
+        "ChainedClassSequenceRule"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new(
+                "backtrack_glyph_count",
+                self.backtrack_glyph_count(),
+            )),
+            1usize => Some(Field::new("backtrack_sequence", ())),
+            2usize => Some(Field::new("input_glyph_count", self.input_glyph_count())),
+            3usize => Some(Field::new("input_sequence", ())),
+            4usize => Some(Field::new(
+                "lookahead_glyph_count",
+                self.lookahead_glyph_count(),
+            )),
+            5usize => Some(Field::new("lookahead_sequence", ())),
+            6usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
+            7usize => Some(Field::new("seq_lookup_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ChainedClassSequenceRule<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -2291,6 +2964,40 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
+    fn type_name(&self) -> &str {
+        "ChainedSequenceContextFormat3"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new(
+                "backtrack_glyph_count",
+                self.backtrack_glyph_count(),
+            )),
+            2usize => Some(Field::new("backtrack_coverage_offsets", ())),
+            3usize => Some(Field::new("input_glyph_count", self.input_glyph_count())),
+            4usize => Some(Field::new("input_coverage_offsets", ())),
+            5usize => Some(Field::new(
+                "lookahead_glyph_count",
+                self.lookahead_glyph_count(),
+            )),
+            6usize => Some(Field::new("lookahead_coverage_offsets", ())),
+            7usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
+            8usize => Some(Field::new("seq_lookup_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ChainedSequenceContextFormat3<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 pub enum ChainedSequenceContext<'a> {
     Format1(ChainedSequenceContextFormat1<'a>),
     Format2(ChainedSequenceContextFormat2<'a>),
@@ -2306,6 +3013,34 @@ impl<'a> FontRead<'a> for ChainedSequenceContext<'a> {
             ChainedSequenceContextFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> ChainedSequenceContext<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+            Self::Format3(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ChainedSequenceContext<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self.dyn_inner()).fmt(f)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ChainedSequenceContext<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -2348,6 +3083,13 @@ impl font_types::Scalar for DeltaFormat {
     fn from_raw(raw: Self::Raw) -> Self {
         let t = <u16>::from_raw(raw);
         Self::new(t)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> From<DeltaFormat> for FieldType<'a> {
+    fn from(src: DeltaFormat) -> FieldType<'a> {
+        (src as u16).into()
     }
 }
 
@@ -2422,6 +3164,29 @@ impl<'a> Device<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Device<'a> {
+    fn type_name(&self) -> &str {
+        "Device"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("start_size", self.start_size())),
+            1usize => Some(Field::new("end_size", self.end_size())),
+            2usize => Some(Field::new("delta_format", self.delta_format())),
+            3usize => Some(Field::new("delta_value", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Device<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Variation index table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -2474,6 +3239,34 @@ impl<'a> VariationIndex<'a> {
     pub fn delta_format(&self) -> u16 {
         let range = self.shape.delta_format_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for VariationIndex<'a> {
+    fn type_name(&self) -> &str {
+        "VariationIndex"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new(
+                "delta_set_outer_index",
+                self.delta_set_outer_index(),
+            )),
+            1usize => Some(Field::new(
+                "delta_set_inner_index",
+                self.delta_set_inner_index(),
+            )),
+            2usize => Some(Field::new("delta_format", self.delta_format())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for VariationIndex<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -2533,6 +3326,31 @@ impl<'a> FeatureVariations<'a> {
     pub fn feature_variation_records(&self) -> &[FeatureVariationRecord] {
         let range = self.shape.feature_variation_records_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for FeatureVariations<'a> {
+    fn type_name(&self) -> &str {
+        "FeatureVariations"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new(
+                "feature_variation_record_count",
+                self.feature_variation_record_count(),
+            )),
+            2usize => Some(Field::new("feature_variation_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for FeatureVariations<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -2636,6 +3454,27 @@ impl<'a> ConditionSet<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ConditionSet<'a> {
+    fn type_name(&self) -> &str {
+        "ConditionSet"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("condition_count", self.condition_count())),
+            1usize => Some(Field::new("condition_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ConditionSet<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 impl Format<u16> for ConditionFormat1Marker {
     const FORMAT: u16 = 1;
 }
@@ -2707,6 +3546,35 @@ impl<'a> ConditionFormat1<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ConditionFormat1<'a> {
+    fn type_name(&self) -> &str {
+        "ConditionFormat1"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("axis_index", self.axis_index())),
+            2usize => Some(Field::new(
+                "filter_range_min_value",
+                self.filter_range_min_value(),
+            )),
+            3usize => Some(Field::new(
+                "filter_range_max_value",
+                self.filter_range_max_value(),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ConditionFormat1<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// [FeatureTableSubstitution Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featuretablesubstitution-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -2764,6 +3632,28 @@ impl<'a> FeatureTableSubstitution<'a> {
     pub fn substitutions(&self) -> &[FeatureTableSubstitutionRecord] {
         let range = self.shape.substitutions_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for FeatureTableSubstitution<'a> {
+    fn type_name(&self) -> &str {
+        "FeatureTableSubstitution"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new("substitution_count", self.substitution_count())),
+            2usize => Some(Field::new("substitutions", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for FeatureTableSubstitution<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -2889,6 +3779,30 @@ impl<'a> SizeParams<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for SizeParams<'a> {
+    fn type_name(&self) -> &str {
+        "SizeParams"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("design_size", self.design_size())),
+            1usize => Some(Field::new("identifier", self.identifier())),
+            2usize => Some(Field::new("name_entry", self.name_entry())),
+            3usize => Some(Field::new("range_start", self.range_start())),
+            4usize => Some(Field::new("range_end", self.range_end())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for SizeParams<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct StylisticSetParamsMarker {}
@@ -2933,6 +3847,27 @@ impl<'a> StylisticSetParams<'a> {
     pub fn ui_name_id(&self) -> u16 {
         let range = self.shape.ui_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for StylisticSetParams<'a> {
+    fn type_name(&self) -> &str {
+        "StylisticSetParams"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new("ui_name_id", self.ui_name_id())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for StylisticSetParams<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -3058,5 +3993,47 @@ impl<'a> CharacterVariantParams<'a> {
     pub fn character(&self) -> &[BigEndian<Uint24>] {
         let range = self.shape.character_byte_range();
         self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for CharacterVariantParams<'a> {
+    fn type_name(&self) -> &str {
+        "CharacterVariantParams"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new(
+                "feat_ui_label_name_id",
+                self.feat_ui_label_name_id(),
+            )),
+            2usize => Some(Field::new(
+                "feat_ui_tooltip_text_name_id",
+                self.feat_ui_tooltip_text_name_id(),
+            )),
+            3usize => Some(Field::new(
+                "sample_text_name_id",
+                self.sample_text_name_id(),
+            )),
+            4usize => Some(Field::new(
+                "num_named_parameters",
+                self.num_named_parameters(),
+            )),
+            5usize => Some(Field::new(
+                "first_param_ui_label_name_id",
+                self.first_param_ui_label_name_id(),
+            )),
+            6usize => Some(Field::new("char_count", self.char_count())),
+            7usize => Some(Field::new("character", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for CharacterVariantParams<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
