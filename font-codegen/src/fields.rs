@@ -169,10 +169,15 @@ impl Fields {
                         //}
                         _ => quote!(Field::new(#name_str, ())),
                     },
-                    _ => quote!(Field::new(#name_str, ())),
-                    //FieldType::Other { typ } => todo!(),
-                    //FieldType::Array { inner_typ } => todo!(),
+                    FieldType::Other { typ } if typ.is_ident("ValueRecord") => {
+                        let clone = in_record.then(|| quote!(.clone()));
+                        quote!(Field::new(#name_str, self.#name() #clone))
+                    }
+                    FieldType::Other { .. } => {
+                        quote!(compile_error!(concat!("another weird type: ", #name_str)))
+                    }
                     //FieldType::ComputedArray(_) => todo!(),
+                    _ => quote!(Field::new(#name_str, ())),
                 };
                 quote!( #i => Some(#rhs) )
             })
