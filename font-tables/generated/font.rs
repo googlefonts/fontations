@@ -167,7 +167,7 @@ impl<'a> SomeRecord<'a> for TableRecord {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "TableRecord",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("tag", self.tag())),
                 1usize => Some(Field::new("checksum", self.checksum())),
                 2usize => Some(Field::new("offset", self.offset().to_usize() as u32)),

@@ -130,57 +130,75 @@ impl Fields {
             .filter(|fld| fld.has_getter())
             .enumerate()
             .map(move |(i, fld)| {
-                let name_str = &fld.name.to_string();
-                let name = &fld.name;
-                let rhs = match &fld.typ {
-                    FieldType::Offset {
-                        target: Some(_), ..
-                    } => {
-                        let getter = fld.offset_getter_name();
-                        quote!(Field::new(#name_str, self.#getter(#pass_data)))
-                    }
-                    FieldType::Offset { .. } => {
-                        quote!(Field::new(#name_str, self.#name().to_usize() as u32))
-                    }
-
-                    FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name())),
-
-                    FieldType::Array { inner_typ } => match inner_typ.as_ref() {
-                        FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name())),
-                        //HACK: glyf has fields that are [u8]
-                        FieldType::Other { typ } if typ.is_ident("u8") => {
-                            quote!(Field::new( #name_str, self.#name()))
-                        }
-                        FieldType::Other { .. } if !in_record => {
-                            quote!(Field::new(
-                                    #name_str,
-                                    traversal::ArrayOfRecords::make_field(
-                                        self.#name(),
-                                        self.offset_data().clone(),
-                                    )
-                            ))
-                        }
-
-                        //FieldType::Offset {
-                        //target: Some(_), ..
-                        //} => {
-                        //let getter = fld.offset_getter_name();
-                        //quote!(Field::new(#name_str, self.#getter(#pass_data)))
-                        //}
-                        _ => quote!(Field::new(#name_str, ())),
-                    },
-                    FieldType::Other { typ } if typ.is_ident("ValueRecord") => {
-                        let clone = in_record.then(|| quote!(.clone()));
-                        quote!(Field::new(#name_str, self.#name() #clone))
-                    }
-                    FieldType::Other { .. } => {
-                        quote!(compile_error!(concat!("another weird type: ", #name_str)))
-                    }
-                    //FieldType::ComputedArray(_) => todo!(),
-                    _ => quote!(Field::new(#name_str, ())),
-                };
+                let rhs = traversal_arm_for_field(fld, in_record, pass_data.as_ref());
                 quote!( #i => Some(#rhs) )
             })
+    }
+}
+
+fn traversal_arm_for_field(
+    fld: &Field,
+    in_record: bool,
+    pass_data: Option<&TokenStream>,
+) -> TokenStream {
+    let name_str = &fld.name.to_string();
+    let name = &fld.name;
+    match &fld.typ {
+        FieldType::Offset {
+            target: Some(_), ..
+        } => {
+            let getter = fld.offset_getter_name();
+            quote!(Field::new(#name_str, self.#getter(#pass_data)))
+        }
+        FieldType::Offset { .. } => {
+            quote!(Field::new(#name_str, self.#name().to_usize() as u32))
+        }
+
+        FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name())),
+
+        FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+            FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name())),
+            //HACK: glyf has fields that are [u8]
+            FieldType::Other { typ } if typ.is_ident("u8") => {
+                quote!(Field::new( #name_str, self.#name()))
+            }
+            FieldType::Other { .. } if !in_record => {
+                quote!(Field::new(
+                        #name_str,
+                        traversal::ArrayOfRecords::make_field(
+                            self.#name(),
+                            self.offset_data().clone(),
+                        )
+                ))
+            }
+
+            FieldType::Offset {
+                target: Some(_), ..
+            } => {
+                let getter = fld.offset_getter_name();
+                let this_type = in_record
+                    .then(|| quote!(self))
+                    .unwrap_or_else(|| quote!(self.sneaky_copy()));
+                quote! {{
+                    let this = #this_type;
+                    Field::new(#name_str, FieldType::offset_iter(move ||
+                Box::new(this.#getter(#pass_data).map(|item| item.into()))
+                as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+
+                        ))
+                }}
+            }
+            _ => quote!(Field::new(#name_str, ())),
+        },
+        FieldType::Other { typ } if typ.is_ident("ValueRecord") => {
+            let clone = in_record.then(|| quote!(.clone()));
+            quote!(Field::new(#name_str, self.#name() #clone))
+        }
+        FieldType::Other { .. } => {
+            quote!(compile_error!(concat!("another weird type: ", #name_str)))
+        }
+        //FieldType::ComputedArray(_) => todo!(),
+        _ => quote!(Field::new(#name_str, ())),
     }
 }
 
@@ -493,10 +511,10 @@ impl Field {
             return_type = quote!(Option<#return_type>);
         }
         if self.is_array() {
-            return_type = quote!(impl Iterator<Item=#return_type> + '_);
+            return_type = quote!(impl Iterator<Item=#return_type> + 'a);
         }
 
-        let add_back_borrow = (record.is_some() && self.is_array()).then(|| quote!(&));
+        let add_back_borrow = (record.is_some() || self.is_array()).then(|| quote!(&));
 
         let resolve = match self.attrs.read_offset_args.as_deref() {
             None => quote!(resolve( #add_back_borrow data)),
@@ -515,6 +533,7 @@ impl Field {
 
         let data_alias_if_needed = match record {
             // if a table, data is self.data
+            None if self.is_array() => Some(quote!(let data = self.data.clone();)),
             None => Some(quote!(let data = &self.data;)),
             // if this is an offset getter for an array we need to clone
             // data so it is owned by closure

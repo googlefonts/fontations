@@ -28,6 +28,14 @@ impl<'a, T: FontRead<'a>> TypedLookup<'a, T> {
     pub fn get_subtable(&self, offset: Offset16) -> Result<T, ReadError> {
         self.inner.resolve_offset(offset)
     }
+
+    pub fn subtables(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a {
+        let data = self.data.clone();
+        self.inner
+            .subtable_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(&data))
+    }
 }
 
 impl<'a, T> std::ops::Deref for TypedLookup<'a, T> {
@@ -81,6 +89,31 @@ impl<'a> SomeTable<'a> for FeatureParams<'a> {
             FeatureParams::StylisticSet(table) => table.get_field(idx),
             FeatureParams::Size(table) => table.get_field(idx),
             FeatureParams::CharacterVariant(table) => table.get_field(idx),
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a, T: SomeTable<'a> + FontRead<'a> + 'a> SomeTable<'a> for TypedLookup<'a, T> {
+    fn type_name(&self) -> &str {
+        "Lookup"
+    }
+
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let this = Self {
+            inner: self.inner.sneaky_copy(),
+            phantom: std::marker::PhantomData,
+        };
+        match idx {
+            0 | 1 | 2 | 4 => self.inner.get_field(idx),
+            3 => Some(Field::new(
+                "subtable_offsets",
+                FieldType::offset_iter(move || {
+                    Box::new(this.subtables().map(|table| table.into()))
+                        as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                }),
+            )),
+            _ => None,
         }
     }
 }

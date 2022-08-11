@@ -303,11 +303,11 @@ impl<'a> AttachList<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    pub fn attach_point(&self) -> impl Iterator<Item = Result<AttachPoint<'a>, ReadError>> + '_ {
-        let data = &self.data;
+    pub fn attach_point(&self) -> impl Iterator<Item = Result<AttachPoint<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         self.attach_point_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -320,7 +320,16 @@ impl<'a> SomeTable<'a> for AttachList<'a> {
         match idx {
             0usize => Some(Field::new("coverage_offset", self.coverage())),
             1usize => Some(Field::new("glyph_count", self.glyph_count())),
-            2usize => Some(Field::new("attach_point_offsets", ())),
+            2usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "attach_point_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.attach_point().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             _ => None,
         }
     }
@@ -467,11 +476,11 @@ impl<'a> LigCaretList<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    pub fn lig_glyph(&self) -> impl Iterator<Item = Result<LigGlyph<'a>, ReadError>> + '_ {
-        let data = &self.data;
+    pub fn lig_glyph(&self) -> impl Iterator<Item = Result<LigGlyph<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         self.lig_glyph_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -484,7 +493,16 @@ impl<'a> SomeTable<'a> for LigCaretList<'a> {
         match idx {
             0usize => Some(Field::new("coverage_offset", self.coverage())),
             1usize => Some(Field::new("lig_glyph_count", self.lig_glyph_count())),
-            2usize => Some(Field::new("lig_glyph_offsets", ())),
+            2usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "lig_glyph_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.lig_glyph().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             _ => None,
         }
     }
@@ -545,11 +563,11 @@ impl<'a> LigGlyph<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    pub fn caret_value(&self) -> impl Iterator<Item = Result<CaretValue<'a>, ReadError>> + '_ {
-        let data = &self.data;
+    pub fn caret_value(&self) -> impl Iterator<Item = Result<CaretValue<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         self.caret_value_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -561,7 +579,16 @@ impl<'a> SomeTable<'a> for LigGlyph<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("caret_count", self.caret_count())),
-            1usize => Some(Field::new("caret_value_offsets", ())),
+            1usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "caret_value_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.caret_value().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             _ => None,
         }
     }
@@ -908,11 +935,11 @@ impl<'a> MarkGlyphSets<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    pub fn coverage(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
-        let data = &self.data;
+    pub fn coverage(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         self.coverage_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -928,7 +955,16 @@ impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
                 "mark_glyph_set_count",
                 self.mark_glyph_set_count(),
             )),
-            2usize => Some(Field::new("coverage_offsets", ())),
+            2usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "coverage_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.coverage().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             _ => None,
         }
     }

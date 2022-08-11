@@ -36,6 +36,7 @@ pub enum FieldType<'a> {
     Record(RecordResolver<'a>),
     ValueRecord(ValueRecord),
     Array(Box<dyn SomeArray<'a> + 'a>),
+    OffsetArray(Box<dyn ResolvedOffestArray<'a> + 'a>),
     Unimplemented,
     // used for fields in other versions of a table
     None,
@@ -50,6 +51,20 @@ pub struct Field<'a> {
 pub trait SomeTable<'a> {
     fn type_name(&self) -> &str;
     fn get_field(&self, idx: usize) -> Option<Field<'a>>;
+}
+
+/// a closure that can generate an iterator over resolved offsets
+pub trait ResolvedOffestArray<'a> {
+    fn iter(&self) -> Box<dyn Iterator<Item = FieldType<'a>> + 'a>;
+}
+
+impl<'a, F> ResolvedOffestArray<'a> for F
+where
+    F: Fn() -> Box<dyn Iterator<Item = FieldType<'a>> + 'a> + 'a,
+{
+    fn iter(&self) -> Box<dyn Iterator<Item = FieldType<'a>> + 'a> {
+        (self)()
+    }
 }
 
 /// A generic trait for records, which need to be passed in data
@@ -188,6 +203,15 @@ impl<'a> Field<'a> {
     }
 }
 
+impl<'a> FieldType<'a> {
+    /// convenience (haha) method for creating an offset array field
+    ///
+    /// Otherwise we would need a blanket impl, and that gets icky fast
+    pub fn offset_iter<F: ResolvedOffestArray<'a> + 'a>(f: F) -> Self {
+        FieldType::OffsetArray(Box::new(f))
+    }
+}
+
 /// A wrapper type that implements `Debug` for any table.
 pub struct DebugPrintTable<'a, 'b>(pub &'b dyn SomeTable<'a>);
 
@@ -218,6 +242,7 @@ impl<'a> Debug for FieldType<'a> {
             Self::Record(arg0) => (arg0 as &(dyn SomeTable<'a> + 'a)).fmt(f),
             Self::ValueRecord(arg0) => (arg0 as &(dyn SomeTable<'a> + 'a)).fmt(f),
             Self::Array(arg0) => arg0.fmt(f),
+            Self::OffsetArray(arg0) => f.debug_list().entries(arg0.iter()).finish(),
             Self::Unimplemented => write!(f, "Unimplemented"),
         }
     }

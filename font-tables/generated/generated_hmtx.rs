@@ -122,7 +122,7 @@ impl<'a> SomeRecord<'a> for LongHorMetric {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "LongHorMetric",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("advance_width", self.advance_width())),
                 1usize => Some(Field::new("lsb", self.lsb())),
                 _ => None,

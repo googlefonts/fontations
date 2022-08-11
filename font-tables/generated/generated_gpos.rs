@@ -599,7 +599,7 @@ impl MarkRecord {
 
     /// Attempt to resolve [`mark_anchor_offset`][Self::mark_anchor_offset].
     pub fn mark_anchor<'a>(&self, data: &FontData<'a>) -> Result<AnchorTable<'a>, ReadError> {
-        self.mark_anchor_offset().resolve(data)
+        self.mark_anchor_offset().resolve(&data)
     }
 }
 
@@ -612,7 +612,7 @@ impl<'a> SomeRecord<'a> for MarkRecord {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "MarkRecord",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("mark_class", self.mark_class())),
                 1usize => Some(Field::new("mark_anchor_offset", self.mark_anchor(&_data))),
                 _ => None,
@@ -1039,12 +1039,12 @@ impl<'a> PairPosFormat1<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    pub fn pair_set(&self) -> impl Iterator<Item = Result<PairSet<'a>, ReadError>> + '_ {
-        let data = &self.data;
+    pub fn pair_set(&self) -> impl Iterator<Item = Result<PairSet<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         let args = (self.value_format1(), self.value_format2());
         self.pair_set_offsets()
             .iter()
-            .map(move |off| off.get().resolve_with_args(data, &args))
+            .map(move |off| off.get().resolve_with_args(&data, &args))
     }
 }
 
@@ -1060,7 +1060,16 @@ impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
             2usize => Some(Field::new("value_format1", self.value_format1())),
             3usize => Some(Field::new("value_format2", self.value_format2())),
             4usize => Some(Field::new("pair_set_count", self.pair_set_count())),
-            5usize => Some(Field::new("pair_set_offsets", ())),
+            5usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "pair_set_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.pair_set().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             _ => None,
         }
     }
@@ -1232,7 +1241,7 @@ impl<'a> SomeRecord<'a> for PairValueRecord {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "PairValueRecord",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("second_glyph", self.second_glyph())),
                 1usize => Some(Field::new("value_record1", self.value_record1().clone())),
                 2usize => Some(Field::new("value_record2", self.value_record2().clone())),
@@ -1482,7 +1491,7 @@ impl<'a> SomeRecord<'a> for Class1Record<'a> {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "Class1Record",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("class2_records", ())),
                 _ => None,
             }),
@@ -1546,7 +1555,7 @@ impl<'a> SomeRecord<'a> for Class2Record {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "Class2Record",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("value_record1", self.value_record1().clone())),
                 1usize => Some(Field::new("value_record2", self.value_record2().clone())),
                 _ => None,
@@ -1690,7 +1699,7 @@ impl EntryExitRecord {
         &self,
         data: &FontData<'a>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
-        self.entry_anchor_offset().resolve(data)
+        self.entry_anchor_offset().resolve(&data)
     }
 
     /// Offset to exitAnchor table, from beginning of CursivePos
@@ -1704,7 +1713,7 @@ impl EntryExitRecord {
         &self,
         data: &FontData<'a>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
-        self.exit_anchor_offset().resolve(data)
+        self.exit_anchor_offset().resolve(&data)
     }
 }
 
@@ -1717,7 +1726,7 @@ impl<'a> SomeRecord<'a> for EntryExitRecord {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "EntryExitRecord",
-            get_field: Box::new(|idx, _data| match idx {
+            get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("entry_anchor_offset", self.entry_anchor(&_data))),
                 1usize => Some(Field::new("exit_anchor_offset", self.exit_anchor(&_data))),
                 _ => None,
@@ -1977,7 +1986,7 @@ impl<'a> BaseRecord<'a> {
     pub fn base_anchor(
         &self,
         data: &FontData<'a>,
-    ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + '_ {
+    ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + 'a {
         let data = data.clone();
         self.base_anchor_offsets()
             .iter()
@@ -2012,8 +2021,17 @@ impl<'a> SomeRecord<'a> for BaseRecord<'a> {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "BaseRecord",
-            get_field: Box::new(|idx, _data| match idx {
-                0usize => Some(Field::new("base_anchor_offsets", ())),
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some({
+                    let this = self;
+                    Field::new(
+                        "base_anchor_offsets",
+                        FieldType::offset_iter(move || {
+                            Box::new(this.base_anchor(&_data).map(|item| item.into()))
+                                as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        }),
+                    )
+                }),
                 _ => None,
             }),
             data,
@@ -2229,12 +2247,12 @@ impl<'a> LigatureArray<'a> {
 
     pub fn ligature_attach(
         &self,
-    ) -> impl Iterator<Item = Result<LigatureAttach<'a>, ReadError>> + '_ {
-        let data = &self.data;
+    ) -> impl Iterator<Item = Result<LigatureAttach<'a>, ReadError>> + 'a {
+        let data = self.data.clone();
         let args = self.mark_class_count();
         self.ligature_attach_offsets()
             .iter()
-            .map(move |off| off.get().resolve_with_args(data, &args))
+            .map(move |off| off.get().resolve_with_args(&data, &args))
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
@@ -2250,7 +2268,16 @@ impl<'a> SomeTable<'a> for LigatureArray<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("ligature_count", self.ligature_count())),
-            1usize => Some(Field::new("ligature_attach_offsets", ())),
+            1usize => Some({
+                let this = self.sneaky_copy();
+                Field::new(
+                    "ligature_attach_offsets",
+                    FieldType::offset_iter(move || {
+                        Box::new(this.ligature_attach().map(|item| item.into()))
+                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    }),
+                )
+            }),
             _ => None,
         }
     }
@@ -2369,7 +2396,7 @@ impl<'a> ComponentRecord<'a> {
     pub fn ligature_anchor(
         &self,
         data: &FontData<'a>,
-    ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + '_ {
+    ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + 'a {
         let data = data.clone();
         self.ligature_anchor_offsets()
             .iter()
@@ -2404,8 +2431,17 @@ impl<'a> SomeRecord<'a> for ComponentRecord<'a> {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "ComponentRecord",
-            get_field: Box::new(|idx, _data| match idx {
-                0usize => Some(Field::new("ligature_anchor_offsets", ())),
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some({
+                    let this = self;
+                    Field::new(
+                        "ligature_anchor_offsets",
+                        FieldType::offset_iter(move || {
+                            Box::new(this.ligature_anchor(&_data).map(|item| item.into()))
+                                as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        }),
+                    )
+                }),
                 _ => None,
             }),
             data,
@@ -2663,7 +2699,7 @@ impl<'a> Mark2Record<'a> {
     pub fn mark2_anchor(
         &self,
         data: &FontData<'a>,
-    ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + '_ {
+    ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + 'a {
         let data = data.clone();
         self.mark2_anchor_offsets()
             .iter()
@@ -2698,8 +2734,17 @@ impl<'a> SomeRecord<'a> for Mark2Record<'a> {
     fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "Mark2Record",
-            get_field: Box::new(|idx, _data| match idx {
-                0usize => Some(Field::new("mark2_anchor_offsets", ())),
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some({
+                    let this = self;
+                    Field::new(
+                        "mark2_anchor_offsets",
+                        FieldType::offset_iter(move || {
+                            Box::new(this.mark2_anchor(&_data).map(|item| item.into()))
+                                as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        }),
+                    )
+                }),
                 _ => None,
             }),
             data,

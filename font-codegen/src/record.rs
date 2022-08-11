@@ -110,7 +110,7 @@ fn generate_traversal(item: &Record) -> syn::Result<TokenStream> {
             fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
                 RecordResolver {
                     name: #name_str,
-                    get_field: Box::new(|idx, _data| match idx {
+                    get_field: Box::new(move |idx, _data| match idx {
                         #( #field_arms, )*
                         _ => None,
                     }),
