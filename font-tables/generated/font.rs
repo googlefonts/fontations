@@ -89,6 +89,31 @@ impl<'a> TableDirectory<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for TableDirectory<'a> {
+    fn type_name(&self) -> &str {
+        "TableDirectory"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("sfnt_version", self.sfnt_version())),
+            1usize => Some(Field::new("num_tables", self.num_tables())),
+            2usize => Some(Field::new("search_range", self.search_range())),
+            3usize => Some(Field::new("entry_selector", self.entry_selector())),
+            4usize => Some(Field::new("range_shift", self.range_shift())),
+            5usize => Some(Field::new("table_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for TableDirectory<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Record for a table in a font.
 #[derive(Clone, Debug)]
 #[repr(C)]

@@ -212,3 +212,37 @@ impl<'a> Post<'a> {
         Some(self.data.read_array(range).unwrap())
     }
 }
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Post<'a> {
+    fn type_name(&self) -> &str {
+        "Post"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new("italic_angle", self.italic_angle())),
+            2usize => Some(Field::new("underline_position", self.underline_position())),
+            3usize => Some(Field::new(
+                "underline_thickness",
+                self.underline_thickness(),
+            )),
+            4usize => Some(Field::new("is_fixed_pitch", self.is_fixed_pitch())),
+            5usize => Some(Field::new("min_mem_type42", self.min_mem_type42())),
+            6usize => Some(Field::new("max_mem_type42", self.max_mem_type42())),
+            7usize => Some(Field::new("min_mem_type1", self.min_mem_type1())),
+            8usize => Some(Field::new("max_mem_type1", self.max_mem_type1())),
+            9usize => Some(Field::new("num_glyphs", self.num_glyphs())),
+            10usize => Some(Field::new("glyph_name_index", ())),
+            11usize => Some(Field::new("string_data", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Post<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}

@@ -115,6 +115,33 @@ impl<'a> Gpos<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Gpos<'a> {
+    fn type_name(&self) -> &str {
+        "Gpos"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new("script_list_offset", self.script_list())),
+            2usize => Some(Field::new("feature_list_offset", self.feature_list())),
+            3usize => Some(Field::new("lookup_list_offset", self.lookup_list())),
+            4usize => Some(Field::new(
+                "feature_variations_offset",
+                self.feature_variations(),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Gpos<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 bitflags::bitflags! { # [doc = " See [ValueRecord]"] pub struct ValueFormat : u16 { # [doc = " Includes horizontal adjustment for placement"] const X_PLACEMENT = 0x0001 ; # [doc = " Includes vertical adjustment for placement"] const Y_PLACEMENT = 0x0002 ; # [doc = " Includes horizontal adjustment for advance"] const X_ADVANCE = 0x0004 ; # [doc = " Includes vertical adjustment for advance"] const Y_ADVANCE = 0x0008 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal placement"] const X_PLACEMENT_DEVICE = 0x0010 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical placement"] const Y_PLACEMENT_DEVICE = 0x0020 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal advance"] const X_ADVANCE_DEVICE = 0x0040 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical advance"] const Y_ADVANCE_DEVICE = 0x0080 ; } }
 
 impl font_types::Scalar for ValueFormat {
@@ -125,6 +152,13 @@ impl font_types::Scalar for ValueFormat {
     fn from_raw(raw: Self::Raw) -> Self {
         let t = <u16>::from_raw(raw);
         Self::from_bits_truncate(t)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> From<ValueFormat> for FieldType<'a> {
+    fn from(src: ValueFormat) -> FieldType<'a> {
+        src.bits().into()
     }
 }
 
@@ -145,6 +179,34 @@ impl<'a> FontRead<'a> for AnchorTable<'a> {
             AnchorFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> AnchorTable<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+            Self::Format3(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for AnchorTable<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self.dyn_inner()).fmt(f)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for AnchorTable<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -202,6 +264,28 @@ impl<'a> AnchorFormat1<'a> {
     pub fn y_coordinate(&self) -> i16 {
         let range = self.shape.y_coordinate_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for AnchorFormat1<'a> {
+    fn type_name(&self) -> &str {
+        "AnchorFormat1"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("anchor_format", self.anchor_format())),
+            1usize => Some(Field::new("x_coordinate", self.x_coordinate())),
+            2usize => Some(Field::new("y_coordinate", self.y_coordinate())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for AnchorFormat1<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -270,6 +354,29 @@ impl<'a> AnchorFormat2<'a> {
     pub fn anchor_point(&self) -> u16 {
         let range = self.shape.anchor_point_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for AnchorFormat2<'a> {
+    fn type_name(&self) -> &str {
+        "AnchorFormat2"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("anchor_format", self.anchor_format())),
+            1usize => Some(Field::new("x_coordinate", self.x_coordinate())),
+            2usize => Some(Field::new("y_coordinate", self.y_coordinate())),
+            3usize => Some(Field::new("anchor_point", self.anchor_point())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for AnchorFormat2<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -368,6 +475,30 @@ impl<'a> AnchorFormat3<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for AnchorFormat3<'a> {
+    fn type_name(&self) -> &str {
+        "AnchorFormat3"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("anchor_format", self.anchor_format())),
+            1usize => Some(Field::new("x_coordinate", self.x_coordinate())),
+            2usize => Some(Field::new("y_coordinate", self.y_coordinate())),
+            3usize => Some(Field::new("x_device_offset", self.x_device())),
+            4usize => Some(Field::new("y_device_offset", self.y_device())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for AnchorFormat3<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -417,6 +548,27 @@ impl<'a> MarkArray<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for MarkArray<'a> {
+    fn type_name(&self) -> &str {
+        "MarkArray"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("mark_count", self.mark_count())),
+            1usize => Some(Field::new("mark_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for MarkArray<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Part of [MarkArray]
 #[derive(Clone, Debug)]
 #[repr(C)]
@@ -463,6 +615,33 @@ impl<'a> FontRead<'a> for SinglePos<'a> {
             SinglePosFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SinglePos<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for SinglePos<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self.dyn_inner()).fmt(f)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for SinglePos<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -546,6 +725,29 @@ impl<'a> SinglePosFormat1<'a> {
         self.data
             .read_with_args(range, &self.value_format())
             .unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for SinglePosFormat1<'a> {
+    fn type_name(&self) -> &str {
+        "SinglePosFormat1"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("pos_format", self.pos_format())),
+            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            2usize => Some(Field::new("value_format", self.value_format())),
+            3usize => Some(Field::new("value_record", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for SinglePosFormat1<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -644,6 +846,30 @@ impl<'a> SinglePosFormat2<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for SinglePosFormat2<'a> {
+    fn type_name(&self) -> &str {
+        "SinglePosFormat2"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("pos_format", self.pos_format())),
+            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            2usize => Some(Field::new("value_format", self.value_format())),
+            3usize => Some(Field::new("value_count", self.value_count())),
+            4usize => Some(Field::new("value_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for SinglePosFormat2<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
 pub enum PairPos<'a> {
     Format1(PairPosFormat1<'a>),
@@ -658,6 +884,33 @@ impl<'a> FontRead<'a> for PairPos<'a> {
             PairPosFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
             other => Err(ReadError::InvalidFormat(other.into())),
         }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> PairPos<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1(table) => table,
+            Self::Format2(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for PairPos<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self.dyn_inner()).fmt(f)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for PairPos<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -774,6 +1027,31 @@ impl<'a> PairPosFormat1<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
+    fn type_name(&self) -> &str {
+        "PairPosFormat1"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("pos_format", self.pos_format())),
+            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            2usize => Some(Field::new("value_format1", self.value_format1())),
+            3usize => Some(Field::new("value_format2", self.value_format2())),
+            4usize => Some(Field::new("pair_set_count", self.pair_set_count())),
+            5usize => Some(Field::new("pair_set_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for PairPosFormat1<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Part of [PairPosFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -843,6 +1121,27 @@ impl<'a> PairSet<'a> {
 
     pub(crate) fn value_format2(&self) -> ValueFormat {
         self.shape.value_format2
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for PairSet<'a> {
+    fn type_name(&self) -> &str {
+        "PairSet"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("pair_value_count", self.pair_value_count())),
+            1usize => Some(Field::new("pair_value_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for PairSet<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1072,6 +1371,34 @@ impl<'a> PairPosFormat2<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for PairPosFormat2<'a> {
+    fn type_name(&self) -> &str {
+        "PairPosFormat2"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("pos_format", self.pos_format())),
+            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            2usize => Some(Field::new("value_format1", self.value_format1())),
+            3usize => Some(Field::new("value_format2", self.value_format2())),
+            4usize => Some(Field::new("class_def1_offset", self.class_def1())),
+            5usize => Some(Field::new("class_def2_offset", self.class_def2())),
+            6usize => Some(Field::new("class1_count", self.class1_count())),
+            7usize => Some(Field::new("class2_count", self.class2_count())),
+            8usize => Some(Field::new("class1_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for PairPosFormat2<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Part of [PairPosFormat2]
 #[derive(Clone, Debug)]
 pub struct Class1Record<'a> {
@@ -1243,6 +1570,29 @@ impl<'a> CursivePosFormat1<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for CursivePosFormat1<'a> {
+    fn type_name(&self) -> &str {
+        "CursivePosFormat1"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("pos_format", self.pos_format())),
+            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            2usize => Some(Field::new("entry_exit_count", self.entry_exit_count())),
+            3usize => Some(Field::new("entry_exit_record", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for CursivePosFormat1<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Part of [CursivePosFormat1]
 #[derive(Clone, Debug)]
 #[repr(C)]
@@ -1409,6 +1759,31 @@ impl<'a> MarkBasePosFormat1<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for MarkBasePosFormat1<'a> {
+    fn type_name(&self) -> &str {
+        "MarkBasePosFormat1"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("pos_format", self.pos_format())),
+            1usize => Some(Field::new("mark_coverage_offset", self.mark_coverage())),
+            2usize => Some(Field::new("base_coverage_offset", self.base_coverage())),
+            3usize => Some(Field::new("mark_class_count", self.mark_class_count())),
+            4usize => Some(Field::new("mark_array_offset", self.mark_array())),
+            5usize => Some(Field::new("base_array_offset", self.base_array())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for MarkBasePosFormat1<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Part of [MarkBasePosFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1471,6 +1846,27 @@ impl<'a> BaseArray<'a> {
 
     pub(crate) fn mark_class_count(&self) -> u16 {
         self.shape.mark_class_count
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for BaseArray<'a> {
+    fn type_name(&self) -> &str {
+        "BaseArray"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("base_count", self.base_count())),
+            1usize => Some(Field::new("base_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for BaseArray<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1642,6 +2038,34 @@ impl<'a> MarkLigPosFormat1<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for MarkLigPosFormat1<'a> {
+    fn type_name(&self) -> &str {
+        "MarkLigPosFormat1"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("pos_format", self.pos_format())),
+            1usize => Some(Field::new("mark_coverage_offset", self.mark_coverage())),
+            2usize => Some(Field::new(
+                "ligature_coverage_offset",
+                self.ligature_coverage(),
+            )),
+            3usize => Some(Field::new("mark_class_count", self.mark_class_count())),
+            4usize => Some(Field::new("mark_array_offset", self.mark_array())),
+            5usize => Some(Field::new("ligature_array_offset", self.ligature_array())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for MarkLigPosFormat1<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Part of [MarkLigPosFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1716,6 +2140,27 @@ impl<'a> LigatureArray<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for LigatureArray<'a> {
+    fn type_name(&self) -> &str {
+        "LigatureArray"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("ligature_count", self.ligature_count())),
+            1usize => Some(Field::new("ligature_attach_offsets", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for LigatureArray<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Part of [MarkLigPosFormat1]
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1778,6 +2223,27 @@ impl<'a> LigatureAttach<'a> {
 
     pub(crate) fn mark_class_count(&self) -> u16 {
         self.shape.mark_class_count
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for LigatureAttach<'a> {
+    fn type_name(&self) -> &str {
+        "LigatureAttach"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("component_count", self.component_count())),
+            1usize => Some(Field::new("component_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for LigatureAttach<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1949,6 +2415,31 @@ impl<'a> MarkMarkPosFormat1<'a> {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for MarkMarkPosFormat1<'a> {
+    fn type_name(&self) -> &str {
+        "MarkMarkPosFormat1"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("pos_format", self.pos_format())),
+            1usize => Some(Field::new("mark1_coverage_offset", self.mark1_coverage())),
+            2usize => Some(Field::new("mark2_coverage_offset", self.mark2_coverage())),
+            3usize => Some(Field::new("mark_class_count", self.mark_class_count())),
+            4usize => Some(Field::new("mark1_array_offset", self.mark1_array())),
+            5usize => Some(Field::new("mark2_array_offset", self.mark2_array())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for MarkMarkPosFormat1<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
+    }
+}
+
 /// Part of [MarkMarkPosFormat1]Class2Record
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -2011,6 +2502,27 @@ impl<'a> Mark2Array<'a> {
 
     pub(crate) fn mark_class_count(&self) -> u16 {
         self.shape.mark_class_count
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Mark2Array<'a> {
+    fn type_name(&self) -> &str {
+        "Mark2Array"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("mark2_count", self.mark2_count())),
+            1usize => Some(Field::new("mark2_records", ())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Mark2Array<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -2120,5 +2632,33 @@ impl<'a> ExtensionPosFormat1<'a> {
     pub fn extension_offset(&self) -> Offset32 {
         let range = self.shape.extension_offset_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ExtensionPosFormat1<'a> {
+    fn type_name(&self) -> &str {
+        "ExtensionPosFormat1"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("pos_format", self.pos_format())),
+            1usize => Some(Field::new(
+                "extension_lookup_type",
+                self.extension_lookup_type(),
+            )),
+            2usize => Some(Field::new(
+                "extension_offset",
+                self.extension_offset().to_usize() as u32,
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ExtensionPosFormat1<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        DebugPrintTable(self).fmt(f)
     }
 }

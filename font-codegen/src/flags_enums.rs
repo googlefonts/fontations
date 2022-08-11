@@ -39,6 +39,13 @@ pub(crate) fn generate_flags(raw: &BitFlags) -> proc_macro2::TokenStream {
                 Self::from_bits_truncate(t)
             }
         }
+
+        #[cfg(feature = "traversal")]
+        impl<'a> From<#name> for FieldType<'a> {
+            fn from(src: #name) -> FieldType<'a> {
+                src.bits().into()
+            }
+        }
     }
 }
 
@@ -126,6 +133,13 @@ pub(crate) fn generate_raw_enum(raw: &RawEnum) -> TokenStream {
             fn from_raw(raw: Self::Raw) -> Self {
                 let t = <#typ>::from_raw(raw);
                 Self::new(t)
+            }
+        }
+
+        #[cfg(feature = "traversal")]
+        impl<'a> From<#name> for FieldType<'a> {
+            fn from(src: #name) -> FieldType<'a> {
+                (src as #typ).into()
             }
         }
     }

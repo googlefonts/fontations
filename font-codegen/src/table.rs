@@ -3,9 +3,9 @@
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
-use crate::parsing::ReferencedFields;
-
-use super::parsing::{Field, Table, TableFormat, TableReadArg, TableReadArgs};
+use super::parsing::{
+    Field, FieldType, ReferencedFields, Table, TableFormat, TableReadArg, TableReadArgs,
+};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     if item.attrs.skip_parse.is_some() {
@@ -21,6 +21,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 
     let optional_format_trait_impl = item.impl_format_trait();
     let font_read = generate_font_read(item)?;
+    let debug = generate_debug(item)?;
 
     Ok(quote! {
         #optional_format_trait_impl
@@ -46,6 +47,8 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
             #( #table_ref_getters )*
 
         }
+
+        #debug
     })
 }
 
@@ -100,6 +103,35 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
         }
         })
     }
+}
+
+fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
+    let name = item.raw_name();
+    let name_str = name.to_string();
+    let field_arms = item.iter_field_traversal_match_arms();
+
+    Ok(quote! {
+        #[cfg(feature = "traversal")]
+        impl<'a> SomeTable<'a> for #name <'a> {
+            fn type_name(&self) -> &str {
+                #name_str
+            }
+
+            fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+                match idx {
+                    #( #field_arms, )*
+                    _ => None,
+                }
+            }
+        }
+
+        #[cfg(feature = "traversal")]
+        impl<'a> std::fmt::Debug for #name<'a> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                DebugPrintTable(self).fmt(f)
+            }
+        }
+    })
 }
 
 pub(crate) fn generate_compile(item: &Table, parse_module: &syn::Path) -> syn::Result<TokenStream> {
@@ -253,6 +285,11 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
         }
     });
 
+    let traversal_arms = item.variants.iter().map(|variant| {
+        let name = &variant.name;
+        quote!(Self::#name(table) => table)
+    });
+
     Ok(quote! {
         #( #docs )*
         pub enum #name<'a> {
@@ -266,6 +303,33 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
                     #( #match_arms ),*
                     other => Err(ReadError::InvalidFormat(other.into())),
                 }
+            }
+        }
+
+        #[cfg(feature = "traversal")]
+        impl<'a> #name<'a> {
+            fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+                match self {
+                    #( #traversal_arms, )*
+                }
+            }
+        }
+
+        #[cfg(feature = "traversal")]
+        impl<'a> std::fmt::Debug for #name<'a> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                DebugPrintTable(self.dyn_inner()).fmt(f)
+            }
+        }
+
+        #[cfg(feature = "traversal")]
+        impl<'a> SomeTable<'a> for #name<'a> {
+            fn type_name(&self) -> &str {
+                self.dyn_inner().type_name()
+            }
+
+            fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+                self.dyn_inner().get_field(idx)
             }
         }
     })
@@ -374,6 +438,37 @@ impl Table {
                 .into_iter()
                 .flat_map(|args| args.iter_table_ref_getters(&self.fields.referenced_fields)),
         )
+    }
+
+    fn iter_field_traversal_match_arms(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        self.fields
+            .iter()
+            .filter(|fld| fld.has_getter())
+            .enumerate()
+            .map(|(i, fld)| {
+                let name_str = &fld.name.to_string();
+                let rhs = match &fld.typ {
+                    FieldType::Offset {
+                        target: Some(_), ..
+                    } => {
+                        let getter = fld.offset_getter_name();
+                        quote!(Field::new(#name_str, self.#getter()))
+                    }
+                    FieldType::Offset { .. } => {
+                        let getter = &fld.name;
+                        quote!(Field::new(#name_str, self.#getter().to_usize() as u32))
+                    }
+                    FieldType::Scalar { .. } => {
+                        let getter = &fld.name;
+                        quote!(Field::new(#name_str, self.#getter()))
+                    }
+                    _ => quote!(Field::new(#name_str, ())),
+                    //FieldType::Other { typ } => todo!(),
+                    //FieldType::Array { inner_typ } => todo!(),
+                    //FieldType::ComputedArray(_) => todo!(),
+                };
+                quote!( #i => Some(#rhs) )
+            })
     }
 
     pub(crate) fn impl_format_trait(&self) -> Option<TokenStream> {

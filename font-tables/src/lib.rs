@@ -10,6 +10,8 @@ mod read;
 mod table_provider;
 mod table_ref;
 pub mod tables;
+#[cfg(feature = "traversal")]
+mod traversal;
 
 #[cfg(any(test, feature = "test_data"))]
 #[path = "tests/test_data.rs"]
@@ -32,6 +34,9 @@ pub mod parse_prelude {
     pub use crate::table_ref::{TableInfo, TableInfoWithArgs, TableRef};
     pub use font_types::*;
     pub use std::ops::Range;
+
+    #[cfg(feature = "traversal")]
+    pub use crate::traversal::{DebugPrintArray, DebugPrintTable, Field, FieldType, SomeTable};
 }
 
 include!("../generated/font.rs");
