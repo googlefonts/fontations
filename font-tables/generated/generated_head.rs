@@ -262,6 +262,6 @@ impl<'a> SomeTable<'a> for Head<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Head<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }

@@ -83,7 +83,7 @@ impl<'a> TableDirectory<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    pub fn table_records(&self) -> &[TableRecord] {
+    pub fn table_records(&self) -> &'a [TableRecord] {
         let range = self.shape.table_records_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -101,7 +101,13 @@ impl<'a> SomeTable<'a> for TableDirectory<'a> {
             2usize => Some(Field::new("search_range", self.search_range())),
             3usize => Some(Field::new("entry_selector", self.entry_selector())),
             4usize => Some(Field::new("range_shift", self.range_shift())),
-            5usize => Some(Field::new("table_records", ())),
+            5usize => Some(Field::new(
+                "table_records",
+                traversal::ArrayOfRecords::make_field(
+                    self.table_records(),
+                    self.offset_data().clone(),
+                ),
+            )),
             _ => None,
         }
     }
@@ -110,7 +116,7 @@ impl<'a> SomeTable<'a> for TableDirectory<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for TableDirectory<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -154,4 +160,21 @@ impl TableRecord {
 impl FixedSized for TableRecord {
     const RAW_BYTE_LEN: usize =
         Tag::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for TableRecord {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "TableRecord",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("tag", self.tag())),
+                1usize => Some(Field::new("checksum", self.checksum())),
+                2usize => Some(Field::new("offset", self.offset().to_usize() as u32)),
+                3usize => Some(Field::new("length", self.length())),
+                _ => None,
+            }),
+            data,
+        }
+    }
 }

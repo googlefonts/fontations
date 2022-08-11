@@ -201,13 +201,13 @@ impl<'a> Post<'a> {
     }
 
     /// Array of indices into the string data. See below for details.
-    pub fn glyph_name_index(&self) -> Option<&[BigEndian<u16>]> {
+    pub fn glyph_name_index(&self) -> Option<&'a [BigEndian<u16>]> {
         let range = self.shape.glyph_name_index_byte_range()?;
         Some(self.data.read_array(range).unwrap())
     }
 
     /// Storage for the string data.
-    pub fn string_data(&self) -> Option<&[u8]> {
+    pub fn string_data(&self) -> Option<&'a [u8]> {
         let range = self.shape.string_data_byte_range()?;
         Some(self.data.read_array(range).unwrap())
     }
@@ -233,8 +233,8 @@ impl<'a> SomeTable<'a> for Post<'a> {
             7usize => Some(Field::new("min_mem_type1", self.min_mem_type1())),
             8usize => Some(Field::new("max_mem_type1", self.max_mem_type1())),
             9usize => Some(Field::new("num_glyphs", self.num_glyphs())),
-            10usize => Some(Field::new("glyph_name_index", ())),
-            11usize => Some(Field::new("string_data", ())),
+            10usize => Some(Field::new("glyph_name_index", self.glyph_name_index())),
+            11usize => Some(Field::new("string_data", self.string_data())),
             _ => None,
         }
     }
@@ -243,6 +243,6 @@ impl<'a> SomeTable<'a> for Post<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Post<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }

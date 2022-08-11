@@ -57,7 +57,7 @@ impl<'a> Cmap<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    pub fn encoding_records(&self) -> &[EncodingRecord] {
+    pub fn encoding_records(&self) -> &'a [EncodingRecord] {
         let range = self.shape.encoding_records_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -72,7 +72,13 @@ impl<'a> SomeTable<'a> for Cmap<'a> {
         match idx {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new("num_tables", self.num_tables())),
-            2usize => Some(Field::new("encoding_records", ())),
+            2usize => Some(Field::new(
+                "encoding_records",
+                traversal::ArrayOfRecords::make_field(
+                    self.encoding_records(),
+                    self.offset_data().clone(),
+                ),
+            )),
             _ => None,
         }
     }
@@ -81,7 +87,7 @@ impl<'a> SomeTable<'a> for Cmap<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -117,13 +123,29 @@ impl EncodingRecord {
     }
 
     /// Attempt to resolve [`subtable_offset`][Self::subtable_offset].
-    pub fn subtable<'a>(&self, data: &'a FontData<'a>) -> Result<CmapSubtable<'a>, ReadError> {
+    pub fn subtable<'a>(&self, data: &FontData<'a>) -> Result<CmapSubtable<'a>, ReadError> {
         self.subtable_offset().resolve(data)
     }
 }
 
 impl FixedSized for EncodingRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for EncodingRecord {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "EncodingRecord",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("platform_id", self.platform_id())),
+                1usize => Some(Field::new("encoding_id", self.encoding_id())),
+                2usize => Some(Field::new("subtable_offset", self.subtable(&_data))),
+                _ => None,
+            }),
+            data,
+        }
+    }
 }
 
 /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#platform-ids>
@@ -223,7 +245,7 @@ impl<'a> CmapSubtable<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for CmapSubtable<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self.dyn_inner()).fmt(f)
+        traversal::DebugPrintTable(self.dyn_inner()).fmt(f)
     }
 }
 
@@ -306,7 +328,7 @@ impl<'a> Cmap0<'a> {
     }
 
     /// An array that maps character codes to glyph index values.
-    pub fn glyph_id_array(&self) -> &[BigEndian<u8>] {
+    pub fn glyph_id_array(&self) -> &'a [BigEndian<u8>] {
         let range = self.shape.glyph_id_array_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -322,7 +344,7 @@ impl<'a> SomeTable<'a> for Cmap0<'a> {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("length", self.length())),
             2usize => Some(Field::new("language", self.language())),
-            3usize => Some(Field::new("glyph_id_array", ())),
+            3usize => Some(Field::new("glyph_id_array", self.glyph_id_array())),
             _ => None,
         }
     }
@@ -331,7 +353,7 @@ impl<'a> SomeTable<'a> for Cmap0<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap0<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -405,7 +427,7 @@ impl<'a> Cmap2<'a> {
 
     /// Array that maps high bytes to subHeaders: value is subHeader
     /// index × 8.
-    pub fn sub_header_keys(&self) -> &[BigEndian<u16>] {
+    pub fn sub_header_keys(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.sub_header_keys_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -421,7 +443,7 @@ impl<'a> SomeTable<'a> for Cmap2<'a> {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("length", self.length())),
             2usize => Some(Field::new("language", self.language())),
-            3usize => Some(Field::new("sub_header_keys", ())),
+            3usize => Some(Field::new("sub_header_keys", self.sub_header_keys())),
             _ => None,
         }
     }
@@ -430,7 +452,7 @@ impl<'a> SomeTable<'a> for Cmap2<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -474,6 +496,23 @@ impl SubHeader {
 impl FixedSized for SubHeader {
     const RAW_BYTE_LEN: usize =
         u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for SubHeader {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "SubHeader",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("first_code", self.first_code())),
+                1usize => Some(Field::new("entry_count", self.entry_count())),
+                2usize => Some(Field::new("id_delta", self.id_delta())),
+                3usize => Some(Field::new("id_range_offset", self.id_range_offset())),
+                _ => None,
+            }),
+            data,
+        }
+    }
 }
 
 impl Format<u16> for Cmap4Marker {
@@ -630,31 +669,31 @@ impl<'a> Cmap4<'a> {
     }
 
     /// End characterCode for each segment, last=0xFFFF.
-    pub fn end_code(&self) -> &[BigEndian<u16>] {
+    pub fn end_code(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.end_code_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Start character code for each segment.
-    pub fn start_code(&self) -> &[BigEndian<u16>] {
+    pub fn start_code(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.start_code_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Delta for all character codes in segment.
-    pub fn id_delta(&self) -> &[BigEndian<i16>] {
+    pub fn id_delta(&self) -> &'a [BigEndian<i16>] {
         let range = self.shape.id_delta_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Offsets into glyphIdArray or 0
-    pub fn id_range_offsets(&self) -> &[BigEndian<u16>] {
+    pub fn id_range_offsets(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.id_range_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Glyph index array (arbitrary length)
-    pub fn glyph_id_array(&self) -> &[BigEndian<u16>] {
+    pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.glyph_id_array_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -674,11 +713,11 @@ impl<'a> SomeTable<'a> for Cmap4<'a> {
             4usize => Some(Field::new("search_range", self.search_range())),
             5usize => Some(Field::new("entry_selector", self.entry_selector())),
             6usize => Some(Field::new("range_shift", self.range_shift())),
-            7usize => Some(Field::new("end_code", ())),
-            8usize => Some(Field::new("start_code", ())),
-            9usize => Some(Field::new("id_delta", ())),
-            10usize => Some(Field::new("id_range_offsets", ())),
-            11usize => Some(Field::new("glyph_id_array", ())),
+            7usize => Some(Field::new("end_code", self.end_code())),
+            8usize => Some(Field::new("start_code", self.start_code())),
+            9usize => Some(Field::new("id_delta", self.id_delta())),
+            10usize => Some(Field::new("id_range_offsets", self.id_range_offsets())),
+            11usize => Some(Field::new("glyph_id_array", self.glyph_id_array())),
             _ => None,
         }
     }
@@ -687,7 +726,7 @@ impl<'a> SomeTable<'a> for Cmap4<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap4<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -782,7 +821,7 @@ impl<'a> Cmap6<'a> {
     }
 
     /// Array of glyph index values for character codes in the range.
-    pub fn glyph_id_array(&self) -> &[BigEndian<u16>] {
+    pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.glyph_id_array_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -800,7 +839,7 @@ impl<'a> SomeTable<'a> for Cmap6<'a> {
             2usize => Some(Field::new("language", self.language())),
             3usize => Some(Field::new("first_code", self.first_code())),
             4usize => Some(Field::new("entry_count", self.entry_count())),
-            5usize => Some(Field::new("glyph_id_array", ())),
+            5usize => Some(Field::new("glyph_id_array", self.glyph_id_array())),
             _ => None,
         }
     }
@@ -809,7 +848,7 @@ impl<'a> SomeTable<'a> for Cmap6<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap6<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -902,7 +941,7 @@ impl<'a> Cmap8<'a> {
     /// Tightly packed array of bits (8K bytes total) indicating
     /// whether the particular 16-bit (index) value is the start of a
     /// 32-bit character code
-    pub fn is32(&self) -> &[BigEndian<u8>] {
+    pub fn is32(&self) -> &'a [BigEndian<u8>] {
         let range = self.shape.is32_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -914,7 +953,7 @@ impl<'a> Cmap8<'a> {
     }
 
     /// Array of SequentialMapGroup records.
-    pub fn groups(&self) -> &[SequentialMapGroup] {
+    pub fn groups(&self) -> &'a [SequentialMapGroup] {
         let range = self.shape.groups_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -930,9 +969,12 @@ impl<'a> SomeTable<'a> for Cmap8<'a> {
             0usize => Some(Field::new("format", self.format())),
             1usize => Some(Field::new("length", self.length())),
             2usize => Some(Field::new("language", self.language())),
-            3usize => Some(Field::new("is32", ())),
+            3usize => Some(Field::new("is32", self.is32())),
             4usize => Some(Field::new("num_groups", self.num_groups())),
-            5usize => Some(Field::new("groups", ())),
+            5usize => Some(Field::new(
+                "groups",
+                traversal::ArrayOfRecords::make_field(self.groups(), self.offset_data().clone()),
+            )),
             _ => None,
         }
     }
@@ -941,7 +983,7 @@ impl<'a> SomeTable<'a> for Cmap8<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap8<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -985,6 +1027,22 @@ impl SequentialMapGroup {
 
 impl FixedSized for SequentialMapGroup {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for SequentialMapGroup {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "SequentialMapGroup",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("start_char_code", self.start_char_code())),
+                1usize => Some(Field::new("end_char_code", self.end_char_code())),
+                2usize => Some(Field::new("start_glyph_id", self.start_glyph_id())),
+                _ => None,
+            }),
+            data,
+        }
+    }
 }
 
 impl Format<u16> for Cmap10Marker {
@@ -1083,7 +1141,7 @@ impl<'a> Cmap10<'a> {
     }
 
     /// Array of glyph indices for the character codes covered
-    pub fn glyph_id_array(&self) -> &[BigEndian<u16>] {
+    pub fn glyph_id_array(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.glyph_id_array_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1101,7 +1159,7 @@ impl<'a> SomeTable<'a> for Cmap10<'a> {
             2usize => Some(Field::new("language", self.language())),
             3usize => Some(Field::new("start_char_code", self.start_char_code())),
             4usize => Some(Field::new("num_chars", self.num_chars())),
-            5usize => Some(Field::new("glyph_id_array", ())),
+            5usize => Some(Field::new("glyph_id_array", self.glyph_id_array())),
             _ => None,
         }
     }
@@ -1110,7 +1168,7 @@ impl<'a> SomeTable<'a> for Cmap10<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap10<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1197,7 +1255,7 @@ impl<'a> Cmap12<'a> {
     }
 
     /// Array of SequentialMapGroup records.
-    pub fn groups(&self) -> &[SequentialMapGroup] {
+    pub fn groups(&self) -> &'a [SequentialMapGroup] {
         let range = self.shape.groups_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1214,7 +1272,10 @@ impl<'a> SomeTable<'a> for Cmap12<'a> {
             1usize => Some(Field::new("length", self.length())),
             2usize => Some(Field::new("language", self.language())),
             3usize => Some(Field::new("num_groups", self.num_groups())),
-            4usize => Some(Field::new("groups", ())),
+            4usize => Some(Field::new(
+                "groups",
+                traversal::ArrayOfRecords::make_field(self.groups(), self.offset_data().clone()),
+            )),
             _ => None,
         }
     }
@@ -1223,7 +1284,7 @@ impl<'a> SomeTable<'a> for Cmap12<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap12<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1310,7 +1371,7 @@ impl<'a> Cmap13<'a> {
     }
 
     /// Array of ConstantMapGroup records.
-    pub fn groups(&self) -> &[ConstantMapGroup] {
+    pub fn groups(&self) -> &'a [ConstantMapGroup] {
         let range = self.shape.groups_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1327,7 +1388,10 @@ impl<'a> SomeTable<'a> for Cmap13<'a> {
             1usize => Some(Field::new("length", self.length())),
             2usize => Some(Field::new("language", self.language())),
             3usize => Some(Field::new("num_groups", self.num_groups())),
-            4usize => Some(Field::new("groups", ())),
+            4usize => Some(Field::new(
+                "groups",
+                traversal::ArrayOfRecords::make_field(self.groups(), self.offset_data().clone()),
+            )),
             _ => None,
         }
     }
@@ -1336,7 +1400,7 @@ impl<'a> SomeTable<'a> for Cmap13<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap13<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1374,6 +1438,22 @@ impl ConstantMapGroup {
 
 impl FixedSized for ConstantMapGroup {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for ConstantMapGroup {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "ConstantMapGroup",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("start_char_code", self.start_char_code())),
+                1usize => Some(Field::new("end_char_code", self.end_char_code())),
+                2usize => Some(Field::new("glyph_id", self.glyph_id())),
+                _ => None,
+            }),
+            data,
+        }
+    }
 }
 
 impl Format<u16> for Cmap14Marker {
@@ -1445,7 +1525,7 @@ impl<'a> Cmap14<'a> {
     }
 
     /// Array of VariationSelector records.
-    pub fn var_selector(&self) -> &[VariationSelector] {
+    pub fn var_selector(&self) -> &'a [VariationSelector] {
         let range = self.shape.var_selector_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1464,7 +1544,13 @@ impl<'a> SomeTable<'a> for Cmap14<'a> {
                 "num_var_selector_records",
                 self.num_var_selector_records(),
             )),
-            3usize => Some(Field::new("var_selector", ())),
+            3usize => Some(Field::new(
+                "var_selector",
+                traversal::ArrayOfRecords::make_field(
+                    self.var_selector(),
+                    self.offset_data().clone(),
+                ),
+            )),
             _ => None,
         }
     }
@@ -1473,7 +1559,7 @@ impl<'a> SomeTable<'a> for Cmap14<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap14<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1516,6 +1602,28 @@ impl FixedSized for VariationSelector {
         Uint24::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for VariationSelector {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "VariationSelector",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("var_selector", self.var_selector())),
+                1usize => Some(Field::new(
+                    "default_uvs_offset",
+                    self.default_uvs_offset().to_usize() as u32,
+                )),
+                2usize => Some(Field::new(
+                    "non_default_uvs_offset",
+                    self.non_default_uvs_offset().to_usize() as u32,
+                )),
+                _ => None,
+            }),
+            data,
+        }
+    }
+}
+
 /// [Default UVS table](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -1556,7 +1664,7 @@ impl<'a> DefaultUvs<'a> {
     }
 
     /// Array of UnicodeRange records.
-    pub fn ranges(&self) -> &[UnicodeRange] {
+    pub fn ranges(&self) -> &'a [UnicodeRange] {
         let range = self.shape.ranges_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1573,7 +1681,10 @@ impl<'a> SomeTable<'a> for DefaultUvs<'a> {
                 "num_unicode_value_ranges",
                 self.num_unicode_value_ranges(),
             )),
-            1usize => Some(Field::new("ranges", ())),
+            1usize => Some(Field::new(
+                "ranges",
+                traversal::ArrayOfRecords::make_field(self.ranges(), self.offset_data().clone()),
+            )),
             _ => None,
         }
     }
@@ -1582,7 +1693,7 @@ impl<'a> SomeTable<'a> for DefaultUvs<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for DefaultUvs<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1613,6 +1724,21 @@ impl FixedSized for UVSMapping {
     const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for UVSMapping {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "UVSMapping",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("unicode_value", self.unicode_value())),
+                1usize => Some(Field::new("glyph_id", self.glyph_id())),
+                _ => None,
+            }),
+            data,
+        }
+    }
+}
+
 /// Part of [Cmap14]
 #[derive(Clone, Debug)]
 #[repr(C)]
@@ -1638,4 +1764,22 @@ impl UnicodeRange {
 
 impl FixedSized for UnicodeRange {
     const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for UnicodeRange {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "UnicodeRange",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new(
+                    "start_unicode_value",
+                    self.start_unicode_value(),
+                )),
+                1usize => Some(Field::new("additional_count", self.additional_count())),
+                _ => None,
+            }),
+            data,
+        }
+    }
 }

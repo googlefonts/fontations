@@ -11,7 +11,7 @@ mod table_provider;
 mod table_ref;
 pub mod tables;
 #[cfg(feature = "traversal")]
-mod traversal;
+pub mod traversal;
 
 #[cfg(any(test, feature = "test_data"))]
 #[path = "tests/test_data.rs"]
@@ -36,7 +36,7 @@ pub mod parse_prelude {
     pub use std::ops::Range;
 
     #[cfg(feature = "traversal")]
-    pub use crate::traversal::{DebugPrintArray, DebugPrintTable, Field, FieldType, SomeTable};
+    pub use crate::traversal::{self, Field, FieldType, RecordResolver, SomeRecord, SomeTable};
 }
 
 include!("../generated/font.rs");

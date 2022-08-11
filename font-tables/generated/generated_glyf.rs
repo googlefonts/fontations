@@ -39,7 +39,7 @@ impl<'a> SomeTable<'a> for Glyf<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Glyf<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -153,7 +153,7 @@ impl<'a> SimpleGlyph<'a> {
 
     /// Array of point indices for the last point of each contour,
     /// in increasing numeric order
-    pub fn end_pts_of_contours(&self) -> &[BigEndian<u16>] {
+    pub fn end_pts_of_contours(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.end_pts_of_contours_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -167,13 +167,13 @@ impl<'a> SimpleGlyph<'a> {
     }
 
     /// Array of instruction byte code for the glyph.
-    pub fn instructions(&self) -> &[BigEndian<u8>] {
+    pub fn instructions(&self) -> &'a [BigEndian<u8>] {
         let range = self.shape.instructions_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// the raw data for flags & x/y coordinates
-    pub fn glyph_data(&self) -> &[u8] {
+    pub fn glyph_data(&self) -> &'a [u8] {
         let range = self.shape.glyph_data_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -191,10 +191,13 @@ impl<'a> SomeTable<'a> for SimpleGlyph<'a> {
             2usize => Some(Field::new("y_min", self.y_min())),
             3usize => Some(Field::new("x_max", self.x_max())),
             4usize => Some(Field::new("y_max", self.y_max())),
-            5usize => Some(Field::new("end_pts_of_contours", ())),
+            5usize => Some(Field::new(
+                "end_pts_of_contours",
+                self.end_pts_of_contours(),
+            )),
             6usize => Some(Field::new("instruction_length", self.instruction_length())),
-            7usize => Some(Field::new("instructions", ())),
-            8usize => Some(Field::new("glyph_data", ())),
+            7usize => Some(Field::new("instructions", self.instructions())),
+            8usize => Some(Field::new("glyph_data", self.glyph_data())),
             _ => None,
         }
     }
@@ -203,7 +206,7 @@ impl<'a> SomeTable<'a> for SimpleGlyph<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for SimpleGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -336,7 +339,7 @@ impl<'a> CompositeGlyph<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    pub fn component_data(&self) -> &[u8] {
+    pub fn component_data(&self) -> &'a [u8] {
         let range = self.shape.component_data_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -356,7 +359,7 @@ impl<'a> SomeTable<'a> for CompositeGlyph<'a> {
             4usize => Some(Field::new("y_max", self.y_max())),
             5usize => Some(Field::new("flags", self.flags())),
             6usize => Some(Field::new("glyph_index", self.glyph_index())),
-            7usize => Some(Field::new("component_data", ())),
+            7usize => Some(Field::new("component_data", self.component_data())),
             _ => None,
         }
     }
@@ -365,7 +368,7 @@ impl<'a> SomeTable<'a> for CompositeGlyph<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for CompositeGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -418,7 +421,7 @@ impl<'a> Glyph<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Glyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self.dyn_inner()).fmt(f)
+        traversal::DebugPrintTable(self.dyn_inner()).fmt(f)
     }
 }
 

@@ -190,7 +190,7 @@ impl<'a> SomeTable<'a> for Gdef<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Gdef<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -298,7 +298,7 @@ impl<'a> AttachList<'a> {
 
     /// Array of offsets to AttachPoint tables-from beginning of
     /// AttachList table-in Coverage Index order
-    pub fn attach_point_offsets(&self) -> &[BigEndian<Offset16>] {
+    pub fn attach_point_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.attach_point_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -329,7 +329,7 @@ impl<'a> SomeTable<'a> for AttachList<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for AttachList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -375,7 +375,7 @@ impl<'a> AttachPoint<'a> {
     }
 
     /// Array of contour point indices -in increasing numerical order
-    pub fn point_indices(&self) -> &[BigEndian<u16>] {
+    pub fn point_indices(&self) -> &'a [BigEndian<u16>] {
         let range = self.shape.point_indices_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -389,7 +389,7 @@ impl<'a> SomeTable<'a> for AttachPoint<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("point_count", self.point_count())),
-            1usize => Some(Field::new("point_indices", ())),
+            1usize => Some(Field::new("point_indices", self.point_indices())),
             _ => None,
         }
     }
@@ -398,7 +398,7 @@ impl<'a> SomeTable<'a> for AttachPoint<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for AttachPoint<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -462,7 +462,7 @@ impl<'a> LigCaretList<'a> {
 
     /// Array of offsets to LigGlyph tables, from beginning of
     /// LigCaretList table —in Coverage Index order
-    pub fn lig_glyph_offsets(&self) -> &[BigEndian<Offset16>] {
+    pub fn lig_glyph_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lig_glyph_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -493,7 +493,7 @@ impl<'a> SomeTable<'a> for LigCaretList<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for LigCaretList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -540,7 +540,7 @@ impl<'a> LigGlyph<'a> {
 
     /// Array of offsets to CaretValue tables, from beginning of
     /// LigGlyph table — in increasing coordinate order
-    pub fn caret_value_offsets(&self) -> &[BigEndian<Offset16>] {
+    pub fn caret_value_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.caret_value_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -570,7 +570,7 @@ impl<'a> SomeTable<'a> for LigGlyph<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for LigGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -607,7 +607,7 @@ impl<'a> CaretValue<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for CaretValue<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self.dyn_inner()).fmt(f)
+        traversal::DebugPrintTable(self.dyn_inner()).fmt(f)
     }
 }
 
@@ -684,7 +684,7 @@ impl<'a> SomeTable<'a> for CaretValueFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for CaretValueFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -754,7 +754,7 @@ impl<'a> SomeTable<'a> for CaretValueFormat2<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for CaretValueFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -841,7 +841,7 @@ impl<'a> SomeTable<'a> for CaretValueFormat3<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for CaretValueFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -903,7 +903,7 @@ impl<'a> MarkGlyphSets<'a> {
 
     /// Array of offsets to mark glyph set coverage tables, from the
     /// start of the MarkGlyphSets table.
-    pub fn coverage_offsets(&self) -> &[BigEndian<Offset32>] {
+    pub fn coverage_offsets(&self) -> &'a [BigEndian<Offset32>] {
         let range = self.shape.coverage_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -937,6 +937,6 @@ impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for MarkGlyphSets<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }

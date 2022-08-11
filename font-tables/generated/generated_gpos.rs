@@ -138,7 +138,7 @@ impl<'a> SomeTable<'a> for Gpos<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Gpos<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -196,7 +196,7 @@ impl<'a> AnchorTable<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for AnchorTable<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self.dyn_inner()).fmt(f)
+        traversal::DebugPrintTable(self.dyn_inner()).fmt(f)
     }
 }
 
@@ -285,7 +285,7 @@ impl<'a> SomeTable<'a> for AnchorFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for AnchorFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -376,7 +376,7 @@ impl<'a> SomeTable<'a> for AnchorFormat2<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for AnchorFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -495,7 +495,7 @@ impl<'a> SomeTable<'a> for AnchorFormat3<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for AnchorFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -542,7 +542,7 @@ impl<'a> MarkArray<'a> {
 
     /// Array of MarkRecords, ordered by corresponding glyphs in the
     /// associated mark Coverage table.
-    pub fn mark_records(&self) -> &[MarkRecord] {
+    pub fn mark_records(&self) -> &'a [MarkRecord] {
         let range = self.shape.mark_records_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -556,7 +556,13 @@ impl<'a> SomeTable<'a> for MarkArray<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("mark_count", self.mark_count())),
-            1usize => Some(Field::new("mark_records", ())),
+            1usize => Some(Field::new(
+                "mark_records",
+                traversal::ArrayOfRecords::make_field(
+                    self.mark_records(),
+                    self.offset_data().clone(),
+                ),
+            )),
             _ => None,
         }
     }
@@ -565,7 +571,7 @@ impl<'a> SomeTable<'a> for MarkArray<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for MarkArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -592,13 +598,28 @@ impl MarkRecord {
     }
 
     /// Attempt to resolve [`mark_anchor_offset`][Self::mark_anchor_offset].
-    pub fn mark_anchor<'a>(&self, data: &'a FontData<'a>) -> Result<AnchorTable<'a>, ReadError> {
+    pub fn mark_anchor<'a>(&self, data: &FontData<'a>) -> Result<AnchorTable<'a>, ReadError> {
         self.mark_anchor_offset().resolve(data)
     }
 }
 
 impl FixedSized for MarkRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for MarkRecord {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "MarkRecord",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("mark_class", self.mark_class())),
+                1usize => Some(Field::new("mark_anchor_offset", self.mark_anchor(&_data))),
+                _ => None,
+            }),
+            data,
+        }
+    }
 }
 
 /// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
@@ -631,7 +652,7 @@ impl<'a> SinglePos<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for SinglePos<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self.dyn_inner()).fmt(f)
+        traversal::DebugPrintTable(self.dyn_inner()).fmt(f)
     }
 }
 
@@ -747,7 +768,7 @@ impl<'a> SomeTable<'a> for SinglePosFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for SinglePosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -866,7 +887,7 @@ impl<'a> SomeTable<'a> for SinglePosFormat2<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for SinglePosFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -900,7 +921,7 @@ impl<'a> PairPos<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for PairPos<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self.dyn_inner()).fmt(f)
+        traversal::DebugPrintTable(self.dyn_inner()).fmt(f)
     }
 }
 
@@ -1013,7 +1034,7 @@ impl<'a> PairPosFormat1<'a> {
 
     /// Array of offsets to PairSet tables. Offsets are from beginning
     /// of PairPos subtable, ordered by Coverage Index.
-    pub fn pair_set_offsets(&self) -> &[BigEndian<Offset16>] {
+    pub fn pair_set_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.pair_set_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1048,7 +1069,7 @@ impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for PairPosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1141,7 +1162,7 @@ impl<'a> SomeTable<'a> for PairSet<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for PairSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1203,6 +1224,22 @@ impl<'a> FontReadWithArgs<'a> for PairValueRecord {
             value_record1: cursor.read_with_args(&value_format1)?,
             value_record2: cursor.read_with_args(&value_format2)?,
         })
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for PairValueRecord {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "PairValueRecord",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("second_glyph", self.second_glyph())),
+                1usize => Some(Field::new("value_record1", ())),
+                2usize => Some(Field::new("value_record2", ())),
+                _ => None,
+            }),
+            data,
+        }
     }
 }
 
@@ -1395,7 +1432,7 @@ impl<'a> SomeTable<'a> for PairPosFormat2<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for PairPosFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1437,6 +1474,20 @@ impl<'a> FontReadWithArgs<'a> for Class1Record<'a> {
             class2_records: cursor
                 .read_computed_array(class2_count as usize, &(value_format1, value_format2))?,
         })
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for Class1Record<'a> {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "Class1Record",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("class2_records", ())),
+                _ => None,
+            }),
+            data,
+        }
     }
 }
 
@@ -1487,6 +1538,21 @@ impl<'a> FontReadWithArgs<'a> for Class2Record {
             value_record1: cursor.read_with_args(&value_format1)?,
             value_record2: cursor.read_with_args(&value_format2)?,
         })
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for Class2Record {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "Class2Record",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("value_record1", ())),
+                1usize => Some(Field::new("value_record2", ())),
+                _ => None,
+            }),
+            data,
+        }
     }
 }
 
@@ -1564,7 +1630,7 @@ impl<'a> CursivePosFormat1<'a> {
     }
 
     /// Array of EntryExit records, in Coverage index order.
-    pub fn entry_exit_record(&self) -> &[EntryExitRecord] {
+    pub fn entry_exit_record(&self) -> &'a [EntryExitRecord] {
         let range = self.shape.entry_exit_record_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1580,7 +1646,13 @@ impl<'a> SomeTable<'a> for CursivePosFormat1<'a> {
             0usize => Some(Field::new("pos_format", self.pos_format())),
             1usize => Some(Field::new("coverage_offset", self.coverage())),
             2usize => Some(Field::new("entry_exit_count", self.entry_exit_count())),
-            3usize => Some(Field::new("entry_exit_record", ())),
+            3usize => Some(Field::new(
+                "entry_exit_record",
+                traversal::ArrayOfRecords::make_field(
+                    self.entry_exit_record(),
+                    self.offset_data().clone(),
+                ),
+            )),
             _ => None,
         }
     }
@@ -1589,7 +1661,7 @@ impl<'a> SomeTable<'a> for CursivePosFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for CursivePosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1616,7 +1688,7 @@ impl EntryExitRecord {
     /// Attempt to resolve [`entry_anchor_offset`][Self::entry_anchor_offset].
     pub fn entry_anchor<'a>(
         &self,
-        data: &'a FontData<'a>,
+        data: &FontData<'a>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
         self.entry_anchor_offset().resolve(data)
     }
@@ -1630,7 +1702,7 @@ impl EntryExitRecord {
     /// Attempt to resolve [`exit_anchor_offset`][Self::exit_anchor_offset].
     pub fn exit_anchor<'a>(
         &self,
-        data: &'a FontData<'a>,
+        data: &FontData<'a>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
         self.exit_anchor_offset().resolve(data)
     }
@@ -1638,6 +1710,21 @@ impl EntryExitRecord {
 
 impl FixedSized for EntryExitRecord {
     const RAW_BYTE_LEN: usize = Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for EntryExitRecord {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "EntryExitRecord",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("entry_anchor_offset", self.entry_anchor(&_data))),
+                1usize => Some(Field::new("exit_anchor_offset", self.exit_anchor(&_data))),
+                _ => None,
+            }),
+            data,
+        }
+    }
 }
 
 impl Format<u16> for MarkBasePosFormat1Marker {
@@ -1780,7 +1867,7 @@ impl<'a> SomeTable<'a> for MarkBasePosFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for MarkBasePosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1866,7 +1953,7 @@ impl<'a> SomeTable<'a> for BaseArray<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for BaseArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -1883,17 +1970,18 @@ impl<'a> BaseRecord<'a> {
     /// Array of offsets (one per mark class) to Anchor tables. Offsets
     /// are from beginning of BaseArray table, ordered by class
     /// (offsets may be NULL).
-    pub fn base_anchor_offsets(&self) -> &[BigEndian<Nullable<Offset16>>] {
+    pub fn base_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         self.base_anchor_offsets
     }
 
     pub fn base_anchor(
         &self,
-        data: &'a FontData<'a>,
+        data: &FontData<'a>,
     ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + '_ {
+        let data = data.clone();
         self.base_anchor_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -1916,6 +2004,20 @@ impl<'a> FontReadWithArgs<'a> for BaseRecord<'a> {
         Ok(Self {
             base_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
         })
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for BaseRecord<'a> {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "BaseRecord",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("base_anchor_offsets", ())),
+                _ => None,
+            }),
+            data,
+        }
     }
 }
 
@@ -2062,7 +2164,7 @@ impl<'a> SomeTable<'a> for MarkLigPosFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for MarkLigPosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -2120,7 +2222,7 @@ impl<'a> LigatureArray<'a> {
     /// Array of offsets to LigatureAttach tables. Offsets are from
     /// beginning of LigatureArray table, ordered by ligatureCoverage
     /// index.
-    pub fn ligature_attach_offsets(&self) -> &[BigEndian<Offset16>] {
+    pub fn ligature_attach_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.ligature_attach_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -2157,7 +2259,7 @@ impl<'a> SomeTable<'a> for LigatureArray<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for LigatureArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -2243,7 +2345,7 @@ impl<'a> SomeTable<'a> for LigatureAttach<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for LigatureAttach<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -2260,17 +2362,18 @@ impl<'a> ComponentRecord<'a> {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of LigatureAttach table, ordered by class
     /// (offsets may be NULL).
-    pub fn ligature_anchor_offsets(&self) -> &[BigEndian<Nullable<Offset16>>] {
+    pub fn ligature_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         self.ligature_anchor_offsets
     }
 
     pub fn ligature_anchor(
         &self,
-        data: &'a FontData<'a>,
+        data: &FontData<'a>,
     ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + '_ {
+        let data = data.clone();
         self.ligature_anchor_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -2293,6 +2396,20 @@ impl<'a> FontReadWithArgs<'a> for ComponentRecord<'a> {
         Ok(Self {
             ligature_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
         })
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for ComponentRecord<'a> {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "ComponentRecord",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("ligature_anchor_offsets", ())),
+                _ => None,
+            }),
+            data,
+        }
     }
 }
 
@@ -2436,7 +2553,7 @@ impl<'a> SomeTable<'a> for MarkMarkPosFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for MarkMarkPosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -2522,7 +2639,7 @@ impl<'a> SomeTable<'a> for Mark2Array<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Mark2Array<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
 
@@ -2539,17 +2656,18 @@ impl<'a> Mark2Record<'a> {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of Mark2Array table, in class order (offsets may
     /// be NULL).
-    pub fn mark2_anchor_offsets(&self) -> &[BigEndian<Nullable<Offset16>>] {
+    pub fn mark2_anchor_offsets(&self) -> &'a [BigEndian<Nullable<Offset16>>] {
         self.mark2_anchor_offsets
     }
 
     pub fn mark2_anchor(
         &self,
-        data: &'a FontData<'a>,
+        data: &FontData<'a>,
     ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + '_ {
+        let data = data.clone();
         self.mark2_anchor_offsets()
             .iter()
-            .map(move |off| off.get().resolve(data))
+            .map(move |off| off.get().resolve(&data))
     }
 }
 
@@ -2572,6 +2690,20 @@ impl<'a> FontReadWithArgs<'a> for Mark2Record<'a> {
         Ok(Self {
             mark2_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
         })
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for Mark2Record<'a> {
+    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "Mark2Record",
+            get_field: Box::new(|idx, _data| match idx {
+                0usize => Some(Field::new("mark2_anchor_offsets", ())),
+                _ => None,
+            }),
+            data,
+        }
     }
 }
 
@@ -2659,6 +2791,6 @@ impl<'a> SomeTable<'a> for ExtensionPosFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for ExtensionPosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        DebugPrintTable(self).fmt(f)
+        traversal::DebugPrintTable(self).fmt(f)
     }
 }
