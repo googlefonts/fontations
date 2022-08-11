@@ -10,7 +10,7 @@ use font_types::{
     Uint24, Version16Dot16,
 };
 
-use crate::{FontData, ReadError};
+use crate::{layout::gpos::ValueRecord, FontData, ReadError};
 
 /// Types of fields in font tables.
 ///
@@ -34,6 +34,7 @@ pub enum FieldType<'a> {
     GlyphId(GlyphId),
     ResolvedOffset(Result<Box<dyn SomeTable<'a> + 'a>, ReadError>),
     Record(RecordResolver<'a>),
+    ValueRecord(ValueRecord),
     Array(Box<dyn SomeArray<'a> + 'a>),
     Unimplemented,
     // used for fields in other versions of a table
@@ -215,6 +216,7 @@ impl<'a> Debug for FieldType<'a> {
             Self::None => write!(f, "None"),
             Self::ResolvedOffset(arg0) => arg0.fmt(f),
             Self::Record(arg0) => (arg0 as &(dyn SomeTable<'a> + 'a)).fmt(f),
+            Self::ValueRecord(arg0) => (arg0 as &(dyn SomeTable<'a> + 'a)).fmt(f),
             Self::Array(arg0) => arg0.fmt(f),
             Self::Unimplemented => write!(f, "Unimplemented"),
         }
@@ -361,6 +363,12 @@ impl<'a, T: Into<FieldType<'a>>> From<Option<T>> for FieldType<'a> {
 impl<'a, T: SomeTable<'a> + 'a> From<Result<T, ReadError>> for FieldType<'a> {
     fn from(src: Result<T, ReadError>) -> Self {
         FieldType::ResolvedOffset(src.map(|table| Box::new(table) as Box<dyn SomeTable<'a>>))
+    }
+}
+
+impl<'a> From<ValueRecord> for FieldType<'a> {
+    fn from(src: ValueRecord) -> Self {
+        Self::ValueRecord(src)
     }
 }
 

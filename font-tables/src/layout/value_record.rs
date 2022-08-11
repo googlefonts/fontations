@@ -136,3 +136,42 @@ impl ComputeSize for ValueRecord {
         args.record_byte_len()
     }
 }
+
+impl<'a> SomeTable<'a> for ValueRecord {
+    fn type_name(&self) -> &str {
+        "ValueRecord"
+    }
+
+    // a total hack
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let fields = [
+            self.x_placement.is_some().then(|| "x_placement"),
+            self.y_placement.is_some().then(|| "y_placement"),
+            self.x_advance.is_some().then(|| "x_advance"),
+            self.y_advance.is_some().then(|| "y_advance"),
+            self.x_placement_device
+                .is_some()
+                .then(|| "x_placement_device"),
+            self.y_placement_device
+                .is_some()
+                .then(|| "y_placement_device"),
+            self.x_advance_device.is_some().then(|| "x_advance_device"),
+            self.y_advance_device.is_some().then(|| "y_advance_device"),
+        ];
+
+        let name = fields.iter().filter_map(|x| *x).nth(idx)?;
+        let typ: FieldType = match name {
+            "x_placement" => self.x_placement().into(),
+            "y_placement" => self.y_placement().into(),
+            "x_advance" => self.x_advance().into(),
+            "y_advance" => self.y_advance().into(),
+            "x_placement_device" => self.x_placement_device().into(),
+            "y_placement_device" => self.y_placement_device().into(),
+            "x_advance_device" => self.x_advance_device().into(),
+            "y_advance_device" => self.y_advance_device().into(),
+            _ => panic!("hmm"),
+        };
+
+        Some(Field::new(name, typ))
+    }
+}
