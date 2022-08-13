@@ -177,7 +177,7 @@ fn traversal_arm_for_field(
             } => {
                 let getter = fld.offset_getter_name();
                 let this_type = in_record
-                    .then(|| quote!(self))
+                    .then(|| quote!(self.clone()))
                     .unwrap_or_else(|| quote!(self.sneaky_copy()));
                 quote! {{
                     let this = #this_type;

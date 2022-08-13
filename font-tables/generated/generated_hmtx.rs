@@ -119,7 +119,7 @@ impl FixedSized for LongHorMetric {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for LongHorMetric {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "LongHorMetric",
             get_field: Box::new(move |idx, _data| match idx {

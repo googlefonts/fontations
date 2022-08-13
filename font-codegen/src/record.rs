@@ -107,7 +107,7 @@ fn generate_traversal(item: &Record) -> syn::Result<TokenStream> {
     Ok(quote! {
         #[cfg(feature = "traversal")]
         impl<'a> SomeRecord<'a> for #name #lifetime {
-            fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+            fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
                 RecordResolver {
                     name: #name_str,
                     get_field: Box::new(move |idx, _data| match idx {

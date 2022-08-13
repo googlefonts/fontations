@@ -70,7 +70,7 @@ where
 /// A generic trait for records, which need to be passed in data
 /// in order to fully resolve themselves.
 pub trait SomeRecord<'a> {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a>;
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a>;
 }
 
 pub struct RecordResolver<'a> {
@@ -141,7 +141,7 @@ pub struct ArrayOfRecords<'a, T> {
     pub(crate) records: &'a [T],
 }
 
-impl<'a, T: SomeRecord<'a> + 'a> ArrayOfRecords<'a, T> {
+impl<'a, T: Clone + SomeRecord<'a> + 'a> ArrayOfRecords<'a, T> {
     /// makes a field, handling the case where this array may not be present in
     /// all versions
     pub fn make_field(records: impl Into<Option<&'a [T]>>, data: FontData<'a>) -> FieldType<'a> {
@@ -152,7 +152,7 @@ impl<'a, T: SomeRecord<'a> + 'a> ArrayOfRecords<'a, T> {
     }
 }
 
-impl<'a, T: SomeRecord<'a>> SomeArray<'a> for ArrayOfRecords<'a, T> {
+impl<'a, T: SomeRecord<'a> + Clone> SomeArray<'a> for ArrayOfRecords<'a, T> {
     fn len(&self) -> usize {
         self.records.len()
     }
@@ -160,7 +160,7 @@ impl<'a, T: SomeRecord<'a>> SomeArray<'a> for ArrayOfRecords<'a, T> {
     fn get(&self, idx: usize) -> Option<FieldType<'a>> {
         self.records
             .get(idx)
-            .map(|record| record.traverse(self.data).into())
+            .map(|record| record.clone().traverse(self.data).into())
     }
 }
 
