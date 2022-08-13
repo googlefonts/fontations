@@ -878,7 +878,13 @@ impl<'a> SomeTable<'a> for SinglePosFormat2<'a> {
             1usize => Some(Field::new("coverage_offset", self.coverage())),
             2usize => Some(Field::new("value_format", self.value_format())),
             3usize => Some(Field::new("value_count", self.value_count())),
-            4usize => Some(Field::new("value_records", ())),
+            4usize => Some(Field::new(
+                "value_records",
+                traversal::ComputedArrayOfRecords::make_field(
+                    self.value_records(),
+                    self.offset_data().clone(),
+                ),
+            )),
             _ => None,
         }
     }
@@ -1162,7 +1168,13 @@ impl<'a> SomeTable<'a> for PairSet<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("pair_value_count", self.pair_value_count())),
-            1usize => Some(Field::new("pair_value_records", ())),
+            1usize => Some(Field::new(
+                "pair_value_records",
+                traversal::ComputedArrayOfRecords::make_field(
+                    self.pair_value_records(),
+                    self.offset_data().clone(),
+                ),
+            )),
             _ => None,
         }
     }
@@ -1432,7 +1444,13 @@ impl<'a> SomeTable<'a> for PairPosFormat2<'a> {
             5usize => Some(Field::new("class_def2_offset", self.class_def2())),
             6usize => Some(Field::new("class1_count", self.class1_count())),
             7usize => Some(Field::new("class2_count", self.class2_count())),
-            8usize => Some(Field::new("class1_records", ())),
+            8usize => Some(Field::new(
+                "class1_records",
+                traversal::ComputedArrayOfRecords::make_field(
+                    self.class1_records(),
+                    self.offset_data().clone(),
+                ),
+            )),
             _ => None,
         }
     }
@@ -1492,7 +1510,13 @@ impl<'a> SomeRecord<'a> for Class1Record<'a> {
         RecordResolver {
             name: "Class1Record",
             get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("class2_records", ())),
+                0usize => Some(Field::new(
+                    "class2_records",
+                    traversal::ComputedArrayOfRecords::make_field(
+                        self.class2_records().clone(),
+                        FontData::new(&[]),
+                    ),
+                )),
                 _ => None,
             }),
             data,
@@ -1953,7 +1977,13 @@ impl<'a> SomeTable<'a> for BaseArray<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("base_count", self.base_count())),
-            1usize => Some(Field::new("base_records", ())),
+            1usize => Some(Field::new(
+                "base_records",
+                traversal::ComputedArrayOfRecords::make_field(
+                    self.base_records(),
+                    self.offset_data().clone(),
+                ),
+            )),
             _ => None,
         }
     }
@@ -2363,7 +2393,13 @@ impl<'a> SomeTable<'a> for LigatureAttach<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("component_count", self.component_count())),
-            1usize => Some(Field::new("component_records", ())),
+            1usize => Some(Field::new(
+                "component_records",
+                traversal::ComputedArrayOfRecords::make_field(
+                    self.component_records(),
+                    self.offset_data().clone(),
+                ),
+            )),
             _ => None,
         }
     }
@@ -2666,7 +2702,13 @@ impl<'a> SomeTable<'a> for Mark2Array<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("mark2_count", self.mark2_count())),
-            1usize => Some(Field::new("mark2_records", ())),
+            1usize => Some(Field::new(
+                "mark2_records",
+                traversal::ComputedArrayOfRecords::make_field(
+                    self.mark2_records(),
+                    self.offset_data().clone(),
+                ),
+            )),
             _ => None,
         }
     }

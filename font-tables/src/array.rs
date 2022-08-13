@@ -28,6 +28,14 @@ impl<'a, T: ComputeSize> ComputedArray<'a, T> {
             args,
         }
     }
+
+    pub fn len(&self) -> usize {
+        self.len
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len == 0
+    }
 }
 
 impl<'a, T: ReadArgs> ReadArgs for ComputedArray<'a, T> {

@@ -175,3 +175,13 @@ impl<'a> SomeTable<'a> for ValueRecord {
         Some(Field::new(name, typ))
     }
 }
+
+impl<'a> SomeRecord<'a> for ValueRecord {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "ValueRecord",
+            data,
+            get_field: Box::new(move |idx, _| self.get_field(idx)),
+        }
+    }
+}

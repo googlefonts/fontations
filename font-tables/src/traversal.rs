@@ -10,7 +10,12 @@ use font_types::{
     Uint24, Version16Dot16,
 };
 
-use crate::{layout::gpos::ValueRecord, FontData, ReadError};
+use crate::{
+    array::ComputedArray,
+    layout::gpos::ValueRecord,
+    parse_prelude::{ComputeSize, ReadArgs},
+    FontData, FontReadWithArgs, ReadError,
+};
 
 /// Types of fields in font tables.
 ///
@@ -136,6 +141,45 @@ impl<'a> SomeArray<'a> for &'a [u8] {
     }
 }
 
+pub struct ComputedArrayOfRecords<'a, T: ReadArgs> {
+    pub(crate) data: FontData<'a>,
+    pub(crate) array: ComputedArray<'a, T>,
+}
+
+impl<'a, T> ComputedArrayOfRecords<'a, T>
+where
+    T: FontReadWithArgs<'a> + ComputeSize + SomeRecord<'a> + 'a,
+    T::Args: Copy + 'static,
+{
+    pub fn make_field(
+        array: impl Into<Option<ComputedArray<'a, T>>>,
+        data: FontData<'a>,
+    ) -> FieldType<'a> {
+        match array.into() {
+            None => FieldType::None,
+            Some(array) => Self { data, array }.into(),
+        }
+    }
+}
+
+impl<'a, T> SomeArray<'a> for ComputedArrayOfRecords<'a, T>
+where
+    T: FontReadWithArgs<'a> + ComputeSize + SomeRecord<'a> + 'a,
+    T::Args: Copy + 'static,
+    Self: 'a,
+{
+    fn len(&self) -> usize {
+        self.array.len()
+    }
+
+    fn get(&self, idx: usize) -> Option<FieldType<'a>> {
+        self.array
+            .get(idx)
+            .ok()
+            .map(|record| record.traverse(self.data).into())
+    }
+}
+
 pub struct ArrayOfRecords<'a, T> {
     pub(crate) data: FontData<'a>,
     pub(crate) records: &'a [T],
@@ -236,10 +280,15 @@ impl<'a> Debug for FieldType<'a> {
             Self::F2Dot14(arg0) => arg0.fmt(f),
             Self::Fixed(arg0) => arg0.fmt(f),
             Self::LongDateTime(arg0) => arg0.fmt(f),
-            Self::GlyphId(arg0) => arg0.fmt(f),
+            Self::GlyphId(arg0) => {
+                write!(f, "g")?;
+                arg0.to_u16().fmt(f)
+            }
             Self::None => write!(f, "None"),
+            Self::ResolvedOffset(Ok(arg0)) => arg0.fmt(f),
             Self::ResolvedOffset(arg0) => arg0.fmt(f),
             Self::Record(arg0) => (arg0 as &(dyn SomeTable<'a> + 'a)).fmt(f),
+            Self::ValueRecord(arg0) if arg0.get_field(0).is_none() => write!(f, "NullValueRecord"),
             Self::ValueRecord(arg0) => (arg0 as &(dyn SomeTable<'a> + 'a)).fmt(f),
             Self::Array(arg0) => arg0.fmt(f),
             Self::OffsetArray(arg0) => f.debug_list().entries(arg0.iter()).finish(),
