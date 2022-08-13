@@ -190,6 +190,23 @@ fn traversal_arm_for_field(
             }
             _ => quote!(Field::new(#name_str, ())),
         },
+        FieldType::ComputedArray(_) => {
+            // if we are in a record, we pass in empty data. This lets us
+            // avoid a special case in the single instance where this happens, in
+            // Class1Record
+            let data = in_record
+                .then(|| quote!(FontData::new(&[])))
+                .unwrap_or_else(|| quote!(self.offset_data().clone()));
+            // in a record we return things by value, so clone
+            let maybe_clone = in_record.then(|| quote!(.clone()));
+            quote!(Field::new(
+                    #name_str,
+                    traversal::ComputedArrayOfRecords::make_field(
+                        self.#name()#maybe_clone,
+                        #data
+                    )
+            ))
+        }
         FieldType::Other { typ } if typ.is_ident("ValueRecord") => {
             let clone = in_record.then(|| quote!(.clone()));
             quote!(Field::new(#name_str, self.#name() #clone))
@@ -197,8 +214,6 @@ fn traversal_arm_for_field(
         FieldType::Other { .. } => {
             quote!(compile_error!(concat!("another weird type: ", #name_str)))
         }
-        //FieldType::ComputedArray(_) => todo!(),
-        _ => quote!(Field::new(#name_str, ())),
     }
 }
 

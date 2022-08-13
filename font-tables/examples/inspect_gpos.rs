@@ -17,6 +17,7 @@ fn main() {
         }
     };
 
+    println!("{:#?}", &gpos);
     println!("GPOS {:?}", gpos.version());
 
     let script_list = gpos.script_list().expect("missing script list");
