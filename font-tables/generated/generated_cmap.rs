@@ -134,7 +134,7 @@ impl FixedSized for EncodingRecord {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for EncodingRecord {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "EncodingRecord",
             get_field: Box::new(move |idx, _data| match idx {
@@ -500,7 +500,7 @@ impl FixedSized for SubHeader {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for SubHeader {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "SubHeader",
             get_field: Box::new(move |idx, _data| match idx {
@@ -1031,7 +1031,7 @@ impl FixedSized for SequentialMapGroup {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for SequentialMapGroup {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "SequentialMapGroup",
             get_field: Box::new(move |idx, _data| match idx {
@@ -1442,7 +1442,7 @@ impl FixedSized for ConstantMapGroup {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for ConstantMapGroup {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "ConstantMapGroup",
             get_field: Box::new(move |idx, _data| match idx {
@@ -1604,7 +1604,7 @@ impl FixedSized for VariationSelector {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for VariationSelector {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "VariationSelector",
             get_field: Box::new(move |idx, _data| match idx {
@@ -1726,7 +1726,7 @@ impl FixedSized for UVSMapping {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for UVSMapping {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "UVSMapping",
             get_field: Box::new(move |idx, _data| match idx {
@@ -1768,7 +1768,7 @@ impl FixedSized for UnicodeRange {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for UnicodeRange {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "UnicodeRange",
             get_field: Box::new(move |idx, _data| match idx {

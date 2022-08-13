@@ -609,7 +609,7 @@ impl FixedSized for MarkRecord {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for MarkRecord {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "MarkRecord",
             get_field: Box::new(move |idx, _data| match idx {
@@ -1238,7 +1238,7 @@ impl<'a> FontReadWithArgs<'a> for PairValueRecord {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for PairValueRecord {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "PairValueRecord",
             get_field: Box::new(move |idx, _data| match idx {
@@ -1488,7 +1488,7 @@ impl<'a> FontReadWithArgs<'a> for Class1Record<'a> {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for Class1Record<'a> {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "Class1Record",
             get_field: Box::new(move |idx, _data| match idx {
@@ -1552,7 +1552,7 @@ impl<'a> FontReadWithArgs<'a> for Class2Record {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for Class2Record {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "Class2Record",
             get_field: Box::new(move |idx, _data| match idx {
@@ -1723,7 +1723,7 @@ impl FixedSized for EntryExitRecord {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for EntryExitRecord {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "EntryExitRecord",
             get_field: Box::new(move |idx, _data| match idx {
@@ -2018,12 +2018,12 @@ impl<'a> FontReadWithArgs<'a> for BaseRecord<'a> {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for BaseRecord<'a> {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "BaseRecord",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some({
-                    let this = self;
+                    let this = self.clone();
                     Field::new(
                         "base_anchor_offsets",
                         FieldType::offset_iter(move || {
@@ -2428,12 +2428,12 @@ impl<'a> FontReadWithArgs<'a> for ComponentRecord<'a> {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for ComponentRecord<'a> {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "ComponentRecord",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some({
-                    let this = self;
+                    let this = self.clone();
                     Field::new(
                         "ligature_anchor_offsets",
                         FieldType::offset_iter(move || {
@@ -2731,12 +2731,12 @@ impl<'a> FontReadWithArgs<'a> for Mark2Record<'a> {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for Mark2Record<'a> {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "Mark2Record",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some({
-                    let this = self;
+                    let this = self.clone();
                     Field::new(
                         "mark2_anchor_offsets",
                         FieldType::offset_iter(move || {

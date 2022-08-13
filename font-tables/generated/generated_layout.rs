@@ -114,7 +114,7 @@ impl FixedSized for ScriptRecord {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for ScriptRecord {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "ScriptRecord",
             get_field: Box::new(move |idx, _data| match idx {
@@ -258,7 +258,7 @@ impl FixedSized for LangSysRecord {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for LangSysRecord {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "LangSysRecord",
             get_field: Box::new(move |idx, _data| match idx {
@@ -476,7 +476,7 @@ impl FixedSized for FeatureRecord {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for FeatureRecord {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "FeatureRecord",
             get_field: Box::new(move |idx, _data| match idx {
@@ -985,7 +985,7 @@ impl FixedSized for RangeRecord {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for RangeRecord {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "RangeRecord",
             get_field: Box::new(move |idx, _data| match idx {
@@ -1271,7 +1271,7 @@ impl FixedSized for ClassRangeRecord {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for ClassRangeRecord {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "ClassRangeRecord",
             get_field: Box::new(move |idx, _data| match idx {
@@ -1358,7 +1358,7 @@ impl FixedSized for SequenceLookupRecord {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for SequenceLookupRecord {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "SequenceLookupRecord",
             get_field: Box::new(move |idx, _data| match idx {
@@ -3678,7 +3678,7 @@ impl FixedSized for FeatureVariationRecord {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for FeatureVariationRecord {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "FeatureVariationRecord",
             get_field: Box::new(move |idx, _data| match idx {
@@ -4002,7 +4002,7 @@ impl FixedSized for FeatureTableSubstitutionRecord {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for FeatureTableSubstitutionRecord {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "FeatureTableSubstitutionRecord",
             get_field: Box::new(move |idx, _data| match idx {

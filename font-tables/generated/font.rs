@@ -164,7 +164,7 @@ impl FixedSized for TableRecord {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for TableRecord {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "TableRecord",
             get_field: Box::new(move |idx, _data| match idx {

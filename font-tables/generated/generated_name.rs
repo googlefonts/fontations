@@ -191,7 +191,7 @@ impl FixedSized for LangTagRecord {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for LangTagRecord {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "LangTagRecord",
             get_field: Box::new(move |idx, _data| match idx {
@@ -269,7 +269,7 @@ impl FixedSized for NameRecord {
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for NameRecord {
-    fn traverse(&'a self, data: FontData<'a>) -> RecordResolver<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
             name: "NameRecord",
             get_field: Box::new(move |idx, _data| match idx {
