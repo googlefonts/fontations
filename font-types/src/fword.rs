@@ -12,11 +12,19 @@ impl FWord {
     pub fn new(raw: i16) -> Self {
         Self(raw)
     }
+
+    pub fn to_i16(self) -> i16 {
+        self.0
+    }
 }
 
 impl UfWord {
     pub fn new(raw: u16) -> Self {
         Self(raw)
+    }
+
+    pub fn to_u16(self) -> u16 {
+        self.0
     }
 }
 

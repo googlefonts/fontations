@@ -148,6 +148,19 @@ impl Display for Tag {
     }
 }
 
+impl Display for InvalidTag {
+    fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
+        match self {
+            InvalidTag::InvalidByte { pos, byte } => {
+                write!(f, "Invalid byte 0x{:X} at index {pos}", byte)
+            }
+            InvalidTag::InvalidLength(len) => write!(f, "Invalid length ({len})"),
+        }
+    }
+}
+
+impl std::error::Error for Tag {}
+
 impl Debug for Tag {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         let mut dbg = f.debug_tuple("Tag");
