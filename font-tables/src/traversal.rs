@@ -273,13 +273,13 @@ impl<'a> Debug for FieldType<'a> {
             Self::U32(arg0) => arg0.fmt(f),
             Self::U24(arg0) => arg0.fmt(f),
             Self::Tag(arg0) => arg0.fmt(f),
-            Self::FWord(arg0) => arg0.fmt(f),
-            Self::UfWord(arg0) => arg0.fmt(f),
-            Self::MajorMinor(arg0) => arg0.fmt(f),
+            Self::FWord(arg0) => arg0.to_i16().fmt(f),
+            Self::UfWord(arg0) => arg0.to_u16().fmt(f),
+            Self::MajorMinor(arg0) => write!(f, "{}.{}", arg0.major, arg0.minor),
             Self::Version16Dot16(arg0) => arg0.fmt(f),
             Self::F2Dot14(arg0) => arg0.fmt(f),
             Self::Fixed(arg0) => arg0.fmt(f),
-            Self::LongDateTime(arg0) => arg0.fmt(f),
+            Self::LongDateTime(arg0) => arg0.as_secs().fmt(f),
             Self::GlyphId(arg0) => {
                 write!(f, "g")?;
                 arg0.to_u16().fmt(f)
