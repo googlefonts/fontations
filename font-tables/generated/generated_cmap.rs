@@ -74,7 +74,7 @@ impl<'a> SomeTable<'a> for Cmap<'a> {
             1usize => Some(Field::new("num_tables", self.num_tables())),
             2usize => Some(Field::new(
                 "encoding_records",
-                traversal::ArrayOfRecords::make_field(
+                traversal::FieldType::array_of_records(
                     self.encoding_records(),
                     self.offset_data().clone(),
                 ),
@@ -87,7 +87,7 @@ impl<'a> SomeTable<'a> for Cmap<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -245,7 +245,7 @@ impl<'a> CmapSubtable<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for CmapSubtable<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self.dyn_inner()).fmt(f)
+        self.dyn_inner().fmt(f)
     }
 }
 
@@ -353,7 +353,7 @@ impl<'a> SomeTable<'a> for Cmap0<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap0<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -452,7 +452,7 @@ impl<'a> SomeTable<'a> for Cmap2<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -726,7 +726,7 @@ impl<'a> SomeTable<'a> for Cmap4<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap4<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -848,7 +848,7 @@ impl<'a> SomeTable<'a> for Cmap6<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap6<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -973,7 +973,7 @@ impl<'a> SomeTable<'a> for Cmap8<'a> {
             4usize => Some(Field::new("num_groups", self.num_groups())),
             5usize => Some(Field::new(
                 "groups",
-                traversal::ArrayOfRecords::make_field(self.groups(), self.offset_data().clone()),
+                traversal::FieldType::array_of_records(self.groups(), self.offset_data().clone()),
             )),
             _ => None,
         }
@@ -983,7 +983,7 @@ impl<'a> SomeTable<'a> for Cmap8<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap8<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1168,7 +1168,7 @@ impl<'a> SomeTable<'a> for Cmap10<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap10<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1274,7 +1274,7 @@ impl<'a> SomeTable<'a> for Cmap12<'a> {
             3usize => Some(Field::new("num_groups", self.num_groups())),
             4usize => Some(Field::new(
                 "groups",
-                traversal::ArrayOfRecords::make_field(self.groups(), self.offset_data().clone()),
+                traversal::FieldType::array_of_records(self.groups(), self.offset_data().clone()),
             )),
             _ => None,
         }
@@ -1284,7 +1284,7 @@ impl<'a> SomeTable<'a> for Cmap12<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap12<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1390,7 +1390,7 @@ impl<'a> SomeTable<'a> for Cmap13<'a> {
             3usize => Some(Field::new("num_groups", self.num_groups())),
             4usize => Some(Field::new(
                 "groups",
-                traversal::ArrayOfRecords::make_field(self.groups(), self.offset_data().clone()),
+                traversal::FieldType::array_of_records(self.groups(), self.offset_data().clone()),
             )),
             _ => None,
         }
@@ -1400,7 +1400,7 @@ impl<'a> SomeTable<'a> for Cmap13<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap13<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1546,7 +1546,7 @@ impl<'a> SomeTable<'a> for Cmap14<'a> {
             )),
             3usize => Some(Field::new(
                 "var_selector",
-                traversal::ArrayOfRecords::make_field(
+                traversal::FieldType::array_of_records(
                     self.var_selector(),
                     self.offset_data().clone(),
                 ),
@@ -1559,7 +1559,7 @@ impl<'a> SomeTable<'a> for Cmap14<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cmap14<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1683,7 +1683,7 @@ impl<'a> SomeTable<'a> for DefaultUvs<'a> {
             )),
             1usize => Some(Field::new(
                 "ranges",
-                traversal::ArrayOfRecords::make_field(self.ranges(), self.offset_data().clone()),
+                traversal::FieldType::array_of_records(self.ranges(), self.offset_data().clone()),
             )),
             _ => None,
         }
@@ -1693,7 +1693,7 @@ impl<'a> SomeTable<'a> for DefaultUvs<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for DefaultUvs<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 

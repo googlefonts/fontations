@@ -76,7 +76,10 @@ impl<'a> SomeTable<'a> for Hmtx<'a> {
         match idx {
             0usize => Some(Field::new(
                 "h_metrics",
-                traversal::ArrayOfRecords::make_field(self.h_metrics(), self.offset_data().clone()),
+                traversal::FieldType::array_of_records(
+                    self.h_metrics(),
+                    self.offset_data().clone(),
+                ),
             )),
             1usize => Some(Field::new("left_side_bearings", self.left_side_bearings())),
             _ => None,
@@ -87,7 +90,7 @@ impl<'a> SomeTable<'a> for Hmtx<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Hmtx<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 

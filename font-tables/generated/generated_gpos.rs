@@ -138,7 +138,7 @@ impl<'a> SomeTable<'a> for Gpos<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Gpos<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -196,7 +196,7 @@ impl<'a> AnchorTable<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for AnchorTable<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self.dyn_inner()).fmt(f)
+        self.dyn_inner().fmt(f)
     }
 }
 
@@ -285,7 +285,7 @@ impl<'a> SomeTable<'a> for AnchorFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for AnchorFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -376,7 +376,7 @@ impl<'a> SomeTable<'a> for AnchorFormat2<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for AnchorFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -495,7 +495,7 @@ impl<'a> SomeTable<'a> for AnchorFormat3<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for AnchorFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -558,7 +558,7 @@ impl<'a> SomeTable<'a> for MarkArray<'a> {
             0usize => Some(Field::new("mark_count", self.mark_count())),
             1usize => Some(Field::new(
                 "mark_records",
-                traversal::ArrayOfRecords::make_field(
+                traversal::FieldType::array_of_records(
                     self.mark_records(),
                     self.offset_data().clone(),
                 ),
@@ -571,7 +571,7 @@ impl<'a> SomeTable<'a> for MarkArray<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for MarkArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -652,7 +652,7 @@ impl<'a> SinglePos<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for SinglePos<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self.dyn_inner()).fmt(f)
+        self.dyn_inner().fmt(f)
     }
 }
 
@@ -768,7 +768,7 @@ impl<'a> SomeTable<'a> for SinglePosFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for SinglePosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -880,7 +880,7 @@ impl<'a> SomeTable<'a> for SinglePosFormat2<'a> {
             3usize => Some(Field::new("value_count", self.value_count())),
             4usize => Some(Field::new(
                 "value_records",
-                traversal::ComputedArrayOfRecords::make_field(
+                traversal::FieldType::computed_array(
                     self.value_records(),
                     self.offset_data().clone(),
                 ),
@@ -893,7 +893,7 @@ impl<'a> SomeTable<'a> for SinglePosFormat2<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for SinglePosFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -927,7 +927,7 @@ impl<'a> PairPos<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for PairPos<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self.dyn_inner()).fmt(f)
+        self.dyn_inner().fmt(f)
     }
 }
 
@@ -1084,7 +1084,7 @@ impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for PairPosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1170,7 +1170,7 @@ impl<'a> SomeTable<'a> for PairSet<'a> {
             0usize => Some(Field::new("pair_value_count", self.pair_value_count())),
             1usize => Some(Field::new(
                 "pair_value_records",
-                traversal::ComputedArrayOfRecords::make_field(
+                traversal::FieldType::computed_array(
                     self.pair_value_records(),
                     self.offset_data().clone(),
                 ),
@@ -1183,7 +1183,7 @@ impl<'a> SomeTable<'a> for PairSet<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for PairSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1446,7 +1446,7 @@ impl<'a> SomeTable<'a> for PairPosFormat2<'a> {
             7usize => Some(Field::new("class2_count", self.class2_count())),
             8usize => Some(Field::new(
                 "class1_records",
-                traversal::ComputedArrayOfRecords::make_field(
+                traversal::FieldType::computed_array(
                     self.class1_records(),
                     self.offset_data().clone(),
                 ),
@@ -1459,7 +1459,7 @@ impl<'a> SomeTable<'a> for PairPosFormat2<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for PairPosFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1512,7 +1512,7 @@ impl<'a> SomeRecord<'a> for Class1Record<'a> {
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new(
                     "class2_records",
-                    traversal::ComputedArrayOfRecords::make_field(
+                    traversal::FieldType::computed_array(
                         self.class2_records().clone(),
                         FontData::new(&[]),
                     ),
@@ -1681,7 +1681,7 @@ impl<'a> SomeTable<'a> for CursivePosFormat1<'a> {
             2usize => Some(Field::new("entry_exit_count", self.entry_exit_count())),
             3usize => Some(Field::new(
                 "entry_exit_record",
-                traversal::ArrayOfRecords::make_field(
+                traversal::FieldType::array_of_records(
                     self.entry_exit_record(),
                     self.offset_data().clone(),
                 ),
@@ -1694,7 +1694,7 @@ impl<'a> SomeTable<'a> for CursivePosFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for CursivePosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1900,7 +1900,7 @@ impl<'a> SomeTable<'a> for MarkBasePosFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for MarkBasePosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -1979,7 +1979,7 @@ impl<'a> SomeTable<'a> for BaseArray<'a> {
             0usize => Some(Field::new("base_count", self.base_count())),
             1usize => Some(Field::new(
                 "base_records",
-                traversal::ComputedArrayOfRecords::make_field(
+                traversal::FieldType::computed_array(
                     self.base_records(),
                     self.offset_data().clone(),
                 ),
@@ -1992,7 +1992,7 @@ impl<'a> SomeTable<'a> for BaseArray<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for BaseArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -2212,7 +2212,7 @@ impl<'a> SomeTable<'a> for MarkLigPosFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for MarkLigPosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -2316,7 +2316,7 @@ impl<'a> SomeTable<'a> for LigatureArray<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for LigatureArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -2395,7 +2395,7 @@ impl<'a> SomeTable<'a> for LigatureAttach<'a> {
             0usize => Some(Field::new("component_count", self.component_count())),
             1usize => Some(Field::new(
                 "component_records",
-                traversal::ComputedArrayOfRecords::make_field(
+                traversal::FieldType::computed_array(
                     self.component_records(),
                     self.offset_data().clone(),
                 ),
@@ -2408,7 +2408,7 @@ impl<'a> SomeTable<'a> for LigatureAttach<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for LigatureAttach<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -2625,7 +2625,7 @@ impl<'a> SomeTable<'a> for MarkMarkPosFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for MarkMarkPosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -2704,7 +2704,7 @@ impl<'a> SomeTable<'a> for Mark2Array<'a> {
             0usize => Some(Field::new("mark2_count", self.mark2_count())),
             1usize => Some(Field::new(
                 "mark2_records",
-                traversal::ComputedArrayOfRecords::make_field(
+                traversal::FieldType::computed_array(
                     self.mark2_records(),
                     self.offset_data().clone(),
                 ),
@@ -2717,7 +2717,7 @@ impl<'a> SomeTable<'a> for Mark2Array<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Mark2Array<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -2878,6 +2878,6 @@ impl<'a> SomeTable<'a> for ExtensionPosFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for ExtensionPosFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

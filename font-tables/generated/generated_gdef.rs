@@ -190,7 +190,7 @@ impl<'a> SomeTable<'a> for Gdef<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Gdef<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -338,7 +338,7 @@ impl<'a> SomeTable<'a> for AttachList<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for AttachList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -407,7 +407,7 @@ impl<'a> SomeTable<'a> for AttachPoint<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for AttachPoint<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -511,7 +511,7 @@ impl<'a> SomeTable<'a> for LigCaretList<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for LigCaretList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -597,7 +597,7 @@ impl<'a> SomeTable<'a> for LigGlyph<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for LigGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -634,7 +634,7 @@ impl<'a> CaretValue<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for CaretValue<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self.dyn_inner()).fmt(f)
+        self.dyn_inner().fmt(f)
     }
 }
 
@@ -711,7 +711,7 @@ impl<'a> SomeTable<'a> for CaretValueFormat1<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for CaretValueFormat1<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -781,7 +781,7 @@ impl<'a> SomeTable<'a> for CaretValueFormat2<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for CaretValueFormat2<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -868,7 +868,7 @@ impl<'a> SomeTable<'a> for CaretValueFormat3<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for CaretValueFormat3<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -973,6 +973,6 @@ impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for MarkGlyphSets<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

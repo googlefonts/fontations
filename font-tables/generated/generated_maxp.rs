@@ -351,6 +351,6 @@ impl<'a> SomeTable<'a> for Maxp<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Maxp<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

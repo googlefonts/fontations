@@ -39,7 +39,7 @@ impl<'a> SomeTable<'a> for Glyf<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Glyf<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -206,7 +206,7 @@ impl<'a> SomeTable<'a> for SimpleGlyph<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for SimpleGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -368,7 +368,7 @@ impl<'a> SomeTable<'a> for CompositeGlyph<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for CompositeGlyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
@@ -421,7 +421,7 @@ impl<'a> Glyph<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Glyph<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self.dyn_inner()).fmt(f)
+        self.dyn_inner().fmt(f)
     }
 }
 
