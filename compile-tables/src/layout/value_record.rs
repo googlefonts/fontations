@@ -9,7 +9,7 @@ use crate::{
     write::{FontWrite, TableWriter},
 };
 
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct ValueRecord {
     pub x_placement: Option<i16>,
     pub y_placement: Option<i16>,
