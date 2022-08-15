@@ -156,6 +156,9 @@ pub struct RecordResolver<'a> {
 
 pub trait SomeArray<'a> {
     fn len(&self) -> usize;
+    fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
     fn get(&self, idx: usize) -> Option<FieldType<'a>>;
 }
 

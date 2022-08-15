@@ -26,7 +26,8 @@ fn main() -> Result<(), Error> {
     }
 
     let filter = TableFilter::from_args(&args)?;
-    Ok(print_tables(&font, &filter))
+    print_tables(&font, &filter);
+    Ok(())
 }
 
 fn list_tables(font: &FontRef) {

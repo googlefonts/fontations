@@ -29,6 +29,9 @@ impl<'a> SomeTable<'a> for Glyf<'a> {
     fn type_name(&self) -> &str {
         "Glyf"
     }
+
+    #[allow(unused_variables)]
+    #[allow(clippy::match_single_binding)]
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             _ => None,

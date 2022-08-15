@@ -87,7 +87,7 @@ impl<'a, T> std::ops::Deref for TypedExtension<'a, T> {
 
 impl<'a> PositionLookupList<'a> {
     pub fn lookups(&self) -> impl Iterator<Item = Result<PositionLookup<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.0
             .lookup_offsets()
             .iter()
