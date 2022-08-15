@@ -183,7 +183,7 @@ impl Display for ValidationError {
                 LocationElem::Index(idx) => write!(f, "[{idx}]"),
             }?;
         }
-        writeln!(f, "")
+        writeln!(f)
     }
 }
 

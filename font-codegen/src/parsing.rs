@@ -156,11 +156,8 @@ pub(crate) struct Attr<T> {
 }
 
 impl<T> Attr<T> {
-    fn new(ident: syn::Ident, attr: T) -> Self {
-        Attr {
-            name: ident.into(),
-            attr,
-        }
+    fn new(name: syn::Ident, attr: T) -> Self {
+        Attr { name, attr }
     }
 
     pub(crate) fn span(&self) -> Span {
@@ -202,10 +199,10 @@ pub(crate) enum Count {
 /// `#[count( $num_items - 1 )]`
 #[derive(Debug, Clone)]
 pub(crate) struct InlineExpr {
-    pub(crate) expr: syn::Expr,
+    pub(crate) expr: Box<syn::Expr>,
     // the expression used in a compilation context. This resolves any referenced
     // fields against `self`.
-    compile_expr: Option<syn::Expr>,
+    compile_expr: Option<Box<syn::Expr>>,
     pub(crate) referenced_fields: Vec<syn::Ident>,
 }
 
@@ -516,7 +513,7 @@ impl Parse for FieldType {
             return Ok(FieldType::ComputedArray(ComputedArray {
                 span: last.span(),
                 inner: last.ident.clone(),
-                lifetime: lifetime.clone(),
+                lifetime,
             }));
         }
 
@@ -824,13 +821,14 @@ impl Parse for InlineExpr {
                     let new_source = find_dollar_idents.replace_all(&s, "&self.$2");
                     syn::parse_str::<syn::Expr>(&new_source)
                 })
-                .transpose()?;
+                .transpose()?
+                .map(Box::new);
 
             idents.sort_unstable();
             idents.dedup();
 
             Ok(InlineExpr {
-                expr,
+                expr: expr.into(),
                 compile_expr,
                 referenced_fields: idents,
             })

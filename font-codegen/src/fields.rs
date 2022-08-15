@@ -83,7 +83,7 @@ impl Fields {
 
             let array_len_check =
                 if let Some(Count::Field(count_name)) = field.attrs.count.as_deref() {
-                    let typ = self.get_scalar_field_type(&count_name);
+                    let typ = self.get_scalar_field_type(count_name);
                     Some(quote! {
                         if self.#name.len() > (#typ::MAX as usize) {
                             ctx.report("array excedes max length");
@@ -106,15 +106,16 @@ impl Fields {
         stmts
     }
 
+    #[allow(clippy::wrong_self_convention)]
     pub(crate) fn from_obj_requires_offset_data(&self, in_record: bool) -> bool {
         self.iter()
             .any(|fld| fld.from_obj_requires_offset_data(in_record))
     }
 
-    pub(crate) fn iter_from_obj_ref_stmts<'a>(
-        &'a self,
+    pub(crate) fn iter_from_obj_ref_stmts(
+        &self,
         in_record: bool,
-    ) -> impl Iterator<Item = TokenStream> + 'a {
+    ) -> impl Iterator<Item = TokenStream> + '_ {
         self.iter()
             .flat_map(move |fld| fld.from_obj_ref_stmt(in_record))
     }
@@ -209,11 +210,7 @@ impl Field {
                 }
                 FieldType::Offset { .. } => (),
                 FieldType::Array { inner_typ, .. }
-                    if matches!(inner_typ.as_ref(), FieldType::Offset { .. }) =>
-                {
-                    ()
-                }
-
+                    if matches!(inner_typ.as_ref(), FieldType::Offset { .. }) => {}
                 FieldType::Scalar { .. } | FieldType::Array { .. } => {
                     return Err(syn::Error::new(
                         args.span(),
@@ -681,13 +678,14 @@ impl Field {
         match &self.typ {
             FieldType::Scalar { .. } | FieldType::Other { .. } => false,
             FieldType::Offset { .. } | FieldType::ComputedArray { .. } => true,
-            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
-                FieldType::Offset { .. } | FieldType::Other { .. } => true,
-                _ => false,
-            },
+            FieldType::Array { inner_typ } => matches!(
+                inner_typ.as_ref(),
+                FieldType::Offset { .. } | FieldType::Other { .. }
+            ),
         }
     }
 
+    #[allow(clippy::wrong_self_convention)]
     fn from_obj_requires_offset_data(&self, in_record: bool) -> bool {
         match &self.typ {
             FieldType::Offset { .. } => in_record,
@@ -702,6 +700,7 @@ impl Field {
         }
     }
 
+    #[allow(clippy::wrong_self_convention)]
     fn from_obj_ref_stmt(&self, in_record: bool) -> Option<TokenStream> {
         if self.is_computed() {
             return None;

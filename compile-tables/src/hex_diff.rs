@@ -101,8 +101,8 @@ fn write_diff(f: &mut impl fmt::Write, diff: DiffResult, width: usize) -> fmt::R
             writer.write_padding()?;
         }
 
-        writer.write_with_style(&'|', Color::White.dimmed().into())?;
-        writer.write_with_style(&' ', Color::White.dimmed().into())?;
+        writer.write_with_style(&'|', Color::White.dimmed())?;
+        writer.write_with_style(&' ', Color::White.dimmed())?;
 
         for item in right {
             writer.write_item(item)?;

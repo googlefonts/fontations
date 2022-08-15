@@ -46,14 +46,22 @@ impl ValueRecord {
 
 impl FontWrite for ValueRecord {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.x_placement.map(|v| v.write_into(writer));
-        self.y_placement.map(|v| v.write_into(writer));
-        self.x_advance.map(|v| v.write_into(writer));
-        self.y_advance.map(|v| v.write_into(writer));
-        self.x_placement_device.map(|v| v.write_into(writer));
-        self.y_placement_device.map(|v| v.write_into(writer));
-        self.x_advance_device.map(|v| v.write_into(writer));
-        self.y_advance_device.map(|v| v.write_into(writer));
+        macro_rules! write_field {
+            ($field:expr) => {
+                if let Some(v) = $field {
+                    v.write_into(writer);
+                }
+            };
+        }
+
+        write_field!(self.x_placement);
+        write_field!(self.y_placement);
+        write_field!(self.x_advance);
+        write_field!(self.y_advance);
+        write_field!(self.x_placement_device);
+        write_field!(self.y_placement_device);
+        write_field!(self.x_advance_device);
+        write_field!(self.y_advance_device);
     }
 }
 

@@ -113,15 +113,15 @@ impl<'a> std::ops::Deref for PositionLookup<'a> {
     type Target = Lookup<'a>;
     fn deref(&self) -> &Self::Target {
         match self {
-            PositionLookup::Single(table) => *&table,
-            PositionLookup::Pair(table) => *&table,
-            PositionLookup::Cursive(table) => *&table,
-            PositionLookup::MarkToBase(table) => *&table,
-            PositionLookup::MarkToMark(table) => *&table,
-            PositionLookup::MarkToLig(table) => *&table,
-            PositionLookup::Contextual(table) => *&table,
-            PositionLookup::ChainContextual(table) => *&table,
-            PositionLookup::Extension(table) => *&table,
+            PositionLookup::Single(table) => table,
+            PositionLookup::Pair(table) => table,
+            PositionLookup::Cursive(table) => table,
+            PositionLookup::MarkToBase(table) => table,
+            PositionLookup::MarkToMark(table) => table,
+            PositionLookup::MarkToLig(table) => table,
+            PositionLookup::Contextual(table) => table,
+            PositionLookup::ChainContextual(table) => table,
+            PositionLookup::Extension(table) => table,
         }
     }
 }

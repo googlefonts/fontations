@@ -25,8 +25,8 @@ pub enum Mode {
 
 pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
     let tables = match mode {
-        Mode::Parse => generate_parse_module(&code_str),
-        Mode::Compile => generate_compile_module(&code_str),
+        Mode::Parse => generate_parse_module(code_str),
+        Mode::Compile => generate_compile_module(code_str),
     }?;
     // if this is not valid code just pass it through directly, and then we
     // can see the compiler errors
@@ -63,8 +63,8 @@ pub fn generate_parse_module(code: &str) -> Result<proc_macro2::TokenStream, syn
             Item::Record(item) => record::generate(item)?,
             Item::Table(item) => table::generate(item)?,
             Item::Format(item) => table::generate_format_group(item)?,
-            Item::RawEnum(item) => flags_enums::generate_raw_enum(&item),
-            Item::Flags(item) => flags_enums::generate_flags(&item),
+            Item::RawEnum(item) => flags_enums::generate_raw_enum(item),
+            Item::Flags(item) => flags_enums::generate_flags(item),
         };
         code.push(item_code);
     }
@@ -84,11 +84,11 @@ pub fn generate_compile_module(code: &str) -> Result<proc_macro2::TokenStream, s
         .items
         .iter()
         .map(|item| match item {
-            Item::Record(item) => record::generate_compile(&item, &items.parse_module_path),
-            Item::Table(item) => table::generate_compile(&item, &items.parse_module_path),
-            Item::Format(item) => table::generate_format_compile(&item, &items.parse_module_path),
-            Item::RawEnum(item) => Ok(flags_enums::generate_raw_enum_compile(&item)),
-            Item::Flags(item) => Ok(flags_enums::generate_flags_compile(&item)),
+            Item::Record(item) => record::generate_compile(item, &items.parse_module_path),
+            Item::Table(item) => table::generate_compile(item, &items.parse_module_path),
+            Item::Format(item) => table::generate_format_compile(item, &items.parse_module_path),
+            Item::RawEnum(item) => Ok(flags_enums::generate_raw_enum_compile(item)),
+            Item::Flags(item) => Ok(flags_enums::generate_flags_compile(item)),
         })
         .collect::<Result<Vec<_>, _>>()?;
 

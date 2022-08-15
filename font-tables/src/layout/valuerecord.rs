@@ -37,7 +37,7 @@ impl ValueRecord {
         Self::read(data, format)
     }
 
-    pub fn read<'a>(data: FontData<'a>, format: ValueFormat) -> Result<Self, ReadError> {
+    pub fn read(data: FontData, format: ValueFormat) -> Result<Self, ReadError> {
         let mut this = ValueRecord::default();
         let mut cursor = data.cursor();
 

@@ -161,7 +161,7 @@ impl TableData {
         });
         let null_bytes = &[0u8, 0, 0, 0].get(..width.min(4)).unwrap();
 
-        self.write(&null_bytes);
+        self.write(null_bytes);
     }
 
     fn write(&mut self, bytes: &[u8]) {

@@ -73,7 +73,7 @@ impl<'a> FontData<'a> {
         self.bytes
             .get(offset..offset + T::RAW_BYTE_LEN)
             .and_then(T::read)
-            .ok_or_else(|| ReadError::OutOfBounds)
+            .ok_or(ReadError::OutOfBounds)
     }
 
     pub fn read_with_args<T>(&self, range: Range<usize>, args: &T::Args) -> Result<T, ReadError>
@@ -85,20 +85,28 @@ impl<'a> FontData<'a> {
             .and_then(|data| T::read_with_args(data, args))
     }
 
+    /// Read a scalar value out of the buffer at `offset`, elliding bounds checks
+    ///
+    /// # Safety
+    ///
+    /// The range `offset..offset + T::RAW_BYTE_LEN` must be in bounds.
     pub unsafe fn read_at_unchecked<T: ReadScalar>(&self, offset: usize) -> T {
-        T::read(self.bytes.get_unchecked(offset..)).unwrap_unchecked()
+        T::read(self.bytes.get_unchecked(offset..offset + T::RAW_BYTE_LEN)).unwrap_unchecked()
     }
 
     fn check_in_bounds(&self, offset: usize) -> Result<(), ReadError> {
         self.bytes
             .get(..offset)
-            .ok_or_else(|| ReadError::OutOfBounds)
+            .ok_or(ReadError::OutOfBounds)
             .map(|_| ())
     }
 
     //NOTE: this is definitely unsound, since FixedSized isn't private,
     // and we don't enforce all soundness requirements: for instance, you could
-    // use this to create an enum with an invalid discriminant, which is UB
+    // use this to create an enum with an invalid discriminant, which is UB.
+    //
+    // In practice I believe my *current* use is correct, as it is all in auto-generated
+    // code, and I know the invariants, but this should be revisited.
     pub fn read_ref_at<T: FixedSized>(&self, offset: usize) -> Result<&'a T, ReadError> {
         assert_ne!(std::mem::size_of::<T>(), 0);
         assert_eq!(std::mem::align_of::<T>(), 1);
@@ -109,6 +117,13 @@ impl<'a> FontData<'a> {
         unsafe { Ok(self.read_ref_unchecked(offset)) }
     }
 
+    /// Interpret the bytes at `offset` as a reference to some type `T`.
+    ///
+    /// # Safety
+    ///
+    /// `T` must be a struct or scalar that has alignment of 1, a non-zero size,
+    /// and no internal padding, and offset must point to a slice of bytes that
+    /// has length >= `size_of::<T>()`.
     unsafe fn read_ref_unchecked<T: FixedSized>(&self, offset: usize) -> &'a T {
         let bytes = self.bytes.get_unchecked(offset..offset + T::RAW_BYTE_LEN);
         &*(bytes.as_ptr() as *const T)
@@ -121,13 +136,20 @@ impl<'a> FontData<'a> {
         let bytes = self
             .bytes
             .get(range.clone())
-            .ok_or_else(|| ReadError::OutOfBounds)?;
+            .ok_or(ReadError::OutOfBounds)?;
         if bytes.len() % std::mem::size_of::<T>() != 0 {
             return Err(ReadError::InvalidArrayLen);
         };
         unsafe { Ok(self.read_array_unchecked(range)) }
     }
 
+    /// Interpret the bytes at `offset` as a reference to some type `T`.
+    ///
+    /// # Safety
+    ///
+    /// `T` must be a struct or scalar that has alignment of 1, a non-zero size,
+    /// and no internal padding, and `range` must have a length that is non-zero
+    /// and is a multiple of `size_of::<T>()`.
     pub unsafe fn read_array_unchecked<T>(&self, range: Range<usize>) -> &'a [T] {
         let bytes = self.bytes.get_unchecked(range);
         let elems = bytes.len() / std::mem::size_of::<T>();
@@ -144,7 +166,7 @@ impl<'a> FontData<'a> {
     pub(crate) fn cursor(&self) -> Cursor<'a> {
         Cursor {
             pos: 0,
-            data: self.clone(),
+            data: *self,
         }
     }
 

@@ -118,6 +118,7 @@ impl Priority {
     const TWO: Priority = Priority(2);
     const THREE: Priority = Priority(3);
 
+    #[cfg(test)]
     fn increase(&mut self) -> bool {
         let result = *self != Priority::THREE;
         self.0 = (self.0 + 1).min(3);
@@ -161,6 +162,7 @@ impl Node {
             Priority::ZERO => prev_dist,
             Priority::ONE => prev_dist - self.size as i64 / 2,
             Priority::TWO => prev_dist - self.size as i64,
+            Priority::THREE => 0,
             _ => 0,
         }
         .max(0) as u64;
@@ -215,7 +217,7 @@ impl Graph {
     fn find_overflows(&self) -> Vec<(ObjectId, ObjectId)> {
         let mut result = Vec::new();
         for (parent_id, data) in &self.objects {
-            let parent = &self.nodes[&parent_id];
+            let parent = &self.nodes[parent_id];
             for link in &data.offsets {
                 let child = &self.nodes[&link.object];
                 //TODO: account for 'whence'
@@ -574,8 +576,8 @@ mod tests {
 
     fn make_ids<const N: usize>() -> [ObjectId; N] {
         let mut ids = [ObjectId::next(); N];
-        for i in 1..N {
-            ids[i] = ObjectId::next();
+        for id in ids.iter_mut().skip(1) {
+            *id = ObjectId::next();
         }
         ids
     }
@@ -756,11 +758,11 @@ mod tests {
         assert_eq!(one.intersection(&two).count(), 0);
 
         for id in &one {
-            assert_eq!(graph.nodes.get(&id).unwrap().space, Space::SHORT_REACHABLE);
+            assert_eq!(graph.nodes.get(id).unwrap().space, Space::SHORT_REACHABLE);
         }
 
         for id in &two {
-            assert!(graph.nodes.get(&id).unwrap().space.is_custom());
+            assert!(graph.nodes.get(id).unwrap().space.is_custom());
         }
     }
 

@@ -125,14 +125,14 @@ impl<T: Scalar + FixedSized> FixedSized for BigEndian<T> {
 #[macro_export]
 macro_rules! newtype_scalar {
     ($ty:ident, $raw:ty) => {
-        impl crate::raw::Scalar for $ty {
+        impl $crate::raw::Scalar for $ty {
             type Raw = $raw;
             fn to_raw(self) -> $raw {
                 self.0.to_raw()
             }
 
             fn from_raw(raw: $raw) -> Self {
-                Self(crate::raw::Scalar::from_raw(raw))
+                Self($crate::raw::Scalar::from_raw(raw))
             }
         }
     };

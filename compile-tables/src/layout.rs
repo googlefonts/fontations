@@ -11,6 +11,7 @@ mod value_record;
 
 #[cfg(test)]
 #[path = "./tests/layout.rs"]
+#[cfg(feature = "parsing")]
 mod spec_tests;
 
 include!("../generated/generated_layout.rs");

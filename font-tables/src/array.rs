@@ -51,7 +51,7 @@ where
 {
     pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a {
         let mut i = 0;
-        let data = self.data.clone();
+        let data = self.data;
         let args = self.args;
         let item_len = self.item_len;
         let len = self.len;
