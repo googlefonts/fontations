@@ -76,10 +76,7 @@ impl<'a> SomeTable<'a> for Hmtx<'a> {
         match idx {
             0usize => Some(Field::new(
                 "h_metrics",
-                traversal::FieldType::array_of_records(
-                    self.h_metrics(),
-                    self.offset_data().clone(),
-                ),
+                traversal::FieldType::array_of_records(self.h_metrics(), *self.offset_data()),
             )),
             1usize => Some(Field::new("left_side_bearings", self.left_side_bearings())),
             _ => None,

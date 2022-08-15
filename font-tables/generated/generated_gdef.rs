@@ -304,7 +304,7 @@ impl<'a> AttachList<'a> {
     }
 
     pub fn attach_point(&self) -> impl Iterator<Item = Result<AttachPoint<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.attach_point_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -477,7 +477,7 @@ impl<'a> LigCaretList<'a> {
     }
 
     pub fn lig_glyph(&self) -> impl Iterator<Item = Result<LigGlyph<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.lig_glyph_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -564,7 +564,7 @@ impl<'a> LigGlyph<'a> {
     }
 
     pub fn caret_value(&self) -> impl Iterator<Item = Result<CaretValue<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.caret_value_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -936,7 +936,7 @@ impl<'a> MarkGlyphSets<'a> {
     }
 
     pub fn coverage(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.coverage_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))

@@ -107,6 +107,12 @@ fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
     let name = item.raw_name();
     let name_str = name.to_string();
     let field_arms = item.fields.iter_field_traversal_match_arms(false);
+    let attrs = item.fields.fields.is_empty().then(|| {
+        quote! {
+            #[allow(unused_variables)]
+            #[allow(clippy::match_single_binding)]
+        }
+    });
 
     Ok(quote! {
         #[cfg(feature = "traversal")]
@@ -115,6 +121,7 @@ fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
                 #name_str
             }
 
+            #attrs
             fn get_field(&self, idx: usize) -> Option<Field<'a>> {
                 match idx {
                     #( #field_arms, )*

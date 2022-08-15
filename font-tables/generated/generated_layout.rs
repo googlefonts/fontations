@@ -63,10 +63,7 @@ impl<'a> SomeTable<'a> for ScriptList<'a> {
             0usize => Some(Field::new("script_count", self.script_count())),
             1usize => Some(Field::new(
                 "script_records",
-                traversal::FieldType::array_of_records(
-                    self.script_records(),
-                    self.offset_data().clone(),
-                ),
+                traversal::FieldType::array_of_records(self.script_records(), *self.offset_data()),
             )),
             _ => None,
         }
@@ -104,7 +101,7 @@ impl ScriptRecord {
 
     /// Attempt to resolve [`script_offset`][Self::script_offset].
     pub fn script<'a>(&self, data: &FontData<'a>) -> Result<Script<'a>, ReadError> {
-        self.script_offset().resolve(&data)
+        self.script_offset().resolve(data)
     }
 }
 
@@ -210,7 +207,7 @@ impl<'a> SomeTable<'a> for Script<'a> {
                 "lang_sys_records",
                 traversal::FieldType::array_of_records(
                     self.lang_sys_records(),
-                    self.offset_data().clone(),
+                    *self.offset_data(),
                 ),
             )),
             _ => None,
@@ -248,7 +245,7 @@ impl LangSysRecord {
 
     /// Attempt to resolve [`lang_sys_offset`][Self::lang_sys_offset].
     pub fn lang_sys<'a>(&self, data: &FontData<'a>) -> Result<LangSys<'a>, ReadError> {
-        self.lang_sys_offset().resolve(&data)
+        self.lang_sys_offset().resolve(data)
     }
 }
 
@@ -424,10 +421,7 @@ impl<'a> SomeTable<'a> for FeatureList<'a> {
             0usize => Some(Field::new("feature_count", self.feature_count())),
             1usize => Some(Field::new(
                 "feature_records",
-                traversal::FieldType::array_of_records(
-                    self.feature_records(),
-                    self.offset_data().clone(),
-                ),
+                traversal::FieldType::array_of_records(self.feature_records(), *self.offset_data()),
             )),
             _ => None,
         }
@@ -466,7 +460,7 @@ impl FeatureRecord {
     /// Attempt to resolve [`feature_offset`][Self::feature_offset].
     pub fn feature<'a>(&self, data: &FontData<'a>) -> Result<Feature<'a>, ReadError> {
         let args = self.feature_tag();
-        self.feature_offset().resolve_with_args(&data, &args)
+        self.feature_offset().resolve_with_args(data, &args)
     }
 }
 
@@ -932,10 +926,7 @@ impl<'a> SomeTable<'a> for CoverageFormat2<'a> {
             1usize => Some(Field::new("range_count", self.range_count())),
             2usize => Some(Field::new(
                 "range_records",
-                traversal::FieldType::array_of_records(
-                    self.range_records(),
-                    self.offset_data().clone(),
-                ),
+                traversal::FieldType::array_of_records(self.range_records(), *self.offset_data()),
             )),
             _ => None,
         }
@@ -1220,7 +1211,7 @@ impl<'a> SomeTable<'a> for ClassDefFormat2<'a> {
                 "class_range_records",
                 traversal::FieldType::array_of_records(
                     self.class_range_records(),
-                    self.offset_data().clone(),
+                    *self.offset_data(),
                 ),
             )),
             _ => None,
@@ -1455,7 +1446,7 @@ impl<'a> SequenceContextFormat1<'a> {
     pub fn seq_rule_set(
         &self,
     ) -> impl Iterator<Item = Option<Result<SequenceRuleSet<'a>, ReadError>>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.seq_rule_set_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -1543,7 +1534,7 @@ impl<'a> SequenceRuleSet<'a> {
     }
 
     pub fn seq_rule(&self) -> impl Iterator<Item = Result<SequenceRule<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.seq_rule_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -1668,7 +1659,7 @@ impl<'a> SomeTable<'a> for SequenceRule<'a> {
                 "seq_lookup_records",
                 traversal::FieldType::array_of_records(
                     self.seq_lookup_records(),
-                    self.offset_data().clone(),
+                    *self.offset_data(),
                 ),
             )),
             _ => None,
@@ -1786,7 +1777,7 @@ impl<'a> SequenceContextFormat2<'a> {
     pub fn class_seq_rule_set(
         &self,
     ) -> impl Iterator<Item = Option<Result<ClassSequenceRuleSet<'a>, ReadError>>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.class_seq_rule_set_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -1881,7 +1872,7 @@ impl<'a> ClassSequenceRuleSet<'a> {
     pub fn class_seq_rule(
         &self,
     ) -> impl Iterator<Item = Result<ClassSequenceRule<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.class_seq_rule_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -2010,7 +2001,7 @@ impl<'a> SomeTable<'a> for ClassSequenceRule<'a> {
                 "seq_lookup_records",
                 traversal::FieldType::array_of_records(
                     self.seq_lookup_records(),
-                    self.offset_data().clone(),
+                    *self.offset_data(),
                 ),
             )),
             _ => None,
@@ -2109,7 +2100,7 @@ impl<'a> SequenceContextFormat3<'a> {
     }
 
     pub fn coverage(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.coverage_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -2146,7 +2137,7 @@ impl<'a> SomeTable<'a> for SequenceContextFormat3<'a> {
                 "seq_lookup_records",
                 traversal::FieldType::array_of_records(
                     self.seq_lookup_records(),
-                    self.offset_data().clone(),
+                    *self.offset_data(),
                 ),
             )),
             _ => None,
@@ -2292,7 +2283,7 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     pub fn chained_seq_rule_set(
         &self,
     ) -> impl Iterator<Item = Option<Result<ChainedSequenceRuleSet<'a>, ReadError>>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.chained_seq_rule_set_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -2386,7 +2377,7 @@ impl<'a> ChainedSequenceRuleSet<'a> {
     pub fn chained_seq_rule(
         &self,
     ) -> impl Iterator<Item = Result<ChainedSequenceRule<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.chained_seq_rule_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -2574,7 +2565,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceRule<'a> {
                 "seq_lookup_records",
                 traversal::FieldType::array_of_records(
                     self.seq_lookup_records(),
-                    self.offset_data().clone(),
+                    *self.offset_data(),
                 ),
             )),
             _ => None,
@@ -2728,7 +2719,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     pub fn chained_class_seq_rule_set(
         &self,
     ) -> impl Iterator<Item = Option<Result<ChainedClassSequenceRuleSet<'a>, ReadError>>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.chained_class_seq_rule_set_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -2831,7 +2822,7 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
     pub fn chained_class_seq_rule(
         &self,
     ) -> impl Iterator<Item = Result<ChainedClassSequenceRule<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.chained_class_seq_rule_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -3020,7 +3011,7 @@ impl<'a> SomeTable<'a> for ChainedClassSequenceRule<'a> {
                 "seq_lookup_records",
                 traversal::FieldType::array_of_records(
                     self.seq_lookup_records(),
-                    self.offset_data().clone(),
+                    *self.offset_data(),
                 ),
             )),
             _ => None,
@@ -3142,7 +3133,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     pub fn backtrack_coverage(
         &self,
     ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.backtrack_coverage_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -3163,7 +3154,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     pub fn input_coverage(
         &self,
     ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.input_coverage_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -3184,7 +3175,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     pub fn lookahead_coverage(
         &self,
     ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.lookahead_coverage_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -3255,7 +3246,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                 "seq_lookup_records",
                 traversal::FieldType::array_of_records(
                     self.seq_lookup_records(),
-                    self.offset_data().clone(),
+                    *self.offset_data(),
                 ),
             )),
             _ => None,
@@ -3617,7 +3608,7 @@ impl<'a> SomeTable<'a> for FeatureVariations<'a> {
                 "feature_variation_records",
                 traversal::FieldType::array_of_records(
                     self.feature_variation_records(),
-                    self.offset_data().clone(),
+                    *self.offset_data(),
                 ),
             )),
             _ => None,
@@ -3654,7 +3645,7 @@ impl FeatureVariationRecord {
 
     /// Attempt to resolve [`condition_set_offset`][Self::condition_set_offset].
     pub fn condition_set<'a>(&self, data: &FontData<'a>) -> Result<ConditionSet<'a>, ReadError> {
-        self.condition_set_offset().resolve(&data)
+        self.condition_set_offset().resolve(data)
     }
 
     /// Offset to a feature table substitution table, from beginning of
@@ -3668,7 +3659,7 @@ impl FeatureVariationRecord {
         &self,
         data: &FontData<'a>,
     ) -> Result<FeatureTableSubstitution<'a>, ReadError> {
-        self.feature_table_substitution_offset().resolve(&data)
+        self.feature_table_substitution_offset().resolve(data)
     }
 }
 
@@ -3746,7 +3737,7 @@ impl<'a> ConditionSet<'a> {
     }
 
     pub fn condition(&self) -> impl Iterator<Item = Result<ConditionFormat1<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.condition_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -3954,10 +3945,7 @@ impl<'a> SomeTable<'a> for FeatureTableSubstitution<'a> {
             1usize => Some(Field::new("substitution_count", self.substitution_count())),
             2usize => Some(Field::new(
                 "substitutions",
-                traversal::FieldType::array_of_records(
-                    self.substitutions(),
-                    self.offset_data().clone(),
-                ),
+                traversal::FieldType::array_of_records(self.substitutions(), *self.offset_data()),
             )),
             _ => None,
         }

@@ -30,7 +30,7 @@ impl<'a, T: FontRead<'a>> TypedLookup<'a, T> {
     }
 
     pub fn subtables(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         self.inner
             .subtable_offsets()
             .iter()

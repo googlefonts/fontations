@@ -558,10 +558,7 @@ impl<'a> SomeTable<'a> for MarkArray<'a> {
             0usize => Some(Field::new("mark_count", self.mark_count())),
             1usize => Some(Field::new(
                 "mark_records",
-                traversal::FieldType::array_of_records(
-                    self.mark_records(),
-                    self.offset_data().clone(),
-                ),
+                traversal::FieldType::array_of_records(self.mark_records(), *self.offset_data()),
             )),
             _ => None,
         }
@@ -599,7 +596,7 @@ impl MarkRecord {
 
     /// Attempt to resolve [`mark_anchor_offset`][Self::mark_anchor_offset].
     pub fn mark_anchor<'a>(&self, data: &FontData<'a>) -> Result<AnchorTable<'a>, ReadError> {
-        self.mark_anchor_offset().resolve(&data)
+        self.mark_anchor_offset().resolve(data)
     }
 }
 
@@ -880,10 +877,7 @@ impl<'a> SomeTable<'a> for SinglePosFormat2<'a> {
             3usize => Some(Field::new("value_count", self.value_count())),
             4usize => Some(Field::new(
                 "value_records",
-                traversal::FieldType::computed_array(
-                    self.value_records(),
-                    self.offset_data().clone(),
-                ),
+                traversal::FieldType::computed_array(self.value_records(), *self.offset_data()),
             )),
             _ => None,
         }
@@ -1046,7 +1040,7 @@ impl<'a> PairPosFormat1<'a> {
     }
 
     pub fn pair_set(&self) -> impl Iterator<Item = Result<PairSet<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         let args = (self.value_format1(), self.value_format2());
         self.pair_set_offsets()
             .iter()
@@ -1172,7 +1166,7 @@ impl<'a> SomeTable<'a> for PairSet<'a> {
                 "pair_value_records",
                 traversal::FieldType::computed_array(
                     self.pair_value_records(),
-                    self.offset_data().clone(),
+                    *self.offset_data(),
                 ),
             )),
             _ => None,
@@ -1446,10 +1440,7 @@ impl<'a> SomeTable<'a> for PairPosFormat2<'a> {
             7usize => Some(Field::new("class2_count", self.class2_count())),
             8usize => Some(Field::new(
                 "class1_records",
-                traversal::FieldType::computed_array(
-                    self.class1_records(),
-                    self.offset_data().clone(),
-                ),
+                traversal::FieldType::computed_array(self.class1_records(), *self.offset_data()),
             )),
             _ => None,
         }
@@ -1683,7 +1674,7 @@ impl<'a> SomeTable<'a> for CursivePosFormat1<'a> {
                 "entry_exit_record",
                 traversal::FieldType::array_of_records(
                     self.entry_exit_record(),
-                    self.offset_data().clone(),
+                    *self.offset_data(),
                 ),
             )),
             _ => None,
@@ -1723,7 +1714,7 @@ impl EntryExitRecord {
         &self,
         data: &FontData<'a>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
-        self.entry_anchor_offset().resolve(&data)
+        self.entry_anchor_offset().resolve(data)
     }
 
     /// Offset to exitAnchor table, from beginning of CursivePos
@@ -1737,7 +1728,7 @@ impl EntryExitRecord {
         &self,
         data: &FontData<'a>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
-        self.exit_anchor_offset().resolve(&data)
+        self.exit_anchor_offset().resolve(data)
     }
 }
 
@@ -1979,10 +1970,7 @@ impl<'a> SomeTable<'a> for BaseArray<'a> {
             0usize => Some(Field::new("base_count", self.base_count())),
             1usize => Some(Field::new(
                 "base_records",
-                traversal::FieldType::computed_array(
-                    self.base_records(),
-                    self.offset_data().clone(),
-                ),
+                traversal::FieldType::computed_array(self.base_records(), *self.offset_data()),
             )),
             _ => None,
         }
@@ -2017,7 +2005,7 @@ impl<'a> BaseRecord<'a> {
         &self,
         data: &FontData<'a>,
     ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + 'a {
-        let data = data.clone();
+        let data = *data;
         self.base_anchor_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -2278,7 +2266,7 @@ impl<'a> LigatureArray<'a> {
     pub fn ligature_attach(
         &self,
     ) -> impl Iterator<Item = Result<LigatureAttach<'a>, ReadError>> + 'a {
-        let data = self.data.clone();
+        let data = self.data;
         let args = self.mark_class_count();
         self.ligature_attach_offsets()
             .iter()
@@ -2395,10 +2383,7 @@ impl<'a> SomeTable<'a> for LigatureAttach<'a> {
             0usize => Some(Field::new("component_count", self.component_count())),
             1usize => Some(Field::new(
                 "component_records",
-                traversal::FieldType::computed_array(
-                    self.component_records(),
-                    self.offset_data().clone(),
-                ),
+                traversal::FieldType::computed_array(self.component_records(), *self.offset_data()),
             )),
             _ => None,
         }
@@ -2433,7 +2418,7 @@ impl<'a> ComponentRecord<'a> {
         &self,
         data: &FontData<'a>,
     ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + 'a {
-        let data = data.clone();
+        let data = *data;
         self.ligature_anchor_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))
@@ -2704,10 +2689,7 @@ impl<'a> SomeTable<'a> for Mark2Array<'a> {
             0usize => Some(Field::new("mark2_count", self.mark2_count())),
             1usize => Some(Field::new(
                 "mark2_records",
-                traversal::FieldType::computed_array(
-                    self.mark2_records(),
-                    self.offset_data().clone(),
-                ),
+                traversal::FieldType::computed_array(self.mark2_records(), *self.offset_data()),
             )),
             _ => None,
         }
@@ -2742,7 +2724,7 @@ impl<'a> Mark2Record<'a> {
         &self,
         data: &FontData<'a>,
     ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + 'a {
-        let data = data.clone();
+        let data = *data;
         self.mark2_anchor_offsets()
             .iter()
             .map(move |off| off.get().resolve(&data))

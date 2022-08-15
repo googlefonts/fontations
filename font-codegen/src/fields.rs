@@ -167,7 +167,7 @@ fn traversal_arm_for_field(
                         #name_str,
                         traversal::FieldType::array_of_records(
                             self.#name(),
-                            self.offset_data().clone(),
+                            *self.offset_data(),
                         )
                 ))
             }
@@ -196,7 +196,7 @@ fn traversal_arm_for_field(
             // Class1Record
             let data = in_record
                 .then(|| quote!(FontData::new(&[])))
-                .unwrap_or_else(|| quote!(self.offset_data().clone()));
+                .unwrap_or_else(|| quote!(*self.offset_data()));
             // in a record we return things by value, so clone
             let maybe_clone = in_record.then(|| quote!(.clone()));
             quote!(Field::new(
@@ -529,7 +529,7 @@ impl Field {
             return_type = quote!(impl Iterator<Item=#return_type> + 'a);
         }
 
-        let add_back_borrow = (record.is_some() || self.is_array()).then(|| quote!(&));
+        let add_back_borrow = self.is_array().then(|| quote!(&));
 
         let resolve = match self.attrs.read_offset_args.as_deref() {
             None => quote!(resolve( #add_back_borrow data)),
@@ -548,11 +548,11 @@ impl Field {
 
         let data_alias_if_needed = match record {
             // if a table, data is self.data
-            None if self.is_array() => Some(quote!(let data = self.data.clone();)),
+            None if self.is_array() => Some(quote!(let data = self.data;)),
             None => Some(quote!(let data = &self.data;)),
             // if this is an offset getter for an array we need to clone
             // data so it is owned by closure
-            Some(_) if self.is_array() => Some(quote!(let data = data.clone();)),
+            Some(_) if self.is_array() => Some(quote!(let data = *data;)),
             _ => None,
         };
 
