@@ -2,8 +2,8 @@
 //!
 //! [GPOS]: https://docs.microsoft.com/en-us/typography/opentype/spec/gpos
 
-#[path = "./valuerecord.rs"]
-mod valuerecord;
+#[path = "./value_record.rs"]
+mod value_record;
 
 use crate::array::ComputedArray;
 
@@ -12,7 +12,7 @@ pub use super::{
     ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
     Lookup, LookupList, ScriptList, SequenceContext, TypedLookup,
 };
-pub use valuerecord::ValueRecord;
+pub use value_record::ValueRecord;
 
 use crate::parse_prelude::*;
 

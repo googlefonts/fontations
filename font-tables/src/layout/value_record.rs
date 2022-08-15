@@ -19,7 +19,7 @@ impl ValueFormat {
 /// NOTE: we create these manually, since parsing is weird and depends on the
 /// associated valueformat. That said, this isn't a great representation?
 /// we could definitely do something much more in the zero-copy mode..
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, Default, PartialEq, Eq)]
 pub struct ValueRecord {
     pub x_placement: Option<BigEndian<i16>>,
     pub y_placement: Option<BigEndian<i16>>,
