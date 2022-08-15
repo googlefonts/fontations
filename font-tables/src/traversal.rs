@@ -47,15 +47,83 @@ pub enum FieldType<'a> {
     None,
 }
 
+impl<'a> FieldType<'a> {
+    /// makes a field, handling the case where this array may not be present in
+    /// all versions
+    pub fn array_of_records<T>(
+        records: impl Into<Option<&'a [T]>>,
+        data: FontData<'a>,
+    ) -> FieldType<'a>
+    where
+        T: Clone + SomeRecord<'a> + 'a,
+    {
+        match records.into() {
+            None => FieldType::None,
+            Some(records) => ArrayOfRecords { data, records }.into(),
+        }
+    }
+
+    // Convenience method for handling computed arrays
+    pub fn computed_array<T>(
+        array: impl Into<Option<ComputedArray<'a, T>>>,
+        data: FontData<'a>,
+    ) -> FieldType<'a>
+    where
+        T: FontReadWithArgs<'a> + ComputeSize + SomeRecord<'a> + 'a,
+        T::Args: Copy + 'static,
+    {
+        match array.into() {
+            None => FieldType::None,
+            Some(array) => ComputedArrayOfRecords { data, array }.into(),
+        }
+    }
+
+    /// convenience (haha) method for creating an offset array field.
+    ///
+    /// It would be nice if this could just be SomeArray, but it's easier to
+    /// implement on top of the existing iterating offset getters.
+    ///
+    /// The signature is so funky because we need to be able to iterate repeatedly,
+    /// so we can't just pass in the iterator directly; we need to pass
+    /// in a function that returns an iterator when called.
+    pub fn offset_iter(f: impl Fn() -> Box<dyn Iterator<Item = FieldType<'a>> + 'a> + 'a) -> Self {
+        FieldType::OffsetArray(Box::new(f))
+    }
+}
+
 /// A generic field in a font table
 pub struct Field<'a> {
     name: &'static str,
     typ: FieldType<'a>,
 }
 
+/// A generic table type.
+///
+/// This is intended to be used as a trait object.
 pub trait SomeTable<'a> {
+    /// The name of this table
     fn type_name(&self) -> &str;
+    /// Access this table's fields, in declaration order.
     fn get_field(&self, idx: usize) -> Option<Field<'a>>;
+}
+
+impl<'a> dyn SomeTable<'a> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = Field<'a>> + '_ {
+        FieldIter {
+            table: self,
+            idx: 0,
+        }
+    }
+}
+
+impl<'a> SomeTable<'a> for Box<dyn SomeTable<'a> + 'a> {
+    fn type_name(&self) -> &str {
+        self.deref().type_name()
+    }
+
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.deref().get_field(idx)
+    }
 }
 
 /// a closure that can generate an iterator over resolved offsets
@@ -78,44 +146,26 @@ pub trait SomeRecord<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a>;
 }
 
+/// A struct created from a record and the data it needs to resolve any
+/// contained offsets.
 pub struct RecordResolver<'a> {
     pub(crate) name: &'static str,
     pub(crate) get_field: Box<dyn Fn(usize, FontData<'a>) -> Option<Field<'a>> + 'a>,
     pub(crate) data: FontData<'a>,
 }
 
-// used to give us an auto-impl of Debug
-impl<'a> SomeTable<'a> for RecordResolver<'a> {
-    fn type_name(&self) -> &str {
-        self.name
-    }
-
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        (self.get_field)(idx, self.data)
-    }
-}
-
-impl<'a> SomeTable<'a> for Box<dyn SomeTable<'a> + 'a> {
-    fn type_name(&self) -> &str {
-        self.deref().type_name()
-    }
-
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.deref().get_field(idx)
-    }
-}
-
-fn iter_fields<'a, 'b>(table: &'b (dyn SomeTable<'a> + 'b)) -> FieldIter<'a, 'b> {
-    FieldIter { table, idx: 0 }
-}
-
-fn iter_array<'a, 'b>(array: &'b (dyn SomeArray<'a> + 'b)) -> ArrayIter<'a, 'b> {
-    ArrayIter { array, idx: 0 }
-}
-
 pub trait SomeArray<'a> {
     fn len(&self) -> usize;
     fn get(&self, idx: usize) -> Option<FieldType<'a>>;
+}
+
+impl<'a> dyn SomeArray<'a> + 'a {
+    pub fn iter(&self) -> impl Iterator<Item = FieldType<'a>> + '_ {
+        ArrayIter {
+            array: self,
+            idx: 0,
+        }
+    }
 }
 
 impl<'a, T: Scalar + Into<FieldType<'a>>> SomeArray<'a> for &'a [BigEndian<T>]
@@ -141,25 +191,10 @@ impl<'a> SomeArray<'a> for &'a [u8] {
     }
 }
 
-pub struct ComputedArrayOfRecords<'a, T: ReadArgs> {
+// only used as Box<dyn SomeArray<'a>>
+struct ComputedArrayOfRecords<'a, T: ReadArgs> {
     pub(crate) data: FontData<'a>,
     pub(crate) array: ComputedArray<'a, T>,
-}
-
-impl<'a, T> ComputedArrayOfRecords<'a, T>
-where
-    T: FontReadWithArgs<'a> + ComputeSize + SomeRecord<'a> + 'a,
-    T::Args: Copy + 'static,
-{
-    pub fn make_field(
-        array: impl Into<Option<ComputedArray<'a, T>>>,
-        data: FontData<'a>,
-    ) -> FieldType<'a> {
-        match array.into() {
-            None => FieldType::None,
-            Some(array) => Self { data, array }.into(),
-        }
-    }
 }
 
 impl<'a, T> SomeArray<'a> for ComputedArrayOfRecords<'a, T>
@@ -180,20 +215,10 @@ where
     }
 }
 
-pub struct ArrayOfRecords<'a, T> {
+// only used as Box<dyn SomeArray<'a>>
+struct ArrayOfRecords<'a, T> {
     pub(crate) data: FontData<'a>,
     pub(crate) records: &'a [T],
-}
-
-impl<'a, T: Clone + SomeRecord<'a> + 'a> ArrayOfRecords<'a, T> {
-    /// makes a field, handling the case where this array may not be present in
-    /// all versions
-    pub fn make_field(records: impl Into<Option<&'a [T]>>, data: FontData<'a>) -> FieldType<'a> {
-        match records.into() {
-            None => FieldType::None,
-            Some(records) => ArrayOfRecords { data, records }.into(),
-        }
-    }
 }
 
 impl<'a, T: SomeRecord<'a> + Clone> SomeArray<'a> for ArrayOfRecords<'a, T> {
@@ -208,7 +233,7 @@ impl<'a, T: SomeRecord<'a> + Clone> SomeArray<'a> for ArrayOfRecords<'a, T> {
     }
 }
 
-pub struct FieldIter<'a, 'b> {
+struct FieldIter<'a, 'b> {
     table: &'b dyn SomeTable<'a>,
     idx: usize,
 }
@@ -247,20 +272,11 @@ impl<'a> Field<'a> {
     }
 }
 
-impl<'a> FieldType<'a> {
-    /// convenience (haha) method for creating an offset array field
-    ///
-    /// Otherwise we would need a blanket impl, and that gets icky fast
-    pub fn offset_iter<F: ResolvedOffestArray<'a> + 'a>(f: F) -> Self {
-        FieldType::OffsetArray(Box::new(f))
-    }
-}
-
 /// A wrapper type that implements `Debug` for any table.
-pub struct DebugPrintTable<'a, 'b>(pub &'b dyn SomeTable<'a>);
+struct DebugPrintTable<'a, 'b>(pub &'b (dyn SomeTable<'a> + 'a));
 
 /// A wrapper type that implements `Debug` for any array.
-struct DebugPrintArray<'a, 'b>(pub &'b dyn SomeArray<'a>);
+struct DebugPrintArray<'a, 'b>(pub &'b (dyn SomeArray<'a> + 'a));
 
 impl<'a> Debug for FieldType<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -300,7 +316,7 @@ impl<'a> Debug for FieldType<'a> {
 impl<'a, 'b> std::fmt::Debug for DebugPrintTable<'a, 'b> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut debug_struct = f.debug_struct(self.0.type_name());
-        for field in iter_fields(self.0) {
+        for field in self.0.iter() {
             debug_struct.field(field.name, &field.typ);
         }
         debug_struct.finish()
@@ -316,7 +332,7 @@ impl<'a> Debug for dyn SomeTable<'a> + 'a {
 impl<'a, 'b> std::fmt::Debug for DebugPrintArray<'a, 'b> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut debug_list = f.debug_list();
-        for item in iter_array(self.0) {
+        for item in self.0.iter() {
             debug_list.entry(&item);
         }
         debug_list.finish()
@@ -326,6 +342,17 @@ impl<'a, 'b> std::fmt::Debug for DebugPrintArray<'a, 'b> {
 impl<'a> Debug for dyn SomeArray<'a> + 'a {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         DebugPrintArray(self).fmt(f)
+    }
+}
+
+// used to give us an auto-impl of Debug
+impl<'a> SomeTable<'a> for RecordResolver<'a> {
+    fn type_name(&self) -> &str {
+        self.name
+    }
+
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        (self.get_field)(idx, self.data)
     }
 }
 

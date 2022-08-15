@@ -165,7 +165,7 @@ fn traversal_arm_for_field(
             FieldType::Other { .. } if !in_record => {
                 quote!(Field::new(
                         #name_str,
-                        traversal::ArrayOfRecords::make_field(
+                        traversal::FieldType::array_of_records(
                             self.#name(),
                             self.offset_data().clone(),
                         )
@@ -201,7 +201,7 @@ fn traversal_arm_for_field(
             let maybe_clone = in_record.then(|| quote!(.clone()));
             quote!(Field::new(
                     #name_str,
-                    traversal::ComputedArrayOfRecords::make_field(
+                    traversal::FieldType::computed_array(
                         self.#name()#maybe_clone,
                         #data
                     )

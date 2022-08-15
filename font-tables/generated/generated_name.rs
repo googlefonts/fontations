@@ -135,7 +135,7 @@ impl<'a> SomeTable<'a> for Name<'a> {
             )),
             3usize => Some(Field::new(
                 "name_record",
-                traversal::ArrayOfRecords::make_field(
+                traversal::FieldType::array_of_records(
                     self.name_record(),
                     self.offset_data().clone(),
                 ),
@@ -143,7 +143,7 @@ impl<'a> SomeTable<'a> for Name<'a> {
             4usize => Some(Field::new("lang_tag_count", self.lang_tag_count())),
             5usize => Some(Field::new(
                 "lang_tag_record",
-                traversal::ArrayOfRecords::make_field(
+                traversal::FieldType::array_of_records(
                     self.lang_tag_record(),
                     self.offset_data().clone(),
                 ),
@@ -156,7 +156,7 @@ impl<'a> SomeTable<'a> for Name<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Name<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 

@@ -126,7 +126,7 @@ fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
         #[cfg(feature = "traversal")]
         impl<'a> std::fmt::Debug for #name<'a> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                traversal::DebugPrintTable(self).fmt(f)
+                (self as &dyn SomeTable<'a>).fmt(f)
             }
         }
     })
@@ -316,7 +316,7 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
         #[cfg(feature = "traversal")]
         impl<'a> std::fmt::Debug for #name<'a> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-                traversal::DebugPrintTable(self.dyn_inner()).fmt(f)
+                self.dyn_inner().fmt(f)
             }
         }
 

@@ -103,7 +103,7 @@ impl<'a> SomeTable<'a> for TableDirectory<'a> {
             4usize => Some(Field::new("range_shift", self.range_shift())),
             5usize => Some(Field::new(
                 "table_records",
-                traversal::ArrayOfRecords::make_field(
+                traversal::FieldType::array_of_records(
                     self.table_records(),
                     self.offset_data().clone(),
                 ),
@@ -116,7 +116,7 @@ impl<'a> SomeTable<'a> for TableDirectory<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for TableDirectory<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        traversal::DebugPrintTable(self).fmt(f)
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
