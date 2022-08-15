@@ -1,40 +1,38 @@
 //! the [post (PostScript)](https://docs.microsoft.com/en-us/typography/opentype/spec/post#header) table
 
-#[path = "../../generated/generated_post.rs"]
-mod generated;
-
-pub use generated::*;
-
-use font_types::Tag;
+use font_types::{GlyphId, Tag, Version16Dot16};
 
 /// 'post'
 pub const TAG: Tag = Tag::new(b"post");
 
+include!("../../generated/generated_post.rs");
+
 impl<'a> Post<'a> {
     /// The number of glyph names covered by this table
     pub fn num_names(&self) -> usize {
-        match self {
-            Post::Post1_0(_) => DEFAULT_GLYPH_NAMES.len(),
-            Post::Post2_0(table) => table.glyph_name_index().len() as usize,
+        match self.version() {
+            Version16Dot16::VERSION_1_0 => DEFAULT_GLYPH_NAMES.len(),
+            Version16Dot16::VERSION_2_0 => self.num_glyphs().unwrap() as usize,
             _ => 0,
         }
     }
 
-    pub fn glyph_name(&self, glyph_id: u16) -> Option<&str> {
-        match self {
-            Post::Post1_0(_table) => DEFAULT_GLYPH_NAMES.get(glyph_id as usize).copied(),
-            Post::Post2_0(table) => {
-                let idx = table.glyph_name_index().get(glyph_id as usize)?.get() as usize;
+    pub fn glyph_name(&self, glyph_id: GlyphId) -> Option<&str> {
+        let glyph_id = glyph_id.to_u16() as usize;
+        match self.version() {
+            Version16Dot16::VERSION_1_0 => DEFAULT_GLYPH_NAMES.get(glyph_id).copied(),
+            Version16Dot16::VERSION_2_0 => {
+                let idx = self.glyph_name_index()?.get(glyph_id)?.get() as usize;
                 if let Some(name) = DEFAULT_GLYPH_NAMES.get(idx) {
                     return Some(name);
                 }
                 let idx = idx - DEFAULT_GLYPH_NAMES.len();
                 let mut offset = 0;
                 for _ in 0..idx {
-                    offset += table.string_data().get(offset).copied().unwrap_or(0) as usize + 1;
+                    offset += self.string_data()?.get(offset).copied().unwrap_or(0) as usize + 1;
                 }
-                let len = table.string_data().get(offset).copied().unwrap_or(0) as usize;
-                let bytes = table.string_data().get(offset + 1..offset + 1 + len)?;
+                let len = self.string_data()?.get(offset).copied().unwrap_or(0) as usize;
+                let bytes = self.string_data()?.get(offset + 1..offset + 1 + len)?;
                 std::str::from_utf8(bytes).ok()
             }
             _ => None,

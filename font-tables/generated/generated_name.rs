@@ -2,241 +2,128 @@
 // Any changes to this file will be overwritten.
 // For more information about how codegen works, see font-codegen/README.md
 
-//! The [name (Naming)](https://docs.microsoft.com/en-us/typography/opentype/spec/name) table
-use font_types::*;
+#[allow(unused_imports)]
+use crate::parse_prelude::*;
 
-/// [Naming table version 0](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-0)
-pub struct Name0<'a> {
-    version: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    storage_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    name_record: zerocopy::LayoutVerified<&'a [u8], [NameRecord]>,
-    offset_bytes: &'a [u8],
+/// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct NameMarker {
+    name_record_byte_len: usize,
+    lang_tag_count_byte_start: Option<usize>,
+    lang_tag_record_byte_start: Option<usize>,
+    lang_tag_record_byte_len: Option<usize>,
 }
 
-impl<'a> font_types::FontRead<'a> for Name0<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (version, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_count = count.get();
-        let (storage_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (name_record, bytes) =
-            zerocopy::LayoutVerified::<_, [NameRecord]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_count as usize,
-            )?;
-        let _ = bytes;
-        Some(Name0 {
-            version,
-            count,
-            storage_offset,
-            name_record,
-            offset_bytes,
+impl NameMarker {
+    fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn count_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn storage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.count_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn name_record_byte_range(&self) -> Range<usize> {
+        let start = self.storage_offset_byte_range().end;
+        start..start + self.name_record_byte_len
+    }
+    fn lang_tag_count_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.lang_tag_count_byte_start?;
+        Some(start..start + u16::RAW_BYTE_LEN)
+    }
+    fn lang_tag_record_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.lang_tag_record_byte_start?;
+        Some(start..start + self.lang_tag_record_byte_len?)
+    }
+}
+
+impl TableInfo for NameMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let version: u16 = cursor.read()?;
+        let count: u16 = cursor.read()?;
+        cursor.advance::<Offset16>();
+        let name_record_byte_len = count as usize * NameRecord::RAW_BYTE_LEN;
+        cursor.advance_by(name_record_byte_len);
+        let lang_tag_count_byte_start = version
+            .compatible(1)
+            .then(|| cursor.position())
+            .transpose()?;
+        let lang_tag_count = version
+            .compatible(1)
+            .then(|| cursor.read::<u16>())
+            .transpose()?
+            .unwrap_or(0);
+        let lang_tag_record_byte_start = version
+            .compatible(1)
+            .then(|| cursor.position())
+            .transpose()?;
+        let lang_tag_record_byte_len = version
+            .compatible(1)
+            .then(|| lang_tag_count as usize * LangTagRecord::RAW_BYTE_LEN);
+        if let Some(value) = lang_tag_record_byte_len {
+            cursor.advance_by(value);
+        }
+        cursor.finish(NameMarker {
+            name_record_byte_len,
+            lang_tag_count_byte_start,
+            lang_tag_record_byte_start,
+            lang_tag_record_byte_len,
         })
-    }
-}
-
-impl<'a> Name0<'a> {
-    /// Table version number (=0).
-    pub fn version(&self) -> u16 {
-        self.version.get()
-    }
-
-    /// Number of name records.
-    pub fn count(&self) -> u16 {
-        self.count.get()
-    }
-
-    /// Offset to start of string storage (from start of table).
-    pub fn storage_offset(&self) -> Offset16 {
-        self.storage_offset.get()
-    }
-
-    /// The name records where count is the number of records.
-    pub fn name_record(&self) -> &[NameRecord] {
-        &self.name_record
-    }
-}
-
-impl<'a> font_types::OffsetHost<'a> for Name0<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
     }
 }
 
 /// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
-pub struct Name1<'a> {
-    version: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    storage_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    name_record: zerocopy::LayoutVerified<&'a [u8], [NameRecord]>,
-    lang_tag_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    lang_tag_record: zerocopy::LayoutVerified<&'a [u8], [LangTagRecord]>,
-    offset_bytes: &'a [u8],
-}
+pub type Name<'a> = TableRef<'a, NameMarker>;
 
-impl<'a> font_types::FontRead<'a> for Name1<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (version, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_count = count.get();
-        let (storage_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (name_record, bytes) =
-            zerocopy::LayoutVerified::<_, [NameRecord]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_count as usize,
-            )?;
-        let (lang_tag_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_lang_tag_count = lang_tag_count.get();
-        let (lang_tag_record, bytes) =
-            zerocopy::LayoutVerified::<_, [LangTagRecord]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_lang_tag_count as usize,
-            )?;
-        let _ = bytes;
-        Some(Name1 {
-            version,
-            count,
-            storage_offset,
-            name_record,
-            lang_tag_count,
-            lang_tag_record,
-            offset_bytes,
-        })
-    }
-}
-
-impl<'a> Name1<'a> {
-    /// Table version number (=0).
+impl<'a> Name<'a> {
+    /// Table version number (0 or 1)
     pub fn version(&self) -> u16 {
-        self.version.get()
+        let range = self.shape.version_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of name records.
     pub fn count(&self) -> u16 {
-        self.count.get()
+        let range = self.shape.count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to start of string storage (from start of table).
     pub fn storage_offset(&self) -> Offset16 {
-        self.storage_offset.get()
+        let range = self.shape.storage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// The name records where count is the number of records.
     pub fn name_record(&self) -> &[NameRecord] {
-        &self.name_record
-    }
-
-    /// Number of language-tag records.
-    pub fn lang_tag_count(&self) -> u16 {
-        self.lang_tag_count.get()
-    }
-
-    /// The language-tag records where langTagCount is the number of records.
-    pub fn lang_tag_record(&self) -> &[LangTagRecord] {
-        &self.lang_tag_record
-    }
-}
-
-impl<'a> font_types::OffsetHost<'a> for Name1<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
-    }
-}
-
-pub enum Name<'a> {
-    Version0(Name0<'a>),
-    Version1(Name1<'a>),
-}
-
-impl<'a> font_types::FontRead<'a> for Name<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let version: BigEndian<u16> = font_types::FontRead::read(bytes)?;
-        match version.get() {
-            0 => Some(Self::Version0(font_types::FontRead::read(bytes)?)),
-            1 => Some(Self::Version1(font_types::FontRead::read(bytes)?)),
-            _other => {
-                #[cfg(feature = "std")]
-                {
-                    eprintln!("unknown enum variant {:?}", version);
-                }
-                None
-            }
-        }
-    }
-}
-
-impl<'a> Name<'a> {
-    /// Number of name records.
-    pub fn count(&self) -> u16 {
-        match self {
-            Self::Version0(_inner) => _inner.count(),
-            Self::Version1(_inner) => _inner.count(),
-        }
+        let range = self.shape.name_record_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Number of language-tag records.
     pub fn lang_tag_count(&self) -> Option<u16> {
-        match self {
-            Self::Version0(_inner) => None,
-            Self::Version1(_inner) => Some(_inner.lang_tag_count()),
-        }
+        let range = self.shape.lang_tag_count_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
     }
 
     /// The language-tag records where langTagCount is the number of records.
     pub fn lang_tag_record(&self) -> Option<&[LangTagRecord]> {
-        match self {
-            Self::Version0(_inner) => None,
-            Self::Version1(_inner) => Some(_inner.lang_tag_record()),
-        }
-    }
-
-    /// The name records where count is the number of records.
-    pub fn name_record(&self) -> &[NameRecord] {
-        match self {
-            Self::Version0(_inner) => _inner.name_record(),
-            Self::Version1(_inner) => _inner.name_record(),
-        }
-    }
-
-    /// Offset to start of string storage (from start of table).
-    pub fn storage_offset(&self) -> Offset16 {
-        match self {
-            Self::Version0(_inner) => _inner.storage_offset(),
-            Self::Version1(_inner) => _inner.storage_offset(),
-        }
-    }
-
-    /// Table version number (=0).
-    pub fn version(&self) -> u16 {
-        match self {
-            Self::Version0(_inner) => _inner.version(),
-            Self::Version1(_inner) => _inner.version(),
-        }
+        let range = self.shape.lang_tag_record_byte_range()?;
+        Some(self.data.read_array(range).unwrap())
     }
 }
 
-impl<'a> font_types::OffsetHost<'a> for Name<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        match self {
-            Self::Version0(_inner) => _inner.bytes(),
-            Self::Version1(_inner) => _inner.bytes(),
-        }
-    }
-}
-
-/// Part of [Name1]
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+/// Part of [Name]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct LangTagRecord {
     /// Language-tag string length (in bytes)
     pub length: BigEndian<u16>,
@@ -258,9 +145,14 @@ impl LangTagRecord {
     }
 }
 
+impl FixedSized for LangTagRecord {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
 ///[Name Records](https://docs.microsoft.com/en-us/typography/opentype/spec/name#name-records)
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct NameRecord {
     /// Platform ID.
     pub platform_id: BigEndian<u16>,
@@ -306,4 +198,13 @@ impl NameRecord {
     pub fn string_offset(&self) -> Offset16 {
         self.string_offset.get()
     }
+}
+
+impl FixedSized for NameRecord {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + u16::RAW_BYTE_LEN
+        + Offset16::RAW_BYTE_LEN;
 }

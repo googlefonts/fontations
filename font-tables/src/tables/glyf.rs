@@ -1,49 +1,42 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
-#[path = "../../generated/generated_glyf.rs"]
-mod generated;
+use font_types::ReadScalar;
 
-pub use generated::*;
-
-use font_types::{BigEndian, FontRead, Offset32, OffsetHost, Tag};
+use crate::{FontData, ReadError};
 
 /// 'glyf'
 pub const TAG: Tag = Tag::new(b"glyf");
 
-impl<'a> Glyf<'a> {
-    pub fn resolve_glyph(&self, offset: Offset32) -> Option<Glyph<'a>> {
-        self.resolve_offset(offset)
-    }
+include!("../../generated/generated_glyf.rs");
+
+//impl<'a> Glyf<'a> {
+//pub fn resolve_glyph(&self, offset: Offset32) -> Option<Glyph<'a>> {
+//self.resolve_offset(offset)
+//}
+//}
+
+macro_rules! field_getter {
+    ($field:ident, $ty:ty) => {
+        pub fn $field(&self) -> $ty {
+            match self {
+                Self::Simple(table) => table.$field(),
+                Self::Composite(table) => table.$field(),
+            }
+        }
+    };
 }
 
 impl<'a> Glyph<'a> {
-    fn header(&self) -> &GlyphHeader {
-        match self {
-            Self::Simple(table) => table.header(),
-            Self::Composite(table) => table.header(),
-        }
-    }
-
-    pub fn number_of_contours(&self) -> i16 {
-        self.header().number_of_contours()
-    }
-
-    pub fn x_min(&self) -> i16 {
-        self.header().x_min()
-    }
-
-    pub fn y_min(&self) -> i16 {
-        self.header().y_min()
-    }
-
-    pub fn x_max(&self) -> i16 {
-        self.header().x_max()
-    }
-
-    pub fn y_max(&self) -> i16 {
-        self.header().y_max()
-    }
+    field_getter!(number_of_contours, i16);
+    field_getter!(x_min, i16);
+    field_getter!(x_max, i16);
+    field_getter!(y_min, i16);
+    field_getter!(y_max, i16);
 }
+
+//NOTE: This code below was taken from an old implementation, and has a bunch
+// of funny warts. It should be replaced at some point, but might be useful in
+// the interim?
 
 impl<'a> SimpleGlyph<'a> {
     pub fn iter_points(&self) -> PointIter<'_> {
@@ -268,9 +261,9 @@ impl<'a> Cursor<'a> {
     }
 
     /// Attempt to read `T` at the current location, advancing if successful.
-    fn bump<T: font_types::Scalar>(&mut self) -> Option<T> {
-        let r = BigEndian::<T>::read(self.data)?;
-        self.pos += std::mem::size_of::<T::Raw>();
-        Some(r.get())
+    fn bump<T: ReadScalar>(&mut self) -> Option<T> {
+        let r = T::read(self.data.get(self.pos..)?);
+        self.pos += T::RAW_BYTE_LEN;
+        r
     }
 }

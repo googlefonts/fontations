@@ -2,16 +2,13 @@
 //!
 //! [STAT]: https://docs.microsoft.com/en-us/typography/opentype/spec/stat
 
-#[path = "../../generated/generated_stat.rs"]
-mod generated;
-
-pub use generated::*;
-
 use font_types::{BigEndian, FontRead, Offset, Offset16, OffsetHost, Tag};
 use zerocopy::LayoutVerified;
 
 /// 'STAT'
 pub const TAG: Tag = Tag::new(b"STAT");
+
+include!("../../generated/generated_stat.rs");
 
 impl<'a> Stat<'a> {
     /// The design-axes array.

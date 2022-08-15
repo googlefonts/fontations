@@ -1,6 +1,8 @@
 //! The [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap) table
 
-#[path = "../../generated/generated_cmap.rs"]
-mod generated;
+use font_types::Tag;
 
-pub use generated::*;
+/// 'cmap'
+pub const TAG: Tag = Tag::new(b"cmap");
+
+include!("../../generated/generated_cmap.rs");

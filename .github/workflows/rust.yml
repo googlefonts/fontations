@@ -1,0 +1,90 @@
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    tags:
+      - "*"
+
+name: Continuous integration
+
+jobs:
+  check:
+    name: Rustfmt
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v1
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          override: true
+      - run: rustup component add rustfmt
+      - uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+  clippy-lint:
+    name: Clippy lints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          components: clippy
+          profile: minimal
+          override: true
+
+      #- run: git submodule update --init --recursive
+
+      - name: cargo clippy --all-features
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-features --all-targets -- -D warnings
+
+      - name: cargo clippy
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+          args: --all-targets --no-default-features -- -D warnings
+
+  test-stable:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+
+    name: cargo test stable
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      #- run: git submodule update --init --recursive
+
+      - name: cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --all-features
+
+      - name: cargo test
+        uses: actions-rs/cargo@v1
+        with:
+          command: test
+          args: --no-default-features
+
+      - name: cargo doc
+        uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --all-features --document-private-items

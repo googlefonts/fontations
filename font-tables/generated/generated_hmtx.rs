@@ -2,60 +2,82 @@
 // Any changes to this file will be overwritten.
 // For more information about how codegen works, see font-codegen/README.md
 
-use font_types::*;
+#[allow(unused_imports)]
+use crate::parse_prelude::*;
 
 /// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
-pub struct Hmtx<'a> {
-    h_metrics: zerocopy::LayoutVerified<&'a [u8], [longHorMetric]>,
-    left_side_bearings: zerocopy::LayoutVerified<&'a [u8], [BigEndian<i16>]>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct HmtxMarker {
+    h_metrics_byte_len: usize,
+    left_side_bearings_byte_len: usize,
 }
 
-impl<'a> Hmtx<'a> {
-    pub fn read(bytes: &'a [u8], number_of_h_metrics: usize, num_glyphs: usize) -> Option<Self> {
-        let __resolved_number_of_h_metrics = number_of_h_metrics;
-        let __resolved_num_glyphs = num_glyphs;
-        let (h_metrics, bytes) =
-            zerocopy::LayoutVerified::<_, [longHorMetric]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_number_of_h_metrics as usize,
-            )?;
-        let (left_side_bearings, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<i16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                n_glyphs_less_n_metrics(__resolved_num_glyphs, __resolved_number_of_h_metrics),
-            )?;
-        let _ = bytes;
-        Some(Hmtx {
-            h_metrics,
-            left_side_bearings,
+impl HmtxMarker {
+    fn h_metrics_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + self.h_metrics_byte_len
+    }
+    fn left_side_bearings_byte_range(&self) -> Range<usize> {
+        let start = self.h_metrics_byte_range().end;
+        start..start + self.left_side_bearings_byte_len
+    }
+}
+
+impl ReadArgs for HmtxMarker {
+    type Args = (u16, u16);
+}
+
+impl TableInfoWithArgs for HmtxMarker {
+    #[allow(unused_parens)]
+    fn parse_with_args<'a>(
+        data: FontData<'a>,
+        args: &(u16, u16),
+    ) -> Result<TableRef<'a, Self>, ReadError> {
+        let (number_of_h_metrics, num_glyphs) = *args;
+        let mut cursor = data.cursor();
+        let h_metrics_byte_len = number_of_h_metrics as usize * LongHorMetric::RAW_BYTE_LEN;
+        cursor.advance_by(h_metrics_byte_len);
+        let left_side_bearings_byte_len =
+            num_glyphs.saturating_sub(number_of_h_metrics) as usize * i16::RAW_BYTE_LEN;
+        cursor.advance_by(left_side_bearings_byte_len);
+        cursor.finish(HmtxMarker {
+            h_metrics_byte_len,
+            left_side_bearings_byte_len,
         })
     }
 }
 
+/// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
+pub type Hmtx<'a> = TableRef<'a, HmtxMarker>;
+
 impl<'a> Hmtx<'a> {
     /// Paired advance width and left side bearing values for each
     /// glyph. Records are indexed by glyph ID.
-    pub fn h_metrics(&self) -> &[longHorMetric] {
-        &self.h_metrics
+    pub fn h_metrics(&self) -> &[LongHorMetric] {
+        let range = self.shape.h_metrics_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Left side bearings for glyph IDs greater than or equal to
     /// numberOfHMetrics.
     pub fn left_side_bearings(&self) -> &[BigEndian<i16>] {
-        &self.left_side_bearings
+        let range = self.shape.left_side_bearings_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
-pub struct longHorMetric {
+#[repr(packed)]
+pub struct LongHorMetric {
     /// Advance width, in font design units.
     pub advance_width: BigEndian<u16>,
     /// Glyph left side bearing, in font design units.
     pub lsb: BigEndian<i16>,
 }
 
-impl longHorMetric {
+impl LongHorMetric {
     /// Advance width, in font design units.
     pub fn advance_width(&self) -> u16 {
         self.advance_width.get()
@@ -67,6 +89,6 @@ impl longHorMetric {
     }
 }
 
-fn n_glyphs_less_n_metrics(num_glyphs: usize, num_metrics: usize) -> usize {
-    num_glyphs.saturating_sub(num_metrics)
+impl FixedSized for LongHorMetric {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
 }

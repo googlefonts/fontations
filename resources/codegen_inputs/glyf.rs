@@ -1,9 +1,26 @@
+#![parse_module(font_tables::tables::glyf)]
 /// The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
-#[offset_host]
-Glyf<'a> {}
+table Glyf {}
+
+///// The [Glyph Header](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
+//record GlyphHeader {
+    ///// If the number of contours is greater than or equal to zero,
+    ///// this is a simple glyph. If negative, this is a composite glyph
+    ///// — the value -1 should be used for composite glyphs.
+    //number_of_contours: BigEndian<i16>,
+    ///// Minimum x for coordinate data.
+    //x_min: BigEndian<i16>,
+    ///// Minimum y for coordinate data.
+    //y_min: BigEndian<i16>,
+    ///// Maximum x for coordinate data.
+    //x_max: BigEndian<i16>,
+    ///// Maximum y for coordinate data.
+    //y_max: BigEndian<i16>,
+//}
+
 
 /// The [Glyph Header](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
-GlyphHeader {
+table SimpleGlyph {
     /// If the number of contours is greater than or equal to zero,
     /// this is a simple glyph. If negative, this is a composite glyph
     /// — the value -1 should be used for composite glyphs.
@@ -16,22 +33,18 @@ GlyphHeader {
     x_max: BigEndian<i16>,
     /// Maximum y for coordinate data.
     y_max: BigEndian<i16>,
-}
-
-
-/// The [Glyph Header](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
-SimpleGlyph<'a> {
-    header: GlyphHeader,
-    #[count_with(get_n_contours, header)]
+    /// Array of point indices for the last point of each contour,
+    /// in increasing numeric order
+    #[count($number_of_contours.max(0) as usize)]
     end_pts_of_contours: [BigEndian<u16>],
     /// Total number of bytes for instructions. If instructionLength is
     /// zero, no instructions are present for this glyph, and this
     /// field is followed directly by the flags field.
     instruction_length: BigEndian<u16>,
     /// Array of instruction byte code for the glyph.
-    #[count(instruction_length)]
+    #[count($instruction_length)]
     instructions: [BigEndian<u8>],
-    #[count_all]
+    #[count(..)]
     //#[hidden]
     /// the raw data for flags & x/y coordinates
     glyph_data: [u8],
@@ -55,8 +68,7 @@ SimpleGlyph<'a> {
 }
 
 /// Flags used in [SimpleGlyph]
-#[flags(u8)]
-SimpleGlyphFlags {
+flags u8 SimpleGlyphFlags {
     /// Bit 0: If set, the point is on the curve; otherwise, it is off
     /// the curve.
     ON_CURVE_POINT = 0x01,
@@ -127,14 +139,26 @@ SimpleGlyphFlags {
 }
 
 /// [CompositeGlyph](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
-CompositeGlyph<'a> {
-    header: GlyphHeader,
+table CompositeGlyph {
+    /// If the number of contours is greater than or equal to zero,
+    /// this is a simple glyph. If negative, this is a composite glyph
+    /// — the value -1 should be used for composite glyphs.
+    number_of_contours: BigEndian<i16>,
+    /// Minimum x for coordinate data.
+    x_min: BigEndian<i16>,
+    /// Minimum y for coordinate data.
+    y_min: BigEndian<i16>,
+    /// Maximum x for coordinate data.
+    x_max: BigEndian<i16>,
+    /// Maximum y for coordinate data.
+    y_max: BigEndian<i16>,
+    //header: GlyphHeader,
     /// component flag
     flags: BigEndian<CompositeGlyphFlags>,
     /// glyph index of component
     glyph_index: BigEndian<u16>,
-    #[count_all]
-    offset_data: [u8],
+    #[count(..)]
+    component_data: [u8],
 
     ///// x-offset for component or point number; type depends on bits 0
     ///// and 1 in component flags
@@ -145,8 +169,7 @@ CompositeGlyph<'a> {
 }
 
 /// Flags used in [CompositeGlyph]
-#[flags(u16)]
-CompositeGlyphFlags {
+flags u16 CompositeGlyphFlags {
     /// Bit 0: If this is set, the arguments are 16-bit (uint16 or
     /// int16); otherwise, they are bytes (uint8 or int8).
     ARG_1_AND_2_ARE_WORDS = 0x0001,
@@ -195,20 +218,10 @@ CompositeGlyphFlags {
     //Reserved = 0xE010,
 }
 
-#[format(i16)]
-//#[generate_getters]
-enum Glyph<'a> {
-    #[version_with(non_negative_i16)]
-    Simple(SimpleGlyph<'a>),
-    #[version_with(i16::is_negative)]
-    Composite(CompositeGlyph<'a>),
-}
-
-fn non_negative_i16(val: i16) -> bool {
-    !val.is_negative()
-}
-
-fn get_n_contours(header: &GlyphHeader) -> usize {
-    header.number_of_contours() as usize
+format i16 Glyph {
+    #[match_if($format >= 0)]
+    Simple(SimpleGlyph),
+    #[match_if($format < 0)]
+    Composite(CompositeGlyph),
 }
 

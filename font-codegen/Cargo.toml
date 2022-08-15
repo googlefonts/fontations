@@ -15,8 +15,9 @@ path = "src/main.rs"
 rustfmt-wrapper = "0.1"
 regex = "1.5"
 miette = { version =  "4.6", features = ["fancy"] }
-syn =  { version = "1.0", features = ["parsing", "full"] }
+syn =  { version = "1.0", features = ["parsing",  "extra-traits", "full"] }
 proc-macro2 =  { version = "1.0", features = ["span-locations"]}
 quote = "1.0"
 toml = "0.5"
 serde = {version = "1.0", features = ["derive"] }
+xflags = "0.2.4"

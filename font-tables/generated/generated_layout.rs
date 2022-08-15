@@ -2,57 +2,61 @@
 // Any changes to this file will be overwritten.
 // For more information about how codegen works, see font-codegen/README.md
 
-//! [OpenType™ Layout Common Table Formats](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2)
-use font_types::*;
+#[allow(unused_imports)]
+use crate::parse_prelude::*;
 
 /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
-pub struct ScriptList<'a> {
-    script_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    script_records: zerocopy::LayoutVerified<&'a [u8], [ScriptRecord]>,
-    offset_bytes: &'a [u8],
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ScriptListMarker {
+    script_records_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for ScriptList<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (script_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_script_count = script_count.get();
-        let (script_records, bytes) =
-            zerocopy::LayoutVerified::<_, [ScriptRecord]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_script_count as usize,
-            )?;
-        let _ = bytes;
-        Some(ScriptList {
-            script_count,
-            script_records,
-            offset_bytes,
+impl ScriptListMarker {
+    fn script_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn script_records_byte_range(&self) -> Range<usize> {
+        let start = self.script_count_byte_range().end;
+        start..start + self.script_records_byte_len
+    }
+}
+
+impl TableInfo for ScriptListMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let script_count: u16 = cursor.read()?;
+        let script_records_byte_len = script_count as usize * ScriptRecord::RAW_BYTE_LEN;
+        cursor.advance_by(script_records_byte_len);
+        cursor.finish(ScriptListMarker {
+            script_records_byte_len,
         })
     }
 }
 
+/// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
+pub type ScriptList<'a> = TableRef<'a, ScriptListMarker>;
+
 impl<'a> ScriptList<'a> {
     /// Number of ScriptRecords
     pub fn script_count(&self) -> u16 {
-        self.script_count.get()
+        let range = self.shape.script_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of ScriptRecords, listed alphabetically by script tag
     pub fn script_records(&self) -> &[ScriptRecord] {
-        &self.script_records
-    }
-}
-
-impl<'a> font_types::OffsetHost<'a> for ScriptList<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+        let range = self.shape.script_records_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// [Script Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct ScriptRecord {
     /// 4-byte script tag identifier
     pub script_tag: BigEndian<Tag>,
@@ -70,66 +74,87 @@ impl ScriptRecord {
     pub fn script_offset(&self) -> Offset16 {
         self.script_offset.get()
     }
+
+    /// Attempt to resolve [`script_offset`][Self::script_offset].
+    pub fn script<'a>(&self, data: &'a FontData<'a>) -> Result<Script<'a>, ReadError> {
+        self.script_offset().resolve(data)
+    }
+}
+
+impl FixedSized for ScriptRecord {
+    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
 /// [Script Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-table-and-language-system-record)
-pub struct Script<'a> {
-    default_lang_sys_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    lang_sys_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    lang_sys_records: zerocopy::LayoutVerified<&'a [u8], [LangSysRecord]>,
-    offset_bytes: &'a [u8],
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ScriptMarker {
+    lang_sys_records_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for Script<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (default_lang_sys_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (lang_sys_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_lang_sys_count = lang_sys_count.get();
-        let (lang_sys_records, bytes) =
-            zerocopy::LayoutVerified::<_, [LangSysRecord]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_lang_sys_count as usize,
-            )?;
-        let _ = bytes;
-        Some(Script {
-            default_lang_sys_offset,
-            lang_sys_count,
-            lang_sys_records,
-            offset_bytes,
+impl ScriptMarker {
+    fn default_lang_sys_offset_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn lang_sys_count_byte_range(&self) -> Range<usize> {
+        let start = self.default_lang_sys_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn lang_sys_records_byte_range(&self) -> Range<usize> {
+        let start = self.lang_sys_count_byte_range().end;
+        start..start + self.lang_sys_records_byte_len
+    }
+}
+
+impl TableInfo for ScriptMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<Offset16>();
+        let lang_sys_count: u16 = cursor.read()?;
+        let lang_sys_records_byte_len = lang_sys_count as usize * LangSysRecord::RAW_BYTE_LEN;
+        cursor.advance_by(lang_sys_records_byte_len);
+        cursor.finish(ScriptMarker {
+            lang_sys_records_byte_len,
         })
     }
 }
 
+/// [Script Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-table-and-language-system-record)
+pub type Script<'a> = TableRef<'a, ScriptMarker>;
+
 impl<'a> Script<'a> {
     /// Offset to default LangSys table, from beginning of Script table
     /// — may be NULL
-    pub fn default_lang_sys_offset(&self) -> Offset16 {
-        self.default_lang_sys_offset.get()
+    pub fn default_lang_sys_offset(&self) -> Nullable<Offset16> {
+        let range = self.shape.default_lang_sys_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`default_lang_sys_offset`][Self::default_lang_sys_offset].
+    pub fn default_lang_sys(&self) -> Option<Result<LangSys<'a>, ReadError>> {
+        let data = &self.data;
+        self.default_lang_sys_offset().resolve(data)
     }
 
     /// Number of LangSysRecords for this script — excluding the
     /// default LangSys
     pub fn lang_sys_count(&self) -> u16 {
-        self.lang_sys_count.get()
+        let range = self.shape.lang_sys_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of LangSysRecords, listed alphabetically by LangSys tag
     pub fn lang_sys_records(&self) -> &[LangSysRecord] {
-        &self.lang_sys_records
+        let range = self.shape.lang_sys_records_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
-impl<'a> font_types::OffsetHost<'a> for Script<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
-    }
-}
-
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct LangSysRecord {
     /// 4-byte LangSysTag identifier
     pub lang_sys_tag: BigEndian<Tag>,
@@ -147,113 +172,136 @@ impl LangSysRecord {
     pub fn lang_sys_offset(&self) -> Offset16 {
         self.lang_sys_offset.get()
     }
+
+    /// Attempt to resolve [`lang_sys_offset`][Self::lang_sys_offset].
+    pub fn lang_sys<'a>(&self, data: &'a FontData<'a>) -> Result<LangSys<'a>, ReadError> {
+        self.lang_sys_offset().resolve(data)
+    }
+}
+
+impl FixedSized for LangSysRecord {
+    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
 /// [Language System Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#language-system-table)
-pub struct LangSys<'a> {
-    lookup_order_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    required_feature_index: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    feature_index_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    feature_indices: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct LangSysMarker {
+    feature_indices_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for LangSys<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (lookup_order_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (required_feature_index, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (feature_index_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_feature_index_count = feature_index_count.get();
-        let (feature_indices, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_feature_index_count as usize,
-            )?;
-        let _ = bytes;
-        Some(LangSys {
-            lookup_order_offset,
-            required_feature_index,
-            feature_index_count,
-            feature_indices,
+impl LangSysMarker {
+    fn lookup_order_offset_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn required_feature_index_byte_range(&self) -> Range<usize> {
+        let start = self.lookup_order_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn feature_index_count_byte_range(&self) -> Range<usize> {
+        let start = self.required_feature_index_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn feature_indices_byte_range(&self) -> Range<usize> {
+        let start = self.feature_index_count_byte_range().end;
+        start..start + self.feature_indices_byte_len
+    }
+}
+
+impl TableInfo for LangSysMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        let feature_index_count: u16 = cursor.read()?;
+        let feature_indices_byte_len = feature_index_count as usize * u16::RAW_BYTE_LEN;
+        cursor.advance_by(feature_indices_byte_len);
+        cursor.finish(LangSysMarker {
+            feature_indices_byte_len,
         })
     }
 }
 
-impl<'a> LangSys<'a> {
-    /// = NULL (reserved for an offset to a reordering table)
-    pub fn lookup_order_offset(&self) -> Offset16 {
-        self.lookup_order_offset.get()
-    }
+/// [Language System Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#language-system-table)
+pub type LangSys<'a> = TableRef<'a, LangSysMarker>;
 
+impl<'a> LangSys<'a> {
     /// Index of a feature required for this language system; if no
     /// required features = 0xFFFF
     pub fn required_feature_index(&self) -> u16 {
-        self.required_feature_index.get()
+        let range = self.shape.required_feature_index_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of feature index values for this language system —
     /// excludes the required feature
     pub fn feature_index_count(&self) -> u16 {
-        self.feature_index_count.get()
+        let range = self.shape.feature_index_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of indices into the FeatureList, in arbitrary order
     pub fn feature_indices(&self) -> &[BigEndian<u16>] {
-        &self.feature_indices
+        let range = self.shape.feature_indices_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
-pub struct FeatureList<'a> {
-    feature_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    feature_records: zerocopy::LayoutVerified<&'a [u8], [FeatureRecord]>,
-    offset_bytes: &'a [u8],
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct FeatureListMarker {
+    feature_records_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for FeatureList<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (feature_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_feature_count = feature_count.get();
-        let (feature_records, bytes) =
-            zerocopy::LayoutVerified::<_, [FeatureRecord]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_feature_count as usize,
-            )?;
-        let _ = bytes;
-        Some(FeatureList {
-            feature_count,
-            feature_records,
-            offset_bytes,
+impl FeatureListMarker {
+    fn feature_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn feature_records_byte_range(&self) -> Range<usize> {
+        let start = self.feature_count_byte_range().end;
+        start..start + self.feature_records_byte_len
+    }
+}
+
+impl TableInfo for FeatureListMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let feature_count: u16 = cursor.read()?;
+        let feature_records_byte_len = feature_count as usize * FeatureRecord::RAW_BYTE_LEN;
+        cursor.advance_by(feature_records_byte_len);
+        cursor.finish(FeatureListMarker {
+            feature_records_byte_len,
         })
     }
 }
 
+/// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
+pub type FeatureList<'a> = TableRef<'a, FeatureListMarker>;
+
 impl<'a> FeatureList<'a> {
     /// Number of FeatureRecords in this table
     pub fn feature_count(&self) -> u16 {
-        self.feature_count.get()
+        let range = self.shape.feature_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of FeatureRecords — zero-based (first feature has
     /// FeatureIndex = 0), listed alphabetically by feature tag
     pub fn feature_records(&self) -> &[FeatureRecord] {
-        &self.feature_records
-    }
-}
-
-impl<'a> font_types::OffsetHost<'a> for FeatureList<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+        let range = self.shape.feature_records_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// Part of [FeatureList]
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct FeatureRecord {
     /// 4-byte feature identification tag
     pub feature_tag: BigEndian<Tag>,
@@ -271,276 +319,379 @@ impl FeatureRecord {
     pub fn feature_offset(&self) -> Offset16 {
         self.feature_offset.get()
     }
+
+    /// Attempt to resolve [`feature_offset`][Self::feature_offset].
+    pub fn feature<'a>(&self, data: &'a FontData<'a>) -> Result<Feature<'a>, ReadError> {
+        let args = self.feature_tag();
+        self.feature_offset().resolve_with_args(data, &args)
+    }
+}
+
+impl FixedSized for FeatureRecord {
+    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
 /// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
-pub struct Feature<'a> {
-    lookup_index_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    lookup_list_indices: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct FeatureMarker {
+    feature_tag: Tag,
+    lookup_list_indices_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for Feature<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (lookup_index_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_lookup_index_count = lookup_index_count.get();
-        let (lookup_list_indices, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_lookup_index_count as usize,
-            )?;
-        let _ = bytes;
-        Some(Feature {
-            lookup_index_count,
-            lookup_list_indices,
+impl FeatureMarker {
+    fn feature_params_offset_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn lookup_index_count_byte_range(&self) -> Range<usize> {
+        let start = self.feature_params_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn lookup_list_indices_byte_range(&self) -> Range<usize> {
+        let start = self.lookup_index_count_byte_range().end;
+        start..start + self.lookup_list_indices_byte_len
+    }
+}
+
+impl ReadArgs for FeatureMarker {
+    type Args = Tag;
+}
+
+impl TableInfoWithArgs for FeatureMarker {
+    #[allow(unused_parens)]
+    fn parse_with_args<'a>(
+        data: FontData<'a>,
+        args: &Tag,
+    ) -> Result<TableRef<'a, Self>, ReadError> {
+        let feature_tag = *args;
+        let mut cursor = data.cursor();
+        cursor.advance::<Offset16>();
+        let lookup_index_count: u16 = cursor.read()?;
+        let lookup_list_indices_byte_len = lookup_index_count as usize * u16::RAW_BYTE_LEN;
+        cursor.advance_by(lookup_list_indices_byte_len);
+        cursor.finish(FeatureMarker {
+            feature_tag,
+            lookup_list_indices_byte_len,
         })
     }
 }
 
+/// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
+pub type Feature<'a> = TableRef<'a, FeatureMarker>;
+
 impl<'a> Feature<'a> {
+    /// Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
+    pub fn feature_params_offset(&self) -> Nullable<Offset16> {
+        let range = self.shape.feature_params_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`feature_params_offset`][Self::feature_params_offset].
+    pub fn feature_params(&self) -> Option<Result<FeatureParams<'a>, ReadError>> {
+        let data = &self.data;
+        let args = self.feature_tag();
+        self.feature_params_offset().resolve_with_args(data, &args)
+    }
+
     /// Number of LookupList indices for this feature
     pub fn lookup_index_count(&self) -> u16 {
-        self.lookup_index_count.get()
+        let range = self.shape.lookup_index_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of indices into the LookupList — zero-based (first
     /// lookup is LookupListIndex = 0)
     pub fn lookup_list_indices(&self) -> &[BigEndian<u16>] {
-        &self.lookup_list_indices
+        let range = self.shape.lookup_list_indices_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    pub(crate) fn feature_tag(&self) -> Tag {
+        self.shape.feature_tag
     }
 }
 
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
-pub struct LookupList<'a> {
-    lookup_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    lookup_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
-    offset_bytes: &'a [u8],
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct LookupListMarker {
+    lookup_offsets_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for LookupList<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (lookup_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_lookup_count = lookup_count.get();
-        let (lookup_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_lookup_count as usize,
-            )?;
-        let _ = bytes;
-        Some(LookupList {
-            lookup_count,
-            lookup_offsets,
-            offset_bytes,
+impl LookupListMarker {
+    fn lookup_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn lookup_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.lookup_count_byte_range().end;
+        start..start + self.lookup_offsets_byte_len
+    }
+}
+
+impl TableInfo for LookupListMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let lookup_count: u16 = cursor.read()?;
+        let lookup_offsets_byte_len = lookup_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(lookup_offsets_byte_len);
+        cursor.finish(LookupListMarker {
+            lookup_offsets_byte_len,
         })
     }
 }
 
+/// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
+pub type LookupList<'a> = TableRef<'a, LookupListMarker>;
+
 impl<'a> LookupList<'a> {
     /// Number of lookups in this table
     pub fn lookup_count(&self) -> u16 {
-        self.lookup_count.get()
+        let range = self.shape.lookup_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to Lookup tables, from beginning of LookupList
     /// — zero based (first lookup is Lookup index = 0)
     pub fn lookup_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.lookup_offsets
-    }
-}
-
-impl<'a> font_types::OffsetHost<'a> for LookupList<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+        let range = self.shape.lookup_offsets_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
-pub struct Lookup<'a> {
-    lookup_type: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    lookup_flag: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    sub_table_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    subtable_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
-    mark_filtering_set: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    offset_bytes: &'a [u8],
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct LookupMarker {
+    subtable_offsets_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for Lookup<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (lookup_type, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (lookup_flag, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (sub_table_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_sub_table_count = sub_table_count.get();
-        let (subtable_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_sub_table_count as usize,
-            )?;
-        let (mark_filtering_set, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let _ = bytes;
-        Some(Lookup {
-            lookup_type,
-            lookup_flag,
-            sub_table_count,
-            subtable_offsets,
-            mark_filtering_set,
-            offset_bytes,
+impl LookupMarker {
+    fn lookup_type_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn lookup_flag_byte_range(&self) -> Range<usize> {
+        let start = self.lookup_type_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn sub_table_count_byte_range(&self) -> Range<usize> {
+        let start = self.lookup_flag_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn subtable_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.sub_table_count_byte_range().end;
+        start..start + self.subtable_offsets_byte_len
+    }
+    fn mark_filtering_set_byte_range(&self) -> Range<usize> {
+        let start = self.subtable_offsets_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+}
+
+impl TableInfo for LookupMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        let sub_table_count: u16 = cursor.read()?;
+        let subtable_offsets_byte_len = sub_table_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(subtable_offsets_byte_len);
+        cursor.advance::<u16>();
+        cursor.finish(LookupMarker {
+            subtable_offsets_byte_len,
         })
     }
 }
 
+/// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
+pub type Lookup<'a> = TableRef<'a, LookupMarker>;
+
 impl<'a> Lookup<'a> {
     /// Different enumerations for GSUB and GPOS
     pub fn lookup_type(&self) -> u16 {
-        self.lookup_type.get()
+        let range = self.shape.lookup_type_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Lookup qualifiers
     pub fn lookup_flag(&self) -> u16 {
-        self.lookup_flag.get()
+        let range = self.shape.lookup_flag_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of subtables for this lookup
     pub fn sub_table_count(&self) -> u16 {
-        self.sub_table_count.get()
+        let range = self.shape.sub_table_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to lookup subtables, from beginning of Lookup
     /// table
     pub fn subtable_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.subtable_offsets
+        let range = self.shape.subtable_offsets_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Index (base 0) into GDEF mark glyph sets structure. This field
     /// is only present if the USE_MARK_FILTERING_SET lookup flag is
     /// set.
     pub fn mark_filtering_set(&self) -> u16 {
-        self.mark_filtering_set.get()
+        let range = self.shape.mark_filtering_set_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 }
 
-impl<'a> font_types::OffsetHost<'a> for Lookup<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+impl Format<u16> for CoverageFormat1Marker {
+    const FORMAT: u16 = 1;
+}
+
+/// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct CoverageFormat1Marker {
+    glyph_array_byte_len: usize,
+}
+
+impl CoverageFormat1Marker {
+    fn coverage_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn glyph_array_byte_range(&self) -> Range<usize> {
+        let start = self.glyph_count_byte_range().end;
+        start..start + self.glyph_array_byte_len
+    }
+}
+
+impl TableInfo for CoverageFormat1Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        let glyph_count: u16 = cursor.read()?;
+        let glyph_array_byte_len = glyph_count as usize * GlyphId::RAW_BYTE_LEN;
+        cursor.advance_by(glyph_array_byte_len);
+        cursor.finish(CoverageFormat1Marker {
+            glyph_array_byte_len,
+        })
     }
 }
 
 /// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
-pub struct CoverageFormat1<'a> {
-    coverage_format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    glyph_array: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
-}
-
-impl<'a> font_types::FontRead<'a> for CoverageFormat1<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (coverage_format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_glyph_count = glyph_count.get();
-        let (glyph_array, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_glyph_count as usize,
-            )?;
-        let _ = bytes;
-        Some(CoverageFormat1 {
-            coverage_format,
-            glyph_count,
-            glyph_array,
-        })
-    }
-}
+pub type CoverageFormat1<'a> = TableRef<'a, CoverageFormat1Marker>;
 
 impl<'a> CoverageFormat1<'a> {
     /// Format identifier — format = 1
     pub fn coverage_format(&self) -> u16 {
-        self.coverage_format.get()
+        let range = self.shape.coverage_format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of glyphs in the glyph array
     pub fn glyph_count(&self) -> u16 {
-        self.glyph_count.get()
+        let range = self.shape.glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of glyph IDs — in numerical order
-    pub fn glyph_array(&self) -> &[BigEndian<u16>] {
-        &self.glyph_array
+    pub fn glyph_array(&self) -> &[BigEndian<GlyphId>] {
+        let range = self.shape.glyph_array_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
-/// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
-pub struct CoverageFormat2<'a> {
-    coverage_format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    range_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    range_records: zerocopy::LayoutVerified<&'a [u8], [RangeRecord]>,
+impl Format<u16> for CoverageFormat2Marker {
+    const FORMAT: u16 = 2;
 }
 
-impl<'a> font_types::FontRead<'a> for CoverageFormat2<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (coverage_format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (range_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_range_count = range_count.get();
-        let (range_records, bytes) =
-            zerocopy::LayoutVerified::<_, [RangeRecord]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_range_count as usize,
-            )?;
-        let _ = bytes;
-        Some(CoverageFormat2 {
-            coverage_format,
-            range_count,
-            range_records,
+/// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct CoverageFormat2Marker {
+    range_records_byte_len: usize,
+}
+
+impl CoverageFormat2Marker {
+    fn coverage_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn range_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn range_records_byte_range(&self) -> Range<usize> {
+        let start = self.range_count_byte_range().end;
+        start..start + self.range_records_byte_len
+    }
+}
+
+impl TableInfo for CoverageFormat2Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        let range_count: u16 = cursor.read()?;
+        let range_records_byte_len = range_count as usize * RangeRecord::RAW_BYTE_LEN;
+        cursor.advance_by(range_records_byte_len);
+        cursor.finish(CoverageFormat2Marker {
+            range_records_byte_len,
         })
     }
 }
 
+/// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
+pub type CoverageFormat2<'a> = TableRef<'a, CoverageFormat2Marker>;
+
 impl<'a> CoverageFormat2<'a> {
     /// Format identifier — format = 2
     pub fn coverage_format(&self) -> u16 {
-        self.coverage_format.get()
+        let range = self.shape.coverage_format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of RangeRecords
     pub fn range_count(&self) -> u16 {
-        self.range_count.get()
+        let range = self.shape.range_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of glyph ranges — ordered by startGlyphID.
     pub fn range_records(&self) -> &[RangeRecord] {
-        &self.range_records
+        let range = self.shape.range_records_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// Used in [CoverageFormat2]
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct RangeRecord {
     /// First glyph ID in the range
-    pub start_glyph_id: BigEndian<u16>,
+    pub start_glyph_id: BigEndian<GlyphId>,
     /// Last glyph ID in the range
-    pub end_glyph_id: BigEndian<u16>,
+    pub end_glyph_id: BigEndian<GlyphId>,
     /// Coverage Index of first glyph ID in range
     pub start_coverage_index: BigEndian<u16>,
 }
 
 impl RangeRecord {
     /// First glyph ID in the range
-    pub fn start_glyph_id(&self) -> u16 {
+    pub fn start_glyph_id(&self) -> GlyphId {
         self.start_glyph_id.get()
     }
 
     /// Last glyph ID in the range
-    pub fn end_glyph_id(&self) -> u16 {
+    pub fn end_glyph_id(&self) -> GlyphId {
         self.end_glyph_id.get()
     }
 
@@ -550,148 +701,186 @@ impl RangeRecord {
     }
 }
 
+impl FixedSized for RangeRecord {
+    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// [Coverage Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-table)
 pub enum CoverageTable<'a> {
     Format1(CoverageFormat1<'a>),
     Format2(CoverageFormat2<'a>),
 }
 
-impl<'a> font_types::FontRead<'a> for CoverageTable<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let version: BigEndian<u16> = font_types::FontRead::read(bytes)?;
-        match version.get() {
-            1 => Some(Self::Format1(font_types::FontRead::read(bytes)?)),
-            2 => Some(Self::Format2(font_types::FontRead::read(bytes)?)),
-            _other => {
-                #[cfg(feature = "std")]
-                {
-                    eprintln!("unknown enum variant {:?}", version);
-                }
-                None
-            }
+impl<'a> FontRead<'a> for CoverageTable<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0)?;
+        match format {
+            CoverageFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            CoverageFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }
 
-/// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
-pub struct ClassDefFormat1<'a> {
-    class_format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    start_glyph_id: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    class_value_array: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
+impl Format<u16> for ClassDefFormat1Marker {
+    const FORMAT: u16 = 1;
 }
 
-impl<'a> font_types::FontRead<'a> for ClassDefFormat1<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (class_format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (start_glyph_id, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_glyph_count = glyph_count.get();
-        let (class_value_array, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_glyph_count as usize,
-            )?;
-        let _ = bytes;
-        Some(ClassDefFormat1 {
-            class_format,
-            start_glyph_id,
-            glyph_count,
-            class_value_array,
+/// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ClassDefFormat1Marker {
+    class_value_array_byte_len: usize,
+}
+
+impl ClassDefFormat1Marker {
+    fn class_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn start_glyph_id_byte_range(&self) -> Range<usize> {
+        let start = self.class_format_byte_range().end;
+        start..start + GlyphId::RAW_BYTE_LEN
+    }
+    fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.start_glyph_id_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn class_value_array_byte_range(&self) -> Range<usize> {
+        let start = self.glyph_count_byte_range().end;
+        start..start + self.class_value_array_byte_len
+    }
+}
+
+impl TableInfo for ClassDefFormat1Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<GlyphId>();
+        let glyph_count: u16 = cursor.read()?;
+        let class_value_array_byte_len = glyph_count as usize * u16::RAW_BYTE_LEN;
+        cursor.advance_by(class_value_array_byte_len);
+        cursor.finish(ClassDefFormat1Marker {
+            class_value_array_byte_len,
         })
     }
 }
+
+/// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
+pub type ClassDefFormat1<'a> = TableRef<'a, ClassDefFormat1Marker>;
 
 impl<'a> ClassDefFormat1<'a> {
     /// Format identifier — format = 1
     pub fn class_format(&self) -> u16 {
-        self.class_format.get()
+        let range = self.shape.class_format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// First glyph ID of the classValueArray
-    pub fn start_glyph_id(&self) -> u16 {
-        self.start_glyph_id.get()
+    pub fn start_glyph_id(&self) -> GlyphId {
+        let range = self.shape.start_glyph_id_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Size of the classValueArray
     pub fn glyph_count(&self) -> u16 {
-        self.glyph_count.get()
+        let range = self.shape.glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of Class Values — one per glyph ID
     pub fn class_value_array(&self) -> &[BigEndian<u16>] {
-        &self.class_value_array
+        let range = self.shape.class_value_array_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
-/// [Class Definition Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-2)
-pub struct ClassDefFormat2<'a> {
-    class_format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    class_range_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    class_range_records: zerocopy::LayoutVerified<&'a [u8], [ClassRangeRecord]>,
+impl Format<u16> for ClassDefFormat2Marker {
+    const FORMAT: u16 = 2;
 }
 
-impl<'a> font_types::FontRead<'a> for ClassDefFormat2<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (class_format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (class_range_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_class_range_count = class_range_count.get();
-        let (class_range_records, bytes) =
-            zerocopy::LayoutVerified::<_, [ClassRangeRecord]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_class_range_count as usize,
-            )?;
-        let _ = bytes;
-        Some(ClassDefFormat2 {
-            class_format,
-            class_range_count,
-            class_range_records,
+/// [Class Definition Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-2)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ClassDefFormat2Marker {
+    class_range_records_byte_len: usize,
+}
+
+impl ClassDefFormat2Marker {
+    fn class_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn class_range_count_byte_range(&self) -> Range<usize> {
+        let start = self.class_format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn class_range_records_byte_range(&self) -> Range<usize> {
+        let start = self.class_range_count_byte_range().end;
+        start..start + self.class_range_records_byte_len
+    }
+}
+
+impl TableInfo for ClassDefFormat2Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        let class_range_count: u16 = cursor.read()?;
+        let class_range_records_byte_len =
+            class_range_count as usize * ClassRangeRecord::RAW_BYTE_LEN;
+        cursor.advance_by(class_range_records_byte_len);
+        cursor.finish(ClassDefFormat2Marker {
+            class_range_records_byte_len,
         })
     }
 }
 
+/// [Class Definition Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-2)
+pub type ClassDefFormat2<'a> = TableRef<'a, ClassDefFormat2Marker>;
+
 impl<'a> ClassDefFormat2<'a> {
     /// Format identifier — format = 2
     pub fn class_format(&self) -> u16 {
-        self.class_format.get()
+        let range = self.shape.class_format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of ClassRangeRecords
     pub fn class_range_count(&self) -> u16 {
-        self.class_range_count.get()
+        let range = self.shape.class_range_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of ClassRangeRecords — ordered by startGlyphID
     pub fn class_range_records(&self) -> &[ClassRangeRecord] {
-        &self.class_range_records
+        let range = self.shape.class_range_records_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// Used in [ClassDefFormat2]
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct ClassRangeRecord {
     /// First glyph ID in the range
-    pub start_glyph_id: BigEndian<u16>,
+    pub start_glyph_id: BigEndian<GlyphId>,
     /// Last glyph ID in the range
-    pub end_glyph_id: BigEndian<u16>,
+    pub end_glyph_id: BigEndian<GlyphId>,
     /// Applied to all glyphs in the range
     pub class: BigEndian<u16>,
 }
 
 impl ClassRangeRecord {
     /// First glyph ID in the range
-    pub fn start_glyph_id(&self) -> u16 {
+    pub fn start_glyph_id(&self) -> GlyphId {
         self.start_glyph_id.get()
     }
 
     /// Last glyph ID in the range
-    pub fn end_glyph_id(&self) -> u16 {
+    pub fn end_glyph_id(&self) -> GlyphId {
         self.end_glyph_id.get()
     }
 
@@ -701,31 +890,31 @@ impl ClassRangeRecord {
     }
 }
 
+impl FixedSized for ClassRangeRecord {
+    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
+/// A [Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table)
 pub enum ClassDef<'a> {
     Format1(ClassDefFormat1<'a>),
     Format2(ClassDefFormat2<'a>),
 }
 
-impl<'a> font_types::FontRead<'a> for ClassDef<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let version: BigEndian<u16> = font_types::FontRead::read(bytes)?;
-        match version.get() {
-            1 => Some(Self::Format1(font_types::FontRead::read(bytes)?)),
-            2 => Some(Self::Format2(font_types::FontRead::read(bytes)?)),
-            _other => {
-                #[cfg(feature = "std")]
-                {
-                    eprintln!("unknown enum variant {:?}", version);
-                }
-                None
-            }
+impl<'a> FontRead<'a> for ClassDef<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0)?;
+        match format {
+            ClassDefFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            ClassDefFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }
 
 /// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct SequenceLookupRecord {
     /// Index (zero-based) into the input glyph sequence
     pub sequence_index: BigEndian<u16>,
@@ -745,1153 +934,1612 @@ impl SequenceLookupRecord {
     }
 }
 
-/// [Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-1-simple-glyph-contexts)
-pub struct SequenceContextFormat1<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    coverage_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    seq_rule_set_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    seq_rule_set_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
-    offset_bytes: &'a [u8],
+impl FixedSized for SequenceLookupRecord {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-impl<'a> font_types::FontRead<'a> for SequenceContextFormat1<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (coverage_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (seq_rule_set_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_seq_rule_set_count = seq_rule_set_count.get();
-        let (seq_rule_set_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_seq_rule_set_count as usize,
-            )?;
-        let _ = bytes;
-        Some(SequenceContextFormat1 {
-            format,
-            coverage_offset,
-            seq_rule_set_count,
-            seq_rule_set_offsets,
-            offset_bytes,
+impl Format<u16> for SequenceContextFormat1Marker {
+    const FORMAT: u16 = 1;
+}
+
+/// [Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-1-simple-glyph-contexts)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct SequenceContextFormat1Marker {
+    seq_rule_set_offsets_byte_len: usize,
+}
+
+impl SequenceContextFormat1Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn seq_rule_set_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.seq_rule_set_count_byte_range().end;
+        start..start + self.seq_rule_set_offsets_byte_len
+    }
+}
+
+impl TableInfo for SequenceContextFormat1Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset16>();
+        let seq_rule_set_count: u16 = cursor.read()?;
+        let seq_rule_set_offsets_byte_len = seq_rule_set_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(seq_rule_set_offsets_byte_len);
+        cursor.finish(SequenceContextFormat1Marker {
+            seq_rule_set_offsets_byte_len,
         })
     }
 }
 
+/// [Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-1-simple-glyph-contexts)
+pub type SequenceContextFormat1<'a> = TableRef<'a, SequenceContextFormat1Marker>;
+
 impl<'a> SequenceContextFormat1<'a> {
     /// Format identifier: format = 1
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat1 table
     pub fn coverage_offset(&self) -> Offset16 {
-        self.coverage_offset.get()
+        let range = self.shape.coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = &self.data;
+        self.coverage_offset().resolve(data)
     }
 
     /// Number of SequenceRuleSet tables
     pub fn seq_rule_set_count(&self) -> u16 {
-        self.seq_rule_set_count.get()
+        let range = self.shape.seq_rule_set_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to SequenceRuleSet tables, from beginning of
     /// SequenceContextFormat1 table (offsets may be NULL)
-    pub fn seq_rule_set_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.seq_rule_set_offsets
+    pub fn seq_rule_set_offsets(&self) -> &[BigEndian<Nullable<Offset16>>] {
+        let range = self.shape.seq_rule_set_offsets_byte_range();
+        self.data.read_array(range).unwrap()
     }
-}
 
-impl<'a> font_types::OffsetHost<'a> for SequenceContextFormat1<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+    pub fn seq_rule_set(
+        &self,
+    ) -> impl Iterator<Item = Option<Result<SequenceRuleSet<'a>, ReadError>>> + '_ {
+        let data = &self.data;
+        self.seq_rule_set_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 }
 
 /// Part of [SequenceContextFormat1]
-pub struct SequenceRuleSet<'a> {
-    seq_rule_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    seq_rule_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
-    offset_bytes: &'a [u8],
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct SequenceRuleSetMarker {
+    seq_rule_offsets_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for SequenceRuleSet<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (seq_rule_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_seq_rule_count = seq_rule_count.get();
-        let (seq_rule_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_seq_rule_count as usize,
-            )?;
-        let _ = bytes;
-        Some(SequenceRuleSet {
-            seq_rule_count,
-            seq_rule_offsets,
-            offset_bytes,
+impl SequenceRuleSetMarker {
+    fn seq_rule_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn seq_rule_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.seq_rule_count_byte_range().end;
+        start..start + self.seq_rule_offsets_byte_len
+    }
+}
+
+impl TableInfo for SequenceRuleSetMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let seq_rule_count: u16 = cursor.read()?;
+        let seq_rule_offsets_byte_len = seq_rule_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(seq_rule_offsets_byte_len);
+        cursor.finish(SequenceRuleSetMarker {
+            seq_rule_offsets_byte_len,
         })
     }
 }
 
+/// Part of [SequenceContextFormat1]
+pub type SequenceRuleSet<'a> = TableRef<'a, SequenceRuleSetMarker>;
+
 impl<'a> SequenceRuleSet<'a> {
     /// Number of SequenceRule tables
     pub fn seq_rule_count(&self) -> u16 {
-        self.seq_rule_count.get()
+        let range = self.shape.seq_rule_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to SequenceRule tables, from beginning of the
     /// SequenceRuleSet table
     pub fn seq_rule_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.seq_rule_offsets
+        let range = self.shape.seq_rule_offsets_byte_range();
+        self.data.read_array(range).unwrap()
     }
-}
 
-impl<'a> font_types::OffsetHost<'a> for SequenceRuleSet<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+    pub fn seq_rule(&self) -> impl Iterator<Item = Result<SequenceRule<'a>, ReadError>> + '_ {
+        let data = &self.data;
+        self.seq_rule_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 }
 
 /// Part of [SequenceContextFormat1]
-pub struct SequenceRule<'a> {
-    glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    seq_lookup_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    input_sequence: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
-    seq_lookup_records: zerocopy::LayoutVerified<&'a [u8], [SequenceLookupRecord]>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct SequenceRuleMarker {
+    input_sequence_byte_len: usize,
+    seq_lookup_records_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for SequenceRule<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_glyph_count = glyph_count.get();
-        let (seq_lookup_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_seq_lookup_count = seq_lookup_count.get();
-        let (input_sequence, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                minus_one(__resolved_glyph_count),
-            )?;
-        let (seq_lookup_records, bytes) =
-            zerocopy::LayoutVerified::<_, [SequenceLookupRecord]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_seq_lookup_count as usize,
-            )?;
-        let _ = bytes;
-        Some(SequenceRule {
-            glyph_count,
-            seq_lookup_count,
-            input_sequence,
-            seq_lookup_records,
+impl SequenceRuleMarker {
+    fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn seq_lookup_count_byte_range(&self) -> Range<usize> {
+        let start = self.glyph_count_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn input_sequence_byte_range(&self) -> Range<usize> {
+        let start = self.seq_lookup_count_byte_range().end;
+        start..start + self.input_sequence_byte_len
+    }
+    fn seq_lookup_records_byte_range(&self) -> Range<usize> {
+        let start = self.input_sequence_byte_range().end;
+        start..start + self.seq_lookup_records_byte_len
+    }
+}
+
+impl TableInfo for SequenceRuleMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let glyph_count: u16 = cursor.read()?;
+        let seq_lookup_count: u16 = cursor.read()?;
+        let input_sequence_byte_len = minus_one(glyph_count) * u16::RAW_BYTE_LEN;
+        cursor.advance_by(input_sequence_byte_len);
+        let seq_lookup_records_byte_len =
+            seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+        cursor.advance_by(seq_lookup_records_byte_len);
+        cursor.finish(SequenceRuleMarker {
+            input_sequence_byte_len,
+            seq_lookup_records_byte_len,
         })
     }
 }
+
+/// Part of [SequenceContextFormat1]
+pub type SequenceRule<'a> = TableRef<'a, SequenceRuleMarker>;
 
 impl<'a> SequenceRule<'a> {
     /// Number of glyphs in the input glyph sequence
     pub fn glyph_count(&self) -> u16 {
-        self.glyph_count.get()
+        let range = self.shape.glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
-        self.seq_lookup_count.get()
+        let range = self.shape.seq_lookup_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of input glyph IDs—starting with the second glyph
     pub fn input_sequence(&self) -> &[BigEndian<u16>] {
-        &self.input_sequence
+        let range = self.shape.input_sequence_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Array of Sequence lookup records
     pub fn seq_lookup_records(&self) -> &[SequenceLookupRecord] {
-        &self.seq_lookup_records
+        let range = self.shape.seq_lookup_records_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
-/// [Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-2-class-based-glyph-contexts)
-pub struct SequenceContextFormat2<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    coverage_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    class_def_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    class_seq_rule_set_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    class_seq_rule_set_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
-    offset_bytes: &'a [u8],
+impl Format<u16> for SequenceContextFormat2Marker {
+    const FORMAT: u16 = 2;
 }
 
-impl<'a> font_types::FontRead<'a> for SequenceContextFormat2<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (coverage_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (class_def_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (class_seq_rule_set_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_class_seq_rule_set_count = class_seq_rule_set_count.get();
-        let (class_seq_rule_set_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_class_seq_rule_set_count as usize,
-            )?;
-        let _ = bytes;
-        Some(SequenceContextFormat2 {
-            format,
-            coverage_offset,
-            class_def_offset,
-            class_seq_rule_set_count,
-            class_seq_rule_set_offsets,
-            offset_bytes,
+/// [Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-2-class-based-glyph-contexts)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct SequenceContextFormat2Marker {
+    class_seq_rule_set_offsets_byte_len: usize,
+}
+
+impl SequenceContextFormat2Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn class_def_offset_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn class_seq_rule_set_count_byte_range(&self) -> Range<usize> {
+        let start = self.class_def_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn class_seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.class_seq_rule_set_count_byte_range().end;
+        start..start + self.class_seq_rule_set_offsets_byte_len
+    }
+}
+
+impl TableInfo for SequenceContextFormat2Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        let class_seq_rule_set_count: u16 = cursor.read()?;
+        let class_seq_rule_set_offsets_byte_len =
+            class_seq_rule_set_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(class_seq_rule_set_offsets_byte_len);
+        cursor.finish(SequenceContextFormat2Marker {
+            class_seq_rule_set_offsets_byte_len,
         })
     }
 }
 
+/// [Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-2-class-based-glyph-contexts)
+pub type SequenceContextFormat2<'a> = TableRef<'a, SequenceContextFormat2Marker>;
+
 impl<'a> SequenceContextFormat2<'a> {
     /// Format identifier: format = 2
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat2 table
     pub fn coverage_offset(&self) -> Offset16 {
-        self.coverage_offset.get()
+        let range = self.shape.coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = &self.data;
+        self.coverage_offset().resolve(data)
     }
 
     /// Offset to ClassDef table, from beginning of
     /// SequenceContextFormat2 table
     pub fn class_def_offset(&self) -> Offset16 {
-        self.class_def_offset.get()
+        let range = self.shape.class_def_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`class_def_offset`][Self::class_def_offset].
+    pub fn class_def(&self) -> Result<ClassDef<'a>, ReadError> {
+        let data = &self.data;
+        self.class_def_offset().resolve(data)
     }
 
     /// Number of ClassSequenceRuleSet tables
     pub fn class_seq_rule_set_count(&self) -> u16 {
-        self.class_seq_rule_set_count.get()
+        let range = self.shape.class_seq_rule_set_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to ClassSequenceRuleSet tables, from beginning
     /// of SequenceContextFormat2 table (may be NULL)
-    pub fn class_seq_rule_set_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.class_seq_rule_set_offsets
+    pub fn class_seq_rule_set_offsets(&self) -> &[BigEndian<Nullable<Offset16>>] {
+        let range = self.shape.class_seq_rule_set_offsets_byte_range();
+        self.data.read_array(range).unwrap()
     }
-}
 
-impl<'a> font_types::OffsetHost<'a> for SequenceContextFormat2<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+    pub fn class_seq_rule_set(
+        &self,
+    ) -> impl Iterator<Item = Option<Result<ClassSequenceRuleSet<'a>, ReadError>>> + '_ {
+        let data = &self.data;
+        self.class_seq_rule_set_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 }
 
 /// Part of [SequenceContextFormat2]
-pub struct ClassSequenceRuleSet<'a> {
-    class_seq_rule_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    class_seq_rule_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ClassSequenceRuleSetMarker {
+    class_seq_rule_offsets_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for ClassSequenceRuleSet<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (class_seq_rule_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_class_seq_rule_count = class_seq_rule_count.get();
-        let (class_seq_rule_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_class_seq_rule_count as usize,
-            )?;
-        let _ = bytes;
-        Some(ClassSequenceRuleSet {
-            class_seq_rule_count,
-            class_seq_rule_offsets,
+impl ClassSequenceRuleSetMarker {
+    fn class_seq_rule_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn class_seq_rule_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.class_seq_rule_count_byte_range().end;
+        start..start + self.class_seq_rule_offsets_byte_len
+    }
+}
+
+impl TableInfo for ClassSequenceRuleSetMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let class_seq_rule_count: u16 = cursor.read()?;
+        let class_seq_rule_offsets_byte_len =
+            class_seq_rule_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(class_seq_rule_offsets_byte_len);
+        cursor.finish(ClassSequenceRuleSetMarker {
+            class_seq_rule_offsets_byte_len,
         })
     }
 }
 
+/// Part of [SequenceContextFormat2]
+pub type ClassSequenceRuleSet<'a> = TableRef<'a, ClassSequenceRuleSetMarker>;
+
 impl<'a> ClassSequenceRuleSet<'a> {
     /// Number of ClassSequenceRule tables
     pub fn class_seq_rule_count(&self) -> u16 {
-        self.class_seq_rule_count.get()
+        let range = self.shape.class_seq_rule_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to ClassSequenceRule tables, from beginning of
     /// ClassSequenceRuleSet table
     pub fn class_seq_rule_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.class_seq_rule_offsets
+        let range = self.shape.class_seq_rule_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    pub fn class_seq_rule(
+        &self,
+    ) -> impl Iterator<Item = Result<ClassSequenceRule<'a>, ReadError>> + '_ {
+        let data = &self.data;
+        self.class_seq_rule_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 }
 
 /// Part of [SequenceContextFormat2]
-pub struct ClassSequenceRule<'a> {
-    glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    seq_lookup_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    input_sequence: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
-    seq_lookup_records: zerocopy::LayoutVerified<&'a [u8], [SequenceLookupRecord]>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ClassSequenceRuleMarker {
+    input_sequence_byte_len: usize,
+    seq_lookup_records_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for ClassSequenceRule<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_glyph_count = glyph_count.get();
-        let (seq_lookup_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_seq_lookup_count = seq_lookup_count.get();
-        let (input_sequence, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                minus_one(__resolved_glyph_count),
-            )?;
-        let (seq_lookup_records, bytes) =
-            zerocopy::LayoutVerified::<_, [SequenceLookupRecord]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_seq_lookup_count as usize,
-            )?;
-        let _ = bytes;
-        Some(ClassSequenceRule {
-            glyph_count,
-            seq_lookup_count,
-            input_sequence,
-            seq_lookup_records,
+impl ClassSequenceRuleMarker {
+    fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn seq_lookup_count_byte_range(&self) -> Range<usize> {
+        let start = self.glyph_count_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn input_sequence_byte_range(&self) -> Range<usize> {
+        let start = self.seq_lookup_count_byte_range().end;
+        start..start + self.input_sequence_byte_len
+    }
+    fn seq_lookup_records_byte_range(&self) -> Range<usize> {
+        let start = self.input_sequence_byte_range().end;
+        start..start + self.seq_lookup_records_byte_len
+    }
+}
+
+impl TableInfo for ClassSequenceRuleMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let glyph_count: u16 = cursor.read()?;
+        let seq_lookup_count: u16 = cursor.read()?;
+        let input_sequence_byte_len = minus_one(glyph_count) * u16::RAW_BYTE_LEN;
+        cursor.advance_by(input_sequence_byte_len);
+        let seq_lookup_records_byte_len =
+            seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+        cursor.advance_by(seq_lookup_records_byte_len);
+        cursor.finish(ClassSequenceRuleMarker {
+            input_sequence_byte_len,
+            seq_lookup_records_byte_len,
         })
     }
 }
 
+/// Part of [SequenceContextFormat2]
+pub type ClassSequenceRule<'a> = TableRef<'a, ClassSequenceRuleMarker>;
+
 impl<'a> ClassSequenceRule<'a> {
     /// Number of glyphs to be matched
     pub fn glyph_count(&self) -> u16 {
-        self.glyph_count.get()
+        let range = self.shape.glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
-        self.seq_lookup_count.get()
+        let range = self.shape.seq_lookup_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Sequence of classes to be matched to the input glyph sequence,
     /// beginning with the second glyph position
     pub fn input_sequence(&self) -> &[BigEndian<u16>] {
-        &self.input_sequence
+        let range = self.shape.input_sequence_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &[SequenceLookupRecord] {
-        &self.seq_lookup_records
+        let range = self.shape.seq_lookup_records_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
-/// [Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-3-coverage-based-glyph-contexts)
-pub struct SequenceContextFormat3<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    seq_lookup_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    coverage_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
-    seq_lookup_records: zerocopy::LayoutVerified<&'a [u8], [SequenceLookupRecord]>,
-    offset_bytes: &'a [u8],
+impl Format<u16> for SequenceContextFormat3Marker {
+    const FORMAT: u16 = 3;
 }
 
-impl<'a> font_types::FontRead<'a> for SequenceContextFormat3<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_glyph_count = glyph_count.get();
-        let (seq_lookup_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_seq_lookup_count = seq_lookup_count.get();
-        let (coverage_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_glyph_count as usize,
-            )?;
-        let (seq_lookup_records, bytes) =
-            zerocopy::LayoutVerified::<_, [SequenceLookupRecord]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_seq_lookup_count as usize,
-            )?;
-        let _ = bytes;
-        Some(SequenceContextFormat3 {
-            format,
-            glyph_count,
-            seq_lookup_count,
-            coverage_offsets,
-            seq_lookup_records,
-            offset_bytes,
+/// [Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-3-coverage-based-glyph-contexts)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct SequenceContextFormat3Marker {
+    coverage_offsets_byte_len: usize,
+    seq_lookup_records_byte_len: usize,
+}
+
+impl SequenceContextFormat3Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn seq_lookup_count_byte_range(&self) -> Range<usize> {
+        let start = self.glyph_count_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn coverage_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.seq_lookup_count_byte_range().end;
+        start..start + self.coverage_offsets_byte_len
+    }
+    fn seq_lookup_records_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offsets_byte_range().end;
+        start..start + self.seq_lookup_records_byte_len
+    }
+}
+
+impl TableInfo for SequenceContextFormat3Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        let glyph_count: u16 = cursor.read()?;
+        let seq_lookup_count: u16 = cursor.read()?;
+        let coverage_offsets_byte_len = glyph_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(coverage_offsets_byte_len);
+        let seq_lookup_records_byte_len =
+            seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+        cursor.advance_by(seq_lookup_records_byte_len);
+        cursor.finish(SequenceContextFormat3Marker {
+            coverage_offsets_byte_len,
+            seq_lookup_records_byte_len,
         })
     }
 }
 
+/// [Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-3-coverage-based-glyph-contexts)
+pub type SequenceContextFormat3<'a> = TableRef<'a, SequenceContextFormat3Marker>;
+
 impl<'a> SequenceContextFormat3<'a> {
     /// Format identifier: format = 3
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of glyphs in the input sequence
     pub fn glyph_count(&self) -> u16 {
-        self.glyph_count.get()
+        let range = self.shape.glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
-        self.seq_lookup_count.get()
+        let range = self.shape.seq_lookup_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to Coverage tables, from beginning of
     /// SequenceContextFormat3 subtable
     pub fn coverage_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.coverage_offsets
+        let range = self.shape.coverage_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    pub fn coverage(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
+        let data = &self.data;
+        self.coverage_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &[SequenceLookupRecord] {
-        &self.seq_lookup_records
+        let range = self.shape.seq_lookup_records_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
-impl<'a> font_types::OffsetHost<'a> for SequenceContextFormat3<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+pub enum SequenceContext<'a> {
+    Format1(SequenceContextFormat1<'a>),
+    Format2(SequenceContextFormat2<'a>),
+    Format3(SequenceContextFormat3<'a>),
+}
+
+impl<'a> FontRead<'a> for SequenceContext<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0)?;
+        match format {
+            SequenceContextFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            SequenceContextFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            SequenceContextFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
     }
+}
+
+impl Format<u16> for ChainedSequenceContextFormat1Marker {
+    const FORMAT: u16 = 1;
 }
 
 /// [Chained Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-1-simple-glyph-contexts)
-pub struct ChainedSequenceContextFormat1<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    coverage_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    chained_seq_rule_set_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    chained_seq_rule_set_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
-    offset_bytes: &'a [u8],
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ChainedSequenceContextFormat1Marker {
+    chained_seq_rule_set_offsets_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for ChainedSequenceContextFormat1<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (coverage_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (chained_seq_rule_set_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_chained_seq_rule_set_count = chained_seq_rule_set_count.get();
-        let (chained_seq_rule_set_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_chained_seq_rule_set_count as usize,
-            )?;
-        let _ = bytes;
-        Some(ChainedSequenceContextFormat1 {
-            format,
-            coverage_offset,
-            chained_seq_rule_set_count,
-            chained_seq_rule_set_offsets,
-            offset_bytes,
+impl ChainedSequenceContextFormat1Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn chained_seq_rule_set_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn chained_seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.chained_seq_rule_set_count_byte_range().end;
+        start..start + self.chained_seq_rule_set_offsets_byte_len
+    }
+}
+
+impl TableInfo for ChainedSequenceContextFormat1Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset16>();
+        let chained_seq_rule_set_count: u16 = cursor.read()?;
+        let chained_seq_rule_set_offsets_byte_len =
+            chained_seq_rule_set_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(chained_seq_rule_set_offsets_byte_len);
+        cursor.finish(ChainedSequenceContextFormat1Marker {
+            chained_seq_rule_set_offsets_byte_len,
         })
     }
 }
 
+/// [Chained Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-1-simple-glyph-contexts)
+pub type ChainedSequenceContextFormat1<'a> = TableRef<'a, ChainedSequenceContextFormat1Marker>;
+
 impl<'a> ChainedSequenceContextFormat1<'a> {
     /// Format identifier: format = 1
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to Coverage table, from beginning of
     /// ChainSequenceContextFormat1 table
     pub fn coverage_offset(&self) -> Offset16 {
-        self.coverage_offset.get()
+        let range = self.shape.coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = &self.data;
+        self.coverage_offset().resolve(data)
     }
 
     /// Number of ChainedSequenceRuleSet tables
     pub fn chained_seq_rule_set_count(&self) -> u16 {
-        self.chained_seq_rule_set_count.get()
+        let range = self.shape.chained_seq_rule_set_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
     /// ChainedSequenceContextFormat1 table (may be NULL)
-    pub fn chained_seq_rule_set_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.chained_seq_rule_set_offsets
+    pub fn chained_seq_rule_set_offsets(&self) -> &[BigEndian<Nullable<Offset16>>] {
+        let range = self.shape.chained_seq_rule_set_offsets_byte_range();
+        self.data.read_array(range).unwrap()
     }
-}
 
-impl<'a> font_types::OffsetHost<'a> for ChainedSequenceContextFormat1<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+    pub fn chained_seq_rule_set(
+        &self,
+    ) -> impl Iterator<Item = Option<Result<ChainedSequenceRuleSet<'a>, ReadError>>> + '_ {
+        let data = &self.data;
+        self.chained_seq_rule_set_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 }
 
 /// Part of [ChainedSequenceContextFormat1]
-pub struct ChainedSequenceRuleSet<'a> {
-    chained_seq_rule_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    chained_seq_rule_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
-    offset_bytes: &'a [u8],
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ChainedSequenceRuleSetMarker {
+    chained_seq_rule_offsets_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for ChainedSequenceRuleSet<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (chained_seq_rule_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_chained_seq_rule_count = chained_seq_rule_count.get();
-        let (chained_seq_rule_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_chained_seq_rule_count as usize,
-            )?;
-        let _ = bytes;
-        Some(ChainedSequenceRuleSet {
-            chained_seq_rule_count,
-            chained_seq_rule_offsets,
-            offset_bytes,
+impl ChainedSequenceRuleSetMarker {
+    fn chained_seq_rule_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn chained_seq_rule_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.chained_seq_rule_count_byte_range().end;
+        start..start + self.chained_seq_rule_offsets_byte_len
+    }
+}
+
+impl TableInfo for ChainedSequenceRuleSetMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let chained_seq_rule_count: u16 = cursor.read()?;
+        let chained_seq_rule_offsets_byte_len =
+            chained_seq_rule_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(chained_seq_rule_offsets_byte_len);
+        cursor.finish(ChainedSequenceRuleSetMarker {
+            chained_seq_rule_offsets_byte_len,
         })
     }
 }
 
+/// Part of [ChainedSequenceContextFormat1]
+pub type ChainedSequenceRuleSet<'a> = TableRef<'a, ChainedSequenceRuleSetMarker>;
+
 impl<'a> ChainedSequenceRuleSet<'a> {
     /// Number of ChainedSequenceRule tables
     pub fn chained_seq_rule_count(&self) -> u16 {
-        self.chained_seq_rule_count.get()
+        let range = self.shape.chained_seq_rule_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to ChainedSequenceRule tables, from beginning
     /// of ChainedSequenceRuleSet table
     pub fn chained_seq_rule_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.chained_seq_rule_offsets
+        let range = self.shape.chained_seq_rule_offsets_byte_range();
+        self.data.read_array(range).unwrap()
     }
-}
 
-impl<'a> font_types::OffsetHost<'a> for ChainedSequenceRuleSet<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+    pub fn chained_seq_rule(
+        &self,
+    ) -> impl Iterator<Item = Result<ChainedSequenceRule<'a>, ReadError>> + '_ {
+        let data = &self.data;
+        self.chained_seq_rule_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 }
 
 /// Part of [ChainedSequenceContextFormat1]
-pub struct ChainedSequenceRule<'a> {
-    backtrack_glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    backtrack_sequence: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
-    input_glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    input_sequence: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
-    lookahead_glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    lookahead_sequence: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
-    seq_lookup_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    seq_lookup_records: zerocopy::LayoutVerified<&'a [u8], [SequenceLookupRecord]>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ChainedSequenceRuleMarker {
+    backtrack_sequence_byte_len: usize,
+    input_sequence_byte_len: usize,
+    lookahead_sequence_byte_len: usize,
+    seq_lookup_records_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for ChainedSequenceRule<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (backtrack_glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_backtrack_glyph_count = backtrack_glyph_count.get();
-        let (backtrack_sequence, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_backtrack_glyph_count as usize,
-            )?;
-        let (input_glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_input_glyph_count = input_glyph_count.get();
-        let (input_sequence, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                minus_one(__resolved_input_glyph_count),
-            )?;
-        let (lookahead_glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_lookahead_glyph_count = lookahead_glyph_count.get();
-        let (lookahead_sequence, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_lookahead_glyph_count as usize,
-            )?;
-        let (seq_lookup_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_seq_lookup_count = seq_lookup_count.get();
-        let (seq_lookup_records, bytes) =
-            zerocopy::LayoutVerified::<_, [SequenceLookupRecord]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_seq_lookup_count as usize,
-            )?;
-        let _ = bytes;
-        Some(ChainedSequenceRule {
-            backtrack_glyph_count,
-            backtrack_sequence,
-            input_glyph_count,
-            input_sequence,
-            lookahead_glyph_count,
-            lookahead_sequence,
-            seq_lookup_count,
-            seq_lookup_records,
+impl ChainedSequenceRuleMarker {
+    fn backtrack_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn backtrack_sequence_byte_range(&self) -> Range<usize> {
+        let start = self.backtrack_glyph_count_byte_range().end;
+        start..start + self.backtrack_sequence_byte_len
+    }
+    fn input_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.backtrack_sequence_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn input_sequence_byte_range(&self) -> Range<usize> {
+        let start = self.input_glyph_count_byte_range().end;
+        start..start + self.input_sequence_byte_len
+    }
+    fn lookahead_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.input_sequence_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn lookahead_sequence_byte_range(&self) -> Range<usize> {
+        let start = self.lookahead_glyph_count_byte_range().end;
+        start..start + self.lookahead_sequence_byte_len
+    }
+    fn seq_lookup_count_byte_range(&self) -> Range<usize> {
+        let start = self.lookahead_sequence_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn seq_lookup_records_byte_range(&self) -> Range<usize> {
+        let start = self.seq_lookup_count_byte_range().end;
+        start..start + self.seq_lookup_records_byte_len
+    }
+}
+
+impl TableInfo for ChainedSequenceRuleMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let backtrack_glyph_count: u16 = cursor.read()?;
+        let backtrack_sequence_byte_len = backtrack_glyph_count as usize * u16::RAW_BYTE_LEN;
+        cursor.advance_by(backtrack_sequence_byte_len);
+        let input_glyph_count: u16 = cursor.read()?;
+        let input_sequence_byte_len = minus_one(input_glyph_count) * u16::RAW_BYTE_LEN;
+        cursor.advance_by(input_sequence_byte_len);
+        let lookahead_glyph_count: u16 = cursor.read()?;
+        let lookahead_sequence_byte_len = lookahead_glyph_count as usize * u16::RAW_BYTE_LEN;
+        cursor.advance_by(lookahead_sequence_byte_len);
+        let seq_lookup_count: u16 = cursor.read()?;
+        let seq_lookup_records_byte_len =
+            seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+        cursor.advance_by(seq_lookup_records_byte_len);
+        cursor.finish(ChainedSequenceRuleMarker {
+            backtrack_sequence_byte_len,
+            input_sequence_byte_len,
+            lookahead_sequence_byte_len,
+            seq_lookup_records_byte_len,
         })
     }
 }
+
+/// Part of [ChainedSequenceContextFormat1]
+pub type ChainedSequenceRule<'a> = TableRef<'a, ChainedSequenceRuleMarker>;
 
 impl<'a> ChainedSequenceRule<'a> {
     /// Number of glyphs in the backtrack sequence
     pub fn backtrack_glyph_count(&self) -> u16 {
-        self.backtrack_glyph_count.get()
+        let range = self.shape.backtrack_glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of backtrack glyph IDs
     pub fn backtrack_sequence(&self) -> &[BigEndian<u16>] {
-        &self.backtrack_sequence
+        let range = self.shape.backtrack_sequence_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Number of glyphs in the input sequence
     pub fn input_glyph_count(&self) -> u16 {
-        self.input_glyph_count.get()
+        let range = self.shape.input_glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of input glyph IDs—start with second glyph
     pub fn input_sequence(&self) -> &[BigEndian<u16>] {
-        &self.input_sequence
+        let range = self.shape.input_sequence_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Number of glyphs in the lookahead sequence
     pub fn lookahead_glyph_count(&self) -> u16 {
-        self.lookahead_glyph_count.get()
+        let range = self.shape.lookahead_glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of lookahead glyph IDs
     pub fn lookahead_sequence(&self) -> &[BigEndian<u16>] {
-        &self.lookahead_sequence
+        let range = self.shape.lookahead_sequence_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
-        self.seq_lookup_count.get()
+        let range = self.shape.seq_lookup_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &[SequenceLookupRecord] {
-        &self.seq_lookup_records
+        let range = self.shape.seq_lookup_records_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
-/// [Chained Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-2-class-based-glyph-contexts)
-pub struct ChainedSequenceContextFormat2<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    coverage_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    backtrack_class_def_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    input_class_def_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    lookahead_class_def_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    chained_class_seq_rule_set_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    chained_class_seq_rule_set_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
-    offset_bytes: &'a [u8],
+impl Format<u16> for ChainedSequenceContextFormat2Marker {
+    const FORMAT: u16 = 2;
 }
 
-impl<'a> font_types::FontRead<'a> for ChainedSequenceContextFormat2<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (coverage_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (backtrack_class_def_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (input_class_def_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (lookahead_class_def_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (chained_class_seq_rule_set_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_chained_class_seq_rule_set_count = chained_class_seq_rule_set_count.get();
-        let (chained_class_seq_rule_set_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_chained_class_seq_rule_set_count as usize,
-            )?;
-        let _ = bytes;
-        Some(ChainedSequenceContextFormat2 {
-            format,
-            coverage_offset,
-            backtrack_class_def_offset,
-            input_class_def_offset,
-            lookahead_class_def_offset,
-            chained_class_seq_rule_set_count,
-            chained_class_seq_rule_set_offsets,
-            offset_bytes,
+/// [Chained Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-2-class-based-glyph-contexts)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ChainedSequenceContextFormat2Marker {
+    chained_class_seq_rule_set_offsets_byte_len: usize,
+}
+
+impl ChainedSequenceContextFormat2Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn backtrack_class_def_offset_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn input_class_def_offset_byte_range(&self) -> Range<usize> {
+        let start = self.backtrack_class_def_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn lookahead_class_def_offset_byte_range(&self) -> Range<usize> {
+        let start = self.input_class_def_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn chained_class_seq_rule_set_count_byte_range(&self) -> Range<usize> {
+        let start = self.lookahead_class_def_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn chained_class_seq_rule_set_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.chained_class_seq_rule_set_count_byte_range().end;
+        start..start + self.chained_class_seq_rule_set_offsets_byte_len
+    }
+}
+
+impl TableInfo for ChainedSequenceContextFormat2Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        let chained_class_seq_rule_set_count: u16 = cursor.read()?;
+        let chained_class_seq_rule_set_offsets_byte_len =
+            chained_class_seq_rule_set_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(chained_class_seq_rule_set_offsets_byte_len);
+        cursor.finish(ChainedSequenceContextFormat2Marker {
+            chained_class_seq_rule_set_offsets_byte_len,
         })
     }
 }
 
+/// [Chained Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-2-class-based-glyph-contexts)
+pub type ChainedSequenceContextFormat2<'a> = TableRef<'a, ChainedSequenceContextFormat2Marker>;
+
 impl<'a> ChainedSequenceContextFormat2<'a> {
     /// Format identifier: format = 2
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to Coverage table, from beginning of
     /// ChainedSequenceContextFormat2 table
     pub fn coverage_offset(&self) -> Offset16 {
-        self.coverage_offset.get()
+        let range = self.shape.coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = &self.data;
+        self.coverage_offset().resolve(data)
     }
 
     /// Offset to ClassDef table containing backtrack sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
     pub fn backtrack_class_def_offset(&self) -> Offset16 {
-        self.backtrack_class_def_offset.get()
+        let range = self.shape.backtrack_class_def_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`backtrack_class_def_offset`][Self::backtrack_class_def_offset].
+    pub fn backtrack_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
+        let data = &self.data;
+        self.backtrack_class_def_offset().resolve(data)
     }
 
     /// Offset to ClassDef table containing input sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
     pub fn input_class_def_offset(&self) -> Offset16 {
-        self.input_class_def_offset.get()
+        let range = self.shape.input_class_def_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`input_class_def_offset`][Self::input_class_def_offset].
+    pub fn input_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
+        let data = &self.data;
+        self.input_class_def_offset().resolve(data)
     }
 
     /// Offset to ClassDef table containing lookahead sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
     pub fn lookahead_class_def_offset(&self) -> Offset16 {
-        self.lookahead_class_def_offset.get()
+        let range = self.shape.lookahead_class_def_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`lookahead_class_def_offset`][Self::lookahead_class_def_offset].
+    pub fn lookahead_class_def(&self) -> Result<ClassDef<'a>, ReadError> {
+        let data = &self.data;
+        self.lookahead_class_def_offset().resolve(data)
     }
 
     /// Number of ChainedClassSequenceRuleSet tables
     pub fn chained_class_seq_rule_set_count(&self) -> u16 {
-        self.chained_class_seq_rule_set_count.get()
+        let range = self.shape.chained_class_seq_rule_set_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to ChainedClassSequenceRuleSet tables, from
     /// beginning of ChainedSequenceContextFormat2 table (may be NULL)
-    pub fn chained_class_seq_rule_set_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.chained_class_seq_rule_set_offsets
+    pub fn chained_class_seq_rule_set_offsets(&self) -> &[BigEndian<Nullable<Offset16>>] {
+        let range = self.shape.chained_class_seq_rule_set_offsets_byte_range();
+        self.data.read_array(range).unwrap()
     }
-}
 
-impl<'a> font_types::OffsetHost<'a> for ChainedSequenceContextFormat2<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+    pub fn chained_class_seq_rule_set(
+        &self,
+    ) -> impl Iterator<Item = Option<Result<ChainedClassSequenceRuleSet<'a>, ReadError>>> + '_ {
+        let data = &self.data;
+        self.chained_class_seq_rule_set_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 }
 
 /// Part of [ChainedSequenceContextFormat2]
-pub struct ChainedClassSequenceRuleSet<'a> {
-    chained_class_seq_rule_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    chained_class_seq_rule_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
-    offset_bytes: &'a [u8],
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ChainedClassSequenceRuleSetMarker {
+    chained_class_seq_rule_offsets_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for ChainedClassSequenceRuleSet<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (chained_class_seq_rule_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_chained_class_seq_rule_count = chained_class_seq_rule_count.get();
-        let (chained_class_seq_rule_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_chained_class_seq_rule_count as usize,
-            )?;
-        let _ = bytes;
-        Some(ChainedClassSequenceRuleSet {
-            chained_class_seq_rule_count,
-            chained_class_seq_rule_offsets,
-            offset_bytes,
+impl ChainedClassSequenceRuleSetMarker {
+    fn chained_class_seq_rule_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn chained_class_seq_rule_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.chained_class_seq_rule_count_byte_range().end;
+        start..start + self.chained_class_seq_rule_offsets_byte_len
+    }
+}
+
+impl TableInfo for ChainedClassSequenceRuleSetMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let chained_class_seq_rule_count: u16 = cursor.read()?;
+        let chained_class_seq_rule_offsets_byte_len =
+            chained_class_seq_rule_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(chained_class_seq_rule_offsets_byte_len);
+        cursor.finish(ChainedClassSequenceRuleSetMarker {
+            chained_class_seq_rule_offsets_byte_len,
         })
     }
 }
 
+/// Part of [ChainedSequenceContextFormat2]
+pub type ChainedClassSequenceRuleSet<'a> = TableRef<'a, ChainedClassSequenceRuleSetMarker>;
+
 impl<'a> ChainedClassSequenceRuleSet<'a> {
     /// Number of ChainedClassSequenceRule tables
     pub fn chained_class_seq_rule_count(&self) -> u16 {
-        self.chained_class_seq_rule_count.get()
+        let range = self.shape.chained_class_seq_rule_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to ChainedClassSequenceRule tables, from
     /// beginning of ChainedClassSequenceRuleSet
     pub fn chained_class_seq_rule_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.chained_class_seq_rule_offsets
+        let range = self.shape.chained_class_seq_rule_offsets_byte_range();
+        self.data.read_array(range).unwrap()
     }
-}
 
-impl<'a> font_types::OffsetHost<'a> for ChainedClassSequenceRuleSet<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+    pub fn chained_class_seq_rule(
+        &self,
+    ) -> impl Iterator<Item = Result<ChainedClassSequenceRule<'a>, ReadError>> + '_ {
+        let data = &self.data;
+        self.chained_class_seq_rule_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 }
 
 /// Part of [ChainedSequenceContextFormat2]
-pub struct ChainedClassSequenceRule<'a> {
-    backtrack_glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    backtrack_sequence: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
-    input_glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    input_sequence: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
-    lookahead_glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    lookahead_sequence: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
-    seq_lookup_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    seq_lookup_records: zerocopy::LayoutVerified<&'a [u8], [SequenceLookupRecord]>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ChainedClassSequenceRuleMarker {
+    backtrack_sequence_byte_len: usize,
+    input_sequence_byte_len: usize,
+    lookahead_sequence_byte_len: usize,
+    seq_lookup_records_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for ChainedClassSequenceRule<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (backtrack_glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_backtrack_glyph_count = backtrack_glyph_count.get();
-        let (backtrack_sequence, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_backtrack_glyph_count as usize,
-            )?;
-        let (input_glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_input_glyph_count = input_glyph_count.get();
-        let (input_sequence, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                minus_one(__resolved_input_glyph_count),
-            )?;
-        let (lookahead_glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_lookahead_glyph_count = lookahead_glyph_count.get();
-        let (lookahead_sequence, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_lookahead_glyph_count as usize,
-            )?;
-        let (seq_lookup_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_seq_lookup_count = seq_lookup_count.get();
-        let (seq_lookup_records, bytes) =
-            zerocopy::LayoutVerified::<_, [SequenceLookupRecord]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_seq_lookup_count as usize,
-            )?;
-        let _ = bytes;
-        Some(ChainedClassSequenceRule {
-            backtrack_glyph_count,
-            backtrack_sequence,
-            input_glyph_count,
-            input_sequence,
-            lookahead_glyph_count,
-            lookahead_sequence,
-            seq_lookup_count,
-            seq_lookup_records,
+impl ChainedClassSequenceRuleMarker {
+    fn backtrack_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn backtrack_sequence_byte_range(&self) -> Range<usize> {
+        let start = self.backtrack_glyph_count_byte_range().end;
+        start..start + self.backtrack_sequence_byte_len
+    }
+    fn input_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.backtrack_sequence_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn input_sequence_byte_range(&self) -> Range<usize> {
+        let start = self.input_glyph_count_byte_range().end;
+        start..start + self.input_sequence_byte_len
+    }
+    fn lookahead_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.input_sequence_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn lookahead_sequence_byte_range(&self) -> Range<usize> {
+        let start = self.lookahead_glyph_count_byte_range().end;
+        start..start + self.lookahead_sequence_byte_len
+    }
+    fn seq_lookup_count_byte_range(&self) -> Range<usize> {
+        let start = self.lookahead_sequence_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn seq_lookup_records_byte_range(&self) -> Range<usize> {
+        let start = self.seq_lookup_count_byte_range().end;
+        start..start + self.seq_lookup_records_byte_len
+    }
+}
+
+impl TableInfo for ChainedClassSequenceRuleMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let backtrack_glyph_count: u16 = cursor.read()?;
+        let backtrack_sequence_byte_len = backtrack_glyph_count as usize * u16::RAW_BYTE_LEN;
+        cursor.advance_by(backtrack_sequence_byte_len);
+        let input_glyph_count: u16 = cursor.read()?;
+        let input_sequence_byte_len = minus_one(input_glyph_count) * u16::RAW_BYTE_LEN;
+        cursor.advance_by(input_sequence_byte_len);
+        let lookahead_glyph_count: u16 = cursor.read()?;
+        let lookahead_sequence_byte_len = lookahead_glyph_count as usize * u16::RAW_BYTE_LEN;
+        cursor.advance_by(lookahead_sequence_byte_len);
+        let seq_lookup_count: u16 = cursor.read()?;
+        let seq_lookup_records_byte_len =
+            seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+        cursor.advance_by(seq_lookup_records_byte_len);
+        cursor.finish(ChainedClassSequenceRuleMarker {
+            backtrack_sequence_byte_len,
+            input_sequence_byte_len,
+            lookahead_sequence_byte_len,
+            seq_lookup_records_byte_len,
         })
     }
 }
 
+/// Part of [ChainedSequenceContextFormat2]
+pub type ChainedClassSequenceRule<'a> = TableRef<'a, ChainedClassSequenceRuleMarker>;
+
 impl<'a> ChainedClassSequenceRule<'a> {
     /// Number of glyphs in the backtrack sequence
     pub fn backtrack_glyph_count(&self) -> u16 {
-        self.backtrack_glyph_count.get()
+        let range = self.shape.backtrack_glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of backtrack-sequence classes
     pub fn backtrack_sequence(&self) -> &[BigEndian<u16>] {
-        &self.backtrack_sequence
+        let range = self.shape.backtrack_sequence_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Total number of glyphs in the input sequence
     pub fn input_glyph_count(&self) -> u16 {
-        self.input_glyph_count.get()
+        let range = self.shape.input_glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of input sequence classes, beginning with the second
     /// glyph position
     pub fn input_sequence(&self) -> &[BigEndian<u16>] {
-        &self.input_sequence
+        let range = self.shape.input_sequence_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Number of glyphs in the lookahead sequence
     pub fn lookahead_glyph_count(&self) -> u16 {
-        self.lookahead_glyph_count.get()
+        let range = self.shape.lookahead_glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of lookahead-sequence classes
     pub fn lookahead_sequence(&self) -> &[BigEndian<u16>] {
-        &self.lookahead_sequence
+        let range = self.shape.lookahead_sequence_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
-        self.seq_lookup_count.get()
+        let range = self.shape.seq_lookup_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &[SequenceLookupRecord] {
-        &self.seq_lookup_records
+        let range = self.shape.seq_lookup_records_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+impl Format<u16> for ChainedSequenceContextFormat3Marker {
+    const FORMAT: u16 = 3;
+}
+
+/// [Chained Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-3-coverage-based-glyph-contexts)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ChainedSequenceContextFormat3Marker {
+    backtrack_coverage_offsets_byte_len: usize,
+    input_coverage_offsets_byte_len: usize,
+    lookahead_coverage_offsets_byte_len: usize,
+    seq_lookup_records_byte_len: usize,
+}
+
+impl ChainedSequenceContextFormat3Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn backtrack_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn backtrack_coverage_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.backtrack_glyph_count_byte_range().end;
+        start..start + self.backtrack_coverage_offsets_byte_len
+    }
+    fn input_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.backtrack_coverage_offsets_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn input_coverage_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.input_glyph_count_byte_range().end;
+        start..start + self.input_coverage_offsets_byte_len
+    }
+    fn lookahead_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.input_coverage_offsets_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn lookahead_coverage_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.lookahead_glyph_count_byte_range().end;
+        start..start + self.lookahead_coverage_offsets_byte_len
+    }
+    fn seq_lookup_count_byte_range(&self) -> Range<usize> {
+        let start = self.lookahead_coverage_offsets_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn seq_lookup_records_byte_range(&self) -> Range<usize> {
+        let start = self.seq_lookup_count_byte_range().end;
+        start..start + self.seq_lookup_records_byte_len
+    }
+}
+
+impl TableInfo for ChainedSequenceContextFormat3Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        let backtrack_glyph_count: u16 = cursor.read()?;
+        let backtrack_coverage_offsets_byte_len =
+            backtrack_glyph_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(backtrack_coverage_offsets_byte_len);
+        let input_glyph_count: u16 = cursor.read()?;
+        let input_coverage_offsets_byte_len = input_glyph_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(input_coverage_offsets_byte_len);
+        let lookahead_glyph_count: u16 = cursor.read()?;
+        let lookahead_coverage_offsets_byte_len =
+            lookahead_glyph_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(lookahead_coverage_offsets_byte_len);
+        let seq_lookup_count: u16 = cursor.read()?;
+        let seq_lookup_records_byte_len =
+            seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
+        cursor.advance_by(seq_lookup_records_byte_len);
+        cursor.finish(ChainedSequenceContextFormat3Marker {
+            backtrack_coverage_offsets_byte_len,
+            input_coverage_offsets_byte_len,
+            lookahead_coverage_offsets_byte_len,
+            seq_lookup_records_byte_len,
+        })
     }
 }
 
 /// [Chained Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-3-coverage-based-glyph-contexts)
-pub struct ChainedSequenceContextFormat3<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    backtrack_glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    backtrack_coverage_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
-    input_glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    input_coverage_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
-    lookahead_glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    lookahead_coverage_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
-    seq_lookup_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    seq_lookup_records: zerocopy::LayoutVerified<&'a [u8], [SequenceLookupRecord]>,
-    offset_bytes: &'a [u8],
-}
-
-impl<'a> font_types::FontRead<'a> for ChainedSequenceContextFormat3<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (backtrack_glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_backtrack_glyph_count = backtrack_glyph_count.get();
-        let (backtrack_coverage_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_backtrack_glyph_count as usize,
-            )?;
-        let (input_glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_input_glyph_count = input_glyph_count.get();
-        let (input_coverage_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_input_glyph_count as usize,
-            )?;
-        let (lookahead_glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_lookahead_glyph_count = lookahead_glyph_count.get();
-        let (lookahead_coverage_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_lookahead_glyph_count as usize,
-            )?;
-        let (seq_lookup_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_seq_lookup_count = seq_lookup_count.get();
-        let (seq_lookup_records, bytes) =
-            zerocopy::LayoutVerified::<_, [SequenceLookupRecord]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_seq_lookup_count as usize,
-            )?;
-        let _ = bytes;
-        Some(ChainedSequenceContextFormat3 {
-            format,
-            backtrack_glyph_count,
-            backtrack_coverage_offsets,
-            input_glyph_count,
-            input_coverage_offsets,
-            lookahead_glyph_count,
-            lookahead_coverage_offsets,
-            seq_lookup_count,
-            seq_lookup_records,
-            offset_bytes,
-        })
-    }
-}
+pub type ChainedSequenceContextFormat3<'a> = TableRef<'a, ChainedSequenceContextFormat3Marker>;
 
 impl<'a> ChainedSequenceContextFormat3<'a> {
     /// Format identifier: format = 3
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of glyphs in the backtrack sequence
     pub fn backtrack_glyph_count(&self) -> u16 {
-        self.backtrack_glyph_count.get()
+        let range = self.shape.backtrack_glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to coverage tables for the backtrack sequence
     pub fn backtrack_coverage_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.backtrack_coverage_offsets
+        let range = self.shape.backtrack_coverage_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    pub fn backtrack_coverage(
+        &self,
+    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
+        let data = &self.data;
+        self.backtrack_coverage_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 
     /// Number of glyphs in the input sequence
     pub fn input_glyph_count(&self) -> u16 {
-        self.input_glyph_count.get()
+        let range = self.shape.input_glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to coverage tables for the input sequence
     pub fn input_coverage_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.input_coverage_offsets
+        let range = self.shape.input_coverage_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    pub fn input_coverage(
+        &self,
+    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
+        let data = &self.data;
+        self.input_coverage_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 
     /// Number of glyphs in the lookahead sequence
     pub fn lookahead_glyph_count(&self) -> u16 {
-        self.lookahead_glyph_count.get()
+        let range = self.shape.lookahead_glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to coverage tables for the lookahead sequence
     pub fn lookahead_coverage_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.lookahead_coverage_offsets
+        let range = self.shape.lookahead_coverage_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    pub fn lookahead_coverage(
+        &self,
+    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
+        let data = &self.data;
+        self.lookahead_coverage_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 
     /// Number of SequenceLookupRecords
     pub fn seq_lookup_count(&self) -> u16 {
-        self.seq_lookup_count.get()
+        let range = self.shape.seq_lookup_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SequenceLookupRecords
     pub fn seq_lookup_records(&self) -> &[SequenceLookupRecord] {
-        &self.seq_lookup_records
+        let range = self.shape.seq_lookup_records_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
-impl<'a> font_types::OffsetHost<'a> for ChainedSequenceContextFormat3<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+pub enum ChainedSequenceContext<'a> {
+    Format1(ChainedSequenceContextFormat1<'a>),
+    Format2(ChainedSequenceContextFormat2<'a>),
+    Format3(ChainedSequenceContextFormat3<'a>),
+}
+
+impl<'a> FontRead<'a> for ChainedSequenceContext<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0)?;
+        match format {
+            ChainedSequenceContextFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            ChainedSequenceContextFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            ChainedSequenceContextFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+/// [Device](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
+/// delta formats
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[repr(u16)]
+pub enum DeltaFormat {
+    /// Signed 2-bit value, 8 values per uint16
+    Local2BitDeltas = 0x0001,
+    /// Signed 4-bit value, 4 values per uint16
+    Local4BitDeltas = 0x0002,
+    /// Signed 8-bit value, 2 values per uint16
+    Local8BitDeltas = 0x0003,
+    /// VariationIndex table, contains a delta-set index pair.
+    VariationIndex = 0x8000,
+    Unknown,
+}
+
+impl DeltaFormat {
+    #[doc = r" Create from a raw scalar."]
+    #[doc = r""]
+    #[doc = r" This will never fail; unknown values will be mapped to the `Unknown` variant"]
+    pub fn new(raw: u16) -> Self {
+        match raw {
+            0x0001 => Self::Local2BitDeltas,
+            0x0002 => Self::Local4BitDeltas,
+            0x0003 => Self::Local8BitDeltas,
+            0x8000 => Self::VariationIndex,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl font_types::Scalar for DeltaFormat {
+    type Raw = <u16 as font_types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        (self as u16).to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u16>::from_raw(raw);
+        Self::new(t)
     }
 }
 
 /// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
-pub struct Device<'a> {
-    start_size: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    end_size: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    delta_format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    delta_value: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct DeviceMarker {
+    delta_value_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for Device<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (start_size, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (end_size, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (delta_format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (delta_value, bytes) = (
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned(bytes)?,
-            0,
-        );
-        let _ = bytes;
-        Some(Device {
-            start_size,
-            end_size,
-            delta_format,
-            delta_value,
+impl DeviceMarker {
+    fn start_size_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn end_size_byte_range(&self) -> Range<usize> {
+        let start = self.start_size_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn delta_format_byte_range(&self) -> Range<usize> {
+        let start = self.end_size_byte_range().end;
+        start..start + DeltaFormat::RAW_BYTE_LEN
+    }
+    fn delta_value_byte_range(&self) -> Range<usize> {
+        let start = self.delta_format_byte_range().end;
+        start..start + self.delta_value_byte_len
+    }
+}
+
+impl TableInfo for DeviceMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let start_size: u16 = cursor.read()?;
+        let end_size: u16 = cursor.read()?;
+        let delta_format: DeltaFormat = cursor.read()?;
+        let delta_value_byte_len =
+            delta_value_count(start_size, end_size, delta_format) * u16::RAW_BYTE_LEN;
+        cursor.advance_by(delta_value_byte_len);
+        cursor.finish(DeviceMarker {
+            delta_value_byte_len,
         })
     }
 }
 
+/// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
+pub type Device<'a> = TableRef<'a, DeviceMarker>;
+
 impl<'a> Device<'a> {
     /// Smallest size to correct, in ppem
     pub fn start_size(&self) -> u16 {
-        self.start_size.get()
+        let range = self.shape.start_size_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Largest size to correct, in ppem
     pub fn end_size(&self) -> u16 {
-        self.end_size.get()
+        let range = self.shape.end_size_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Format of deltaValue array data: 0x0001, 0x0002, or 0x0003
-    pub fn delta_format(&self) -> u16 {
-        self.delta_format.get()
+    pub fn delta_format(&self) -> DeltaFormat {
+        let range = self.shape.delta_format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of compressed data
     pub fn delta_value(&self) -> &[BigEndian<u16>] {
-        &self.delta_value
+        let range = self.shape.delta_value_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// Variation index table
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
-#[repr(C)]
-pub struct VariationIndex {
-    /// A delta-set outer index — used to select an item variation
-    /// data subtable within the item variation store.
-    pub delta_set_outer_index: BigEndian<u16>,
-    /// A delta-set inner index — used to select a delta-set row
-    /// within an item variation data subtable.
-    pub delta_set_inner_index: BigEndian<u16>,
-    /// Format, = 0x8000
-    pub delta_format: BigEndian<u16>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct VariationIndexMarker {}
+
+impl VariationIndexMarker {
+    fn delta_set_outer_index_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn delta_set_inner_index_byte_range(&self) -> Range<usize> {
+        let start = self.delta_set_outer_index_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn delta_format_byte_range(&self) -> Range<usize> {
+        let start = self.delta_set_inner_index_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
 }
 
-impl VariationIndex {
+impl TableInfo for VariationIndexMarker {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.finish(VariationIndexMarker {})
+    }
+}
+
+/// Variation index table
+pub type VariationIndex<'a> = TableRef<'a, VariationIndexMarker>;
+
+impl<'a> VariationIndex<'a> {
     /// A delta-set outer index — used to select an item variation
     /// data subtable within the item variation store.
     pub fn delta_set_outer_index(&self) -> u16 {
-        self.delta_set_outer_index.get()
+        let range = self.shape.delta_set_outer_index_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// A delta-set inner index — used to select a delta-set row
     /// within an item variation data subtable.
     pub fn delta_set_inner_index(&self) -> u16 {
-        self.delta_set_inner_index.get()
+        let range = self.shape.delta_set_inner_index_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Format, = 0x8000
     pub fn delta_format(&self) -> u16 {
-        self.delta_format.get()
+        let range = self.shape.delta_format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 }
 
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
-pub struct FeatureVariations<'a> {
-    major_version: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    minor_version: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    feature_variation_record_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    feature_variation_records: zerocopy::LayoutVerified<&'a [u8], [FeatureVariationRecord]>,
-    offset_bytes: &'a [u8],
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct FeatureVariationsMarker {
+    feature_variation_records_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for FeatureVariations<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (major_version, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (minor_version, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (feature_variation_record_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_feature_variation_record_count = feature_variation_record_count.get();
-        let (feature_variation_records, bytes) = zerocopy::LayoutVerified::<
-            _,
-            [FeatureVariationRecord],
-        >::new_slice_unaligned_from_prefix(
-            bytes,
-            __resolved_feature_variation_record_count as usize,
-        )?;
-        let _ = bytes;
-        Some(FeatureVariations {
-            major_version,
-            minor_version,
-            feature_variation_record_count,
-            feature_variation_records,
-            offset_bytes,
+impl FeatureVariationsMarker {
+    fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + MajorMinor::RAW_BYTE_LEN
+    }
+    fn feature_variation_record_count_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn feature_variation_records_byte_range(&self) -> Range<usize> {
+        let start = self.feature_variation_record_count_byte_range().end;
+        start..start + self.feature_variation_records_byte_len
+    }
+}
+
+impl TableInfo for FeatureVariationsMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<MajorMinor>();
+        let feature_variation_record_count: u32 = cursor.read()?;
+        let feature_variation_records_byte_len =
+            feature_variation_record_count as usize * FeatureVariationRecord::RAW_BYTE_LEN;
+        cursor.advance_by(feature_variation_records_byte_len);
+        cursor.finish(FeatureVariationsMarker {
+            feature_variation_records_byte_len,
         })
     }
 }
 
-impl<'a> FeatureVariations<'a> {
-    /// Major version of the FeatureVariations table — set to 1.
-    pub fn major_version(&self) -> u16 {
-        self.major_version.get()
-    }
+/// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
+pub type FeatureVariations<'a> = TableRef<'a, FeatureVariationsMarker>;
 
-    /// Minor version of the FeatureVariations table — set to 0.
-    pub fn minor_version(&self) -> u16 {
-        self.minor_version.get()
+impl<'a> FeatureVariations<'a> {
+    pub fn version(&self) -> MajorMinor {
+        let range = self.shape.version_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of feature variation records.
     pub fn feature_variation_record_count(&self) -> u32 {
-        self.feature_variation_record_count.get()
+        let range = self.shape.feature_variation_record_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of feature variation records.
     pub fn feature_variation_records(&self) -> &[FeatureVariationRecord] {
-        &self.feature_variation_records
-    }
-}
-
-impl<'a> font_types::OffsetHost<'a> for FeatureVariations<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+        let range = self.shape.feature_variation_records_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// Part of [FeatureVariations]
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct FeatureVariationRecord {
     /// Offset to a condition set table, from beginning of
     /// FeatureVariations table.
@@ -1908,165 +2556,221 @@ impl FeatureVariationRecord {
         self.condition_set_offset.get()
     }
 
+    /// Attempt to resolve [`condition_set_offset`][Self::condition_set_offset].
+    pub fn condition_set<'a>(&self, data: &'a FontData<'a>) -> Result<ConditionSet<'a>, ReadError> {
+        self.condition_set_offset().resolve(data)
+    }
+
     /// Offset to a feature table substitution table, from beginning of
     /// the FeatureVariations table.
     pub fn feature_table_substitution_offset(&self) -> Offset32 {
         self.feature_table_substitution_offset.get()
     }
+
+    /// Attempt to resolve [`feature_table_substitution_offset`][Self::feature_table_substitution_offset].
+    pub fn feature_table_substitution<'a>(
+        &self,
+        data: &'a FontData<'a>,
+    ) -> Result<FeatureTableSubstitution<'a>, ReadError> {
+        self.feature_table_substitution_offset().resolve(data)
+    }
+}
+
+impl FixedSized for FeatureVariationRecord {
+    const RAW_BYTE_LEN: usize = Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
 /// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
-pub struct ConditionSet<'a> {
-    condition_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    condition_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset32>]>,
-    offset_bytes: &'a [u8],
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ConditionSetMarker {
+    condition_offsets_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for ConditionSet<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (condition_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_condition_count = condition_count.get();
-        let (condition_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset32>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_condition_count as usize,
-            )?;
-        let _ = bytes;
-        Some(ConditionSet {
-            condition_count,
-            condition_offsets,
-            offset_bytes,
+impl ConditionSetMarker {
+    fn condition_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn condition_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.condition_count_byte_range().end;
+        start..start + self.condition_offsets_byte_len
+    }
+}
+
+impl TableInfo for ConditionSetMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let condition_count: u16 = cursor.read()?;
+        let condition_offsets_byte_len = condition_count as usize * Offset32::RAW_BYTE_LEN;
+        cursor.advance_by(condition_offsets_byte_len);
+        cursor.finish(ConditionSetMarker {
+            condition_offsets_byte_len,
         })
     }
 }
 
+/// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
+pub type ConditionSet<'a> = TableRef<'a, ConditionSetMarker>;
+
 impl<'a> ConditionSet<'a> {
     /// Number of conditions for this condition set.
     pub fn condition_count(&self) -> u16 {
-        self.condition_count.get()
+        let range = self.shape.condition_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to condition tables, from beginning of the
     /// ConditionSet table.
     pub fn condition_offsets(&self) -> &[BigEndian<Offset32>] {
-        &self.condition_offsets
+        let range = self.shape.condition_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    pub fn condition(&self) -> impl Iterator<Item = Result<ConditionFormat1<'a>, ReadError>> + '_ {
+        let data = &self.data;
+        self.condition_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 }
 
-impl<'a> font_types::OffsetHost<'a> for ConditionSet<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+impl Format<u16> for ConditionFormat1Marker {
+    const FORMAT: u16 = 1;
+}
+
+/// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ConditionFormat1Marker {}
+
+impl ConditionFormat1Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn axis_index_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn filter_range_min_value_byte_range(&self) -> Range<usize> {
+        let start = self.axis_index_byte_range().end;
+        start..start + F2Dot14::RAW_BYTE_LEN
+    }
+    fn filter_range_max_value_byte_range(&self) -> Range<usize> {
+        let start = self.filter_range_min_value_byte_range().end;
+        start..start + F2Dot14::RAW_BYTE_LEN
+    }
+}
+
+impl TableInfo for ConditionFormat1Marker {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<F2Dot14>();
+        cursor.advance::<F2Dot14>();
+        cursor.finish(ConditionFormat1Marker {})
     }
 }
 
 /// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
-#[repr(C)]
-pub struct ConditionFormat1 {
-    /// Format, = 1
-    pub format: BigEndian<u16>,
-    /// Index (zero-based) for the variation axis within the 'fvar'
-    /// table.
-    pub axis_index: BigEndian<u16>,
-    /// Minimum value of the font variation instances that satisfy this
-    /// condition.
-    pub filter_range_min_value: BigEndian<F2Dot14>,
-    /// Maximum value of the font variation instances that satisfy this
-    /// condition.
-    pub filter_range_max_value: BigEndian<F2Dot14>,
-}
+pub type ConditionFormat1<'a> = TableRef<'a, ConditionFormat1Marker>;
 
-impl ConditionFormat1 {
+impl<'a> ConditionFormat1<'a> {
     /// Format, = 1
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Index (zero-based) for the variation axis within the 'fvar'
     /// table.
     pub fn axis_index(&self) -> u16 {
-        self.axis_index.get()
+        let range = self.shape.axis_index_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Minimum value of the font variation instances that satisfy this
     /// condition.
     pub fn filter_range_min_value(&self) -> F2Dot14 {
-        self.filter_range_min_value.get()
+        let range = self.shape.filter_range_min_value_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum value of the font variation instances that satisfy this
     /// condition.
     pub fn filter_range_max_value(&self) -> F2Dot14 {
-        self.filter_range_max_value.get()
+        let range = self.shape.filter_range_max_value_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 }
 
 /// [FeatureTableSubstitution Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featuretablesubstitution-table)
-pub struct FeatureTableSubstitution<'a> {
-    major_version: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    minor_version: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    substitution_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    substitutions: zerocopy::LayoutVerified<&'a [u8], [FeatureTableSubstitutionRecord]>,
-    offset_bytes: &'a [u8],
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct FeatureTableSubstitutionMarker {
+    substitutions_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for FeatureTableSubstitution<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (major_version, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (minor_version, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (substitution_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_substitution_count = substitution_count.get();
-        let (substitutions , bytes) = zerocopy :: LayoutVerified :: < _ , [FeatureTableSubstitutionRecord] > :: new_slice_unaligned_from_prefix (bytes , __resolved_substitution_count as usize) ? ;
-        let _ = bytes;
-        Some(FeatureTableSubstitution {
-            major_version,
-            minor_version,
-            substitution_count,
-            substitutions,
-            offset_bytes,
+impl FeatureTableSubstitutionMarker {
+    fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + MajorMinor::RAW_BYTE_LEN
+    }
+    fn substitution_count_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn substitutions_byte_range(&self) -> Range<usize> {
+        let start = self.substitution_count_byte_range().end;
+        start..start + self.substitutions_byte_len
+    }
+}
+
+impl TableInfo for FeatureTableSubstitutionMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<MajorMinor>();
+        let substitution_count: u16 = cursor.read()?;
+        let substitutions_byte_len =
+            substitution_count as usize * FeatureTableSubstitutionRecord::RAW_BYTE_LEN;
+        cursor.advance_by(substitutions_byte_len);
+        cursor.finish(FeatureTableSubstitutionMarker {
+            substitutions_byte_len,
         })
     }
 }
 
-impl<'a> FeatureTableSubstitution<'a> {
-    /// Major version of the feature table substitution table — set
-    /// to 1
-    pub fn major_version(&self) -> u16 {
-        self.major_version.get()
-    }
+/// [FeatureTableSubstitution Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featuretablesubstitution-table)
+pub type FeatureTableSubstitution<'a> = TableRef<'a, FeatureTableSubstitutionMarker>;
 
-    /// Minor version of the feature table substitution table — set
-    /// to 0.
-    pub fn minor_version(&self) -> u16 {
-        self.minor_version.get()
+impl<'a> FeatureTableSubstitution<'a> {
+    /// Major & minor version of the table: (1, 0)
+    pub fn version(&self) -> MajorMinor {
+        let range = self.shape.version_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of feature table substitution records.
     pub fn substitution_count(&self) -> u16 {
-        self.substitution_count.get()
+        let range = self.shape.substitution_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of feature table substitution records.
     pub fn substitutions(&self) -> &[FeatureTableSubstitutionRecord] {
-        &self.substitutions
-    }
-}
-
-impl<'a> font_types::OffsetHost<'a> for FeatureTableSubstitution<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+        let range = self.shape.substitutions_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// Used in [FeatureTableSubstitution]
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct FeatureTableSubstitutionRecord {
     /// The feature table index to match.
     pub feature_index: BigEndian<u16>,
@@ -2088,6 +2792,271 @@ impl FeatureTableSubstitutionRecord {
     }
 }
 
-fn minus_one(inp: u16) -> usize {
-    inp.saturating_sub(1) as usize
+impl FixedSized for FeatureTableSubstitutionRecord {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct SizeParamsMarker {}
+
+impl SizeParamsMarker {
+    fn design_size_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn identifier_byte_range(&self) -> Range<usize> {
+        let start = self.design_size_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn name_entry_byte_range(&self) -> Range<usize> {
+        let start = self.identifier_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn range_start_byte_range(&self) -> Range<usize> {
+        let start = self.name_entry_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn range_end_byte_range(&self) -> Range<usize> {
+        let start = self.range_start_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+}
+
+impl TableInfo for SizeParamsMarker {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.finish(SizeParamsMarker {})
+    }
+}
+
+pub type SizeParams<'a> = TableRef<'a, SizeParamsMarker>;
+
+impl<'a> SizeParams<'a> {
+    /// The first value represents the design size in 720/inch units (decipoints).
+    ///
+    /// The design size entry must be non-zero. When there is a design size but
+    /// no recommended size range, the rest of the array will consist of zeros.
+    pub fn design_size(&self) -> u16 {
+        let range = self.shape.design_size_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// The second value has no independent meaning, but serves as an identifier that associates fonts in a subfamily.
+    ///
+    /// All fonts which share a Typographic or Font Family name and which differ
+    /// only by size range shall have the same subfamily value, and no fonts
+    /// which differ in weight or style shall have the same subfamily value.
+    /// If this value is zero, the remaining fields in the array will be ignored.
+    pub fn identifier(&self) -> u16 {
+        let range = self.shape.identifier_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// The third value enables applications to use a single name for the subfamily identified by the second value.
+    ///
+    /// If the preceding value is non-zero, this value must be set in the range
+    /// 256 – 32767 (inclusive). It records the value of a field in the 'name'
+    /// table, which must contain English-language strings encoded in Windows
+    /// Unicode and Macintosh Roman, and may contain additional strings localized
+    /// to other scripts and languages. Each of these strings is the name
+    /// an application should use, in combination with the family name, to
+    /// represent the subfamily in a menu. Applications will choose the
+    /// appropriate version based on their selection criteria.
+    pub fn name_entry(&self) -> u16 {
+        let range = self.shape.name_entry_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// The fourth and fifth values represent the small end of the recommended
+    /// usage range (exclusive) and the large end of the recommended usage range
+    /// (inclusive), stored in 720/inch units (decipoints).
+    ///
+    /// Ranges must not overlap, and should generally be contiguous.
+    pub fn range_start(&self) -> u16 {
+        let range = self.shape.range_start_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn range_end(&self) -> u16 {
+        let range = self.shape.range_end_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct StylisticSetParamsMarker {}
+
+impl StylisticSetParamsMarker {
+    fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn ui_name_id_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+}
+
+impl TableInfo for StylisticSetParamsMarker {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.finish(StylisticSetParamsMarker {})
+    }
+}
+
+pub type StylisticSetParams<'a> = TableRef<'a, StylisticSetParamsMarker>;
+
+impl<'a> StylisticSetParams<'a> {
+    pub fn version(&self) -> u16 {
+        let range = self.shape.version_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// The 'name' table name ID that specifies a string (or strings, for
+    /// multiple languages) for a user-interface label for this feature.
+    ///
+    /// The value of uiLabelNameId is expected to be in the font-specific name
+    /// ID range (256-32767), though that is not a requirement in this Feature
+    /// Parameters specification. The user-interface label for the feature can
+    /// be provided in multiple languages. An English string should be included
+    /// as a fallback. The string should be kept to a minimal length to fit
+    /// comfortably with different application interfaces.
+    pub fn ui_name_id(&self) -> u16 {
+        let range = self.shape.ui_name_id_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+}
+
+impl Format<u16> for CharacterVariantParamsMarker {
+    const FORMAT: u16 = 1;
+}
+
+/// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct CharacterVariantParamsMarker {
+    character_byte_len: usize,
+}
+
+impl CharacterVariantParamsMarker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn feat_ui_label_name_id_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn feat_ui_tooltip_text_name_id_byte_range(&self) -> Range<usize> {
+        let start = self.feat_ui_label_name_id_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn sample_text_name_id_byte_range(&self) -> Range<usize> {
+        let start = self.feat_ui_tooltip_text_name_id_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn num_named_parameters_byte_range(&self) -> Range<usize> {
+        let start = self.sample_text_name_id_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn first_param_ui_label_name_id_byte_range(&self) -> Range<usize> {
+        let start = self.num_named_parameters_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn char_count_byte_range(&self) -> Range<usize> {
+        let start = self.first_param_ui_label_name_id_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn character_byte_range(&self) -> Range<usize> {
+        let start = self.char_count_byte_range().end;
+        start..start + self.character_byte_len
+    }
+}
+
+impl TableInfo for CharacterVariantParamsMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        let char_count: u16 = cursor.read()?;
+        let character_byte_len = char_count as usize * Uint24::RAW_BYTE_LEN;
+        cursor.advance_by(character_byte_len);
+        cursor.finish(CharacterVariantParamsMarker { character_byte_len })
+    }
+}
+
+/// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
+pub type CharacterVariantParams<'a> = TableRef<'a, CharacterVariantParamsMarker>;
+
+impl<'a> CharacterVariantParams<'a> {
+    /// Format number is set to 0.
+    pub fn format(&self) -> u16 {
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// The 'name' table name ID that specifies a string (or strings,
+    /// for multiple languages) for a user-interface label for this
+    /// feature. (May be NULL.)
+    pub fn feat_ui_label_name_id(&self) -> u16 {
+        let range = self.shape.feat_ui_label_name_id_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// The 'name' table name ID that specifies a string (or strings,
+    /// for multiple languages) that an application can use for tooltip
+    /// text for this feature. (May be NULL.)
+    pub fn feat_ui_tooltip_text_name_id(&self) -> u16 {
+        let range = self.shape.feat_ui_tooltip_text_name_id_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// The 'name' table name ID that specifies sample text that
+    /// illustrates the effect of this feature. (May be NULL.)
+    pub fn sample_text_name_id(&self) -> u16 {
+        let range = self.shape.sample_text_name_id_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Number of named parameters. (May be zero.)
+    pub fn num_named_parameters(&self) -> u16 {
+        let range = self.shape.num_named_parameters_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// The first 'name' table name ID used to specify strings for
+    /// user-interface labels for the feature parameters. (Must be zero
+    /// if numParameters is zero.)
+    pub fn first_param_ui_label_name_id(&self) -> u16 {
+        let range = self.shape.first_param_ui_label_name_id_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// The count of characters for which this feature provides glyph
+    /// variants. (May be zero.)
+    pub fn char_count(&self) -> u16 {
+        let range = self.shape.char_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// The Unicode Scalar Value of the characters for which this
+    /// feature provides glyph variants.
+    pub fn character(&self) -> &[BigEndian<Uint24>] {
+        let range = self.shape.character_byte_range();
+        self.data.read_array(range).unwrap()
+    }
 }

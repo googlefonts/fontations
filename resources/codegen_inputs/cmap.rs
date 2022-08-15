@@ -1,30 +1,29 @@
-//! The [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap) table
+#![parse_module(font_tables::tables::cmap)]
 
 /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
-#[offset_host]
-Cmap<'a> {
+table Cmap {
     /// Table version number (0).
     version: BigEndian<u16>,
     /// Number of encoding tables that follow.
+    #[compile(array_len($encoding_records))]
     num_tables: BigEndian<u16>,
-    #[count(num_tables)]
+    #[count($num_tables)]
     encoding_records: [EncodingRecord],
 }
 
 /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
-EncodingRecord {
+record EncodingRecord {
     /// Platform ID.
     platform_id: BigEndian<u16>,
     /// Platform-specific encoding ID.
     encoding_id: BigEndian<u16>,
     /// Byte offset from beginning of table to the subtable for this
     /// encoding.
-    subtable_offset: BigEndian<Offset32>,
+    subtable_offset: BigEndian<Offset32<CmapSubtable>>,
 }
 
 /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#platform-ids>
-#[repr(u16)]
-enum PlatformId {
+enum u16 PlatformId {
     Unicode = 0,
     Macintosh = 1,
     ISO  = 2,
@@ -33,33 +32,25 @@ enum PlatformId {
 }
 
 /// The different cmap subtable formats.
-#[format(u16)]
-enum CmapSubtable<'a> {
-    #[version(0)]
-    Format0(Cmap0<'a>),
-    #[version(2)]
-    Format2(Cmap2<'a>),
-    #[version(4)]
-    Format4(Cmap4<'a>),
-    #[version(6)]
-    Format6(Cmap6<'a>),
-    #[version(8)]
-    Format8(Cmap8<'a>),
-    #[version(10)]
-    Format10(Cmap10<'a>),
-    #[version(12)]
-    Format12(Cmap12<'a>),
-    #[version(13)]
-    Format13(Cmap13<'a>),
-    #[version(14)]
-    Format14(Cmap14<'a>),
+format u16 CmapSubtable {
+    Format0(Cmap0),
+    Format2(Cmap2),
+    Format4(Cmap4),
+    Format6(Cmap6),
+    Format8(Cmap8),
+    Format10(Cmap10),
+    Format12(Cmap12),
+    Format13(Cmap13),
+    Format14(Cmap14),
 }
 
 /// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
-Cmap0<'a> {
+table Cmap0 {
     /// Format number is set to 0.
+    #[format = 0]
     format: BigEndian<u16>,
     /// This is the length in bytes of the subtable.
+    #[compile(256 + 6)]
     length: BigEndian<u16>,
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
@@ -70,10 +61,12 @@ Cmap0<'a> {
 }
 
     /// [cmap Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-2-high-byte-mapping-through-table): High-byte mapping through table
-Cmap2<'a> {
+table Cmap2 {
     /// Format number is set to 2.
+    #[format = 2]
     format: BigEndian<u16>,
     /// This is the length in bytes of the subtable.
+    #[compile(panic!("not implemented"))]
     length: BigEndian<u16>,
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
@@ -95,7 +88,7 @@ Cmap2<'a> {
 
 
 /// Part of [Cmap2]
-SubHeader {
+record SubHeader {
     /// First valid low byte for this SubHeader.
     first_code: BigEndian<u16>,
     /// Number of valid low bytes for this SubHeader.
@@ -107,8 +100,9 @@ SubHeader {
 }
 
 /// [cmap Format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values): Segment mapping to delta values
-Cmap4<'a> {
+table Cmap4 {
     /// Format number is set to 4.
+    #[format = 4]
     format: BigEndian<u16>,
     /// This is the length in bytes of the subtable.
     length: BigEndian<u16>,
@@ -128,32 +122,29 @@ Cmap4<'a> {
     /// searchRange)
     range_shift: BigEndian<u16>,
     /// End characterCode for each segment, last=0xFFFF.
-    #[count_with(div_by_two, seg_count_x2)]
+    #[count($seg_count_x2 as usize / 2)]
     end_code: [BigEndian<u16>],
     /// Set to 0.
-    #[hidden]
+    #[skip_getter]
     reserved_pad: BigEndian<u16>,
     /// Start character code for each segment.
-    #[count_with(div_by_two, seg_count_x2)]
+    #[count($seg_count_x2 as usize / 2)]
     start_code: [BigEndian<u16>],
     /// Delta for all character codes in segment.
-    #[count_with(div_by_two, seg_count_x2)]
+    #[count($seg_count_x2 as usize / 2)]
     id_delta: [BigEndian<i16>],
     /// Offsets into glyphIdArray or 0
-    #[count_with(div_by_two, seg_count_x2)]
+    #[count($seg_count_x2 as usize / 2)]
     id_range_offsets: [BigEndian<u16>],
     /// Glyph index array (arbitrary length)
-    #[count_all]
+    #[count(..)]
     glyph_id_array: [BigEndian<u16>],
 }
 
-fn div_by_two(seg_count_x2: u16) -> usize {
-    (seg_count_x2 / 2) as usize
-}
-
 /// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
-Cmap6<'a> {
+table Cmap6 {
     /// Format number is set to 6.
+    #[format = 6]
     format: BigEndian<u16>,
     /// This is the length in bytes of the subtable.
     length: BigEndian<u16>,
@@ -165,16 +156,17 @@ Cmap6<'a> {
     /// Number of character codes in subrange.
     entry_count: BigEndian<u16>,
     /// Array of glyph index values for character codes in the range.
-    #[count(entry_count)]
+    #[count($entry_count)]
     glyph_id_array: [BigEndian<u16>],
 }
 
 /// [cmap Format 8](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-8-mixed-16-bit-and-32-bit-coverage): mixed 16-bit and 32-bit coverage
-Cmap8<'a> {
+table Cmap8 {
     /// Subtable format; set to 8.
+    #[format = 8]
     format: BigEndian<u16>,
     /// Reserved; set to 0
-    #[hidden]
+    #[skip_getter]
     reserved: BigEndian<u16>,
     /// Byte length of this subtable (including the header)
     length: BigEndian<u32>,
@@ -189,12 +181,12 @@ Cmap8<'a> {
     /// Number of groupings which follow
     num_groups: BigEndian<u32>,
     /// Array of SequentialMapGroup records.
-    #[count(num_groups)]
+    #[count($num_groups)]
     groups: [SequentialMapGroup],
 }
 
 /// Used in [Cmap8] and [Cmap12]
-SequentialMapGroup {
+record SequentialMapGroup {
     /// First character code in this group; note that if this group is
     /// for one or more 16-bit character codes (which is determined
     /// from the is32 array), this 32-bit value will have the high
@@ -208,11 +200,12 @@ SequentialMapGroup {
 }
 
     /// [cmap Format 10](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array): Tr
-Cmap10<'a> {
+table Cmap10 {
     /// Subtable format; set to 10.
+    #[format = 10]
     format: BigEndian<u16>,
     /// Reserved; set to 0
-    #[hidden]
+    #[skip_getter]
     reserved: BigEndian<u16>,
     /// Byte length of this subtable (including the header)
     length: BigEndian<u32>,
@@ -224,16 +217,17 @@ Cmap10<'a> {
     /// Number of character codes covered
     num_chars: BigEndian<u32>,
     /// Array of glyph indices for the character codes covered
-    #[count_all]
+    #[count(..)]
     glyph_id_array: [BigEndian<u16>],
 }
 
 /// [cmap Format 12](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage): Segmented coverage
-Cmap12<'a> {
+table Cmap12 {
     /// Subtable format; set to 12.
+    #[format = 12]
     format: BigEndian<u16>,
     /// Reserved; set to 0
-    #[hidden]
+    #[skip_getter]
     reserved: BigEndian<u16>,
     /// Byte length of this subtable (including the header)
     length: BigEndian<u32>,
@@ -243,16 +237,17 @@ Cmap12<'a> {
     /// Number of groupings which follow
     num_groups: BigEndian<u32>,
     /// Array of SequentialMapGroup records.
-    #[count(num_groups)]
+    #[count($num_groups)]
     groups: [SequentialMapGroup],
 }
 
 /// [cmap Format 13](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-13-many-to-one-range-mappings): Many-to-one range mappings
-Cmap13<'a> {
+table Cmap13 {
     /// Subtable format; set to 13.
+    #[format = 13]
     format: BigEndian<u16>,
     /// Reserved; set to 0
-    #[hidden]
+    #[skip_getter]
     reserved: BigEndian<u16>,
     /// Byte length of this subtable (including the header)
     length: BigEndian<u32>,
@@ -262,12 +257,12 @@ Cmap13<'a> {
     /// Number of groupings which follow
     num_groups: BigEndian<u32>,
     /// Array of ConstantMapGroup records.
-    #[count(num_groups)]
+    #[count($num_groups)]
     groups: [ConstantMapGroup],
 }
 
 /// Part of [Cmap13]
-ConstantMapGroup {
+record ConstantMapGroup {
     /// First character code in this group
     start_char_code: BigEndian<u32>,
     /// Last character code in this group
@@ -278,21 +273,21 @@ ConstantMapGroup {
 }
 
 /// [cmap Format 14](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences): Unicode Variation Sequences
-#[offset_host]
-Cmap14<'a> {
+table Cmap14 {
     /// Subtable format. Set to 14.
+    #[format = 14]
     format: BigEndian<u16>,
     /// Byte length of this subtable (including this header)
     length: BigEndian<u32>,
     /// Number of variation Selector Records
     num_var_selector_records: BigEndian<u32>,
     /// Array of VariationSelector records.
-    #[count(num_var_selector_records)]
+    #[count($num_var_selector_records)]
     var_selector: [VariationSelector],
 }
 
 /// Part of [Cmap14]
-VariationSelector {
+record VariationSelector {
     /// Variation selector
     var_selector: BigEndian<Uint24>,
     /// Offset from the start of the format 14 subtable to Default UVS
@@ -304,16 +299,16 @@ VariationSelector {
 }
 
 /// [Default UVS table](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table)
-DefaultUvs<'a> {
+table DefaultUvs {
     /// Number of Unicode character ranges.
     num_unicode_value_ranges: BigEndian<u32>,
     /// Array of UnicodeRange records.
-    #[count(num_unicode_value_ranges)]
+    #[count($num_unicode_value_ranges)]
     ranges: [UnicodeRange],
 }
 
 /// Part of [Cmap14]
-UVSMapping {
+record UVSMapping {
     /// Base Unicode value of the UVS
     unicode_value: BigEndian<Uint24>,
     /// Glyph ID of the UVS
@@ -321,7 +316,7 @@ UVSMapping {
 }
 
 /// Part of [Cmap14]
-UnicodeRange {
+record UnicodeRange {
     /// First value in this range
     start_unicode_value: BigEndian<Uint24>,
     /// Number of additional values in this range

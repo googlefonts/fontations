@@ -1,9 +1,9 @@
+#![parse_module(font_tables::tables::hhea)]
+
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
-Hhea {
-    /// Major version number of the horizontal header table — set to 1.
-    major_version: BigEndian<u16>,
-    /// Minor version number of the horizontal header table — set to 0.
-    minor_version: BigEndian<u16>,
+table Hhea {
+    /// The major/minor version (1, 0)
+    version: BigEndian<MajorMinor>,
     /// Typographic ascent—see note below.
     ascender: BigEndian<FWord>,
     /// Typographic descent—see note below.
@@ -32,16 +32,20 @@ Hhea {
     /// non-slanted fonts
     caret_offset: BigEndian<i16>,
     /// set to 0
-    #[hidden]
+    #[skip_getter]
+    #[compile(0)]
     reserved1: BigEndian<i16>,
     /// set to 0
-    #[hidden]
+    #[skip_getter]
+    #[compile(0)]
     reserved2: BigEndian<i16>,
     /// set to 0
-    #[hidden]
+    #[skip_getter]
+    #[compile(0)]
     reserved3: BigEndian<i16>,
     /// set to 0
-    #[hidden]
+    #[skip_getter]
+    #[compile(0)]
     reserved4: BigEndian<i16>,
     /// 0 for current format.
     metric_data_format: BigEndian<i16>,

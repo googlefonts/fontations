@@ -2,395 +2,163 @@
 // Any changes to this file will be overwritten.
 // For more information about how codegen works, see font-codegen/README.md
 
-use font_types::*;
+#[allow(unused_imports)]
+use crate::parse_prelude::*;
 
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
-pub struct Gdef1_0<'a> {
-    major_version: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    minor_version: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    glyph_class_def_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    attach_list_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    lig_caret_list_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    mark_attach_class_def_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    offset_bytes: &'a [u8],
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct GdefMarker {
+    mark_glyph_sets_def_offset_byte_start: Option<usize>,
+    item_var_store_offset_byte_start: Option<usize>,
 }
 
-impl<'a> font_types::FontRead<'a> for Gdef1_0<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (major_version, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (minor_version, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (glyph_class_def_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (attach_list_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (lig_caret_list_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (mark_attach_class_def_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let _ = bytes;
-        Some(Gdef1_0 {
-            major_version,
-            minor_version,
-            glyph_class_def_offset,
-            attach_list_offset,
-            lig_caret_list_offset,
-            mark_attach_class_def_offset,
-            offset_bytes,
+impl GdefMarker {
+    fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + MajorMinor::RAW_BYTE_LEN
+    }
+    fn glyph_class_def_offset_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn attach_list_offset_byte_range(&self) -> Range<usize> {
+        let start = self.glyph_class_def_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn lig_caret_list_offset_byte_range(&self) -> Range<usize> {
+        let start = self.attach_list_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn mark_attach_class_def_offset_byte_range(&self) -> Range<usize> {
+        let start = self.lig_caret_list_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn mark_glyph_sets_def_offset_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.mark_glyph_sets_def_offset_byte_start?;
+        Some(start..start + Offset16::RAW_BYTE_LEN)
+    }
+    fn item_var_store_offset_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.item_var_store_offset_byte_start?;
+        Some(start..start + Offset32::RAW_BYTE_LEN)
+    }
+}
+
+impl TableInfo for GdefMarker {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let version: MajorMinor = cursor.read()?;
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        let mark_glyph_sets_def_offset_byte_start = version
+            .compatible(MajorMinor::VERSION_1_2)
+            .then(|| cursor.position())
+            .transpose()?;
+        version
+            .compatible(MajorMinor::VERSION_1_2)
+            .then(|| cursor.advance::<Offset16>());
+        let item_var_store_offset_byte_start = version
+            .compatible(MajorMinor::VERSION_1_3)
+            .then(|| cursor.position())
+            .transpose()?;
+        version
+            .compatible(MajorMinor::VERSION_1_3)
+            .then(|| cursor.advance::<Offset32>());
+        cursor.finish(GdefMarker {
+            mark_glyph_sets_def_offset_byte_start,
+            item_var_store_offset_byte_start,
         })
     }
 }
 
-impl<'a> Gdef1_0<'a> {
-    /// Major version of the GDEF table, = 1
-    pub fn major_version(&self) -> u16 {
-        self.major_version.get()
-    }
-
-    /// Minor version of the GDEF table, = 0
-    pub fn minor_version(&self) -> u16 {
-        self.minor_version.get()
-    }
-
-    /// Offset to class definition table for glyph type, from beginning
-    /// of GDEF header (may be NULL)
-    pub fn glyph_class_def_offset(&self) -> Offset16 {
-        self.glyph_class_def_offset.get()
-    }
-
-    /// Offset to attachment point list table, from beginning of GDEF
-    /// header (may be NULL)
-    pub fn attach_list_offset(&self) -> Offset16 {
-        self.attach_list_offset.get()
-    }
-
-    /// Offset to ligature caret list table, from beginning of GDEF
-    /// header (may be NULL)
-    pub fn lig_caret_list_offset(&self) -> Offset16 {
-        self.lig_caret_list_offset.get()
-    }
-
-    /// Offset to class definition table for mark attachment type, from
-    /// beginning of GDEF header (may be NULL)
-    pub fn mark_attach_class_def_offset(&self) -> Offset16 {
-        self.mark_attach_class_def_offset.get()
-    }
-}
-
-impl<'a> font_types::OffsetHost<'a> for Gdef1_0<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
-    }
-}
-
-/// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.2
-pub struct Gdef1_2<'a> {
-    major_version: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    minor_version: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    glyph_class_def_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    attach_list_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    lig_caret_list_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    mark_attach_class_def_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    mark_glyph_sets_def_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    offset_bytes: &'a [u8],
-}
-
-impl<'a> font_types::FontRead<'a> for Gdef1_2<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (major_version, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (minor_version, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (glyph_class_def_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (attach_list_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (lig_caret_list_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (mark_attach_class_def_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (mark_glyph_sets_def_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let _ = bytes;
-        Some(Gdef1_2 {
-            major_version,
-            minor_version,
-            glyph_class_def_offset,
-            attach_list_offset,
-            lig_caret_list_offset,
-            mark_attach_class_def_offset,
-            mark_glyph_sets_def_offset,
-            offset_bytes,
-        })
-    }
-}
-
-impl<'a> Gdef1_2<'a> {
-    /// Major version of the GDEF table, = 1
-    pub fn major_version(&self) -> u16 {
-        self.major_version.get()
-    }
-
-    /// Minor version of the GDEF table, = 2
-    pub fn minor_version(&self) -> u16 {
-        self.minor_version.get()
-    }
-
-    /// Offset to class definition table for glyph type, from beginning
-    /// of GDEF header (may be NULL)
-    pub fn glyph_class_def_offset(&self) -> Offset16 {
-        self.glyph_class_def_offset.get()
-    }
-
-    /// Offset to attachment point list table, from beginning of GDEF
-    /// header (may be NULL)
-    pub fn attach_list_offset(&self) -> Offset16 {
-        self.attach_list_offset.get()
-    }
-
-    /// Offset to ligature caret list table, from beginning of GDEF
-    /// header (may be NULL)
-    pub fn lig_caret_list_offset(&self) -> Offset16 {
-        self.lig_caret_list_offset.get()
-    }
-
-    /// Offset to class definition table for mark attachment type, from
-    /// beginning of GDEF header (may be NULL)
-    pub fn mark_attach_class_def_offset(&self) -> Offset16 {
-        self.mark_attach_class_def_offset.get()
-    }
-
-    /// Offset to the table of mark glyph set definitions, from
-    /// beginning of GDEF header (may be NULL)
-    pub fn mark_glyph_sets_def_offset(&self) -> Offset16 {
-        self.mark_glyph_sets_def_offset.get()
-    }
-}
-
-impl<'a> font_types::OffsetHost<'a> for Gdef1_2<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
-    }
-}
-
-/// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.3
-pub struct Gdef1_3<'a> {
-    major_version: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    minor_version: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    glyph_class_def_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    attach_list_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    lig_caret_list_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    mark_attach_class_def_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    mark_glyph_sets_def_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    item_var_store_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset32>>,
-    offset_bytes: &'a [u8],
-}
-
-impl<'a> font_types::FontRead<'a> for Gdef1_3<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (major_version, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (minor_version, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (glyph_class_def_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (attach_list_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (lig_caret_list_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (mark_attach_class_def_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (mark_glyph_sets_def_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (item_var_store_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset32>>::new_unaligned_from_prefix(bytes)?;
-        let _ = bytes;
-        Some(Gdef1_3 {
-            major_version,
-            minor_version,
-            glyph_class_def_offset,
-            attach_list_offset,
-            lig_caret_list_offset,
-            mark_attach_class_def_offset,
-            mark_glyph_sets_def_offset,
-            item_var_store_offset,
-            offset_bytes,
-        })
-    }
-}
-
-impl<'a> Gdef1_3<'a> {
-    /// Major version of the GDEF table, = 1
-    pub fn major_version(&self) -> u16 {
-        self.major_version.get()
-    }
-
-    /// Minor version of the GDEF table, = 3
-    pub fn minor_version(&self) -> u16 {
-        self.minor_version.get()
-    }
-
-    /// Offset to class definition table for glyph type, from beginning
-    /// of GDEF header (may be NULL)
-    pub fn glyph_class_def_offset(&self) -> Offset16 {
-        self.glyph_class_def_offset.get()
-    }
-
-    /// Offset to attachment point list table, from beginning of GDEF
-    /// header (may be NULL)
-    pub fn attach_list_offset(&self) -> Offset16 {
-        self.attach_list_offset.get()
-    }
-
-    /// Offset to ligature caret list table, from beginning of GDEF
-    /// header (may be NULL)
-    pub fn lig_caret_list_offset(&self) -> Offset16 {
-        self.lig_caret_list_offset.get()
-    }
-
-    /// Offset to class definition table for mark attachment type, from
-    /// beginning of GDEF header (may be NULL)
-    pub fn mark_attach_class_def_offset(&self) -> Offset16 {
-        self.mark_attach_class_def_offset.get()
-    }
-
-    /// Offset to the table of mark glyph set definitions, from
-    /// beginning of GDEF header (may be NULL)
-    pub fn mark_glyph_sets_def_offset(&self) -> Offset16 {
-        self.mark_glyph_sets_def_offset.get()
-    }
-
-    /// Offset to the Item Variation Store table, from beginning of
-    /// GDEF header (may be NULL)
-    pub fn item_var_store_offset(&self) -> Offset32 {
-        self.item_var_store_offset.get()
-    }
-}
-
-impl<'a> font_types::OffsetHost<'a> for Gdef1_3<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
-    }
-}
-
-pub enum Gdef<'a> {
-    Gdef1_0(Gdef1_0<'a>),
-    Gdef1_2(Gdef1_2<'a>),
-    Gdef1_3(Gdef1_3<'a>),
-}
-
-impl<'a> font_types::FontRead<'a> for Gdef<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        const _: MajorMinor = MajorMinor::VERSION_1_0;
-        const _: MajorMinor = MajorMinor::VERSION_1_2;
-        const _: MajorMinor = MajorMinor::VERSION_1_3;
-        let version: BigEndian<MajorMinor> = font_types::FontRead::read(bytes)?;
-        match version.get() {
-            MajorMinor::VERSION_1_0 => Some(Self::Gdef1_0(font_types::FontRead::read(bytes)?)),
-            MajorMinor::VERSION_1_2 => Some(Self::Gdef1_2(font_types::FontRead::read(bytes)?)),
-            MajorMinor::VERSION_1_3 => Some(Self::Gdef1_3(font_types::FontRead::read(bytes)?)),
-            _other => {
-                #[cfg(feature = "std")]
-                {
-                    eprintln!("unknown enum variant {:?}", version);
-                }
-                None
-            }
-        }
-    }
-}
+/// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
+pub type Gdef<'a> = TableRef<'a, GdefMarker>;
 
 impl<'a> Gdef<'a> {
-    /// Offset to attachment point list table, from beginning of GDEF
-    /// header (may be NULL)
-    pub fn attach_list_offset(&self) -> Offset16 {
-        match self {
-            Self::Gdef1_0(_inner) => _inner.attach_list_offset(),
-            Self::Gdef1_2(_inner) => _inner.attach_list_offset(),
-            Self::Gdef1_3(_inner) => _inner.attach_list_offset(),
-        }
+    /// The major/minor version of the GDEF table
+    pub fn version(&self) -> MajorMinor {
+        let range = self.shape.version_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
-    pub fn glyph_class_def_offset(&self) -> Offset16 {
-        match self {
-            Self::Gdef1_0(_inner) => _inner.glyph_class_def_offset(),
-            Self::Gdef1_2(_inner) => _inner.glyph_class_def_offset(),
-            Self::Gdef1_3(_inner) => _inner.glyph_class_def_offset(),
-        }
+    pub fn glyph_class_def_offset(&self) -> Nullable<Offset16> {
+        let range = self.shape.glyph_class_def_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
-    /// Offset to the Item Variation Store table, from beginning of
-    /// GDEF header (may be NULL)
-    pub fn item_var_store_offset(&self) -> Option<Offset32> {
-        match self {
-            Self::Gdef1_0(_inner) => None,
-            Self::Gdef1_2(_inner) => None,
-            Self::Gdef1_3(_inner) => Some(_inner.item_var_store_offset()),
-        }
+    /// Attempt to resolve [`glyph_class_def_offset`][Self::glyph_class_def_offset].
+    pub fn glyph_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
+        let data = &self.data;
+        self.glyph_class_def_offset().resolve(data)
+    }
+
+    /// Offset to attachment point list table, from beginning of GDEF
+    /// header (may be NULL)
+    pub fn attach_list_offset(&self) -> Nullable<Offset16> {
+        let range = self.shape.attach_list_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`attach_list_offset`][Self::attach_list_offset].
+    pub fn attach_list(&self) -> Option<Result<AttachList<'a>, ReadError>> {
+        let data = &self.data;
+        self.attach_list_offset().resolve(data)
     }
 
     /// Offset to ligature caret list table, from beginning of GDEF
     /// header (may be NULL)
-    pub fn lig_caret_list_offset(&self) -> Offset16 {
-        match self {
-            Self::Gdef1_0(_inner) => _inner.lig_caret_list_offset(),
-            Self::Gdef1_2(_inner) => _inner.lig_caret_list_offset(),
-            Self::Gdef1_3(_inner) => _inner.lig_caret_list_offset(),
-        }
+    pub fn lig_caret_list_offset(&self) -> Nullable<Offset16> {
+        let range = self.shape.lig_caret_list_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
-    /// Major version of the GDEF table, = 1
-    pub fn major_version(&self) -> u16 {
-        match self {
-            Self::Gdef1_0(_inner) => _inner.major_version(),
-            Self::Gdef1_2(_inner) => _inner.major_version(),
-            Self::Gdef1_3(_inner) => _inner.major_version(),
-        }
+    /// Attempt to resolve [`lig_caret_list_offset`][Self::lig_caret_list_offset].
+    pub fn lig_caret_list(&self) -> Option<Result<LigCaretList<'a>, ReadError>> {
+        let data = &self.data;
+        self.lig_caret_list_offset().resolve(data)
     }
 
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
-    pub fn mark_attach_class_def_offset(&self) -> Offset16 {
-        match self {
-            Self::Gdef1_0(_inner) => _inner.mark_attach_class_def_offset(),
-            Self::Gdef1_2(_inner) => _inner.mark_attach_class_def_offset(),
-            Self::Gdef1_3(_inner) => _inner.mark_attach_class_def_offset(),
-        }
+    pub fn mark_attach_class_def_offset(&self) -> Nullable<Offset16> {
+        let range = self.shape.mark_attach_class_def_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`mark_attach_class_def_offset`][Self::mark_attach_class_def_offset].
+    pub fn mark_attach_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
+        let data = &self.data;
+        self.mark_attach_class_def_offset().resolve(data)
     }
 
     /// Offset to the table of mark glyph set definitions, from
     /// beginning of GDEF header (may be NULL)
-    pub fn mark_glyph_sets_def_offset(&self) -> Option<Offset16> {
-        match self {
-            Self::Gdef1_0(_inner) => None,
-            Self::Gdef1_2(_inner) => Some(_inner.mark_glyph_sets_def_offset()),
-            Self::Gdef1_3(_inner) => Some(_inner.mark_glyph_sets_def_offset()),
-        }
+    pub fn mark_glyph_sets_def_offset(&self) -> Option<Nullable<Offset16>> {
+        let range = self.shape.mark_glyph_sets_def_offset_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
     }
 
-    /// Minor version of the GDEF table, = 0
-    pub fn minor_version(&self) -> u16 {
-        match self {
-            Self::Gdef1_0(_inner) => _inner.minor_version(),
-            Self::Gdef1_2(_inner) => _inner.minor_version(),
-            Self::Gdef1_3(_inner) => _inner.minor_version(),
-        }
+    /// Attempt to resolve [`mark_glyph_sets_def_offset`][Self::mark_glyph_sets_def_offset].
+    pub fn mark_glyph_sets_def(&self) -> Option<Result<MarkGlyphSets<'a>, ReadError>> {
+        let data = &self.data;
+        self.mark_glyph_sets_def_offset()?.resolve(data)
     }
-}
 
-impl<'a> font_types::OffsetHost<'a> for Gdef<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        match self {
-            Self::Gdef1_0(_inner) => _inner.bytes(),
-            Self::Gdef1_2(_inner) => _inner.bytes(),
-            Self::Gdef1_3(_inner) => _inner.bytes(),
-        }
+    /// Offset to the Item Variation Store table, from beginning of
+    /// GDEF header (may be NULL)
+    pub fn item_var_store_offset(&self) -> Option<Nullable<Offset32>> {
+        let range = self.shape.item_var_store_offset_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    /// Attempt to resolve [`item_var_store_offset`][Self::item_var_store_offset].
+    pub fn item_var_store(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
+        let data = &self.data;
+        self.item_var_store_offset()?.resolve(data)
     }
 }
 
@@ -420,315 +188,510 @@ impl GlyphClassDef {
     }
 }
 
-/// [Attachment Point List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#attachment-point-list-table)
-pub struct AttachList<'a> {
-    coverage_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    attach_point_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
+impl font_types::Scalar for GlyphClassDef {
+    type Raw = <u16 as font_types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        (self as u16).to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u16>::from_raw(raw);
+        Self::new(t)
+    }
 }
 
-impl<'a> font_types::FontRead<'a> for AttachList<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (coverage_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_glyph_count = glyph_count.get();
-        let (attach_point_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_glyph_count as usize,
-            )?;
-        let _ = bytes;
-        Some(AttachList {
-            coverage_offset,
-            glyph_count,
-            attach_point_offsets,
+/// [Attachment Point List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#attachment-point-list-table)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct AttachListMarker {
+    attach_point_offsets_byte_len: usize,
+}
+
+impl AttachListMarker {
+    fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn attach_point_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.glyph_count_byte_range().end;
+        start..start + self.attach_point_offsets_byte_len
+    }
+}
+
+impl TableInfo for AttachListMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<Offset16>();
+        let glyph_count: u16 = cursor.read()?;
+        let attach_point_offsets_byte_len = glyph_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(attach_point_offsets_byte_len);
+        cursor.finish(AttachListMarker {
+            attach_point_offsets_byte_len,
         })
     }
 }
 
+/// [Attachment Point List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#attachment-point-list-table)
+pub type AttachList<'a> = TableRef<'a, AttachListMarker>;
+
 impl<'a> AttachList<'a> {
     /// Offset to Coverage table - from beginning of AttachList table
     pub fn coverage_offset(&self) -> Offset16 {
-        self.coverage_offset.get()
+        let range = self.shape.coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = &self.data;
+        self.coverage_offset().resolve(data)
     }
 
     /// Number of glyphs with attachment points
     pub fn glyph_count(&self) -> u16 {
-        self.glyph_count.get()
+        let range = self.shape.glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to AttachPoint tables-from beginning of
     /// AttachList table-in Coverage Index order
     pub fn attach_point_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.attach_point_offsets
+        let range = self.shape.attach_point_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    pub fn attach_point(&self) -> impl Iterator<Item = Result<AttachPoint<'a>, ReadError>> + '_ {
+        let data = &self.data;
+        self.attach_point_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 }
 
 /// Part of [AttachList]
-pub struct AttachPoint<'a> {
-    point_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    point_indices: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct AttachPointMarker {
+    point_indices_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for AttachPoint<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (point_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_point_count = point_count.get();
-        let (point_indices, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_point_count as usize,
-            )?;
-        let _ = bytes;
-        Some(AttachPoint {
-            point_count,
-            point_indices,
+impl AttachPointMarker {
+    fn point_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn point_indices_byte_range(&self) -> Range<usize> {
+        let start = self.point_count_byte_range().end;
+        start..start + self.point_indices_byte_len
+    }
+}
+
+impl TableInfo for AttachPointMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let point_count: u16 = cursor.read()?;
+        let point_indices_byte_len = point_count as usize * u16::RAW_BYTE_LEN;
+        cursor.advance_by(point_indices_byte_len);
+        cursor.finish(AttachPointMarker {
+            point_indices_byte_len,
         })
     }
 }
+
+/// Part of [AttachList]
+pub type AttachPoint<'a> = TableRef<'a, AttachPointMarker>;
 
 impl<'a> AttachPoint<'a> {
     /// Number of attachment points on this glyph
     pub fn point_count(&self) -> u16 {
-        self.point_count.get()
+        let range = self.shape.point_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of contour point indices -in increasing numerical order
     pub fn point_indices(&self) -> &[BigEndian<u16>] {
-        &self.point_indices
+        let range = self.shape.point_indices_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// [Ligature Caret List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-caret-list-table)
-pub struct LigCaretList<'a> {
-    coverage_offset: zerocopy::LayoutVerified<&'a [u8], BigEndian<Offset16>>,
-    lig_glyph_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    lig_glyph_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct LigCaretListMarker {
+    lig_glyph_offsets_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for LigCaretList<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (coverage_offset, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<Offset16>>::new_unaligned_from_prefix(bytes)?;
-        let (lig_glyph_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_lig_glyph_count = lig_glyph_count.get();
-        let (lig_glyph_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_lig_glyph_count as usize,
-            )?;
-        let _ = bytes;
-        Some(LigCaretList {
-            coverage_offset,
-            lig_glyph_count,
-            lig_glyph_offsets,
+impl LigCaretListMarker {
+    fn coverage_offset_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn lig_glyph_count_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn lig_glyph_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.lig_glyph_count_byte_range().end;
+        start..start + self.lig_glyph_offsets_byte_len
+    }
+}
+
+impl TableInfo for LigCaretListMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<Offset16>();
+        let lig_glyph_count: u16 = cursor.read()?;
+        let lig_glyph_offsets_byte_len = lig_glyph_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(lig_glyph_offsets_byte_len);
+        cursor.finish(LigCaretListMarker {
+            lig_glyph_offsets_byte_len,
         })
     }
 }
 
+/// [Ligature Caret List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-caret-list-table)
+pub type LigCaretList<'a> = TableRef<'a, LigCaretListMarker>;
+
 impl<'a> LigCaretList<'a> {
     /// Offset to Coverage table - from beginning of LigCaretList table
     pub fn coverage_offset(&self) -> Offset16 {
-        self.coverage_offset.get()
+        let range = self.shape.coverage_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
+    pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
+        let data = &self.data;
+        self.coverage_offset().resolve(data)
     }
 
     /// Number of ligature glyphs
     pub fn lig_glyph_count(&self) -> u16 {
-        self.lig_glyph_count.get()
+        let range = self.shape.lig_glyph_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to LigGlyph tables, from beginning of
     /// LigCaretList table —in Coverage Index order
     pub fn lig_glyph_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.lig_glyph_offsets
+        let range = self.shape.lig_glyph_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    pub fn lig_glyph(&self) -> impl Iterator<Item = Result<LigGlyph<'a>, ReadError>> + '_ {
+        let data = &self.data;
+        self.lig_glyph_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 }
 
 /// [Ligature Glyph Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-glyph-table)
-pub struct LigGlyph<'a> {
-    caret_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    caret_value_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset16>]>,
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct LigGlyphMarker {
+    caret_value_offsets_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for LigGlyph<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (caret_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_caret_count = caret_count.get();
-        let (caret_value_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_caret_count as usize,
-            )?;
-        let _ = bytes;
-        Some(LigGlyph {
-            caret_count,
-            caret_value_offsets,
+impl LigGlyphMarker {
+    fn caret_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn caret_value_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.caret_count_byte_range().end;
+        start..start + self.caret_value_offsets_byte_len
+    }
+}
+
+impl TableInfo for LigGlyphMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let caret_count: u16 = cursor.read()?;
+        let caret_value_offsets_byte_len = caret_count as usize * Offset16::RAW_BYTE_LEN;
+        cursor.advance_by(caret_value_offsets_byte_len);
+        cursor.finish(LigGlyphMarker {
+            caret_value_offsets_byte_len,
         })
     }
 }
 
+/// [Ligature Glyph Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-glyph-table)
+pub type LigGlyph<'a> = TableRef<'a, LigGlyphMarker>;
+
 impl<'a> LigGlyph<'a> {
     /// Number of CaretValue tables for this ligature (components - 1)
     pub fn caret_count(&self) -> u16 {
-        self.caret_count.get()
+        let range = self.shape.caret_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to CaretValue tables, from beginning of
     /// LigGlyph table — in increasing coordinate order
     pub fn caret_value_offsets(&self) -> &[BigEndian<Offset16>] {
-        &self.caret_value_offsets
+        let range = self.shape.caret_value_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    pub fn caret_value(&self) -> impl Iterator<Item = Result<CaretValue<'a>, ReadError>> + '_ {
+        let data = &self.data;
+        self.caret_value_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 }
 
 /// [Caret Value Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caret-value-tables)
-pub enum CaretValue {
-    Format1(CaretValueFormat1),
-    Format2(CaretValueFormat2),
-    Format3(CaretValueFormat3),
+pub enum CaretValue<'a> {
+    Format1(CaretValueFormat1<'a>),
+    Format2(CaretValueFormat2<'a>),
+    Format3(CaretValueFormat3<'a>),
 }
 
-impl<'a> font_types::FontRead<'a> for CaretValue {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let version: BigEndian<u16> = font_types::FontRead::read(bytes)?;
-        match version.get() {
-            1 => Some(Self::Format1(font_types::FontRead::read(bytes)?)),
-            2 => Some(Self::Format2(font_types::FontRead::read(bytes)?)),
-            3 => Some(Self::Format3(font_types::FontRead::read(bytes)?)),
-            _other => {
-                #[cfg(feature = "std")]
-                {
-                    eprintln!("unknown enum variant {:?}", version);
-                }
-                None
-            }
+impl<'a> FontRead<'a> for CaretValue<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0)?;
+        match format {
+            CaretValueFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
+            CaretValueFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            CaretValueFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }
 
-/// [CaretValue Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-1)
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
-#[repr(C)]
-pub struct CaretValueFormat1 {
-    /// Format identifier: format = 1
-    pub caret_value_format: BigEndian<u16>,
-    /// X or Y value, in design units
-    pub coordinate: BigEndian<i16>,
+impl Format<u16> for CaretValueFormat1Marker {
+    const FORMAT: u16 = 1;
 }
 
-impl CaretValueFormat1 {
+/// [CaretValue Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-1)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct CaretValueFormat1Marker {}
+
+impl CaretValueFormat1Marker {
+    fn caret_value_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn coordinate_byte_range(&self) -> Range<usize> {
+        let start = self.caret_value_format_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+}
+
+impl TableInfo for CaretValueFormat1Marker {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<i16>();
+        cursor.finish(CaretValueFormat1Marker {})
+    }
+}
+
+/// [CaretValue Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-1)
+pub type CaretValueFormat1<'a> = TableRef<'a, CaretValueFormat1Marker>;
+
+impl<'a> CaretValueFormat1<'a> {
     /// Format identifier: format = 1
     pub fn caret_value_format(&self) -> u16 {
-        self.caret_value_format.get()
+        let range = self.shape.caret_value_format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// X or Y value, in design units
     pub fn coordinate(&self) -> i16 {
-        self.coordinate.get()
+        let range = self.shape.coordinate_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+}
+
+impl Format<u16> for CaretValueFormat2Marker {
+    const FORMAT: u16 = 2;
+}
+
+/// [CaretValue Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-2)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct CaretValueFormat2Marker {}
+
+impl CaretValueFormat2Marker {
+    fn caret_value_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn caret_value_point_index_byte_range(&self) -> Range<usize> {
+        let start = self.caret_value_format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+}
+
+impl TableInfo for CaretValueFormat2Marker {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.finish(CaretValueFormat2Marker {})
     }
 }
 
 /// [CaretValue Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-2)
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
-#[repr(C)]
-pub struct CaretValueFormat2 {
-    /// Format identifier: format = 2
-    pub caret_value_format: BigEndian<u16>,
-    /// Contour point index on glyph
-    pub caret_value_point_index: BigEndian<u16>,
-}
+pub type CaretValueFormat2<'a> = TableRef<'a, CaretValueFormat2Marker>;
 
-impl CaretValueFormat2 {
+impl<'a> CaretValueFormat2<'a> {
     /// Format identifier: format = 2
     pub fn caret_value_format(&self) -> u16 {
-        self.caret_value_format.get()
+        let range = self.shape.caret_value_format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Contour point index on glyph
     pub fn caret_value_point_index(&self) -> u16 {
-        self.caret_value_point_index.get()
+        let range = self.shape.caret_value_point_index_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+}
+
+impl Format<u16> for CaretValueFormat3Marker {
+    const FORMAT: u16 = 3;
+}
+
+/// [CaretValue Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-3)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct CaretValueFormat3Marker {}
+
+impl CaretValueFormat3Marker {
+    fn caret_value_format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn coordinate_byte_range(&self) -> Range<usize> {
+        let start = self.caret_value_format_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+    fn device_offset_byte_range(&self) -> Range<usize> {
+        let start = self.coordinate_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+}
+
+impl TableInfo for CaretValueFormat3Marker {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<i16>();
+        cursor.advance::<Offset16>();
+        cursor.finish(CaretValueFormat3Marker {})
     }
 }
 
 /// [CaretValue Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-3)
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
-#[repr(C)]
-pub struct CaretValueFormat3 {
-    /// Format identifier-format = 3
-    pub caret_value_format: BigEndian<u16>,
-    /// X or Y value, in design units
-    pub coordinate: BigEndian<i16>,
-    /// Offset to Device table (non-variable font) / Variation Index
-    /// table (variable font) for X or Y value-from beginning of
-    /// CaretValue table
-    pub device_offset: BigEndian<Offset16>,
-}
+pub type CaretValueFormat3<'a> = TableRef<'a, CaretValueFormat3Marker>;
 
-impl CaretValueFormat3 {
+impl<'a> CaretValueFormat3<'a> {
     /// Format identifier-format = 3
     pub fn caret_value_format(&self) -> u16 {
-        self.caret_value_format.get()
+        let range = self.shape.caret_value_format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// X or Y value, in design units
     pub fn coordinate(&self) -> i16 {
-        self.coordinate.get()
+        let range = self.shape.coordinate_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Offset to Device table (non-variable font) / Variation Index
     /// table (variable font) for X or Y value-from beginning of
     /// CaretValue table
     pub fn device_offset(&self) -> Offset16 {
-        self.device_offset.get()
+        let range = self.shape.device_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`device_offset`][Self::device_offset].
+    pub fn device(&self) -> Result<Device<'a>, ReadError> {
+        let data = &self.data;
+        self.device_offset().resolve(data)
     }
 }
 
-/// [Mark Glyph Sets Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#mark-glyph-sets-table)
-pub struct MarkGlyphSets<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    mark_glyph_set_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    coverage_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<Offset32>]>,
+impl Format<u16> for MarkGlyphSetsMarker {
+    const FORMAT: u16 = 1;
 }
 
-impl<'a> font_types::FontRead<'a> for MarkGlyphSets<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (mark_glyph_set_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_mark_glyph_set_count = mark_glyph_set_count.get();
-        let (coverage_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<Offset32>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_mark_glyph_set_count as usize,
-            )?;
-        let _ = bytes;
-        Some(MarkGlyphSets {
-            format,
-            mark_glyph_set_count,
-            coverage_offsets,
+/// [Mark Glyph Sets Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#mark-glyph-sets-table)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct MarkGlyphSetsMarker {
+    coverage_offsets_byte_len: usize,
+}
+
+impl MarkGlyphSetsMarker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn mark_glyph_set_count_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn coverage_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.mark_glyph_set_count_byte_range().end;
+        start..start + self.coverage_offsets_byte_len
+    }
+}
+
+impl TableInfo for MarkGlyphSetsMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        let mark_glyph_set_count: u16 = cursor.read()?;
+        let coverage_offsets_byte_len = mark_glyph_set_count as usize * Offset32::RAW_BYTE_LEN;
+        cursor.advance_by(coverage_offsets_byte_len);
+        cursor.finish(MarkGlyphSetsMarker {
+            coverage_offsets_byte_len,
         })
     }
 }
 
+/// [Mark Glyph Sets Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#mark-glyph-sets-table)
+pub type MarkGlyphSets<'a> = TableRef<'a, MarkGlyphSetsMarker>;
+
 impl<'a> MarkGlyphSets<'a> {
     /// Format identifier == 1
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of mark glyph sets defined
     pub fn mark_glyph_set_count(&self) -> u16 {
-        self.mark_glyph_set_count.get()
+        let range = self.shape.mark_glyph_set_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of offsets to mark glyph set coverage tables, from the
     /// start of the MarkGlyphSets table.
     pub fn coverage_offsets(&self) -> &[BigEndian<Offset32>] {
-        &self.coverage_offsets
+        let range = self.shape.coverage_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    pub fn coverage(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + '_ {
+        let data = &self.data;
+        self.coverage_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 }

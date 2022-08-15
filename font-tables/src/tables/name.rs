@@ -1,14 +1,9 @@
 //! The [name (Naming)](https://docs.microsoft.com/en-us/typography/opentype/spec/name) table
 
-#[path = "../../generated/generated_name.rs"]
-mod generated;
-
-pub use generated::*;
-
-use font_types::{Offset, OffsetHost, Tag};
-
 /// 'name'
 pub const TAG: Tag = Tag::new(b"name");
+
+include!("../../generated/generated_name.rs");
 
 impl<'a> Name<'a> {
     pub fn resolve(&self, name: &NameRecord) -> Option<Entry<'a>> {
@@ -19,7 +14,7 @@ impl<'a> Name<'a> {
         let offset = data_start
             .non_null()
             .map(|off| off + offset.non_null().unwrap_or(0))?;
-        let data = self.bytes().get(offset..offset + len)?;
+        let data = self.offset_data().as_bytes().get(offset..offset + len)?;
         let encoding = encoding(name.platform_id(), name.encoding_id());
         Some(Entry { data, encoding })
     }

@@ -1,31 +1,44 @@
-//! font tables, records, etc.
+//! Reading OpentType tables
 
-#![cfg_attr(not(feature = "std"), no_std)]
-// we autogenerate len methods in some places
-#![allow(clippy::len_without_is_empty)]
+#![deny(rustdoc::broken_intra_doc_links)]
 
-#[cfg(any(feature = "std", test))]
-#[allow(unused_imports)]
-#[macro_use]
-extern crate std;
-
-#[cfg(all(not(feature = "std"), not(test)))]
-#[macro_use]
-extern crate core as std;
-
-use font_types::{FontRead, Offset, Tag};
-
+mod array;
+mod font_data;
 pub mod layout;
+mod offset;
+mod read;
+mod table_provider;
+mod table_ref;
 pub mod tables;
 
-#[path = "../generated/generated_font.rs"]
-mod generated;
+#[cfg(any(test, feature = "test_data"))]
+#[path = "tests/test_data.rs"]
+pub mod test_data;
+#[cfg(any(test, feature = "test_data"))]
+#[path = "tests/test_helpers.rs"]
+pub mod test_helpers;
 
-pub use generated::*;
+pub use font_data::FontData;
+pub use read::{FontRead, FontReadWithArgs, ReadError};
+pub use table_provider::TableProvider;
+
+use offset::Offset;
+
+pub mod parse_prelude {
+    pub use crate::array::ComputedArray;
+    pub use crate::font_data::{Cursor, FontData};
+    pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
+    pub use crate::read::{ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError};
+    pub use crate::table_ref::{TableInfo, TableInfoWithArgs, TableRef};
+    pub use font_types::*;
+    pub use std::ops::Range;
+}
+
+include!("../generated/font.rs");
 
 /// A temporary type for accessing tables
 pub struct FontRef<'a> {
-    data: &'a [u8],
+    data: FontData<'a>,
     pub table_directory: TableDirectory<'a>,
 }
 
@@ -33,33 +46,34 @@ const TT_MAGIC: u32 = 0x00010000;
 const OT_MAGIC: u32 = 0x4F54544F;
 
 impl<'a> FontRef<'a> {
-    pub fn new(data: &'a [u8]) -> Result<Self, u32> {
-        let table_directory = TableDirectory::read(data).ok_or(0x_dead_beef_u32)?;
+    pub fn new(data: FontData<'a>) -> Result<Self, ReadError> {
+        let table_directory = TableDirectory::read(data)?;
         if [TT_MAGIC, OT_MAGIC].contains(&table_directory.sfnt_version()) {
             Ok(FontRef {
                 data,
                 table_directory,
             })
         } else {
-            Err(table_directory.sfnt_version())
+            Err(ReadError::InvalidSfnt(table_directory.sfnt_version()))
         }
     }
 
-    pub fn table_data(&self, tag: Tag) -> Option<&'a [u8]> {
+    pub fn table_data(&self, tag: Tag) -> Option<FontData<'a>> {
         self.table_directory
             .table_records()
             .binary_search_by(|rec| rec.tag.get().cmp(&tag))
             .ok()
             .and_then(|idx| self.table_directory.table_records().get(idx))
             .and_then(|record| {
-                let start = record.offset.get().non_null()?;
-                self.data.get(start..start + record.len.get() as usize)
+                let start = record.offset().non_null()?;
+                let len = record.length() as usize;
+                self.data.slice(start..start + len)
             })
     }
 }
 
-impl tables::TableProvider for FontRef<'_> {
-    fn data_for_tag(&self, tag: Tag) -> Option<&[u8]> {
+impl<'a> TableProvider for FontRef<'a> {
+    fn data_for_tag(&self, tag: Tag) -> Option<FontData> {
         self.table_data(tag)
     }
 }

@@ -2,7 +2,9 @@
 // Any changes to this file will be overwritten.
 // For more information about how codegen works, see font-codegen/README.md
 
+#[allow(unused_imports)]
 use font_types::*;
+
 pub struct TableDirectory<'a> {
     sfnt_version: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
     num_tables: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
@@ -30,15 +32,16 @@ impl<'a> font_types::FontRead<'a> for TableDirectory<'a> {
                 bytes,
                 __resolved_num_tables as usize,
             )?;
-        let _ = bytes;
-        Some(TableDirectory {
+        let _bytes = bytes;
+        let result = TableDirectory {
             sfnt_version,
             num_tables,
             search_range,
             entry_selector,
             range_shift,
             table_records,
-        })
+        };
+        Some(result)
     }
 }
 
@@ -46,18 +49,23 @@ impl<'a> TableDirectory<'a> {
     pub fn sfnt_version(&self) -> u32 {
         self.sfnt_version.get()
     }
+
     pub fn num_tables(&self) -> u16 {
         self.num_tables.get()
     }
+
     pub fn search_range(&self) -> u16 {
         self.search_range.get()
     }
+
     pub fn entry_selector(&self) -> u16 {
         self.entry_selector.get()
     }
+
     pub fn range_shift(&self) -> u16 {
         self.range_shift.get()
     }
+
     pub fn table_records(&self) -> &[TableRecord] {
         &self.table_records
     }

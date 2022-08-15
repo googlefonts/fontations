@@ -1,30 +1,44 @@
 //! Offsets to tables
 
-use crate::Uint24;
+use crate::{Scalar, Uint24};
 
-/// A trait for the different offset representations.
-pub trait Offset {
-    /// Returns this offsize as a `usize`, or `None` if it is `0`.
-    fn non_null(self) -> Option<usize>;
-}
+/// An offset of a given width for which NULL (zero) is a valid value.
+#[derive(Debug, Clone, Copy)]
+pub struct Nullable<T>(T);
 
-/// A type that contains data referenced by offsets.
-pub trait OffsetHost<'a> {
-    /// Return a slice of bytes from which offsets may be resolved.
-    ///
-    /// This should be relative to the start of the host.
-    fn bytes(&self) -> &'a [u8];
+impl<T: Scalar> Scalar for Nullable<T> {
+    type Raw = T::Raw;
 
-    /// Return the bytes for a given offset
-    fn bytes_at_offset(&self, offset: impl Offset) -> &'a [u8] {
-        offset
-            .non_null()
-            .and_then(|off| self.bytes().get(off..))
-            .unwrap_or_default()
+    #[inline]
+    fn from_raw(raw: Self::Raw) -> Self {
+        Self(T::from_raw(raw))
     }
 
-    fn resolve_offset<T: crate::FontRead<'a>>(&self, offset: impl Offset) -> Option<T> {
-        crate::FontRead::read(self.bytes_at_offset(offset))
+    #[inline]
+    fn to_raw(self) -> Self::Raw {
+        self.0.to_raw()
+    }
+}
+
+impl<T> Nullable<T> {
+    /// Return a reference to the inner offset
+    #[inline]
+    pub fn offset(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T: PartialEq<u32>> Nullable<T> {
+    #[inline]
+    pub fn is_null(&self) -> bool {
+        self.0 == 0
+    }
+}
+
+impl<T: PartialEq<u32>> PartialEq<u32> for Nullable<T> {
+    #[inline]
+    fn eq(&self, other: &u32) -> bool {
+        self.0 == *other
     }
 }
 
@@ -40,8 +54,20 @@ macro_rules! impl_offset {
 
         impl $name {
             /// Create a new offset.
+            #[inline]
             pub fn new(raw: $rawty) -> Self {
                 Self(raw)
+            }
+
+            /// Return `true` if this offset is null.
+            #[inline]
+            pub fn is_null(self) -> bool {
+                self.to_u32() == 0
+            }
+
+            #[inline]
+            pub fn to_u32(self) -> u32 {
+                self.0.into()
             }
         }
 
@@ -57,14 +83,10 @@ macro_rules! impl_offset {
             }
         }
 
-        impl Offset for $name {
-            fn non_null(self) -> Option<usize> {
-                let raw: u32 = self.0.into();
-                if raw == 0 {
-                    None
-                } else {
-                    Some(raw as usize)
-                }
+        // useful for debugging
+        impl PartialEq<u32> for $name {
+            fn eq(&self, other: &u32) -> bool {
+                self.to_u32() == *other
             }
         }
     };

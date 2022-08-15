@@ -2,64 +2,71 @@
 // Any changes to this file will be overwritten.
 // For more information about how codegen works, see font-codegen/README.md
 
-//! The [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap) table
-use font_types::*;
+#[allow(unused_imports)]
+use crate::parse_prelude::*;
 
 /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
-pub struct Cmap<'a> {
-    version: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    num_tables: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    encoding_records: zerocopy::LayoutVerified<&'a [u8], [EncodingRecord]>,
-    offset_bytes: &'a [u8],
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct CmapMarker {
+    encoding_records_byte_len: usize,
 }
 
-impl<'a> font_types::FontRead<'a> for Cmap<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (version, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (num_tables, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_num_tables = num_tables.get();
-        let (encoding_records, bytes) =
-            zerocopy::LayoutVerified::<_, [EncodingRecord]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_num_tables as usize,
-            )?;
-        let _ = bytes;
-        Some(Cmap {
-            version,
-            num_tables,
-            encoding_records,
-            offset_bytes,
+impl CmapMarker {
+    fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn num_tables_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn encoding_records_byte_range(&self) -> Range<usize> {
+        let start = self.num_tables_byte_range().end;
+        start..start + self.encoding_records_byte_len
+    }
+}
+
+impl TableInfo for CmapMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        let num_tables: u16 = cursor.read()?;
+        let encoding_records_byte_len = num_tables as usize * EncodingRecord::RAW_BYTE_LEN;
+        cursor.advance_by(encoding_records_byte_len);
+        cursor.finish(CmapMarker {
+            encoding_records_byte_len,
         })
     }
 }
 
+/// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
+pub type Cmap<'a> = TableRef<'a, CmapMarker>;
+
 impl<'a> Cmap<'a> {
     /// Table version number (0).
     pub fn version(&self) -> u16 {
-        self.version.get()
+        let range = self.shape.version_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of encoding tables that follow.
     pub fn num_tables(&self) -> u16 {
-        self.num_tables.get()
+        let range = self.shape.num_tables_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
-    pub fn encoding_records(&self) -> &[EncodingRecord] {
-        &self.encoding_records
-    }
-}
 
-impl<'a> font_types::OffsetHost<'a> for Cmap<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+    pub fn encoding_records(&self) -> &[EncodingRecord] {
+        let range = self.shape.encoding_records_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct EncodingRecord {
     /// Platform ID.
     pub platform_id: BigEndian<u16>,
@@ -86,6 +93,15 @@ impl EncodingRecord {
     pub fn subtable_offset(&self) -> Offset32 {
         self.subtable_offset.get()
     }
+
+    /// Attempt to resolve [`subtable_offset`][Self::subtable_offset].
+    pub fn subtable<'a>(&self, data: &'a FontData<'a>) -> Result<CmapSubtable<'a>, ReadError> {
+        self.subtable_offset().resolve(data)
+    }
+}
+
+impl FixedSized for EncodingRecord {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
 /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#platform-ids>
@@ -116,6 +132,17 @@ impl PlatformId {
     }
 }
 
+impl font_types::Scalar for PlatformId {
+    type Raw = <u16 as font_types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        (self as u16).to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u16>::from_raw(raw);
+        Self::new(t)
+    }
+}
+
 /// The different cmap subtable formats.
 pub enum CmapSubtable<'a> {
     Format0(Cmap0<'a>),
@@ -129,140 +156,179 @@ pub enum CmapSubtable<'a> {
     Format14(Cmap14<'a>),
 }
 
-impl<'a> font_types::FontRead<'a> for CmapSubtable<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let version: BigEndian<u16> = font_types::FontRead::read(bytes)?;
-        match version.get() {
-            0 => Some(Self::Format0(font_types::FontRead::read(bytes)?)),
-            2 => Some(Self::Format2(font_types::FontRead::read(bytes)?)),
-            4 => Some(Self::Format4(font_types::FontRead::read(bytes)?)),
-            6 => Some(Self::Format6(font_types::FontRead::read(bytes)?)),
-            8 => Some(Self::Format8(font_types::FontRead::read(bytes)?)),
-            10 => Some(Self::Format10(font_types::FontRead::read(bytes)?)),
-            12 => Some(Self::Format12(font_types::FontRead::read(bytes)?)),
-            13 => Some(Self::Format13(font_types::FontRead::read(bytes)?)),
-            14 => Some(Self::Format14(font_types::FontRead::read(bytes)?)),
-            _other => {
-                #[cfg(feature = "std")]
-                {
-                    eprintln!("unknown enum variant {:?}", version);
-                }
-                None
-            }
+impl<'a> FontRead<'a> for CmapSubtable<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0)?;
+        match format {
+            Cmap0Marker::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
+            Cmap2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
+            Cmap4Marker::FORMAT => Ok(Self::Format4(FontRead::read(data)?)),
+            Cmap6Marker::FORMAT => Ok(Self::Format6(FontRead::read(data)?)),
+            Cmap8Marker::FORMAT => Ok(Self::Format8(FontRead::read(data)?)),
+            Cmap10Marker::FORMAT => Ok(Self::Format10(FontRead::read(data)?)),
+            Cmap12Marker::FORMAT => Ok(Self::Format12(FontRead::read(data)?)),
+            Cmap13Marker::FORMAT => Ok(Self::Format13(FontRead::read(data)?)),
+            Cmap14Marker::FORMAT => Ok(Self::Format14(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
         }
     }
 }
 
-/// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
-pub struct Cmap0<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    length: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    language: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    glyph_id_array: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u8>]>,
+impl Format<u16> for Cmap0Marker {
+    const FORMAT: u16 = 0;
 }
 
-impl<'a> font_types::FontRead<'a> for Cmap0<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (length, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (language, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (glyph_id_array, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u8>]>::new_slice_unaligned_from_prefix(
-                bytes, 256,
-            )?;
-        let _ = bytes;
-        Some(Cmap0 {
-            format,
-            length,
-            language,
-            glyph_id_array,
+/// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct Cmap0Marker {
+    glyph_id_array_byte_len: usize,
+}
+
+impl Cmap0Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn length_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn glyph_id_array_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + self.glyph_id_array_byte_len
+    }
+}
+
+impl TableInfo for Cmap0Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        let glyph_id_array_byte_len = 256 * u8::RAW_BYTE_LEN;
+        cursor.advance_by(glyph_id_array_byte_len);
+        cursor.finish(Cmap0Marker {
+            glyph_id_array_byte_len,
         })
     }
 }
+
+/// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
+pub type Cmap0<'a> = TableRef<'a, Cmap0Marker>;
 
 impl<'a> Cmap0<'a> {
     /// Format number is set to 0.
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// This is the length in bytes of the subtable.
     pub fn length(&self) -> u16 {
-        self.length.get()
+        let range = self.shape.length_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
     pub fn language(&self) -> u16 {
-        self.language.get()
+        let range = self.shape.language_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// An array that maps character codes to glyph index values.
     pub fn glyph_id_array(&self) -> &[BigEndian<u8>] {
-        &self.glyph_id_array
+        let range = self.shape.glyph_id_array_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
-/// [cmap Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-2-high-byte-mapping-through-table): High-byte mapping through table
-pub struct Cmap2<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    length: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    language: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    sub_header_keys: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
+impl Format<u16> for Cmap2Marker {
+    const FORMAT: u16 = 2;
 }
 
-impl<'a> font_types::FontRead<'a> for Cmap2<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (length, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (language, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (sub_header_keys, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes, 256,
-            )?;
-        let _ = bytes;
-        Some(Cmap2 {
-            format,
-            length,
-            language,
-            sub_header_keys,
+/// [cmap Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-2-high-byte-mapping-through-table): High-byte mapping through table
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct Cmap2Marker {
+    sub_header_keys_byte_len: usize,
+}
+
+impl Cmap2Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn length_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn sub_header_keys_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + self.sub_header_keys_byte_len
+    }
+}
+
+impl TableInfo for Cmap2Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        let sub_header_keys_byte_len = 256 * u16::RAW_BYTE_LEN;
+        cursor.advance_by(sub_header_keys_byte_len);
+        cursor.finish(Cmap2Marker {
+            sub_header_keys_byte_len,
         })
     }
 }
 
+/// [cmap Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-2-high-byte-mapping-through-table): High-byte mapping through table
+pub type Cmap2<'a> = TableRef<'a, Cmap2Marker>;
+
 impl<'a> Cmap2<'a> {
     /// Format number is set to 2.
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// This is the length in bytes of the subtable.
     pub fn length(&self) -> u16 {
-        self.length.get()
+        let range = self.shape.length_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
     pub fn language(&self) -> u16 {
-        self.language.get()
+        let range = self.shape.language_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array that maps high bytes to subHeaders: value is subHeader
     /// index × 8.
     pub fn sub_header_keys(&self) -> &[BigEndian<u16>] {
-        &self.sub_header_keys
+        let range = self.shape.sub_header_keys_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// Part of [Cmap2]
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct SubHeader {
     /// First valid low byte for this SubHeader.
     pub first_code: BigEndian<u16>,
@@ -296,311 +362,403 @@ impl SubHeader {
     }
 }
 
-/// [cmap Format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values): Segment mapping to delta values
-pub struct Cmap4<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    length: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    language: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    seg_count_x2: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    search_range: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    entry_selector: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    range_shift: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    end_code: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
-    #[allow(dead_code)]
-    reserved_pad: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    start_code: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
-    id_delta: zerocopy::LayoutVerified<&'a [u8], [BigEndian<i16>]>,
-    id_range_offsets: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
-    glyph_id_array: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
+impl FixedSized for SubHeader {
+    const RAW_BYTE_LEN: usize =
+        u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-impl<'a> font_types::FontRead<'a> for Cmap4<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (length, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (language, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (seg_count_x2, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_seg_count_x2 = seg_count_x2.get();
-        let (search_range, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (entry_selector, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (range_shift, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (end_code, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                div_by_two(__resolved_seg_count_x2),
-            )?;
-        let (reserved_pad, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (start_code, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                div_by_two(__resolved_seg_count_x2),
-            )?;
-        let (id_delta, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<i16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                div_by_two(__resolved_seg_count_x2),
-            )?;
-        let (id_range_offsets, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                div_by_two(__resolved_seg_count_x2),
-            )?;
-        let (glyph_id_array, bytes) = (
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned(bytes)?,
-            0,
-        );
-        let _ = bytes;
-        Some(Cmap4 {
-            format,
-            length,
-            language,
-            seg_count_x2,
-            search_range,
-            entry_selector,
-            range_shift,
-            end_code,
-            reserved_pad,
-            start_code,
-            id_delta,
-            id_range_offsets,
-            glyph_id_array,
+impl Format<u16> for Cmap4Marker {
+    const FORMAT: u16 = 4;
+}
+
+/// [cmap Format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values): Segment mapping to delta values
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct Cmap4Marker {
+    end_code_byte_len: usize,
+    start_code_byte_len: usize,
+    id_delta_byte_len: usize,
+    id_range_offsets_byte_len: usize,
+    glyph_id_array_byte_len: usize,
+}
+
+impl Cmap4Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn length_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn seg_count_x2_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn search_range_byte_range(&self) -> Range<usize> {
+        let start = self.seg_count_x2_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn entry_selector_byte_range(&self) -> Range<usize> {
+        let start = self.search_range_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn range_shift_byte_range(&self) -> Range<usize> {
+        let start = self.entry_selector_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn end_code_byte_range(&self) -> Range<usize> {
+        let start = self.range_shift_byte_range().end;
+        start..start + self.end_code_byte_len
+    }
+    fn reserved_pad_byte_range(&self) -> Range<usize> {
+        let start = self.end_code_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn start_code_byte_range(&self) -> Range<usize> {
+        let start = self.reserved_pad_byte_range().end;
+        start..start + self.start_code_byte_len
+    }
+    fn id_delta_byte_range(&self) -> Range<usize> {
+        let start = self.start_code_byte_range().end;
+        start..start + self.id_delta_byte_len
+    }
+    fn id_range_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.id_delta_byte_range().end;
+        start..start + self.id_range_offsets_byte_len
+    }
+    fn glyph_id_array_byte_range(&self) -> Range<usize> {
+        let start = self.id_range_offsets_byte_range().end;
+        start..start + self.glyph_id_array_byte_len
+    }
+}
+
+impl TableInfo for Cmap4Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        let seg_count_x2: u16 = cursor.read()?;
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        let end_code_byte_len = seg_count_x2 as usize / 2 * u16::RAW_BYTE_LEN;
+        cursor.advance_by(end_code_byte_len);
+        cursor.advance::<u16>();
+        let start_code_byte_len = seg_count_x2 as usize / 2 * u16::RAW_BYTE_LEN;
+        cursor.advance_by(start_code_byte_len);
+        let id_delta_byte_len = seg_count_x2 as usize / 2 * i16::RAW_BYTE_LEN;
+        cursor.advance_by(id_delta_byte_len);
+        let id_range_offsets_byte_len = seg_count_x2 as usize / 2 * u16::RAW_BYTE_LEN;
+        cursor.advance_by(id_range_offsets_byte_len);
+        let glyph_id_array_byte_len = cursor.remaining_bytes();
+        cursor.advance_by(glyph_id_array_byte_len);
+        cursor.finish(Cmap4Marker {
+            end_code_byte_len,
+            start_code_byte_len,
+            id_delta_byte_len,
+            id_range_offsets_byte_len,
+            glyph_id_array_byte_len,
         })
     }
 }
 
+/// [cmap Format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values): Segment mapping to delta values
+pub type Cmap4<'a> = TableRef<'a, Cmap4Marker>;
+
 impl<'a> Cmap4<'a> {
     /// Format number is set to 4.
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// This is the length in bytes of the subtable.
     pub fn length(&self) -> u16 {
-        self.length.get()
+        let range = self.shape.length_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
     pub fn language(&self) -> u16 {
-        self.language.get()
+        let range = self.shape.language_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// 2 × segCount.
     pub fn seg_count_x2(&self) -> u16 {
-        self.seg_count_x2.get()
+        let range = self.shape.seg_count_x2_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Maximum power of 2 less than or equal to segCount, times 2
     /// ((2**floor(log2(segCount))) * 2, where “**” is an
     /// exponentiation operator)
     pub fn search_range(&self) -> u16 {
-        self.search_range.get()
+        let range = self.shape.search_range_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Log2 of the maximum power of 2 less than or equal to numTables
     /// (log2(searchRange/2), which is equal to floor(log2(segCount)))
     pub fn entry_selector(&self) -> u16 {
-        self.entry_selector.get()
+        let range = self.shape.entry_selector_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// segCount times 2, minus searchRange ((segCount * 2) -
     /// searchRange)
     pub fn range_shift(&self) -> u16 {
-        self.range_shift.get()
+        let range = self.shape.range_shift_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// End characterCode for each segment, last=0xFFFF.
     pub fn end_code(&self) -> &[BigEndian<u16>] {
-        &self.end_code
+        let range = self.shape.end_code_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Start character code for each segment.
     pub fn start_code(&self) -> &[BigEndian<u16>] {
-        &self.start_code
+        let range = self.shape.start_code_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Delta for all character codes in segment.
     pub fn id_delta(&self) -> &[BigEndian<i16>] {
-        &self.id_delta
+        let range = self.shape.id_delta_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Offsets into glyphIdArray or 0
     pub fn id_range_offsets(&self) -> &[BigEndian<u16>] {
-        &self.id_range_offsets
+        let range = self.shape.id_range_offsets_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Glyph index array (arbitrary length)
     pub fn glyph_id_array(&self) -> &[BigEndian<u16>] {
-        &self.glyph_id_array
+        let range = self.shape.glyph_id_array_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
-/// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
-pub struct Cmap6<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    length: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    language: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    first_code: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    entry_count: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    glyph_id_array: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
+impl Format<u16> for Cmap6Marker {
+    const FORMAT: u16 = 6;
 }
 
-impl<'a> font_types::FontRead<'a> for Cmap6<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (length, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (language, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (first_code, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (entry_count, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_entry_count = entry_count.get();
-        let (glyph_id_array, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_entry_count as usize,
-            )?;
-        let _ = bytes;
-        Some(Cmap6 {
-            format,
-            length,
-            language,
-            first_code,
-            entry_count,
-            glyph_id_array,
+/// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct Cmap6Marker {
+    glyph_id_array_byte_len: usize,
+}
+
+impl Cmap6Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn length_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn first_code_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn entry_count_byte_range(&self) -> Range<usize> {
+        let start = self.first_code_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn glyph_id_array_byte_range(&self) -> Range<usize> {
+        let start = self.entry_count_byte_range().end;
+        start..start + self.glyph_id_array_byte_len
+    }
+}
+
+impl TableInfo for Cmap6Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        let entry_count: u16 = cursor.read()?;
+        let glyph_id_array_byte_len = entry_count as usize * u16::RAW_BYTE_LEN;
+        cursor.advance_by(glyph_id_array_byte_len);
+        cursor.finish(Cmap6Marker {
+            glyph_id_array_byte_len,
         })
     }
 }
 
+/// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
+pub type Cmap6<'a> = TableRef<'a, Cmap6Marker>;
+
 impl<'a> Cmap6<'a> {
     /// Format number is set to 6.
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// This is the length in bytes of the subtable.
     pub fn length(&self) -> u16 {
-        self.length.get()
+        let range = self.shape.length_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
     pub fn language(&self) -> u16 {
-        self.language.get()
+        let range = self.shape.language_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// First character code of subrange.
     pub fn first_code(&self) -> u16 {
-        self.first_code.get()
+        let range = self.shape.first_code_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of character codes in subrange.
     pub fn entry_count(&self) -> u16 {
-        self.entry_count.get()
+        let range = self.shape.entry_count_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of glyph index values for character codes in the range.
     pub fn glyph_id_array(&self) -> &[BigEndian<u16>] {
-        &self.glyph_id_array
+        let range = self.shape.glyph_id_array_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
-/// [cmap Format 8](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-8-mixed-16-bit-and-32-bit-coverage): mixed 16-bit and 32-bit coverage
-pub struct Cmap8<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    #[allow(dead_code)]
-    reserved: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    length: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    language: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    is32: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u8>]>,
-    num_groups: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    groups: zerocopy::LayoutVerified<&'a [u8], [SequentialMapGroup]>,
+impl Format<u16> for Cmap8Marker {
+    const FORMAT: u16 = 8;
 }
 
-impl<'a> font_types::FontRead<'a> for Cmap8<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (reserved, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (length, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let (language, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let (is32, bytes) =
-            zerocopy::LayoutVerified::<_, [BigEndian<u8>]>::new_slice_unaligned_from_prefix(
-                bytes, 8192,
-            )?;
-        let (num_groups, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_num_groups = num_groups.get();
-        let (groups, bytes) =
-            zerocopy::LayoutVerified::<_, [SequentialMapGroup]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_num_groups as usize,
-            )?;
-        let _ = bytes;
-        Some(Cmap8 {
-            format,
-            reserved,
-            length,
-            language,
-            is32,
-            num_groups,
-            groups,
+/// [cmap Format 8](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-8-mixed-16-bit-and-32-bit-coverage): mixed 16-bit and 32-bit coverage
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct Cmap8Marker {
+    is32_byte_len: usize,
+    groups_byte_len: usize,
+}
+
+impl Cmap8Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn reserved_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn length_byte_range(&self) -> Range<usize> {
+        let start = self.reserved_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn is32_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + self.is32_byte_len
+    }
+    fn num_groups_byte_range(&self) -> Range<usize> {
+        let start = self.is32_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn groups_byte_range(&self) -> Range<usize> {
+        let start = self.num_groups_byte_range().end;
+        start..start + self.groups_byte_len
+    }
+}
+
+impl TableInfo for Cmap8Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u32>();
+        cursor.advance::<u32>();
+        let is32_byte_len = 8192 * u8::RAW_BYTE_LEN;
+        cursor.advance_by(is32_byte_len);
+        let num_groups: u32 = cursor.read()?;
+        let groups_byte_len = num_groups as usize * SequentialMapGroup::RAW_BYTE_LEN;
+        cursor.advance_by(groups_byte_len);
+        cursor.finish(Cmap8Marker {
+            is32_byte_len,
+            groups_byte_len,
         })
     }
 }
 
+/// [cmap Format 8](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-8-mixed-16-bit-and-32-bit-coverage): mixed 16-bit and 32-bit coverage
+pub type Cmap8<'a> = TableRef<'a, Cmap8Marker>;
+
 impl<'a> Cmap8<'a> {
     /// Subtable format; set to 8.
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Byte length of this subtable (including the header)
     pub fn length(&self) -> u32 {
-        self.length.get()
+        let range = self.shape.length_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
     pub fn language(&self) -> u32 {
-        self.language.get()
+        let range = self.shape.language_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Tightly packed array of bits (8K bytes total) indicating
     /// whether the particular 16-bit (index) value is the start of a
     /// 32-bit character code
     pub fn is32(&self) -> &[BigEndian<u8>] {
-        &self.is32
+        let range = self.shape.is32_byte_range();
+        self.data.read_array(range).unwrap()
     }
 
     /// Number of groupings which follow
     pub fn num_groups(&self) -> u32 {
-        self.num_groups.get()
+        let range = self.shape.num_groups_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SequentialMapGroup records.
     pub fn groups(&self) -> &[SequentialMapGroup] {
-        &self.groups
+        let range = self.shape.groups_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// Used in [Cmap8] and [Cmap12]
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct SequentialMapGroup {
     /// First character code in this group; note that if this group is
     /// for one or more 16-bit character codes (which is determined
@@ -635,223 +793,294 @@ impl SequentialMapGroup {
     }
 }
 
-/// [cmap Format 10](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array): Tr
-pub struct Cmap10<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    #[allow(dead_code)]
-    reserved: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    length: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    language: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    start_char_code: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    num_chars: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    glyph_id_array: zerocopy::LayoutVerified<&'a [u8], [BigEndian<u16>]>,
+impl FixedSized for SequentialMapGroup {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
-impl<'a> font_types::FontRead<'a> for Cmap10<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (reserved, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (length, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let (language, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let (start_char_code, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let (num_chars, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let (glyph_id_array, bytes) = (
-            zerocopy::LayoutVerified::<_, [BigEndian<u16>]>::new_slice_unaligned(bytes)?,
-            0,
-        );
-        let _ = bytes;
-        Some(Cmap10 {
-            format,
-            reserved,
-            length,
-            language,
-            start_char_code,
-            num_chars,
-            glyph_id_array,
+impl Format<u16> for Cmap10Marker {
+    const FORMAT: u16 = 10;
+}
+
+/// [cmap Format 10](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array): Tr
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct Cmap10Marker {
+    glyph_id_array_byte_len: usize,
+}
+
+impl Cmap10Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn reserved_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn length_byte_range(&self) -> Range<usize> {
+        let start = self.reserved_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn start_char_code_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn num_chars_byte_range(&self) -> Range<usize> {
+        let start = self.start_char_code_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn glyph_id_array_byte_range(&self) -> Range<usize> {
+        let start = self.num_chars_byte_range().end;
+        start..start + self.glyph_id_array_byte_len
+    }
+}
+
+impl TableInfo for Cmap10Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u32>();
+        cursor.advance::<u32>();
+        cursor.advance::<u32>();
+        cursor.advance::<u32>();
+        let glyph_id_array_byte_len = cursor.remaining_bytes();
+        cursor.advance_by(glyph_id_array_byte_len);
+        cursor.finish(Cmap10Marker {
+            glyph_id_array_byte_len,
         })
     }
 }
+
+/// [cmap Format 10](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array): Tr
+pub type Cmap10<'a> = TableRef<'a, Cmap10Marker>;
 
 impl<'a> Cmap10<'a> {
     /// Subtable format; set to 10.
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Byte length of this subtable (including the header)
     pub fn length(&self) -> u32 {
-        self.length.get()
+        let range = self.shape.length_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
     pub fn language(&self) -> u32 {
-        self.language.get()
+        let range = self.shape.language_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// First character code covered
     pub fn start_char_code(&self) -> u32 {
-        self.start_char_code.get()
+        let range = self.shape.start_char_code_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of character codes covered
     pub fn num_chars(&self) -> u32 {
-        self.num_chars.get()
+        let range = self.shape.num_chars_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of glyph indices for the character codes covered
     pub fn glyph_id_array(&self) -> &[BigEndian<u16>] {
-        &self.glyph_id_array
+        let range = self.shape.glyph_id_array_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+impl Format<u16> for Cmap12Marker {
+    const FORMAT: u16 = 12;
+}
+
+/// [cmap Format 12](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage): Segmented coverage
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct Cmap12Marker {
+    groups_byte_len: usize,
+}
+
+impl Cmap12Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn reserved_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn length_byte_range(&self) -> Range<usize> {
+        let start = self.reserved_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn num_groups_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn groups_byte_range(&self) -> Range<usize> {
+        let start = self.num_groups_byte_range().end;
+        start..start + self.groups_byte_len
+    }
+}
+
+impl TableInfo for Cmap12Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u32>();
+        cursor.advance::<u32>();
+        let num_groups: u32 = cursor.read()?;
+        let groups_byte_len = num_groups as usize * SequentialMapGroup::RAW_BYTE_LEN;
+        cursor.advance_by(groups_byte_len);
+        cursor.finish(Cmap12Marker { groups_byte_len })
     }
 }
 
 /// [cmap Format 12](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage): Segmented coverage
-pub struct Cmap12<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    #[allow(dead_code)]
-    reserved: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    length: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    language: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    num_groups: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    groups: zerocopy::LayoutVerified<&'a [u8], [SequentialMapGroup]>,
-}
-
-impl<'a> font_types::FontRead<'a> for Cmap12<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (reserved, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (length, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let (language, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let (num_groups, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_num_groups = num_groups.get();
-        let (groups, bytes) =
-            zerocopy::LayoutVerified::<_, [SequentialMapGroup]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_num_groups as usize,
-            )?;
-        let _ = bytes;
-        Some(Cmap12 {
-            format,
-            reserved,
-            length,
-            language,
-            num_groups,
-            groups,
-        })
-    }
-}
+pub type Cmap12<'a> = TableRef<'a, Cmap12Marker>;
 
 impl<'a> Cmap12<'a> {
     /// Subtable format; set to 12.
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Byte length of this subtable (including the header)
     pub fn length(&self) -> u32 {
-        self.length.get()
+        let range = self.shape.length_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
     pub fn language(&self) -> u32 {
-        self.language.get()
+        let range = self.shape.language_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of groupings which follow
     pub fn num_groups(&self) -> u32 {
-        self.num_groups.get()
+        let range = self.shape.num_groups_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of SequentialMapGroup records.
     pub fn groups(&self) -> &[SequentialMapGroup] {
-        &self.groups
+        let range = self.shape.groups_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+impl Format<u16> for Cmap13Marker {
+    const FORMAT: u16 = 13;
+}
+
+/// [cmap Format 13](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-13-many-to-one-range-mappings): Many-to-one range mappings
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct Cmap13Marker {
+    groups_byte_len: usize,
+}
+
+impl Cmap13Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn reserved_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn length_byte_range(&self) -> Range<usize> {
+        let start = self.reserved_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn language_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn num_groups_byte_range(&self) -> Range<usize> {
+        let start = self.language_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn groups_byte_range(&self) -> Range<usize> {
+        let start = self.num_groups_byte_range().end;
+        start..start + self.groups_byte_len
+    }
+}
+
+impl TableInfo for Cmap13Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u16>();
+        cursor.advance::<u32>();
+        cursor.advance::<u32>();
+        let num_groups: u32 = cursor.read()?;
+        let groups_byte_len = num_groups as usize * ConstantMapGroup::RAW_BYTE_LEN;
+        cursor.advance_by(groups_byte_len);
+        cursor.finish(Cmap13Marker { groups_byte_len })
     }
 }
 
 /// [cmap Format 13](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-13-many-to-one-range-mappings): Many-to-one range mappings
-pub struct Cmap13<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    #[allow(dead_code)]
-    reserved: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    length: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    language: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    num_groups: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    groups: zerocopy::LayoutVerified<&'a [u8], [ConstantMapGroup]>,
-}
-
-impl<'a> font_types::FontRead<'a> for Cmap13<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (reserved, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (length, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let (language, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let (num_groups, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_num_groups = num_groups.get();
-        let (groups, bytes) =
-            zerocopy::LayoutVerified::<_, [ConstantMapGroup]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_num_groups as usize,
-            )?;
-        let _ = bytes;
-        Some(Cmap13 {
-            format,
-            reserved,
-            length,
-            language,
-            num_groups,
-            groups,
-        })
-    }
-}
+pub type Cmap13<'a> = TableRef<'a, Cmap13Marker>;
 
 impl<'a> Cmap13<'a> {
     /// Subtable format; set to 13.
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Byte length of this subtable (including the header)
     pub fn length(&self) -> u32 {
-        self.length.get()
+        let range = self.shape.length_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
     pub fn language(&self) -> u32 {
-        self.language.get()
+        let range = self.shape.language_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of groupings which follow
     pub fn num_groups(&self) -> u32 {
-        self.num_groups.get()
+        let range = self.shape.num_groups_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of ConstantMapGroup records.
     pub fn groups(&self) -> &[ConstantMapGroup] {
-        &self.groups
+        let range = self.shape.groups_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// Part of [Cmap13]
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct ConstantMapGroup {
     /// First character code in this group
     pub start_char_code: BigEndian<u32>,
@@ -880,72 +1109,89 @@ impl ConstantMapGroup {
     }
 }
 
-/// [cmap Format 14](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences): Unicode Variation Sequences
-pub struct Cmap14<'a> {
-    format: zerocopy::LayoutVerified<&'a [u8], BigEndian<u16>>,
-    length: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    num_var_selector_records: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    var_selector: zerocopy::LayoutVerified<&'a [u8], [VariationSelector]>,
-    offset_bytes: &'a [u8],
+impl FixedSized for ConstantMapGroup {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
-impl<'a> font_types::FontRead<'a> for Cmap14<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let offset_bytes = bytes;
-        let (format, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u16>>::new_unaligned_from_prefix(bytes)?;
-        let (length, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let (num_var_selector_records, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_num_var_selector_records = num_var_selector_records.get();
-        let (var_selector, bytes) =
-            zerocopy::LayoutVerified::<_, [VariationSelector]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_num_var_selector_records as usize,
-            )?;
-        let _ = bytes;
-        Some(Cmap14 {
-            format,
-            length,
-            num_var_selector_records,
-            var_selector,
-            offset_bytes,
+impl Format<u16> for Cmap14Marker {
+    const FORMAT: u16 = 14;
+}
+
+/// [cmap Format 14](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences): Unicode Variation Sequences
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct Cmap14Marker {
+    var_selector_byte_len: usize,
+}
+
+impl Cmap14Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn length_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn num_var_selector_records_byte_range(&self) -> Range<usize> {
+        let start = self.length_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn var_selector_byte_range(&self) -> Range<usize> {
+        let start = self.num_var_selector_records_byte_range().end;
+        start..start + self.var_selector_byte_len
+    }
+}
+
+impl TableInfo for Cmap14Marker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<u32>();
+        let num_var_selector_records: u32 = cursor.read()?;
+        let var_selector_byte_len =
+            num_var_selector_records as usize * VariationSelector::RAW_BYTE_LEN;
+        cursor.advance_by(var_selector_byte_len);
+        cursor.finish(Cmap14Marker {
+            var_selector_byte_len,
         })
     }
 }
 
+/// [cmap Format 14](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences): Unicode Variation Sequences
+pub type Cmap14<'a> = TableRef<'a, Cmap14Marker>;
+
 impl<'a> Cmap14<'a> {
     /// Subtable format. Set to 14.
     pub fn format(&self) -> u16 {
-        self.format.get()
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Byte length of this subtable (including this header)
     pub fn length(&self) -> u32 {
-        self.length.get()
+        let range = self.shape.length_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Number of variation Selector Records
     pub fn num_var_selector_records(&self) -> u32 {
-        self.num_var_selector_records.get()
+        let range = self.shape.num_var_selector_records_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of VariationSelector records.
     pub fn var_selector(&self) -> &[VariationSelector] {
-        &self.var_selector
-    }
-}
-
-impl<'a> font_types::OffsetHost<'a> for Cmap14<'a> {
-    fn bytes(&self) -> &'a [u8] {
-        self.offset_bytes
+        let range = self.shape.var_selector_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// Part of [Cmap14]
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct VariationSelector {
     /// Variation selector
     pub var_selector: BigEndian<Uint24>,
@@ -976,45 +1222,61 @@ impl VariationSelector {
     }
 }
 
-/// [Default UVS table](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table)
-pub struct DefaultUvs<'a> {
-    num_unicode_value_ranges: zerocopy::LayoutVerified<&'a [u8], BigEndian<u32>>,
-    ranges: zerocopy::LayoutVerified<&'a [u8], [UnicodeRange]>,
+impl FixedSized for VariationSelector {
+    const RAW_BYTE_LEN: usize =
+        Uint24::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
-impl<'a> font_types::FontRead<'a> for DefaultUvs<'a> {
-    fn read(bytes: &'a [u8]) -> Option<Self> {
-        let (num_unicode_value_ranges, bytes) =
-            zerocopy::LayoutVerified::<_, BigEndian<u32>>::new_unaligned_from_prefix(bytes)?;
-        let __resolved_num_unicode_value_ranges = num_unicode_value_ranges.get();
-        let (ranges, bytes) =
-            zerocopy::LayoutVerified::<_, [UnicodeRange]>::new_slice_unaligned_from_prefix(
-                bytes,
-                __resolved_num_unicode_value_ranges as usize,
-            )?;
-        let _ = bytes;
-        Some(DefaultUvs {
-            num_unicode_value_ranges,
-            ranges,
-        })
+/// [Default UVS table](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct DefaultUvsMarker {
+    ranges_byte_len: usize,
+}
+
+impl DefaultUvsMarker {
+    fn num_unicode_value_ranges_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn ranges_byte_range(&self) -> Range<usize> {
+        let start = self.num_unicode_value_ranges_byte_range().end;
+        start..start + self.ranges_byte_len
     }
 }
+
+impl TableInfo for DefaultUvsMarker {
+    #[allow(unused_parens)]
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+        let mut cursor = data.cursor();
+        let num_unicode_value_ranges: u32 = cursor.read()?;
+        let ranges_byte_len = num_unicode_value_ranges as usize * UnicodeRange::RAW_BYTE_LEN;
+        cursor.advance_by(ranges_byte_len);
+        cursor.finish(DefaultUvsMarker { ranges_byte_len })
+    }
+}
+
+/// [Default UVS table](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table)
+pub type DefaultUvs<'a> = TableRef<'a, DefaultUvsMarker>;
 
 impl<'a> DefaultUvs<'a> {
     /// Number of Unicode character ranges.
     pub fn num_unicode_value_ranges(&self) -> u32 {
-        self.num_unicode_value_ranges.get()
+        let range = self.shape.num_unicode_value_ranges_byte_range();
+        self.data.read_at(range.start).unwrap()
     }
 
     /// Array of UnicodeRange records.
     pub fn ranges(&self) -> &[UnicodeRange] {
-        &self.ranges
+        let range = self.shape.ranges_byte_range();
+        self.data.read_array(range).unwrap()
     }
 }
 
 /// Part of [Cmap14]
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct UVSMapping {
     /// Base Unicode value of the UVS
     pub unicode_value: BigEndian<Uint24>,
@@ -1034,9 +1296,14 @@ impl UVSMapping {
     }
 }
 
+impl FixedSized for UVSMapping {
+    const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
 /// Part of [Cmap14]
-#[derive(Clone, Copy, Debug, zerocopy :: FromBytes, zerocopy :: Unaligned)]
+#[derive(Clone, Debug)]
 #[repr(C)]
+#[repr(packed)]
 pub struct UnicodeRange {
     /// First value in this range
     pub start_unicode_value: BigEndian<Uint24>,
@@ -1056,6 +1323,6 @@ impl UnicodeRange {
     }
 }
 
-fn div_by_two(seg_count_x2: u16) -> usize {
-    (seg_count_x2 / 2) as usize
+impl FixedSized for UnicodeRange {
+    const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
 }

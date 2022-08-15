@@ -1,7 +1,6 @@
 //! small utilities used in tests
 
-use crate::Scalar;
-use zerocopy::AsBytes;
+use crate::{FontData, Scalar};
 
 /// A convenience type for generating a buffer of big-endian bytes.
 #[derive(Debug, Clone, Default)]
@@ -14,14 +13,18 @@ impl BeBuffer {
 
     /// Write any scalar to this buffer.
     pub fn push(&mut self, item: impl Scalar) {
-        self.0.extend(item.to_raw().as_bytes())
+        self.0.extend(item.to_raw().as_ref())
     }
 
     /// Write multiple scalars into the buffer
     pub fn extend<T: Scalar>(&mut self, iter: impl IntoIterator<Item = T>) {
         for item in iter {
-            self.0.extend(item.to_raw().as_bytes())
+            self.0.extend(item.to_raw().as_ref())
         }
+    }
+
+    pub fn font_data(&self) -> FontData {
+        FontData::new(&self.0)
     }
 }
 

@@ -1,3 +1,5 @@
+//! types for working with raw big-endian bytes
+
 /// A trait for font scalars.
 ///
 /// This is an internal trait for encoding and decoding big-endian bytes.
@@ -6,11 +8,7 @@
 /// detail of the [`BigEndian`] wrapper.
 pub trait Scalar {
     /// The raw byte representation of this type.
-    type Raw: Copy + zerocopy::Unaligned + zerocopy::FromBytes + zerocopy::AsBytes;
-
-    /// The size of the raw type. Essentially an alias for `std::mem::size_of`.
-    //TODO: remove this probably
-    const SIZE: usize = std::mem::size_of::<Self::Raw>();
+    type Raw: Copy + AsRef<[u8]>;
 
     /// Create an instance of this type from raw big-endian bytes
     fn from_raw(raw: Self::Raw) -> Self;
@@ -18,12 +16,27 @@ pub trait Scalar {
     fn to_raw(self) -> Self::Raw;
 }
 
+/// A trait for types that have a known size.
+pub trait FixedSized: Sized {
+    /// The number of bytes required to encode this type.
+    const RAW_BYTE_LEN: usize;
+}
+
+/// A trait for types that can be represented as raw bytes.
+pub trait ReadScalar: FixedSized {
+    fn read(bytes: &[u8]) -> Option<Self>;
+}
+
 /// A wrapper around raw big-endian bytes for some type.
-#[derive(Clone, Copy, zerocopy::Unaligned, zerocopy::FromBytes)]
+#[derive(Clone, Copy, PartialEq, Eq)]
 #[repr(transparent)]
-pub struct BigEndian<T: Scalar>(T::Raw);
+pub struct BigEndian<T: Scalar>(pub(crate) T::Raw);
 
 impl<T: Scalar> BigEndian<T> {
+    /// construct a new BigEndian<T> from raw bytes
+    pub fn new(raw: T::Raw) -> BigEndian<T> {
+        BigEndian(raw)
+    }
     /// Read a copy of this type from raw bytes.
     pub fn get(self) -> T {
         T::from_raw(self.0)
@@ -33,37 +46,99 @@ impl<T: Scalar> BigEndian<T> {
     pub fn set(&mut self, value: T) {
         self.0 = value.to_raw();
     }
+
+    /// Get the raw big-endian bytes.
+    pub fn be_bytes(&self) -> &[u8] {
+        self.0.as_ref()
+    }
+}
+
+impl<T: Scalar> From<T> for BigEndian<T> {
+    #[inline]
+    fn from(val: T) -> Self {
+        BigEndian(val.to_raw())
+    }
+}
+
+impl<T: Scalar + Default> Default for BigEndian<T> {
+    fn default() -> Self {
+        Self::from(T::default())
+    }
+}
+
+impl<T: Scalar + Copy + PartialEq> PartialEq<T> for BigEndian<T> {
+    fn eq(&self, other: &T) -> bool {
+        self.get() == *other
+    }
+}
+
+// these following impls are an elaborate way to impl ReadScalar for BigEndian<T>
+impl<const N: usize> FixedSized for [u8; N] {
+    const RAW_BYTE_LEN: usize = N;
+}
+
+impl<const N: usize> ReadScalar for [u8; N] {
+    #[inline]
+    fn read(bytes: &[u8]) -> Option<Self> {
+        bytes.try_into().ok()
+    }
+}
+
+impl<T> ReadScalar for BigEndian<T>
+where
+    T: Scalar + FixedSized,
+    <T as Scalar>::Raw: ReadScalar,
+{
+    #[inline]
+    fn read(bytes: &[u8]) -> Option<Self> {
+        T::Raw::read(bytes).map(BigEndian)
+    }
+}
+
+// and then we can impl ReadScalar for T based on the impl for BigEndian<T>
+impl<T> ReadScalar for T
+where
+    T: Scalar + FixedSized,
+    <T as Scalar>::Raw: ReadScalar,
+{
+    #[inline]
+    fn read(bytes: &[u8]) -> Option<Self> {
+        BigEndian::<T>::read(bytes).map(BigEndian::get)
+    }
+}
+
+// and impl FixedSized for T based on the impl for the arrays
+impl<T> FixedSized for T
+where
+    T: Scalar,
+    <T as Scalar>::Raw: FixedSized,
+{
+    const RAW_BYTE_LEN: usize = <T as Scalar>::Raw::RAW_BYTE_LEN;
+}
+
+// and impl FixedSized for BigEndian<T> based on the impl forr T
+impl<T: Scalar + FixedSized> FixedSized for BigEndian<T> {
+    const RAW_BYTE_LEN: usize = T::RAW_BYTE_LEN;
 }
 
 /// An internal macro for implementing the `RawType` trait.
 #[macro_export]
 macro_rules! newtype_scalar {
-    ($name:ident, $raw:ty) => {
-        impl crate::raw::Scalar for $name {
+    ($ty:ident, $raw:ty) => {
+        impl $crate::raw::Scalar for $ty {
             type Raw = $raw;
             fn to_raw(self) -> $raw {
                 self.0.to_raw()
             }
 
             fn from_raw(raw: $raw) -> Self {
-                Self(crate::raw::Scalar::from_raw(raw))
+                Self($crate::raw::Scalar::from_raw(raw))
             }
         }
     };
 }
 
 macro_rules! int_scalar {
-    ($ident:ty) => {
-        impl crate::raw::Scalar for $ident {
-            type Raw = $ident;
-            fn to_raw(self) -> $ident {
-                self
-            }
-            fn from_raw(raw: $ident) -> $ident {
-                raw
-            }
-        }
-    };
     ($ty:ty, $raw:ty) => {
         impl crate::raw::Scalar for $ty {
             type Raw = $raw;

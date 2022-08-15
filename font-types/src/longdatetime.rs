@@ -19,6 +19,11 @@ impl LongDateTime {
     pub fn as_secs(&self) -> i64 {
         self.0
     }
+
+    /// The representation of this datetime as a big-endian byte array.
+    pub fn to_be_bytes(self) -> [u8; 8] {
+        self.0.to_be_bytes()
+    }
 }
 
 crate::newtype_scalar!(LongDateTime, [u8; 8]);
