@@ -19,10 +19,18 @@ jobs:
           toolchain: stable
           override: true
       - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
+
+      - name: rustfmt check
+        uses: actions-rs/cargo@v1
         with:
           command: fmt
           args: --all -- --check
+
+      - name: cargo doc
+        uses: actions-rs/cargo@v1
+        with:
+          command: doc
+          args: --all-features --document-private-items
 
   clippy-lint:
     name: Clippy lints
@@ -53,12 +61,8 @@ jobs:
           args: --all-targets --no-default-features -- -D warnings
 
   test-stable:
-    runs-on: ${{ matrix.os }}
-    strategy:
-      matrix:
-        os: [ubuntu-latest, windows-latest]
-
     name: cargo test stable
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2
 
@@ -83,8 +87,3 @@ jobs:
           command: test
           args: --no-default-features
 
-      - name: cargo doc
-        uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          args: --all-features --document-private-items
