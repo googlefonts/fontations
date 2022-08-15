@@ -14,7 +14,7 @@ pub struct ScriptList {
 
 impl FontWrite for ScriptList {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((array_len(&self.script_records)).unwrap() as u16).write_into(writer);
+        (array_len(&self.script_records).unwrap() as u16).write_into(writer);
         self.script_records.write_into(writer);
     }
 }
@@ -105,7 +105,7 @@ pub struct Script {
 impl FontWrite for Script {
     fn write_into(&self, writer: &mut TableWriter) {
         self.default_lang_sys_offset.write_into(writer);
-        ((array_len(&self.lang_sys_records)).unwrap() as u16).write_into(writer);
+        (array_len(&self.lang_sys_records).unwrap() as u16).write_into(writer);
         self.lang_sys_records.write_into(writer);
     }
 }
@@ -198,9 +198,9 @@ pub struct LangSys {
 
 impl FontWrite for LangSys {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((0) as u16).write_into(writer);
+        (0 as u16).write_into(writer);
         self.required_feature_index.write_into(writer);
-        ((array_len(&self.feature_indices)).unwrap() as u16).write_into(writer);
+        (array_len(&self.feature_indices).unwrap() as u16).write_into(writer);
         self.feature_indices.write_into(writer);
     }
 }
@@ -247,7 +247,7 @@ pub struct FeatureList {
 
 impl FontWrite for FeatureList {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((array_len(&self.feature_records)).unwrap() as u16).write_into(writer);
+        (array_len(&self.feature_records).unwrap() as u16).write_into(writer);
         self.feature_records.write_into(writer);
     }
 }
@@ -338,7 +338,7 @@ pub struct Feature {
 impl FontWrite for Feature {
     fn write_into(&self, writer: &mut TableWriter) {
         self.feature_params_offset.write_into(writer);
-        ((array_len(&self.lookup_list_indices)).unwrap() as u16).write_into(writer);
+        (array_len(&self.lookup_list_indices).unwrap() as u16).write_into(writer);
         self.lookup_list_indices.write_into(writer);
     }
 }
@@ -381,7 +381,7 @@ pub struct CoverageFormat1 {
 impl FontWrite for CoverageFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        ((array_len(&self.glyph_array)).unwrap() as u16).write_into(writer);
+        (array_len(&self.glyph_array).unwrap() as u16).write_into(writer);
         self.glyph_array.write_into(writer);
     }
 }
@@ -427,7 +427,7 @@ pub struct CoverageFormat2 {
 impl FontWrite for CoverageFormat2 {
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
-        ((array_len(&self.range_records)).unwrap() as u16).write_into(writer);
+        (array_len(&self.range_records).unwrap() as u16).write_into(writer);
         self.range_records.write_into(writer);
     }
 }
@@ -562,7 +562,7 @@ impl FontWrite for ClassDefFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.start_glyph_id.write_into(writer);
-        ((array_len(&self.class_value_array)).unwrap() as u16).write_into(writer);
+        (array_len(&self.class_value_array).unwrap() as u16).write_into(writer);
         self.class_value_array.write_into(writer);
     }
 }
@@ -609,7 +609,7 @@ pub struct ClassDefFormat2 {
 impl FontWrite for ClassDefFormat2 {
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
-        ((array_len(&self.class_range_records)).unwrap() as u16).write_into(writer);
+        (array_len(&self.class_range_records).unwrap() as u16).write_into(writer);
         self.class_range_records.write_into(writer);
     }
 }
@@ -780,7 +780,7 @@ impl FontWrite for SequenceContextFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coverage_offset.write_into(writer);
-        ((array_len(&self.seq_rule_set_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.seq_rule_set_offsets).unwrap() as u16).write_into(writer);
         self.seq_rule_set_offsets.write_into(writer);
     }
 }
@@ -832,7 +832,7 @@ pub struct SequenceRuleSet {
 
 impl FontWrite for SequenceRuleSet {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((array_len(&self.seq_rule_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.seq_rule_offsets).unwrap() as u16).write_into(writer);
         self.seq_rule_offsets.write_into(writer);
     }
 }
@@ -880,8 +880,8 @@ pub struct SequenceRule {
 
 impl FontWrite for SequenceRule {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((plus_one(&self.input_sequence.len())).unwrap() as u16).write_into(writer);
-        ((array_len(&self.seq_lookup_records)).unwrap() as u16).write_into(writer);
+        (plus_one(&self.input_sequence.len()).unwrap() as u16).write_into(writer);
+        (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.input_sequence.write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
@@ -944,7 +944,7 @@ impl FontWrite for SequenceContextFormat2 {
         (2 as u16).write_into(writer);
         self.coverage_offset.write_into(writer);
         self.class_def_offset.write_into(writer);
-        ((array_len(&self.class_seq_rule_set_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.class_seq_rule_set_offsets).unwrap() as u16).write_into(writer);
         self.class_seq_rule_set_offsets.write_into(writer);
     }
 }
@@ -1000,7 +1000,7 @@ pub struct ClassSequenceRuleSet {
 
 impl FontWrite for ClassSequenceRuleSet {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((array_len(&self.class_seq_rule_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.class_seq_rule_offsets).unwrap() as u16).write_into(writer);
         self.class_seq_rule_offsets.write_into(writer);
     }
 }
@@ -1050,8 +1050,8 @@ pub struct ClassSequenceRule {
 
 impl FontWrite for ClassSequenceRule {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((plus_one(&self.input_sequence.len())).unwrap() as u16).write_into(writer);
-        ((array_len(&self.seq_lookup_records)).unwrap() as u16).write_into(writer);
+        (plus_one(&self.input_sequence.len()).unwrap() as u16).write_into(writer);
+        (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.input_sequence.write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
@@ -1108,8 +1108,8 @@ pub struct SequenceContextFormat3 {
 impl FontWrite for SequenceContextFormat3 {
     fn write_into(&self, writer: &mut TableWriter) {
         (3 as u16).write_into(writer);
-        ((array_len(&self.coverage_offsets)).unwrap() as u16).write_into(writer);
-        ((array_len(&self.seq_lookup_records)).unwrap() as u16).write_into(writer);
+        (array_len(&self.coverage_offsets).unwrap() as u16).write_into(writer);
+        (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.coverage_offsets.write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
@@ -1224,7 +1224,7 @@ impl FontWrite for ChainedSequenceContextFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coverage_offset.write_into(writer);
-        ((array_len(&self.chained_seq_rule_set_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.chained_seq_rule_set_offsets).unwrap() as u16).write_into(writer);
         self.chained_seq_rule_set_offsets.write_into(writer);
     }
 }
@@ -1284,7 +1284,7 @@ pub struct ChainedSequenceRuleSet {
 
 impl FontWrite for ChainedSequenceRuleSet {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((array_len(&self.chained_seq_rule_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.chained_seq_rule_offsets).unwrap() as u16).write_into(writer);
         self.chained_seq_rule_offsets.write_into(writer);
     }
 }
@@ -1337,13 +1337,13 @@ pub struct ChainedSequenceRule {
 
 impl FontWrite for ChainedSequenceRule {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((array_len(&self.backtrack_sequence)).unwrap() as u16).write_into(writer);
+        (array_len(&self.backtrack_sequence).unwrap() as u16).write_into(writer);
         self.backtrack_sequence.write_into(writer);
-        ((plus_one(&self.input_sequence.len())).unwrap() as u16).write_into(writer);
+        (plus_one(&self.input_sequence.len()).unwrap() as u16).write_into(writer);
         self.input_sequence.write_into(writer);
-        ((array_len(&self.lookahead_sequence)).unwrap() as u16).write_into(writer);
+        (array_len(&self.lookahead_sequence).unwrap() as u16).write_into(writer);
         self.lookahead_sequence.write_into(writer);
-        ((array_len(&self.seq_lookup_records)).unwrap() as u16).write_into(writer);
+        (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
 }
@@ -1426,7 +1426,7 @@ impl FontWrite for ChainedSequenceContextFormat2 {
         self.backtrack_class_def_offset.write_into(writer);
         self.input_class_def_offset.write_into(writer);
         self.lookahead_class_def_offset.write_into(writer);
-        ((array_len(&self.chained_class_seq_rule_set_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.chained_class_seq_rule_set_offsets).unwrap() as u16).write_into(writer);
         self.chained_class_seq_rule_set_offsets.write_into(writer);
     }
 }
@@ -1501,7 +1501,7 @@ pub struct ChainedClassSequenceRuleSet {
 
 impl FontWrite for ChainedClassSequenceRuleSet {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((array_len(&self.chained_class_seq_rule_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.chained_class_seq_rule_offsets).unwrap() as u16).write_into(writer);
         self.chained_class_seq_rule_offsets.write_into(writer);
     }
 }
@@ -1563,13 +1563,13 @@ pub struct ChainedClassSequenceRule {
 
 impl FontWrite for ChainedClassSequenceRule {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((array_len(&self.backtrack_sequence)).unwrap() as u16).write_into(writer);
+        (array_len(&self.backtrack_sequence).unwrap() as u16).write_into(writer);
         self.backtrack_sequence.write_into(writer);
-        ((plus_one(&self.input_sequence.len())).unwrap() as u16).write_into(writer);
+        (plus_one(&self.input_sequence.len()).unwrap() as u16).write_into(writer);
         self.input_sequence.write_into(writer);
-        ((array_len(&self.lookahead_sequence)).unwrap() as u16).write_into(writer);
+        (array_len(&self.lookahead_sequence).unwrap() as u16).write_into(writer);
         self.lookahead_sequence.write_into(writer);
-        ((array_len(&self.seq_lookup_records)).unwrap() as u16).write_into(writer);
+        (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
 }
@@ -1641,13 +1641,13 @@ pub struct ChainedSequenceContextFormat3 {
 impl FontWrite for ChainedSequenceContextFormat3 {
     fn write_into(&self, writer: &mut TableWriter) {
         (3 as u16).write_into(writer);
-        ((array_len(&self.backtrack_coverage_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.backtrack_coverage_offsets).unwrap() as u16).write_into(writer);
         self.backtrack_coverage_offsets.write_into(writer);
-        ((array_len(&self.input_coverage_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.input_coverage_offsets).unwrap() as u16).write_into(writer);
         self.input_coverage_offsets.write_into(writer);
-        ((array_len(&self.lookahead_coverage_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.lookahead_coverage_offsets).unwrap() as u16).write_into(writer);
         self.lookahead_coverage_offsets.write_into(writer);
-        ((array_len(&self.seq_lookup_records)).unwrap() as u16).write_into(writer);
+        (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
 }
@@ -1828,7 +1828,7 @@ impl FromObjRef<font_tables::layout::Device<'_>> for Device {
         Device {
             start_size: obj.start_size(),
             end_size: obj.end_size(),
-            delta_format: (convert_delta_format(obj.delta_format())),
+            delta_format: convert_delta_format(obj.delta_format()),
             delta_value: obj.delta_value().iter().map(|x| x.get()).collect(),
         }
     }
@@ -1899,8 +1899,8 @@ pub struct FeatureVariations {
 
 impl FontWrite for FeatureVariations {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((MajorMinor::VERSION_1_0) as MajorMinor).write_into(writer);
-        ((array_len(&self.feature_variation_records)).unwrap() as u32).write_into(writer);
+        (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
+        (array_len(&self.feature_variation_records).unwrap() as u32).write_into(writer);
         self.feature_variation_records.write_into(writer);
     }
 }
@@ -1996,7 +1996,7 @@ pub struct ConditionSet {
 
 impl FontWrite for ConditionSet {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((array_len(&self.condition_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.condition_offsets).unwrap() as u16).write_into(writer);
         self.condition_offsets.write_into(writer);
     }
 }
@@ -2090,8 +2090,8 @@ pub struct FeatureTableSubstitution {
 
 impl FontWrite for FeatureTableSubstitution {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((MajorMinor::VERSION_1_0) as MajorMinor).write_into(writer);
-        ((array_len(&self.substitutions)).unwrap() as u16).write_into(writer);
+        (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
+        (array_len(&self.substitutions).unwrap() as u16).write_into(writer);
         self.substitutions.write_into(writer);
     }
 }
@@ -2263,7 +2263,7 @@ pub struct StylisticSetParams {
 
 impl FontWrite for StylisticSetParams {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((0) as u16).write_into(writer);
+        (0 as u16).write_into(writer);
         self.ui_name_id.write_into(writer);
     }
 }
@@ -2325,7 +2325,7 @@ impl FontWrite for CharacterVariantParams {
         self.sample_text_name_id.write_into(writer);
         self.num_named_parameters.write_into(writer);
         self.first_param_ui_label_name_id.write_into(writer);
-        ((array_len(&self.character)).unwrap() as u16).write_into(writer);
+        (array_len(&self.character).unwrap() as u16).write_into(writer);
         self.character.write_into(writer);
     }
 }

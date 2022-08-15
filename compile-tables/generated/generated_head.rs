@@ -47,10 +47,10 @@ pub struct Head {
 
 impl FontWrite for Head {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((MajorMinor::VERSION_1_0) as MajorMinor).write_into(writer);
+        (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
         self.font_revision.write_into(writer);
         self.checksum_adjustment.write_into(writer);
-        ((0x5F0F3CF5) as u32).write_into(writer);
+        (0x5F0F3CF5 as u32).write_into(writer);
         self.flags.write_into(writer);
         self.units_per_em.write_into(writer);
         self.created.write_into(writer);
@@ -61,9 +61,9 @@ impl FontWrite for Head {
         self.y_max.write_into(writer);
         self.mac_style.write_into(writer);
         self.lowest_rec_ppem.write_into(writer);
-        ((2) as i16).write_into(writer);
+        (2 as i16).write_into(writer);
         self.index_to_loc_format.write_into(writer);
-        ((0) as i16).write_into(writer);
+        (0 as i16).write_into(writer);
     }
 }
 

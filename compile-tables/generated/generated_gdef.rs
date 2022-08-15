@@ -30,7 +30,7 @@ pub struct Gdef {
 
 impl FontWrite for Gdef {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((self.compute_version()) as MajorMinor).write_into(writer);
+        (self.compute_version() as MajorMinor).write_into(writer);
         self.glyph_class_def_offset.write_into(writer);
         self.attach_list_offset.write_into(writer);
         self.lig_caret_list_offset.write_into(writer);
@@ -124,7 +124,7 @@ pub struct AttachList {
 impl FontWrite for AttachList {
     fn write_into(&self, writer: &mut TableWriter) {
         self.coverage_offset.write_into(writer);
-        ((array_len(&self.attach_point_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.attach_point_offsets).unwrap() as u16).write_into(writer);
         self.attach_point_offsets.write_into(writer);
     }
 }
@@ -174,7 +174,7 @@ pub struct AttachPoint {
 
 impl FontWrite for AttachPoint {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((array_len(&self.point_indices)).unwrap() as u16).write_into(writer);
+        (array_len(&self.point_indices).unwrap() as u16).write_into(writer);
         self.point_indices.write_into(writer);
     }
 }
@@ -223,7 +223,7 @@ pub struct LigCaretList {
 impl FontWrite for LigCaretList {
     fn write_into(&self, writer: &mut TableWriter) {
         self.coverage_offset.write_into(writer);
-        ((array_len(&self.lig_glyph_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.lig_glyph_offsets).unwrap() as u16).write_into(writer);
         self.lig_glyph_offsets.write_into(writer);
     }
 }
@@ -275,7 +275,7 @@ pub struct LigGlyph {
 
 impl FontWrite for LigGlyph {
     fn write_into(&self, writer: &mut TableWriter) {
-        ((array_len(&self.caret_value_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.caret_value_offsets).unwrap() as u16).write_into(writer);
         self.caret_value_offsets.write_into(writer);
     }
 }
@@ -499,7 +499,7 @@ pub struct MarkGlyphSets {
 impl FontWrite for MarkGlyphSets {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        ((array_len(&self.coverage_offsets)).unwrap() as u16).write_into(writer);
+        (array_len(&self.coverage_offsets).unwrap() as u16).write_into(writer);
         self.coverage_offsets.write_into(writer);
     }
 }

@@ -601,7 +601,7 @@ impl Parse for VariantAttrs {
             if ident == DOC {
                 this.docs.push(attr);
             } else if ident == MATCH_IF {
-                this.match_stmt = Some(Attr::new(ident.clone(), parse_inline_expr(attr.tokens)?));
+                this.match_stmt = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else {
                 return Err(syn::Error::new(
                     ident.span(),
@@ -651,18 +651,18 @@ impl Parse for FieldAttrs {
             } else if ident == COUNT {
                 this.count = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == COMPILE {
-                this.compile = Some(Attr::new(ident.clone(), parse_inline_expr(attr.tokens)?));
+                this.compile = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == COMPILE_TYPE {
                 this.compile_type = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == TO_OWNED {
-                this.to_owned = Some(Attr::new(ident.clone(), parse_inline_expr(attr.tokens)?));
+                this.to_owned = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == AVAILABLE {
                 this.available = Some(Attr {
                     name: ident.clone(),
                     attr: attr.parse_args()?,
                 });
             } else if ident == LEN {
-                this.len = Some(Attr::new(ident.clone(), parse_inline_expr(attr.tokens)?));
+                this.len = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_WITH {
                 this.read_with_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_OFFSET_WITH {
@@ -770,8 +770,7 @@ impl Parse for Count {
             input.parse::<Token![..]>()?;
             Ok(Self::All)
         } else {
-            let tokens: TokenStream = input.parse()?;
-            Ok(Self::Expr(parse_inline_expr(tokens)?))
+            input.parse().map(Self::Expr)
         }
     }
 }
@@ -798,40 +797,48 @@ impl Count {
     }
 }
 
-fn parse_inline_expr(tokens: TokenStream) -> syn::Result<InlineExpr> {
-    let span = tokens.span();
-    let s = tokens.to_string();
-    let mut idents = Vec::new();
-    let find_dollar_idents = regex::Regex::new(r#"(\$) (\w+)"#).unwrap();
-    for ident in find_dollar_idents.captures_iter(&s) {
-        let text = ident.get(2).unwrap().as_str();
-        let ident = syn::parse_str::<syn::Ident>(text)
-            .map_err(|_| syn::Error::new(tokens.span(), format!("invalid ident '{text}'")))?;
-        idents.push(ident);
+impl Parse for InlineExpr {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        fn parse_inline_expr(tokens: TokenStream) -> syn::Result<InlineExpr> {
+            let span = tokens.span();
+            let s = tokens.to_string();
+            let mut idents = Vec::new();
+            let find_dollar_idents = regex::Regex::new(r#"(\$) (\w+)"#).unwrap();
+            for ident in find_dollar_idents.captures_iter(&s) {
+                let text = ident.get(2).unwrap().as_str();
+                let ident = syn::parse_str::<syn::Ident>(text).map_err(|_| {
+                    syn::Error::new(tokens.span(), format!("invalid ident '{text}'"))
+                })?;
+                idents.push(ident);
+            }
+            let expr: syn::Expr = if idents.is_empty() {
+                syn::parse2(tokens)
+            } else {
+                let new_source = find_dollar_idents.replace_all(&s, "$2");
+                syn::parse_str(&new_source)
+            }
+            .map_err(|_| syn::Error::new(span, "failed to parse expression"))?;
+
+            let compile_expr = (!idents.is_empty())
+                .then(|| {
+                    let new_source = find_dollar_idents.replace_all(&s, "&self.$2");
+                    syn::parse_str::<syn::Expr>(&new_source)
+                })
+                .transpose()?;
+
+            idents.sort_unstable();
+            idents.dedup();
+
+            Ok(InlineExpr {
+                expr,
+                compile_expr,
+                referenced_fields: idents,
+            })
+        }
+
+        let tokens: TokenStream = input.parse()?;
+        parse_inline_expr(tokens)
     }
-    let expr: syn::Expr = if idents.is_empty() {
-        syn::parse2(tokens)
-    } else {
-        let new_source = find_dollar_idents.replace_all(&s, "$2");
-        syn::parse_str(&new_source)
-    }
-    .map_err(|_| syn::Error::new(span, "failed to parse expression"))?;
-
-    let compile_expr = (!idents.is_empty())
-        .then(|| {
-            let new_source = find_dollar_idents.replace_all(&s, "&self.$2");
-            syn::parse_str::<syn::Expr>(&new_source)
-        })
-        .transpose()?;
-
-    idents.sort_unstable();
-    idents.dedup();
-
-    Ok(InlineExpr {
-        expr,
-        compile_expr,
-        referenced_fields: idents,
-    })
 }
 
 impl NeededWhen {
@@ -933,8 +940,6 @@ fn get_single_lifetime(input: &syn::PathArguments) -> syn::Result<Option<syn::Li
 
 #[cfg(test)]
 mod tests {
-    use std::str::FromStr;
-
     use quote::ToTokens;
 
     use super::*;
@@ -942,8 +947,7 @@ mod tests {
     #[test]
     fn parse_inline_expr_simple() {
         let s = "div_me($hi * 5)";
-        let hmm = TokenStream::from_str(s).unwrap();
-        let inline = super::parse_inline_expr(hmm).unwrap();
+        let inline = syn::parse_str::<InlineExpr>(s).unwrap();
         assert_eq!(inline.referenced_fields.len(), 1);
         assert_eq!(
             inline.expr.into_token_stream().to_string(),
@@ -954,8 +958,7 @@ mod tests {
     #[test]
     fn parse_inline_expr_dedup() {
         let s = "div_me($hi * 5 + $hi)";
-        let hmm = TokenStream::from_str(s).unwrap();
-        let inline = super::parse_inline_expr(hmm).unwrap();
+        let inline = syn::parse_str::<InlineExpr>(s).unwrap();
         assert_eq!(inline.referenced_fields.len(), 1);
         assert_eq!(
             inline.expr.into_token_stream().to_string(),
