@@ -77,8 +77,8 @@ impl<'a> FontRef<'a> {
     }
 }
 
-impl<'a> TableProvider for FontRef<'a> {
-    fn data_for_tag(&self, tag: Tag) -> Option<FontData> {
+impl<'a> TableProvider<'a> for FontRef<'a> {
+    fn data_for_tag(&self, tag: Tag) -> Option<FontData<'a>> {
         self.table_data(tag)
     }
 }
