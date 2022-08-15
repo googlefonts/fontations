@@ -1,5 +1,7 @@
 //! Reading OpentType tables
 
+#![deny(rustdoc::broken_intra_doc_links)]
+
 mod array;
 mod font_data;
 pub mod layout;

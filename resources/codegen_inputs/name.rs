@@ -20,7 +20,7 @@ table Name {
     lang_tag_record: [LangTagRecord],
 }
 
-/// Part of [Name1]
+/// Part of [Name]
 record LangTagRecord {
     /// Language-tag string length (in bytes)
     length: BigEndian<u16>,

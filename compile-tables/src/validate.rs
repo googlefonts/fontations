@@ -13,7 +13,7 @@ use crate::offsets::{NullableOffsetMarker, OffsetMarker};
 pub trait Validate {
     /// Ensure that this table is well-formed, reporting any errors.
     ///
-    /// This is an auto-generated method that defers to [validate_impl] and
+    /// This is an auto-generated method that calls to [validate_impl][Self::validate_impl] and
     /// collects any errors.
     fn validate(&self) -> Result<(), ValidationReport> {
         let mut ctx = Default::default();
@@ -59,7 +59,7 @@ pub trait Validate {
 /// ## paths/locations
 ///
 /// As validation travels down through the object graph, the path is recorded
-/// via appropriate calls to methods like [in_table] and [in_field].
+/// via appropriate calls to methods like [in_table][Self::in_table] and [in_field][Self::in_field].
 #[derive(Clone, Debug, Default)]
 pub struct ValidationCtx {
     cur_location: Vec<LocationElem>,
@@ -107,7 +107,7 @@ impl ValidationCtx {
 
     /// Run the provided closer in the context of a new array item.
     ///
-    /// This must only be called in a closure passed to [in_array].
+    /// This must only be called in a closure passed to [in_array][Self::in_array].
     pub fn array_item(&mut self, f: impl FnOnce(&mut ValidationCtx)) {
         assert!(matches!(
             self.cur_location.last(),

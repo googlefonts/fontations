@@ -22,7 +22,7 @@ pub trait FromTableRef<T>: FromObjRef<T> {
 /// This is implemented for the majority of parse types. Those that are the base
 /// for offset data the provided data and use their own.
 ///
-/// [`validate`][crate::Validate::validate]
+/// [`validate`]: [crate::Validate::validate]
 pub trait FromObjRef<T: ?Sized>: Sized {
     //type Owned;
     fn from_obj_ref(from: &T, data: &FontData) -> Self;

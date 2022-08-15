@@ -120,7 +120,7 @@ impl<'a> Name<'a> {
     }
 }
 
-/// Part of [Name1]
+/// Part of [Name]
 #[derive(Clone, Debug)]
 #[repr(C)]
 #[repr(packed)]
