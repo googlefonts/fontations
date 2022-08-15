@@ -19,6 +19,7 @@ pub struct Gpos {
 }
 
 impl FontWrite for Gpos {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (self.compute_version() as MajorMinor).write_into(writer);
         self.script_list_offset.write_into(writer);
@@ -138,6 +139,7 @@ pub struct AnchorFormat1 {
 }
 
 impl FontWrite for AnchorFormat1 {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.x_coordinate.write_into(writer);
@@ -182,6 +184,7 @@ pub struct AnchorFormat2 {
 }
 
 impl FontWrite for AnchorFormat2 {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
         self.x_coordinate.write_into(writer);
@@ -234,6 +237,7 @@ pub struct AnchorFormat3 {
 }
 
 impl FontWrite for AnchorFormat3 {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (3 as u16).write_into(writer);
         self.x_coordinate.write_into(writer);
@@ -288,6 +292,7 @@ pub struct MarkArray {
 }
 
 impl FontWrite for MarkArray {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.mark_records).unwrap() as u16).write_into(writer);
         self.mark_records.write_into(writer);
@@ -424,6 +429,7 @@ pub struct SinglePosFormat1 {
 }
 
 impl FontWrite for SinglePosFormat1 {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coverage_offset.write_into(writer);
@@ -474,6 +480,7 @@ pub struct SinglePosFormat2 {
 }
 
 impl FontWrite for SinglePosFormat2 {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
         self.coverage_offset.write_into(writer);
@@ -582,6 +589,7 @@ pub struct PairPosFormat1 {
 }
 
 impl FontWrite for PairPosFormat1 {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coverage_offset.write_into(writer);
@@ -638,6 +646,7 @@ pub struct PairSet {
 }
 
 impl FontWrite for PairSet {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.pair_value_records).unwrap() as u16).write_into(writer);
         self.pair_value_records.write_into(writer);
@@ -728,6 +737,7 @@ pub struct PairPosFormat2 {
 }
 
 impl FontWrite for PairPosFormat2 {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
         self.coverage_offset.write_into(writer);
@@ -870,6 +880,7 @@ pub struct CursivePosFormat1 {
 }
 
 impl FontWrite for CursivePosFormat1 {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coverage_offset.write_into(writer);
@@ -982,6 +993,7 @@ pub struct MarkBasePosFormat1 {
 }
 
 impl FontWrite for MarkBasePosFormat1 {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.mark_coverage_offset.write_into(writer);
@@ -1042,6 +1054,7 @@ pub struct BaseArray {
 }
 
 impl FontWrite for BaseArray {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.base_records).unwrap() as u16).write_into(writer);
         self.base_records.write_into(writer);
@@ -1133,6 +1146,7 @@ pub struct MarkLigPosFormat1 {
 }
 
 impl FontWrite for MarkLigPosFormat1 {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.mark_coverage_offset.write_into(writer);
@@ -1195,6 +1209,7 @@ pub struct LigatureArray {
 }
 
 impl FontWrite for LigatureArray {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.ligature_attach_offsets).unwrap() as u16).write_into(writer);
         self.ligature_attach_offsets.write_into(writer);
@@ -1234,6 +1249,7 @@ pub struct LigatureAttach {
 }
 
 impl FontWrite for LigatureAttach {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.component_records).unwrap() as u16).write_into(writer);
         self.component_records.write_into(writer);
@@ -1328,6 +1344,7 @@ pub struct MarkMarkPosFormat1 {
 }
 
 impl FontWrite for MarkMarkPosFormat1 {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.mark1_coverage_offset.write_into(writer);
@@ -1388,6 +1405,7 @@ pub struct Mark2Array {
 }
 
 impl FontWrite for Mark2Array {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.mark2_records).unwrap() as u16).write_into(writer);
         self.mark2_records.write_into(writer);

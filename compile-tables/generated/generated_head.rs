@@ -46,6 +46,7 @@ pub struct Head {
 }
 
 impl FontWrite for Head {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
         self.font_revision.write_into(writer);

@@ -117,6 +117,9 @@ pub(crate) fn generate_compile_impl(
 
     let docs = &attrs.docs;
     let field_decls = fields.iter_compile_decls();
+    let maybe_allow_casts = fields
+        .compile_write_contains_int_casts()
+        .then(|| quote!(#[allow(clippy::unnecessary_cast)]));
     let write_stmts = fields.iter_compile_write_stmts();
 
     let name_string = name.to_string();
@@ -149,6 +152,7 @@ pub(crate) fn generate_compile_impl(
         }
 
         impl FontWrite for #name {
+            #maybe_allow_casts
             fn write_into(&self, writer: &mut TableWriter) {
                 #( #write_stmts; )*
             }

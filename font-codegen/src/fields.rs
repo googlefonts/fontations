@@ -45,6 +45,13 @@ impl Fields {
         self.fields.iter().map(Field::compile_write_stmt)
     }
 
+    // we use this to add disable a clippy lint if needed
+    pub(crate) fn compile_write_contains_int_casts(&self) -> bool {
+        self.fields
+            .iter()
+            .any(Field::compile_write_contains_int_cast)
+    }
+
     // used for validating lengths. handles both fields and 'virtual fields',
     // e.g. arguments passed in FontReadWithArgs
     fn get_scalar_field_type(&self, name: &syn::Ident) -> &syn::Ident {
@@ -664,6 +671,10 @@ impl Field {
         };
 
         quote!(#value_expr.write_into(writer))
+    }
+
+    fn compile_write_contains_int_cast(&self) -> bool {
+        self.attrs.format.is_some() || self.attrs.compile.is_some()
     }
 
     pub(crate) fn gets_recursive_validation(&self) -> bool {

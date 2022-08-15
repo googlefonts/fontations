@@ -29,6 +29,7 @@ pub struct Gdef {
 }
 
 impl FontWrite for Gdef {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (self.compute_version() as MajorMinor).write_into(writer);
         self.glyph_class_def_offset.write_into(writer);
@@ -122,6 +123,7 @@ pub struct AttachList {
 }
 
 impl FontWrite for AttachList {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.coverage_offset.write_into(writer);
         (array_len(&self.attach_point_offsets).unwrap() as u16).write_into(writer);
@@ -173,6 +175,7 @@ pub struct AttachPoint {
 }
 
 impl FontWrite for AttachPoint {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.point_indices).unwrap() as u16).write_into(writer);
         self.point_indices.write_into(writer);
@@ -221,6 +224,7 @@ pub struct LigCaretList {
 }
 
 impl FontWrite for LigCaretList {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.coverage_offset.write_into(writer);
         (array_len(&self.lig_glyph_offsets).unwrap() as u16).write_into(writer);
@@ -274,6 +278,7 @@ pub struct LigGlyph {
 }
 
 impl FontWrite for LigGlyph {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.caret_value_offsets).unwrap() as u16).write_into(writer);
         self.caret_value_offsets.write_into(writer);
@@ -370,6 +375,7 @@ pub struct CaretValueFormat1 {
 }
 
 impl FontWrite for CaretValueFormat1 {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coordinate.write_into(writer);
@@ -408,6 +414,7 @@ pub struct CaretValueFormat2 {
 }
 
 impl FontWrite for CaretValueFormat2 {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
         self.caret_value_point_index.write_into(writer);
@@ -450,6 +457,7 @@ pub struct CaretValueFormat3 {
 }
 
 impl FontWrite for CaretValueFormat3 {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (3 as u16).write_into(writer);
         self.coordinate.write_into(writer);
@@ -497,6 +505,7 @@ pub struct MarkGlyphSets {
 }
 
 impl FontWrite for MarkGlyphSets {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         (array_len(&self.coverage_offsets).unwrap() as u16).write_into(writer);
