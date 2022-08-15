@@ -524,7 +524,9 @@ impl Field {
             match &self.attrs.available {
                 Some(version) => quote! {
                     let #len_field_name = version.compatible(#version).then(|| #len_expr);
-                    #len_field_name.map(|value| cursor.advance_by(value));
+                    if let Some(value) = #len_field_name {
+                        cursor.advance_by(value);
+                    }
                 },
                 None => quote! {
                     let #len_field_name = #len_expr;

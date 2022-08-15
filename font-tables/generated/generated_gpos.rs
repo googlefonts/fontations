@@ -37,7 +37,7 @@ impl GposMarker {
 }
 
 impl TableInfo for GposMarker {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
         cursor.advance::<Offset16>();
@@ -173,7 +173,7 @@ impl AnchorFormat1Marker {
 }
 
 impl TableInfo for AnchorFormat1Marker {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<i16>();
@@ -234,7 +234,7 @@ impl AnchorFormat2Marker {
 }
 
 impl TableInfo for AnchorFormat2Marker {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<i16>();
@@ -306,7 +306,7 @@ impl AnchorFormat3Marker {
 }
 
 impl TableInfo for AnchorFormat3Marker {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<i16>();
@@ -388,10 +388,10 @@ impl MarkArrayMarker {
 
 impl TableInfo for MarkArrayMarker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         let mark_count: u16 = cursor.read()?;
-        let mark_records_byte_len = (mark_count as usize) * MarkRecord::RAW_BYTE_LEN;
+        let mark_records_byte_len = mark_count as usize * MarkRecord::RAW_BYTE_LEN;
         cursor.advance_by(mark_records_byte_len);
         cursor.finish(MarkArrayMarker {
             mark_records_byte_len,
@@ -498,7 +498,7 @@ impl SinglePosFormat1Marker {
 
 impl TableInfo for SinglePosFormat1Marker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
@@ -585,14 +585,14 @@ impl SinglePosFormat2Marker {
 
 impl TableInfo for SinglePosFormat2Marker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let value_format: ValueFormat = cursor.read()?;
         let value_count: u16 = cursor.read()?;
         let value_records_byte_len =
-            (value_count as usize) * <ValueRecord as ComputeSize>::compute_size(&value_format);
+            value_count as usize * <ValueRecord as ComputeSize>::compute_size(&value_format);
         cursor.advance_by(value_records_byte_len);
         cursor.finish(SinglePosFormat2Marker {
             value_records_byte_len,
@@ -701,14 +701,14 @@ impl PairPosFormat1Marker {
 
 impl TableInfo for PairPosFormat1Marker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         cursor.advance::<ValueFormat>();
         cursor.advance::<ValueFormat>();
         let pair_set_count: u16 = cursor.read()?;
-        let pair_set_offsets_byte_len = (pair_set_count as usize) * Offset16::RAW_BYTE_LEN;
+        let pair_set_offsets_byte_len = pair_set_count as usize * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(pair_set_offsets_byte_len);
         cursor.finish(PairPosFormat1Marker {
             pair_set_offsets_byte_len,
@@ -807,7 +807,7 @@ impl TableInfoWithArgs for PairSetMarker {
         let (value_format1, value_format2) = *args;
         let mut cursor = data.cursor();
         let pair_value_count: u16 = cursor.read()?;
-        let pair_value_records_byte_len = (pair_value_count as usize)
+        let pair_value_records_byte_len = pair_value_count as usize
             * <PairValueRecord as ComputeSize>::compute_size(&(value_format1, value_format2));
         cursor.advance_by(pair_value_records_byte_len);
         cursor.finish(PairSetMarker {
@@ -959,7 +959,7 @@ impl PairPosFormat2Marker {
 
 impl TableInfo for PairPosFormat2Marker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
@@ -969,7 +969,7 @@ impl TableInfo for PairPosFormat2Marker {
         cursor.advance::<Offset16>();
         let class1_count: u16 = cursor.read()?;
         let class2_count: u16 = cursor.read()?;
-        let class1_records_byte_len = (class1_count as usize)
+        let class1_records_byte_len = class1_count as usize
             * <Class1Record as ComputeSize>::compute_size(&(
                 class2_count,
                 value_format1,
@@ -1093,7 +1093,7 @@ impl ReadArgs for Class1Record<'_> {
 impl ComputeSize for Class1Record<'_> {
     fn compute_size(args: &(u16, ValueFormat, ValueFormat)) -> usize {
         let (class2_count, value_format1, value_format2) = *args;
-        (class2_count as usize)
+        class2_count as usize
             * <Class2Record as ComputeSize>::compute_size(&(value_format1, value_format2))
     }
 }
@@ -1108,7 +1108,7 @@ impl<'a> FontReadWithArgs<'a> for Class1Record<'a> {
         let (class2_count, value_format1, value_format2) = *args;
         Ok(Self {
             class2_records: cursor
-                .read_computed_array((class2_count as usize), &(value_format1, value_format2))?,
+                .read_computed_array(class2_count as usize, &(value_format1, value_format2))?,
         })
     }
 }
@@ -1195,13 +1195,12 @@ impl CursivePosFormat1Marker {
 
 impl TableInfo for CursivePosFormat1Marker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let entry_exit_count: u16 = cursor.read()?;
-        let entry_exit_record_byte_len =
-            (entry_exit_count as usize) * EntryExitRecord::RAW_BYTE_LEN;
+        let entry_exit_record_byte_len = entry_exit_count as usize * EntryExitRecord::RAW_BYTE_LEN;
         cursor.advance_by(entry_exit_record_byte_len);
         cursor.finish(CursivePosFormat1Marker {
             entry_exit_record_byte_len,
@@ -1328,7 +1327,7 @@ impl MarkBasePosFormat1Marker {
 }
 
 impl TableInfo for MarkBasePosFormat1Marker {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
@@ -1443,7 +1442,7 @@ impl TableInfoWithArgs for BaseArrayMarker {
         let mut cursor = data.cursor();
         let base_count: u16 = cursor.read()?;
         let base_records_byte_len =
-            (base_count as usize) * <BaseRecord as ComputeSize>::compute_size(&mark_class_count);
+            base_count as usize * <BaseRecord as ComputeSize>::compute_size(&mark_class_count);
         cursor.advance_by(base_records_byte_len);
         cursor.finish(BaseArrayMarker {
             mark_class_count,
@@ -1509,7 +1508,7 @@ impl ReadArgs for BaseRecord<'_> {
 impl ComputeSize for BaseRecord<'_> {
     fn compute_size(args: &u16) -> usize {
         let mark_class_count = *args;
-        (mark_class_count as usize) * Offset16::RAW_BYTE_LEN
+        mark_class_count as usize * Offset16::RAW_BYTE_LEN
     }
 }
 
@@ -1519,7 +1518,7 @@ impl<'a> FontReadWithArgs<'a> for BaseRecord<'a> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
         Ok(Self {
-            base_anchor_offsets: cursor.read_array((mark_class_count as usize))?,
+            base_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
         })
     }
 }
@@ -1561,7 +1560,7 @@ impl MarkLigPosFormat1Marker {
 }
 
 impl TableInfo for MarkLigPosFormat1Marker {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
@@ -1675,7 +1674,7 @@ impl TableInfoWithArgs for LigatureArrayMarker {
         let mark_class_count = *args;
         let mut cursor = data.cursor();
         let ligature_count: u16 = cursor.read()?;
-        let ligature_attach_offsets_byte_len = (ligature_count as usize) * Offset16::RAW_BYTE_LEN;
+        let ligature_attach_offsets_byte_len = ligature_count as usize * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(ligature_attach_offsets_byte_len);
         cursor.finish(LigatureArrayMarker {
             mark_class_count,
@@ -1749,7 +1748,7 @@ impl TableInfoWithArgs for LigatureAttachMarker {
         let mark_class_count = *args;
         let mut cursor = data.cursor();
         let component_count: u16 = cursor.read()?;
-        let component_records_byte_len = (component_count as usize)
+        let component_records_byte_len = component_count as usize
             * <ComponentRecord as ComputeSize>::compute_size(&mark_class_count);
         cursor.advance_by(component_records_byte_len);
         cursor.finish(LigatureAttachMarker {
@@ -1816,7 +1815,7 @@ impl ReadArgs for ComponentRecord<'_> {
 impl ComputeSize for ComponentRecord<'_> {
     fn compute_size(args: &u16) -> usize {
         let mark_class_count = *args;
-        (mark_class_count as usize) * Offset16::RAW_BYTE_LEN
+        mark_class_count as usize * Offset16::RAW_BYTE_LEN
     }
 }
 
@@ -1826,7 +1825,7 @@ impl<'a> FontReadWithArgs<'a> for ComponentRecord<'a> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
         Ok(Self {
-            ligature_anchor_offsets: cursor.read_array((mark_class_count as usize))?,
+            ligature_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
         })
     }
 }
@@ -1868,7 +1867,7 @@ impl MarkMarkPosFormat1Marker {
 }
 
 impl TableInfo for MarkMarkPosFormat1Marker {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
@@ -1983,7 +1982,7 @@ impl TableInfoWithArgs for Mark2ArrayMarker {
         let mut cursor = data.cursor();
         let mark2_count: u16 = cursor.read()?;
         let mark2_records_byte_len =
-            (mark2_count as usize) * <Mark2Record as ComputeSize>::compute_size(&mark_class_count);
+            mark2_count as usize * <Mark2Record as ComputeSize>::compute_size(&mark_class_count);
         cursor.advance_by(mark2_records_byte_len);
         cursor.finish(Mark2ArrayMarker {
             mark_class_count,
@@ -2049,7 +2048,7 @@ impl ReadArgs for Mark2Record<'_> {
 impl ComputeSize for Mark2Record<'_> {
     fn compute_size(args: &u16) -> usize {
         let mark_class_count = *args;
-        (mark_class_count as usize) * Offset16::RAW_BYTE_LEN
+        mark_class_count as usize * Offset16::RAW_BYTE_LEN
     }
 }
 
@@ -2059,7 +2058,7 @@ impl<'a> FontReadWithArgs<'a> for Mark2Record<'a> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
         Ok(Self {
-            mark2_anchor_offsets: cursor.read_array((mark_class_count as usize))?,
+            mark2_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
         })
     }
 }
@@ -2089,7 +2088,7 @@ impl ExtensionPosFormat1Marker {
 }
 
 impl TableInfo for ExtensionPosFormat1Marker {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();

@@ -13,7 +13,7 @@ pub struct GlyfMarker {}
 impl GlyfMarker {}
 
 impl TableInfo for GlyfMarker {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let cursor = data.cursor();
         cursor.finish(GlyfMarker {})
     }
@@ -74,7 +74,7 @@ impl SimpleGlyphMarker {
 
 impl TableInfo for SimpleGlyphMarker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         let number_of_contours: i16 = cursor.read()?;
         cursor.advance::<i16>();
@@ -84,7 +84,7 @@ impl TableInfo for SimpleGlyphMarker {
         let end_pts_of_contours_byte_len = number_of_contours.max(0) as usize * u16::RAW_BYTE_LEN;
         cursor.advance_by(end_pts_of_contours_byte_len);
         let instruction_length: u16 = cursor.read()?;
-        let instructions_byte_len = (instruction_length as usize) * u8::RAW_BYTE_LEN;
+        let instructions_byte_len = instruction_length as usize * u8::RAW_BYTE_LEN;
         cursor.advance_by(instructions_byte_len);
         let glyph_data_byte_len = cursor.remaining_bytes();
         cursor.advance_by(glyph_data_byte_len);
@@ -217,7 +217,7 @@ impl CompositeGlyphMarker {
 
 impl TableInfo for CompositeGlyphMarker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<i16>();
         cursor.advance::<i16>();

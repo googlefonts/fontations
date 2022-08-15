@@ -88,7 +88,7 @@ impl MaxpMarker {
 }
 
 impl TableInfo for MaxpMarker {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         let version: Version16Dot16 = cursor.read()?;
         cursor.advance::<u16>();

@@ -64,7 +64,7 @@ impl<'a> FontRef<'a> {
             .and_then(|idx| self.table_directory.table_records().get(idx))
             .and_then(|record| {
                 let start = record.offset().non_null()?;
-                let len = record.len() as usize;
+                let len = record.length() as usize;
                 self.data.slice(start..start + len)
             })
     }

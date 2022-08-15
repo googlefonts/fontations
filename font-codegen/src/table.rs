@@ -90,7 +90,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
         Ok(quote! {
             impl TableInfo for #marker_name {
             #ignore_parens
-            fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+            fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
                 let #maybe_mut_kw cursor = data.cursor();
                 #( #field_validation_stmts )*
                 cursor.finish( #marker_name {

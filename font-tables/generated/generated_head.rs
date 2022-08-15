@@ -82,7 +82,7 @@ impl HeadMarker {
 }
 
 impl TableInfo for HeadMarker {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
         cursor.advance::<Fixed>();

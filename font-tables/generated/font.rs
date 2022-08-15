@@ -40,14 +40,14 @@ impl TableDirectoryMarker {
 
 impl TableInfo for TableDirectoryMarker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u32>();
         let num_tables: u16 = cursor.read()?;
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        let table_records_byte_len = (num_tables as usize) * TableRecord::RAW_BYTE_LEN;
+        let table_records_byte_len = num_tables as usize * TableRecord::RAW_BYTE_LEN;
         cursor.advance_by(table_records_byte_len);
         cursor.finish(TableDirectoryMarker {
             table_records_byte_len,
@@ -101,7 +101,7 @@ pub struct TableRecord {
     /// Offset from the beginning of the font data.
     pub offset: BigEndian<Offset32>,
     /// Length of the table.
-    pub len: BigEndian<u32>,
+    pub length: BigEndian<u32>,
 }
 
 impl TableRecord {
@@ -121,8 +121,8 @@ impl TableRecord {
     }
 
     /// Length of the table.
-    pub fn len(&self) -> u32 {
-        self.len.get()
+    pub fn length(&self) -> u32 {
+        self.length.get()
     }
 }
 

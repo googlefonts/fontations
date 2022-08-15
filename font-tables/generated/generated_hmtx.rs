@@ -36,7 +36,7 @@ impl TableInfoWithArgs for HmtxMarker {
     ) -> Result<TableRef<'a, Self>, ReadError> {
         let (number_of_h_metrics, num_glyphs) = *args;
         let mut cursor = data.cursor();
-        let h_metrics_byte_len = (number_of_h_metrics as usize) * LongHorMetric::RAW_BYTE_LEN;
+        let h_metrics_byte_len = number_of_h_metrics as usize * LongHorMetric::RAW_BYTE_LEN;
         cursor.advance_by(h_metrics_byte_len);
         let left_side_bearings_byte_len =
             num_glyphs.saturating_sub(number_of_h_metrics) as usize * i16::RAW_BYTE_LEN;

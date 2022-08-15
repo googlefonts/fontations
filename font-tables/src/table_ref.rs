@@ -26,7 +26,7 @@ pub struct TableRef<'a, T> {
 /// These stored values can be used at runtime to provide fast access to a table's
 /// fields, without needing to perform redundant bounds checks.
 pub trait TableInfo: Sized + Copy {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError>;
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError>;
 }
 
 /// A trait for types that describe the structure of a font table, but require

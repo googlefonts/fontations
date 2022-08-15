@@ -787,7 +787,7 @@ impl Count {
 
     pub(crate) fn count_expr(&self) -> TokenStream {
         match self {
-            Count::Field(field) => quote!( (#field as usize) ),
+            Count::Field(field) => quote!(#field as usize),
             Count::Expr(expr) => expr.expr.to_token_stream(),
             Count::All => panic!("count_to annotation is handled before here"),
         }

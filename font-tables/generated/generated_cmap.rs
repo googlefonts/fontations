@@ -29,11 +29,11 @@ impl CmapMarker {
 
 impl TableInfo for CmapMarker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let num_tables: u16 = cursor.read()?;
-        let encoding_records_byte_len = (num_tables as usize) * EncodingRecord::RAW_BYTE_LEN;
+        let encoding_records_byte_len = num_tables as usize * EncodingRecord::RAW_BYTE_LEN;
         cursor.advance_by(encoding_records_byte_len);
         cursor.finish(CmapMarker {
             encoding_records_byte_len,
@@ -206,7 +206,7 @@ impl Cmap0Marker {
 
 impl TableInfo for Cmap0Marker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
@@ -281,7 +281,7 @@ impl Cmap2Marker {
 
 impl TableInfo for Cmap2Marker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
@@ -439,7 +439,7 @@ impl Cmap4Marker {
 
 impl TableInfo for Cmap4Marker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
@@ -591,14 +591,14 @@ impl Cmap6Marker {
 
 impl TableInfo for Cmap6Marker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         let entry_count: u16 = cursor.read()?;
-        let glyph_id_array_byte_len = (entry_count as usize) * u16::RAW_BYTE_LEN;
+        let glyph_id_array_byte_len = entry_count as usize * u16::RAW_BYTE_LEN;
         cursor.advance_by(glyph_id_array_byte_len);
         cursor.finish(Cmap6Marker {
             glyph_id_array_byte_len,
@@ -693,7 +693,7 @@ impl Cmap8Marker {
 
 impl TableInfo for Cmap8Marker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
@@ -702,7 +702,7 @@ impl TableInfo for Cmap8Marker {
         let is32_byte_len = 8192 * u8::RAW_BYTE_LEN;
         cursor.advance_by(is32_byte_len);
         let num_groups: u32 = cursor.read()?;
-        let groups_byte_len = (num_groups as usize) * SequentialMapGroup::RAW_BYTE_LEN;
+        let groups_byte_len = num_groups as usize * SequentialMapGroup::RAW_BYTE_LEN;
         cursor.advance_by(groups_byte_len);
         cursor.finish(Cmap8Marker {
             is32_byte_len,
@@ -841,7 +841,7 @@ impl Cmap10Marker {
 
 impl TableInfo for Cmap10Marker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
@@ -939,14 +939,14 @@ impl Cmap12Marker {
 
 impl TableInfo for Cmap12Marker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u32>();
         cursor.advance::<u32>();
         let num_groups: u32 = cursor.read()?;
-        let groups_byte_len = (num_groups as usize) * SequentialMapGroup::RAW_BYTE_LEN;
+        let groups_byte_len = num_groups as usize * SequentialMapGroup::RAW_BYTE_LEN;
         cursor.advance_by(groups_byte_len);
         cursor.finish(Cmap12Marker { groups_byte_len })
     }
@@ -1028,14 +1028,14 @@ impl Cmap13Marker {
 
 impl TableInfo for Cmap13Marker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u32>();
         cursor.advance::<u32>();
         let num_groups: u32 = cursor.read()?;
-        let groups_byte_len = (num_groups as usize) * ConstantMapGroup::RAW_BYTE_LEN;
+        let groups_byte_len = num_groups as usize * ConstantMapGroup::RAW_BYTE_LEN;
         cursor.advance_by(groups_byte_len);
         cursor.finish(Cmap13Marker { groups_byte_len })
     }
@@ -1145,13 +1145,13 @@ impl Cmap14Marker {
 
 impl TableInfo for Cmap14Marker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u32>();
         let num_var_selector_records: u32 = cursor.read()?;
         let var_selector_byte_len =
-            (num_var_selector_records as usize) * VariationSelector::RAW_BYTE_LEN;
+            num_var_selector_records as usize * VariationSelector::RAW_BYTE_LEN;
         cursor.advance_by(var_selector_byte_len);
         cursor.finish(Cmap14Marker {
             var_selector_byte_len,
@@ -1247,10 +1247,10 @@ impl DefaultUvsMarker {
 
 impl TableInfo for DefaultUvsMarker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         let num_unicode_value_ranges: u32 = cursor.read()?;
-        let ranges_byte_len = (num_unicode_value_ranges as usize) * UnicodeRange::RAW_BYTE_LEN;
+        let ranges_byte_len = num_unicode_value_ranges as usize * UnicodeRange::RAW_BYTE_LEN;
         cursor.advance_by(ranges_byte_len);
         cursor.finish(DefaultUvsMarker { ranges_byte_len })
     }

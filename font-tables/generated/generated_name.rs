@@ -44,12 +44,12 @@ impl NameMarker {
 
 impl TableInfo for NameMarker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         let version: u16 = cursor.read()?;
         let count: u16 = cursor.read()?;
         cursor.advance::<Offset16>();
-        let name_record_byte_len = (count as usize) * NameRecord::RAW_BYTE_LEN;
+        let name_record_byte_len = count as usize * NameRecord::RAW_BYTE_LEN;
         cursor.advance_by(name_record_byte_len);
         let lang_tag_count_byte_start = version
             .compatible(1)
@@ -66,8 +66,10 @@ impl TableInfo for NameMarker {
             .transpose()?;
         let lang_tag_record_byte_len = version
             .compatible(1)
-            .then(|| (lang_tag_count as usize) * LangTagRecord::RAW_BYTE_LEN);
-        lang_tag_record_byte_len.map(|value| cursor.advance_by(value));
+            .then(|| lang_tag_count as usize * LangTagRecord::RAW_BYTE_LEN);
+        if let Some(value) = lang_tag_record_byte_len {
+            cursor.advance_by(value);
+        }
         cursor.finish(NameMarker {
             name_record_byte_len,
             lang_tag_count_byte_start,

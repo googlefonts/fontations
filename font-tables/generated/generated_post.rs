@@ -69,7 +69,7 @@ impl PostMarker {
 
 impl TableInfo for PostMarker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         let version: Version16Dot16 = cursor.read()?;
         cursor.advance::<Fixed>();
@@ -95,8 +95,10 @@ impl TableInfo for PostMarker {
             .transpose()?;
         let glyph_name_index_byte_len = version
             .compatible(Version16Dot16::VERSION_2_0)
-            .then(|| (num_glyphs as usize) * u16::RAW_BYTE_LEN);
-        glyph_name_index_byte_len.map(|value| cursor.advance_by(value));
+            .then(|| num_glyphs as usize * u16::RAW_BYTE_LEN);
+        if let Some(value) = glyph_name_index_byte_len {
+            cursor.advance_by(value);
+        }
         let string_data_byte_start = version
             .compatible(Version16Dot16::VERSION_2_0)
             .then(|| cursor.position())
@@ -104,7 +106,9 @@ impl TableInfo for PostMarker {
         let string_data_byte_len = version
             .compatible(Version16Dot16::VERSION_2_0)
             .then(|| cursor.remaining_bytes());
-        string_data_byte_len.map(|value| cursor.advance_by(value));
+        if let Some(value) = string_data_byte_len {
+            cursor.advance_by(value);
+        }
         cursor.finish(PostMarker {
             num_glyphs_byte_start,
             glyph_name_index_byte_start,

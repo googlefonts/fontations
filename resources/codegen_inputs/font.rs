@@ -21,5 +21,5 @@ record TableRecord {
     #[compile_type(u32)] // we set these manually
     offset: BigEndian<Offset32>,
     /// Length of the table.
-    len: BigEndian<u32>,
+    length: BigEndian<u32>,
 }

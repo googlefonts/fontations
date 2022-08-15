@@ -45,7 +45,7 @@ impl GdefMarker {
 }
 
 impl TableInfo for GdefMarker {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
         cursor.advance::<Offset16>();
@@ -223,11 +223,11 @@ impl AttachListMarker {
 
 impl TableInfo for AttachListMarker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
         let glyph_count: u16 = cursor.read()?;
-        let attach_point_offsets_byte_len = (glyph_count as usize) * Offset16::RAW_BYTE_LEN;
+        let attach_point_offsets_byte_len = glyph_count as usize * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(attach_point_offsets_byte_len);
         cursor.finish(AttachListMarker {
             attach_point_offsets_byte_len,
@@ -292,10 +292,10 @@ impl AttachPointMarker {
 
 impl TableInfo for AttachPointMarker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         let point_count: u16 = cursor.read()?;
-        let point_indices_byte_len = (point_count as usize) * u16::RAW_BYTE_LEN;
+        let point_indices_byte_len = point_count as usize * u16::RAW_BYTE_LEN;
         cursor.advance_by(point_indices_byte_len);
         cursor.finish(AttachPointMarker {
             point_indices_byte_len,
@@ -344,11 +344,11 @@ impl LigCaretListMarker {
 
 impl TableInfo for LigCaretListMarker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
         let lig_glyph_count: u16 = cursor.read()?;
-        let lig_glyph_offsets_byte_len = (lig_glyph_count as usize) * Offset16::RAW_BYTE_LEN;
+        let lig_glyph_offsets_byte_len = lig_glyph_count as usize * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(lig_glyph_offsets_byte_len);
         cursor.finish(LigCaretListMarker {
             lig_glyph_offsets_byte_len,
@@ -413,10 +413,10 @@ impl LigGlyphMarker {
 
 impl TableInfo for LigGlyphMarker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         let caret_count: u16 = cursor.read()?;
-        let caret_value_offsets_byte_len = (caret_count as usize) * Offset16::RAW_BYTE_LEN;
+        let caret_value_offsets_byte_len = caret_count as usize * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(caret_value_offsets_byte_len);
         cursor.finish(LigGlyphMarker {
             caret_value_offsets_byte_len,
@@ -489,7 +489,7 @@ impl CaretValueFormat1Marker {
 }
 
 impl TableInfo for CaretValueFormat1Marker {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<i16>();
@@ -535,7 +535,7 @@ impl CaretValueFormat2Marker {
 }
 
 impl TableInfo for CaretValueFormat2Marker {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
@@ -585,7 +585,7 @@ impl CaretValueFormat3Marker {
 }
 
 impl TableInfo for CaretValueFormat3Marker {
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<i16>();
@@ -653,11 +653,11 @@ impl MarkGlyphSetsMarker {
 
 impl TableInfo for MarkGlyphSetsMarker {
     #[allow(unused_parens)]
-    fn parse<'a>(data: FontData<'a>) -> Result<TableRef<'a, Self>, ReadError> {
+    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let mark_glyph_set_count: u16 = cursor.read()?;
-        let coverage_offsets_byte_len = (mark_glyph_set_count as usize) * Offset32::RAW_BYTE_LEN;
+        let coverage_offsets_byte_len = mark_glyph_set_count as usize * Offset32::RAW_BYTE_LEN;
         cursor.advance_by(coverage_offsets_byte_len);
         cursor.finish(MarkGlyphSetsMarker {
             coverage_offsets_byte_len,
