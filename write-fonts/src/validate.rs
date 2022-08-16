@@ -30,7 +30,7 @@ pub trait Validate {
     /// If you need to implement this directly, it should look something like:
     ///
     /// ```rust
-    /// # use compile_tables::compile_prelude::*;
+    /// # use write_fonts::compile_prelude::*;
     /// struct MyRecord {
     ///     my_values: Vec<u16>,
     /// }

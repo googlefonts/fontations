@@ -1,4 +1,4 @@
-#![parse_module(font_tables)]
+#![parse_module(read_fonts)]
 
 #[skip_from_obj]
 table TableDirectory {

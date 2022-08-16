@@ -3,7 +3,7 @@
 use std::collections::HashSet;
 
 #[cfg(feature = "parsing")]
-use font_tables::FontRead;
+use read_fonts::FontRead;
 
 pub mod gdef;
 pub mod gpos;
@@ -67,12 +67,12 @@ impl<T: Validate> Validate for ExtensionSubtable<T> {
 }
 
 #[cfg(feature = "parsing")]
-impl<'a, U, T> FromObjRef<font_tables::layout::TypedLookup<'a, U>> for Lookup<T>
+impl<'a, U, T> FromObjRef<read_fonts::layout::TypedLookup<'a, U>> for Lookup<T>
 where
     U: FontRead<'a>,
     T: FromTableRef<U> + 'static,
 {
-    fn from_obj_ref(from: &font_tables::layout::TypedLookup<'a, U>, _data: &FontData) -> Self {
+    fn from_obj_ref(from: &read_fonts::layout::TypedLookup<'a, U>, _data: &FontData) -> Self {
         Lookup {
             lookup_flag: from.lookup_flag(),
             mark_filtering_set: from.mark_filtering_set(),
@@ -89,13 +89,13 @@ where
 }
 
 #[cfg(feature = "parsing")]
-impl<'a, U, T> FromObjRef<font_tables::layout::gpos::TypedExtension<'a, U>> for ExtensionSubtable<T>
+impl<'a, U, T> FromObjRef<read_fonts::layout::gpos::TypedExtension<'a, U>> for ExtensionSubtable<T>
 where
     U: FontRead<'a>,
     T: FromTableRef<U> + 'static,
 {
     fn from_obj_ref(
-        from: &font_tables::layout::gpos::TypedExtension<'a, U>,
+        from: &read_fonts::layout::gpos::TypedExtension<'a, U>,
         _data: &FontData,
     ) -> Self {
         ExtensionSubtable {
@@ -156,9 +156,9 @@ impl Validate for FeatureParams {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::FeatureParams<'_>> for FeatureParams {
-    fn from_obj_ref(from: &font_tables::layout::FeatureParams, data: &FontData) -> Self {
-        use font_tables::layout::FeatureParams as FromType;
+impl FromObjRef<read_fonts::layout::FeatureParams<'_>> for FeatureParams {
+    fn from_obj_ref(from: &read_fonts::layout::FeatureParams, data: &FontData) -> Self {
+        use read_fonts::layout::FeatureParams as FromType;
         match from {
             FromType::Size(thing) => Self::Size(SizeParams::from_obj_ref(thing, data)),
             FromType::StylisticSet(thing) => {
@@ -172,7 +172,7 @@ impl FromObjRef<font_tables::layout::FeatureParams<'_>> for FeatureParams {
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::FeatureParams<'_>> for FeatureParams {}
+impl FromTableRef<read_fonts::layout::FeatureParams<'_>> for FeatureParams {}
 
 impl ClassDefFormat1 {
     fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
@@ -228,7 +228,7 @@ impl ClassDef {
 }
 
 #[cfg(feature = "parsing")]
-fn convert_delta_format(from: font_tables::layout::DeltaFormat) -> DeltaFormat {
+fn convert_delta_format(from: read_fonts::layout::DeltaFormat) -> DeltaFormat {
     match from as u16 {
         0x0002 => DeltaFormat::Local4BitDeltas,
         0x0003 => DeltaFormat::Local8BitDeltas,

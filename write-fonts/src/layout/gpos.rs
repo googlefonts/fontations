@@ -100,9 +100,9 @@ impl Validate for PositionLookup {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::PositionLookup<'_>> for PositionLookup {
-    fn from_obj_ref(from: &font_tables::layout::gpos::PositionLookup<'_>, data: &FontData) -> Self {
-        use font_tables::layout::gpos::PositionLookup as FromType;
+impl FromObjRef<read_fonts::layout::gpos::PositionLookup<'_>> for PositionLookup {
+    fn from_obj_ref(from: &read_fonts::layout::gpos::PositionLookup<'_>, data: &FontData) -> Self {
+        use read_fonts::layout::gpos::PositionLookup as FromType;
         match from {
             FromType::Single(lookup) => Self::Single(lookup.to_owned_obj(data)),
             FromType::Pair(lookup) => Self::Pair(lookup.to_owned_obj(data)),
@@ -118,15 +118,15 @@ impl FromObjRef<font_tables::layout::gpos::PositionLookup<'_>> for PositionLooku
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::PositionLookup<'_>> for PositionLookup {}
+impl FromTableRef<read_fonts::layout::gpos::PositionLookup<'_>> for PositionLookup {}
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::ExtensionSubtable<'_>> for Extension {
+impl FromObjRef<read_fonts::layout::gpos::ExtensionSubtable<'_>> for Extension {
     fn from_obj_ref(
-        from: &font_tables::layout::gpos::ExtensionSubtable<'_>,
+        from: &read_fonts::layout::gpos::ExtensionSubtable<'_>,
         data: &FontData,
     ) -> Self {
-        use font_tables::layout::gpos::ExtensionSubtable as FromType;
+        use read_fonts::layout::gpos::ExtensionSubtable as FromType;
         match from {
             FromType::Single(ext) => Self::Single(ext.to_owned_obj(data)),
             FromType::Pair(ext) => Self::Pair(ext.to_owned_obj(data)),
@@ -141,19 +141,19 @@ impl FromObjRef<font_tables::layout::gpos::ExtensionSubtable<'_>> for Extension 
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::ExtensionSubtable<'_>> for Extension {}
+impl FromTableRef<read_fonts::layout::gpos::ExtensionSubtable<'_>> for Extension {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for PositionLookup {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        font_tables::layout::gpos::PositionLookup::read(data).map(|x| x.to_owned_table())
+        read_fonts::layout::gpos::PositionLookup::read(data).map(|x| x.to_owned_table())
     }
 }
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for Extension {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        font_tables::layout::gpos::ExtensionSubtable::read(data).map(|x| x.to_owned_table())
+        read_fonts::layout::gpos::ExtensionSubtable::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -167,9 +167,9 @@ impl FontWrite for PositionLookupList {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::PositionLookupList<'_>> for PositionLookupList {
+impl FromObjRef<read_fonts::layout::gpos::PositionLookupList<'_>> for PositionLookupList {
     fn from_obj_ref(
-        from: &font_tables::layout::gpos::PositionLookupList<'_>,
+        from: &read_fonts::layout::gpos::PositionLookupList<'_>,
         _data: &FontData,
     ) -> Self {
         PositionLookupList {
@@ -184,12 +184,12 @@ impl FromObjRef<font_tables::layout::gpos::PositionLookupList<'_>> for PositionL
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for PositionLookupList {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        font_tables::layout::gpos::PositionLookupList::read(data).map(|x| x.to_owned_table())
+        read_fonts::layout::gpos::PositionLookupList::read(data).map(|x| x.to_owned_table())
     }
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::PositionLookupList<'_>> for PositionLookupList {}
+impl FromTableRef<read_fonts::layout::gpos::PositionLookupList<'_>> for PositionLookupList {}
 
 impl FontWrite for Extension {
     fn write_into(&self, writer: &mut TableWriter) {

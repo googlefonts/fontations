@@ -1,4 +1,4 @@
-#![parse_module(font_tables::tables::hhea)]
+#![parse_module(read_fonts::tables::hhea)]
 
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
 table Hhea {

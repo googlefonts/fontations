@@ -26,7 +26,7 @@ pub mod compile_prelude {
     #[cfg(feature = "parsing")]
     pub use super::from_obj::{FromObjRef, FromTableRef, ToOwnedObj, ToOwnedTable};
     #[cfg(feature = "parsing")]
-    pub use font_tables::parse_prelude::{
+    pub use read_fonts::parse_prelude::{
         FontData, FontRead, FontReadWithArgs, ReadArgs, ReadError, ResolveOffset,
     };
 

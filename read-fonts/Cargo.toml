@@ -1,5 +1,5 @@
 [package]
-name = "font-tables"
+name = "read-fonts"
 version = "0.0.0"
 edition = "2021"
 license = "MIT/Apache-2.0"

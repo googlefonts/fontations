@@ -5,8 +5,8 @@
 
 use std::{collections::HashSet, str::FromStr};
 
-use font_tables::{FontData, FontRef, TableProvider};
 use font_types::Tag;
+use read_fonts::{FontData, FontRef, TableProvider};
 
 fn main() -> Result<(), Error> {
     let args = match flags::Args::from_env() {
@@ -58,17 +58,17 @@ fn print_tables(font: &FontRef, filter: &TableFilter) {
 
 fn print_table(font: &FontRef, tag: Tag) {
     match tag {
-        font_tables::tables::gpos::TAG => println!("{tag}: {:#?}", font.gpos().unwrap()),
-        font_tables::tables::cmap::TAG => println!("{tag}: {:#?}", font.cmap().unwrap()),
-        font_tables::tables::gdef::TAG => println!("{tag}: {:#?}", font.gdef().unwrap()),
-        font_tables::tables::glyf::TAG => println!("{tag}: {:#?}", font.glyf().unwrap()),
-        font_tables::tables::head::TAG => println!("{tag}: {:#?}", font.head().unwrap()),
-        font_tables::tables::hhea::TAG => println!("{tag}: {:#?}", font.hhea().unwrap()),
-        font_tables::tables::hmtx::TAG => println!("{tag}: {:#?}", font.hmtx().unwrap()),
-        //font_tables::tables::loca::TAG => println!("{tag}: {:#?}", font.loca().unwrap()),
-        font_tables::tables::maxp::TAG => println!("{tag}: {:#?}", font.maxp().unwrap()),
-        font_tables::tables::name::TAG => println!("{tag}: {:#?}", font.name().unwrap()),
-        font_tables::tables::post::TAG => println!("{tag}: {:#?}", font.post().unwrap()),
+        read_fonts::tables::gpos::TAG => println!("{tag}: {:#?}", font.gpos().unwrap()),
+        read_fonts::tables::cmap::TAG => println!("{tag}: {:#?}", font.cmap().unwrap()),
+        read_fonts::tables::gdef::TAG => println!("{tag}: {:#?}", font.gdef().unwrap()),
+        read_fonts::tables::glyf::TAG => println!("{tag}: {:#?}", font.glyf().unwrap()),
+        read_fonts::tables::head::TAG => println!("{tag}: {:#?}", font.head().unwrap()),
+        read_fonts::tables::hhea::TAG => println!("{tag}: {:#?}", font.hhea().unwrap()),
+        read_fonts::tables::hmtx::TAG => println!("{tag}: {:#?}", font.hmtx().unwrap()),
+        //read_fonts::tables::loca::TAG => println!("{tag}: {:#?}", font.loca().unwrap()),
+        read_fonts::tables::maxp::TAG => println!("{tag}: {:#?}", font.maxp().unwrap()),
+        read_fonts::tables::name::TAG => println!("{tag}: {:#?}", font.name().unwrap()),
+        read_fonts::tables::post::TAG => println!("{tag}: {:#?}", font.post().unwrap()),
         _ => println!("unknown tag {tag}"),
     }
 }

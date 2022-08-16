@@ -1,4 +1,4 @@
-#![parse_module(font_tables::tables::maxp)]
+#![parse_module(read_fonts::tables::maxp)]
 
 /// [`maxp`](https://docs.microsoft.com/en-us/typography/opentype/spec/maxp)
 table Maxp {

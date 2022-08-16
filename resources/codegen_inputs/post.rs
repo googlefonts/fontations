@@ -1,4 +1,4 @@
-#![parse_module(font_tables::tables::post)]
+#![parse_module(read_fonts::tables::post)]
 
 /// [post (PostScript)](https://docs.microsoft.com/en-us/typography/opentype/spec/post#header) table
 table Post {

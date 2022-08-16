@@ -11,7 +11,7 @@ As a quick overview, adding a new table works like this:
   instruct the codegen tool on how to treat various objects and fields.
 - *this* file is then run through the actual `codegen` binary, which outputs
   (hopefully) valid rust code.
-- the generated file is (generally) then written to `font-tables/generated`.
+- the generated file is (generally) then written to `read/write-fonts/generated`.
 - by convention, the contents of these generated files (which are not in the
   crate's module tree) are glob-imported into some file that *is* in that tree.
   Any hand-written implementation code lives in that file, which is only edited

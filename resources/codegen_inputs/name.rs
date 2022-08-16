@@ -1,4 +1,4 @@
-#![parse_module(font_tables::tables::name)]
+#![parse_module(read_fonts::tables::name)]
 /// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
 table Name {
     /// Table version number (0 or 1)
