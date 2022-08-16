@@ -145,7 +145,12 @@ pub(crate) fn generate_compile(item: &Table, parse_module: &syn::Path) -> syn::R
         return Ok(decl);
     }
 
-    let to_owned_impl = generate_to_owned_impl(item, parse_module)?;
+    let to_owned_impl = item
+        .attrs
+        .skip_from_obj
+        .is_none()
+        .then(|| generate_to_owned_impl(item, parse_module))
+        .transpose()?;
     Ok(quote! {
         #decl
         #to_owned_impl
@@ -195,7 +200,7 @@ pub(crate) fn generate_format_compile(
     parse_module: &syn::Path,
 ) -> syn::Result<TokenStream> {
     let name = &item.name;
-    let docs = &item.docs;
+    let docs = &item.attrs.docs;
     let variants = item.variants.iter().map(|variant| {
         let name = &variant.name;
         let typ = variant.type_name();
@@ -213,11 +218,12 @@ pub(crate) fn generate_format_compile(
         quote!( Self::#var_name(item) => item.validate_impl(ctx), )
     });
 
-    let to_owned_arms = item.variants.iter().map(|variant| {
-        let var_name = &variant.name;
-        quote!( ObjRefType::#var_name(item) => #name::#var_name(item.to_owned_table()), )
-    });
-
+    let from_obj_impl = item
+        .attrs
+        .skip_from_obj
+        .is_none()
+        .then(|| generate_format_from_obj(item, parse_module))
+        .transpose()?;
     Ok(quote! {
         #( #docs )*
         #[derive(Clone, Debug)]
@@ -241,6 +247,22 @@ pub(crate) fn generate_format_compile(
             }
         }
 
+        #from_obj_impl
+
+    })
+}
+
+fn generate_format_from_obj(
+    item: &TableFormat,
+    parse_module: &syn::Path,
+) -> syn::Result<TokenStream> {
+    let name = &item.name;
+    let to_owned_arms = item.variants.iter().map(|variant| {
+        let var_name = &variant.name;
+        quote!( ObjRefType::#var_name(item) => #name::#var_name(item.to_owned_table()), )
+    });
+
+    Ok(quote! {
         #[cfg(feature = "parsing")]
         impl FromObjRef<#parse_module:: #name<'_>> for #name {
             fn from_obj_ref(obj: &#parse_module:: #name, _: &FontData) -> Self {
@@ -257,7 +279,8 @@ pub(crate) fn generate_format_compile(
         #[cfg(feature = "parsing")]
         impl<'a> FontRead<'a> for #name {
             fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-                <#parse_module :: #name as FontRead>::read(data).map(|x| x.to_owned_table())
+                <#parse_module :: #name as FontRead>::read(data)
+                    .map(|x| x.to_owned_table())
             }
         }
     })
@@ -265,7 +288,7 @@ pub(crate) fn generate_format_compile(
 
 pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStream> {
     let name = &item.name;
-    let docs = &item.docs;
+    let docs = &item.attrs.docs;
     let variants = item.variants.iter().map(|variant| {
         let name = &variant.name;
         let typ = variant.type_name();

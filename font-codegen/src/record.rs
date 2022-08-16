@@ -126,7 +126,12 @@ pub(crate) fn generate_compile(
     parse_module: &syn::Path,
 ) -> syn::Result<proc_macro2::TokenStream> {
     let mut decl = generate_compile_impl(&item.name, &item.attrs, &item.fields)?;
-    let to_owned = generate_from_obj_impl(item, parse_module)?;
+    let to_owned = item
+        .attrs
+        .skip_from_obj
+        .is_none()
+        .then(|| generate_from_obj_impl(item, parse_module))
+        .transpose()?;
     decl.extend(to_owned);
     Ok(decl)
 }
