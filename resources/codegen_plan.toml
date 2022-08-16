@@ -13,10 +13,10 @@ mode = "parse"
 source = "resources/codegen_inputs/font.rs"
 target = "font-tables/generated/font.rs"
 
-#[[generate]]
-#mode = "compile"
-#source = "resources/codegen_inputs/font.rs"
-#target = "font-tables/generated/generated_font_compile.rs"
+[[generate]]
+mode = "compile"
+source = "resources/codegen_inputs/font.rs"
+target = "compile-tables/generated/generated_font.rs"
 
 [[generate]]
 mode = "parse"

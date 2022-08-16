@@ -1,5 +1,6 @@
-#![parse_module(font_tables::font)]
+#![parse_module(font_tables)]
 
+#[skip_from_obj]
 table TableDirectory {
     sfnt_version: BigEndian<u32>,
     #[compile(array_len($table_records))]
@@ -12,6 +13,7 @@ table TableDirectory {
 }
 
 /// Record for a table in a font.
+#[skip_from_obj]
 record TableRecord {
     /// Table identifier.
     tag: BigEndian<Tag>,

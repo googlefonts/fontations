@@ -32,3 +32,8 @@ pub use raw::{BigEndian, FixedSized, ReadScalar, Scalar};
 pub use tag::Tag;
 pub use uint24::Uint24;
 pub use version::{Compatible, MajorMinor, Version16Dot16};
+
+/// The SFNT version for fonts containing TrueType outlines.
+pub const TT_SFNT_VERSION: u32 = 0x00010000;
+/// The SFNT version for fonts containing CFF outlines.
+pub const CFF_SFTN_VERSION: u32 = 0x4F54544F;
