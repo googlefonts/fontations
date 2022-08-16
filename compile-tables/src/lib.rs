@@ -1,5 +1,6 @@
 //! Raw types for compiling opentype tables
 
+mod font_builder;
 #[cfg(feature = "parsing")]
 mod from_obj;
 mod graph;
@@ -11,6 +12,7 @@ pub mod tables;
 mod validate;
 mod write;
 
+pub use font_builder::FontBuilder;
 pub use write::dump_table;
 
 pub mod compile_prelude {
