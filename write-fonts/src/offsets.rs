@@ -32,11 +32,33 @@ pub struct NullableOffsetMarker<T, const N: usize = WIDTH_16> {
 }
 
 impl<const N: usize, T> OffsetMarker<T, N> {
+    /// `true` if the offset is non-null
+    pub fn is_some(&self) -> bool {
+        self.obj.is_some()
+    }
+
+    /// `true` if the offset is null
+    pub fn is_none(&self) -> bool {
+        self.obj.is_none()
+    }
+
     //TODO: how do we handle malformed inputs? do we error earlier than this?
     /// Get the object. Fonts in the wild may be malformed, so this still returns
     /// an option?
     pub fn get(&self) -> Option<&T> {
         self.obj.as_ref()
+    }
+
+    pub fn get_mut(&mut self) -> Option<&mut T> {
+        self.obj.as_mut()
+    }
+
+    pub fn set(&mut self, obj: T) {
+        self.obj = Some(obj);
+    }
+
+    pub fn clear(&mut self) {
+        self.obj = None;
     }
 }
 
@@ -56,12 +78,6 @@ impl<const N: usize, T> OffsetMarker<T, N> {
 }
 
 impl<const N: usize, T> NullableOffsetMarker<T, N> {
-    //TODO: how do we handle malformed inputs? do we error earlier than this?
-    /// Get the object, if it exists.
-    pub fn get(&self) -> Option<&T> {
-        self.obj.as_ref()
-    }
-
     /// `true` if the offset is non-null
     pub fn is_some(&self) -> bool {
         self.obj.is_some()
@@ -70,6 +86,24 @@ impl<const N: usize, T> NullableOffsetMarker<T, N> {
     /// `true` if the offset is null
     pub fn is_none(&self) -> bool {
         self.obj.is_none()
+    }
+
+    //TODO: how do we handle malformed inputs? do we error earlier than this?
+    /// Get the object, if it exists.
+    pub fn get(&self) -> Option<&T> {
+        self.obj.as_ref()
+    }
+
+    pub fn get_mut(&mut self) -> Option<&mut T> {
+        self.obj.as_mut()
+    }
+
+    pub fn set(&mut self, obj: T) {
+        self.obj = Some(obj);
+    }
+
+    pub fn clear(&mut self) {
+        self.obj = None;
     }
 }
 
