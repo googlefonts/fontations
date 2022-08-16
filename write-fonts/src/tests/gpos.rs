@@ -1,6 +1,6 @@
 use super::*;
 use crate::assert_hex_eq;
-use font_tables::test_data::gpos as test_data;
+use read_fonts::test_data::gpos as test_data;
 
 #[test]
 fn singleposformat1() {

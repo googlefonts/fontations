@@ -1,8 +1,8 @@
 [workspace]
 
 members = [
-    "font-tables",
+    "read-fonts",
     "font-types",
     "font-codegen",
-    "compile-tables",
+    "write-fonts",
 ]

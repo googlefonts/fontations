@@ -49,8 +49,8 @@ impl Validate for Gpos {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::Gpos<'_>> for Gpos {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::Gpos, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::Gpos<'_>> for Gpos {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::Gpos, _: &FontData) -> Self {
         Gpos {
             script_list_offset: obj.script_list().into(),
             feature_list_offset: obj.feature_list().into(),
@@ -61,12 +61,12 @@ impl FromObjRef<font_tables::layout::gpos::Gpos<'_>> for Gpos {
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::Gpos<'_>> for Gpos {}
+impl FromTableRef<read_fonts::layout::gpos::Gpos<'_>> for Gpos {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for Gpos {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::Gpos as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::layout::gpos::Gpos as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -108,9 +108,9 @@ impl Validate for AnchorTable {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::AnchorTable<'_>> for AnchorTable {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::AnchorTable, _: &FontData) -> Self {
-        use font_tables::layout::gpos::AnchorTable as ObjRefType;
+impl FromObjRef<read_fonts::layout::gpos::AnchorTable<'_>> for AnchorTable {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::AnchorTable, _: &FontData) -> Self {
+        use read_fonts::layout::gpos::AnchorTable as ObjRefType;
         match obj {
             ObjRefType::Format1(item) => AnchorTable::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => AnchorTable::Format2(item.to_owned_table()),
@@ -120,12 +120,12 @@ impl FromObjRef<font_tables::layout::gpos::AnchorTable<'_>> for AnchorTable {
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::AnchorTable<'_>> for AnchorTable {}
+impl FromTableRef<read_fonts::layout::gpos::AnchorTable<'_>> for AnchorTable {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for AnchorTable {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::AnchorTable as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::layout::gpos::AnchorTable as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -152,8 +152,8 @@ impl Validate for AnchorFormat1 {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::AnchorFormat1<'_>> for AnchorFormat1 {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::AnchorFormat1, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::AnchorFormat1<'_>> for AnchorFormat1 {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::AnchorFormat1, _: &FontData) -> Self {
         AnchorFormat1 {
             x_coordinate: obj.x_coordinate(),
             y_coordinate: obj.y_coordinate(),
@@ -162,12 +162,12 @@ impl FromObjRef<font_tables::layout::gpos::AnchorFormat1<'_>> for AnchorFormat1 
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::AnchorFormat1<'_>> for AnchorFormat1 {}
+impl FromTableRef<read_fonts::layout::gpos::AnchorFormat1<'_>> for AnchorFormat1 {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for AnchorFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::AnchorFormat1 as FontRead>::read(data)
+        <read_fonts::layout::gpos::AnchorFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -198,8 +198,8 @@ impl Validate for AnchorFormat2 {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::AnchorFormat2<'_>> for AnchorFormat2 {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::AnchorFormat2, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::AnchorFormat2<'_>> for AnchorFormat2 {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::AnchorFormat2, _: &FontData) -> Self {
         AnchorFormat2 {
             x_coordinate: obj.x_coordinate(),
             y_coordinate: obj.y_coordinate(),
@@ -209,12 +209,12 @@ impl FromObjRef<font_tables::layout::gpos::AnchorFormat2<'_>> for AnchorFormat2 
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::AnchorFormat2<'_>> for AnchorFormat2 {}
+impl FromTableRef<read_fonts::layout::gpos::AnchorFormat2<'_>> for AnchorFormat2 {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for AnchorFormat2 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::AnchorFormat2 as FontRead>::read(data)
+        <read_fonts::layout::gpos::AnchorFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -261,8 +261,8 @@ impl Validate for AnchorFormat3 {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::AnchorFormat3<'_>> for AnchorFormat3 {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::AnchorFormat3, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::AnchorFormat3<'_>> for AnchorFormat3 {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::AnchorFormat3, _: &FontData) -> Self {
         AnchorFormat3 {
             x_coordinate: obj.x_coordinate(),
             y_coordinate: obj.y_coordinate(),
@@ -273,12 +273,12 @@ impl FromObjRef<font_tables::layout::gpos::AnchorFormat3<'_>> for AnchorFormat3 
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::AnchorFormat3<'_>> for AnchorFormat3 {}
+impl FromTableRef<read_fonts::layout::gpos::AnchorFormat3<'_>> for AnchorFormat3 {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for AnchorFormat3 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::AnchorFormat3 as FontRead>::read(data)
+        <read_fonts::layout::gpos::AnchorFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -313,8 +313,8 @@ impl Validate for MarkArray {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::MarkArray<'_>> for MarkArray {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::MarkArray, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::MarkArray<'_>> for MarkArray {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkArray, _: &FontData) -> Self {
         let offset_data = obj.offset_data();
         MarkArray {
             mark_records: obj
@@ -327,12 +327,12 @@ impl FromObjRef<font_tables::layout::gpos::MarkArray<'_>> for MarkArray {
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::MarkArray<'_>> for MarkArray {}
+impl FromTableRef<read_fonts::layout::gpos::MarkArray<'_>> for MarkArray {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for MarkArray {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::MarkArray as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::layout::gpos::MarkArray as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -363,8 +363,8 @@ impl Validate for MarkRecord {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::MarkRecord> for MarkRecord {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::MarkRecord, offset_data: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::MarkRecord> for MarkRecord {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkRecord, offset_data: &FontData) -> Self {
         MarkRecord {
             mark_class: obj.mark_class(),
             mark_anchor_offset: obj.mark_anchor(offset_data).into(),
@@ -398,9 +398,9 @@ impl Validate for SinglePos {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::SinglePos<'_>> for SinglePos {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::SinglePos, _: &FontData) -> Self {
-        use font_tables::layout::gpos::SinglePos as ObjRefType;
+impl FromObjRef<read_fonts::layout::gpos::SinglePos<'_>> for SinglePos {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::SinglePos, _: &FontData) -> Self {
+        use read_fonts::layout::gpos::SinglePos as ObjRefType;
         match obj {
             ObjRefType::Format1(item) => SinglePos::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => SinglePos::Format2(item.to_owned_table()),
@@ -409,12 +409,12 @@ impl FromObjRef<font_tables::layout::gpos::SinglePos<'_>> for SinglePos {
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::SinglePos<'_>> for SinglePos {}
+impl FromTableRef<read_fonts::layout::gpos::SinglePos<'_>> for SinglePos {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for SinglePos {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::SinglePos as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::layout::gpos::SinglePos as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -449,8 +449,8 @@ impl Validate for SinglePosFormat1 {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::SinglePosFormat1<'_>> for SinglePosFormat1 {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::SinglePosFormat1, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::SinglePosFormat1<'_>> for SinglePosFormat1 {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::SinglePosFormat1, _: &FontData) -> Self {
         let offset_data = obj.offset_data();
         SinglePosFormat1 {
             coverage_offset: obj.coverage().into(),
@@ -460,12 +460,12 @@ impl FromObjRef<font_tables::layout::gpos::SinglePosFormat1<'_>> for SinglePosFo
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::SinglePosFormat1<'_>> for SinglePosFormat1 {}
+impl FromTableRef<read_fonts::layout::gpos::SinglePosFormat1<'_>> for SinglePosFormat1 {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for SinglePosFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::SinglePosFormat1 as FontRead>::read(data)
+        <read_fonts::layout::gpos::SinglePosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -507,8 +507,8 @@ impl Validate for SinglePosFormat2 {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::SinglePosFormat2<'_>> for SinglePosFormat2 {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::SinglePosFormat2, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::SinglePosFormat2<'_>> for SinglePosFormat2 {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::SinglePosFormat2, _: &FontData) -> Self {
         let offset_data = obj.offset_data();
         SinglePosFormat2 {
             coverage_offset: obj.coverage().into(),
@@ -522,12 +522,12 @@ impl FromObjRef<font_tables::layout::gpos::SinglePosFormat2<'_>> for SinglePosFo
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::SinglePosFormat2<'_>> for SinglePosFormat2 {}
+impl FromTableRef<read_fonts::layout::gpos::SinglePosFormat2<'_>> for SinglePosFormat2 {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for SinglePosFormat2 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::SinglePosFormat2 as FontRead>::read(data)
+        <read_fonts::layout::gpos::SinglePosFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -558,9 +558,9 @@ impl Validate for PairPos {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::PairPos<'_>> for PairPos {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::PairPos, _: &FontData) -> Self {
-        use font_tables::layout::gpos::PairPos as ObjRefType;
+impl FromObjRef<read_fonts::layout::gpos::PairPos<'_>> for PairPos {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::PairPos, _: &FontData) -> Self {
+        use read_fonts::layout::gpos::PairPos as ObjRefType;
         match obj {
             ObjRefType::Format1(item) => PairPos::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => PairPos::Format2(item.to_owned_table()),
@@ -569,12 +569,12 @@ impl FromObjRef<font_tables::layout::gpos::PairPos<'_>> for PairPos {
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::PairPos<'_>> for PairPos {}
+impl FromTableRef<read_fonts::layout::gpos::PairPos<'_>> for PairPos {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for PairPos {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::PairPos as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::layout::gpos::PairPos as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -617,8 +617,8 @@ impl Validate for PairPosFormat1 {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::PairPosFormat1<'_>> for PairPosFormat1 {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::PairPosFormat1, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::PairPosFormat1<'_>> for PairPosFormat1 {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::PairPosFormat1, _: &FontData) -> Self {
         PairPosFormat1 {
             coverage_offset: obj.coverage().into(),
             pair_set_offsets: obj.pair_set().map(|x| x.into()).collect(),
@@ -627,12 +627,12 @@ impl FromObjRef<font_tables::layout::gpos::PairPosFormat1<'_>> for PairPosFormat
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::PairPosFormat1<'_>> for PairPosFormat1 {}
+impl FromTableRef<read_fonts::layout::gpos::PairPosFormat1<'_>> for PairPosFormat1 {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for PairPosFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::PairPosFormat1 as FontRead>::read(data)
+        <read_fonts::layout::gpos::PairPosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -667,8 +667,8 @@ impl Validate for PairSet {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::PairSet<'_>> for PairSet {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::PairSet, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::PairSet<'_>> for PairSet {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::PairSet, _: &FontData) -> Self {
         let offset_data = obj.offset_data();
         PairSet {
             pair_value_records: obj
@@ -681,7 +681,7 @@ impl FromObjRef<font_tables::layout::gpos::PairSet<'_>> for PairSet {
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::PairSet<'_>> for PairSet {}
+impl FromTableRef<read_fonts::layout::gpos::PairSet<'_>> for PairSet {}
 
 /// Part of [PairSet]
 #[derive(Clone, Debug)]
@@ -708,9 +708,9 @@ impl Validate for PairValueRecord {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::PairValueRecord> for PairValueRecord {
+impl FromObjRef<read_fonts::layout::gpos::PairValueRecord> for PairValueRecord {
     fn from_obj_ref(
-        obj: &font_tables::layout::gpos::PairValueRecord,
+        obj: &read_fonts::layout::gpos::PairValueRecord,
         offset_data: &FontData,
     ) -> Self {
         PairValueRecord {
@@ -774,8 +774,8 @@ impl Validate for PairPosFormat2 {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::PairPosFormat2<'_>> for PairPosFormat2 {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::PairPosFormat2, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::PairPosFormat2<'_>> for PairPosFormat2 {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::PairPosFormat2, _: &FontData) -> Self {
         let offset_data = obj.offset_data();
         PairPosFormat2 {
             coverage_offset: obj.coverage().into(),
@@ -791,12 +791,12 @@ impl FromObjRef<font_tables::layout::gpos::PairPosFormat2<'_>> for PairPosFormat
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::PairPosFormat2<'_>> for PairPosFormat2 {}
+impl FromTableRef<read_fonts::layout::gpos::PairPosFormat2<'_>> for PairPosFormat2 {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for PairPosFormat2 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::PairPosFormat2 as FontRead>::read(data)
+        <read_fonts::layout::gpos::PairPosFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -828,8 +828,8 @@ impl Validate for Class1Record {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::Class1Record<'_>> for Class1Record {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::Class1Record, offset_data: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::Class1Record<'_>> for Class1Record {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::Class1Record, offset_data: &FontData) -> Self {
         Class1Record {
             class2_records: obj
                 .class2_records()
@@ -861,8 +861,8 @@ impl Validate for Class2Record {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::Class2Record> for Class2Record {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::Class2Record, offset_data: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::Class2Record> for Class2Record {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::Class2Record, offset_data: &FontData) -> Self {
         Class2Record {
             value_record1: obj.value_record1().to_owned_obj(offset_data),
             value_record2: obj.value_record2().to_owned_obj(offset_data),
@@ -906,8 +906,8 @@ impl Validate for CursivePosFormat1 {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::CursivePosFormat1<'_>> for CursivePosFormat1 {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::CursivePosFormat1, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::CursivePosFormat1<'_>> for CursivePosFormat1 {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::CursivePosFormat1, _: &FontData) -> Self {
         let offset_data = obj.offset_data();
         CursivePosFormat1 {
             coverage_offset: obj.coverage().into(),
@@ -921,12 +921,12 @@ impl FromObjRef<font_tables::layout::gpos::CursivePosFormat1<'_>> for CursivePos
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::CursivePosFormat1<'_>> for CursivePosFormat1 {}
+impl FromTableRef<read_fonts::layout::gpos::CursivePosFormat1<'_>> for CursivePosFormat1 {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for CursivePosFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::CursivePosFormat1 as FontRead>::read(data)
+        <read_fonts::layout::gpos::CursivePosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -963,9 +963,9 @@ impl Validate for EntryExitRecord {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::EntryExitRecord> for EntryExitRecord {
+impl FromObjRef<read_fonts::layout::gpos::EntryExitRecord> for EntryExitRecord {
     fn from_obj_ref(
-        obj: &font_tables::layout::gpos::EntryExitRecord,
+        obj: &read_fonts::layout::gpos::EntryExitRecord,
         offset_data: &FontData,
     ) -> Self {
         EntryExitRecord {
@@ -1024,8 +1024,8 @@ impl Validate for MarkBasePosFormat1 {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::MarkBasePosFormat1<'_>> for MarkBasePosFormat1 {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::MarkBasePosFormat1, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::MarkBasePosFormat1<'_>> for MarkBasePosFormat1 {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkBasePosFormat1, _: &FontData) -> Self {
         MarkBasePosFormat1 {
             mark_coverage_offset: obj.mark_coverage().into(),
             base_coverage_offset: obj.base_coverage().into(),
@@ -1036,12 +1036,12 @@ impl FromObjRef<font_tables::layout::gpos::MarkBasePosFormat1<'_>> for MarkBaseP
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::MarkBasePosFormat1<'_>> for MarkBasePosFormat1 {}
+impl FromTableRef<read_fonts::layout::gpos::MarkBasePosFormat1<'_>> for MarkBasePosFormat1 {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for MarkBasePosFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::MarkBasePosFormat1 as FontRead>::read(data)
+        <read_fonts::layout::gpos::MarkBasePosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1075,8 +1075,8 @@ impl Validate for BaseArray {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::BaseArray<'_>> for BaseArray {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::BaseArray, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::BaseArray<'_>> for BaseArray {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::BaseArray, _: &FontData) -> Self {
         let offset_data = obj.offset_data();
         BaseArray {
             base_records: obj
@@ -1089,7 +1089,7 @@ impl FromObjRef<font_tables::layout::gpos::BaseArray<'_>> for BaseArray {
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::BaseArray<'_>> for BaseArray {}
+impl FromTableRef<read_fonts::layout::gpos::BaseArray<'_>> for BaseArray {}
 
 /// Part of [BaseArray]
 #[derive(Clone, Debug)]
@@ -1120,8 +1120,8 @@ impl Validate for BaseRecord {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::BaseRecord<'_>> for BaseRecord {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::BaseRecord, offset_data: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::BaseRecord<'_>> for BaseRecord {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::BaseRecord, offset_data: &FontData) -> Self {
         BaseRecord {
             base_anchor_offsets: obj.base_anchor(offset_data).map(|x| x.into()).collect(),
         }
@@ -1177,8 +1177,8 @@ impl Validate for MarkLigPosFormat1 {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::MarkLigPosFormat1<'_>> for MarkLigPosFormat1 {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::MarkLigPosFormat1, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::MarkLigPosFormat1<'_>> for MarkLigPosFormat1 {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkLigPosFormat1, _: &FontData) -> Self {
         MarkLigPosFormat1 {
             mark_coverage_offset: obj.mark_coverage().into(),
             ligature_coverage_offset: obj.ligature_coverage().into(),
@@ -1189,12 +1189,12 @@ impl FromObjRef<font_tables::layout::gpos::MarkLigPosFormat1<'_>> for MarkLigPos
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::MarkLigPosFormat1<'_>> for MarkLigPosFormat1 {}
+impl FromTableRef<read_fonts::layout::gpos::MarkLigPosFormat1<'_>> for MarkLigPosFormat1 {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for MarkLigPosFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::MarkLigPosFormat1 as FontRead>::read(data)
+        <read_fonts::layout::gpos::MarkLigPosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1230,8 +1230,8 @@ impl Validate for LigatureArray {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::LigatureArray<'_>> for LigatureArray {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::LigatureArray, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::LigatureArray<'_>> for LigatureArray {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::LigatureArray, _: &FontData) -> Self {
         LigatureArray {
             ligature_attach_offsets: obj.ligature_attach().map(|x| x.into()).collect(),
         }
@@ -1239,7 +1239,7 @@ impl FromObjRef<font_tables::layout::gpos::LigatureArray<'_>> for LigatureArray 
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::LigatureArray<'_>> for LigatureArray {}
+impl FromTableRef<read_fonts::layout::gpos::LigatureArray<'_>> for LigatureArray {}
 
 /// Part of [MarkLigPosFormat1]
 #[derive(Clone, Debug)]
@@ -1270,8 +1270,8 @@ impl Validate for LigatureAttach {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::LigatureAttach<'_>> for LigatureAttach {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::LigatureAttach, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::LigatureAttach<'_>> for LigatureAttach {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::LigatureAttach, _: &FontData) -> Self {
         let offset_data = obj.offset_data();
         LigatureAttach {
             component_records: obj
@@ -1284,7 +1284,7 @@ impl FromObjRef<font_tables::layout::gpos::LigatureAttach<'_>> for LigatureAttac
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::LigatureAttach<'_>> for LigatureAttach {}
+impl FromTableRef<read_fonts::layout::gpos::LigatureAttach<'_>> for LigatureAttach {}
 
 /// Part of [MarkLigPosFormat1]
 #[derive(Clone, Debug)]
@@ -1315,9 +1315,9 @@ impl Validate for ComponentRecord {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::ComponentRecord<'_>> for ComponentRecord {
+impl FromObjRef<read_fonts::layout::gpos::ComponentRecord<'_>> for ComponentRecord {
     fn from_obj_ref(
-        obj: &font_tables::layout::gpos::ComponentRecord,
+        obj: &read_fonts::layout::gpos::ComponentRecord,
         offset_data: &FontData,
     ) -> Self {
         ComponentRecord {
@@ -1375,8 +1375,8 @@ impl Validate for MarkMarkPosFormat1 {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::MarkMarkPosFormat1<'_>> for MarkMarkPosFormat1 {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::MarkMarkPosFormat1, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::MarkMarkPosFormat1<'_>> for MarkMarkPosFormat1 {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkMarkPosFormat1, _: &FontData) -> Self {
         MarkMarkPosFormat1 {
             mark1_coverage_offset: obj.mark1_coverage().into(),
             mark2_coverage_offset: obj.mark2_coverage().into(),
@@ -1387,12 +1387,12 @@ impl FromObjRef<font_tables::layout::gpos::MarkMarkPosFormat1<'_>> for MarkMarkP
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::MarkMarkPosFormat1<'_>> for MarkMarkPosFormat1 {}
+impl FromTableRef<read_fonts::layout::gpos::MarkMarkPosFormat1<'_>> for MarkMarkPosFormat1 {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for MarkMarkPosFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <font_tables::layout::gpos::MarkMarkPosFormat1 as FontRead>::read(data)
+        <read_fonts::layout::gpos::MarkMarkPosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1426,8 +1426,8 @@ impl Validate for Mark2Array {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::Mark2Array<'_>> for Mark2Array {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::Mark2Array, _: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::Mark2Array<'_>> for Mark2Array {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::Mark2Array, _: &FontData) -> Self {
         let offset_data = obj.offset_data();
         Mark2Array {
             mark2_records: obj
@@ -1440,7 +1440,7 @@ impl FromObjRef<font_tables::layout::gpos::Mark2Array<'_>> for Mark2Array {
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<font_tables::layout::gpos::Mark2Array<'_>> for Mark2Array {}
+impl FromTableRef<read_fonts::layout::gpos::Mark2Array<'_>> for Mark2Array {}
 
 /// Part of [MarkMarkPosFormat1]
 #[derive(Clone, Debug)]
@@ -1471,8 +1471,8 @@ impl Validate for Mark2Record {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<font_tables::layout::gpos::Mark2Record<'_>> for Mark2Record {
-    fn from_obj_ref(obj: &font_tables::layout::gpos::Mark2Record, offset_data: &FontData) -> Self {
+impl FromObjRef<read_fonts::layout::gpos::Mark2Record<'_>> for Mark2Record {
+    fn from_obj_ref(obj: &read_fonts::layout::gpos::Mark2Record, offset_data: &FontData) -> Self {
         Mark2Record {
             mark2_anchor_offsets: obj.mark2_anchor(offset_data).map(|x| x.into()).collect(),
         }

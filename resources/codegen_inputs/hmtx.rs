@@ -1,4 +1,4 @@
-#![parse_module(font_tables::tables::hmtx)]
+#![parse_module(read_fonts::tables::hmtx)]
 
 /// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
 #[read_args(number_of_h_metrics: u16, num_glyphs: u16)]

@@ -1,6 +1,6 @@
 use super::*;
 use crate::assert_hex_eq;
-use font_tables::test_data::layout as test_data;
+use read_fonts::test_data::layout as test_data;
 
 #[test]
 fn example_1_scripts() {

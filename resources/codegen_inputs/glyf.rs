@@ -1,4 +1,4 @@
-#![parse_module(font_tables::tables::glyf)]
+#![parse_module(read_fonts::tables::glyf)]
 /// The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 table Glyf {}
 

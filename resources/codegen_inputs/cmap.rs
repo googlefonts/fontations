@@ -1,4 +1,4 @@
-#![parse_module(font_tables::tables::cmap)]
+#![parse_module(read_fonts::tables::cmap)]
 
 /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
 table Cmap {

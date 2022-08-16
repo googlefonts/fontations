@@ -1,4 +1,4 @@
-#![parse_module(font_tables::tables::head)]
+#![parse_module(read_fonts::tables::head)]
 
 /// <https://docs.microsoft.com/en-us/typography/opentype/spec/head>
 table Head {
