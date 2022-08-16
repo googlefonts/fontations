@@ -44,6 +44,7 @@ pub(crate) struct TableAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) skip_parse: Option<syn::Path>,
     pub(crate) skip_compile: Option<syn::Path>,
+    pub(crate) skip_from_obj: Option<syn::Path>,
     pub(crate) validation_method: Option<Attr<syn::Path>>,
     pub(crate) read_args: Option<Attr<TableReadArgs>>,
 }
@@ -70,7 +71,7 @@ pub(crate) struct Record {
 /// A table with a format; we generate an enum
 #[derive(Debug, Clone)]
 pub(crate) struct TableFormat {
-    pub(crate) docs: Vec<syn::Attribute>,
+    pub(crate) attrs: TableAttrs,
     pub(crate) name: syn::Ident,
     pub(crate) format: syn::Ident,
     pub(crate) variants: Vec<Variant>,
@@ -439,8 +440,7 @@ impl Parse for RawEnum {
 
 impl Parse for TableFormat {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        //let attributes = get_optional_attributes(input)?;
-        let docs = get_optional_docs(input)?;
+        let attrs: TableAttrs = input.parse()?;
         let _kw = input.parse::<kw::format>()?;
         let format: syn::Ident = input.parse()?;
         validate_ident(&format, &["u16", "i16"], "unexpected format type")?;
@@ -453,7 +453,7 @@ impl Parse for TableFormat {
             .collect();
 
         Ok(TableFormat {
-            docs,
+            attrs,
             format,
             name,
             variants,
@@ -679,6 +679,7 @@ impl Parse for FieldAttrs {
 
 static SKIP_PARSE: &str = "skip_parse";
 static SKIP_COMPILE: &str = "skip_compile";
+static SKIP_FROM_OBJ: &str = "skip_from_obj";
 static VALIDATION_METHOD: &str = "validation_method";
 static READ_ARGS: &str = "read_args";
 
@@ -698,6 +699,8 @@ impl Parse for TableAttrs {
                 this.skip_parse = Some(attr.path);
             } else if ident == SKIP_COMPILE {
                 this.skip_compile = Some(attr.path);
+            } else if ident == SKIP_FROM_OBJ {
+                this.skip_from_obj = Some(attr.path);
             } else if ident == VALIDATION_METHOD {
                 this.validation_method = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_ARGS {

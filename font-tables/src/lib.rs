@@ -47,13 +47,10 @@ pub struct FontRef<'a> {
     pub table_directory: TableDirectory<'a>,
 }
 
-const TT_MAGIC: u32 = 0x00010000;
-const OT_MAGIC: u32 = 0x4F54544F;
-
 impl<'a> FontRef<'a> {
     pub fn new(data: FontData<'a>) -> Result<Self, ReadError> {
         let table_directory = TableDirectory::read(data)?;
-        if [TT_MAGIC, OT_MAGIC].contains(&table_directory.sfnt_version()) {
+        if [TT_SFNT_VERSION, CFF_SFTN_VERSION].contains(&table_directory.sfnt_version()) {
             Ok(FontRef {
                 data,
                 table_directory,

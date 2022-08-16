@@ -785,6 +785,7 @@ impl Field {
     pub(crate) fn gets_recursive_validation(&self) -> bool {
         match &self.typ {
             FieldType::Scalar { .. } | FieldType::Other { .. } => false,
+            FieldType::Offset { target: None, .. } => false,
             FieldType::Offset { .. } | FieldType::ComputedArray { .. } => true,
             FieldType::Array { inner_typ } => matches!(
                 inner_typ.as_ref(),
