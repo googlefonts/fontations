@@ -1,6 +1,6 @@
 //! OpenType layout.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, HashSet};
 
 #[cfg(feature = "parsing")]
 use read_fonts::FontRead;
@@ -194,6 +194,220 @@ impl ClassDef {
     }
 }
 
+impl CoverageFormat1 {
+    fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+        self.glyph_array.iter().copied()
+    }
+
+    fn len(&self) -> usize {
+        self.glyph_array.len()
+    }
+}
+
+impl CoverageFormat2 {
+    fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+        self.range_records
+            .iter()
+            .flat_map(|rcd| iter_gids(rcd.start_glyph_id, rcd.end_glyph_id))
+    }
+
+    fn len(&self) -> usize {
+        self.range_records
+            .iter()
+            .map(|rcd| {
+                rcd.end_glyph_id
+                    .to_u16()
+                    .saturating_sub(rcd.start_glyph_id.to_u16()) as usize
+                    + 1
+            })
+            .sum()
+    }
+}
+
+impl CoverageTable {
+    pub fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+        let (one, two) = match self {
+            Self::Format1(table) => (Some(table.iter()), None),
+            Self::Format2(table) => (None, Some(table.iter())),
+        };
+
+        one.into_iter().flatten().chain(two.into_iter().flatten())
+    }
+
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Format1(table) => table.len(),
+            Self::Format2(table) => table.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ClassDefBuilder {
+    pub items: BTreeMap<GlyphId, u16>,
+}
+
+#[derive(Debug, Default, PartialEq, Eq)]
+pub struct CoverageTableBuilder {
+    // invariant: is always sorted
+    glyphs: Vec<GlyphId>,
+}
+
+impl FromIterator<GlyphId> for CoverageTableBuilder {
+    fn from_iter<T: IntoIterator<Item = GlyphId>>(iter: T) -> Self {
+        let mut glyphs = iter.into_iter().collect::<Vec<_>>();
+        glyphs.sort_unstable();
+        CoverageTableBuilder { glyphs }
+    }
+}
+
+impl CoverageTableBuilder {
+    /// Add a `GlyphId` to this coverage table.
+    ///
+    /// Returns the coverage index of the added glyph.
+    ///
+    /// If the glyph already exists, this returns its current index.
+    pub fn add(&mut self, glyph: GlyphId) -> u16 {
+        match self.glyphs.binary_search(&glyph) {
+            Ok(ix) => ix as u16,
+            Err(ix) => {
+                self.glyphs.insert(ix, glyph);
+                // if we're over u16::MAX glyphs, crash
+                ix.try_into().unwrap()
+            }
+        }
+    }
+
+    pub fn build(self) -> CoverageTable {
+        if should_choose_coverage_format_2(&self.glyphs) {
+            CoverageTable::Format2(CoverageFormat2 {
+                range_records: RangeRecord::iter_for_glyphs(&self.glyphs).collect(),
+            })
+        } else {
+            CoverageTable::Format1(CoverageFormat1 {
+                glyph_array: self.glyphs,
+            })
+        }
+    }
+}
+
+impl FromIterator<(GlyphId, u16)> for ClassDefBuilder {
+    fn from_iter<T: IntoIterator<Item = (GlyphId, u16)>>(iter: T) -> Self {
+        Self {
+            items: iter.into_iter().collect(),
+        }
+    }
+}
+
+impl ClassDefBuilder {
+    fn is_contiguous(&self) -> bool {
+        self.items
+            .keys()
+            .zip(self.items.keys().skip(1))
+            .all(|(a, b)| are_sequential(*a, *b))
+    }
+
+    pub fn build(&self) -> ClassDef {
+        if self.is_contiguous() {
+            ClassDef::Format1(ClassDefFormat1 {
+                start_glyph_id: self.items.keys().next().copied().unwrap_or(GlyphId::NOTDEF),
+                class_value_array: self.items.values().copied().collect(),
+            })
+        } else {
+            ClassDef::Format2(ClassDefFormat2 {
+                class_range_records: iter_class_ranges(&self.items).collect(),
+            })
+        }
+    }
+}
+
+fn iter_class_ranges(
+    values: &BTreeMap<GlyphId, u16>,
+) -> impl Iterator<Item = ClassRangeRecord> + '_ {
+    let mut iter = values.iter();
+    let mut prev = None;
+
+    #[allow(clippy::while_let_on_iterator)]
+    std::iter::from_fn(move || {
+        while let Some((gid, class)) = iter.next() {
+            match prev.take() {
+                None => prev = Some((*gid, *gid, *class)),
+                Some((start, end, pclass)) if are_sequential(end, *gid) && pclass == *class => {
+                    prev = Some((start, *gid, pclass))
+                }
+                Some((start_glyph_id, end_glyph_id, pclass)) => {
+                    prev = Some((*gid, *gid, *class));
+                    return Some(ClassRangeRecord {
+                        start_glyph_id,
+                        end_glyph_id,
+                        class: pclass,
+                    });
+                }
+            }
+        }
+        prev.take()
+            .map(|(start_glyph_id, end_glyph_id, class)| ClassRangeRecord {
+                start_glyph_id,
+                end_glyph_id,
+                class,
+            })
+    })
+}
+
+//TODO: this can be fancier; we probably want to do something like find the
+// percentage of glyphs that are in contiguous ranges, or something?
+fn should_choose_coverage_format_2(glyphs: &[GlyphId]) -> bool {
+    glyphs.len() > 3
+        && glyphs
+            .iter()
+            .zip(glyphs.iter().skip(1))
+            .all(|(a, b)| are_sequential(*a, *b))
+}
+
+impl RangeRecord {
+    /// An iterator over records for this array of glyphs.
+    ///
+    /// # Note
+    ///
+    /// this function expects that glyphs are already sorted.
+    pub fn iter_for_glyphs(glyphs: &[GlyphId]) -> impl Iterator<Item = RangeRecord> + '_ {
+        let mut cur_range = glyphs.first().copied().map(|g| (g, g));
+        let mut len = 0u16;
+        let mut iter = glyphs.iter().skip(1).copied();
+
+        #[allow(clippy::while_let_on_iterator)]
+        std::iter::from_fn(move || {
+            while let Some(glyph) = iter.next() {
+                match cur_range {
+                    None => return None,
+                    Some((a, b)) if are_sequential(b, glyph) => cur_range = Some((a, glyph)),
+                    Some((a, b)) => {
+                        let result = RangeRecord {
+                            start_glyph_id: a,
+                            end_glyph_id: b,
+                            start_coverage_index: len,
+                        };
+                        cur_range = Some((glyph, glyph));
+                        len += 1 + b.to_u16().saturating_sub(a.to_u16());
+                        return Some(result);
+                    }
+                }
+            }
+            cur_range
+                .take()
+                .map(|(start_glyph_id, end_glyph_id)| RangeRecord {
+                    start_glyph_id,
+                    end_glyph_id,
+                    start_coverage_index: len,
+                })
+        })
+    }
+}
+
 #[cfg(feature = "parsing")]
 fn convert_delta_format(from: read_fonts::layout::DeltaFormat) -> DeltaFormat {
     match from as u16 {
@@ -208,6 +422,14 @@ impl Default for DeltaFormat {
     fn default() -> Self {
         Self::Local2BitDeltas
     }
+}
+
+fn iter_gids(gid1: GlyphId, gid2: GlyphId) -> impl Iterator<Item = GlyphId> {
+    (gid1.to_u16()..=gid2.to_u16()).map(GlyphId::new)
+}
+
+fn are_sequential(gid1: GlyphId, gid2: GlyphId) -> bool {
+    gid2.to_u16().saturating_sub(gid1.to_u16()) == 1
 }
 
 #[cfg(test)]
