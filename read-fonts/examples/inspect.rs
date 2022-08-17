@@ -65,7 +65,7 @@ fn print_table(font: &FontRef, tag: Tag) {
         read_fonts::tables::head::TAG => println!("{tag}: {:#?}", font.head().unwrap()),
         read_fonts::tables::hhea::TAG => println!("{tag}: {:#?}", font.hhea().unwrap()),
         read_fonts::tables::hmtx::TAG => println!("{tag}: {:#?}", font.hmtx().unwrap()),
-        //read_fonts::tables::loca::TAG => println!("{tag}: {:#?}", font.loca().unwrap()),
+        read_fonts::tables::loca::TAG => println!("{tag}: {:#?}", font.loca(None).unwrap()),
         read_fonts::tables::maxp::TAG => println!("{tag}: {:#?}", font.maxp().unwrap()),
         read_fonts::tables::name::TAG => println!("{tag}: {:#?}", font.name().unwrap()),
         read_fonts::tables::post::TAG => println!("{tag}: {:#?}", font.post().unwrap()),

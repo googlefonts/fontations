@@ -51,7 +51,12 @@ pub trait TableProvider<'a> {
     //self.data_for_tag(stat::TAG).and_then(stat::Stat::read)
     //}
 
-    fn loca(&self, is_long: bool) -> Result<tables::loca::Loca<'a>, ReadError> {
+    /// is_long can be optionally provided, if known, otherwise we look it up in head.
+    fn loca(&self, is_long: impl Into<Option<bool>>) -> Result<tables::loca::Loca<'a>, ReadError> {
+        let is_long = match is_long.into() {
+            Some(val) => val,
+            None => self.head()?.index_to_loc_format() == 1,
+        };
         self.expect_data_for_tag(tables::loca::TAG)
             .and_then(|data| FontReadWithArgs::read_with_args(data, &is_long))
     }
