@@ -261,16 +261,8 @@ impl CompositeGlyphMarker {
         let start = self.x_max_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn flags_byte_range(&self) -> Range<usize> {
-        let start = self.y_max_byte_range().end;
-        start..start + CompositeGlyphFlags::RAW_BYTE_LEN
-    }
-    fn glyph_index_byte_range(&self) -> Range<usize> {
-        let start = self.flags_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
-    }
     fn component_data_byte_range(&self) -> Range<usize> {
-        let start = self.glyph_index_byte_range().end;
+        let start = self.y_max_byte_range().end;
         start..start + self.component_data_byte_len
     }
 }
@@ -284,8 +276,6 @@ impl TableInfo for CompositeGlyphMarker {
         cursor.advance::<i16>();
         cursor.advance::<i16>();
         cursor.advance::<i16>();
-        cursor.advance::<CompositeGlyphFlags>();
-        cursor.advance::<u16>();
         let component_data_byte_len = cursor.remaining_bytes();
         cursor.advance_by(component_data_byte_len);
         cursor.finish(CompositeGlyphMarker {
@@ -331,17 +321,7 @@ impl<'a> CompositeGlyph<'a> {
     }
 
     /// component flag
-    pub fn flags(&self) -> CompositeGlyphFlags {
-        let range = self.shape.flags_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
     /// glyph index of component
-    pub fn glyph_index(&self) -> u16 {
-        let range = self.shape.glyph_index_byte_range();
-        self.data.read_at(range.start).unwrap()
-    }
-
     pub fn component_data(&self) -> &'a [u8] {
         let range = self.shape.component_data_byte_range();
         self.data.read_array(range).unwrap()
@@ -360,9 +340,7 @@ impl<'a> SomeTable<'a> for CompositeGlyph<'a> {
             2usize => Some(Field::new("y_min", self.y_min())),
             3usize => Some(Field::new("x_max", self.x_max())),
             4usize => Some(Field::new("y_max", self.y_max())),
-            5usize => Some(Field::new("flags", self.flags())),
-            6usize => Some(Field::new("glyph_index", self.glyph_index())),
-            7usize => Some(Field::new("component_data", self.component_data())),
+            5usize => Some(Field::new("component_data", self.component_data())),
             _ => None,
         }
     }

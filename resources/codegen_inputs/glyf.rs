@@ -154,9 +154,9 @@ table CompositeGlyph {
     y_max: BigEndian<i16>,
     //header: GlyphHeader,
     /// component flag
-    flags: BigEndian<CompositeGlyphFlags>,
+    //flags: BigEndian<CompositeGlyphFlags>,
     /// glyph index of component
-    glyph_index: BigEndian<u16>,
+    //glyph_index: BigEndian<u16>,
     #[count(..)]
     component_data: [u8],
 
