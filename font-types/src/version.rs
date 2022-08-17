@@ -91,7 +91,7 @@ impl MajorMinor {
     #[inline]
     pub fn to_be_bytes(self) -> [u8; 4] {
         let [a, b] = self.major.to_be_bytes();
-        let [c, d] = self.major.to_be_bytes();
+        let [c, d] = self.minor.to_be_bytes();
         [a, b, c, d]
     }
 }
