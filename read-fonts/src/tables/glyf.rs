@@ -9,12 +9,6 @@ pub const TAG: Tag = Tag::new(b"glyf");
 
 include!("../../generated/generated_glyf.rs");
 
-//impl<'a> Glyf<'a> {
-//pub fn resolve_glyph(&self, offset: Offset32) -> Option<Glyph<'a>> {
-//self.resolve_offset(offset)
-//}
-//}
-
 macro_rules! field_getter {
     ($field:ident, $ty:ty) => {
         pub fn $field(&self) -> $ty {
@@ -77,9 +71,9 @@ pub enum GlyphPoint {
 pub struct PointIter<'a> {
     end_points: &'a [BigEndian<u16>],
     cur_point: u16,
-    flags: Cursor<'a>,
-    x_coords: Cursor<'a>,
-    y_coords: Cursor<'a>,
+    flags: OldCursor<'a>,
+    x_coords: OldCursor<'a>,
+    y_coords: OldCursor<'a>,
     flag_repeats: u8,
     cur_flags: SimpleGlyphFlags,
     cur_x: i16,
@@ -122,9 +116,9 @@ impl<'a> PointIter<'a> {
     ) -> Self {
         Self {
             end_points,
-            flags: Cursor::new(flags),
-            x_coords: Cursor::new(x_coords),
-            y_coords: Cursor::new(y_coords),
+            flags: OldCursor::new(flags),
+            x_coords: OldCursor::new(x_coords),
+            y_coords: OldCursor::new(y_coords),
             cur_point: 0,
             flag_repeats: 0,
             cur_flags: SimpleGlyphFlags::empty(),
@@ -181,7 +175,7 @@ impl<'a> PointIter<'a> {
 ///
 /// The length depends on *Simple Glyph Flags*, so we have to process them all to find it.
 fn resolve_coords_len(data: &[u8], points_total: u16) -> Option<FieldLengths> {
-    let mut cursor = Cursor::new(data);
+    let mut cursor = OldCursor::new(data);
 
     let mut flags_left = u32::from(points_total);
     //let mut repeats;
@@ -250,12 +244,12 @@ struct FieldLengths {
 }
 
 /// A slice of bytes and an index into them.
-struct Cursor<'a> {
+struct OldCursor<'a> {
     data: &'a [u8],
     pos: usize,
 }
 
-impl<'a> Cursor<'a> {
+impl<'a> OldCursor<'a> {
     fn new(data: &'a [u8]) -> Self {
         Self { data, pos: 0 }
     }
@@ -267,3 +261,114 @@ impl<'a> Cursor<'a> {
         r
     }
 }
+
+/// A reference to another glyph. Part of [CompositeGlyph].
+pub struct Component {
+    pub flags: CompositeGlyphFlags,
+    pub glyph: GlyphId,
+    pub pos: ComponentPos,
+    //TODO: transforms
+}
+
+#[derive(Debug, Clone, Copy)]
+pub enum ComponentPos {
+    Offset { x: i16, y: i16 },
+    Point { base: u16, component: u16 },
+}
+
+impl<'a> CompositeGlyph<'a> {
+    pub fn iter_components(&self) -> ComponentIter<'a> {
+        ComponentIter {
+            done: false,
+            cursor: FontData::new(self.component_data()).cursor(),
+        }
+    }
+}
+
+pub struct ComponentIter<'a> {
+    done: bool,
+    cursor: Cursor<'a>,
+}
+
+impl Iterator for ComponentIter<'_> {
+    type Item = Component;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+        let flags: CompositeGlyphFlags = self.cursor.read().ok()?;
+        let glyph = self.cursor.read::<GlyphId>().ok()?;
+        let args_are_word = flags.contains(CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS);
+        let are_signed = flags.contains(CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS);
+        let pos = match (are_signed, args_are_word) {
+            (true, true) => ComponentPos::Offset {
+                x: self.cursor.read().ok()?,
+                y: self.cursor.read().ok()?,
+            },
+            (true, false) => ComponentPos::Offset {
+                x: self.cursor.read::<u8>().ok()? as _,
+                y: self.cursor.read::<u8>().ok()? as _,
+            },
+            (false, true) => ComponentPos::Point {
+                base: self.cursor.read().ok()?,
+                component: self.cursor.read().ok()?,
+            },
+            (false, false) => ComponentPos::Point {
+                base: self.cursor.read::<u8>().ok()? as _,
+                component: self.cursor.read::<u8>().ok()? as _,
+            },
+        };
+
+        let bytes_to_skip = if flags.contains(CompositeGlyphFlags::WE_HAVE_A_SCALE) {
+            2
+        } else if flags.contains(CompositeGlyphFlags::WE_HAVE_AN_X_AND_Y_SCALE) {
+            4
+        } else if flags.contains(CompositeGlyphFlags::WE_HAVE_A_TWO_BY_TWO) {
+            8
+        } else {
+            0
+        };
+        self.cursor.advance_by(bytes_to_skip);
+        self.done = !flags.contains(CompositeGlyphFlags::MORE_COMPONENTS);
+
+        Some(Component { flags, glyph, pos })
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Component {
+    fn type_name(&self) -> &str {
+        "Component"
+    }
+
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0 => Some(Field::new("flags", self.flags.bits())),
+            1 => Some(Field::new("glyph", self.glyph)),
+            2 => match self.pos {
+                ComponentPos::Point { base, .. } => Some(Field::new("base", base)),
+                ComponentPos::Offset { x, .. } => Some(Field::new("x", x)),
+            },
+            3 => match self.pos {
+                ComponentPos::Point { component, .. } => Some(Field::new("component", component)),
+                ComponentPos::Offset { y, .. } => Some(Field::new("y", y)),
+            },
+            _ => None,
+        }
+    }
+}
+
+//NOTE: we want generated_glyf traversal to include this:
+//7usize => {
+//let this = self.sneaky_copy();
+//Some(Field::new(
+//"components",
+//FieldType::offset_iter(move || {
+//Box::new(
+//this.iter_components()
+//.map(|item| FieldType::ResolvedOffset(Ok(Box::new(item)))),
+//) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+//}),
+//))
+//}
