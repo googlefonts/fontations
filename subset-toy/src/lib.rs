@@ -15,21 +15,28 @@ use write_fonts::{NullableOffsetMarker, OffsetMarker};
 /// Input to a subsetting operation.
 pub struct Input {
     glyph_ids: BTreeSet<GlyphId>,
+    retain_gids: bool,
 }
 
 impl Input {
-    pub fn from_gids(mut glyph_ids: BTreeSet<GlyphId>) -> Self {
+    pub fn from_gids(mut glyph_ids: BTreeSet<GlyphId>, retain_gids: bool) -> Self {
         glyph_ids.insert(GlyphId::NOTDEF); // always include .notdef
-        Input { glyph_ids }
+        Input {
+            glyph_ids,
+            retain_gids,
+        }
     }
 
     pub fn make_plan(&self) -> Plan {
-        let gid_map = self
-            .glyph_ids
-            .iter()
-            .enumerate()
-            .map(|(i, gid)| (*gid, GlyphId::new(u16::try_from(i).unwrap())))
-            .collect();
+        let gid_map = if self.retain_gids {
+            self.glyph_ids.iter().map(|gid| (*gid, *gid)).collect()
+        } else {
+            self.glyph_ids
+                .iter()
+                .enumerate()
+                .map(|(i, gid)| (*gid, GlyphId::new(u16::try_from(i).unwrap())))
+                .collect()
+        };
         Plan {
             gid_map,
             gpos_lookup_map: Default::default(),

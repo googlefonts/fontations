@@ -18,7 +18,7 @@ fn main() {
     };
 
     let gids = populate_gids(&args.gids);
-    let input = Input::from_gids(gids);
+    let input = Input::from_gids(gids, args.retain_gids);
     let plan = input.make_plan();
 
     let bytes = std::fs::read(&args.path).expect("no font file found");
@@ -81,6 +81,7 @@ mod flags {
                 required --gids gids: String
                 optional --runs runs: usize
                 optional --insert insert: PathBuf
+                optional --retain-gids
             }
 
     }
