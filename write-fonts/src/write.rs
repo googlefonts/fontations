@@ -1,8 +1,7 @@
 use std::collections::HashMap;
 
-use crate::{compile_prelude::Validate, validate::ValidationReport};
-
-use super::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
+use crate::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
+use crate::validate::{Validate, ValidationReport};
 use font_types::Uint24;
 
 /// A type that that can be written out as part of a font file.
@@ -14,6 +13,9 @@ pub trait FontWrite {
     fn write_into(&self, writer: &mut TableWriter);
 }
 
+/// An object that manages a collection of serialized tables.
+///
+/// This handles deduplicating objects and tracking offsets.
 #[derive(Debug)]
 pub struct TableWriter {
     /// Finished tables, associated with an ObjectId; duplicate tables share an id.
@@ -24,6 +26,10 @@ pub struct TableWriter {
     stack: Vec<TableData>,
 }
 
+/// Attempt to serialize a table.
+///
+/// If the table is malformed, this will return an Err([`ValidationReport`]),
+/// otherwise it will return the bytes encoding the table.
 pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, ValidationReport> {
     table.validate()?;
     let mut writer = TableWriter::default();
@@ -90,12 +96,15 @@ impl TableWriter {
         self.tables.add(self.stack.pop().unwrap())
     }
 
-    /// Finish this table, returning the root Id and the object graph.
+    /// Finish this table, returning an object graph.
     fn finish(mut self) -> Graph {
         let id = self.tables.add(self.stack.pop().unwrap());
         Graph::from_obj_store(self.tables, id)
     }
 
+    /// Write raw bytes into this table.
+    ///
+    /// The caller is responsible for ensuring bytes are in big-endian order.
     #[inline]
     pub fn write_slice(&mut self, bytes: &[u8]) {
         self.stack
@@ -105,6 +114,16 @@ impl TableWriter {
             .extend_from_slice(bytes)
     }
 
+    /// Create an offset to another table.
+    ///
+    /// The `width` argument is the size in bytes of the offset, e.g. 2 for
+    /// an `Offset16`, and 4 for an `Offset32`.
+    ///
+    /// The provided table will be serialized immediately, and the position
+    /// of the offset within the current table will be recorded. Offsets
+    /// are resolved when the root table object is serialized, at which point
+    /// we overwrite each recorded offset position with the final offset of the
+    /// appropriate table.
     pub fn write_offset(&mut self, obj: &dyn FontWrite, width: usize) {
         let obj_id = self.add_table(obj);
         let data = self.stack.last_mut().unwrap();

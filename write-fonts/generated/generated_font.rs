@@ -3,14 +3,17 @@
 // For more information about how codegen works, see font-codegen/README.md
 
 #[allow(unused_imports)]
-use crate::compile_prelude::*;
+use crate::codegen_prelude::*;
 
+/// The OpenType [Table Directory](https://docs.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
 #[derive(Clone, Debug)]
 pub struct TableDirectory {
+    /// 0x00010000 or 0x4F54544F
     pub sfnt_version: u32,
     pub search_range: u16,
     pub entry_selector: u16,
     pub range_shift: u16,
+    /// Table records array—one for each top-level table in the font
     pub table_records: Vec<TableRecord>,
 }
 

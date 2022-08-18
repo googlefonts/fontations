@@ -1,4 +1,4 @@
-//! OpenType layout
+//! OpenType layout.
 
 use std::collections::HashSet;
 

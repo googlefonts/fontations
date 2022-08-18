@@ -1,8 +1,7 @@
 //! Custom array types
 
-use crate::font_data::FontData;
-use crate::parse_prelude::ReadError;
 use crate::read::{ComputeSize, FontReadWithArgs, ReadArgs};
+use crate::{FontData, ReadError};
 
 /// An array whose items size is not known at compile time.
 ///

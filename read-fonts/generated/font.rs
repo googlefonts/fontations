@@ -3,8 +3,9 @@
 // For more information about how codegen works, see font-codegen/README.md
 
 #[allow(unused_imports)]
-use crate::parse_prelude::*;
+use crate::codegen_prelude::*;
 
+/// The OpenType [Table Directory](https://docs.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct TableDirectoryMarker {
@@ -55,14 +56,17 @@ impl TableInfo for TableDirectoryMarker {
     }
 }
 
+/// The OpenType [Table Directory](https://docs.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
 pub type TableDirectory<'a> = TableRef<'a, TableDirectoryMarker>;
 
 impl<'a> TableDirectory<'a> {
+    /// 0x00010000 or 0x4F54544F
     pub fn sfnt_version(&self) -> u32 {
         let range = self.shape.sfnt_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Number of tables.
     pub fn num_tables(&self) -> u16 {
         let range = self.shape.num_tables_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -83,6 +87,7 @@ impl<'a> TableDirectory<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Table records array—one for each top-level table in the font
     pub fn table_records(&self) -> &'a [TableRecord] {
         let range = self.shape.table_records_byte_range();
         self.data.read_array(range).unwrap()

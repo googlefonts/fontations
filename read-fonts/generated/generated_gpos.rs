@@ -3,7 +3,7 @@
 // For more information about how codegen works, see font-codegen/README.md
 
 #[allow(unused_imports)]
-use crate::parse_prelude::*;
+use crate::codegen_prelude::*;
 
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)

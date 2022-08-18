@@ -1,6 +1,6 @@
 //! Traits for converting from parsed font data to their compile equivalents
 
-use read_fonts::parse_prelude::FontData;
+use read_fonts::FontData;
 
 /// A trait for types that can fully resolve themselves.
 ///

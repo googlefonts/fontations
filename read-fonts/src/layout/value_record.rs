@@ -1,10 +1,12 @@
 //! A GPOS ValueRecord
 
+use font_types::{BigEndian, FixedSized};
+
 use super::ValueFormat;
-use crate::{
-    parse_prelude::*,
-    read::{ComputeSize, FontReadWithArgs, ReadArgs},
-};
+
+#[cfg(feature = "traversal")]
+use crate::traversal::{Field, FieldType, RecordResolver, SomeRecord, SomeTable};
+use crate::{ComputeSize, FontData, FontReadWithArgs, ReadArgs, ReadError};
 
 impl ValueFormat {
     /// Return the number of bytes required to store a [`ValueRecord`] in this format.
