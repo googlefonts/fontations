@@ -73,17 +73,35 @@ jobs:
           profile: minimal
           override: true
 
-      #- run: git submodule update --init --recursive
-
       - name: cargo test
         uses: actions-rs/cargo@v1
         with:
           command: test
-          args: --all-features
+          args: --all-targets --all-features
 
-      - name: cargo test
+  check-no-std:
+    name: cargo check no std
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+
+      - name: cargo check font-types
         uses: actions-rs/cargo@v1
         with:
-          command: test
-          args: --no-default-features
+          command: check
+          args: --manifest-path=font-types/Cargo.toml --no-default-features
+
+      - name: cargo check read-fonts
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --manifest-path=read-fonts/Cargo.toml --no-default-features
 
