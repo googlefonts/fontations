@@ -144,7 +144,14 @@ impl PartialEq<&[u8]> for Tag {
 
 impl Display for Tag {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        Display::fmt(&String::from_utf8_lossy(&self.0), f)
+        // a dumb no-std way of ensuring this string is valid utf-8
+        let mut bytes = [b'-'; 4];
+        for (i, b) in self.0.iter().enumerate() {
+            if b.is_ascii() {
+                bytes[i] = *b;
+            }
+        }
+        Display::fmt(&std::str::from_utf8(&bytes).unwrap(), f)
     }
 }
 
@@ -159,12 +166,19 @@ impl Display for InvalidTag {
     }
 }
 
+#[cfg(feature = "std")]
 impl std::error::Error for Tag {}
 
 impl Debug for Tag {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         let mut dbg = f.debug_tuple("Tag");
-        dbg.field(&String::from_utf8_lossy(&self.0));
+        let mut bytes = [b'-'; 4];
+        for (i, b) in self.0.iter().enumerate() {
+            if b.is_ascii() {
+                bytes[i] = *b;
+            }
+        }
+        dbg.field(&std::str::from_utf8(&bytes).unwrap());
         dbg.finish()
     }
 }

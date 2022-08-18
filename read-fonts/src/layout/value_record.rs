@@ -137,6 +137,7 @@ impl ComputeSize for ValueRecord {
     }
 }
 
+#[cfg(feature = "traversal")]
 impl<'a> SomeTable<'a> for ValueRecord {
     fn type_name(&self) -> &str {
         "ValueRecord"
@@ -176,6 +177,7 @@ impl<'a> SomeTable<'a> for ValueRecord {
     }
 }
 
+#[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for ValueRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
