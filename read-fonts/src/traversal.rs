@@ -13,7 +13,7 @@ use font_types::{
 use crate::{
     array::ComputedArray,
     layout::gpos::ValueRecord,
-    parse_prelude::{ComputeSize, ReadArgs},
+    read::{ComputeSize, ReadArgs},
     FontData, FontReadWithArgs, ReadError,
 };
 

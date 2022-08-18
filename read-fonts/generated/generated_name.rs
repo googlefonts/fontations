@@ -3,7 +3,7 @@
 // For more information about how codegen works, see font-codegen/README.md
 
 #[allow(unused_imports)]
-use crate::parse_prelude::*;
+use crate::codegen_prelude::*;
 
 /// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
 #[derive(Debug, Clone, Copy)]

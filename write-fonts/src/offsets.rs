@@ -1,13 +1,16 @@
 //! compile-time representations of offsets
 
 #[cfg(feature = "parsing")]
-use super::compile_prelude::{FromTableRef, ReadError};
+use crate::from_obj::FromTableRef;
+#[cfg(feature = "parsing")]
+use read_fonts::ReadError;
 
 use super::write::{FontWrite, TableWriter};
 
 /// The width in bytes of an Offset16
 pub const WIDTH_16: usize = 2;
 /// The width in bytes of an Offset24
+#[allow(dead_code)] // will be used one day :')
 pub const WIDTH_24: usize = 3;
 /// The width in bytes of an Offset32
 pub const WIDTH_32: usize = 4;

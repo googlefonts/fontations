@@ -3,7 +3,7 @@
 // For more information about how codegen works, see font-codegen/README.md
 
 #[allow(unused_imports)]
-use crate::parse_prelude::*;
+use crate::codegen_prelude::*;
 
 /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
 #[derive(Debug, Clone, Copy)]

@@ -71,7 +71,7 @@ pub fn generate_parse_module(code: &str) -> Result<proc_macro2::TokenStream, syn
 
     Ok(quote! {
         #[allow(unused_imports)]
-        use crate::parse_prelude::*;
+        use crate::codegen_prelude::*;
         #(#code)*
     })
 }
@@ -94,7 +94,7 @@ pub fn generate_compile_module(code: &str) -> Result<proc_macro2::TokenStream, s
 
     Ok(quote! {
         #[allow(unused_imports)]
-        use crate::compile_prelude::*;
+        use crate::codegen_prelude::*;
 
         #( #code )*
     })

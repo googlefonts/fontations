@@ -4,10 +4,14 @@ use std::ops::{Bound, Range, RangeBounds};
 
 use font_types::{FixedSized, ReadScalar};
 
-use crate::parse_prelude::{ComputeSize, ComputedArray};
-use crate::read::{FontReadWithArgs, ReadError};
+use crate::array::ComputedArray;
+use crate::read::{ComputeSize, FontReadWithArgs, ReadError};
 use crate::table_ref::TableRef;
 
+/// A reference to raw binary font data.
+///
+/// This is a wrapper around a byte slice, that provides convenience methods
+/// for parsing and validating that data.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct FontData<'a> {
     total_pos: u32,

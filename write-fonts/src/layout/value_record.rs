@@ -1,7 +1,9 @@
 //! The ValueRecord type used in the GPOS table
 
 #[cfg(feature = "parsing")]
-use crate::compile_prelude::{FontData, FromObjRef};
+use crate::from_obj::FromObjRef;
+#[cfg(feature = "parsing")]
+use read_fonts::FontData;
 
 use super::gpos::ValueFormat;
 use crate::{

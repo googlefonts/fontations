@@ -17,8 +17,6 @@ pub use super::{
 };
 pub use value_record::ValueRecord;
 
-use crate::parse_prelude::*;
-
 #[cfg(test)]
 #[path = "../tests/gpos.rs"]
 mod tests;

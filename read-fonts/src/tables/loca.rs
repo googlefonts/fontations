@@ -4,7 +4,7 @@
 
 use font_types::{BigEndian, Offset32, Tag};
 
-use crate::{parse_prelude::ReadArgs, FontReadWithArgs};
+use crate::read::{FontReadWithArgs, ReadArgs};
 
 /// 'loca'
 pub const TAG: Tag = Tag::new(b"loca");
