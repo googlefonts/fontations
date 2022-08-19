@@ -135,12 +135,12 @@ impl<'a> SomeTable<'a> for Name<'a> {
             )),
             3usize => Some(Field::new(
                 "name_record",
-                traversal::FieldType::array_of_records(self.name_record(), *self.offset_data()),
+                traversal::FieldType::array_of_records(self.name_record(), self.offset_data()),
             )),
             4usize => Some(Field::new("lang_tag_count", self.lang_tag_count())),
             5usize => Some(Field::new(
                 "lang_tag_record",
-                traversal::FieldType::array_of_records(self.lang_tag_record(), *self.offset_data()),
+                traversal::FieldType::array_of_records(self.lang_tag_record(), self.offset_data()),
             )),
             _ => None,
         }

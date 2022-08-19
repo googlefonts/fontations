@@ -75,7 +75,7 @@ impl<'a> Gpos<'a> {
 
     /// Attempt to resolve [`script_list_offset`][Self::script_list_offset].
     pub fn script_list(&self) -> Result<ScriptList<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.script_list_offset().resolve(data)
     }
 
@@ -87,7 +87,7 @@ impl<'a> Gpos<'a> {
 
     /// Attempt to resolve [`feature_list_offset`][Self::feature_list_offset].
     pub fn feature_list(&self) -> Result<FeatureList<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.feature_list_offset().resolve(data)
     }
 
@@ -99,7 +99,7 @@ impl<'a> Gpos<'a> {
 
     /// Attempt to resolve [`lookup_list_offset`][Self::lookup_list_offset].
     pub fn lookup_list(&self) -> Result<PositionLookupList<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.lookup_list_offset().resolve(data)
     }
 
@@ -110,7 +110,7 @@ impl<'a> Gpos<'a> {
 
     /// Attempt to resolve [`feature_variations_offset`][Self::feature_variations_offset].
     pub fn feature_variations(&self) -> Option<Result<FeatureVariations<'a>, ReadError>> {
-        let data = &self.data;
+        let data = self.data;
         self.feature_variations_offset()?.resolve(data)
     }
 }
@@ -456,7 +456,7 @@ impl<'a> AnchorFormat3<'a> {
 
     /// Attempt to resolve [`x_device_offset`][Self::x_device_offset].
     pub fn x_device(&self) -> Option<Result<Device<'a>, ReadError>> {
-        let data = &self.data;
+        let data = self.data;
         self.x_device_offset().resolve(data)
     }
 
@@ -470,7 +470,7 @@ impl<'a> AnchorFormat3<'a> {
 
     /// Attempt to resolve [`y_device_offset`][Self::y_device_offset].
     pub fn y_device(&self) -> Option<Result<Device<'a>, ReadError>> {
-        let data = &self.data;
+        let data = self.data;
         self.y_device_offset().resolve(data)
     }
 }
@@ -558,7 +558,7 @@ impl<'a> SomeTable<'a> for MarkArray<'a> {
             0usize => Some(Field::new("mark_count", self.mark_count())),
             1usize => Some(Field::new(
                 "mark_records",
-                traversal::FieldType::array_of_records(self.mark_records(), *self.offset_data()),
+                traversal::FieldType::array_of_records(self.mark_records(), self.offset_data()),
             )),
             _ => None,
         }
@@ -595,7 +595,7 @@ impl MarkRecord {
     }
 
     /// Attempt to resolve [`mark_anchor_offset`][Self::mark_anchor_offset].
-    pub fn mark_anchor<'a>(&self, data: &FontData<'a>) -> Result<AnchorTable<'a>, ReadError> {
+    pub fn mark_anchor<'a>(&self, data: FontData<'a>) -> Result<AnchorTable<'a>, ReadError> {
         self.mark_anchor_offset().resolve(data)
     }
 }
@@ -611,7 +611,7 @@ impl<'a> SomeRecord<'a> for MarkRecord {
             name: "MarkRecord",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("mark_class", self.mark_class())),
-                1usize => Some(Field::new("mark_anchor_offset", self.mark_anchor(&_data))),
+                1usize => Some(Field::new("mark_anchor_offset", self.mark_anchor(_data))),
                 _ => None,
             }),
             data,
@@ -726,7 +726,7 @@ impl<'a> SinglePosFormat1<'a> {
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.coverage_offset().resolve(data)
     }
 
@@ -838,7 +838,7 @@ impl<'a> SinglePosFormat2<'a> {
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.coverage_offset().resolve(data)
     }
 
@@ -877,7 +877,7 @@ impl<'a> SomeTable<'a> for SinglePosFormat2<'a> {
             3usize => Some(Field::new("value_count", self.value_count())),
             4usize => Some(Field::new(
                 "value_records",
-                traversal::FieldType::computed_array(self.value_records(), *self.offset_data()),
+                traversal::FieldType::computed_array(self.value_records(), self.offset_data()),
             )),
             _ => None,
         }
@@ -1008,7 +1008,7 @@ impl<'a> PairPosFormat1<'a> {
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.coverage_offset().resolve(data)
     }
 
@@ -1044,7 +1044,7 @@ impl<'a> PairPosFormat1<'a> {
         let args = (self.value_format1(), self.value_format2());
         self.pair_set_offsets()
             .iter()
-            .map(move |off| off.get().resolve_with_args(&data, &args))
+            .map(move |off| off.get().resolve_with_args(data, &args))
     }
 }
 
@@ -1164,10 +1164,7 @@ impl<'a> SomeTable<'a> for PairSet<'a> {
             0usize => Some(Field::new("pair_value_count", self.pair_value_count())),
             1usize => Some(Field::new(
                 "pair_value_records",
-                traversal::FieldType::computed_array(
-                    self.pair_value_records(),
-                    *self.offset_data(),
-                ),
+                traversal::FieldType::computed_array(self.pair_value_records(), self.offset_data()),
             )),
             _ => None,
         }
@@ -1351,7 +1348,7 @@ impl<'a> PairPosFormat2<'a> {
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.coverage_offset().resolve(data)
     }
 
@@ -1378,7 +1375,7 @@ impl<'a> PairPosFormat2<'a> {
 
     /// Attempt to resolve [`class_def1_offset`][Self::class_def1_offset].
     pub fn class_def1(&self) -> Result<ClassDef<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.class_def1_offset().resolve(data)
     }
 
@@ -1391,7 +1388,7 @@ impl<'a> PairPosFormat2<'a> {
 
     /// Attempt to resolve [`class_def2_offset`][Self::class_def2_offset].
     pub fn class_def2(&self) -> Result<ClassDef<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.class_def2_offset().resolve(data)
     }
 
@@ -1440,7 +1437,7 @@ impl<'a> SomeTable<'a> for PairPosFormat2<'a> {
             7usize => Some(Field::new("class2_count", self.class2_count())),
             8usize => Some(Field::new(
                 "class1_records",
-                traversal::FieldType::computed_array(self.class1_records(), *self.offset_data()),
+                traversal::FieldType::computed_array(self.class1_records(), self.offset_data()),
             )),
             _ => None,
         }
@@ -1643,7 +1640,7 @@ impl<'a> CursivePosFormat1<'a> {
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.coverage_offset().resolve(data)
     }
 
@@ -1674,7 +1671,7 @@ impl<'a> SomeTable<'a> for CursivePosFormat1<'a> {
                 "entry_exit_record",
                 traversal::FieldType::array_of_records(
                     self.entry_exit_record(),
-                    *self.offset_data(),
+                    self.offset_data(),
                 ),
             )),
             _ => None,
@@ -1712,7 +1709,7 @@ impl EntryExitRecord {
     /// Attempt to resolve [`entry_anchor_offset`][Self::entry_anchor_offset].
     pub fn entry_anchor<'a>(
         &self,
-        data: &FontData<'a>,
+        data: FontData<'a>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
         self.entry_anchor_offset().resolve(data)
     }
@@ -1726,7 +1723,7 @@ impl EntryExitRecord {
     /// Attempt to resolve [`exit_anchor_offset`][Self::exit_anchor_offset].
     pub fn exit_anchor<'a>(
         &self,
-        data: &FontData<'a>,
+        data: FontData<'a>,
     ) -> Option<Result<AnchorTable<'a>, ReadError>> {
         self.exit_anchor_offset().resolve(data)
     }
@@ -1742,8 +1739,8 @@ impl<'a> SomeRecord<'a> for EntryExitRecord {
         RecordResolver {
             name: "EntryExitRecord",
             get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("entry_anchor_offset", self.entry_anchor(&_data))),
-                1usize => Some(Field::new("exit_anchor_offset", self.exit_anchor(&_data))),
+                0usize => Some(Field::new("entry_anchor_offset", self.entry_anchor(_data))),
+                1usize => Some(Field::new("exit_anchor_offset", self.exit_anchor(_data))),
                 _ => None,
             }),
             data,
@@ -1819,7 +1816,7 @@ impl<'a> MarkBasePosFormat1<'a> {
 
     /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
     pub fn mark_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.mark_coverage_offset().resolve(data)
     }
 
@@ -1832,7 +1829,7 @@ impl<'a> MarkBasePosFormat1<'a> {
 
     /// Attempt to resolve [`base_coverage_offset`][Self::base_coverage_offset].
     pub fn base_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.base_coverage_offset().resolve(data)
     }
 
@@ -1851,7 +1848,7 @@ impl<'a> MarkBasePosFormat1<'a> {
 
     /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
     pub fn mark_array(&self) -> Result<MarkArray<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.mark_array_offset().resolve(data)
     }
 
@@ -1864,7 +1861,7 @@ impl<'a> MarkBasePosFormat1<'a> {
 
     /// Attempt to resolve [`base_array_offset`][Self::base_array_offset].
     pub fn base_array(&self) -> Result<BaseArray<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         let args = self.mark_class_count();
         self.base_array_offset().resolve_with_args(data, &args)
     }
@@ -1970,7 +1967,7 @@ impl<'a> SomeTable<'a> for BaseArray<'a> {
             0usize => Some(Field::new("base_count", self.base_count())),
             1usize => Some(Field::new(
                 "base_records",
-                traversal::FieldType::computed_array(self.base_records(), *self.offset_data()),
+                traversal::FieldType::computed_array(self.base_records(), self.offset_data()),
             )),
             _ => None,
         }
@@ -2003,12 +2000,11 @@ impl<'a> BaseRecord<'a> {
 
     pub fn base_anchor(
         &self,
-        data: &FontData<'a>,
+        data: FontData<'a>,
     ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + 'a {
-        let data = *data;
         self.base_anchor_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -2045,7 +2041,7 @@ impl<'a> SomeRecord<'a> for BaseRecord<'a> {
                     Field::new(
                         "base_anchor_offsets",
                         FieldType::offset_iter(move || {
-                            Box::new(this.base_anchor(&_data).map(|item| item.into()))
+                            Box::new(this.base_anchor(_data).map(|item| item.into()))
                                 as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                         }),
                     )
@@ -2125,7 +2121,7 @@ impl<'a> MarkLigPosFormat1<'a> {
 
     /// Attempt to resolve [`mark_coverage_offset`][Self::mark_coverage_offset].
     pub fn mark_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.mark_coverage_offset().resolve(data)
     }
 
@@ -2138,7 +2134,7 @@ impl<'a> MarkLigPosFormat1<'a> {
 
     /// Attempt to resolve [`ligature_coverage_offset`][Self::ligature_coverage_offset].
     pub fn ligature_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.ligature_coverage_offset().resolve(data)
     }
 
@@ -2157,7 +2153,7 @@ impl<'a> MarkLigPosFormat1<'a> {
 
     /// Attempt to resolve [`mark_array_offset`][Self::mark_array_offset].
     pub fn mark_array(&self) -> Result<MarkArray<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.mark_array_offset().resolve(data)
     }
 
@@ -2170,7 +2166,7 @@ impl<'a> MarkLigPosFormat1<'a> {
 
     /// Attempt to resolve [`ligature_array_offset`][Self::ligature_array_offset].
     pub fn ligature_array(&self) -> Result<LigatureArray<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         let args = self.mark_class_count();
         self.ligature_array_offset().resolve_with_args(data, &args)
     }
@@ -2270,7 +2266,7 @@ impl<'a> LigatureArray<'a> {
         let args = self.mark_class_count();
         self.ligature_attach_offsets()
             .iter()
-            .map(move |off| off.get().resolve_with_args(&data, &args))
+            .map(move |off| off.get().resolve_with_args(data, &args))
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
@@ -2383,7 +2379,7 @@ impl<'a> SomeTable<'a> for LigatureAttach<'a> {
             0usize => Some(Field::new("component_count", self.component_count())),
             1usize => Some(Field::new(
                 "component_records",
-                traversal::FieldType::computed_array(self.component_records(), *self.offset_data()),
+                traversal::FieldType::computed_array(self.component_records(), self.offset_data()),
             )),
             _ => None,
         }
@@ -2416,12 +2412,11 @@ impl<'a> ComponentRecord<'a> {
 
     pub fn ligature_anchor(
         &self,
-        data: &FontData<'a>,
+        data: FontData<'a>,
     ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + 'a {
-        let data = *data;
         self.ligature_anchor_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -2458,7 +2453,7 @@ impl<'a> SomeRecord<'a> for ComponentRecord<'a> {
                     Field::new(
                         "ligature_anchor_offsets",
                         FieldType::offset_iter(move || {
-                            Box::new(this.ligature_anchor(&_data).map(|item| item.into()))
+                            Box::new(this.ligature_anchor(_data).map(|item| item.into()))
                                 as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                         }),
                     )
@@ -2538,7 +2533,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
 
     /// Attempt to resolve [`mark1_coverage_offset`][Self::mark1_coverage_offset].
     pub fn mark1_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.mark1_coverage_offset().resolve(data)
     }
 
@@ -2551,7 +2546,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
 
     /// Attempt to resolve [`mark2_coverage_offset`][Self::mark2_coverage_offset].
     pub fn mark2_coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.mark2_coverage_offset().resolve(data)
     }
 
@@ -2570,7 +2565,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
 
     /// Attempt to resolve [`mark1_array_offset`][Self::mark1_array_offset].
     pub fn mark1_array(&self) -> Result<MarkArray<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.mark1_array_offset().resolve(data)
     }
 
@@ -2583,7 +2578,7 @@ impl<'a> MarkMarkPosFormat1<'a> {
 
     /// Attempt to resolve [`mark2_array_offset`][Self::mark2_array_offset].
     pub fn mark2_array(&self) -> Result<Mark2Array<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         let args = self.mark_class_count();
         self.mark2_array_offset().resolve_with_args(data, &args)
     }
@@ -2689,7 +2684,7 @@ impl<'a> SomeTable<'a> for Mark2Array<'a> {
             0usize => Some(Field::new("mark2_count", self.mark2_count())),
             1usize => Some(Field::new(
                 "mark2_records",
-                traversal::FieldType::computed_array(self.mark2_records(), *self.offset_data()),
+                traversal::FieldType::computed_array(self.mark2_records(), self.offset_data()),
             )),
             _ => None,
         }
@@ -2722,12 +2717,11 @@ impl<'a> Mark2Record<'a> {
 
     pub fn mark2_anchor(
         &self,
-        data: &FontData<'a>,
+        data: FontData<'a>,
     ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + 'a {
-        let data = *data;
         self.mark2_anchor_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -2764,7 +2758,7 @@ impl<'a> SomeRecord<'a> for Mark2Record<'a> {
                     Field::new(
                         "mark2_anchor_offsets",
                         FieldType::offset_iter(move || {
-                            Box::new(this.mark2_anchor(&_data).map(|item| item.into()))
+                            Box::new(this.mark2_anchor(_data).map(|item| item.into()))
                                 as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                         }),
                     )

@@ -92,7 +92,7 @@ impl<'a> Gdef<'a> {
 
     /// Attempt to resolve [`glyph_class_def_offset`][Self::glyph_class_def_offset].
     pub fn glyph_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
-        let data = &self.data;
+        let data = self.data;
         self.glyph_class_def_offset().resolve(data)
     }
 
@@ -105,7 +105,7 @@ impl<'a> Gdef<'a> {
 
     /// Attempt to resolve [`attach_list_offset`][Self::attach_list_offset].
     pub fn attach_list(&self) -> Option<Result<AttachList<'a>, ReadError>> {
-        let data = &self.data;
+        let data = self.data;
         self.attach_list_offset().resolve(data)
     }
 
@@ -118,7 +118,7 @@ impl<'a> Gdef<'a> {
 
     /// Attempt to resolve [`lig_caret_list_offset`][Self::lig_caret_list_offset].
     pub fn lig_caret_list(&self) -> Option<Result<LigCaretList<'a>, ReadError>> {
-        let data = &self.data;
+        let data = self.data;
         self.lig_caret_list_offset().resolve(data)
     }
 
@@ -131,7 +131,7 @@ impl<'a> Gdef<'a> {
 
     /// Attempt to resolve [`mark_attach_class_def_offset`][Self::mark_attach_class_def_offset].
     pub fn mark_attach_class_def(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
-        let data = &self.data;
+        let data = self.data;
         self.mark_attach_class_def_offset().resolve(data)
     }
 
@@ -144,7 +144,7 @@ impl<'a> Gdef<'a> {
 
     /// Attempt to resolve [`mark_glyph_sets_def_offset`][Self::mark_glyph_sets_def_offset].
     pub fn mark_glyph_sets_def(&self) -> Option<Result<MarkGlyphSets<'a>, ReadError>> {
-        let data = &self.data;
+        let data = self.data;
         self.mark_glyph_sets_def_offset()?.resolve(data)
     }
 
@@ -157,7 +157,7 @@ impl<'a> Gdef<'a> {
 
     /// Attempt to resolve [`item_var_store_offset`][Self::item_var_store_offset].
     pub fn item_var_store(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
-        let data = &self.data;
+        let data = self.data;
         self.item_var_store_offset()?.resolve(data)
     }
 }
@@ -286,7 +286,7 @@ impl<'a> AttachList<'a> {
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.coverage_offset().resolve(data)
     }
 
@@ -307,7 +307,7 @@ impl<'a> AttachList<'a> {
         let data = self.data;
         self.attach_point_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -459,7 +459,7 @@ impl<'a> LigCaretList<'a> {
 
     /// Attempt to resolve [`coverage_offset`][Self::coverage_offset].
     pub fn coverage(&self) -> Result<CoverageTable<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.coverage_offset().resolve(data)
     }
 
@@ -480,7 +480,7 @@ impl<'a> LigCaretList<'a> {
         let data = self.data;
         self.lig_glyph_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -567,7 +567,7 @@ impl<'a> LigGlyph<'a> {
         let data = self.data;
         self.caret_value_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -845,7 +845,7 @@ impl<'a> CaretValueFormat3<'a> {
 
     /// Attempt to resolve [`device_offset`][Self::device_offset].
     pub fn device(&self) -> Result<Device<'a>, ReadError> {
-        let data = &self.data;
+        let data = self.data;
         self.device_offset().resolve(data)
     }
 }
@@ -939,7 +939,7 @@ impl<'a> MarkGlyphSets<'a> {
         let data = self.data;
         self.coverage_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 

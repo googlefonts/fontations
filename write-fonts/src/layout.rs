@@ -72,7 +72,7 @@ where
     U: FontRead<'a>,
     T: FromTableRef<U> + 'static,
 {
-    fn from_obj_ref(from: &read_fonts::layout::TypedLookup<'a, U>, _data: &FontData) -> Self {
+    fn from_obj_ref(from: &read_fonts::layout::TypedLookup<'a, U>, _data: FontData) -> Self {
         Lookup {
             lookup_flag: from.lookup_flag(),
             mark_filtering_set: from.mark_filtering_set(),
@@ -96,7 +96,7 @@ where
 {
     fn from_obj_ref(
         from: &read_fonts::layout::gpos::TypedExtension<'a, U>,
-        _data: &FontData,
+        _data: FontData,
     ) -> Self {
         ExtensionSubtable {
             extension_offset: from.get().into(),
@@ -157,7 +157,7 @@ impl Validate for FeatureParams {
 
 #[cfg(feature = "parsing")]
 impl FromObjRef<read_fonts::layout::FeatureParams<'_>> for FeatureParams {
-    fn from_obj_ref(from: &read_fonts::layout::FeatureParams, data: &FontData) -> Self {
+    fn from_obj_ref(from: &read_fonts::layout::FeatureParams, data: FontData) -> Self {
         use read_fonts::layout::FeatureParams as FromType;
         match from {
             FromType::Size(thing) => Self::Size(SizeParams::from_obj_ref(thing, data)),

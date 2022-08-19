@@ -74,10 +74,7 @@ impl<'a> SomeTable<'a> for Cmap<'a> {
             1usize => Some(Field::new("num_tables", self.num_tables())),
             2usize => Some(Field::new(
                 "encoding_records",
-                traversal::FieldType::array_of_records(
-                    self.encoding_records(),
-                    *self.offset_data(),
-                ),
+                traversal::FieldType::array_of_records(self.encoding_records(), self.offset_data()),
             )),
             _ => None,
         }
@@ -123,7 +120,7 @@ impl EncodingRecord {
     }
 
     /// Attempt to resolve [`subtable_offset`][Self::subtable_offset].
-    pub fn subtable<'a>(&self, data: &FontData<'a>) -> Result<CmapSubtable<'a>, ReadError> {
+    pub fn subtable<'a>(&self, data: FontData<'a>) -> Result<CmapSubtable<'a>, ReadError> {
         self.subtable_offset().resolve(data)
     }
 }
@@ -140,7 +137,7 @@ impl<'a> SomeRecord<'a> for EncodingRecord {
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("platform_id", self.platform_id())),
                 1usize => Some(Field::new("encoding_id", self.encoding_id())),
-                2usize => Some(Field::new("subtable_offset", self.subtable(&_data))),
+                2usize => Some(Field::new("subtable_offset", self.subtable(_data))),
                 _ => None,
             }),
             data,
@@ -973,7 +970,7 @@ impl<'a> SomeTable<'a> for Cmap8<'a> {
             4usize => Some(Field::new("num_groups", self.num_groups())),
             5usize => Some(Field::new(
                 "groups",
-                traversal::FieldType::array_of_records(self.groups(), *self.offset_data()),
+                traversal::FieldType::array_of_records(self.groups(), self.offset_data()),
             )),
             _ => None,
         }
@@ -1274,7 +1271,7 @@ impl<'a> SomeTable<'a> for Cmap12<'a> {
             3usize => Some(Field::new("num_groups", self.num_groups())),
             4usize => Some(Field::new(
                 "groups",
-                traversal::FieldType::array_of_records(self.groups(), *self.offset_data()),
+                traversal::FieldType::array_of_records(self.groups(), self.offset_data()),
             )),
             _ => None,
         }
@@ -1390,7 +1387,7 @@ impl<'a> SomeTable<'a> for Cmap13<'a> {
             3usize => Some(Field::new("num_groups", self.num_groups())),
             4usize => Some(Field::new(
                 "groups",
-                traversal::FieldType::array_of_records(self.groups(), *self.offset_data()),
+                traversal::FieldType::array_of_records(self.groups(), self.offset_data()),
             )),
             _ => None,
         }
@@ -1546,7 +1543,7 @@ impl<'a> SomeTable<'a> for Cmap14<'a> {
             )),
             3usize => Some(Field::new(
                 "var_selector",
-                traversal::FieldType::array_of_records(self.var_selector(), *self.offset_data()),
+                traversal::FieldType::array_of_records(self.var_selector(), self.offset_data()),
             )),
             _ => None,
         }
@@ -1680,7 +1677,7 @@ impl<'a> SomeTable<'a> for DefaultUvs<'a> {
             )),
             1usize => Some(Field::new(
                 "ranges",
-                traversal::FieldType::array_of_records(self.ranges(), *self.offset_data()),
+                traversal::FieldType::array_of_records(self.ranges(), self.offset_data()),
             )),
             _ => None,
         }

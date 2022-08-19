@@ -72,7 +72,7 @@ impl<'a, T: FontRead<'a>> TypedExtension<'a, T> {
     }
 
     pub fn get(&self) -> Result<T, ReadError> {
-        self.inner.extension_offset().resolve(&self.inner.data)
+        self.inner.extension_offset().resolve(self.inner.data)
     }
 }
 
@@ -89,7 +89,7 @@ impl<'a> PositionLookupList<'a> {
         self.0
             .lookup_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 

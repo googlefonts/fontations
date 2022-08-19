@@ -92,7 +92,7 @@ impl Validate for ValueRecord {
 
 #[cfg(feature = "parsing")]
 impl FromObjRef<read_fonts::layout::gpos::ValueRecord> for ValueRecord {
-    fn from_obj_ref(from: &read_fonts::layout::gpos::ValueRecord, _data: &FontData) -> Self {
+    fn from_obj_ref(from: &read_fonts::layout::gpos::ValueRecord, _data: FontData) -> Self {
         ValueRecord {
             x_placement: from.x_placement.map(|val| val.get()),
             y_placement: from.y_placement.map(|val| val.get()),

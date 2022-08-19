@@ -101,7 +101,7 @@ impl Validate for PositionLookup {
 
 #[cfg(feature = "parsing")]
 impl FromObjRef<read_fonts::layout::gpos::PositionLookup<'_>> for PositionLookup {
-    fn from_obj_ref(from: &read_fonts::layout::gpos::PositionLookup<'_>, data: &FontData) -> Self {
+    fn from_obj_ref(from: &read_fonts::layout::gpos::PositionLookup<'_>, data: FontData) -> Self {
         use read_fonts::layout::gpos::PositionLookup as FromType;
         match from {
             FromType::Single(lookup) => Self::Single(lookup.to_owned_obj(data)),
@@ -124,7 +124,7 @@ impl FromTableRef<read_fonts::layout::gpos::PositionLookup<'_>> for PositionLook
 impl FromObjRef<read_fonts::layout::gpos::ExtensionSubtable<'_>> for Extension {
     fn from_obj_ref(
         from: &read_fonts::layout::gpos::ExtensionSubtable<'_>,
-        data: &FontData,
+        data: FontData,
     ) -> Self {
         use read_fonts::layout::gpos::ExtensionSubtable as FromType;
         match from {
@@ -170,7 +170,7 @@ impl FontWrite for PositionLookupList {
 impl FromObjRef<read_fonts::layout::gpos::PositionLookupList<'_>> for PositionLookupList {
     fn from_obj_ref(
         from: &read_fonts::layout::gpos::PositionLookupList<'_>,
-        _data: &FontData,
+        _data: FontData,
     ) -> Self {
         PositionLookupList {
             lookup_offsets: from

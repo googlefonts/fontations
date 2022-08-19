@@ -124,7 +124,7 @@ impl Fields {
         &self,
         in_record: bool,
     ) -> impl Iterator<Item = TokenStream> + '_ {
-        let pass_data = in_record.then(|| quote!(&_data));
+        let pass_data = in_record.then(|| quote!(_data));
         self.fields
             .iter()
             .filter(|fld| fld.has_getter())
@@ -167,7 +167,7 @@ fn traversal_arm_for_field(
                         #name_str,
                         traversal::FieldType::array_of_records(
                             self.#name(),
-                            *self.offset_data(),
+                            self.offset_data(),
                         )
                 ))
             }
@@ -196,7 +196,7 @@ fn traversal_arm_for_field(
             // Class1Record
             let data = in_record
                 .then(|| quote!(FontData::new(&[])))
-                .unwrap_or_else(|| quote!(*self.offset_data()));
+                .unwrap_or_else(|| quote!(self.offset_data()));
             // in a record we return things by value, so clone
             let maybe_clone = in_record.then(|| quote!(.clone()));
             quote!(Field::new(
@@ -529,11 +529,9 @@ impl Field {
             return_type = quote!(impl Iterator<Item=#return_type> + 'a);
         }
 
-        let add_back_borrow = self.is_array().then(|| quote!(&));
-
         let resolve = match self.attrs.read_offset_args.as_deref() {
-            None => quote!(resolve( #add_back_borrow data)),
-            Some(_) => quote!(resolve_with_args(#add_back_borrow data, &args)),
+            None => quote!(resolve(data)),
+            Some(_) => quote!(resolve_with_args(data, &args)),
         };
 
         let args_if_needed = self.attrs.read_offset_args.as_ref().map(|args| {
@@ -542,19 +540,12 @@ impl Field {
         });
 
         // if a record, data is passed in
-        let input_data_if_needed = record.is_some().then(|| quote!(, data: &FontData<'a>));
+        let input_data_if_needed = record.is_some().then(|| quote!(, data: FontData<'a>));
         let decl_lifetime_if_needed =
             record.and_then(|x| x.lifetime.is_none().then(|| quote!(<'a>)));
 
-        let data_alias_if_needed = match record {
-            // if a table, data is self.data
-            None if self.is_array() => Some(quote!(let data = self.data;)),
-            None => Some(quote!(let data = &self.data;)),
-            // if this is an offset getter for an array we need to clone
-            // data so it is owned by closure
-            Some(_) if self.is_array() => Some(quote!(let data = *data;)),
-            _ => None,
-        };
+        // if a table, data is self.data, else it is passed as an argument
+        let data_alias_if_needed = record.is_none().then(|| quote!(let data = self.data;));
 
         // if this is version dependent we append ? when we call the offset getter
         let try_op = self.is_version_dependent().then(|| quote!(?));

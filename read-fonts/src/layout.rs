@@ -34,7 +34,7 @@ impl<'a, T: FontRead<'a>> TypedLookup<'a, T> {
         self.inner
             .subtable_offsets()
             .iter()
-            .map(move |off| off.get().resolve(&data))
+            .map(move |off| off.get().resolve(data))
     }
 }
 
@@ -119,7 +119,7 @@ impl<'a, T: SomeTable<'a> + FontRead<'a> + 'a> SomeTable<'a> for TypedLookup<'a,
 }
 
 impl FeatureTableSubstitutionRecord {
-    pub fn alternate_feature<'a>(&self, data: &FontData<'a>) -> Result<Feature<'a>, ReadError> {
+    pub fn alternate_feature<'a>(&self, data: FontData<'a>) -> Result<Feature<'a>, ReadError> {
         self.alternate_feature_offset()
             .resolve_with_args(data, &Tag::new(b"NULL"))
     }
