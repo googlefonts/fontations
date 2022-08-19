@@ -9,7 +9,7 @@ use read_fonts::FontData;
 pub trait FromTableRef<T>: FromObjRef<T> {
     fn from_table_ref(from: &T) -> Self {
         let data = FontData::new(&[]);
-        Self::from_obj_ref(from, &data)
+        Self::from_obj_ref(from, data)
     }
 }
 
@@ -25,7 +25,7 @@ pub trait FromTableRef<T>: FromObjRef<T> {
 /// [`validate`]: [crate::Validate::validate]
 pub trait FromObjRef<T: ?Sized>: Sized {
     //type Owned;
-    fn from_obj_ref(from: &T, data: &FontData) -> Self;
+    fn from_obj_ref(from: &T, data: FontData) -> Self;
 }
 
 /// A conversion from a parsed font object type to an owned version, resolving
@@ -34,7 +34,7 @@ pub trait FromObjRef<T: ?Sized>: Sized {
 /// You should avoid implementing this trait manually. Like [`std::convert::Into`],
 /// it is provided as a blanket impl when you implement [`FromObjRef<T>`].
 pub trait ToOwnedObj<T> {
-    fn to_owned_obj(&self, data: &FontData) -> T;
+    fn to_owned_obj(&self, data: FontData) -> T;
 }
 
 /// A conversion from a fully resolveable parsed font table to its owned equivalent.
@@ -48,7 +48,7 @@ impl<U, T> ToOwnedObj<U> for T
 where
     U: FromObjRef<T>,
 {
-    fn to_owned_obj(&self, data: &FontData) -> U {
+    fn to_owned_obj(&self, data: FontData) -> U {
         U::from_obj_ref(self, data)
     }
 }

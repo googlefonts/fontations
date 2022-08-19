@@ -1,6 +1,6 @@
 //! raw font bytes
 
-use std::ops::{Bound, Range, RangeBounds};
+use std::ops::{Range, RangeBounds};
 
 use font_types::{FixedSized, ReadScalar};
 
@@ -14,7 +14,6 @@ use crate::table_ref::TableRef;
 /// for parsing and validating that data.
 #[derive(Debug, Default, Clone, Copy)]
 pub struct FontData<'a> {
-    total_pos: u32,
     bytes: &'a [u8],
 }
 
@@ -36,10 +35,7 @@ impl<'a> FontData<'a> {
     /// You generally don't need to do this? It is handled for you when loading
     /// data from disk, but may be useful in tests.
     pub const fn new(bytes: &'a [u8]) -> Self {
-        FontData {
-            total_pos: 0,
-            bytes,
-        }
+        FontData { bytes }
     }
 
     /// The length of the data, in bytes
@@ -53,24 +49,12 @@ impl<'a> FontData<'a> {
     }
 
     pub fn split_off(&self, pos: usize) -> Option<FontData<'a>> {
-        self.bytes.get(pos..).map(|bytes| FontData {
-            bytes,
-            total_pos: self.total_pos.saturating_add(pos as u32),
-        })
+        self.bytes.get(pos..).map(|bytes| FontData { bytes })
     }
 
     pub fn slice(&self, range: impl RangeBounds<usize>) -> Option<FontData<'a>> {
-        let start = match range.start_bound() {
-            Bound::Unbounded => 0,
-            Bound::Included(i) => *i,
-            Bound::Excluded(i) => i.saturating_add(1),
-        };
-
         let bounds = (range.start_bound().cloned(), range.end_bound().cloned());
-        let total_pos = self.total_pos.saturating_add(start as u32);
-        self.bytes
-            .get(bounds)
-            .map(|bytes| FontData { bytes, total_pos })
+        self.bytes.get(bounds).map(|bytes| FontData { bytes })
     }
 
     pub fn read_at<T: ReadScalar>(&self, offset: usize) -> Result<T, ReadError> {

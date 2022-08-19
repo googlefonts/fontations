@@ -108,7 +108,7 @@ impl<'a> SomeTable<'a> for TableDirectory<'a> {
             4usize => Some(Field::new("range_shift", self.range_shift())),
             5usize => Some(Field::new(
                 "table_records",
-                traversal::FieldType::array_of_records(self.table_records(), *self.offset_data()),
+                traversal::FieldType::array_of_records(self.table_records(), self.offset_data()),
             )),
             _ => None,
         }

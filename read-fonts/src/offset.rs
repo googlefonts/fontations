@@ -33,27 +33,27 @@ impl_offset!(Offset32, 4);
 
 /// a (temporary?) helper trait to blanket impl a resolve method for font_types::Offset
 pub trait ResolveOffset {
-    fn resolve<'a, T: FontRead<'a>>(&self, data: &FontData<'a>) -> Result<T, ReadError>;
+    fn resolve<'a, T: FontRead<'a>>(&self, data: FontData<'a>) -> Result<T, ReadError>;
 
     fn resolve_with_args<'a, T: FontReadWithArgs<'a>>(
         &self,
-        data: &FontData<'a>,
+        data: FontData<'a>,
         args: &T::Args,
     ) -> Result<T, ReadError>;
 }
 
 pub trait ResolveNullableOffset {
-    fn resolve<'a, T: FontRead<'a>>(&self, data: &FontData<'a>) -> Option<Result<T, ReadError>>;
+    fn resolve<'a, T: FontRead<'a>>(&self, data: FontData<'a>) -> Option<Result<T, ReadError>>;
 
     fn resolve_with_args<'a, T: FontReadWithArgs<'a>>(
         &self,
-        data: &FontData<'a>,
+        data: FontData<'a>,
         args: &T::Args,
     ) -> Option<Result<T, ReadError>>;
 }
 
 impl<O: Offset> ResolveNullableOffset for Nullable<O> {
-    fn resolve<'a, T: FontRead<'a>>(&self, data: &FontData<'a>) -> Option<Result<T, ReadError>> {
+    fn resolve<'a, T: FontRead<'a>>(&self, data: FontData<'a>) -> Option<Result<T, ReadError>> {
         match self.offset().resolve(data) {
             Ok(thing) => Some(Ok(thing)),
             Err(ReadError::NullOffset) => None,
@@ -63,7 +63,7 @@ impl<O: Offset> ResolveNullableOffset for Nullable<O> {
 
     fn resolve_with_args<'a, T: FontReadWithArgs<'a>>(
         &self,
-        data: &FontData<'a>,
+        data: FontData<'a>,
         args: &T::Args,
     ) -> Option<Result<T, ReadError>> {
         match self.offset().resolve_with_args(data, args) {
@@ -75,7 +75,7 @@ impl<O: Offset> ResolveNullableOffset for Nullable<O> {
 }
 
 impl<O: Offset> ResolveOffset for O {
-    fn resolve<'a, T: FontRead<'a>>(&self, data: &FontData<'a>) -> Result<T, ReadError> {
+    fn resolve<'a, T: FontRead<'a>>(&self, data: FontData<'a>) -> Result<T, ReadError> {
         self.non_null()
             .ok_or(ReadError::NullOffset)
             .and_then(|off| data.split_off(off).ok_or(ReadError::OutOfBounds))
@@ -84,7 +84,7 @@ impl<O: Offset> ResolveOffset for O {
 
     fn resolve_with_args<'a, T: FontReadWithArgs<'a>>(
         &self,
-        data: &FontData<'a>,
+        data: FontData<'a>,
         args: &T::Args,
     ) -> Result<T, ReadError> {
         self.non_null()

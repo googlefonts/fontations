@@ -180,7 +180,7 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
     Ok(quote! {
         #[cfg(feature = "parsing")]
         impl FromObjRef<#parse_module :: #name<'_>> for #name {
-            fn from_obj_ref(obj: &#parse_module :: #name, _: &FontData) -> Self {
+            fn from_obj_ref(obj: &#parse_module :: #name, _: FontData) -> Self {
                 #maybe_bind_offset_data
                 #name {
                     #( #field_to_owned_stmts, )*
@@ -265,7 +265,7 @@ fn generate_format_from_obj(
     Ok(quote! {
         #[cfg(feature = "parsing")]
         impl FromObjRef<#parse_module:: #name<'_>> for #name {
-            fn from_obj_ref(obj: &#parse_module:: #name, _: &FontData) -> Self {
+            fn from_obj_ref(obj: &#parse_module:: #name, _: FontData) -> Self {
                 use #parse_module::#name as ObjRefType;
                 match obj {
                     #( #to_owned_arms )*
