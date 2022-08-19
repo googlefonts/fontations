@@ -41,6 +41,12 @@ impl From<Uint24> for u32 {
     }
 }
 
+impl std::fmt::Display for Uint24 {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
