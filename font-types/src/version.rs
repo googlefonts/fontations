@@ -142,7 +142,14 @@ impl std::fmt::Debug for Version16Dot16 {
 impl std::fmt::Display for Version16Dot16 {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let (major, minor) = self.to_major_minor();
-        write!(f, "{}.{}", major, minor)
+        write!(f, "{major}.{minor}")
+    }
+}
+
+impl std::fmt::Display for MajorMinor {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let MajorMinor { major, minor } = self;
+        write!(f, "{major}.{minor}")
     }
 }
 
