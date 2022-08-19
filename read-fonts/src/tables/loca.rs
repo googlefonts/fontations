@@ -79,9 +79,10 @@ impl<'a> traversal::SomeTable<'a> for Loca<'a> {
     fn type_name(&self) -> &str {
         "loca"
     }
+
     fn get_field(&self, idx: usize) -> Option<traversal::Field<'a>> {
         match idx {
-            0usize => Some(traversal::Field::new("version", self.clone())),
+            0usize => Some(traversal::Field::new("offsets", self.clone())),
             _ => None,
         }
     }

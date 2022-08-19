@@ -93,8 +93,8 @@ impl<'a> FieldType<'a> {
 
 /// A generic field in a font table
 pub struct Field<'a> {
-    name: &'static str,
-    typ: FieldType<'a>,
+    pub name: &'static str,
+    pub typ: FieldType<'a>,
 }
 
 /// A generic table type.
@@ -191,6 +191,16 @@ impl<'a> SomeArray<'a> for &'a [u8] {
 
     fn get(&self, idx: usize) -> Option<FieldType<'a>> {
         (*self).get(idx).copied().map(Into::into)
+    }
+}
+
+impl<'a> SomeArray<'a> for Box<dyn SomeArray<'a> + 'a> {
+    fn len(&self) -> usize {
+        self.deref().len()
+    }
+
+    fn get(&self, idx: usize) -> Option<FieldType<'a>> {
+        self.deref().get(idx)
     }
 }
 
