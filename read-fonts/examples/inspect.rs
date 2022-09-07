@@ -7,7 +7,7 @@ use std::{collections::HashSet, str::FromStr};
 
 use font_types::Tag;
 use read_fonts::{
-    traversal::{Field, FieldType, OffsetType, ResolvedOffset, SomeArray, SomeTable},
+    traversal::{FieldType, OffsetType, ResolvedOffset, SomeArray, SomeTable},
     FontData, FontRef, TableProvider,
 };
 
@@ -60,7 +60,11 @@ fn get_offset_width(font: &FontRef) -> usize {
         .map(|rec| rec.offset().to_u32())
         .max()
         .unwrap_or_default();
-    match max_off {
+    hex_width(max_off)
+}
+
+fn hex_width(val: u32) -> usize {
+    match val {
         0..=0xffff => 4usize,
         0x10000..=0xffff_ff => 6,
         0x1000000.. => 8,
@@ -167,97 +171,66 @@ impl<'a> PrettyPrinter<'a> {
         self.writer.write_all(&MANY_SPACES[..indent_len])
     }
 
-    fn write_newline(&mut self) -> std::io::Result<()> {
+    fn indented(
+        &mut self,
+        f: impl FnOnce(&mut PrettyPrinter) -> std::io::Result<()>,
+    ) -> std::io::Result<()> {
+        self.depth += 1;
+        let r = f(self);
+        self.depth -= 1;
+        r
+    }
+
+    fn print_newline(&mut self) -> std::io::Result<()> {
         self.writer.write_all(b"\n")
     }
 
-    fn print_table<'b>(
-        &mut self,
-        offset: Option<OffsetType>,
-        table: &(dyn SomeTable<'b> + 'b),
-    ) -> std::io::Result<()> {
-        if let Some(offset) = offset {
-            self.writer
-                .write_fmt(format_args!("{:04X} ", offset.to_u32()))?;
-        }
+    fn print_root_table<'b>(&mut self, table: &(dyn SomeTable<'b> + 'b)) -> std::io::Result<()> {
+        self.print_indent()?;
         self.writer.write_all(table.type_name().as_bytes())?;
-        self.depth += 1;
-        for field in table.iter() {
-            self.write_newline()?;
-            self.add_field(&field)?;
+        self.print_newline()?;
+        self.indented(|this| this.print_fields(table))?;
+        self.print_newline()
+    }
+
+    fn print_fields<'b>(&mut self, table: &(dyn SomeTable<'b> + 'b)) -> std::io::Result<()> {
+        for (i, field) in table.iter().enumerate() {
+            if i != 0 {
+                self.print_newline()?;
+            }
+            self.print_indent()?;
+            self.writer.write_all(field.name.as_bytes())?;
+            self.writer.write_all(": ".as_bytes())?;
+            self.print_field(&field.typ)?;
         }
-        self.depth = self.depth.saturating_sub(1);
         Ok(())
     }
 
     fn print_array<'b>(&mut self, array: &(dyn SomeArray<'b> + 'b)) -> std::io::Result<()> {
         self.writer.write_fmt(format_args!("[TypeName]\n"))?;
-        self.depth += 1;
-        for (i, item) in array.iter().enumerate() {
-            if i != 0 {
-                self.write_newline()?;
-            }
-            if is_scalar(&item) {
-                self.print_indent()?;
-            }
-            match item {
-                FieldType::I8(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::U8(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::I16(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::U16(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::I32(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::U32(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::U24(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::Tag(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::FWord(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::UfWord(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::MajorMinor(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::Version16Dot16(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::F2Dot14(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::Fixed(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::LongDateTime(val) => self.writer.write_fmt(format_args!("{val:?},"))?,
-                FieldType::GlyphId(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::ResolvedOffset(ResolvedOffset { offset, target }) => match target {
-                    Ok(table) => self.print_table(offset.into(), &table),
-                    Err(e) => self.writer.write_fmt(format_args!("Error: '{e}'")),
-                }?,
-                FieldType::BareOffset(offset) => self
-                    .writer
-                    .write_fmt(format_args!("{:04X}", offset.to_u32()))?,
-                FieldType::Record(record) => {
-                    let record = &record as &dyn SomeTable;
-                    for (i, field) in record.iter().enumerate() {
-                        if i != 0 {
-                            self.write_newline()?;
-                        }
-                        self.add_field(&field)?;
-                    }
+        self.indented(|this| {
+            for (i, item) in array.iter().enumerate() {
+                if i != 0 {
+                    this.print_newline()?;
                 }
-                FieldType::ValueRecord(record) => {
-                    let record = &record as &dyn SomeTable;
-                    for (i, field) in record.iter().enumerate() {
-                        if i != 0 {
-                            self.write_newline()?;
-                        }
-                        self.add_field(&field)?;
-                    }
+                if is_scalar(&item) {
+                    this.print_indent()?;
                 }
-                FieldType::Array(_) | FieldType::OffsetArray(_) => {
-                    unreachable!("there are no nested arrays")
-                }
-                //FieldType::OffsetArray(_) => todo!(),
-                FieldType::None => self.writer.write_all(b"None,")?,
+                this.print_field(&item)?;
             }
-        }
-        self.depth -= 1;
-        Ok(())
+            Ok(())
+        })
     }
 
-    fn add_field<'b>(&mut self, field: &Field<'b>) -> std::io::Result<()> {
-        self.print_indent()?;
-        self.writer.write_all(field.name.as_bytes())?;
-        self.writer.write_all(": ".as_bytes())?;
-        match &field.typ {
+    fn print_offset(&mut self, offset: OffsetType) -> std::io::Result<()> {
+        let offset = offset.to_u32();
+        let hex_width = hex_width(offset);
+        self.writer
+            .write_fmt(format_args!("0x{offset:0hex_width$X}"))
+    }
+
+    fn print_field<'b>(&mut self, field: &FieldType<'b>) -> std::io::Result<()> {
+        match &field {
             FieldType::I8(val) => self.writer.write_fmt(format_args!("{val}"))?,
             FieldType::U8(val) => self.writer.write_fmt(format_args!("{val}"))?,
             FieldType::I16(val) => self.writer.write_fmt(format_args!("{val}"))?,
@@ -273,57 +246,35 @@ impl<'a> PrettyPrinter<'a> {
             FieldType::F2Dot14(val) => self.writer.write_fmt(format_args!("{val}"))?,
             FieldType::Fixed(val) => self.writer.write_fmt(format_args!("{val}"))?,
             FieldType::LongDateTime(val) => self.writer.write_fmt(format_args!("{val:?}"))?,
-            FieldType::GlyphId(val) => self.writer.write_fmt(format_args!("{val}"))?,
-            //FieldType::ResolvedOffset(ResolvedOffset { target, .. }) => match target {
-
-            //}
-            FieldType::ResolvedOffset(ResolvedOffset { offset, target }) => match target {
-                Ok(table) => self.print_table((*offset).into(), table),
-                Err(e) => self.writer.write_fmt(format_args!("Error: '{e}'")),
-            }?,
-            FieldType::BareOffset(offset) => self
-                .writer
-                .write_fmt(format_args!("{:04X}", offset.to_u32()))?,
-            FieldType::Record(_) => (),
+            FieldType::GlyphId(val) => self.writer.write_fmt(format_args!("{}", val.to_u16()))?,
+            FieldType::ResolvedOffset(ResolvedOffset { offset, target }) => {
+                self.print_offset(*offset)?;
+                self.print_newline()?;
+                match target {
+                    Ok(table) => self.indented(|this| this.print_fields(table)),
+                    Err(e) => self.writer.write_fmt(format_args!("Error: '{e}'")),
+                }?;
+            }
+            FieldType::BareOffset(offset) => self.print_offset(*offset)?,
+            FieldType::Record(record) => self.print_fields(record)?,
             FieldType::ValueRecord(record) if record.get_field(0).is_none() => {
                 self.writer.write_all(b"Null")?
             }
-            FieldType::ValueRecord(record) => self.print_table(None, record)?,
+            FieldType::ValueRecord(record) => self.indented(|this| {
+                this.print_newline()?;
+                this.print_fields(record)
+            })?,
             FieldType::Array(array) => self.print_array(array)?,
             FieldType::OffsetArray(array) => {
-                for table in array.iter() {
-                    self.write_newline()?;
-                    match table {
-                        FieldType::ResolvedOffset(ResolvedOffset { offset, target }) => {
-                            self.print_indent()?;
-                            match target {
-                                Ok(table) => self.print_table(offset.into(), &table),
-                                Err(e) => self.writer.write_fmt(format_args!("Error: '{e}'")),
-                            }?
-                        }
-                        //FieldType::
-                        //FieldType::ResolvedOffset(Ok(table)) => {
-                        //self.print_indent()?;
-                        //self.print_table(&table)?;
-                        //}
-                        //FieldType::ResolvedOffset(Err(e)) => {
-                        //self.print_indent()?;
-                        //self.writer.write_fmt(format_args!("Error: '{e}'"))?;
-                        //}
-                        FieldType::BareOffset(off) => {
-                            self.print_indent()?;
-                            self.writer
-                                .write_fmt(format_args!("{:04X}", off.to_u32()))?;
-                        }
-                        FieldType::None => {
-                            self.print_indent()?;
-                            self.writer.write_all(b"None")?;
-                        }
-                        _ => unreachable!(
-                            "this only contains offsets: {} {:?}",
-                            field.name, field.typ
-                        ),
+                for (i, table) in array.iter().enumerate() {
+                    if i != 0 {
+                        self.writer.write_all(b",")?;
                     }
+                    self.print_newline()?;
+                    self.indented(|this| {
+                        this.print_indent()?;
+                        this.print_field(&table)
+                    })?;
                 }
             }
             FieldType::None => self.writer.write_all(b"None")?,
@@ -381,7 +332,7 @@ struct PrintTable<'a, 'b>(&'b (dyn SomeTable<'a> + 'a));
 
 impl Print for PrintTable<'_, '_> {
     fn print(&self, printer: &mut PrettyPrinter) -> std::io::Result<()> {
-        printer.print_table(None, self.0)?;
+        printer.print_root_table(self.0)?;
         Ok(())
     }
 }
