@@ -7,9 +7,11 @@ mod gpos;
 mod layout;
 
 use std::cell::RefCell;
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeSet, HashMap, HashSet, VecDeque};
 
 use font_types::GlyphId;
+use read_fonts::tables::glyf::Glyph;
+use read_fonts::{FontRef, TableProvider};
 use write_fonts::{NullableOffsetMarker, OffsetMarker};
 
 /// Input to a subsetting operation.
@@ -27,7 +29,9 @@ impl Input {
         }
     }
 
-    pub fn make_plan(&self) -> Plan {
+    pub fn make_plan(mut self, font: &FontRef) -> Plan {
+        self.add_referenced_component_gids(font);
+        eprintln!("using {} glyphs", self.glyph_ids.len());
         let gid_map = if self.retain_gids {
             self.glyph_ids.iter().map(|gid| (*gid, *gid)).collect()
         } else {
@@ -42,6 +46,31 @@ impl Input {
             gpos_lookup_map: Default::default(),
             gpos_feature_map: Default::default(),
         }
+    }
+
+    fn add_referenced_component_gids(&mut self, font: &FontRef) {
+        let (loca, glyf) = match (font.loca(None), font.glyf()) {
+            (Ok(loca), Ok(glyf)) => (loca, glyf),
+            _ => return,
+        };
+
+        let mut queue = self.glyph_ids.iter().copied().collect::<VecDeque<_>>();
+        let mut visited = HashSet::new();
+
+        while let Some(next) = queue.pop_front() {
+            if !visited.insert(next) {
+                continue;
+            }
+            match loca.get_glyf(next, &glyf) {
+                Ok(Glyph::Simple(_)) => (),
+                Ok(Glyph::Composite(composite)) => {
+                    queue.extend(composite.iter_components().map(|comp| comp.glyph));
+                }
+                Err(e) => eprintln!("error getting glyph {next}: '{e}'"),
+            }
+        }
+        self.glyph_ids.clear();
+        self.glyph_ids.extend(visited.iter().copied());
     }
 }
 

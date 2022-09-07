@@ -19,11 +19,12 @@ fn main() {
 
     let gids = populate_gids(&args.gids);
     let input = Input::from_gids(gids, args.retain_gids);
-    let plan = input.make_plan();
 
     let bytes = std::fs::read(&args.path).expect("no font file found");
     let data = FontData::new(&bytes);
     let font = FontRef::new(data).expect("error reading font bytes");
+
+    let plan = input.make_plan(&font);
     let gpos = font.gpos().expect("no gpos table found");
     let mut gpos_bytes = Vec::new();
     for _ in 0..args.runs.unwrap_or(1) {
