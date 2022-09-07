@@ -125,7 +125,7 @@ impl<'a> FieldType<'a> {
                 offset,
                 target: target.map(|x| Box::new(x) as Box<dyn SomeTable>),
             }),
-            None => FieldType::None,
+            None => FieldType::BareOffset(offset),
         }
     }
 
@@ -579,8 +579,11 @@ impl<T: Into<OffsetType> + Clone> From<Nullable<T>> for OffsetType {
     }
 }
 
-impl<T: Into<OffsetType>> From<Option<Nullable<T>>> for OffsetType {
-    fn from(_: Option<Nullable<T>>) -> Self {
-        OffsetType::None
+impl<T: Into<OffsetType> + Clone> From<Option<Nullable<T>>> for OffsetType {
+    fn from(src: Option<Nullable<T>>) -> Self {
+        match src {
+            None => OffsetType::None,
+            Some(off) => off.into(),
+        }
     }
 }
