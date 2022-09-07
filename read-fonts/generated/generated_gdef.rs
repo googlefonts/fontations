@@ -170,18 +170,36 @@ impl<'a> SomeTable<'a> for Gdef<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("glyph_class_def_offset", self.glyph_class_def())),
-            2usize => Some(Field::new("attach_list_offset", self.attach_list())),
-            3usize => Some(Field::new("lig_caret_list_offset", self.lig_caret_list())),
+            1usize => Some(Field::new(
+                "glyph_class_def_offset",
+                FieldType::offset(self.glyph_class_def_offset(), self.glyph_class_def()),
+            )),
+            2usize => Some(Field::new(
+                "attach_list_offset",
+                FieldType::offset(self.attach_list_offset(), self.attach_list()),
+            )),
+            3usize => Some(Field::new(
+                "lig_caret_list_offset",
+                FieldType::offset(self.lig_caret_list_offset(), self.lig_caret_list()),
+            )),
             4usize => Some(Field::new(
                 "mark_attach_class_def_offset",
-                self.mark_attach_class_def(),
+                FieldType::offset(
+                    self.mark_attach_class_def_offset(),
+                    self.mark_attach_class_def(),
+                ),
             )),
             5usize => Some(Field::new(
                 "mark_glyph_sets_def_offset",
-                self.mark_glyph_sets_def(),
+                FieldType::offset(
+                    self.mark_glyph_sets_def_offset(),
+                    self.mark_glyph_sets_def(),
+                ),
             )),
-            6usize => Some(Field::new("item_var_store_offset", self.item_var_store())),
+            6usize => Some(Field::new(
+                "item_var_store_offset",
+                FieldType::offset(self.item_var_store_offset(), self.item_var_store()),
+            )),
             _ => None,
         }
     }
@@ -318,15 +336,21 @@ impl<'a> SomeTable<'a> for AttachList<'a> {
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
-            0usize => Some(Field::new("coverage_offset", self.coverage())),
+            0usize => Some(Field::new(
+                "coverage_offset",
+                FieldType::offset(self.coverage_offset(), self.coverage()),
+            )),
             1usize => Some(Field::new("glyph_count", self.glyph_count())),
             2usize => Some({
                 let this = self.sneaky_copy();
                 Field::new(
                     "attach_point_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.attach_point().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.attach_point()
+                                .zip(this.attach_point_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -491,15 +515,21 @@ impl<'a> SomeTable<'a> for LigCaretList<'a> {
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
-            0usize => Some(Field::new("coverage_offset", self.coverage())),
+            0usize => Some(Field::new(
+                "coverage_offset",
+                FieldType::offset(self.coverage_offset(), self.coverage()),
+            )),
             1usize => Some(Field::new("lig_glyph_count", self.lig_glyph_count())),
             2usize => Some({
                 let this = self.sneaky_copy();
                 Field::new(
                     "lig_glyph_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.lig_glyph().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.lig_glyph()
+                                .zip(this.lig_glyph_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -584,8 +614,11 @@ impl<'a> SomeTable<'a> for LigGlyph<'a> {
                 Field::new(
                     "caret_value_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.caret_value().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.caret_value()
+                                .zip(this.caret_value_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -859,7 +892,10 @@ impl<'a> SomeTable<'a> for CaretValueFormat3<'a> {
         match idx {
             0usize => Some(Field::new("caret_value_format", self.caret_value_format())),
             1usize => Some(Field::new("coordinate", self.coordinate())),
-            2usize => Some(Field::new("device_offset", self.device())),
+            2usize => Some(Field::new(
+                "device_offset",
+                FieldType::offset(self.device_offset(), self.device()),
+            )),
             _ => None,
         }
     }
@@ -960,8 +996,11 @@ impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
                 Field::new(
                     "coverage_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.coverage().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.coverage()
+                                .zip(this.coverage_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),

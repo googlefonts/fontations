@@ -131,7 +131,7 @@ impl<'a> SomeTable<'a> for Name<'a> {
             1usize => Some(Field::new("count", self.count())),
             2usize => Some(Field::new(
                 "storage_offset",
-                self.storage_offset().to_usize() as u32,
+                FieldType::unknown_offset(self.storage_offset()),
             )),
             3usize => Some(Field::new(
                 "name_record",
@@ -192,7 +192,7 @@ impl<'a> SomeRecord<'a> for LangTagRecord {
                 0usize => Some(Field::new("length", self.length())),
                 1usize => Some(Field::new(
                     "lang_tag_offset",
-                    self.lang_tag_offset().to_usize() as u32,
+                    FieldType::unknown_offset(self.lang_tag_offset()),
                 )),
                 _ => None,
             }),
@@ -274,7 +274,7 @@ impl<'a> SomeRecord<'a> for NameRecord {
                 4usize => Some(Field::new("length", self.length())),
                 5usize => Some(Field::new(
                     "string_offset",
-                    self.string_offset().to_usize() as u32,
+                    FieldType::unknown_offset(self.string_offset()),
                 )),
                 _ => None,
             }),

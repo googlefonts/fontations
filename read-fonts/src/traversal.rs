@@ -6,8 +6,8 @@
 use std::{fmt::Debug, ops::Deref};
 
 use font_types::{
-    BigEndian, F2Dot14, FWord, Fixed, GlyphId, LongDateTime, MajorMinor, Scalar, Tag, UfWord,
-    Uint24, Version16Dot16,
+    BigEndian, F2Dot14, FWord, Fixed, GlyphId, LongDateTime, MajorMinor, Nullable, Offset16,
+    Offset24, Offset32, Scalar, Tag, UfWord, Uint24, Version16Dot16,
 };
 
 use crate::{
@@ -37,14 +37,38 @@ pub enum FieldType<'a> {
     Fixed(Fixed),
     LongDateTime(LongDateTime),
     GlyphId(GlyphId),
-    ResolvedOffset(Result<Box<dyn SomeTable<'a> + 'a>, ReadError>),
+    BareOffset(OffsetType),
+    ResolvedOffset(ResolvedOffset<'a>),
     Record(RecordResolver<'a>),
     ValueRecord(ValueRecord),
     Array(Box<dyn SomeArray<'a> + 'a>),
     OffsetArray(Box<dyn ResolvedOffestArray<'a> + 'a>),
-    Unimplemented,
     // used for fields in other versions of a table
     None,
+}
+
+#[derive(Clone, Copy)]
+pub enum OffsetType {
+    None,
+    Offset16(u16),
+    Offset24(Uint24),
+    Offset32(u32),
+}
+
+impl OffsetType {
+    pub fn to_u32(self) -> u32 {
+        match self {
+            Self::None => 0,
+            Self::Offset16(val) => val.into(),
+            Self::Offset24(val) => val.into(),
+            Self::Offset32(val) => val,
+        }
+    }
+}
+
+pub struct ResolvedOffset<'a> {
+    pub offset: OffsetType,
+    pub target: Result<Box<dyn SomeTable<'a> + 'a>, ReadError>,
 }
 
 impl<'a> FieldType<'a> {
@@ -88,6 +112,25 @@ impl<'a> FieldType<'a> {
     /// in a function that returns an iterator when called.
     pub fn offset_iter(f: impl Fn() -> Box<dyn Iterator<Item = FieldType<'a>> + 'a> + 'a) -> Self {
         FieldType::OffsetArray(Box::new(f))
+    }
+
+    //FIXME: I bet this is generating a *lot* of code
+    pub fn offset<T: SomeTable<'a> + 'a>(
+        offset: impl Into<OffsetType>,
+        result: impl Into<Option<Result<T, ReadError>>>,
+    ) -> Self {
+        let offset = offset.into();
+        match result.into() {
+            Some(target) => FieldType::ResolvedOffset(ResolvedOffset {
+                offset,
+                target: target.map(|x| Box::new(x) as Box<dyn SomeTable>),
+            }),
+            None => FieldType::None,
+        }
+    }
+
+    pub fn unknown_offset(offset: impl Into<OffsetType>) -> Self {
+        Self::BareOffset(offset.into())
     }
 }
 
@@ -313,15 +356,17 @@ impl<'a> Debug for FieldType<'a> {
                 write!(f, "g")?;
                 arg0.to_u16().fmt(f)
             }
+            Self::BareOffset(arg0) => write!(f, "0x{:04X}", arg0.to_u32()),
             Self::None => write!(f, "None"),
-            Self::ResolvedOffset(Ok(arg0)) => arg0.fmt(f),
-            Self::ResolvedOffset(arg0) => arg0.fmt(f),
+            Self::ResolvedOffset(ResolvedOffset {
+                target: Ok(arg0), ..
+            }) => arg0.fmt(f),
+            Self::ResolvedOffset(arg0) => arg0.target.fmt(f),
             Self::Record(arg0) => (arg0 as &(dyn SomeTable<'a> + 'a)).fmt(f),
             Self::ValueRecord(arg0) if arg0.get_field(0).is_none() => write!(f, "NullValueRecord"),
             Self::ValueRecord(arg0) => (arg0 as &(dyn SomeTable<'a> + 'a)).fmt(f),
             Self::Array(arg0) => arg0.fmt(f),
             Self::OffsetArray(arg0) => f.debug_list().entries(arg0.iter()).finish(),
-            Self::Unimplemented => write!(f, "Unimplemented"),
         }
     }
 }
@@ -474,12 +519,6 @@ impl<'a, T: Into<FieldType<'a>>> From<Option<T>> for FieldType<'a> {
     }
 }
 
-impl<'a, T: SomeTable<'a> + 'a> From<Result<T, ReadError>> for FieldType<'a> {
-    fn from(src: Result<T, ReadError>) -> Self {
-        FieldType::ResolvedOffset(src.map(|table| Box::new(table) as Box<dyn SomeTable<'a>>))
-    }
-}
-
 impl<'a> From<ValueRecord> for FieldType<'a> {
     fn from(src: ValueRecord) -> Self {
         Self::ValueRecord(src)
@@ -498,8 +537,50 @@ impl<'a, T: SomeArray<'a> + 'a> From<T> for FieldType<'a> {
     }
 }
 
-impl<'a> From<()> for FieldType<'a> {
-    fn from(_src: ()) -> FieldType<'a> {
-        FieldType::Unimplemented
+impl From<Offset16> for OffsetType {
+    fn from(src: Offset16) -> OffsetType {
+        OffsetType::Offset16(src.to_u32() as u16)
+    }
+}
+
+impl From<Offset24> for OffsetType {
+    fn from(src: Offset24) -> OffsetType {
+        OffsetType::Offset24(Uint24::new(src.to_u32()))
+    }
+}
+
+impl From<Offset32> for OffsetType {
+    fn from(src: Offset32) -> OffsetType {
+        OffsetType::Offset32(src.to_u32())
+    }
+}
+
+impl<'a> From<Offset16> for FieldType<'a> {
+    fn from(src: Offset16) -> FieldType<'a> {
+        FieldType::BareOffset(src.into())
+    }
+}
+
+impl<'a> From<Offset24> for FieldType<'a> {
+    fn from(src: Offset24) -> FieldType<'a> {
+        FieldType::BareOffset(src.into())
+    }
+}
+
+impl<'a> From<Offset32> for FieldType<'a> {
+    fn from(src: Offset32) -> FieldType<'a> {
+        FieldType::BareOffset(src.into())
+    }
+}
+
+impl<T: Into<OffsetType> + Clone> From<Nullable<T>> for OffsetType {
+    fn from(src: Nullable<T>) -> Self {
+        src.offset().clone().into()
+    }
+}
+
+impl<T: Into<OffsetType>> From<Option<Nullable<T>>> for OffsetType {
+    fn from(_: Option<Nullable<T>>) -> Self {
+        OffsetType::None
     }
 }

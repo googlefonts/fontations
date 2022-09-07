@@ -7,7 +7,7 @@ use std::{collections::HashSet, str::FromStr};
 
 use font_types::Tag;
 use read_fonts::{
-    traversal::{Field, FieldType, SomeArray, SomeTable},
+    traversal::{Field, FieldType, OffsetType, ResolvedOffset, SomeArray, SomeTable},
     FontData, FontRef, TableProvider,
 };
 
@@ -151,7 +151,15 @@ impl<'a> PrettyPrinter<'a> {
         self.writer.write_all(b"\n")
     }
 
-    fn print_table<'b>(&mut self, table: &(dyn SomeTable<'b> + 'b)) -> std::io::Result<()> {
+    fn print_table<'b>(
+        &mut self,
+        offset: Option<OffsetType>,
+        table: &(dyn SomeTable<'b> + 'b),
+    ) -> std::io::Result<()> {
+        if let Some(offset) = offset {
+            self.writer
+                .write_fmt(format_args!("{:04X} ", offset.to_u32()))?;
+        }
         self.writer.write_all(table.type_name().as_bytes())?;
         self.depth += 1;
         for field in table.iter() {
@@ -189,10 +197,13 @@ impl<'a> PrettyPrinter<'a> {
                 FieldType::Fixed(val) => self.writer.write_fmt(format_args!("{val},"))?,
                 FieldType::LongDateTime(val) => self.writer.write_fmt(format_args!("{val:?},"))?,
                 FieldType::GlyphId(val) => self.writer.write_fmt(format_args!("{val},"))?,
-                FieldType::ResolvedOffset(Ok(table)) => self.print_table(&table)?,
-                FieldType::ResolvedOffset(Err(e)) => {
-                    self.writer.write_fmt(format_args!("Error: '{e}'"))?
-                }
+                FieldType::ResolvedOffset(ResolvedOffset { offset, target }) => match target {
+                    Ok(table) => self.print_table(offset.into(), &table),
+                    Err(e) => self.writer.write_fmt(format_args!("Error: '{e}'")),
+                }?,
+                FieldType::BareOffset(offset) => self
+                    .writer
+                    .write_fmt(format_args!("{:04X}", offset.to_u32()))?,
                 FieldType::Record(record) => {
                     let record = &record as &dyn SomeTable;
                     for (i, field) in record.iter().enumerate() {
@@ -215,7 +226,6 @@ impl<'a> PrettyPrinter<'a> {
                     unreachable!("there are no nested arrays")
                 }
                 //FieldType::OffsetArray(_) => todo!(),
-                FieldType::Unimplemented => self.writer.write_all(b"Unimplemented,")?,
                 FieldType::None => self.writer.write_all(b"None,")?,
             }
         }
@@ -244,37 +254,58 @@ impl<'a> PrettyPrinter<'a> {
             FieldType::Fixed(val) => self.writer.write_fmt(format_args!("{val}"))?,
             FieldType::LongDateTime(val) => self.writer.write_fmt(format_args!("{val:?}"))?,
             FieldType::GlyphId(val) => self.writer.write_fmt(format_args!("{val}"))?,
-            FieldType::ResolvedOffset(Ok(table)) => self.print_table(table)?,
-            FieldType::ResolvedOffset(Err(e)) => {
-                self.writer.write_fmt(format_args!("Error: '{e}'"))?
-            }
+            //FieldType::ResolvedOffset(ResolvedOffset { target, .. }) => match target {
+
+            //}
+            FieldType::ResolvedOffset(ResolvedOffset { offset, target }) => match target {
+                Ok(table) => self.print_table((*offset).into(), table),
+                Err(e) => self.writer.write_fmt(format_args!("Error: '{e}'")),
+            }?,
+            FieldType::BareOffset(offset) => self
+                .writer
+                .write_fmt(format_args!("{:04X}", offset.to_u32()))?,
             FieldType::Record(_) => (),
             FieldType::ValueRecord(record) if record.get_field(0).is_none() => {
                 self.writer.write_all(b"Null")?
             }
-            FieldType::ValueRecord(record) => self.print_table(record)?,
+            FieldType::ValueRecord(record) => self.print_table(None, record)?,
             FieldType::Array(array) => self.print_array(array)?,
             FieldType::OffsetArray(array) => {
                 for table in array.iter() {
                     self.write_newline()?;
                     match table {
-                        FieldType::ResolvedOffset(Ok(table)) => {
+                        FieldType::ResolvedOffset(ResolvedOffset { offset, target }) => {
                             self.print_indent()?;
-                            self.print_table(&table)?;
+                            match target {
+                                Ok(table) => self.print_table(offset.into(), &table),
+                                Err(e) => self.writer.write_fmt(format_args!("Error: '{e}'")),
+                            }?
                         }
-                        FieldType::ResolvedOffset(Err(e)) => {
+                        //FieldType::
+                        //FieldType::ResolvedOffset(Ok(table)) => {
+                        //self.print_indent()?;
+                        //self.print_table(&table)?;
+                        //}
+                        //FieldType::ResolvedOffset(Err(e)) => {
+                        //self.print_indent()?;
+                        //self.writer.write_fmt(format_args!("Error: '{e}'"))?;
+                        //}
+                        FieldType::BareOffset(off) => {
                             self.print_indent()?;
-                            self.writer.write_fmt(format_args!("Error: '{e}'"))?;
+                            self.writer
+                                .write_fmt(format_args!("{:04X}", off.to_u32()))?;
                         }
                         FieldType::None => {
                             self.print_indent()?;
                             self.writer.write_all(b"None")?;
                         }
-                        _ => unreachable!("this only contains offsets: {}", field.name),
+                        _ => unreachable!(
+                            "this only contains offsets: {} {:?}",
+                            field.name, field.typ
+                        ),
                     }
                 }
             }
-            FieldType::Unimplemented => (),
             FieldType::None => self.writer.write_all(b"None")?,
         }
         Ok(())
@@ -330,7 +361,7 @@ struct PrintTable<'a, 'b>(&'b (dyn SomeTable<'a> + 'a));
 
 impl Print for PrintTable<'_, '_> {
     fn print(&self, printer: &mut PrettyPrinter) -> std::io::Result<()> {
-        printer.print_table(self.0)?;
+        printer.print_table(None, self.0)?;
         Ok(())
     }
 }

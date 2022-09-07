@@ -109,8 +109,12 @@ impl<'a, T: SomeTable<'a> + FontRead<'a> + 'a> SomeTable<'a> for TypedLookup<'a,
             3 => Some(Field::new(
                 "subtable_offsets",
                 FieldType::offset_iter(move || {
-                    Box::new(this.subtables().map(|table| table.into()))
-                        as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    Box::new(
+                        this.subtable_offsets()
+                            .iter()
+                            .zip(this.subtables())
+                            .map(|(offset, table)| FieldType::offset(offset.get(), table)),
+                    ) as Box<dyn Iterator<Item = FieldType>>
                 }),
             )),
             _ => None,

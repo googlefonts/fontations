@@ -172,7 +172,10 @@ impl<'a> SomeRecord<'a> for TableRecord {
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("tag", self.tag())),
                 1usize => Some(Field::new("checksum", self.checksum())),
-                2usize => Some(Field::new("offset", self.offset().to_usize() as u32)),
+                2usize => Some(Field::new(
+                    "offset",
+                    FieldType::unknown_offset(self.offset()),
+                )),
                 3usize => Some(Field::new("length", self.length())),
                 _ => None,
             }),

@@ -154,8 +154,12 @@ impl<'a> SomeTable<'a> for PositionLookupList<'a> {
             1 => Some(Field::new(
                 "lookup_offsets",
                 FieldType::offset_iter(move || {
-                    Box::new(this.lookups().map(|item| item.into()))
-                        as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                    Box::new(
+                        this.lookup_offsets()
+                            .iter()
+                            .zip(this.lookups())
+                            .map(|(offset, item)| FieldType::offset(offset.get(), item)),
+                    ) as Box<dyn Iterator<Item = FieldType>>
                 }),
             )),
             _ => None,
