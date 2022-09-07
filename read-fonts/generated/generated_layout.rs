@@ -116,7 +116,10 @@ impl<'a> SomeRecord<'a> for ScriptRecord {
             name: "ScriptRecord",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("script_tag", self.script_tag())),
-                1usize => Some(Field::new("script_offset", self.script(_data))),
+                1usize => Some(Field::new(
+                    "script_offset",
+                    FieldType::offset(self.script_offset(), self.script(_data)),
+                )),
                 _ => None,
             }),
             data,
@@ -200,7 +203,7 @@ impl<'a> SomeTable<'a> for Script<'a> {
         match idx {
             0usize => Some(Field::new(
                 "default_lang_sys_offset",
-                self.default_lang_sys(),
+                FieldType::offset(self.default_lang_sys_offset(), self.default_lang_sys()),
             )),
             1usize => Some(Field::new("lang_sys_count", self.lang_sys_count())),
             2usize => Some(Field::new(
@@ -257,7 +260,10 @@ impl<'a> SomeRecord<'a> for LangSysRecord {
             name: "LangSysRecord",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("lang_sys_tag", self.lang_sys_tag())),
-                1usize => Some(Field::new("lang_sys_offset", self.lang_sys(_data))),
+                1usize => Some(Field::new(
+                    "lang_sys_offset",
+                    FieldType::offset(self.lang_sys_offset(), self.lang_sys(_data)),
+                )),
                 _ => None,
             }),
             data,
@@ -472,7 +478,10 @@ impl<'a> SomeRecord<'a> for FeatureRecord {
             name: "FeatureRecord",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("feature_tag", self.feature_tag())),
-                1usize => Some(Field::new("feature_offset", self.feature(_data))),
+                1usize => Some(Field::new(
+                    "feature_offset",
+                    FieldType::offset(self.feature_offset(), self.feature(_data)),
+                )),
                 _ => None,
             }),
             data,
@@ -568,7 +577,10 @@ impl<'a> SomeTable<'a> for Feature<'a> {
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
-            0usize => Some(Field::new("feature_params_offset", self.feature_params())),
+            0usize => Some(Field::new(
+                "feature_params_offset",
+                FieldType::offset(self.feature_params_offset(), self.feature_params()),
+            )),
             1usize => Some(Field::new("lookup_index_count", self.lookup_index_count())),
             2usize => Some(Field::new(
                 "lookup_list_indices",
@@ -643,7 +655,7 @@ impl<'a> SomeTable<'a> for LookupList<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("lookup_count", self.lookup_count())),
-            1usize => Some(Field::new("lookup_offsets", ())),
+            1usize => Some(Field::new("lookup_offsets", self.lookup_offsets())),
             _ => None,
         }
     }
@@ -750,7 +762,7 @@ impl<'a> SomeTable<'a> for Lookup<'a> {
             0usize => Some(Field::new("lookup_type", self.lookup_type())),
             1usize => Some(Field::new("lookup_flag", self.lookup_flag())),
             2usize => Some(Field::new("sub_table_count", self.sub_table_count())),
-            3usize => Some(Field::new("subtable_offsets", ())),
+            3usize => Some(Field::new("subtable_offsets", self.subtable_offsets())),
             4usize => Some(Field::new("mark_filtering_set", self.mark_filtering_set())),
             _ => None,
         }
@@ -1458,15 +1470,21 @@ impl<'a> SomeTable<'a> for SequenceContextFormat1<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            1usize => Some(Field::new(
+                "coverage_offset",
+                FieldType::offset(self.coverage_offset(), self.coverage()),
+            )),
             2usize => Some(Field::new("seq_rule_set_count", self.seq_rule_set_count())),
             3usize => Some({
                 let this = self.sneaky_copy();
                 Field::new(
                     "seq_rule_set_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.seq_rule_set().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.seq_rule_set()
+                                .zip(this.seq_rule_set_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -1551,8 +1569,11 @@ impl<'a> SomeTable<'a> for SequenceRuleSet<'a> {
                 Field::new(
                     "seq_rule_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.seq_rule().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.seq_rule()
+                                .zip(this.seq_rule_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -1789,8 +1810,14 @@ impl<'a> SomeTable<'a> for SequenceContextFormat2<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("coverage_offset", self.coverage())),
-            2usize => Some(Field::new("class_def_offset", self.class_def())),
+            1usize => Some(Field::new(
+                "coverage_offset",
+                FieldType::offset(self.coverage_offset(), self.coverage()),
+            )),
+            2usize => Some(Field::new(
+                "class_def_offset",
+                FieldType::offset(self.class_def_offset(), self.class_def()),
+            )),
             3usize => Some(Field::new(
                 "class_seq_rule_set_count",
                 self.class_seq_rule_set_count(),
@@ -1800,8 +1827,11 @@ impl<'a> SomeTable<'a> for SequenceContextFormat2<'a> {
                 Field::new(
                     "class_seq_rule_set_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.class_seq_rule_set().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.class_seq_rule_set()
+                                .zip(this.class_seq_rule_set_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -1892,8 +1922,11 @@ impl<'a> SomeTable<'a> for ClassSequenceRuleSet<'a> {
                 Field::new(
                     "class_seq_rule_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.class_seq_rule().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.class_seq_rule()
+                                .zip(this.class_seq_rule_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -2125,8 +2158,11 @@ impl<'a> SomeTable<'a> for SequenceContextFormat3<'a> {
                 Field::new(
                     "coverage_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.coverage().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.coverage()
+                                .zip(this.coverage_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -2295,7 +2331,10 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat1<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            1usize => Some(Field::new(
+                "coverage_offset",
+                FieldType::offset(self.coverage_offset(), self.coverage()),
+            )),
             2usize => Some(Field::new(
                 "chained_seq_rule_set_count",
                 self.chained_seq_rule_set_count(),
@@ -2305,8 +2344,11 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat1<'a> {
                 Field::new(
                     "chained_seq_rule_set_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.chained_seq_rule_set().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.chained_seq_rule_set()
+                                .zip(this.chained_seq_rule_set_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -2397,8 +2439,11 @@ impl<'a> SomeTable<'a> for ChainedSequenceRuleSet<'a> {
                 Field::new(
                     "chained_seq_rule_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.chained_seq_rule().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.chained_seq_rule()
+                                .zip(this.chained_seq_rule_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -2731,15 +2776,27 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat2<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("format", self.format())),
-            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            1usize => Some(Field::new(
+                "coverage_offset",
+                FieldType::offset(self.coverage_offset(), self.coverage()),
+            )),
             2usize => Some(Field::new(
                 "backtrack_class_def_offset",
-                self.backtrack_class_def(),
+                FieldType::offset(
+                    self.backtrack_class_def_offset(),
+                    self.backtrack_class_def(),
+                ),
             )),
-            3usize => Some(Field::new("input_class_def_offset", self.input_class_def())),
+            3usize => Some(Field::new(
+                "input_class_def_offset",
+                FieldType::offset(self.input_class_def_offset(), self.input_class_def()),
+            )),
             4usize => Some(Field::new(
                 "lookahead_class_def_offset",
-                self.lookahead_class_def(),
+                FieldType::offset(
+                    self.lookahead_class_def_offset(),
+                    self.lookahead_class_def(),
+                ),
             )),
             5usize => Some(Field::new(
                 "chained_class_seq_rule_set_count",
@@ -2750,8 +2807,11 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat2<'a> {
                 Field::new(
                     "chained_class_seq_rule_set_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.chained_class_seq_rule_set().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.chained_class_seq_rule_set()
+                                .zip(this.chained_class_seq_rule_set_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -2842,8 +2902,11 @@ impl<'a> SomeTable<'a> for ChainedClassSequenceRuleSet<'a> {
                 Field::new(
                     "chained_class_seq_rule_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.chained_class_seq_rule().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.chained_class_seq_rule()
+                                .zip(this.chained_class_seq_rule_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -3208,8 +3271,11 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                 Field::new(
                     "backtrack_coverage_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.backtrack_coverage().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.backtrack_coverage()
+                                .zip(this.backtrack_coverage_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -3219,8 +3285,11 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                 Field::new(
                     "input_coverage_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.input_coverage().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.input_coverage()
+                                .zip(this.input_coverage_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -3233,8 +3302,11 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                 Field::new(
                     "lookahead_coverage_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.lookahead_coverage().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.lookahead_coverage()
+                                .zip(this.lookahead_coverage_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -3672,11 +3744,14 @@ impl<'a> SomeRecord<'a> for FeatureVariationRecord {
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new(
                     "condition_set_offset",
-                    self.condition_set(_data),
+                    FieldType::offset(self.condition_set_offset(), self.condition_set(_data)),
                 )),
                 1usize => Some(Field::new(
                     "feature_table_substitution_offset",
-                    self.feature_table_substitution(_data),
+                    FieldType::offset(
+                        self.feature_table_substitution_offset(),
+                        self.feature_table_substitution(_data),
+                    ),
                 )),
                 _ => None,
             }),
@@ -3754,8 +3829,11 @@ impl<'a> SomeTable<'a> for ConditionSet<'a> {
                 Field::new(
                     "condition_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.condition().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.condition()
+                                .zip(this.condition_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -3994,7 +4072,10 @@ impl<'a> SomeRecord<'a> for FeatureTableSubstitutionRecord {
                 0usize => Some(Field::new("feature_index", self.feature_index())),
                 1usize => Some(Field::new(
                     "alternate_feature_offset",
-                    self.alternate_feature(_data),
+                    FieldType::offset(
+                        self.alternate_feature_offset(),
+                        self.alternate_feature(_data),
+                    ),
                 )),
                 _ => None,
             }),

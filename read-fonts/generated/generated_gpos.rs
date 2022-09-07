@@ -123,12 +123,21 @@ impl<'a> SomeTable<'a> for Gpos<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("version", self.version())),
-            1usize => Some(Field::new("script_list_offset", self.script_list())),
-            2usize => Some(Field::new("feature_list_offset", self.feature_list())),
-            3usize => Some(Field::new("lookup_list_offset", self.lookup_list())),
+            1usize => Some(Field::new(
+                "script_list_offset",
+                FieldType::offset(self.script_list_offset(), self.script_list()),
+            )),
+            2usize => Some(Field::new(
+                "feature_list_offset",
+                FieldType::offset(self.feature_list_offset(), self.feature_list()),
+            )),
+            3usize => Some(Field::new(
+                "lookup_list_offset",
+                FieldType::offset(self.lookup_list_offset(), self.lookup_list()),
+            )),
             4usize => Some(Field::new(
                 "feature_variations_offset",
-                self.feature_variations(),
+                FieldType::offset(self.feature_variations_offset(), self.feature_variations()),
             )),
             _ => None,
         }
@@ -485,8 +494,14 @@ impl<'a> SomeTable<'a> for AnchorFormat3<'a> {
             0usize => Some(Field::new("anchor_format", self.anchor_format())),
             1usize => Some(Field::new("x_coordinate", self.x_coordinate())),
             2usize => Some(Field::new("y_coordinate", self.y_coordinate())),
-            3usize => Some(Field::new("x_device_offset", self.x_device())),
-            4usize => Some(Field::new("y_device_offset", self.y_device())),
+            3usize => Some(Field::new(
+                "x_device_offset",
+                FieldType::offset(self.x_device_offset(), self.x_device()),
+            )),
+            4usize => Some(Field::new(
+                "y_device_offset",
+                FieldType::offset(self.y_device_offset(), self.y_device()),
+            )),
             _ => None,
         }
     }
@@ -611,7 +626,10 @@ impl<'a> SomeRecord<'a> for MarkRecord {
             name: "MarkRecord",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("mark_class", self.mark_class())),
-                1usize => Some(Field::new("mark_anchor_offset", self.mark_anchor(_data))),
+                1usize => Some(Field::new(
+                    "mark_anchor_offset",
+                    FieldType::offset(self.mark_anchor_offset(), self.mark_anchor(_data)),
+                )),
                 _ => None,
             }),
             data,
@@ -754,7 +772,10 @@ impl<'a> SomeTable<'a> for SinglePosFormat1<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            1usize => Some(Field::new(
+                "coverage_offset",
+                FieldType::offset(self.coverage_offset(), self.coverage()),
+            )),
             2usize => Some(Field::new("value_format", self.value_format())),
             3usize => Some(Field::new("value_record", self.value_record())),
             _ => None,
@@ -872,7 +893,10 @@ impl<'a> SomeTable<'a> for SinglePosFormat2<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            1usize => Some(Field::new(
+                "coverage_offset",
+                FieldType::offset(self.coverage_offset(), self.coverage()),
+            )),
             2usize => Some(Field::new("value_format", self.value_format())),
             3usize => Some(Field::new("value_count", self.value_count())),
             4usize => Some(Field::new(
@@ -1056,7 +1080,10 @@ impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            1usize => Some(Field::new(
+                "coverage_offset",
+                FieldType::offset(self.coverage_offset(), self.coverage()),
+            )),
             2usize => Some(Field::new("value_format1", self.value_format1())),
             3usize => Some(Field::new("value_format2", self.value_format2())),
             4usize => Some(Field::new("pair_set_count", self.pair_set_count())),
@@ -1065,8 +1092,11 @@ impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
                 Field::new(
                     "pair_set_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.pair_set().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.pair_set()
+                                .zip(this.pair_set_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -1428,11 +1458,20 @@ impl<'a> SomeTable<'a> for PairPosFormat2<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            1usize => Some(Field::new(
+                "coverage_offset",
+                FieldType::offset(self.coverage_offset(), self.coverage()),
+            )),
             2usize => Some(Field::new("value_format1", self.value_format1())),
             3usize => Some(Field::new("value_format2", self.value_format2())),
-            4usize => Some(Field::new("class_def1_offset", self.class_def1())),
-            5usize => Some(Field::new("class_def2_offset", self.class_def2())),
+            4usize => Some(Field::new(
+                "class_def1_offset",
+                FieldType::offset(self.class_def1_offset(), self.class_def1()),
+            )),
+            5usize => Some(Field::new(
+                "class_def2_offset",
+                FieldType::offset(self.class_def2_offset(), self.class_def2()),
+            )),
             6usize => Some(Field::new("class1_count", self.class1_count())),
             7usize => Some(Field::new("class2_count", self.class2_count())),
             8usize => Some(Field::new(
@@ -1665,7 +1704,10 @@ impl<'a> SomeTable<'a> for CursivePosFormat1<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new("coverage_offset", self.coverage())),
+            1usize => Some(Field::new(
+                "coverage_offset",
+                FieldType::offset(self.coverage_offset(), self.coverage()),
+            )),
             2usize => Some(Field::new("entry_exit_count", self.entry_exit_count())),
             3usize => Some(Field::new(
                 "entry_exit_record",
@@ -1739,8 +1781,14 @@ impl<'a> SomeRecord<'a> for EntryExitRecord {
         RecordResolver {
             name: "EntryExitRecord",
             get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("entry_anchor_offset", self.entry_anchor(_data))),
-                1usize => Some(Field::new("exit_anchor_offset", self.exit_anchor(_data))),
+                0usize => Some(Field::new(
+                    "entry_anchor_offset",
+                    FieldType::offset(self.entry_anchor_offset(), self.entry_anchor(_data)),
+                )),
+                1usize => Some(Field::new(
+                    "exit_anchor_offset",
+                    FieldType::offset(self.exit_anchor_offset(), self.exit_anchor(_data)),
+                )),
                 _ => None,
             }),
             data,
@@ -1875,11 +1923,23 @@ impl<'a> SomeTable<'a> for MarkBasePosFormat1<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new("mark_coverage_offset", self.mark_coverage())),
-            2usize => Some(Field::new("base_coverage_offset", self.base_coverage())),
+            1usize => Some(Field::new(
+                "mark_coverage_offset",
+                FieldType::offset(self.mark_coverage_offset(), self.mark_coverage()),
+            )),
+            2usize => Some(Field::new(
+                "base_coverage_offset",
+                FieldType::offset(self.base_coverage_offset(), self.base_coverage()),
+            )),
             3usize => Some(Field::new("mark_class_count", self.mark_class_count())),
-            4usize => Some(Field::new("mark_array_offset", self.mark_array())),
-            5usize => Some(Field::new("base_array_offset", self.base_array())),
+            4usize => Some(Field::new(
+                "mark_array_offset",
+                FieldType::offset(self.mark_array_offset(), self.mark_array()),
+            )),
+            5usize => Some(Field::new(
+                "base_array_offset",
+                FieldType::offset(self.base_array_offset(), self.base_array()),
+            )),
             _ => None,
         }
     }
@@ -2041,7 +2101,11 @@ impl<'a> SomeRecord<'a> for BaseRecord<'a> {
                     Field::new(
                         "base_anchor_offsets",
                         FieldType::offset_iter(move || {
-                            Box::new(this.base_anchor(_data).map(|item| item.into()))
+                            Box::new(
+                                this.base_anchor(_data)
+                                    .zip(this.base_anchor_offsets())
+                                    .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                            )
                                 as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                         }),
                     )
@@ -2180,14 +2244,23 @@ impl<'a> SomeTable<'a> for MarkLigPosFormat1<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new("mark_coverage_offset", self.mark_coverage())),
+            1usize => Some(Field::new(
+                "mark_coverage_offset",
+                FieldType::offset(self.mark_coverage_offset(), self.mark_coverage()),
+            )),
             2usize => Some(Field::new(
                 "ligature_coverage_offset",
-                self.ligature_coverage(),
+                FieldType::offset(self.ligature_coverage_offset(), self.ligature_coverage()),
             )),
             3usize => Some(Field::new("mark_class_count", self.mark_class_count())),
-            4usize => Some(Field::new("mark_array_offset", self.mark_array())),
-            5usize => Some(Field::new("ligature_array_offset", self.ligature_array())),
+            4usize => Some(Field::new(
+                "mark_array_offset",
+                FieldType::offset(self.mark_array_offset(), self.mark_array()),
+            )),
+            5usize => Some(Field::new(
+                "ligature_array_offset",
+                FieldType::offset(self.ligature_array_offset(), self.ligature_array()),
+            )),
             _ => None,
         }
     }
@@ -2287,8 +2360,11 @@ impl<'a> SomeTable<'a> for LigatureArray<'a> {
                 Field::new(
                     "ligature_attach_offsets",
                     FieldType::offset_iter(move || {
-                        Box::new(this.ligature_attach().map(|item| item.into()))
-                            as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                        Box::new(
+                            this.ligature_attach()
+                                .zip(this.ligature_attach_offsets())
+                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                     }),
                 )
             }),
@@ -2453,7 +2529,11 @@ impl<'a> SomeRecord<'a> for ComponentRecord<'a> {
                     Field::new(
                         "ligature_anchor_offsets",
                         FieldType::offset_iter(move || {
-                            Box::new(this.ligature_anchor(_data).map(|item| item.into()))
+                            Box::new(
+                                this.ligature_anchor(_data)
+                                    .zip(this.ligature_anchor_offsets())
+                                    .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                            )
                                 as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                         }),
                     )
@@ -2592,11 +2672,23 @@ impl<'a> SomeTable<'a> for MarkMarkPosFormat1<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("pos_format", self.pos_format())),
-            1usize => Some(Field::new("mark1_coverage_offset", self.mark1_coverage())),
-            2usize => Some(Field::new("mark2_coverage_offset", self.mark2_coverage())),
+            1usize => Some(Field::new(
+                "mark1_coverage_offset",
+                FieldType::offset(self.mark1_coverage_offset(), self.mark1_coverage()),
+            )),
+            2usize => Some(Field::new(
+                "mark2_coverage_offset",
+                FieldType::offset(self.mark2_coverage_offset(), self.mark2_coverage()),
+            )),
             3usize => Some(Field::new("mark_class_count", self.mark_class_count())),
-            4usize => Some(Field::new("mark1_array_offset", self.mark1_array())),
-            5usize => Some(Field::new("mark2_array_offset", self.mark2_array())),
+            4usize => Some(Field::new(
+                "mark1_array_offset",
+                FieldType::offset(self.mark1_array_offset(), self.mark1_array()),
+            )),
+            5usize => Some(Field::new(
+                "mark2_array_offset",
+                FieldType::offset(self.mark2_array_offset(), self.mark2_array()),
+            )),
             _ => None,
         }
     }
@@ -2758,7 +2850,11 @@ impl<'a> SomeRecord<'a> for Mark2Record<'a> {
                     Field::new(
                         "mark2_anchor_offsets",
                         FieldType::offset_iter(move || {
-                            Box::new(this.mark2_anchor(_data).map(|item| item.into()))
+                            Box::new(
+                                this.mark2_anchor(_data)
+                                    .zip(this.mark2_anchor_offsets())
+                                    .map(|(item, offset)| FieldType::offset(offset.get(), item)),
+                            )
                                 as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
                         }),
                     )
@@ -2844,7 +2940,7 @@ impl<'a> SomeTable<'a> for ExtensionPosFormat1<'a> {
             )),
             2usize => Some(Field::new(
                 "extension_offset",
-                self.extension_offset().to_usize() as u32,
+                FieldType::unknown_offset(self.extension_offset()),
             )),
             _ => None,
         }

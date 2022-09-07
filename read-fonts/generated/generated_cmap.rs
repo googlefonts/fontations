@@ -137,7 +137,10 @@ impl<'a> SomeRecord<'a> for EncodingRecord {
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("platform_id", self.platform_id())),
                 1usize => Some(Field::new("encoding_id", self.encoding_id())),
-                2usize => Some(Field::new("subtable_offset", self.subtable(_data))),
+                2usize => Some(Field::new(
+                    "subtable_offset",
+                    FieldType::offset(self.subtable_offset(), self.subtable(_data)),
+                )),
                 _ => None,
             }),
             data,
@@ -1605,11 +1608,11 @@ impl<'a> SomeRecord<'a> for VariationSelector {
                 0usize => Some(Field::new("var_selector", self.var_selector())),
                 1usize => Some(Field::new(
                     "default_uvs_offset",
-                    self.default_uvs_offset().to_usize() as u32,
+                    FieldType::unknown_offset(self.default_uvs_offset()),
                 )),
                 2usize => Some(Field::new(
                     "non_default_uvs_offset",
-                    self.non_default_uvs_offset().to_usize() as u32,
+                    FieldType::unknown_offset(self.non_default_uvs_offset()),
                 )),
                 _ => None,
             }),

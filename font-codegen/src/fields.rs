@@ -148,12 +148,11 @@ fn traversal_arm_for_field(
             target: Some(_), ..
         } => {
             let getter = fld.offset_getter_name();
-            quote!(Field::new(#name_str, self.#getter(#pass_data)))
+            quote!(Field::new(#name_str, FieldType::offset(self.#name(), self.#getter(#pass_data))))
         }
         FieldType::Offset { .. } => {
-            quote!(Field::new(#name_str, self.#name().to_usize() as u32))
+            quote!(Field::new(#name_str, FieldType::unknown_offset(self.#name())))
         }
-
         FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name())),
 
         FieldType::Array { inner_typ } => match inner_typ.as_ref() {
@@ -182,13 +181,14 @@ fn traversal_arm_for_field(
                 quote! {{
                     let this = #this_type;
                     Field::new(#name_str, FieldType::offset_iter(move ||
-                Box::new(this.#getter(#pass_data).map(|item| item.into()))
+                Box::new(this.#getter(#pass_data).zip(this.#name()).map(|(item, offset)| FieldType::offset(offset.get(), item)))
                 as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
 
                         ))
                 }}
             }
-            _ => quote!(Field::new(#name_str, ())),
+            FieldType::Offset { .. } => quote!(Field::new(#name_str, self.#name())),
+            _ => quote!(compile_error!("unhandled traversal case")),
         },
         FieldType::ComputedArray(_) => {
             // if we are in a record, we pass in empty data. This lets us
