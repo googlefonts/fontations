@@ -36,14 +36,34 @@ fn main() -> Result<(), Error> {
 fn list_tables(font: &FontRef) {
     println!("Tag  Offset  Length  Checksum");
     println!("-------------------------------");
+
+    let offset_pad = get_offset_width(font);
+
     for record in font.table_directory.table_records() {
         println!(
-            "{} 0x{:04X} {:8} 0x{:08X} ",
+            "{0} 0x{1:02$X} {3:8} 0x{4:08X} ",
             record.tag(),
             record.offset().to_u32(),
+            offset_pad,
             record.length(),
             record.checksum()
         );
+    }
+}
+
+fn get_offset_width(font: &FontRef) -> usize {
+    // pick how much padding we use for offsets based on the max offset in directory
+    let max_off = font
+        .table_directory
+        .table_records()
+        .iter()
+        .map(|rec| rec.offset().to_u32())
+        .max()
+        .unwrap_or_default();
+    match max_off {
+        0..=0xffff => 4usize,
+        0x10000..=0xffff_ff => 6,
+        0x1000000.. => 8,
     }
 }
 
