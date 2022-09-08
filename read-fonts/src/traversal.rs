@@ -75,6 +75,7 @@ impl<'a> FieldType<'a> {
     /// makes a field, handling the case where this array may not be present in
     /// all versions
     pub fn array_of_records<T>(
+        type_name: &'static str,
         records: impl Into<Option<&'a [T]>>,
         data: FontData<'a>,
     ) -> FieldType<'a>
@@ -83,12 +84,18 @@ impl<'a> FieldType<'a> {
     {
         match records.into() {
             None => FieldType::None,
-            Some(records) => ArrayOfRecords { data, records }.into(),
+            Some(records) => ArrayOfRecords {
+                type_name,
+                data,
+                records,
+            }
+            .into(),
         }
     }
 
     // Convenience method for handling computed arrays
     pub fn computed_array<T>(
+        type_name: &'static str,
         array: impl Into<Option<ComputedArray<'a, T>>>,
         data: FontData<'a>,
     ) -> FieldType<'a>
@@ -98,7 +105,12 @@ impl<'a> FieldType<'a> {
     {
         match array.into() {
             None => FieldType::None,
-            Some(array) => ComputedArrayOfRecords { data, array }.into(),
+            Some(array) => ComputedArrayOfRecords {
+                type_name,
+                data,
+                array,
+            }
+            .into(),
         }
     }
 
@@ -198,10 +210,13 @@ pub struct RecordResolver<'a> {
 }
 
 pub trait SomeArray<'a> {
+    fn type_name(&self) -> &str;
     fn len(&self) -> usize;
+
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
+
     fn get(&self, idx: usize) -> Option<FieldType<'a>>;
 }
 
@@ -225,9 +240,18 @@ where
     fn get(&self, idx: usize) -> Option<FieldType<'a>> {
         (*self).get(idx).map(|val| val.get().into())
     }
+
+    fn type_name(&self) -> &str {
+        let full_name = std::any::type_name::<T>();
+        full_name.split("::").last().unwrap_or(full_name)
+    }
 }
 
 impl<'a> SomeArray<'a> for &'a [u8] {
+    fn type_name(&self) -> &str {
+        "u8"
+    }
+
     fn len(&self) -> usize {
         (*self).len()
     }
@@ -238,6 +262,10 @@ impl<'a> SomeArray<'a> for &'a [u8] {
 }
 
 impl<'a> SomeArray<'a> for Box<dyn SomeArray<'a> + 'a> {
+    fn type_name(&self) -> &str {
+        self.deref().type_name()
+    }
+
     fn len(&self) -> usize {
         self.deref().len()
     }
@@ -249,6 +277,7 @@ impl<'a> SomeArray<'a> for Box<dyn SomeArray<'a> + 'a> {
 
 // only used as Box<dyn SomeArray<'a>>
 struct ComputedArrayOfRecords<'a, T: ReadArgs> {
+    pub(crate) type_name: &'static str,
     pub(crate) data: FontData<'a>,
     pub(crate) array: ComputedArray<'a, T>,
 }
@@ -269,15 +298,24 @@ where
             .ok()
             .map(|record| record.traverse(self.data).into())
     }
+
+    fn type_name(&self) -> &str {
+        &self.type_name
+    }
 }
 
 // only used as Box<dyn SomeArray<'a>>
 struct ArrayOfRecords<'a, T> {
+    pub(crate) type_name: &'static str,
     pub(crate) data: FontData<'a>,
     pub(crate) records: &'a [T],
 }
 
 impl<'a, T: SomeRecord<'a> + Clone> SomeArray<'a> for ArrayOfRecords<'a, T> {
+    fn type_name(&self) -> &str {
+        &self.type_name
+    }
+
     fn len(&self) -> usize {
         self.records.len()
     }

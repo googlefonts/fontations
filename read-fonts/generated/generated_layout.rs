@@ -63,7 +63,11 @@ impl<'a> SomeTable<'a> for ScriptList<'a> {
             0usize => Some(Field::new("script_count", self.script_count())),
             1usize => Some(Field::new(
                 "script_records",
-                traversal::FieldType::array_of_records(self.script_records(), self.offset_data()),
+                traversal::FieldType::array_of_records(
+                    stringify!(ScriptRecord),
+                    self.script_records(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -208,7 +212,11 @@ impl<'a> SomeTable<'a> for Script<'a> {
             1usize => Some(Field::new("lang_sys_count", self.lang_sys_count())),
             2usize => Some(Field::new(
                 "lang_sys_records",
-                traversal::FieldType::array_of_records(self.lang_sys_records(), self.offset_data()),
+                traversal::FieldType::array_of_records(
+                    stringify!(LangSysRecord),
+                    self.lang_sys_records(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -424,7 +432,11 @@ impl<'a> SomeTable<'a> for FeatureList<'a> {
             0usize => Some(Field::new("feature_count", self.feature_count())),
             1usize => Some(Field::new(
                 "feature_records",
-                traversal::FieldType::array_of_records(self.feature_records(), self.offset_data()),
+                traversal::FieldType::array_of_records(
+                    stringify!(FeatureRecord),
+                    self.feature_records(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -935,7 +947,11 @@ impl<'a> SomeTable<'a> for CoverageFormat2<'a> {
             1usize => Some(Field::new("range_count", self.range_count())),
             2usize => Some(Field::new(
                 "range_records",
-                traversal::FieldType::array_of_records(self.range_records(), self.offset_data()),
+                traversal::FieldType::array_of_records(
+                    stringify!(RangeRecord),
+                    self.range_records(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -1219,6 +1235,7 @@ impl<'a> SomeTable<'a> for ClassDefFormat2<'a> {
             2usize => Some(Field::new(
                 "class_range_records",
                 traversal::FieldType::array_of_records(
+                    stringify!(ClassRangeRecord),
                     self.class_range_records(),
                     self.offset_data(),
                 ),
@@ -1676,6 +1693,7 @@ impl<'a> SomeTable<'a> for SequenceRule<'a> {
             3usize => Some(Field::new(
                 "seq_lookup_records",
                 traversal::FieldType::array_of_records(
+                    stringify!(SequenceLookupRecord),
                     self.seq_lookup_records(),
                     self.offset_data(),
                 ),
@@ -2030,6 +2048,7 @@ impl<'a> SomeTable<'a> for ClassSequenceRule<'a> {
             3usize => Some(Field::new(
                 "seq_lookup_records",
                 traversal::FieldType::array_of_records(
+                    stringify!(SequenceLookupRecord),
                     self.seq_lookup_records(),
                     self.offset_data(),
                 ),
@@ -2169,6 +2188,7 @@ impl<'a> SomeTable<'a> for SequenceContextFormat3<'a> {
             4usize => Some(Field::new(
                 "seq_lookup_records",
                 traversal::FieldType::array_of_records(
+                    stringify!(SequenceLookupRecord),
                     self.seq_lookup_records(),
                     self.offset_data(),
                 ),
@@ -2606,6 +2626,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceRule<'a> {
             7usize => Some(Field::new(
                 "seq_lookup_records",
                 traversal::FieldType::array_of_records(
+                    stringify!(SequenceLookupRecord),
                     self.seq_lookup_records(),
                     self.offset_data(),
                 ),
@@ -3070,6 +3091,7 @@ impl<'a> SomeTable<'a> for ChainedClassSequenceRule<'a> {
             7usize => Some(Field::new(
                 "seq_lookup_records",
                 traversal::FieldType::array_of_records(
+                    stringify!(SequenceLookupRecord),
                     self.seq_lookup_records(),
                     self.offset_data(),
                 ),
@@ -3314,6 +3336,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
             8usize => Some(Field::new(
                 "seq_lookup_records",
                 traversal::FieldType::array_of_records(
+                    stringify!(SequenceLookupRecord),
                     self.seq_lookup_records(),
                     self.offset_data(),
                 ),
@@ -3676,6 +3699,7 @@ impl<'a> SomeTable<'a> for FeatureVariations<'a> {
             2usize => Some(Field::new(
                 "feature_variation_records",
                 traversal::FieldType::array_of_records(
+                    stringify!(FeatureVariationRecord),
                     self.feature_variation_records(),
                     self.offset_data(),
                 ),
@@ -4020,7 +4044,11 @@ impl<'a> SomeTable<'a> for FeatureTableSubstitution<'a> {
             1usize => Some(Field::new("substitution_count", self.substitution_count())),
             2usize => Some(Field::new(
                 "substitutions",
-                traversal::FieldType::array_of_records(self.substitutions(), self.offset_data()),
+                traversal::FieldType::array_of_records(
+                    stringify!(FeatureTableSubstitutionRecord),
+                    self.substitutions(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
