@@ -342,16 +342,17 @@ impl<'a> SomeTable<'a> for AttachList<'a> {
             )),
             1usize => Some(Field::new("glyph_count", self.glyph_count())),
             2usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "attach_point_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.attach_point()
-                                .zip(this.attach_point_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(AttachPoint)",
+                        self.attach_point_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<AttachPoint>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             _ => None,
@@ -521,16 +522,17 @@ impl<'a> SomeTable<'a> for LigCaretList<'a> {
             )),
             1usize => Some(Field::new("lig_glyph_count", self.lig_glyph_count())),
             2usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "lig_glyph_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.lig_glyph()
-                                .zip(this.lig_glyph_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(LigGlyph)",
+                        self.lig_glyph_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<LigGlyph>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             _ => None,
@@ -610,16 +612,17 @@ impl<'a> SomeTable<'a> for LigGlyph<'a> {
         match idx {
             0usize => Some(Field::new("caret_count", self.caret_count())),
             1usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "caret_value_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.caret_value()
-                                .zip(this.caret_value_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(CaretValue)",
+                        self.caret_value_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<CaretValue>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             _ => None,
@@ -992,16 +995,17 @@ impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
                 self.mark_glyph_set_count(),
             )),
             2usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "coverage_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.coverage()
-                                .zip(this.coverage_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset32(CoverageTable)",
+                        self.coverage_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<CoverageTable>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             _ => None,

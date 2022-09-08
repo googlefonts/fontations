@@ -1493,16 +1493,17 @@ impl<'a> SomeTable<'a> for SequenceContextFormat1<'a> {
             )),
             2usize => Some(Field::new("seq_rule_set_count", self.seq_rule_set_count())),
             3usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "seq_rule_set_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.seq_rule_set()
-                                .zip(this.seq_rule_set_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(SequenceRuleSet)",
+                        self.seq_rule_set_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<SequenceRuleSet>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             _ => None,
@@ -1582,16 +1583,17 @@ impl<'a> SomeTable<'a> for SequenceRuleSet<'a> {
         match idx {
             0usize => Some(Field::new("seq_rule_count", self.seq_rule_count())),
             1usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "seq_rule_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.seq_rule()
-                                .zip(this.seq_rule_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(SequenceRule)",
+                        self.seq_rule_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<SequenceRule>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             _ => None,
@@ -1841,16 +1843,17 @@ impl<'a> SomeTable<'a> for SequenceContextFormat2<'a> {
                 self.class_seq_rule_set_count(),
             )),
             4usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "class_seq_rule_set_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.class_seq_rule_set()
-                                .zip(this.class_seq_rule_set_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(ClassSequenceRuleSet)",
+                        self.class_seq_rule_set_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<ClassSequenceRuleSet>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             _ => None,
@@ -1936,16 +1939,17 @@ impl<'a> SomeTable<'a> for ClassSequenceRuleSet<'a> {
                 self.class_seq_rule_count(),
             )),
             1usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "class_seq_rule_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.class_seq_rule()
-                                .zip(this.class_seq_rule_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(ClassSequenceRule)",
+                        self.class_seq_rule_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<ClassSequenceRule>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             _ => None,
@@ -2173,16 +2177,17 @@ impl<'a> SomeTable<'a> for SequenceContextFormat3<'a> {
             1usize => Some(Field::new("glyph_count", self.glyph_count())),
             2usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
             3usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "coverage_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.coverage()
-                                .zip(this.coverage_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(CoverageTable)",
+                        self.coverage_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<CoverageTable>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             4usize => Some(Field::new(
@@ -2360,16 +2365,17 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat1<'a> {
                 self.chained_seq_rule_set_count(),
             )),
             3usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "chained_seq_rule_set_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.chained_seq_rule_set()
-                                .zip(this.chained_seq_rule_set_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(ChainedSequenceRuleSet)",
+                        self.chained_seq_rule_set_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<ChainedSequenceRuleSet>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             _ => None,
@@ -2455,16 +2461,17 @@ impl<'a> SomeTable<'a> for ChainedSequenceRuleSet<'a> {
                 self.chained_seq_rule_count(),
             )),
             1usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "chained_seq_rule_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.chained_seq_rule()
-                                .zip(this.chained_seq_rule_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(ChainedSequenceRule)",
+                        self.chained_seq_rule_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<ChainedSequenceRule>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             _ => None,
@@ -2824,16 +2831,17 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat2<'a> {
                 self.chained_class_seq_rule_set_count(),
             )),
             6usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "chained_class_seq_rule_set_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.chained_class_seq_rule_set()
-                                .zip(this.chained_class_seq_rule_set_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(ChainedClassSequenceRuleSet)",
+                        self.chained_class_seq_rule_set_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<ChainedClassSequenceRuleSet>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             _ => None,
@@ -2919,16 +2927,17 @@ impl<'a> SomeTable<'a> for ChainedClassSequenceRuleSet<'a> {
                 self.chained_class_seq_rule_count(),
             )),
             1usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "chained_class_seq_rule_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.chained_class_seq_rule()
-                                .zip(this.chained_class_seq_rule_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(ChainedClassSequenceRule)",
+                        self.chained_class_seq_rule_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<ChainedClassSequenceRule>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             _ => None,
@@ -3289,30 +3298,32 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                 self.backtrack_glyph_count(),
             )),
             2usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "backtrack_coverage_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.backtrack_coverage()
-                                .zip(this.backtrack_coverage_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(CoverageTable)",
+                        self.backtrack_coverage_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<CoverageTable>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             3usize => Some(Field::new("input_glyph_count", self.input_glyph_count())),
             4usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "input_coverage_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.input_coverage()
-                                .zip(this.input_coverage_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(CoverageTable)",
+                        self.input_coverage_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<CoverageTable>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             5usize => Some(Field::new(
@@ -3320,16 +3331,17 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                 self.lookahead_glyph_count(),
             )),
             6usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "lookahead_coverage_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.lookahead_coverage()
-                                .zip(this.lookahead_coverage_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(CoverageTable)",
+                        self.lookahead_coverage_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<CoverageTable>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             7usize => Some(Field::new("seq_lookup_count", self.seq_lookup_count())),
@@ -3849,16 +3861,17 @@ impl<'a> SomeTable<'a> for ConditionSet<'a> {
         match idx {
             0usize => Some(Field::new("condition_count", self.condition_count())),
             1usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
                 Field::new(
                     "condition_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.condition()
-                                .zip(this.condition_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset32(ConditionFormat1)",
+                        self.condition_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<ConditionFormat1>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             _ => None,

@@ -148,20 +148,22 @@ impl<'a> SomeTable<'a> for PositionLookupList<'a> {
     }
 
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        let this = PositionLookupList(self.0.sneaky_copy());
         match idx {
             0 => Some(Field::new("lookup_count", self.lookup_count())),
-            1 => Some(Field::new(
-                "lookup_offsets",
-                FieldType::offset_iter(move || {
-                    Box::new(
-                        this.lookup_offsets()
-                            .iter()
-                            .zip(this.lookups())
-                            .map(|(offset, item)| FieldType::offset(offset.get(), item)),
-                    ) as Box<dyn Iterator<Item = FieldType>>
-                }),
-            )),
+            1 => Some({
+                let data = self.data;
+                Field::new(
+                    "lookup_offsets",
+                    FieldType::offset_array(
+                        "Offset32<Lookup>",
+                        self.lookup_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<PositionLookup>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
+                )
+            }),
             _ => None,
         }
     }
