@@ -186,10 +186,6 @@ fn find_query_recursive<'a>(
                 FieldType::Array(arr) => arr
                     .get(*idx as usize)
                     .ok_or_else(|| format!("index {idx} out of bounds for array")),
-                FieldType::OffsetArray(arr) => arr
-                    .iter()
-                    .nth(*idx as usize)
-                    .ok_or_else(|| format!("index {idx} out of bounds for array")),
                 _ => Err(format!(
                     "Index provided but field type '{}' is not indexable",
                     field_type_name(&current)
@@ -386,18 +382,6 @@ impl<'a> PrettyPrinter<'a> {
                 this.print_fields(record)
             })?,
             FieldType::Array(array) => self.print_array(array)?,
-            FieldType::OffsetArray(array) => {
-                for (i, table) in array.iter().enumerate() {
-                    if i != 0 {
-                        self.writer.write_all(b",")?;
-                    }
-                    self.print_newline()?;
-                    self.indented(|this| {
-                        this.print_indent()?;
-                        this.print_field(&table)
-                    })?;
-                }
-            }
             FieldType::None => self.writer.write_all(b"None")?,
         }
         Ok(())
@@ -564,7 +548,7 @@ fn field_type_name(field_type: &FieldType) -> Cow<'static, str> {
         FieldType::Fixed(_) => "Fixed".into(),
         FieldType::LongDateTime(_) => "LongDateTime".into(),
         FieldType::GlyphId(_) => "GlyphId".into(),
-        FieldType::Array(_) | FieldType::OffsetArray(_) => "Array".into(),
+        FieldType::Array(arr) => format!("[{}]", arr.type_name()).into(),
         FieldType::Record(record) => record.type_name().to_string().into(),
         FieldType::ValueRecord(_) => "ValueRecord".into(),
         FieldType::ResolvedOffset(ResolvedOffset {

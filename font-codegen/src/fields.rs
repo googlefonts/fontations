@@ -173,18 +173,31 @@ fn traversal_arm_for_field(
             }
 
             FieldType::Offset {
-                target: Some(_), ..
+                target: Some(target),
+                typ,
             } => {
-                let getter = fld.offset_getter_name();
-                let this_type = in_record
-                    .then(|| quote!(self.clone()))
-                    .unwrap_or_else(|| quote!(self.sneaky_copy()));
-                quote! {{
-                    let this = #this_type;
-                    Field::new(#name_str, FieldType::offset_iter(move ||
-                Box::new(this.#getter(#pass_data).zip(this.#name()).map(|(item, offset)| FieldType::offset(offset.get(), item)))
-                as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
+                let array_type = format!("{typ}({target})");
+                let maybe_data = pass_data.is_none().then(|| quote!(let data = self.data;));
+                let args_if_needed = fld.attrs.read_offset_args.as_ref().map(|args| {
+                    let args = args.to_tokens_for_table_getter();
+                    quote!(let args = #args;)
+                });
+                let resolve = match fld.attrs.read_offset_args.as_deref() {
+                    None => quote!(resolve::<#target>(data)),
+                    Some(_) => quote!(resolve_with_args::<#target>(data, &args)),
+                };
 
+                quote! {{
+                    #maybe_data
+                    #args_if_needed
+                    Field::new(#name_str,
+                        FieldType::offset_array(
+                            #array_type,
+                            self.#name(),
+                            move |off| {
+                                let target = off.get().#resolve;
+                                FieldType::offset(off.get(), target)
+                            }
                         ))
                 }}
             }

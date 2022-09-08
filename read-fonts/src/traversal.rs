@@ -42,7 +42,6 @@ pub enum FieldType<'a> {
     Record(RecordResolver<'a>),
     ValueRecord(ValueRecord),
     Array(Box<dyn SomeArray<'a> + 'a>),
-    OffsetArray(Box<dyn ResolvedOffestArray<'a> + 'a>),
     // used for fields in other versions of a table
     None,
 }
@@ -69,6 +68,28 @@ impl OffsetType {
 pub struct ResolvedOffset<'a> {
     pub offset: OffsetType,
     pub target: Result<Box<dyn SomeTable<'a> + 'a>, ReadError>,
+}
+
+pub struct ArrayOfOffsets<'a, O> {
+    type_name: &'static str,
+    offsets: &'a [O],
+    resolver: Box<dyn Fn(&O) -> FieldType<'a> + 'a>,
+}
+
+impl<'a, O> SomeArray<'a> for ArrayOfOffsets<'a, O> {
+    fn type_name(&self) -> &str {
+        self.type_name
+    }
+
+    fn len(&self) -> usize {
+        self.offsets.len()
+    }
+
+    fn get(&self, idx: usize) -> Option<FieldType<'a>> {
+        let off = self.offsets.get(idx)?;
+        let target = (self.resolver)(off);
+        Some(target)
+    }
 }
 
 impl<'a> FieldType<'a> {
@@ -114,16 +135,17 @@ impl<'a> FieldType<'a> {
         }
     }
 
-    /// convenience (haha) method for creating an offset array field.
-    ///
-    /// It would be nice if this could just be SomeArray, but it's easier to
-    /// implement on top of the existing iterating offset getters.
-    ///
-    /// The signature is so funky because we need to be able to iterate repeatedly,
-    /// so we can't just pass in the iterator directly; we need to pass
-    /// in a function that returns an iterator when called.
-    pub fn offset_iter(f: impl Fn() -> Box<dyn Iterator<Item = FieldType<'a>> + 'a> + 'a) -> Self {
-        FieldType::OffsetArray(Box::new(f))
+    pub fn offset_array<O>(
+        type_name: &'static str,
+        offsets: &'a [O],
+        resolver: impl Fn(&O) -> FieldType<'a> + 'a,
+    ) -> Self
+where {
+        FieldType::Array(Box::new(ArrayOfOffsets {
+            type_name,
+            offsets,
+            resolver: Box::new(resolver),
+        }))
     }
 
     //FIXME: I bet this is generating a *lot* of code
@@ -178,20 +200,6 @@ impl<'a> SomeTable<'a> for Box<dyn SomeTable<'a> + 'a> {
 
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         self.deref().get_field(idx)
-    }
-}
-
-/// a closure that can generate an iterator over resolved offsets
-pub trait ResolvedOffestArray<'a> {
-    fn iter(&self) -> Box<dyn Iterator<Item = FieldType<'a>> + 'a>;
-}
-
-impl<'a, F> ResolvedOffestArray<'a> for F
-where
-    F: Fn() -> Box<dyn Iterator<Item = FieldType<'a>> + 'a> + 'a,
-{
-    fn iter(&self) -> Box<dyn Iterator<Item = FieldType<'a>> + 'a> {
-        (self)()
     }
 }
 
@@ -300,7 +308,7 @@ where
     }
 
     fn type_name(&self) -> &str {
-        &self.type_name
+        self.type_name
     }
 }
 
@@ -313,7 +321,7 @@ struct ArrayOfRecords<'a, T> {
 
 impl<'a, T: SomeRecord<'a> + Clone> SomeArray<'a> for ArrayOfRecords<'a, T> {
     fn type_name(&self) -> &str {
-        &self.type_name
+        self.type_name
     }
 
     fn len(&self) -> usize {
@@ -404,7 +412,6 @@ impl<'a> Debug for FieldType<'a> {
             Self::ValueRecord(arg0) if arg0.get_field(0).is_none() => write!(f, "NullValueRecord"),
             Self::ValueRecord(arg0) => (arg0 as &(dyn SomeTable<'a> + 'a)).fmt(f),
             Self::Array(arg0) => arg0.fmt(f),
-            Self::OffsetArray(arg0) => f.debug_list().entries(arg0.iter()).finish(),
         }
     }
 }

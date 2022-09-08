@@ -106,17 +106,16 @@ impl<'a, T: SomeTable<'a> + FontRead<'a> + 'a> SomeTable<'a> for TypedLookup<'a,
         };
         match idx {
             0 | 1 | 2 | 4 => self.inner.get_field(idx),
-            3 => Some(Field::new(
-                "subtable_offsets",
-                FieldType::offset_iter(move || {
-                    Box::new(
-                        this.subtable_offsets()
-                            .iter()
-                            .zip(this.subtables())
-                            .map(|(offset, table)| FieldType::offset(offset.get(), table)),
-                    ) as Box<dyn Iterator<Item = FieldType>>
-                }),
-            )),
+            3 => Some({
+                let data = self.data;
+                Field::new(
+                    "subtable_offsets",
+                    FieldType::offset_array("Offset16", this.subtable_offsets(), move |off| {
+                        let target = off.get().resolve::<T>(data);
+                        FieldType::offset(off.get(), target)
+                    }),
+                )
+            }),
             _ => None,
         }
     }

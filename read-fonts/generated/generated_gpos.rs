@@ -1096,16 +1096,18 @@ impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
             3usize => Some(Field::new("value_format2", self.value_format2())),
             4usize => Some(Field::new("pair_set_count", self.pair_set_count())),
             5usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
+                let args = (self.value_format1(), self.value_format2());
                 Field::new(
                     "pair_set_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.pair_set()
-                                .zip(this.pair_set_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(PairSet)",
+                        self.pair_set_offsets(),
+                        move |off| {
+                            let target = off.get().resolve_with_args::<PairSet>(data, &args);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             _ => None,
@@ -2119,17 +2121,16 @@ impl<'a> SomeRecord<'a> for BaseRecord<'a> {
             name: "BaseRecord",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some({
-                    let this = self.clone();
                     Field::new(
                         "base_anchor_offsets",
-                        FieldType::offset_iter(move || {
-                            Box::new(
-                                this.base_anchor(_data)
-                                    .zip(this.base_anchor_offsets())
-                                    .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                            )
-                                as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                        }),
+                        FieldType::offset_array(
+                            "Offset16(AnchorTable)",
+                            self.base_anchor_offsets(),
+                            move |off| {
+                                let target = off.get().resolve::<AnchorTable>(data);
+                                FieldType::offset(off.get(), target)
+                            },
+                        ),
                     )
                 }),
                 _ => None,
@@ -2378,16 +2379,18 @@ impl<'a> SomeTable<'a> for LigatureArray<'a> {
         match idx {
             0usize => Some(Field::new("ligature_count", self.ligature_count())),
             1usize => Some({
-                let this = self.sneaky_copy();
+                let data = self.data;
+                let args = self.mark_class_count();
                 Field::new(
                     "ligature_attach_offsets",
-                    FieldType::offset_iter(move || {
-                        Box::new(
-                            this.ligature_attach()
-                                .zip(this.ligature_attach_offsets())
-                                .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                        ) as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                    }),
+                    FieldType::offset_array(
+                        "Offset16(LigatureAttach)",
+                        self.ligature_attach_offsets(),
+                        move |off| {
+                            let target = off.get().resolve_with_args::<LigatureAttach>(data, &args);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
                 )
             }),
             _ => None,
@@ -2551,17 +2554,16 @@ impl<'a> SomeRecord<'a> for ComponentRecord<'a> {
             name: "ComponentRecord",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some({
-                    let this = self.clone();
                     Field::new(
                         "ligature_anchor_offsets",
-                        FieldType::offset_iter(move || {
-                            Box::new(
-                                this.ligature_anchor(_data)
-                                    .zip(this.ligature_anchor_offsets())
-                                    .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                            )
-                                as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                        }),
+                        FieldType::offset_array(
+                            "Offset16(AnchorTable)",
+                            self.ligature_anchor_offsets(),
+                            move |off| {
+                                let target = off.get().resolve::<AnchorTable>(data);
+                                FieldType::offset(off.get(), target)
+                            },
+                        ),
                     )
                 }),
                 _ => None,
@@ -2876,17 +2878,16 @@ impl<'a> SomeRecord<'a> for Mark2Record<'a> {
             name: "Mark2Record",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some({
-                    let this = self.clone();
                     Field::new(
                         "mark2_anchor_offsets",
-                        FieldType::offset_iter(move || {
-                            Box::new(
-                                this.mark2_anchor(_data)
-                                    .zip(this.mark2_anchor_offsets())
-                                    .map(|(item, offset)| FieldType::offset(offset.get(), item)),
-                            )
-                                as Box<dyn Iterator<Item = FieldType<'a>> + 'a>
-                        }),
+                        FieldType::offset_array(
+                            "Offset16(AnchorTable)",
+                            self.mark2_anchor_offsets(),
+                            move |off| {
+                                let target = off.get().resolve::<AnchorTable>(data);
+                                FieldType::offset(off.get(), target)
+                            },
+                        ),
                     )
                 }),
                 _ => None,
