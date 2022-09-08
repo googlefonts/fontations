@@ -97,6 +97,10 @@ impl<'a> traversal::SomeArray<'a> for Loca<'a> {
     fn get(&self, idx: usize) -> Option<traversal::FieldType<'a>> {
         self.get_raw(idx).map(|off| off.into())
     }
+
+    fn type_name(&self) -> &str {
+        "Offset32"
+    }
 }
 
 #[cfg(feature = "traversal")]

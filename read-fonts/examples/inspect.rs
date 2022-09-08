@@ -327,7 +327,8 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     fn print_array<'b>(&mut self, array: &(dyn SomeArray<'b> + 'b)) -> std::io::Result<()> {
-        self.writer.write_fmt(format_args!("[TypeName]\n"))?;
+        self.writer
+            .write_fmt(format_args!("[{}]\n", array.type_name()))?;
         self.indented(|this| {
             for (i, item) in array.iter().enumerate() {
                 if i != 0 {

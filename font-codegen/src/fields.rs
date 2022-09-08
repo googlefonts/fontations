@@ -161,10 +161,11 @@ fn traversal_arm_for_field(
             FieldType::Other { typ } if typ.is_ident("u8") => {
                 quote!(Field::new( #name_str, self.#name()))
             }
-            FieldType::Other { .. } if !in_record => {
+            FieldType::Other { typ } if !in_record => {
                 quote!(Field::new(
                         #name_str,
                         traversal::FieldType::array_of_records(
+                            stringify!(#typ),
                             self.#name(),
                             self.offset_data(),
                         )
@@ -190,7 +191,7 @@ fn traversal_arm_for_field(
             FieldType::Offset { .. } => quote!(Field::new(#name_str, self.#name())),
             _ => quote!(compile_error!("unhandled traversal case")),
         },
-        FieldType::ComputedArray(_) => {
+        FieldType::ComputedArray(arr) => {
             // if we are in a record, we pass in empty data. This lets us
             // avoid a special case in the single instance where this happens, in
             // Class1Record
@@ -199,9 +200,11 @@ fn traversal_arm_for_field(
                 .unwrap_or_else(|| quote!(self.offset_data()));
             // in a record we return things by value, so clone
             let maybe_clone = in_record.then(|| quote!(.clone()));
+            let typ_str = arr.raw_inner_type().to_string();
             quote!(Field::new(
                     #name_str,
                     traversal::FieldType::computed_array(
+                        #typ_str,
                         self.#name()#maybe_clone,
                         #data
                     )

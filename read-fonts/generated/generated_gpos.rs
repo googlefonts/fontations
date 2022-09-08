@@ -573,7 +573,11 @@ impl<'a> SomeTable<'a> for MarkArray<'a> {
             0usize => Some(Field::new("mark_count", self.mark_count())),
             1usize => Some(Field::new(
                 "mark_records",
-                traversal::FieldType::array_of_records(self.mark_records(), self.offset_data()),
+                traversal::FieldType::array_of_records(
+                    stringify!(MarkRecord),
+                    self.mark_records(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -901,7 +905,11 @@ impl<'a> SomeTable<'a> for SinglePosFormat2<'a> {
             3usize => Some(Field::new("value_count", self.value_count())),
             4usize => Some(Field::new(
                 "value_records",
-                traversal::FieldType::computed_array(self.value_records(), self.offset_data()),
+                traversal::FieldType::computed_array(
+                    "ValueRecord",
+                    self.value_records(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -1194,7 +1202,11 @@ impl<'a> SomeTable<'a> for PairSet<'a> {
             0usize => Some(Field::new("pair_value_count", self.pair_value_count())),
             1usize => Some(Field::new(
                 "pair_value_records",
-                traversal::FieldType::computed_array(self.pair_value_records(), self.offset_data()),
+                traversal::FieldType::computed_array(
+                    "PairValueRecord",
+                    self.pair_value_records(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -1476,7 +1488,11 @@ impl<'a> SomeTable<'a> for PairPosFormat2<'a> {
             7usize => Some(Field::new("class2_count", self.class2_count())),
             8usize => Some(Field::new(
                 "class1_records",
-                traversal::FieldType::computed_array(self.class1_records(), self.offset_data()),
+                traversal::FieldType::computed_array(
+                    "Class1Record",
+                    self.class1_records(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -1540,6 +1556,7 @@ impl<'a> SomeRecord<'a> for Class1Record<'a> {
                 0usize => Some(Field::new(
                     "class2_records",
                     traversal::FieldType::computed_array(
+                        "Class2Record",
                         self.class2_records().clone(),
                         FontData::new(&[]),
                     ),
@@ -1712,6 +1729,7 @@ impl<'a> SomeTable<'a> for CursivePosFormat1<'a> {
             3usize => Some(Field::new(
                 "entry_exit_record",
                 traversal::FieldType::array_of_records(
+                    stringify!(EntryExitRecord),
                     self.entry_exit_record(),
                     self.offset_data(),
                 ),
@@ -2027,7 +2045,11 @@ impl<'a> SomeTable<'a> for BaseArray<'a> {
             0usize => Some(Field::new("base_count", self.base_count())),
             1usize => Some(Field::new(
                 "base_records",
-                traversal::FieldType::computed_array(self.base_records(), self.offset_data()),
+                traversal::FieldType::computed_array(
+                    "BaseRecord",
+                    self.base_records(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -2455,7 +2477,11 @@ impl<'a> SomeTable<'a> for LigatureAttach<'a> {
             0usize => Some(Field::new("component_count", self.component_count())),
             1usize => Some(Field::new(
                 "component_records",
-                traversal::FieldType::computed_array(self.component_records(), self.offset_data()),
+                traversal::FieldType::computed_array(
+                    "ComponentRecord",
+                    self.component_records(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -2776,7 +2802,11 @@ impl<'a> SomeTable<'a> for Mark2Array<'a> {
             0usize => Some(Field::new("mark2_count", self.mark2_count())),
             1usize => Some(Field::new(
                 "mark2_records",
-                traversal::FieldType::computed_array(self.mark2_records(), self.offset_data()),
+                traversal::FieldType::computed_array(
+                    "Mark2Record",
+                    self.mark2_records(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }

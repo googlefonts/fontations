@@ -74,7 +74,11 @@ impl<'a> SomeTable<'a> for Cmap<'a> {
             1usize => Some(Field::new("num_tables", self.num_tables())),
             2usize => Some(Field::new(
                 "encoding_records",
-                traversal::FieldType::array_of_records(self.encoding_records(), self.offset_data()),
+                traversal::FieldType::array_of_records(
+                    stringify!(EncodingRecord),
+                    self.encoding_records(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -973,7 +977,11 @@ impl<'a> SomeTable<'a> for Cmap8<'a> {
             4usize => Some(Field::new("num_groups", self.num_groups())),
             5usize => Some(Field::new(
                 "groups",
-                traversal::FieldType::array_of_records(self.groups(), self.offset_data()),
+                traversal::FieldType::array_of_records(
+                    stringify!(SequentialMapGroup),
+                    self.groups(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -1274,7 +1282,11 @@ impl<'a> SomeTable<'a> for Cmap12<'a> {
             3usize => Some(Field::new("num_groups", self.num_groups())),
             4usize => Some(Field::new(
                 "groups",
-                traversal::FieldType::array_of_records(self.groups(), self.offset_data()),
+                traversal::FieldType::array_of_records(
+                    stringify!(SequentialMapGroup),
+                    self.groups(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -1390,7 +1402,11 @@ impl<'a> SomeTable<'a> for Cmap13<'a> {
             3usize => Some(Field::new("num_groups", self.num_groups())),
             4usize => Some(Field::new(
                 "groups",
-                traversal::FieldType::array_of_records(self.groups(), self.offset_data()),
+                traversal::FieldType::array_of_records(
+                    stringify!(ConstantMapGroup),
+                    self.groups(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -1546,7 +1562,11 @@ impl<'a> SomeTable<'a> for Cmap14<'a> {
             )),
             3usize => Some(Field::new(
                 "var_selector",
-                traversal::FieldType::array_of_records(self.var_selector(), self.offset_data()),
+                traversal::FieldType::array_of_records(
+                    stringify!(VariationSelector),
+                    self.var_selector(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -1680,7 +1700,11 @@ impl<'a> SomeTable<'a> for DefaultUvs<'a> {
             )),
             1usize => Some(Field::new(
                 "ranges",
-                traversal::FieldType::array_of_records(self.ranges(), self.offset_data()),
+                traversal::FieldType::array_of_records(
+                    stringify!(UnicodeRange),
+                    self.ranges(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
