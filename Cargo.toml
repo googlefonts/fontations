@@ -5,4 +5,5 @@ members = [
     "font-types",
     "font-codegen",
     "write-fonts",
+    "otexplorer",
 ]
