@@ -14,6 +14,8 @@ background.
 - `read-fonts` contains tables and record definitions for parsing fonts.
 - `write-fonts` contains tables and record definitions for editing and compiling
   fonts.
+- `otexplorer` is a binary crate for querying and printing the contents of font
+  files.
 
 The `retired_crates` directory contains some earlier experiments:
 
