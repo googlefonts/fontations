@@ -168,6 +168,7 @@ impl<'a> SomeTable<'a> for Gdef<'a> {
         "Gdef"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let version = self.version();
         match idx {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new(
@@ -189,16 +190,19 @@ impl<'a> SomeTable<'a> for Gdef<'a> {
                     self.mark_attach_class_def(),
                 ),
             )),
-            5usize => Some(Field::new(
+            5usize if version.compatible(MajorMinor::VERSION_1_2) => Some(Field::new(
                 "mark_glyph_sets_def_offset",
                 FieldType::offset(
-                    self.mark_glyph_sets_def_offset(),
-                    self.mark_glyph_sets_def(),
+                    self.mark_glyph_sets_def_offset().unwrap(),
+                    self.mark_glyph_sets_def().unwrap(),
                 ),
             )),
-            6usize => Some(Field::new(
+            6usize if version.compatible(MajorMinor::VERSION_1_3) => Some(Field::new(
                 "item_var_store_offset",
-                FieldType::offset(self.item_var_store_offset(), self.item_var_store()),
+                FieldType::offset(
+                    self.item_var_store_offset().unwrap(),
+                    self.item_var_store().unwrap(),
+                ),
             )),
             _ => None,
         }

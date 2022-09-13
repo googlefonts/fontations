@@ -106,6 +106,14 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
 fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
     let name = item.raw_name();
     let name_str = name.to_string();
+    let version = item
+        .fields
+        .iter()
+        .find(|fld| fld.attrs.version.is_some())
+        .map(|fld| {
+            let name = &fld.name;
+            quote!(let version = self.#name();)
+        });
     let field_arms = item.fields.iter_field_traversal_match_arms(false);
     let attrs = item.fields.fields.is_empty().then(|| {
         quote! {
@@ -123,6 +131,7 @@ fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
 
             #attrs
             fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+                #version
                 match idx {
                     #( #field_arms, )*
                     _ => None,

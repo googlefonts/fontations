@@ -130,8 +130,13 @@ impl Fields {
             .filter(|fld| fld.has_getter())
             .enumerate()
             .map(move |(i, fld)| {
+                let condition = fld
+                    .attrs
+                    .available
+                    .as_ref()
+                    .map(|v| quote!(if version.compatible(#v)));
                 let rhs = traversal_arm_for_field(fld, in_record, pass_data.as_ref());
-                quote!( #i => Some(#rhs) )
+                quote!( #i #condition => Some(#rhs) )
             })
     }
 }
@@ -143,30 +148,31 @@ fn traversal_arm_for_field(
 ) -> TokenStream {
     let name_str = &fld.name.to_string();
     let name = &fld.name;
+    let maybe_unwrap = fld.attrs.available.is_some().then(|| quote!(.unwrap()));
     match &fld.typ {
         FieldType::Offset {
             target: Some(_), ..
         } => {
             let getter = fld.offset_getter_name();
-            quote!(Field::new(#name_str, FieldType::offset(self.#name(), self.#getter(#pass_data))))
+            quote!(Field::new(#name_str, FieldType::offset(self.#name()#maybe_unwrap, self.#getter(#pass_data)#maybe_unwrap)))
         }
         FieldType::Offset { .. } => {
-            quote!(Field::new(#name_str, FieldType::unknown_offset(self.#name())))
+            quote!(Field::new(#name_str, FieldType::unknown_offset(self.#name()#maybe_unwrap)))
         }
-        FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name())),
+        FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name()#maybe_unwrap)),
 
         FieldType::Array { inner_typ } => match inner_typ.as_ref() {
-            FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name())),
+            FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name()#maybe_unwrap)),
             //HACK: glyf has fields that are [u8]
             FieldType::Other { typ } if typ.is_ident("u8") => {
-                quote!(Field::new( #name_str, self.#name()))
+                quote!(Field::new( #name_str, self.#name()#maybe_unwrap))
             }
             FieldType::Other { typ } if !in_record => {
                 quote!(Field::new(
                         #name_str,
                         traversal::FieldType::array_of_records(
                             stringify!(#typ),
-                            self.#name(),
+                            self.#name()#maybe_unwrap,
                             self.offset_data(),
                         )
                 ))
@@ -193,7 +199,7 @@ fn traversal_arm_for_field(
                     Field::new(#name_str,
                         FieldType::offset_array(
                             #array_type,
-                            self.#name(),
+                            self.#name()#maybe_unwrap,
                             move |off| {
                                 let target = off.get().#resolve;
                                 FieldType::offset(off.get(), target)
@@ -201,7 +207,7 @@ fn traversal_arm_for_field(
                         ))
                 }}
             }
-            FieldType::Offset { .. } => quote!(Field::new(#name_str, self.#name())),
+            FieldType::Offset { .. } => quote!(Field::new(#name_str, self.#name()#maybe_unwrap)),
             _ => quote!(compile_error!("unhandled traversal case")),
         },
         FieldType::ComputedArray(arr) => {
@@ -218,14 +224,14 @@ fn traversal_arm_for_field(
                     #name_str,
                     traversal::FieldType::computed_array(
                         #typ_str,
-                        self.#name()#maybe_clone,
+                        self.#name()#maybe_clone #maybe_unwrap,
                         #data
                     )
             ))
         }
         FieldType::Other { typ } if typ.is_ident("ValueRecord") => {
             let clone = in_record.then(|| quote!(.clone()));
-            quote!(Field::new(#name_str, self.#name() #clone))
+            quote!(Field::new(#name_str, self.#name() #clone #maybe_unwrap))
         }
         FieldType::Other { .. } => {
             quote!(compile_error!(concat!("another weird type: ", #name_str)))

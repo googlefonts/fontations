@@ -42,13 +42,10 @@ pub enum FieldType<'a> {
     Record(RecordResolver<'a>),
     ValueRecord(ValueRecord),
     Array(Box<dyn SomeArray<'a> + 'a>),
-    // used for fields in other versions of a table
-    None,
 }
 
 #[derive(Clone, Copy)]
 pub enum OffsetType {
-    None,
     Offset16(u16),
     Offset24(Uint24),
     Offset32(u32),
@@ -57,7 +54,6 @@ pub enum OffsetType {
 impl OffsetType {
     pub fn to_u32(self) -> u32 {
         match self {
-            Self::None => 0,
             Self::Offset16(val) => val.into(),
             Self::Offset24(val) => val.into(),
             Self::Offset32(val) => val,
@@ -97,42 +93,36 @@ impl<'a> FieldType<'a> {
     /// all versions
     pub fn array_of_records<T>(
         type_name: &'static str,
-        records: impl Into<Option<&'a [T]>>,
+        records: &'a [T],
         data: FontData<'a>,
     ) -> FieldType<'a>
     where
         T: Clone + SomeRecord<'a> + 'a,
     {
-        match records.into() {
-            None => FieldType::None,
-            Some(records) => ArrayOfRecords {
-                type_name,
-                data,
-                records,
-            }
-            .into(),
+        ArrayOfRecords {
+            type_name,
+            data,
+            records,
         }
+        .into()
     }
 
     // Convenience method for handling computed arrays
     pub fn computed_array<T>(
         type_name: &'static str,
-        array: impl Into<Option<ComputedArray<'a, T>>>,
+        array: ComputedArray<'a, T>,
         data: FontData<'a>,
     ) -> FieldType<'a>
     where
         T: FontReadWithArgs<'a> + ComputeSize + SomeRecord<'a> + 'a,
         T::Args: Copy + 'static,
     {
-        match array.into() {
-            None => FieldType::None,
-            Some(array) => ComputedArrayOfRecords {
-                type_name,
-                data,
-                array,
-            }
-            .into(),
+        ComputedArrayOfRecords {
+            type_name,
+            data,
+            array,
         }
+        .into()
     }
 
     pub fn offset_array<O>(
@@ -403,7 +393,6 @@ impl<'a> Debug for FieldType<'a> {
                 arg0.to_u16().fmt(f)
             }
             Self::BareOffset(arg0) => write!(f, "0x{:04X}", arg0.to_u32()),
-            Self::None => write!(f, "None"),
             Self::ResolvedOffset(ResolvedOffset {
                 target: Ok(arg0), ..
             }) => arg0.fmt(f),
@@ -445,6 +434,12 @@ impl<'a, 'b> std::fmt::Debug for DebugPrintArray<'a, 'b> {
 impl<'a> Debug for dyn SomeArray<'a> + 'a {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         DebugPrintArray(self).fmt(f)
+    }
+}
+
+impl std::fmt::Display for OffsetType {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "{:+}", self.to_u32())
     }
 }
 
@@ -555,15 +550,6 @@ impl<'a> From<GlyphId> for FieldType<'a> {
     }
 }
 
-impl<'a, T: Into<FieldType<'a>>> From<Option<T>> for FieldType<'a> {
-    fn from(src: Option<T>) -> Self {
-        match src {
-            Some(t) => t.into(),
-            None => FieldType::None,
-        }
-    }
-}
-
 impl<'a> From<ValueRecord> for FieldType<'a> {
     fn from(src: ValueRecord) -> Self {
         Self::ValueRecord(src)
@@ -621,14 +607,5 @@ impl<'a> From<Offset32> for FieldType<'a> {
 impl<T: Into<OffsetType> + Clone> From<Nullable<T>> for OffsetType {
     fn from(src: Nullable<T>) -> Self {
         src.offset().clone().into()
-    }
-}
-
-impl<T: Into<OffsetType> + Clone> From<Option<Nullable<T>>> for OffsetType {
-    fn from(src: Option<Nullable<T>>) -> Self {
-        match src {
-            None => OffsetType::None,
-            Some(off) => off.into(),
-        }
     }
 }

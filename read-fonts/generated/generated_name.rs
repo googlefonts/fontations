@@ -126,6 +126,7 @@ impl<'a> SomeTable<'a> for Name<'a> {
         "Name"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let version = self.version();
         match idx {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new("count", self.count())),
@@ -141,12 +142,14 @@ impl<'a> SomeTable<'a> for Name<'a> {
                     self.offset_data(),
                 ),
             )),
-            4usize => Some(Field::new("lang_tag_count", self.lang_tag_count())),
-            5usize => Some(Field::new(
+            4usize if version.compatible(1) => {
+                Some(Field::new("lang_tag_count", self.lang_tag_count().unwrap()))
+            }
+            5usize if version.compatible(1) => Some(Field::new(
                 "lang_tag_record",
                 traversal::FieldType::array_of_records(
                     stringify!(LangTagRecord),
-                    self.lang_tag_record(),
+                    self.lang_tag_record().unwrap(),
                     self.offset_data(),
                 ),
             )),
