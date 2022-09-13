@@ -2,17 +2,19 @@
 
 use std::io::Write;
 
+use ansi_term::{Color, Style};
 use read_fonts::traversal::{FieldType, OffsetType, ResolvedOffset, SomeArray, SomeTable};
 
 static MANY_SPACES: [u8; 200] = [0x20; 200];
 // width of the left column, which contains the textual representation.
 const L_COLUMN_WIDTH: usize = 59;
 // position of array indexes, if they are printed
-const ARRAY_POS_WIDTH: usize = 50;
+const ARRAY_POS_WIDTH: usize = 53;
 
 pub struct PrettyPrinter<'a> {
     depth: usize,
     line_pos: usize,
+    is_tty: bool,
     cur_array_item: Option<usize>,
     indent_size: usize,
     writer: &'a mut (dyn std::io::Write + 'a),
@@ -40,6 +42,7 @@ impl<'a> PrettyPrinter<'a> {
             depth: 0,
             line_pos: 0,
             cur_array_item: None,
+            is_tty: atty::is(atty::Stream::Stdout),
             indent_size: 2,
             writer,
         }
@@ -75,20 +78,43 @@ impl<'a> PrettyPrinter<'a> {
         self.print_newline()
     }
 
+    fn print_with_style(
+        &mut self,
+        style: Style,
+        f: impl FnOnce(&mut PrettyPrinter) -> std::io::Result<()>,
+    ) -> std::io::Result<()> {
+        if !self.is_tty {
+            f(self)?;
+        } else {
+            // ansi styles aren't counted for the purpose of width calculations
+            let pos = self.line_pos;
+            write!(self, "{}", style.prefix())?;
+            self.line_pos = pos;
+            f(self)?;
+            let pos = self.line_pos;
+            write!(self, "{}", style.suffix())?;
+            self.line_pos = pos;
+        }
+        Ok(())
+    }
+
     fn print_fields<'b>(&mut self, table: &(dyn SomeTable<'b> + 'b)) -> std::io::Result<()> {
         for (i, field) in table.iter().enumerate() {
             if i != 0 {
                 self.print_newline()?;
             }
             self.print_indent()?;
-            write!(self, "{}: ", field.name)?;
+            self.print_with_style(Color::Cyan.into(), |this| write!(this, "{}", field.name))?;
+            write!(self, ": ")?;
             self.print_field(&field.typ)?;
         }
         Ok(())
     }
 
     fn print_array<'b>(&mut self, array: &(dyn SomeArray<'b> + 'b)) -> std::io::Result<()> {
-        writeln!(self, "[{}]", array.type_name())?;
+        write!(self, "[{}]", array.type_name())?;
+        self.print_hex(&[])?;
+        self.print_newline()?;
         self.indented(|this| {
             for (i, item) in array.iter().enumerate() {
                 this.cur_array_item = Some(i);
@@ -121,7 +147,9 @@ impl<'a> PrettyPrinter<'a> {
             FieldType::F2Dot14(val) => write!(self, "{val}")?,
             FieldType::Fixed(val) => write!(self, "{val}")?,
             FieldType::LongDateTime(val) => write!(self, "{val:?}")?,
-            FieldType::GlyphId(val) => write!(self, "{}", val.to_u16())?,
+            FieldType::GlyphId(val) => self.print_with_style(Color::Yellow.into(), |this| {
+                write!(this, "{}", val.to_u16())
+            })?,
             FieldType::ResolvedOffset(ResolvedOffset { offset, target }) => {
                 match target {
                     Ok(table) => {
@@ -130,7 +158,9 @@ impl<'a> PrettyPrinter<'a> {
                         if self.line_pos == 0 {
                             self.print_indent()?;
                         }
-                        write!(self, "+{}", offset.to_u32())?;
+                        self.print_with_style(Color::Blue.into(), |this| {
+                            write!(this, "+{}", offset.to_u32())
+                        })?;
                         self.print_current_array_pos()?;
                         self.print_offset_hex(*offset)?;
                         self.print_newline()?;
@@ -191,7 +221,7 @@ impl<'a> PrettyPrinter<'a> {
             let padding = ARRAY_POS_WIDTH.saturating_sub(self.line_pos);
             let wspace = &MANY_SPACES[..padding];
             self.write_all(wspace)?;
-            write!(self, " {idx}")?;
+            self.print_with_style(Color::Fixed(243).italic(), |this| write!(this, " {idx}"))?;
         }
         Ok(())
     }
@@ -200,10 +230,13 @@ impl<'a> PrettyPrinter<'a> {
         let padding = L_COLUMN_WIDTH.saturating_sub(self.line_pos);
         let wspace = &MANY_SPACES[..padding];
         self.write_all(wspace)?;
-        for b in bytes {
-            write!(self, " {b:02X}")?
-        }
-        Ok(())
+        self.print_with_style(Color::Fixed(250).into(), |this| {
+            write!(this, "│")?;
+            for b in bytes {
+                write!(this, " {b:02X}")?
+            }
+            Ok(())
+        })
     }
 }
 
