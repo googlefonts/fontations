@@ -7,7 +7,7 @@ use read_fonts::traversal::{FieldType, OffsetType, ResolvedOffset, SomeArray, So
 
 static MANY_SPACES: [u8; 200] = [0x20; 200];
 // width of the left column, which contains the textual representation.
-const L_COLUMN_WIDTH: usize = 59;
+const L_COLUMN_WIDTH: usize = 62;
 // position of array indexes, if they are printed
 const ARRAY_POS_WIDTH: usize = 53;
 
@@ -24,9 +24,13 @@ impl<'a> std::io::Write for PrettyPrinter<'a> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let len = self.writer.write(buf)?;
         let wrote_buf = &buf[..len];
+        let wrote_str = unsafe { std::str::from_utf8_unchecked(wrote_buf) };
         self.line_pos = match wrote_buf.iter().rev().position(|b| *b == b'\n') {
-            Some(pos) => pos,
-            None => self.line_pos + len,
+            Some(pos) => {
+                assert_eq!(pos, 0);
+                pos
+            }
+            None => self.line_pos + wrote_str.chars().count(),
         };
         Ok(len)
     }
@@ -48,8 +52,25 @@ impl<'a> PrettyPrinter<'a> {
         }
     }
 
+    pub fn print_table_header(&mut self) -> std::io::Result<()> {
+        writeln!(
+            self,
+            "┌─────────────────────────────────────────────────────────────┬─────────────┐"
+        )
+    }
+
+    pub fn print_table_footer(&mut self) -> std::io::Result<()> {
+        writeln!(
+            self,
+            "└─────────────────────────────────────────────────────────────┴─────────────┘"
+        )
+    }
+
     fn print_indent(&mut self) -> std::io::Result<()> {
-        let indent_len = (self.depth * self.indent_size).min(MANY_SPACES.len());
+        let indent_len = (self.depth * self.indent_size)
+            .min(MANY_SPACES.len())
+            .saturating_sub(1);
+        write!(self, "│")?;
         self.write_all(&MANY_SPACES[..indent_len])
     }
 
@@ -71,11 +92,14 @@ impl<'a> PrettyPrinter<'a> {
         &mut self,
         table: &(dyn SomeTable<'b> + 'b),
     ) -> std::io::Result<()> {
+        self.print_table_header()?;
         self.print_indent()?;
         write!(self, "{}", table.type_name())?;
+        self.print_hex(&[])?;
         self.print_newline()?;
         self.indented(|this| this.print_fields(table))?;
-        self.print_newline()
+        self.print_newline()?;
+        self.print_table_footer()
     }
 
     fn print_with_style(
@@ -169,12 +193,25 @@ impl<'a> PrettyPrinter<'a> {
                     Err(e) => write!(self, "Error: '{e}'"),
                 }?;
             }
-            FieldType::BareOffset(offset) => write!(self, "{}", offset.to_u32())?,
+            FieldType::BareOffset(offset) => {
+                if self.line_pos == 0 {
+                    self.print_indent()?;
+                }
+                self.print_with_style(Color::Blue.into(), |this| {
+                    if matches!(offset, OffsetType::None) {
+                        write!(this, "Null")
+                    } else {
+                        write!(this, "{}", offset.to_u32())
+                    }
+                })?;
+            }
             FieldType::Record(record) => self.print_fields(record)?,
             FieldType::ValueRecord(record) if record.get_field(0).is_none() => {
-                self.write_all(b"Null")?
+                self.write_all(b"Null")?;
+                self.print_hex(&[])?
             }
             FieldType::ValueRecord(record) => self.indented(|this| {
+                this.print_hex(&[])?;
                 this.print_newline()?;
                 this.print_fields(record)
             })?,
@@ -209,7 +246,7 @@ impl<'a> PrettyPrinter<'a> {
 
     fn print_offset_hex(&mut self, offset: OffsetType) -> std::io::Result<()> {
         match offset {
-            OffsetType::None => Ok(()),
+            OffsetType::None => self.print_hex(&[]),
             OffsetType::Offset16(val) => self.print_hex(&val.to_be_bytes()),
             OffsetType::Offset24(val) => self.print_hex(&val.to_be_bytes()),
             OffsetType::Offset32(val) => self.print_hex(&val.to_be_bytes()),
@@ -227,6 +264,14 @@ impl<'a> PrettyPrinter<'a> {
     }
 
     fn print_hex(&mut self, bytes: &[u8]) -> std::io::Result<()> {
+        if bytes.len() > 4 {
+            let (head, tail) = bytes.split_at(4);
+            self.print_hex(head)?;
+            self.print_newline()?;
+            self.print_indent()?;
+            self.print_hex(tail)?;
+            return Ok(());
+        }
         let padding = L_COLUMN_WIDTH.saturating_sub(self.line_pos);
         let wspace = &MANY_SPACES[..padding];
         self.write_all(wspace)?;
@@ -236,7 +281,11 @@ impl<'a> PrettyPrinter<'a> {
                 write!(this, " {b:02X}")?
             }
             Ok(())
-        })
+        })?;
+        let padding = (4 - bytes.len()) * 3;
+        let wspace = &MANY_SPACES[..padding];
+        self.write_all(wspace)?;
+        write!(self, " │")
     }
 }
 

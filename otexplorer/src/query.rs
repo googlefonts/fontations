@@ -68,8 +68,10 @@ fn print_field(field: FieldType) -> std::io::Result<()> {
     let mut locked = stdout.lock();
     let mut formatter = super::PrettyPrinter::new(&mut locked);
 
+    formatter.print_table_header()?;
     formatter.print_field(&field)?;
-    formatter.print_newline()
+    formatter.print_newline()?;
+    formatter.print_table_footer()
 }
 
 fn print_used_query(query: &Query, used: &[QueryElement]) {
