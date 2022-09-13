@@ -164,14 +164,14 @@ impl<'a> SomeTable<'a> for ValueRecord {
 
         let name = fields.iter().filter_map(|x| *x).nth(idx)?;
         let typ: FieldType = match name {
-            "x_placement" => self.x_placement().into(),
-            "y_placement" => self.y_placement().into(),
-            "x_advance" => self.x_advance().into(),
-            "y_advance" => self.y_advance().into(),
-            "x_placement_device" => self.x_placement_device().into(),
-            "y_placement_device" => self.y_placement_device().into(),
-            "x_advance_device" => self.x_advance_device().into(),
-            "y_advance_device" => self.y_advance_device().into(),
+            "x_placement" => self.x_placement().unwrap().into(),
+            "y_placement" => self.y_placement().unwrap().into(),
+            "x_advance" => self.x_advance().unwrap().into(),
+            "y_advance" => self.y_advance().unwrap().into(),
+            "x_placement_device" => self.x_placement_device().unwrap().into(),
+            "y_placement_device" => self.y_placement_device().unwrap().into(),
+            "x_advance_device" => self.x_advance_device().unwrap().into(),
+            "y_advance_device" => self.y_advance_device().unwrap().into(),
             _ => panic!("hmm"),
         };
 

@@ -121,6 +121,7 @@ impl<'a> SomeTable<'a> for Gpos<'a> {
         "Gpos"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let version = self.version();
         match idx {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new(
@@ -135,9 +136,12 @@ impl<'a> SomeTable<'a> for Gpos<'a> {
                 "lookup_list_offset",
                 FieldType::offset(self.lookup_list_offset(), self.lookup_list()),
             )),
-            4usize => Some(Field::new(
+            4usize if version.compatible(MajorMinor::VERSION_1_1) => Some(Field::new(
                 "feature_variations_offset",
-                FieldType::offset(self.feature_variations_offset(), self.feature_variations()),
+                FieldType::offset(
+                    self.feature_variations_offset().unwrap(),
+                    self.feature_variations().unwrap(),
+                ),
             )),
             _ => None,
         }

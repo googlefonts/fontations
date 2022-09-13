@@ -182,9 +182,7 @@ impl<'a> PrettyPrinter<'a> {
                         if self.line_pos == 0 {
                             self.print_indent()?;
                         }
-                        self.print_with_style(Color::Blue.into(), |this| {
-                            write!(this, "+{}", offset.to_u32())
-                        })?;
+                        self.print_with_style(Color::Blue.into(), |this| write!(this, "{offset}"))?;
                         self.print_current_array_pos()?;
                         self.print_offset_hex(*offset)?;
                         self.print_newline()?;
@@ -197,12 +195,9 @@ impl<'a> PrettyPrinter<'a> {
                 if self.line_pos == 0 {
                     self.print_indent()?;
                 }
-                self.print_with_style(Color::Blue.into(), |this| {
-                    if matches!(offset, OffsetType::None) {
-                        write!(this, "Null")
-                    } else {
-                        write!(this, "{}", offset.to_u32())
-                    }
+                self.print_with_style(Color::Blue.into(), |this| match offset.to_u32() {
+                    0 => write!(this, "Null"),
+                    _ => write!(this, "{offset}"),
                 })?;
             }
             FieldType::Record(record) => self.print_fields(record)?,
@@ -216,7 +211,6 @@ impl<'a> PrettyPrinter<'a> {
                 this.print_fields(record)
             })?,
             FieldType::Array(array) => self.print_array(array)?,
-            FieldType::None => self.write_all(b"None")?,
         }
 
         self.print_current_array_pos()?;
@@ -246,7 +240,6 @@ impl<'a> PrettyPrinter<'a> {
 
     fn print_offset_hex(&mut self, offset: OffsetType) -> std::io::Result<()> {
         match offset {
-            OffsetType::None => self.print_hex(&[]),
             OffsetType::Offset16(val) => self.print_hex(&val.to_be_bytes()),
             OffsetType::Offset24(val) => self.print_hex(&val.to_be_bytes()),
             OffsetType::Offset32(val) => self.print_hex(&val.to_be_bytes()),

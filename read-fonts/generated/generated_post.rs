@@ -219,6 +219,7 @@ impl<'a> SomeTable<'a> for Post<'a> {
         "Post"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let version = self.version();
         match idx {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new("italic_angle", self.italic_angle())),
@@ -232,9 +233,16 @@ impl<'a> SomeTable<'a> for Post<'a> {
             6usize => Some(Field::new("max_mem_type42", self.max_mem_type42())),
             7usize => Some(Field::new("min_mem_type1", self.min_mem_type1())),
             8usize => Some(Field::new("max_mem_type1", self.max_mem_type1())),
-            9usize => Some(Field::new("num_glyphs", self.num_glyphs())),
-            10usize => Some(Field::new("glyph_name_index", self.glyph_name_index())),
-            11usize => Some(Field::new("string_data", self.string_data())),
+            9usize if version.compatible(Version16Dot16::VERSION_2_0) => {
+                Some(Field::new("num_glyphs", self.num_glyphs().unwrap()))
+            }
+            10usize if version.compatible(Version16Dot16::VERSION_2_0) => Some(Field::new(
+                "glyph_name_index",
+                self.glyph_name_index().unwrap(),
+            )),
+            11usize if version.compatible(Version16Dot16::VERSION_2_0) => {
+                Some(Field::new("string_data", self.string_data().unwrap()))
+            }
             _ => None,
         }
     }
