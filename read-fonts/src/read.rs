@@ -60,7 +60,17 @@ pub enum ReadError {
 
 impl std::fmt::Display for ReadError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Some error I guess")
+        match self {
+            ReadError::OutOfBounds => write!(f, "An offset was out of bounds"),
+            ReadError::InvalidFormat(x) => write!(f, "Invalid format '{x}'"),
+            ReadError::InvalidSfnt(ver) => write!(f, "Invalid sfnt version 0x{ver:08X}"),
+            ReadError::InvalidArrayLen => {
+                write!(f, "Specified array length not a multiple of item size")
+            }
+            ReadError::ValidationError => write!(f, "A validation error occured"),
+            ReadError::NullOffset => write!(f, "An offset was unexpectedly null"),
+            ReadError::TableIsMissing(tag) => write!(f, "the {tag} table is missing"),
+        }
     }
 }
 
