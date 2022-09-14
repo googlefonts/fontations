@@ -190,3 +190,31 @@ fn anchorformat2() {
 
 //assert_hex_eq!(&bytes, &dumped);
 //}
+
+// not from the spec; this is a general test that we don't write out versioned
+// fields inappropriately.
+#[test]
+fn no_write_versioned_fields() {
+    let mut gpos = Gpos {
+        script_list_offset: OffsetMarker::new(ScriptList {
+            script_records: Vec::new(),
+        }),
+        feature_list_offset: OffsetMarker::new(FeatureList {
+            feature_records: Vec::new(),
+        }),
+        lookup_list_offset: OffsetMarker::new(PositionLookupList {
+            lookup_offsets: Vec::new(),
+        }),
+        feature_variations_offset: NullableOffsetMarker::new(None),
+    };
+
+    let dumped = crate::write::dump_table(&gpos).unwrap();
+    assert_eq!(dumped.len(), 12);
+
+    gpos.feature_variations_offset.set(FeatureVariations {
+        feature_variation_records: Vec::new(),
+    });
+
+    let dumped = crate::write::dump_table(&gpos).unwrap();
+    assert_eq!(dumped.len(), 12 + 12); // 4byte offset, 4byte version, 4byte record count
+}

@@ -31,13 +31,18 @@ pub struct Gdef {
 impl FontWrite for Gdef {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (self.compute_version() as MajorMinor).write_into(writer);
+        let version = self.compute_version() as MajorMinor;
+        version.write_into(writer);
         self.glyph_class_def_offset.write_into(writer);
         self.attach_list_offset.write_into(writer);
         self.lig_caret_list_offset.write_into(writer);
         self.mark_attach_class_def_offset.write_into(writer);
-        self.mark_glyph_sets_def_offset.write_into(writer);
-        self.item_var_store_offset.write_into(writer);
+        version
+            .compatible(MajorMinor::VERSION_1_2)
+            .then(|| self.mark_glyph_sets_def_offset.write_into(writer));
+        version
+            .compatible(MajorMinor::VERSION_1_3)
+            .then(|| self.item_var_store_offset.write_into(writer));
     }
 }
 
