@@ -21,11 +21,14 @@ pub struct Gpos {
 impl FontWrite for Gpos {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (self.compute_version() as MajorMinor).write_into(writer);
+        let version = self.compute_version() as MajorMinor;
+        version.write_into(writer);
         self.script_list_offset.write_into(writer);
         self.feature_list_offset.write_into(writer);
         self.lookup_list_offset.write_into(writer);
-        self.feature_variations_offset.write_into(writer);
+        version
+            .compatible(MajorMinor::VERSION_1_1)
+            .then(|| self.feature_variations_offset.write_into(writer));
     }
 }
 
