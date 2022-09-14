@@ -1,7 +1,7 @@
 use font_types::GlyphId;
 use write_fonts::layout::{
-    ClassDef, ClassDefBuilder, CoverageFormat1, CoverageFormat2, CoverageTable, Feature,
-    FeatureList, LangSys, Lookup, RangeRecord, Script, ScriptList,
+    ClassDef, ClassDefBuilder, CoverageTable, CoverageTableBuilder, Feature, FeatureList, LangSys,
+    Lookup, Script, ScriptList,
 };
 
 use super::{Error, Plan, Subset};
@@ -116,43 +116,34 @@ impl Subset for ClassDef {
     }
 }
 
-impl Subset for CoverageFormat1 {
-    fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
-        self.glyph_array
-            .retain_mut(|gid| match plan.remap_gid(*gid) {
-                Some(new_gid) => {
-                    *gid = new_gid;
-                    true
-                }
-                None => false,
-            });
-        Ok(!self.glyph_array.is_empty())
-    }
-}
-
-impl Subset for CoverageFormat2 {
-    fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
-        let gids = self
-            .range_records
-            .iter()
-            .flat_map(|rcd| rcd.start_glyph_id.to_u16()..=rcd.end_glyph_id.to_u16())
-            .map(GlyphId::new)
-            .filter_map(|gid| plan.remap_gid(gid))
-            .collect::<Vec<_>>();
-        if gids.is_empty() {
-            return Ok(false);
-        }
-        let range_records = RangeRecord::iter_for_glyphs(&gids).collect();
-        *self = CoverageFormat2 { range_records };
-        Ok(true)
-    }
-}
-
 impl Subset for CoverageTable {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
-        match self {
-            CoverageTable::Format1(table) => table.subset(plan),
-            CoverageTable::Format2(table) => table.subset(plan),
+        let gids = match self {
+            CoverageTable::Format1(table) => {
+                let mut glyphs = std::mem::take(&mut table.glyph_array);
+                glyphs.retain_mut(|gid| match plan.remap_gid(*gid) {
+                    Some(new_gid) => {
+                        *gid = new_gid;
+                        true
+                    }
+                    None => false,
+                });
+                glyphs
+            }
+            CoverageTable::Format2(table) => table
+                .range_records
+                .iter()
+                .flat_map(|rcd| rcd.start_glyph_id.to_u16()..=rcd.end_glyph_id.to_u16())
+                .map(GlyphId::new)
+                .filter_map(|gid| plan.remap_gid(gid))
+                .collect::<Vec<_>>(),
+        };
+        if gids.is_empty() {
+            Ok(false)
+        } else {
+            let builder = CoverageTableBuilder::from_glyphs(gids);
+            *self = builder.build();
+            Ok(true)
         }
     }
 }
