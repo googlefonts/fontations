@@ -246,11 +246,17 @@ impl CoverageTable {
     }
 }
 
+/// A builder for [ClassDef] tables.
+///
+/// This will choose the best format based for the included glyphs.
 #[derive(Debug, PartialEq, Eq)]
 pub struct ClassDefBuilder {
     pub items: BTreeMap<GlyphId, u16>,
 }
 
+/// A builder for [CoverageTable] tables.
+///
+/// This will choose the best format based for the included glyphs.
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct CoverageTableBuilder {
     // invariant: is always sorted
@@ -259,13 +265,18 @@ pub struct CoverageTableBuilder {
 
 impl FromIterator<GlyphId> for CoverageTableBuilder {
     fn from_iter<T: IntoIterator<Item = GlyphId>>(iter: T) -> Self {
-        let mut glyphs = iter.into_iter().collect::<Vec<_>>();
-        glyphs.sort_unstable();
-        CoverageTableBuilder { glyphs }
+        let glyphs = iter.into_iter().collect::<Vec<_>>();
+        CoverageTableBuilder::from_glyphs(glyphs)
     }
 }
 
 impl CoverageTableBuilder {
+    /// Create a new builder from a vec of `GlyphId`.
+    pub fn from_glyphs(mut glyphs: Vec<GlyphId>) -> Self {
+        glyphs.sort_unstable();
+        CoverageTableBuilder { glyphs }
+    }
+
     /// Add a `GlyphId` to this coverage table.
     ///
     /// Returns the coverage index of the added glyph.
@@ -282,6 +293,9 @@ impl CoverageTableBuilder {
         }
     }
 
+    //NOTE: it would be nice if we didn't do this intermediate step and instead
+    //wrote out bytes directly, but the current approach is simpler.
+    /// Convert this builder into the appropriate [CoverageTable] variant.
     pub fn build(self) -> CoverageTable {
         if should_choose_coverage_format_2(&self.glyphs) {
             CoverageTable::Format2(CoverageFormat2 {
@@ -304,18 +318,26 @@ impl FromIterator<(GlyphId, u16)> for ClassDefBuilder {
 }
 
 impl ClassDefBuilder {
-    fn is_contiguous(&self) -> bool {
-        self.items
-            .keys()
-            .zip(self.items.keys().skip(1))
-            .all(|(a, b)| are_sequential(*a, *b))
+    fn prefer_format_1(&self) -> bool {
+        // calculate our format2 size:
+        let first = self.items.keys().next().map(|g| g.to_u16());
+        let last = self.items.keys().next_back().map(|g| g.to_u16());
+        let len_format1 = 3 + (last.unwrap_or_default() - first.unwrap_or_default()) as usize;
+        let len_format2 = 4 + iter_class_ranges(&self.items).count() * 6;
+
+        len_format1 < len_format2
     }
 
     pub fn build(&self) -> ClassDef {
-        if self.is_contiguous() {
+        if self.prefer_format_1() {
+            let first = self.items.keys().next().map(|g| g.to_u16()).unwrap_or(0);
+            let last = self.items.keys().next_back().map(|g| g.to_u16());
+            let class_value_array = (first..=last.unwrap_or_default())
+                .map(|g| self.items.get(&GlyphId::new(g)).copied().unwrap_or(0))
+                .collect();
             ClassDef::Format1(ClassDefFormat1 {
                 start_glyph_id: self.items.keys().next().copied().unwrap_or(GlyphId::NOTDEF),
-                class_value_array: self.items.values().copied().collect(),
+                class_value_array,
             })
         } else {
             ClassDef::Format2(ClassDefFormat2 {
@@ -358,14 +380,10 @@ fn iter_class_ranges(
     })
 }
 
-//TODO: this can be fancier; we probably want to do something like find the
-// percentage of glyphs that are in contiguous ranges, or something?
 fn should_choose_coverage_format_2(glyphs: &[GlyphId]) -> bool {
-    glyphs.len() > 3
-        && glyphs
-            .iter()
-            .zip(glyphs.iter().skip(1))
-            .all(|(a, b)| are_sequential(*a, *b))
+    let format2_len = 4 + RangeRecord::iter_for_glyphs(glyphs).count() * 6;
+    let format1_len = 4 + glyphs.len() * 2;
+    format2_len < format1_len
 }
 
 impl RangeRecord {
@@ -470,5 +488,22 @@ mod tests {
         };
 
         classdef.validate().unwrap();
+    }
+
+    #[test]
+    fn classdef_format() {
+        let builder: ClassDefBuilder = [(3u16, 4u16), (4, 6), (5, 1), (9, 5), (10, 2), (11, 3)]
+            .map(|(gid, cls)| (GlyphId::new(gid), cls))
+            .into_iter()
+            .collect();
+
+        assert!(builder.prefer_format_1());
+
+        let builder: ClassDefBuilder = [(1u16, 1u16), (3, 4), (9, 5), (10, 2), (11, 3)]
+            .map(|(gid, cls)| (GlyphId::new(gid), cls))
+            .into_iter()
+            .collect();
+
+        assert!(builder.prefer_format_1());
     }
 }
