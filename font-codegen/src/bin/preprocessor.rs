@@ -79,13 +79,8 @@ fn generate_one_item<'a>(lines: impl Iterator<Item = Line<'a>>) -> Option<String
 /// Generate a single table or record (they're currently the same)
 fn generate_one_table<'a>(decl: Decl, lines: impl Iterator<Item = Line<'a>>) -> Option<String> {
     let fields = lines.map_while(parse_field).collect::<Vec<_>>();
-    let lifetime_str = if fields.iter().any(|x| x.maybe_count.is_some()) {
-        "<'a>"
-    } else {
-        ""
-    };
     let mut result = String::new();
-    writeln!(&mut result, "{}{} {{", decl.name, lifetime_str).unwrap();
+    writeln!(&mut result, "{} {} {{", decl.kind, decl.name).unwrap();
     for line in &fields {
         writeln!(&mut result, "{}", line).unwrap();
     }
@@ -131,6 +126,17 @@ enum DeclKind {
     Record,
     RawEnum,
     Flags,
+}
+
+impl std::fmt::Display for DeclKind {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        match self {
+            DeclKind::Table => write!(f, "table"),
+            DeclKind::Record => write!(f, "record"),
+            DeclKind::RawEnum => write!(f, "enum"),
+            DeclKind::Flags => write!(f, "flags"),
+        }
+    }
 }
 
 struct Decl<'a> {
@@ -191,7 +197,7 @@ impl<'a> std::fmt::Display for Field<'a> {
             writeln!(f, "    #[hidden]")?;
         }
         if let Some(count) = &self.maybe_count {
-            writeln!(f, "    #[count({})]", count)?;
+            writeln!(f, "    #[count(${})]", count)?;
             write!(f, "    {}: [{}],", decamalize(self.name), self.typ)?;
         } else {
             write!(f, "    {}: {},", decamalize(self.name), self.typ)?;
