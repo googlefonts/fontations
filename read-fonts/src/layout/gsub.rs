@@ -9,6 +9,10 @@ pub use super::{
     Lookup, LookupList, ScriptList, SequenceContext,
 };
 
+#[cfg(test)]
+#[path = "../tests/test_gsub.rs"]
+mod tests;
+
 /// 'GSUB'
 pub const TAG: Tag = Tag::new(b"GSUB");
 
