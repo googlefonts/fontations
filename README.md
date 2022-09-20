@@ -1,34 +1,39 @@
-# oxidize experiments
+# Fontations
 
-This repo contains some initial code exploring low-level parsing and access to
-font data types in rust. See
-[googlefonts/oxidize](https://github.com/googlefonts/oxidize) for more
-background.
+This repo contains a number of foundational crates for reading and
+manipulating OpenType font files. It is motivated by a desire to have more
+robust and performant open tools for a variety of font engineering and
+production tasks. For an overview of the motivations, see
+[googlefonts/oxidize][oxidize].
 
-## contents
+## structure
 
-- `font-types` is an early attempt at a high-level API representing the core
-  scalar types, and how to efficiently handle reading them.
-- `font-codegen` tools used to generate code for parsing & manipulating various
-  types in the spec. See `font-codegen/README.md` for more info.
-- `read-fonts` contains tables and record definitions for parsing fonts.
-- `write-fonts` contains tables and record definitions for editing and compiling
-  fonts.
-- `otexplorer` is a binary crate for querying and printing the contents of font
-  files.
+Currently, this repo contains three main library crates: [`font-types`][], [`read-fonts`][],
+and [`write-fonts`][], in addition to one binary crate, [`otexplorer`][]:
 
-The `retired_crates` directory contains some earlier experiments:
-
-- `toy-types` is a highly simplified version of this API. This is supposed to be
-  easy to work with while experimenting with macros etc.
-- `toy-types-derive` contains a derive macro that can be used to describe types
-  which represent various font tables and records.
-- `raw-types` is a set of simple zerocopy types, intended to be the basis for,
-- `font-tables` is an earlier crate that was subsequently split into
-  `read-fonts` and `write-fonts`.
-
+- `font-types` contains common definitions of the core types used in the
+  OpenType spec. This is a small crate, and is intended as a basic dependency
+  for any project reading or manipulating font data.
+- [`read-fonts`][] contains code for parsing and accessing font files. It is
+  intended to be a high performance parser, suitable for shaping. In particular
+  this means that it performs no allocation and no copying.
+- [`write-fonts`][] contains code for modifying and writing font data. It contains
+  owned types representing the various tables and records in the specification,
+  as well as code for compiling these and writing out font files. It has an
+  optional dependency on `read-fonts`, in which case it can also parse font
+  data, which can then be modified and written back out to disk.
+- [`otexplorer`][] is a binary crate for exploring the contents of font files.
+  It is developed as a debugging tool, and may also be useful as an example of
+  how the [`read-fonts`][] crate can be used.
 
 ## codegen
 
-This crate relies heavily on automatically generated code. For an overview of
-how this works, see `font-codegen/README.md`.
+Much of the code in the `read-fonts` and `write-fonts` crate is generated
+automatically. Code generation is performed by the `font-codegen` crate, and is
+described in more detail in [`font-codegen/README.md`][codegen-readme].
+
+[codegen-readme]: ./font-codegen/README.md
+[`read-fonts`]: ./read-fonts
+[`font-types`]: ./font-types
+[`write-fonts`]: ./write-fonts
+[oxidize]: https://github.com/googlefonts/oxidize
