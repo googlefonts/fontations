@@ -1,11 +1,5 @@
-Gsub_1_0
-uint16	majorVersion	Major version of the GSUB table, = 1
-uint16	minorVersion	Minor version of the GSUB table, = 0
-Offset16	scriptListOffset	Offset to ScriptList table, from beginning of GSUB table
-Offset16	featureListOffset	Offset to FeatureList table, from beginning of GSUB table
-Offset16	lookupListOffset	Offset to LookupList table, from beginning of GSUB table
-
-Gsub_1_1
+/// [GSUB](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsub-header)
+@table Gsub
 uint16	majorVersion	Major version of the GSUB table, = 1
 uint16	minorVersion	Minor version of the GSUB table, = 1
 Offset16	scriptListOffset	Offset to ScriptList table, from beginning of GSUB table
@@ -13,15 +7,18 @@ Offset16	featureListOffset	Offset to FeatureList table, from beginning of GSUB t
 Offset16	lookupListOffset	Offset to LookupList table, from beginning of GSUB table
 Offset32	featureVariationsOffset	Offset to FeatureVariations table, from beginning of the GSUB table (may be NULL)
 
+/// LookupType 1: [Single Substitution](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#lookuptype-1-single-substitution-subtable) Subtable
+@table SingleSubst
+fixme	please	pretty please
 
-# single substitution
-
-SingleSubstFormat1
+/// [Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#11-single-substitution-format-1)
+@table SingleSubstFormat1
 uint16	substFormat	Format identifier: format = 1
 Offset16	coverageOffset	Offset to Coverage table, from beginning of substitution subtable
 int16	deltaGlyphID	Add to original glyph ID to get substitute glyph ID
 
-SingleSubstFormat2
+/// [Single Substitution Format 2](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#12-single-substitution-format-2)
+@table SingleSubstFormat2
 uint16	substFormat	Format identifier: format = 2
 Offset16	coverageOffset	Offset to Coverage table, from beginning of substitution subtable
 uint16	glyphCount	Number of glyph IDs in the substituteGlyphIDs array
@@ -30,55 +27,64 @@ uint16	substituteGlyphIDs[glyphCount]	Array of substitute glyph IDs — ordered 
 
 # multiple substitution
 
-MultipleSubstFormat1
+/// [Multiple Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#21-multiple-substitution-format-1)
+@table MultipleSubstFormat1
 uint16	substFormat	Format identifier: format = 1
 Offset16	coverageOffset	Offset to Coverage table, from beginning of substitution subtable
 uint16	sequenceCount	Number of Sequence table offsets in the sequenceOffsets array
 Offset16	sequenceOffsets[sequenceCount]	Array of offsets to Sequence tables. Offsets are from beginning of substitution subtable, ordered by Coverage index
 
-Sequence
+/// Part of [MultipleSubstFormat1]
+@table Sequence
 uint16	glyphCount	Number of glyph IDs in the substituteGlyphIDs array. This must always be greater than 0.
 uint16	substituteGlyphIDs[glyphCount]	String of glyph IDs to substitute
 
 # alternate substitution
 
-AlternateSubstFormat1
+/// [Alternate Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#31-alternate-substitution-format-1)
+@table AlternateSubstFormat1
 uint16	substFormat	Format identifier: format = 1
 Offset16	coverageOffset	Offset to Coverage table, from beginning of substitution subtable
 uint16	alternateSetCount	Number of AlternateSet tables
 Offset16	alternateSetOffsets[alternateSetCount]	Array of offsets to AlternateSet tables. Offsets are from beginning of substitution subtable, ordered by Coverage index
 
-AlternateSet
+/// Part of [AlternateSubstFormat1]
+@table AlternateSet
 uint16	glyphCount	Number of glyph IDs in the alternateGlyphIDs array
 uint16	alternateGlyphIDs[glyphCount]	Array of alternate glyph IDs, in arbitrary order
 
 # ligature substitution
 
-LigatureSubstFormat1
+/// [Ligature Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#41-ligature-substitution-format-1)
+@table LigatureSubstFormat1
 uint16	substFormat	Format identifier: format = 1
 Offset16	coverageOffset	Offset to Coverage table, from beginning of substitution subtable
 uint16	ligatureSetCount	Number of LigatureSet tables
 Offset16	ligatureSetOffsets[ligatureSetCount]	Array of offsets to LigatureSet tables. Offsets are from beginning of substitution subtable, ordered by Coverage index
 
-LigatureSet
+/// Part of [LigatureSubstFormat1]
+@table LigatureSet
 uint16	ligatureCount	Number of Ligature tables
 Offset16	ligatureOffsets[LigatureCount]	Array of offsets to Ligature tables. Offsets are from beginning of LigatureSet table, ordered by preference.
 
-Ligature
+/// Part of [LigatureSubstFormat1]
+@table Ligature
 uint16	ligatureGlyph	glyph ID of ligature to substitute
 uint16	componentCount	Number of components in the ligature
 uint16	componentGlyphIDs[componentCount - 1]	Array of component glyph IDs — start with the second component, ordered in writing direction
 
 # extension substitution
 
-ExtensionSubstFormat1
+/// [Extension Substitution Subtable Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#71-extension-substitution-subtable-format-1)
+@table ExtensionSubstFormat1
 uint16	substFormat	Format identifier. Set to 1.
 uint16	extensionLookupType	Lookup type of subtable referenced by extensionOffset (that is, the extension subtable).
 Offset32	extensionOffset	Offset to the extension subtable, of lookup type extensionLookupType, relative to the start of the ExtensionSubstFormat1 subtable.
 
 # reverse chaining
 
-ReverseChainSingleSubstFormat1
+/// [Reverse Chaining Contextual Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#81-reverse-chaining-contextual-single-substitution-format-1-coverage-based-glyph-contexts)
+@table ReverseChainSingleSubstFormat1
 uint16	substFormat	Format identifier: format = 1
 Offset16	coverageOffset	Offset to Coverage table, from beginning of substitution subtable.
 uint16	backtrackGlyphCount	Number of glyphs in the backtrack sequence.

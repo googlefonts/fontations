@@ -49,14 +49,19 @@ pub(crate) mod codegen_prelude {
     #[cfg(feature = "traversal")]
     pub use crate::traversal::{self, Field, FieldType, RecordResolver, SomeRecord, SomeTable};
 
-    #[cfg(feature = "traversal")]
     // used in generated traversal code to get type names of offset fields, which
     // may include generics
+    #[cfg(feature = "traversal")]
     pub(crate) fn better_type_name<T>() -> &'static str {
         let raw_name = std::any::type_name::<T>();
         let last = raw_name.rsplit("::").next().unwrap_or(raw_name);
         // this happens if we end up getting a type name like TableRef<'a, module::SomeMarker>
         last.trim_end_matches("Marker>")
+    }
+
+    /// used in generated code
+    pub fn minus_one(val: impl Into<usize>) -> usize {
+        val.into().saturating_sub(1)
     }
 }
 

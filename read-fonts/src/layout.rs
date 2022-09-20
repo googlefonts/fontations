@@ -2,6 +2,7 @@
 
 pub mod gdef;
 pub mod gpos;
+pub mod gsub;
 
 #[cfg(test)]
 #[path = "./tests/layout.rs"]
@@ -112,8 +113,4 @@ fn delta_value_count(start_size: u16, end_size: u16, delta_format: DeltaFormat) 
     let count = range_len / val_per_word;
     let extra = (range_len % val_per_word).min(1);
     count + extra
-}
-
-fn minus_one(val: impl Into<usize>) -> usize {
-    val.into().saturating_sub(1)
 }
