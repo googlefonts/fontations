@@ -1,7 +1,12 @@
-//! Generic tree traversal
+//! Generic traversal of font tables.
 //!
 //! This module defines functionality that allows untyped access to font table
 //! data. This is used as the basis for things like debug printing.
+//!
+//! The basis of traversal is the [`SomeTable`] trait, which is implemented for
+//! all font tables. This trait provides the table's name, as well as ordered access
+//! to the table's fields. Using this, it is possible to iterate through a table
+//! and its subtables, records, and values.
 
 use std::{fmt::Debug, ops::Deref};
 
@@ -46,6 +51,7 @@ pub enum FieldType<'a> {
     Array(Box<dyn SomeArray<'a> + 'a>),
 }
 
+/// Any offset type.
 #[derive(Clone, Copy)]
 pub enum OffsetType {
     Offset16(u16),
@@ -54,6 +60,7 @@ pub enum OffsetType {
 }
 
 impl OffsetType {
+    /// Return this offset as a u32.
     pub fn to_u32(self) -> u32 {
         match self {
             Self::Offset16(val) => val.into(),
@@ -63,8 +70,11 @@ impl OffsetType {
     }
 }
 
+/// An offset, as well as the table it references.
 pub struct ResolvedOffset<'a> {
+    /// The raw offset
     pub offset: OffsetType,
+    /// The parsed table pointed to by this offset, or an error if parsing fails.
     pub target: Result<Box<dyn SomeTable<'a> + 'a>, ReadError>,
 }
 
@@ -76,7 +86,7 @@ pub struct StringOffset<'a> {
     pub target: Result<Box<dyn SomeString<'a> + 'a>, ReadError>,
 }
 
-pub struct ArrayOfOffsets<'a, O> {
+pub(crate) struct ArrayOfOffsets<'a, O> {
     type_name: &'static str,
     offsets: &'a [O],
     resolver: Box<dyn Fn(&O) -> FieldType<'a> + 'a>,
@@ -135,6 +145,10 @@ impl<'a> FieldType<'a> {
         .into()
     }
 
+    /// Convenience method for creating a `FieldType` from an array of offests.
+    ///
+    /// The `resolver` argument is a function that takes an offset and resolves
+    /// it.
     pub fn offset_array<O>(
         type_name: &'static str,
         offsets: &'a [O],
@@ -149,6 +163,10 @@ where {
     }
 
     //FIXME: I bet this is generating a *lot* of code
+    /// Convenience method for creating a `FieldType` for a resolved offset.
+    ///
+    /// This handles cases where offsets are nullable, in which case the `result`
+    /// argument may be `None`.
     pub fn offset<T: SomeTable<'a> + 'a>(
         offset: impl Into<OffsetType>,
         result: impl Into<Option<Result<T, ReadError>>>,
@@ -163,20 +181,24 @@ where {
         }
     }
 
+    /// Convenience method for creating a `FieldType` from an unknown offset.
     pub fn unknown_offset(offset: impl Into<OffsetType>) -> Self {
         Self::BareOffset(offset.into())
     }
 }
 
-/// A generic field in a font table
+/// A generic field in a font table.
 pub struct Field<'a> {
+    /// The field's name.
     pub name: &'static str,
-    pub typ: FieldType<'a>,
+    /// The field's value.
+    pub value: FieldType<'a>,
 }
 
 /// A generic table type.
 ///
-/// This is intended to be used as a trait object.
+/// This is intended to be used as a trait object, and is a way of generically
+/// representing any table, providing ordered access to that table's fields.
 pub trait SomeTable<'a> {
     /// The name of this table
     fn type_name(&self) -> &str;
@@ -185,11 +207,27 @@ pub trait SomeTable<'a> {
 }
 
 impl<'a> dyn SomeTable<'a> + 'a {
+    /// Returns an iterator over this table's fields.
     pub fn iter(&self) -> impl Iterator<Item = Field<'a>> + '_ {
         FieldIter {
             table: self,
             idx: 0,
         }
+    }
+}
+
+struct FieldIter<'a, 'b> {
+    table: &'b dyn SomeTable<'a>,
+    idx: usize,
+}
+
+impl<'a, 'b> Iterator for FieldIter<'a, 'b> {
+    type Item = Field<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let this = self.idx;
+        self.idx += 1;
+        self.table.get_field(this)
     }
 }
 
@@ -217,23 +255,45 @@ pub struct RecordResolver<'a> {
     pub(crate) data: FontData<'a>,
 }
 
+/// A generic trait for arrays.
 pub trait SomeArray<'a> {
+    /// The name of this type. For an array of u16s, this is `[u16]`.
     fn type_name(&self) -> &str;
+
+    /// The length of the array.
     fn len(&self) -> usize;
 
+    /// Returns `true` if this array is empty.
     fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
+    /// Return the item at `idx`, or `None` if `idx` is out of bounds.
     fn get(&self, idx: usize) -> Option<FieldType<'a>>;
 }
 
 impl<'a> dyn SomeArray<'a> + 'a {
+    /// Return an iterator over the contents of this array.
     pub fn iter(&self) -> impl Iterator<Item = FieldType<'a>> + '_ {
         ArrayIter {
             array: self,
             idx: 0,
         }
+    }
+}
+
+struct ArrayIter<'a, 'b> {
+    array: &'b dyn SomeArray<'a>,
+    idx: usize,
+}
+
+impl<'a, 'b> Iterator for ArrayIter<'a, 'b> {
+    type Item = FieldType<'a>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let this = self.idx;
+        self.idx += 1;
+        self.array.get(this)
     }
 }
 
@@ -345,41 +405,12 @@ impl<'a, T: SomeRecord<'a> + Clone> SomeArray<'a> for ArrayOfRecords<'a, T> {
     }
 }
 
-struct FieldIter<'a, 'b> {
-    table: &'b dyn SomeTable<'a>,
-    idx: usize,
-}
-
-impl<'a, 'b> Iterator for FieldIter<'a, 'b> {
-    type Item = Field<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let this = self.idx;
-        self.idx += 1;
-        self.table.get_field(this)
-    }
-}
-
-struct ArrayIter<'a, 'b> {
-    array: &'b dyn SomeArray<'a>,
-    idx: usize,
-}
-
-impl<'a, 'b> Iterator for ArrayIter<'a, 'b> {
-    type Item = FieldType<'a>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let this = self.idx;
-        self.idx += 1;
-        self.array.get(this)
-    }
-}
-
 impl<'a> Field<'a> {
-    pub fn new(name: &'static str, typ: impl Into<FieldType<'a>>) -> Self {
+    /// Create a new field with the given name and value.
+    pub fn new(name: &'static str, value: impl Into<FieldType<'a>>) -> Self {
         Field {
             name,
-            typ: typ.into(),
+            value: value.into(),
         }
     }
 }
@@ -433,7 +464,7 @@ impl<'a, 'b> std::fmt::Debug for DebugPrintTable<'a, 'b> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut debug_struct = f.debug_struct(self.0.type_name());
         for field in self.0.iter() {
-            debug_struct.field(field.name, &field.typ);
+            debug_struct.field(field.name, &field.value);
         }
         debug_struct.finish()
     }
@@ -458,7 +489,9 @@ impl<'a> Debug for dyn SomeString<'a> + 'a {
 impl<'a, 'b> std::fmt::Debug for DebugPrintArray<'a, 'b> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         let mut debug_list = f.debug_list();
-        for item in self.0.iter() {
+        let mut idx = 0;
+        while let Some(item) = self.0.get(idx) {
+            idx += 1;
             debug_list.entry(&item);
         }
         debug_list.finish()

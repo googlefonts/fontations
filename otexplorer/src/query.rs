@@ -30,7 +30,7 @@ pub fn print_query(font: &FontRef, query: &Query) -> Result<(), String> {
         Some((QueryElement::Field(name), rest)) => {
             let field = get_field(&table, name)?;
             let mut used_path = vec![QueryElement::Field(field.name.to_string())];
-            let target = find_query_recursive(field.typ, rest, &mut used_path)?;
+            let target = find_query_recursive(field.value, rest, &mut used_path)?;
             print_used_query(query, &used_path);
             println!("found {}", field_type_name(&target));
             println!();
@@ -122,7 +122,7 @@ fn find_query_recursive<'a>(
                 )),
             }?;
             used_path.push(QueryElement::Field(field.name.to_string()));
-            find_query_recursive(field.typ, rest, used_path)
+            find_query_recursive(field.value, rest, used_path)
         }
         QueryElement::Index(idx) => {
             let field = match current {

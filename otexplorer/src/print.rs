@@ -132,7 +132,7 @@ impl<'a> PrettyPrinter<'a> {
             self.print_indent()?;
             self.print_with_style(Color::Cyan.into(), |this| write!(this, "{}", field.name))?;
             write!(self, ": ")?;
-            self.print_field(&field.typ)?;
+            self.print_field(&field.value)?;
         }
         Ok(())
     }
