@@ -75,6 +75,7 @@ fn get_offset_width(font: &FontRef) -> usize {
     hex_width(max_off)
 }
 
+/// Return the number of hex digits required to represent a given number.
 fn hex_width(val: u32) -> usize {
     match val {
         0..=0xffff => 4usize,
@@ -83,6 +84,7 @@ fn hex_width(val: u32) -> usize {
     }
 }
 
+/// Given a font and a tag, return the appropriate table as a [`dyn SomeTable`][SomeTable].
 fn get_some_table<'a>(
     font: &FontRef<'a>,
     tag: Tag,
