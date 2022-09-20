@@ -1,0 +1,18 @@
+//! the [GSUB] table
+//!
+//! [GSUB]: https://docs.microsoft.com/en-us/typography/opentype/spec/gsub
+
+use font_types::Tag;
+
+pub use super::{
+    ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
+    Lookup, LookupList, ScriptList, SequenceContext,
+};
+
+/// 'GSUB'
+pub const TAG: Tag = Tag::new(b"GSUB");
+
+include!("../../generated/generated_gsub.rs");
+
+/// A typed GSUB LookupList table
+pub type SubstitutionLookupList<'a> = LookupList<'a, SubstitutionLookup<'a>>;
