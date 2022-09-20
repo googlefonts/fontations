@@ -4,7 +4,7 @@
 files.
 
 It is loosely modeled off of the [ttx tool][ttx], although it uses a custom text
-format, instead of xml. In addition, it supports a query syntax, allowing
+format instead of xml. In addition, it supports a query syntax, allowing
 printing of a specific subtable or record.
 
 ## query syntax

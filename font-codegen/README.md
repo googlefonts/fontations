@@ -1,10 +1,11 @@
 # codegen
 
-This crate contains utilities used to generate code for parsing (and hopefully
-compiling) various font tables.
+This crate contains utilities used to generate code for parsing and
+compiling various font tables.
 
 As a quick overview, adding a new table works like this:
-- the raw text of the table/record/bitfield objects is copied from the [Microsoft OpenType® docs][opentype] into a text file in `resources/raw_tables`.
+- the raw text of the table/record/bitfield objects is copied from the
+  [Microsoft OpenType® docs][opentype] into a text file in `resources/raw_tables`.
 - the `preprocessor` binary is run, converting this into a DSL with 'rust-like syntax'.
   This is written into a file in `resources/codegen_inputs`.
 - if necessary, this syntax is annotated by hand with various attributes which
@@ -51,7 +52,7 @@ Offset16	langTagOffset	Language-tag string offset from start of storage area (in
 4	Component	Component glyph (part of single character, spacing glyph)
 ```
 
-- all objects are separated by a newilne, and begin with `@OBJECT_TYPE`.
+- all objects are separated by a newline, and begin with `@OBJECT_TYPE`.
 - record & table are currently interchangeable, but this may change, and  you
   should follow the spec.
 - enum & flags require an explicit format
@@ -158,3 +159,5 @@ The following annotations are supported on top-level objects:
 There is also the concept of a 'codegen plan', which is a simple toml file
 describing a number of different operations to be run in parallel. This is
 intended to be the general mechanism by which codegen is run.
+
+See `../resources/codegen_plan.toml` for an example.
