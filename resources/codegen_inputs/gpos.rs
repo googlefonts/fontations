@@ -460,6 +460,7 @@ record Mark2Record<'a> {
 }
 
 /// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
+#[phantom(T)]
 #[skip_compile]
 table ExtensionPosFormat1 {
     /// Format identifier: format = 1
@@ -471,5 +472,5 @@ table ExtensionPosFormat1 {
     /// Offset to the extension subtable, of lookup type
     /// extensionLookupType, relative to the start of the
     /// ExtensionPosFormat1 subtable.
-    extension_offset: BigEndian<Offset32>,
+    extension_offset: BigEndian<Offset32<T>>,
 }

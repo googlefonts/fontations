@@ -443,7 +443,7 @@ impl Field {
         self.typ.compile_type(self.is_nullable())
     }
 
-    pub(crate) fn table_getter(&self) -> Option<TokenStream> {
+    pub(crate) fn table_getter(&self, generic: Option<&syn::Ident>) -> Option<TokenStream> {
         if !self.has_getter() {
             return None;
         }
@@ -471,7 +471,7 @@ impl Field {
         }
 
         let docs = &self.attrs.docs;
-        let offset_getter = self.typed_offset_field_getter(None);
+        let offset_getter = self.typed_offset_field_getter(generic, None);
 
         Some(quote! {
             #( #docs )*
@@ -506,7 +506,7 @@ impl Field {
             FieldType::Array { .. } => quote!(self.#name),
         };
 
-        let offset_getter = self.typed_offset_field_getter(Some(record));
+        let offset_getter = self.typed_offset_field_getter(None, Some(record));
         Some(quote! {
             #(#docs)*
             pub fn #name(&self) -> #add_borrow_just_for_record #return_type {
@@ -523,7 +523,11 @@ impl Field {
         quote!( self.shape.#shape_range_fn_name() #try_op )
     }
 
-    fn typed_offset_field_getter(&self, record: Option<&Record>) -> Option<TokenStream> {
+    fn typed_offset_field_getter(
+        &self,
+        generic: Option<&syn::Ident>,
+        record: Option<&Record>,
+    ) -> Option<TokenStream> {
         let (_, target) = match &self.typ {
             _ if self.attrs.skip_offset_getter.is_some() => return None,
             FieldType::Offset {
@@ -542,7 +546,10 @@ impl Field {
 
         let raw_name = &self.name;
         let getter_name = self.offset_getter_name().unwrap();
-        let mut return_type = quote!(Result<#target<'a>, ReadError>);
+        let target_is_generic = Some(target) == generic;
+        let add_lifetime = (!target_is_generic).then(|| quote!(<'a>));
+        let where_read_clause = target_is_generic.then(|| quote!(where T: FontRead<'a>));
+        let mut return_type = quote!(Result<#target #add_lifetime, ReadError>);
 
         if self.is_nullable() || self.attrs.available.is_some() {
             return_type = quote!(Option<#return_type>);
@@ -577,7 +584,7 @@ impl Field {
         if self.is_array() {
             let name = &self.name;
             Some(quote! {
-                pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type {
+                pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type #where_read_clause {
                     #data_alias_if_needed
                     #args_if_needed
                     self.#name().iter().map(move |off| off.get().#resolve)
@@ -586,7 +593,7 @@ impl Field {
         } else {
             Some(quote! {
                 #[doc = #docs]
-                pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type {
+                pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type #where_read_clause {
                     #data_alias_if_needed
                     #args_if_needed
                     self.#raw_name() #try_op .#resolve

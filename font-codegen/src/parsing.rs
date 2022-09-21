@@ -47,6 +47,7 @@ pub(crate) struct TableAttrs {
     pub(crate) skip_from_obj: Option<syn::Path>,
     pub(crate) validation_method: Option<Attr<syn::Path>>,
     pub(crate) read_args: Option<Attr<TableReadArgs>>,
+    pub(crate) phantom: Option<Attr<syn::Ident>>,
 }
 
 #[derive(Debug, Clone)]
@@ -682,6 +683,7 @@ static SKIP_COMPILE: &str = "skip_compile";
 static SKIP_FROM_OBJ: &str = "skip_from_obj";
 static VALIDATION_METHOD: &str = "validation_method";
 static READ_ARGS: &str = "read_args";
+static PHANTOM: &str = "phantom";
 
 impl Parse for TableAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -705,6 +707,8 @@ impl Parse for TableAttrs {
                 this.validation_method = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_ARGS {
                 this.read_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == PHANTOM {
+                this.phantom = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else {
                 return Err(syn::Error::new(
                     ident.span(),

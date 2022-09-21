@@ -67,12 +67,12 @@ impl<T: Validate> Validate for ExtensionSubtable<T> {
 }
 
 #[cfg(feature = "parsing")]
-impl<'a, U, T> FromObjRef<read_fonts::layout::TypedLookup<'a, U>> for Lookup<T>
+impl<'a, U, T> FromObjRef<read_fonts::layout::Lookup<'a, U>> for Lookup<T>
 where
     U: FontRead<'a>,
     T: FromTableRef<U> + 'static,
 {
-    fn from_obj_ref(from: &read_fonts::layout::TypedLookup<'a, U>, _data: FontData) -> Self {
+    fn from_obj_ref(from: &read_fonts::layout::Lookup<'a, U>, _data: FontData) -> Self {
         Lookup {
             lookup_flag: from.lookup_flag(),
             mark_filtering_set: from.mark_filtering_set(),
@@ -89,17 +89,18 @@ where
 }
 
 #[cfg(feature = "parsing")]
-impl<'a, U, T> FromObjRef<read_fonts::layout::gpos::TypedExtension<'a, U>> for ExtensionSubtable<T>
+impl<'a, U, T> FromObjRef<read_fonts::layout::gpos::ExtensionPosFormat1<'a, U>>
+    for ExtensionSubtable<T>
 where
     U: FontRead<'a>,
     T: FromTableRef<U> + 'static,
 {
     fn from_obj_ref(
-        from: &read_fonts::layout::gpos::TypedExtension<'a, U>,
+        from: &read_fonts::layout::gpos::ExtensionPosFormat1<'a, U>,
         _data: FontData,
     ) -> Self {
         ExtensionSubtable {
-            extension_offset: from.get().into(),
+            extension_offset: from.extension().into(),
         }
     }
 }

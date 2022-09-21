@@ -4,7 +4,7 @@
 
 pub use super::{
     ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
-    Lookup, LookupList, ScriptList, SequenceContext, TypedLookup,
+    Lookup, LookupList, ScriptList, SequenceContext,
 };
 use font_types::Tag;
 
