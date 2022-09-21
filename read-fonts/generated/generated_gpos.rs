@@ -155,6 +155,64 @@ impl<'a> std::fmt::Debug for Gpos<'a> {
     }
 }
 
+/// A [GPOS Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#gsubLookupTypeEnum) subtable.
+pub enum PositionLookup<'a> {
+    Single(Lookup<'a, SinglePos<'a>>),
+    Pair(Lookup<'a, PairPos<'a>>),
+    Cursive(Lookup<'a, CursivePosFormat1<'a>>),
+    MarkToBase(Lookup<'a, MarkBasePosFormat1<'a>>),
+    MarkToLig(Lookup<'a, MarkLigPosFormat1<'a>>),
+    MarkToMark(Lookup<'a, MarkMarkPosFormat1<'a>>),
+    Contextual(Lookup<'a, SequenceContext<'a>>),
+    ChainContextual(Lookup<'a, ChainedSequenceContext<'a>>),
+    Extension(Lookup<'a, ExtensionSubtable<'a>>),
+}
+
+impl<'a> FontRead<'a> for PositionLookup<'a> {
+    fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
+        let untyped = Lookup::read(bytes)?;
+        match untyped.lookup_type() {
+            1 => Ok(PositionLookup::Single(untyped.into_concrete())),
+            2 => Ok(PositionLookup::Pair(untyped.into_concrete())),
+            3 => Ok(PositionLookup::Cursive(untyped.into_concrete())),
+            4 => Ok(PositionLookup::MarkToBase(untyped.into_concrete())),
+            5 => Ok(PositionLookup::MarkToLig(untyped.into_concrete())),
+            6 => Ok(PositionLookup::MarkToMark(untyped.into_concrete())),
+            7 => Ok(PositionLookup::Contextual(untyped.into_concrete())),
+            8 => Ok(PositionLookup::ChainContextual(untyped.into_concrete())),
+            9 => Ok(PositionLookup::Extension(untyped.into_concrete())),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> PositionLookup<'a> {
+    fn as_some_table(&self) -> &(dyn SomeTable<'a> + 'a) {
+        match self {
+            PositionLookup::Single(table) => table,
+            PositionLookup::Pair(table) => table,
+            PositionLookup::Cursive(table) => table,
+            PositionLookup::MarkToBase(table) => table,
+            PositionLookup::MarkToLig(table) => table,
+            PositionLookup::MarkToMark(table) => table,
+            PositionLookup::Contextual(table) => table,
+            PositionLookup::ChainContextual(table) => table,
+            PositionLookup::Extension(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for PositionLookup<'a> {
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.as_some_table().get_field(idx)
+    }
+    fn type_name(&self) -> &str {
+        self.as_some_table().type_name()
+    }
+}
+
 bitflags::bitflags! { # [doc = " See [ValueRecord]"] pub struct ValueFormat : u16 { # [doc = " Includes horizontal adjustment for placement"] const X_PLACEMENT = 0x0001 ; # [doc = " Includes vertical adjustment for placement"] const Y_PLACEMENT = 0x0002 ; # [doc = " Includes horizontal adjustment for advance"] const X_ADVANCE = 0x0004 ; # [doc = " Includes vertical adjustment for advance"] const Y_ADVANCE = 0x0008 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal placement"] const X_PLACEMENT_DEVICE = 0x0010 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical placement"] const Y_PLACEMENT_DEVICE = 0x0020 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal advance"] const X_ADVANCE_DEVICE = 0x0040 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical advance"] const Y_ADVANCE_DEVICE = 0x0080 ; } }
 
 impl font_types::Scalar for ValueFormat {
@@ -2950,6 +3008,7 @@ impl<T> TableInfo for ExtensionPosFormat1Marker<T> {
 }
 
 impl<'a> ExtensionPosFormat1<'a, ()> {
+    #[allow(dead_code)]
     fn into_concrete<T>(self) -> ExtensionPosFormat1<'a, T> {
         let TableRef { data, .. } = self;
         TableRef {
@@ -3021,5 +3080,60 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionPosFor
 impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for ExtensionPosFormat1<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+/// A [GPOS Extension Positioning](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#lookuptype-9-extension-positioning) subtable
+pub enum ExtensionSubtable<'a> {
+    Single(ExtensionPosFormat1<'a, SinglePos<'a>>),
+    Pair(ExtensionPosFormat1<'a, PairPos<'a>>),
+    Cursive(ExtensionPosFormat1<'a, CursivePosFormat1<'a>>),
+    MarkToBase(ExtensionPosFormat1<'a, MarkBasePosFormat1<'a>>),
+    MarkToLig(ExtensionPosFormat1<'a, MarkLigPosFormat1<'a>>),
+    MarkToMark(ExtensionPosFormat1<'a, MarkMarkPosFormat1<'a>>),
+    Contextual(ExtensionPosFormat1<'a, SequenceContext<'a>>),
+    ChainContextual(ExtensionPosFormat1<'a, ChainedSequenceContext<'a>>),
+}
+
+impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
+    fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
+        let untyped = ExtensionPosFormat1::read(bytes)?;
+        match untyped.extension_lookup_type() {
+            1 => Ok(ExtensionSubtable::Single(untyped.into_concrete())),
+            2 => Ok(ExtensionSubtable::Pair(untyped.into_concrete())),
+            3 => Ok(ExtensionSubtable::Cursive(untyped.into_concrete())),
+            4 => Ok(ExtensionSubtable::MarkToBase(untyped.into_concrete())),
+            5 => Ok(ExtensionSubtable::MarkToLig(untyped.into_concrete())),
+            6 => Ok(ExtensionSubtable::MarkToMark(untyped.into_concrete())),
+            7 => Ok(ExtensionSubtable::Contextual(untyped.into_concrete())),
+            8 => Ok(ExtensionSubtable::ChainContextual(untyped.into_concrete())),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> ExtensionSubtable<'a> {
+    fn as_some_table(&self) -> &(dyn SomeTable<'a> + 'a) {
+        match self {
+            ExtensionSubtable::Single(table) => table,
+            ExtensionSubtable::Pair(table) => table,
+            ExtensionSubtable::Cursive(table) => table,
+            ExtensionSubtable::MarkToBase(table) => table,
+            ExtensionSubtable::MarkToLig(table) => table,
+            ExtensionSubtable::MarkToMark(table) => table,
+            ExtensionSubtable::Contextual(table) => table,
+            ExtensionSubtable::ChainContextual(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ExtensionSubtable<'a> {
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.as_some_table().get_field(idx)
+    }
+    fn type_name(&self) -> &str {
+        self.as_some_table().type_name()
     }
 }

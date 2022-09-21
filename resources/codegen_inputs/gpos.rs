@@ -19,6 +19,19 @@ table Gpos {
     feature_variations_offset: BigEndian<Offset32<FeatureVariations>>,
 }
 
+/// A [GPOS Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#gsubLookupTypeEnum) subtable.
+ group PositionLookup(Lookup, $lookup_type) {
+    1 => Single(SinglePos),
+    2 => Pair(PairPos),
+    3 => Cursive(CursivePosFormat1),
+    4 => MarkToBase(MarkBasePosFormat1),
+    5 => MarkToLig(MarkLigPosFormat1),
+    6 => MarkToMark(MarkMarkPosFormat1),
+    7 => Contextual(SequenceContext),
+    8 => ChainContextual(ChainedSequenceContext),
+    9 => Extension(ExtensionSubtable),
+}
+
 /// See [ValueRecord]
 flags u16 ValueFormat {
     /// Includes horizontal adjustment for placement
@@ -473,4 +486,16 @@ table ExtensionPosFormat1 {
     /// extensionLookupType, relative to the start of the
     /// ExtensionPosFormat1 subtable.
     extension_offset: BigEndian<Offset32<T>>,
+}
+
+/// A [GPOS Extension Positioning](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#lookuptype-9-extension-positioning) subtable
+ group ExtensionSubtable(ExtensionPosFormat1, $extension_lookup_type) {
+    1 => Single(SinglePos),
+    2 => Pair(PairPos),
+    3 => Cursive(CursivePosFormat1),
+    4 => MarkToBase(MarkBasePosFormat1),
+    5 => MarkToLig(MarkLigPosFormat1),
+    6 => MarkToMark(MarkMarkPosFormat1),
+    7 => Contextual(SequenceContext),
+    8 => ChainContextual(ChainedSequenceContext),
 }

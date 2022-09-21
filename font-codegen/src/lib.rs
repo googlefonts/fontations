@@ -62,6 +62,7 @@ pub fn generate_parse_module(code: &str) -> Result<proc_macro2::TokenStream, syn
         let item_code = match item {
             Item::Record(item) => record::generate(item)?,
             Item::Table(item) => table::generate(item)?,
+            Item::GenericGroup(item) => table::generate_group(item)?,
             Item::Format(item) => table::generate_format_group(item)?,
             Item::RawEnum(item) => flags_enums::generate_raw_enum(item),
             Item::Flags(item) => flags_enums::generate_flags(item),
@@ -86,6 +87,7 @@ pub fn generate_compile_module(code: &str) -> Result<proc_macro2::TokenStream, s
         .map(|item| match item {
             Item::Record(item) => record::generate_compile(item, &items.parse_module_path),
             Item::Table(item) => table::generate_compile(item, &items.parse_module_path),
+            Item::GenericGroup(_) => Ok(Default::default()),
             Item::Format(item) => table::generate_format_compile(item, &items.parse_module_path),
             Item::RawEnum(item) => Ok(flags_enums::generate_raw_enum_compile(item)),
             Item::Flags(item) => Ok(flags_enums::generate_flags_compile(item)),
