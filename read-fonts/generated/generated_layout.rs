@@ -611,13 +611,14 @@ impl<'a> std::fmt::Debug for Feature<'a> {
 }
 
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 #[doc(hidden)]
-pub struct LookupListMarker {
+pub struct LookupListMarker<T = ()> {
     lookup_offsets_byte_len: usize,
+    phantom: std::marker::PhantomData<*const T>,
 }
 
-impl LookupListMarker {
+impl<T> LookupListMarker<T> {
     fn lookup_count_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -628,7 +629,18 @@ impl LookupListMarker {
     }
 }
 
-impl TableInfo for LookupListMarker {
+impl<T> Clone for LookupListMarker<T> {
+    fn clone(&self) -> Self {
+        Self {
+            lookup_offsets_byte_len: self.lookup_offsets_byte_len,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<T> Copy for LookupListMarker<T> {}
+
+impl<T> TableInfo for LookupListMarker<T> {
     #[allow(unused_parens)]
     fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
@@ -637,14 +649,28 @@ impl TableInfo for LookupListMarker {
         cursor.advance_by(lookup_offsets_byte_len);
         cursor.finish(LookupListMarker {
             lookup_offsets_byte_len,
+            phantom: std::marker::PhantomData,
         })
     }
 }
 
-/// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
-pub type LookupList<'a> = TableRef<'a, LookupListMarker>;
+impl<'a> LookupList<'a, ()> {
+    fn into_concrete<T>(self) -> LookupList<'a, T> {
+        let TableRef { data, shape } = self;
+        TableRef {
+            shape: LookupListMarker {
+                lookup_offsets_byte_len: shape.lookup_offsets_byte_len,
+                phantom: std::marker::PhantomData,
+            },
+            data,
+        }
+    }
+}
 
-impl<'a> LookupList<'a> {
+/// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
+pub type LookupList<'a, T> = TableRef<'a, LookupListMarker<T>>;
+
+impl<'a, T> LookupList<'a, T> {
     /// Number of lookups in this table
     pub fn lookup_count(&self) -> u16 {
         let range = self.shape.lookup_count_byte_range();
@@ -657,37 +683,57 @@ impl<'a> LookupList<'a> {
         let range = self.shape.lookup_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
+
+    pub fn lookup(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a
+    where
+        T: FontRead<'a>,
+    {
+        let data = self.data;
+        self.lookup_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
+    }
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for LookupList<'a> {
+impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for LookupList<'a, T> {
     fn type_name(&self) -> &str {
         "LookupList"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("lookup_count", self.lookup_count())),
-            1usize => Some(Field::new("lookup_offsets", self.lookup_offsets())),
+            1usize => Some({
+                let data = self.data;
+                Field::new(
+                    "lookup_offsets",
+                    FieldType::offset_array("Offset16(T)", self.lookup_offsets(), move |off| {
+                        let target = off.get().resolve::<T>(data);
+                        FieldType::offset(off.get(), target)
+                    }),
+                )
+            }),
             _ => None,
         }
     }
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for LookupList<'a> {
+impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for LookupList<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
 /// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 #[doc(hidden)]
-pub struct LookupMarker {
+pub struct LookupMarker<T = ()> {
     subtable_offsets_byte_len: usize,
+    phantom: std::marker::PhantomData<*const T>,
 }
 
-impl LookupMarker {
+impl<T> LookupMarker<T> {
     fn lookup_type_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -710,7 +756,18 @@ impl LookupMarker {
     }
 }
 
-impl TableInfo for LookupMarker {
+impl<T> Clone for LookupMarker<T> {
+    fn clone(&self) -> Self {
+        Self {
+            subtable_offsets_byte_len: self.subtable_offsets_byte_len,
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<T> Copy for LookupMarker<T> {}
+
+impl<T> TableInfo for LookupMarker<T> {
     #[allow(unused_parens)]
     fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
@@ -722,14 +779,28 @@ impl TableInfo for LookupMarker {
         cursor.advance::<u16>();
         cursor.finish(LookupMarker {
             subtable_offsets_byte_len,
+            phantom: std::marker::PhantomData,
         })
     }
 }
 
-/// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
-pub type Lookup<'a> = TableRef<'a, LookupMarker>;
+impl<'a> Lookup<'a, ()> {
+    fn into_concrete<T>(self) -> Lookup<'a, T> {
+        let TableRef { data, shape } = self;
+        TableRef {
+            shape: LookupMarker {
+                subtable_offsets_byte_len: shape.subtable_offsets_byte_len,
+                phantom: std::marker::PhantomData,
+            },
+            data,
+        }
+    }
+}
 
-impl<'a> Lookup<'a> {
+/// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
+pub type Lookup<'a, T> = TableRef<'a, LookupMarker<T>>;
+
+impl<'a, T> Lookup<'a, T> {
     /// Different enumerations for GSUB and GPOS
     pub fn lookup_type(&self) -> u16 {
         let range = self.shape.lookup_type_byte_range();
@@ -755,6 +826,16 @@ impl<'a> Lookup<'a> {
         self.data.read_array(range).unwrap()
     }
 
+    pub fn subtable(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a
+    where
+        T: FontRead<'a>,
+    {
+        let data = self.data;
+        self.subtable_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
+    }
+
     /// Index (base 0) into GDEF mark glyph sets structure. This field
     /// is only present if the USE_MARK_FILTERING_SET lookup flag is
     /// set.
@@ -765,7 +846,7 @@ impl<'a> Lookup<'a> {
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for Lookup<'a> {
+impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
     fn type_name(&self) -> &str {
         "Lookup"
     }
@@ -774,7 +855,16 @@ impl<'a> SomeTable<'a> for Lookup<'a> {
             0usize => Some(Field::new("lookup_type", self.lookup_type())),
             1usize => Some(Field::new("lookup_flag", self.lookup_flag())),
             2usize => Some(Field::new("sub_table_count", self.sub_table_count())),
-            3usize => Some(Field::new("subtable_offsets", self.subtable_offsets())),
+            3usize => Some({
+                let data = self.data;
+                Field::new(
+                    "subtable_offsets",
+                    FieldType::offset_array("Offset16(T)", self.subtable_offsets(), move |off| {
+                        let target = off.get().resolve::<T>(data);
+                        FieldType::offset(off.get(), target)
+                    }),
+                )
+            }),
             4usize => Some(Field::new("mark_filtering_set", self.mark_filtering_set())),
             _ => None,
         }
@@ -782,7 +872,7 @@ impl<'a> SomeTable<'a> for Lookup<'a> {
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for Lookup<'a> {
+impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for Lookup<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }

@@ -9,39 +9,9 @@ mod tests;
 
 include!("../generated/generated_layout.rs");
 
-/// A typed lookup table.
-///
-/// Our generated code doesn't handle generics, so we define this ourselves.
-pub struct TypedLookup<'a, T> {
-    inner: Lookup<'a>,
-    phantom: std::marker::PhantomData<T>,
-}
-
-impl<'a, T: FontRead<'a>> TypedLookup<'a, T> {
-    pub(crate) fn new(inner: Lookup<'a>) -> Self {
-        TypedLookup {
-            inner,
-            phantom: std::marker::PhantomData,
-        }
-    }
-
+impl<'a, T: FontRead<'a>> Lookup<'a, T> {
     pub fn get_subtable(&self, offset: Offset16) -> Result<T, ReadError> {
-        self.inner.resolve_offset(offset)
-    }
-
-    pub fn subtables(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a {
-        let data = self.data;
-        self.inner
-            .subtable_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
-    }
-}
-
-impl<'a, T> std::ops::Deref for TypedLookup<'a, T> {
-    type Target = Lookup<'a>;
-    fn deref(&self) -> &Self::Target {
-        &self.inner
+        self.resolve_offset(offset)
     }
 }
 
@@ -89,34 +59,6 @@ impl<'a> SomeTable<'a> for FeatureParams<'a> {
             FeatureParams::StylisticSet(table) => table.get_field(idx),
             FeatureParams::Size(table) => table.get_field(idx),
             FeatureParams::CharacterVariant(table) => table.get_field(idx),
-        }
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a, T: SomeTable<'a> + FontRead<'a> + 'a> SomeTable<'a> for TypedLookup<'a, T> {
-    fn type_name(&self) -> &str {
-        "Lookup"
-    }
-
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        let this = Self {
-            inner: self.inner.sneaky_copy(),
-            phantom: std::marker::PhantomData,
-        };
-        match idx {
-            0 | 1 | 2 | 4 => self.inner.get_field(idx),
-            3 => Some({
-                let data = self.data;
-                Field::new(
-                    "subtable_offsets",
-                    FieldType::offset_array("Offset16", this.subtable_offsets(), move |off| {
-                        let target = off.get().resolve::<T>(data);
-                        FieldType::offset(off.get(), target)
-                    }),
-                )
-            }),
-            _ => None,
         }
     }
 }

@@ -10,10 +10,60 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         return Ok(Default::default());
     }
     let docs = &item.attrs.docs;
+    let generic = item.attrs.phantom.as_ref();
+    let generic_with_default = generic.map(|t| quote!(#t = ()));
+    let phantom_decl = generic.map(|t| quote!(phantom: std::marker::PhantomData<*const #t>));
     let marker_name = item.marker_name();
     let raw_name = item.raw_name();
     let shape_byte_range_fns = item.iter_shape_byte_fns();
     let shape_fields = item.iter_shape_fields();
+    let derive_clone_copy = generic.is_none().then(|| quote!(Clone, Copy));
+    let impl_clone_copy = generic.is_some().then(|| {
+        let clone_fields = item
+            .iter_shape_field_names()
+            .map(|name| quote!(#name: self.#name));
+        quote! {
+            impl<#generic> Clone for #marker_name<#generic> {
+                fn clone(&self) -> Self {
+                    Self {
+                        #( #clone_fields, )*
+                        phantom: std::marker::PhantomData,
+                    }
+                }
+            }
+
+            impl<#generic> Copy for #marker_name<#generic> {}
+        }
+    });
+
+    // In the presence of a generic param we only impl FontRead for Name<()>,
+    // and then use into() to convert it to the concrete generic type.
+    let impl_into_generic = generic.as_ref().map(|t| {
+        let shape_fields = item
+            .iter_shape_field_names()
+            .map(|name| quote!(#name: shape.#name))
+            .collect::<Vec<_>>();
+
+        let shape_name = if shape_fields.is_empty() {
+            quote!(..)
+        } else {
+            quote!(shape)
+        };
+
+        quote! {
+               impl<'a> #raw_name<'a, ()> {
+                   fn into_concrete<T>(self) -> #raw_name<'a, #t> {
+                       let TableRef { data, #shape_name} = self;
+                       TableRef {
+                           shape: #marker_name {
+                               #( #shape_fields, )*
+                               phantom: std::marker::PhantomData,
+                           }, data
+                       }
+                   }
+               }
+        }
+    });
 
     let table_ref_getters = item.iter_table_ref_getters();
 
@@ -25,22 +75,27 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         #optional_format_trait_impl
 
         #( #docs )*
-        #[derive(Debug, Clone, Copy)]
+        #[derive(Debug, #derive_clone_copy)]
         #[doc(hidden)]
-        pub struct #marker_name {
-            #( #shape_fields ),*
+        pub struct #marker_name <#generic_with_default> {
+            #( #shape_fields, )*
+            #phantom_decl
         }
 
-        impl #marker_name {
+        impl <#generic> #marker_name <#generic> {
             #( #shape_byte_range_fns )*
         }
 
+        #impl_clone_copy
+
         #font_read
 
-        #( #docs )*
-        pub type #raw_name<'a> = TableRef<'a, #marker_name>;
+        #impl_into_generic
 
-        impl<'a> #raw_name<'a> {
+        #( #docs )*
+        pub type #raw_name<'a, #generic> = TableRef<'a, #marker_name<#generic>>;
+
+        impl<'a, #generic> #raw_name<'a, #generic> {
 
             #( #table_ref_getters )*
 
@@ -54,6 +109,13 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
     let marker_name = item.marker_name();
     let field_validation_stmts = item.iter_field_validation_stmts();
     let shape_field_names = item.iter_shape_field_names();
+    let generic = item.attrs.phantom.as_ref();
+    let phantom = generic.map(|_| quote!(phantom: std::marker::PhantomData,));
+    let error_if_phantom_and_read_args = generic.map(|_| {
+        quote!(compile_error!(
+            "ReadWithArgs not implemented for tables with phantom params."
+        );)
+    });
 
     // add this attribute if we're going to be generating expressions which
     // may trigger a warning
@@ -71,6 +133,7 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
         let args_type = read_args.args_type();
         let destructure_pattern = read_args.destructure_pattern();
         Ok(quote! {
+            #error_if_phantom_and_read_args
             impl ReadArgs for #marker_name {
                 type Args = #args_type;
             }
@@ -89,13 +152,14 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
         })
     } else {
         Ok(quote! {
-            impl TableInfo for #marker_name {
+            impl<#generic> TableInfo for #marker_name<#generic> {
             #ignore_parens
             fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
                 let #maybe_mut_kw cursor = data.cursor();
                 #( #field_validation_stmts )*
                 cursor.finish( #marker_name {
                     #( #shape_field_names, )*
+                    #phantom
                 })
             }
         }
@@ -106,6 +170,10 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
 fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
     let name = item.raw_name();
     let name_str = name.to_string();
+    let generic = item.attrs.phantom.as_ref();
+    let generic_bounds = generic
+        .is_some()
+        .then(|| quote!(: FontRead<'a> + SomeTable<'a> + 'a));
     let version = item
         .fields
         .iter()
@@ -124,7 +192,7 @@ fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
 
     Ok(quote! {
         #[cfg(feature = "traversal")]
-        impl<'a> SomeTable<'a> for #name <'a> {
+        impl<'a, #generic #generic_bounds> SomeTable<'a> for #name <'a, #generic> {
             fn type_name(&self) -> &str {
                 #name_str
             }
@@ -140,7 +208,7 @@ fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
         }
 
         #[cfg(feature = "traversal")]
-        impl<'a> std::fmt::Debug for #name<'a> {
+        impl<'a, #generic #generic_bounds> std::fmt::Debug for #name<'a, #generic> {
             fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
                 (self as &dyn SomeTable<'a>).fmt(f)
             }
@@ -468,13 +536,17 @@ impl Table {
     }
 
     fn iter_table_ref_getters(&self) -> impl Iterator<Item = TokenStream> + '_ {
-        self.fields.iter().filter_map(Field::table_getter).chain(
-            self.attrs
-                .read_args
-                .as_ref()
-                .into_iter()
-                .flat_map(|args| args.iter_table_ref_getters(&self.fields.referenced_fields)),
-        )
+        let generic = self.attrs.phantom.as_ref().map(|attr| &attr.attr);
+        self.fields
+            .iter()
+            .filter_map(move |fld| fld.table_getter(generic))
+            .chain(
+                self.attrs
+                    .read_args
+                    .as_ref()
+                    .into_iter()
+                    .flat_map(|args| args.iter_table_ref_getters(&self.fields.referenced_fields)),
+            )
     }
 
     pub(crate) fn impl_format_trait(&self) -> Option<TokenStream> {

@@ -96,6 +96,7 @@ table Feature {
 }
 
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
+#[phantom(T)]
 #[skip_compile]
 table LookupList {
     /// Number of lookups in this table
@@ -104,11 +105,12 @@ table LookupList {
     /// Array of offsets to Lookup tables, from beginning of LookupList
     /// — zero based (first lookup is Lookup index = 0)
     #[count($lookup_count)]
-    lookup_offsets: [BigEndian<Offset16>],
+    lookup_offsets: [BigEndian<Offset16<T>>],
 }
 
 /// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
 #[skip_compile]
+#[phantom(T)]
 table Lookup {
     /// Different enumerations for GSUB and GPOS
     lookup_type: BigEndian<u16>,
@@ -120,7 +122,7 @@ table Lookup {
     /// Array of offsets to lookup subtables, from beginning of Lookup
     /// table
     #[count($sub_table_count)]
-    subtable_offsets: [BigEndian<Offset16>],
+    subtable_offsets: [BigEndian<Offset16<T>>],
     /// Index (base 0) into GDEF mark glyph sets structure. This field
     /// is only present if the USE_MARK_FILTERING_SET lookup flag is
     /// set.

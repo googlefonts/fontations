@@ -2906,11 +2906,13 @@ impl Format<u16> for ExtensionPosFormat1Marker {
 }
 
 /// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug)]
 #[doc(hidden)]
-pub struct ExtensionPosFormat1Marker {}
+pub struct ExtensionPosFormat1Marker<T = ()> {
+    phantom: std::marker::PhantomData<*const T>,
+}
 
-impl ExtensionPosFormat1Marker {
+impl<T> ExtensionPosFormat1Marker<T> {
     fn pos_format_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -2925,20 +2927,44 @@ impl ExtensionPosFormat1Marker {
     }
 }
 
-impl TableInfo for ExtensionPosFormat1Marker {
+impl<T> Clone for ExtensionPosFormat1Marker<T> {
+    fn clone(&self) -> Self {
+        Self {
+            phantom: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<T> Copy for ExtensionPosFormat1Marker<T> {}
+
+impl<T> TableInfo for ExtensionPosFormat1Marker<T> {
     fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<Offset32>();
-        cursor.finish(ExtensionPosFormat1Marker {})
+        cursor.finish(ExtensionPosFormat1Marker {
+            phantom: std::marker::PhantomData,
+        })
+    }
+}
+
+impl<'a> ExtensionPosFormat1<'a, ()> {
+    fn into_concrete<T>(self) -> ExtensionPosFormat1<'a, T> {
+        let TableRef { data, .. } = self;
+        TableRef {
+            shape: ExtensionPosFormat1Marker {
+                phantom: std::marker::PhantomData,
+            },
+            data,
+        }
     }
 }
 
 /// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
-pub type ExtensionPosFormat1<'a> = TableRef<'a, ExtensionPosFormat1Marker>;
+pub type ExtensionPosFormat1<'a, T> = TableRef<'a, ExtensionPosFormat1Marker<T>>;
 
-impl<'a> ExtensionPosFormat1<'a> {
+impl<'a, T> ExtensionPosFormat1<'a, T> {
     /// Format identifier: format = 1
     pub fn pos_format(&self) -> u16 {
         let range = self.shape.pos_format_byte_range();
@@ -2959,10 +2985,19 @@ impl<'a> ExtensionPosFormat1<'a> {
         let range = self.shape.extension_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
+
+    /// Attempt to resolve [`extension_offset`][Self::extension_offset].
+    pub fn extension(&self) -> Result<T, ReadError>
+    where
+        T: FontRead<'a>,
+    {
+        let data = self.data;
+        self.extension_offset().resolve(data)
+    }
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for ExtensionPosFormat1<'a> {
+impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for ExtensionPosFormat1<'a, T> {
     fn type_name(&self) -> &str {
         "ExtensionPosFormat1"
     }
@@ -2975,7 +3010,7 @@ impl<'a> SomeTable<'a> for ExtensionPosFormat1<'a> {
             )),
             2usize => Some(Field::new(
                 "extension_offset",
-                FieldType::unknown_offset(self.extension_offset()),
+                FieldType::offset(self.extension_offset(), self.extension()),
             )),
             _ => None,
         }
@@ -2983,7 +3018,7 @@ impl<'a> SomeTable<'a> for ExtensionPosFormat1<'a> {
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for ExtensionPosFormat1<'a> {
+impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for ExtensionPosFormat1<'a, T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
