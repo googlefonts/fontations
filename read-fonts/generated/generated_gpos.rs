@@ -1163,7 +1163,7 @@ impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
                 Field::new(
                     "pair_set_offsets",
                     FieldType::offset_array(
-                        "Offset16(PairSet)",
+                        better_type_name::<PairSet>(),
                         self.pair_set_offsets(),
                         move |off| {
                             let target = off.get().resolve_with_args::<PairSet>(data, &args);
@@ -2186,7 +2186,7 @@ impl<'a> SomeRecord<'a> for BaseRecord<'a> {
                     Field::new(
                         "base_anchor_offsets",
                         FieldType::offset_array(
-                            "Offset16(AnchorTable)",
+                            better_type_name::<AnchorTable>(),
                             self.base_anchor_offsets(),
                             move |off| {
                                 let target = off.get().resolve::<AnchorTable>(data);
@@ -2446,7 +2446,7 @@ impl<'a> SomeTable<'a> for LigatureArray<'a> {
                 Field::new(
                     "ligature_attach_offsets",
                     FieldType::offset_array(
-                        "Offset16(LigatureAttach)",
+                        better_type_name::<LigatureAttach>(),
                         self.ligature_attach_offsets(),
                         move |off| {
                             let target = off.get().resolve_with_args::<LigatureAttach>(data, &args);
@@ -2619,7 +2619,7 @@ impl<'a> SomeRecord<'a> for ComponentRecord<'a> {
                     Field::new(
                         "ligature_anchor_offsets",
                         FieldType::offset_array(
-                            "Offset16(AnchorTable)",
+                            better_type_name::<AnchorTable>(),
                             self.ligature_anchor_offsets(),
                             move |off| {
                                 let target = off.get().resolve::<AnchorTable>(data);
@@ -2943,7 +2943,7 @@ impl<'a> SomeRecord<'a> for Mark2Record<'a> {
                     Field::new(
                         "mark2_anchor_offsets",
                         FieldType::offset_array(
-                            "Offset16(AnchorTable)",
+                            better_type_name::<AnchorTable>(),
                             self.mark2_anchor_offsets(),
                             move |off| {
                                 let target = off.get().resolve::<AnchorTable>(data);

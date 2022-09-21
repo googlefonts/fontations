@@ -180,9 +180,8 @@ fn traversal_arm_for_field(
 
             FieldType::Offset {
                 target: Some(target),
-                typ,
+                ..
             } => {
-                let array_type = format!("{typ}({target})");
                 let maybe_data = pass_data.is_none().then(|| quote!(let data = self.data;));
                 let args_if_needed = fld.attrs.read_offset_args.as_ref().map(|args| {
                     let args = args.to_tokens_for_table_getter();
@@ -198,7 +197,7 @@ fn traversal_arm_for_field(
                     #args_if_needed
                     Field::new(#name_str,
                         FieldType::offset_array(
-                            #array_type,
+                            better_type_name::<#target>(),
                             self.#name()#maybe_unwrap,
                             move |off| {
                                 let target = off.get().#resolve;
