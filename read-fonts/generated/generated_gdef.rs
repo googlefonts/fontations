@@ -350,7 +350,7 @@ impl<'a> SomeTable<'a> for AttachList<'a> {
                 Field::new(
                     "attach_point_offsets",
                     FieldType::offset_array(
-                        "Offset16(AttachPoint)",
+                        better_type_name::<AttachPoint>(),
                         self.attach_point_offsets(),
                         move |off| {
                             let target = off.get().resolve::<AttachPoint>(data);
@@ -530,7 +530,7 @@ impl<'a> SomeTable<'a> for LigCaretList<'a> {
                 Field::new(
                     "lig_glyph_offsets",
                     FieldType::offset_array(
-                        "Offset16(LigGlyph)",
+                        better_type_name::<LigGlyph>(),
                         self.lig_glyph_offsets(),
                         move |off| {
                             let target = off.get().resolve::<LigGlyph>(data);
@@ -620,7 +620,7 @@ impl<'a> SomeTable<'a> for LigGlyph<'a> {
                 Field::new(
                     "caret_value_offsets",
                     FieldType::offset_array(
-                        "Offset16(CaretValue)",
+                        better_type_name::<CaretValue>(),
                         self.caret_value_offsets(),
                         move |off| {
                             let target = off.get().resolve::<CaretValue>(data);
@@ -1003,7 +1003,7 @@ impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
                 Field::new(
                     "coverage_offsets",
                     FieldType::offset_array(
-                        "Offset32(CoverageTable)",
+                        better_type_name::<CoverageTable>(),
                         self.coverage_offsets(),
                         move |off| {
                             let target = off.get().resolve::<CoverageTable>(data);
