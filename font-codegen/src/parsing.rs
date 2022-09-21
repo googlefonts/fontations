@@ -21,6 +21,7 @@ pub(crate) enum Item {
     Table(Table),
     Record(Record),
     Format(TableFormat),
+    GenericGroup(GenericGroup),
     RawEnum(RawEnum),
     Flags(BitFlags),
 }
@@ -75,14 +76,36 @@ pub(crate) struct TableFormat {
     pub(crate) attrs: TableAttrs,
     pub(crate) name: syn::Ident,
     pub(crate) format: syn::Ident,
-    pub(crate) variants: Vec<Variant>,
+    pub(crate) variants: Vec<FormatVariant>,
 }
 
 #[derive(Debug, Clone)]
-pub(crate) struct Variant {
+pub(crate) struct FormatVariant {
     pub(crate) attrs: VariantAttrs,
     pub(crate) name: syn::Ident,
     typ: syn::Ident,
+}
+
+/// Generates an enum where each variant has a different generic param to a single type.
+///
+/// This is used in GPOS/GSUB, allowing us to provide more type information
+/// to lookups.
+#[derive(Debug, Clone)]
+pub(crate) struct GenericGroup {
+    pub(crate) attrs: TableAttrs,
+    pub(crate) name: syn::Ident,
+    /// the inner type, which must accept a generic parameter
+    pub(crate) inner_type: syn::Ident,
+    /// The field on the inner type that determines the type of the generic param
+    pub(crate) inner_field: syn::Ident,
+    pub(crate) variants: Vec<GroupVariant>,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) struct GroupVariant {
+    pub(crate) type_id: syn::LitInt,
+    pub(crate) name: syn::Ident,
+    pub(crate) typ: syn::Ident,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -91,7 +114,7 @@ pub(crate) struct VariantAttrs {
     pub(crate) match_stmt: Option<Attr<InlineExpr>>,
 }
 
-impl Variant {
+impl FormatVariant {
     pub(crate) fn marker_name(&self) -> syn::Ident {
         quote::format_ident!("{}Marker", &self.typ)
     }
@@ -294,6 +317,7 @@ mod kw {
     syn::custom_keyword!(record);
     syn::custom_keyword!(flags);
     syn::custom_keyword!(format);
+    syn::custom_keyword!(group);
 }
 
 impl Parse for Items {
@@ -343,12 +367,14 @@ impl Parse for Item {
             Ok(Self::Flags(input.parse()?))
         } else if lookahead.peek(kw::format) {
             Ok(Self::Format(input.parse()?))
+        } else if lookahead.peek(kw::group) {
+            Ok(Self::GenericGroup(input.parse()?))
         } else if lookahead.peek(Token![enum]) {
             Ok(Self::RawEnum(input.parse()?))
         } else {
             Err(syn::Error::new(
                 input.span(),
-                "expected one of 'table' 'record' 'flags' 'format' or 'enum'.",
+                "expected one of 'table' 'record' 'flags' 'format' 'enum' or 'group'.",
             ))
         }
     }
@@ -449,7 +475,7 @@ impl Parse for TableFormat {
 
         let content;
         let _ = braced!(content in input);
-        let variants = Punctuated::<Variant, Token![,]>::parse_terminated(&content)?
+        let variants = Punctuated::<FormatVariant, Token![,]>::parse_terminated(&content)?
             .into_iter()
             .collect();
 
@@ -459,6 +485,44 @@ impl Parse for TableFormat {
             name,
             variants,
         })
+    }
+}
+
+impl Parse for GenericGroup {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let attrs = input.parse::<TableAttrs>()?;
+        let _kw = input.parse::<kw::group>()?;
+        let name = input.parse()?;
+        let content;
+        let _ = parenthesized!(content in input);
+        let inner_type = content.parse()?;
+        content.parse::<Token![,]>()?;
+        content.parse::<Token![$]>()?;
+        let inner_field = content.parse()?;
+        let content;
+        let _ = braced!(content in input);
+        let variants = Punctuated::<GroupVariant, Token![,]>::parse_terminated(&content)?
+            .into_iter()
+            .collect();
+        Ok(GenericGroup {
+            attrs,
+            name,
+            inner_type,
+            inner_field,
+            variants,
+        })
+    }
+}
+
+impl Parse for GroupVariant {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let type_id = input.parse()?;
+        input.parse::<Token![=>]>()?;
+        let name = input.parse()?;
+        let content;
+        let _ = parenthesized!(content in input);
+        let typ = content.parse()?;
+        Ok(GroupVariant { type_id, name, typ })
     }
 }
 
@@ -573,7 +637,7 @@ impl Parse for RawVariant {
     }
 }
 
-impl Parse for Variant {
+impl Parse for FormatVariant {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
         let attrs = input.parse()?;
         let name = input.parse::<syn::Ident>()?;
@@ -755,6 +819,7 @@ impl Item {
             Item::Format(_) => Ok(()),
             Item::RawEnum(_) => Ok(()),
             Item::Flags(_) => Ok(()),
+            Item::GenericGroup(_) => Ok(()),
         }
     }
 }

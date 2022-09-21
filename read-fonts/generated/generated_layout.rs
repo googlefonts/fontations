@@ -655,6 +655,7 @@ impl<T> TableInfo for LookupListMarker<T> {
 }
 
 impl<'a> LookupList<'a, ()> {
+    #[allow(dead_code)]
     fn into_concrete<T>(self) -> LookupList<'a, T> {
         let TableRef { data, shape } = self;
         TableRef {
@@ -785,6 +786,7 @@ impl<T> TableInfo for LookupMarker<T> {
 }
 
 impl<'a> Lookup<'a, ()> {
+    #[allow(dead_code)]
     fn into_concrete<T>(self) -> Lookup<'a, T> {
         let TableRef { data, shape } = self;
         TableRef {

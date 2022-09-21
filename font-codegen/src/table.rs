@@ -3,6 +3,8 @@
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
+use crate::parsing::GenericGroup;
+
 use super::parsing::{Field, ReferencedFields, Table, TableFormat, TableReadArg, TableReadArgs};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
@@ -52,6 +54,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 
         quote! {
                impl<'a> #raw_name<'a, ()> {
+                   #[allow(dead_code)]
                    fn into_concrete<T>(self) -> #raw_name<'a, #t> {
                        let TableRef { data, #shape_name} = self;
                        TableRef {
@@ -165,6 +168,65 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
         }
         })
     }
+}
+
+pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
+    let docs = &item.attrs.docs;
+    let name = &item.name;
+    let inner = &item.inner_type;
+    let type_field = &item.inner_field;
+
+    let mut variant_decls = Vec::new();
+    let mut read_match_arms = Vec::new();
+    let mut as_some_table_arms = Vec::new();
+    for var in &item.variants {
+        let var_name = &var.name;
+        let type_id = &var.type_id;
+        let typ = &var.typ;
+        variant_decls.push(quote! { #var_name ( #inner <'a, #typ<'a>> ) });
+        read_match_arms
+            .push(quote! { #type_id => Ok(#name :: #var_name (untyped.into_concrete())) });
+        as_some_table_arms.push(quote! { #name :: #var_name(table) => table });
+    }
+
+    Ok(quote! {
+        #( #docs)*
+        pub enum #name <'a> {
+            #( #variant_decls, )*
+        }
+
+        impl<'a> FontRead<'a> for #name <'a> {
+            fn read(bytes: FontData<'a>) -> Result<Self, ReadError> {
+                let untyped = #inner::read(bytes)?;
+                match untyped.#type_field() {
+                    #( #read_match_arms, )*
+                    other => Err(ReadError::InvalidFormat(other.into())),
+                }
+            }
+        }
+
+        #[cfg(feature = "traversal")]
+        impl<'a> #name <'a> {
+            fn as_some_table(&self) -> &(dyn SomeTable<'a> + 'a) {
+                match self {
+                    #( #as_some_table_arms, )*
+                }
+            }
+        }
+
+        #[cfg(feature = "traversal")]
+
+        impl<'a> SomeTable<'a> for #name <'a> {
+
+            fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+                self.as_some_table().get_field(idx)
+            }
+
+            fn type_name(&self) -> &str {
+                self.as_some_table().type_name()
+            }
+        }
+    })
 }
 
 fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
