@@ -22,6 +22,11 @@ pub const TAG: Tag = Tag::new(b"GPOS");
 
 include!("../../generated/generated_gpos.rs");
 
+/// A typed GPOS [LookupList](super::LookupList) table
 pub type PositionLookupList<'a> = super::LookupList<'a, PositionLookup<'a>>;
+
+/// A GPOS [SequenceContext](super::SequenceContext)
 pub type PositionSequenceContext<'a> = super::SequenceContext<'a>;
+
+/// A GPOS [ChainedSequenceContext](super::ChainedSequenceContext)
 pub type PositionChainContext<'a> = super::ChainedSequenceContext<'a>;
