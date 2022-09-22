@@ -163,8 +163,8 @@ pub enum PositionLookup<'a> {
     MarkToBase(Lookup<'a, MarkBasePosFormat1<'a>>),
     MarkToLig(Lookup<'a, MarkLigPosFormat1<'a>>),
     MarkToMark(Lookup<'a, MarkMarkPosFormat1<'a>>),
-    Contextual(Lookup<'a, SequenceContext<'a>>),
-    ChainContextual(Lookup<'a, ChainedSequenceContext<'a>>),
+    Contextual(Lookup<'a, PositionSequenceContext<'a>>),
+    ChainContextual(Lookup<'a, PositionChainContext<'a>>),
     Extension(Lookup<'a, ExtensionSubtable<'a>>),
 }
 
@@ -3091,8 +3091,8 @@ pub enum ExtensionSubtable<'a> {
     MarkToBase(ExtensionPosFormat1<'a, MarkBasePosFormat1<'a>>),
     MarkToLig(ExtensionPosFormat1<'a, MarkLigPosFormat1<'a>>),
     MarkToMark(ExtensionPosFormat1<'a, MarkMarkPosFormat1<'a>>),
-    Contextual(ExtensionPosFormat1<'a, SequenceContext<'a>>),
-    ChainContextual(ExtensionPosFormat1<'a, ChainedSequenceContext<'a>>),
+    Contextual(ExtensionPosFormat1<'a, PositionSequenceContext<'a>>),
+    ChainContextual(ExtensionPosFormat1<'a, PositionChainContext<'a>>),
 }
 
 impl<'a> FontRead<'a> for ExtensionSubtable<'a> {

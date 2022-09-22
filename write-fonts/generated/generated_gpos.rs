@@ -70,6 +70,89 @@ impl<'a> FontRead<'a> for Gpos {
     }
 }
 
+/// A [GPOS Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#gsubLookupTypeEnum) subtable.
+#[derive(Debug, Clone)]
+pub enum PositionLookup {
+    Single(Lookup<SinglePos>),
+    Pair(Lookup<PairPos>),
+    Cursive(Lookup<CursivePosFormat1>),
+    MarkToBase(Lookup<MarkBasePosFormat1>),
+    MarkToLig(Lookup<MarkLigPosFormat1>),
+    MarkToMark(Lookup<MarkMarkPosFormat1>),
+    Contextual(Lookup<PositionSequenceContext>),
+    ChainContextual(Lookup<PositionChainContext>),
+    Extension(Lookup<ExtensionSubtable>),
+}
+
+impl FontWrite for PositionLookup {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Single(table) => table.write_into(writer),
+            Self::Pair(table) => table.write_into(writer),
+            Self::Cursive(table) => table.write_into(writer),
+            Self::MarkToBase(table) => table.write_into(writer),
+            Self::MarkToLig(table) => table.write_into(writer),
+            Self::MarkToMark(table) => table.write_into(writer),
+            Self::Contextual(table) => table.write_into(writer),
+            Self::ChainContextual(table) => table.write_into(writer),
+            Self::Extension(table) => table.write_into(writer),
+        }
+    }
+}
+
+impl Validate for PositionLookup {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Single(table) => table.validate_impl(ctx),
+            Self::Pair(table) => table.validate_impl(ctx),
+            Self::Cursive(table) => table.validate_impl(ctx),
+            Self::MarkToBase(table) => table.validate_impl(ctx),
+            Self::MarkToLig(table) => table.validate_impl(ctx),
+            Self::MarkToMark(table) => table.validate_impl(ctx),
+            Self::Contextual(table) => table.validate_impl(ctx),
+            Self::ChainContextual(table) => table.validate_impl(ctx),
+            Self::Extension(table) => table.validate_impl(ctx),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<read_fonts::layout::gpos::PositionLookup<'_>> for PositionLookup {
+    fn from_obj_ref(from: &read_fonts::layout::gpos::PositionLookup<'_>, data: FontData) -> Self {
+        match from {
+            read_fonts::layout::gpos::PositionLookup::Single(table) => {
+                Self::Single(table.to_owned_obj(data))
+            }
+            read_fonts::layout::gpos::PositionLookup::Pair(table) => {
+                Self::Pair(table.to_owned_obj(data))
+            }
+            read_fonts::layout::gpos::PositionLookup::Cursive(table) => {
+                Self::Cursive(table.to_owned_obj(data))
+            }
+            read_fonts::layout::gpos::PositionLookup::MarkToBase(table) => {
+                Self::MarkToBase(table.to_owned_obj(data))
+            }
+            read_fonts::layout::gpos::PositionLookup::MarkToLig(table) => {
+                Self::MarkToLig(table.to_owned_obj(data))
+            }
+            read_fonts::layout::gpos::PositionLookup::MarkToMark(table) => {
+                Self::MarkToMark(table.to_owned_obj(data))
+            }
+            read_fonts::layout::gpos::PositionLookup::Contextual(table) => {
+                Self::Contextual(table.to_owned_obj(data))
+            }
+            read_fonts::layout::gpos::PositionLookup::ChainContextual(table) => {
+                Self::ChainContextual(table.to_owned_obj(data))
+            }
+            read_fonts::layout::gpos::PositionLookup::Extension(table) => {
+                Self::Extension(table.to_owned_obj(data))
+            }
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<read_fonts::layout::gpos::PositionLookup<'_>> for PositionLookup {}
 bitflags::bitflags! { # [doc = " See [ValueRecord]"] pub struct ValueFormat : u16 { # [doc = " Includes horizontal adjustment for placement"] const X_PLACEMENT = 0x0001 ; # [doc = " Includes vertical adjustment for placement"] const Y_PLACEMENT = 0x0002 ; # [doc = " Includes horizontal adjustment for advance"] const X_ADVANCE = 0x0004 ; # [doc = " Includes vertical adjustment for advance"] const Y_ADVANCE = 0x0008 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal placement"] const X_PLACEMENT_DEVICE = 0x0010 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical placement"] const Y_PLACEMENT_DEVICE = 0x0020 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal advance"] const X_ADVANCE_DEVICE = 0x0040 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical advance"] const Y_ADVANCE_DEVICE = 0x0080 ; } }
 
 impl FontWrite for ValueFormat {
@@ -1527,3 +1610,84 @@ where
     T: FromTableRef<U> + 'static,
 {
 }
+
+/// A [GPOS Extension Positioning](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#lookuptype-9-extension-positioning) subtable
+#[derive(Debug, Clone)]
+pub enum ExtensionSubtable {
+    Single(ExtensionPosFormat1<SinglePos>),
+    Pair(ExtensionPosFormat1<PairPos>),
+    Cursive(ExtensionPosFormat1<CursivePosFormat1>),
+    MarkToBase(ExtensionPosFormat1<MarkBasePosFormat1>),
+    MarkToLig(ExtensionPosFormat1<MarkLigPosFormat1>),
+    MarkToMark(ExtensionPosFormat1<MarkMarkPosFormat1>),
+    Contextual(ExtensionPosFormat1<PositionSequenceContext>),
+    ChainContextual(ExtensionPosFormat1<PositionChainContext>),
+}
+
+impl FontWrite for ExtensionSubtable {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Single(table) => table.write_into(writer),
+            Self::Pair(table) => table.write_into(writer),
+            Self::Cursive(table) => table.write_into(writer),
+            Self::MarkToBase(table) => table.write_into(writer),
+            Self::MarkToLig(table) => table.write_into(writer),
+            Self::MarkToMark(table) => table.write_into(writer),
+            Self::Contextual(table) => table.write_into(writer),
+            Self::ChainContextual(table) => table.write_into(writer),
+        }
+    }
+}
+
+impl Validate for ExtensionSubtable {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Single(table) => table.validate_impl(ctx),
+            Self::Pair(table) => table.validate_impl(ctx),
+            Self::Cursive(table) => table.validate_impl(ctx),
+            Self::MarkToBase(table) => table.validate_impl(ctx),
+            Self::MarkToLig(table) => table.validate_impl(ctx),
+            Self::MarkToMark(table) => table.validate_impl(ctx),
+            Self::Contextual(table) => table.validate_impl(ctx),
+            Self::ChainContextual(table) => table.validate_impl(ctx),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromObjRef<read_fonts::layout::gpos::ExtensionSubtable<'_>> for ExtensionSubtable {
+    fn from_obj_ref(
+        from: &read_fonts::layout::gpos::ExtensionSubtable<'_>,
+        data: FontData,
+    ) -> Self {
+        match from {
+            read_fonts::layout::gpos::ExtensionSubtable::Single(table) => {
+                Self::Single(table.to_owned_obj(data))
+            }
+            read_fonts::layout::gpos::ExtensionSubtable::Pair(table) => {
+                Self::Pair(table.to_owned_obj(data))
+            }
+            read_fonts::layout::gpos::ExtensionSubtable::Cursive(table) => {
+                Self::Cursive(table.to_owned_obj(data))
+            }
+            read_fonts::layout::gpos::ExtensionSubtable::MarkToBase(table) => {
+                Self::MarkToBase(table.to_owned_obj(data))
+            }
+            read_fonts::layout::gpos::ExtensionSubtable::MarkToLig(table) => {
+                Self::MarkToLig(table.to_owned_obj(data))
+            }
+            read_fonts::layout::gpos::ExtensionSubtable::MarkToMark(table) => {
+                Self::MarkToMark(table.to_owned_obj(data))
+            }
+            read_fonts::layout::gpos::ExtensionSubtable::Contextual(table) => {
+                Self::Contextual(table.to_owned_obj(data))
+            }
+            read_fonts::layout::gpos::ExtensionSubtable::ChainContextual(table) => {
+                Self::ChainContextual(table.to_owned_obj(data))
+            }
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl FromTableRef<read_fonts::layout::gpos::ExtensionSubtable<'_>> for ExtensionSubtable {}

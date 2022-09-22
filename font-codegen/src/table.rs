@@ -351,6 +351,69 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
     })
 }
 
+pub(crate) fn generate_group_compile(
+    item: &GenericGroup,
+    parse_module: &syn::Path,
+) -> syn::Result<TokenStream> {
+    let docs = &item.attrs.docs;
+    let name = &item.name;
+    let inner = &item.inner_type;
+    //let type_field = &item.inner_field;
+
+    let mut variant_decls = Vec::new();
+    let mut write_match_arms = Vec::new();
+    let mut validate_match_arms = Vec::new();
+    let mut from_obj_match_arms = Vec::new();
+    let from_type = quote!(#parse_module :: #name);
+    for var in &item.variants {
+        let var_name = &var.name;
+        let typ = &var.typ;
+
+        variant_decls.push(quote! { #var_name ( #inner <#typ> ) });
+        write_match_arms.push(quote! { Self :: #var_name (table) => table.write_into(writer)  });
+        validate_match_arms.push(quote! { Self :: #var_name(table) => table.validate_impl(ctx) });
+        from_obj_match_arms.push(
+            quote! { #from_type :: #var_name(table) => Self :: #var_name(table.to_owned_obj(data)) },
+        );
+    }
+
+    Ok(quote! {
+        #( #docs)*
+        #[derive(Debug, Clone)]
+        pub enum #name {
+            #( #variant_decls, )*
+        }
+
+        impl FontWrite for #name {
+            fn write_into(&self, writer: &mut TableWriter) {
+                match self {
+                    #( #write_match_arms, )*
+                }
+            }
+        }
+
+        impl Validate for #name {
+            fn validate_impl(&self, ctx: &mut ValidationCtx) {
+                match self {
+                    #( #validate_match_arms, )*
+                }
+            }
+        }
+
+        #[cfg(feature = "parsing")]
+        impl FromObjRef< #from_type :: <'_>> for #name {
+            fn from_obj_ref(from: & #from_type :: <'_>, data: FontData) -> Self {
+                match from {
+                    #( #from_obj_match_arms, )*
+                }
+            }
+        }
+
+        #[cfg(feature = "parsing")]
+        impl FromTableRef< #from_type <'_>> for #name {}
+    })
+}
+
 pub(crate) fn generate_format_compile(
     item: &TableFormat,
     parse_module: &syn::Path,
