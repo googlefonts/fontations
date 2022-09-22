@@ -66,7 +66,7 @@ impl TableInfo for NameMarker {
             .transpose()?;
         let lang_tag_record_byte_len = version
             .compatible(1)
-            .then(|| lang_tag_count as usize * LangTagRecord::RAW_BYTE_LEN);
+            .then_some(lang_tag_count as usize * LangTagRecord::RAW_BYTE_LEN);
         if let Some(value) = lang_tag_record_byte_len {
             cursor.advance_by(value);
         }

@@ -95,7 +95,7 @@ impl TableInfo for PostMarker {
             .transpose()?;
         let glyph_name_index_byte_len = version
             .compatible(Version16Dot16::VERSION_2_0)
-            .then(|| num_glyphs as usize * u16::RAW_BYTE_LEN);
+            .then_some(num_glyphs as usize * u16::RAW_BYTE_LEN);
         if let Some(value) = glyph_name_index_byte_len {
             cursor.advance_by(value);
         }
@@ -105,7 +105,7 @@ impl TableInfo for PostMarker {
             .transpose()?;
         let string_data_byte_len = version
             .compatible(Version16Dot16::VERSION_2_0)
-            .then(|| cursor.remaining_bytes());
+            .then_some(cursor.remaining_bytes());
         if let Some(value) = string_data_byte_len {
             cursor.advance_by(value);
         }

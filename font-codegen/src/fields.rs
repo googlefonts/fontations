@@ -642,7 +642,7 @@ impl Field {
 
             match &self.attrs.available {
                 Some(version) => quote! {
-                    let #len_field_name = version.compatible(#version).then(|| #len_expr);
+                    let #len_field_name = version.compatible(#version).then_some(#len_expr);
                     if let Some(value) = #len_field_name {
                         cursor.advance_by(value);
                     }
