@@ -148,18 +148,22 @@ impl<'a> SomeTable<'a> for ValueRecord {
     // a total hack
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         let fields = [
-            self.x_placement.is_some().then(|| "x_placement"),
-            self.y_placement.is_some().then(|| "y_placement"),
-            self.x_advance.is_some().then(|| "x_advance"),
-            self.y_advance.is_some().then(|| "y_advance"),
+            self.x_placement.is_some().then_some("x_placement"),
+            self.y_placement.is_some().then_some("y_placement"),
+            self.x_advance.is_some().then_some("x_advance"),
+            self.y_advance.is_some().then_some("y_advance"),
             self.x_placement_device
                 .is_some()
-                .then(|| "x_placement_device"),
+                .then_some("x_placement_device"),
             self.y_placement_device
                 .is_some()
-                .then(|| "y_placement_device"),
-            self.x_advance_device.is_some().then(|| "x_advance_device"),
-            self.y_advance_device.is_some().then(|| "y_advance_device"),
+                .then_some("y_placement_device"),
+            self.x_advance_device
+                .is_some()
+                .then_some("x_advance_device"),
+            self.y_advance_device
+                .is_some()
+                .then_some("y_advance_device"),
         ];
 
         let name = fields.iter().filter_map(|x| *x).nth(idx)?;
