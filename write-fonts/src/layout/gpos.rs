@@ -49,34 +49,7 @@ lookup_type!(MarkLigPosFormat1, 5);
 lookup_type!(MarkMarkPosFormat1, 6);
 lookup_type!(PositionSequenceContext, 7);
 lookup_type!(PositionChainContext, 8);
-lookup_type!(Extension, 9);
-
-/// A GPOS lookup
-#[derive(Debug, Clone)]
-pub enum PositionLookup {
-    Single(Lookup<SinglePos>),
-    Pair(Lookup<PairPos>),
-    Cursive(Lookup<CursivePosFormat1>),
-    MarkToBase(Lookup<MarkBasePosFormat1>),
-    MarkToLig(Lookup<MarkLigPosFormat1>),
-    MarkToMark(Lookup<MarkMarkPosFormat1>),
-    Contextual(Lookup<PositionSequenceContext>),
-    ChainContextual(Lookup<PositionChainContext>),
-    Extension(Lookup<Extension>),
-}
-
-/// A GPOS extension subtable
-#[derive(Debug, Clone)]
-pub enum Extension {
-    Single(ExtensionPosFormat1<SinglePos>),
-    Pair(ExtensionPosFormat1<PairPos>),
-    Cursive(ExtensionPosFormat1<CursivePosFormat1>),
-    MarkToBase(ExtensionPosFormat1<MarkBasePosFormat1>),
-    MarkToLig(ExtensionPosFormat1<MarkLigPosFormat1>),
-    MarkToMark(ExtensionPosFormat1<MarkMarkPosFormat1>),
-    Contextual(ExtensionPosFormat1<PositionSequenceContext>),
-    ChainContextual(ExtensionPosFormat1<PositionChainContext>),
-}
+lookup_type!(ExtensionSubtable, 9);
 
 impl<T: LookupType + FontWrite> FontWrite for ExtensionPosFormat1<T> {
     fn write_into(&self, writer: &mut TableWriter) {
@@ -86,82 +59,7 @@ impl<T: LookupType + FontWrite> FontWrite for ExtensionPosFormat1<T> {
     }
 }
 
-impl FontWrite for PositionLookup {
-    fn write_into(&self, writer: &mut TableWriter) {
-        match self {
-            PositionLookup::Single(lookup) => lookup.write_into(writer),
-            PositionLookup::Pair(lookup) => lookup.write_into(writer),
-            PositionLookup::Cursive(lookup) => lookup.write_into(writer),
-            PositionLookup::MarkToBase(lookup) => lookup.write_into(writer),
-            PositionLookup::MarkToLig(lookup) => lookup.write_into(writer),
-            PositionLookup::MarkToMark(lookup) => lookup.write_into(writer),
-            PositionLookup::Contextual(lookup) => lookup.write_into(writer),
-            PositionLookup::ChainContextual(lookup) => lookup.write_into(writer),
-            PositionLookup::Extension(lookup) => lookup.write_into(writer),
-        }
-    }
-}
-
-impl Validate for PositionLookup {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        match self {
-            Self::Single(lookup) => lookup.validate_impl(ctx),
-            Self::Pair(lookup) => lookup.validate_impl(ctx),
-            Self::Cursive(lookup) => lookup.validate_impl(ctx),
-            Self::MarkToBase(lookup) => lookup.validate_impl(ctx),
-            Self::MarkToLig(lookup) => lookup.validate_impl(ctx),
-            Self::MarkToMark(lookup) => lookup.validate_impl(ctx),
-            Self::Contextual(lookup) => lookup.validate_impl(ctx),
-            Self::ChainContextual(lookup) => lookup.validate_impl(ctx),
-            Self::Extension(lookup) => lookup.validate_impl(ctx),
-        }
-    }
-}
-
-#[cfg(feature = "parsing")]
-impl FromObjRef<read_fonts::layout::gpos::PositionLookup<'_>> for PositionLookup {
-    fn from_obj_ref(from: &read_fonts::layout::gpos::PositionLookup<'_>, data: FontData) -> Self {
-        use read_fonts::layout::gpos::PositionLookup as FromType;
-        match from {
-            FromType::Single(lookup) => Self::Single(lookup.to_owned_obj(data)),
-            FromType::Pair(lookup) => Self::Pair(lookup.to_owned_obj(data)),
-            FromType::Cursive(lookup) => Self::Cursive(lookup.to_owned_obj(data)),
-            FromType::MarkToBase(lookup) => Self::MarkToBase(lookup.to_owned_obj(data)),
-            FromType::MarkToLig(lookup) => Self::MarkToLig(lookup.to_owned_obj(data)),
-            FromType::MarkToMark(lookup) => Self::MarkToMark(lookup.to_owned_obj(data)),
-            FromType::Contextual(lookup) => Self::Contextual(lookup.to_owned_obj(data)),
-            FromType::ChainContextual(lookup) => Self::ChainContextual(lookup.to_owned_obj(data)),
-            FromType::Extension(lookup) => Self::Extension(lookup.to_owned_obj(data)),
-        }
-    }
-}
-
-#[cfg(feature = "parsing")]
-impl FromTableRef<read_fonts::layout::gpos::PositionLookup<'_>> for PositionLookup {}
-
-#[cfg(feature = "parsing")]
-impl FromObjRef<read_fonts::layout::gpos::ExtensionSubtable<'_>> for Extension {
-    fn from_obj_ref(
-        from: &read_fonts::layout::gpos::ExtensionSubtable<'_>,
-        data: FontData,
-    ) -> Self {
-        use read_fonts::layout::gpos::ExtensionSubtable as FromType;
-        match from {
-            FromType::Single(ext) => Self::Single(ext.to_owned_obj(data)),
-            FromType::Pair(ext) => Self::Pair(ext.to_owned_obj(data)),
-            FromType::Cursive(ext) => Self::Cursive(ext.to_owned_obj(data)),
-            FromType::MarkToBase(ext) => Self::MarkToBase(ext.to_owned_obj(data)),
-            FromType::MarkToLig(ext) => Self::MarkToLig(ext.to_owned_obj(data)),
-            FromType::MarkToMark(ext) => Self::MarkToMark(ext.to_owned_obj(data)),
-            FromType::Contextual(ext) => Self::Contextual(ext.to_owned_obj(data)),
-            FromType::ChainContextual(ext) => Self::ChainContextual(ext.to_owned_obj(data)),
-        }
-    }
-}
-
-#[cfg(feature = "parsing")]
-impl FromTableRef<read_fonts::layout::gpos::ExtensionSubtable<'_>> for Extension {}
-
+// these can't have auto impls because the traits don't support generics
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for PositionLookup {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
@@ -170,46 +68,9 @@ impl<'a> FontRead<'a> for PositionLookup {
 }
 
 #[cfg(feature = "parsing")]
-impl<'a> FontRead<'a> for Extension {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        read_fonts::layout::gpos::ExtensionSubtable::read(data).map(|x| x.to_owned_table())
-    }
-}
-
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for PositionLookupList {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         read_fonts::layout::gpos::PositionLookupList::read(data).map(|x| x.to_owned_table())
-    }
-}
-
-impl FontWrite for Extension {
-    fn write_into(&self, writer: &mut TableWriter) {
-        match self {
-            Self::Single(lookup) => lookup.write_into(writer),
-            Self::Pair(lookup) => lookup.write_into(writer),
-            Self::Cursive(lookup) => lookup.write_into(writer),
-            Self::MarkToBase(lookup) => lookup.write_into(writer),
-            Self::MarkToLig(lookup) => lookup.write_into(writer),
-            Self::MarkToMark(lookup) => lookup.write_into(writer),
-            Self::Contextual(lookup) => lookup.write_into(writer),
-            Self::ChainContextual(lookup) => lookup.write_into(writer),
-        }
-    }
-}
-
-impl Validate for Extension {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        match self {
-            Self::Single(lookup) => lookup.validate_impl(ctx),
-            Self::Pair(lookup) => lookup.validate_impl(ctx),
-            Self::Cursive(lookup) => lookup.validate_impl(ctx),
-            Self::MarkToBase(lookup) => lookup.validate_impl(ctx),
-            Self::MarkToLig(lookup) => lookup.validate_impl(ctx),
-            Self::MarkToMark(lookup) => lookup.validate_impl(ctx),
-            Self::Contextual(lookup) => lookup.validate_impl(ctx),
-            Self::ChainContextual(lookup) => lookup.validate_impl(ctx),
-        }
     }
 }
 

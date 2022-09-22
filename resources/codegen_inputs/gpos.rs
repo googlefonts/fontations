@@ -27,8 +27,8 @@ table Gpos {
     4 => MarkToBase(MarkBasePosFormat1),
     5 => MarkToLig(MarkLigPosFormat1),
     6 => MarkToMark(MarkMarkPosFormat1),
-    7 => Contextual(SequenceContext),
-    8 => ChainContextual(ChainedSequenceContext),
+    7 => Contextual(PositionSequenceContext),
+    8 => ChainContextual(PositionChainContext),
     9 => Extension(ExtensionSubtable),
 }
 
@@ -496,6 +496,6 @@ table ExtensionPosFormat1 {
     4 => MarkToBase(MarkBasePosFormat1),
     5 => MarkToLig(MarkLigPosFormat1),
     6 => MarkToMark(MarkMarkPosFormat1),
-    7 => Contextual(SequenceContext),
-    8 => ChainContextual(ChainedSequenceContext),
+    7 => Contextual(PositionSequenceContext),
+    8 => ChainContextual(PositionChainContext),
 }

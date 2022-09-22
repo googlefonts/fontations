@@ -23,6 +23,7 @@ macro_rules! table_newtype {
     ($name:ident, $inner:ident, $read_type:path) => {
         #[derive(Debug, Clone)]
         pub struct $name($inner);
+
         impl std::ops::Deref for $name {
             type Target = $inner;
             fn deref(&self) -> &Self::Target {
