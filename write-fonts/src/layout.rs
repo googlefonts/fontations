@@ -16,92 +16,15 @@ mod spec_tests;
 
 include!("../generated/generated_layout.rs");
 
-/// A lookup table that is generic over the lookup type.
-#[derive(Debug, Clone)]
-pub struct Lookup<T> {
-    pub lookup_flag: u16,
-    pub subtables: Vec<OffsetMarker<T>>,
-    pub mark_filtering_set: u16,
-}
-
 impl<T: LookupType + FontWrite> FontWrite for Lookup<T> {
     fn write_into(&self, writer: &mut TableWriter) {
         T::TYPE.write_into(writer);
         self.lookup_flag.write_into(writer);
-        u16::try_from(self.subtables.len())
+        u16::try_from(self.subtable_offsets.len())
             .unwrap()
             .write_into(writer);
-        self.subtables.write_into(writer);
+        self.subtable_offsets.write_into(writer);
         self.mark_filtering_set.write_into(writer);
-    }
-}
-
-impl<T: Validate> Validate for Lookup<T> {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("Lookup", |ctx| {
-            ctx.in_field("subtables", |ctx| self.subtables.validate_impl(ctx))
-        })
-    }
-}
-
-/// An extension table that is generic over the subtable type.
-#[derive(Debug, Clone)]
-pub struct ExtensionSubtable<T> {
-    pub extension_offset: OffsetMarker<T, 4>,
-}
-
-impl<T: LookupType + FontWrite> FontWrite for ExtensionSubtable<T> {
-    fn write_into(&self, writer: &mut TableWriter) {
-        1u16.write_into(writer);
-        T::TYPE.write_into(writer);
-        self.extension_offset.write_into(writer);
-    }
-}
-
-impl<T: Validate> Validate for ExtensionSubtable<T> {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_field("extension_offset", |ctx| {
-            self.extension_offset.validate_impl(ctx)
-        })
-    }
-}
-
-#[cfg(feature = "parsing")]
-impl<'a, U, T> FromObjRef<read_fonts::layout::Lookup<'a, U>> for Lookup<T>
-where
-    U: FontRead<'a>,
-    T: FromTableRef<U> + 'static,
-{
-    fn from_obj_ref(from: &read_fonts::layout::Lookup<'a, U>, _data: FontData) -> Self {
-        Lookup {
-            lookup_flag: from.lookup_flag(),
-            mark_filtering_set: from.mark_filtering_set(),
-            subtables: from
-                .subtable_offsets()
-                .iter()
-                .map(|off| {
-                    let table_ref = from.get_subtable(off.get());
-                    table_ref.into()
-                })
-                .collect(),
-        }
-    }
-}
-
-#[cfg(feature = "parsing")]
-impl<'a, U, T> FromObjRef<read_fonts::layout::gpos::ExtensionPosFormat1<'a, U>>
-    for ExtensionSubtable<T>
-where
-    U: FontRead<'a>,
-    T: FromTableRef<U> + 'static,
-{
-    fn from_obj_ref(
-        from: &read_fonts::layout::gpos::ExtensionPosFormat1<'a, U>,
-        _data: FontData,
-    ) -> Self {
-        ExtensionSubtable {
-            extension_offset: from.extension().into(),
-        }
     }
 }
 

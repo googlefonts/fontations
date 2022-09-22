@@ -8,8 +8,8 @@ use std::collections::HashSet;
 
 use super::value_record::ValueRecord;
 use super::{
-    ChainedSequenceContext, ClassDef, CoverageTable, Device, ExtensionSubtable, FeatureList,
-    FeatureVariations, Lookup, ScriptList, SequenceContext,
+    ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
+    Lookup, LookupList, LookupType, ScriptList, SequenceContext,
 };
 
 #[cfg(all(test, feature = "parsing"))]
@@ -17,18 +17,7 @@ use super::{
 mod tests;
 
 /// A GPOS lookup list table.
-#[derive(Debug, Clone)]
-pub struct PositionLookupList {
-    pub lookup_offsets: Vec<OffsetMarker<PositionLookup>>,
-}
-
-impl Validate for PositionLookupList {
-    fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_field("lookup_offsets", |ctx| {
-            self.lookup_offsets.validate_impl(ctx)
-        });
-    }
-}
+type PositionLookupList = LookupList<PositionLookup>;
 
 impl Gpos {
     fn compute_version(&self) -> MajorMinor {
@@ -57,14 +46,22 @@ pub enum PositionLookup {
 /// A GPOS extension subtable
 #[derive(Debug, Clone)]
 pub enum Extension {
-    Single(ExtensionSubtable<SinglePos>),
-    Pair(ExtensionSubtable<PairPos>),
-    Cursive(ExtensionSubtable<CursivePosFormat1>),
-    MarkToBase(ExtensionSubtable<MarkBasePosFormat1>),
-    MarkToLig(ExtensionSubtable<MarkLigPosFormat1>),
-    MarkToMark(ExtensionSubtable<MarkMarkPosFormat1>),
-    Contextual(ExtensionSubtable<SequenceContext>),
-    ChainContextual(ExtensionSubtable<ChainedSequenceContext>),
+    Single(ExtensionPosFormat1<SinglePos>),
+    Pair(ExtensionPosFormat1<PairPos>),
+    Cursive(ExtensionPosFormat1<CursivePosFormat1>),
+    MarkToBase(ExtensionPosFormat1<MarkBasePosFormat1>),
+    MarkToLig(ExtensionPosFormat1<MarkLigPosFormat1>),
+    MarkToMark(ExtensionPosFormat1<MarkMarkPosFormat1>),
+    Contextual(ExtensionPosFormat1<SequenceContext>),
+    ChainContextual(ExtensionPosFormat1<ChainedSequenceContext>),
+}
+
+impl<T: LookupType + FontWrite> FontWrite for ExtensionPosFormat1<T> {
+    fn write_into(&self, writer: &mut TableWriter) {
+        1u16.write_into(writer);
+        T::TYPE.write_into(writer);
+        self.extension_offset.write_into(writer);
+    }
 }
 
 impl FontWrite for PositionLookup {
@@ -157,39 +154,12 @@ impl<'a> FontRead<'a> for Extension {
     }
 }
 
-impl FontWrite for PositionLookupList {
-    fn write_into(&self, writer: &mut TableWriter) {
-        u16::try_from(self.lookup_offsets.len())
-            .unwrap()
-            .write_into(writer);
-        self.lookup_offsets.write_into(writer);
-    }
-}
-
-#[cfg(feature = "parsing")]
-impl FromObjRef<read_fonts::layout::gpos::PositionLookupList<'_>> for PositionLookupList {
-    fn from_obj_ref(
-        from: &read_fonts::layout::gpos::PositionLookupList<'_>,
-        _data: FontData,
-    ) -> Self {
-        PositionLookupList {
-            lookup_offsets: from
-                .lookup()
-                .map(|lookup| OffsetMarker::new_maybe_null(lookup.ok().map(|x| x.to_owned_table())))
-                .collect(),
-        }
-    }
-}
-
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for PositionLookupList {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         read_fonts::layout::gpos::PositionLookupList::read(data).map(|x| x.to_owned_table())
     }
 }
-
-#[cfg(feature = "parsing")]
-impl FromTableRef<read_fonts::layout::gpos::PositionLookupList<'_>> for PositionLookupList {}
 
 impl FontWrite for Extension {
     fn write_into(&self, writer: &mut TableWriter) {

@@ -148,10 +148,13 @@ pub(crate) fn generate_compile_impl(
 
     let docs = &attrs.docs;
     let field_decls = fields.iter_compile_decls();
+    let generic_param = attrs.phantom.as_ref();
     let maybe_allow_casts = fields
         .compile_write_contains_int_casts()
         .then(|| quote!(#[allow(clippy::unnecessary_cast)]));
     let write_stmts = fields.iter_compile_write_stmts();
+    let write_impl_params = generic_param.map(|t| quote! { <#t: FontWrite> });
+    let validate_impl_params = generic_param.map(|t| quote! { <#t: Validate> });
 
     let name_string = name.to_string();
     let custom_validation = attrs.validation_method.as_ref().map(|path| {
@@ -160,7 +163,7 @@ pub(crate) fn generate_compile_impl(
         )
     });
     let validation_stmts = fields.compilation_validation_stmts();
-    let validation_impl = if custom_validation.is_none() && validation_stmts.is_empty() {
+    let validation_fn = if custom_validation.is_none() && validation_stmts.is_empty() {
         quote!(
             fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
         )
@@ -175,23 +178,34 @@ pub(crate) fn generate_compile_impl(
         }
     };
 
+    let validation_impl = quote! {
+        impl #validate_impl_params Validate for #name <#generic_param> {
+            #validation_fn
+        }
+    };
+
+    let font_write_impl = attrs.skip_font_write.is_none().then(|| {
+        quote! {
+            impl #write_impl_params FontWrite for #name <#generic_param> {
+                #maybe_allow_casts
+                fn write_into(&self, writer: &mut TableWriter) {
+                    #( #write_stmts; )*
+                }
+            }
+        }
+    });
+
     Ok(quote! {
         #( #docs )*
         #[derive(Clone, Debug)]
-        pub struct #name {
+        pub struct #name <#generic_param> {
             #( #field_decls, )*
         }
 
-        impl FontWrite for #name {
-            #maybe_allow_casts
-            fn write_into(&self, writer: &mut TableWriter) {
-                #( #write_stmts; )*
-            }
-        }
+        #font_write_impl
 
-        impl Validate for #name {
-            #validation_impl
-        }
+        #validation_impl
+
     })
 }
 

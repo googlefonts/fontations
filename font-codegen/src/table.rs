@@ -1,6 +1,6 @@
 //! codegen for table objects
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 
 use crate::parsing::GenericGroup;
@@ -299,8 +299,24 @@ pub(crate) fn generate_compile(item: &Table, parse_module: &syn::Path) -> syn::R
 fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result<TokenStream> {
     let name = item.raw_name();
     let field_to_owned_stmts = item.fields.iter_from_obj_ref_stmts(false);
+    let comp_generic = item.attrs.phantom.as_ref().map(|attr| &attr.attr);
+    let parse_generic = comp_generic
+        .is_some()
+        .then(|| syn::Ident::new("U", Span::call_site()));
+    let impl_generics = comp_generic
+        .into_iter()
+        .chain(parse_generic.as_ref().into_iter());
+    let impl_generics2 = impl_generics.clone();
+    let where_clause = comp_generic.map(|t| {
+        quote! {
+            where
+                U: FontRead<'a>,
+                #t: FromTableRef<U> + 'static,
+        }
+    });
 
-    let maybe_font_read = item.attrs.read_args.is_none().then(|| {
+    let impl_font_read = item.attrs.read_args.is_none() && item.attrs.phantom.is_none();
+    let maybe_font_read = impl_font_read.then(|| {
         quote! {
             #[cfg(feature = "parsing")]
             impl<'a> FontRead<'a> for #name {
@@ -316,10 +332,11 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
         .fields
         .from_obj_requires_offset_data(false)
         .then(|| quote!( let offset_data = obj.offset_data(); ));
+
     Ok(quote! {
         #[cfg(feature = "parsing")]
-        impl FromObjRef<#parse_module :: #name<'_>> for #name {
-            fn from_obj_ref(obj: &#parse_module :: #name, _: FontData) -> Self {
+        impl<'a, #( #impl_generics, )* > FromObjRef<#parse_module :: #name<'a, #parse_generic>> for #name<#comp_generic> #where_clause {
+            fn from_obj_ref(obj: &#parse_module :: #name<'a, #parse_generic>, _: FontData) -> Self {
                 #maybe_bind_offset_data
                 #name {
                     #( #field_to_owned_stmts, )*
@@ -328,7 +345,7 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
         }
 
         #[cfg(feature = "parsing")]
-        impl FromTableRef<#parse_module :: #name<'_>> for #name {}
+        impl<'a, #(#impl_generics2,)* > FromTableRef<#parse_module :: #name<'a, #parse_generic >> for #name<#comp_generic> #where_clause {}
 
         #maybe_font_read
     })

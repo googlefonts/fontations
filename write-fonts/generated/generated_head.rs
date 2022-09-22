@@ -73,8 +73,8 @@ impl Validate for Head {
 }
 
 #[cfg(feature = "parsing")]
-impl FromObjRef<read_fonts::tables::head::Head<'_>> for Head {
-    fn from_obj_ref(obj: &read_fonts::tables::head::Head, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::head::Head<'a>> for Head {
+    fn from_obj_ref(obj: &read_fonts::tables::head::Head<'a>, _: FontData) -> Self {
         Head {
             font_revision: obj.font_revision(),
             checksum_adjustment: obj.checksum_adjustment(),
@@ -94,7 +94,7 @@ impl FromObjRef<read_fonts::tables::head::Head<'_>> for Head {
 }
 
 #[cfg(feature = "parsing")]
-impl FromTableRef<read_fonts::tables::head::Head<'_>> for Head {}
+impl<'a> FromTableRef<read_fonts::tables::head::Head<'a>> for Head {}
 
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for Head {

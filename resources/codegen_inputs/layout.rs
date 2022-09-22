@@ -97,7 +97,6 @@ table Feature {
 
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
 #[phantom(T)]
-#[skip_compile]
 table LookupList {
     /// Number of lookups in this table
     #[compile(array_len($lookup_offsets))]
@@ -109,8 +108,8 @@ table LookupList {
 }
 
 /// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
-#[skip_compile]
 #[phantom(T)]
+#[skip_font_write]
 table Lookup {
     /// Different enumerations for GSUB and GPOS
     lookup_type: BigEndian<u16>,

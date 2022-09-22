@@ -45,6 +45,7 @@ pub(crate) struct TableAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) skip_parse: Option<syn::Path>,
     pub(crate) skip_compile: Option<syn::Path>,
+    pub(crate) skip_font_write: Option<syn::Path>,
     pub(crate) skip_from_obj: Option<syn::Path>,
     pub(crate) validation_method: Option<Attr<syn::Path>>,
     pub(crate) read_args: Option<Attr<TableReadArgs>>,
@@ -745,6 +746,7 @@ impl Parse for FieldAttrs {
 static SKIP_PARSE: &str = "skip_parse";
 static SKIP_COMPILE: &str = "skip_compile";
 static SKIP_FROM_OBJ: &str = "skip_from_obj";
+static SKIP_FONT_WRITE: &str = "skip_font_write";
 static VALIDATION_METHOD: &str = "validation_method";
 static READ_ARGS: &str = "read_args";
 static PHANTOM: &str = "phantom";
@@ -767,6 +769,8 @@ impl Parse for TableAttrs {
                 this.skip_compile = Some(attr.path);
             } else if ident == SKIP_FROM_OBJ {
                 this.skip_from_obj = Some(attr.path);
+            } else if ident == SKIP_FONT_WRITE {
+                this.skip_font_write = Some(attr.path);
             } else if ident == VALIDATION_METHOD {
                 this.validation_method = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_ARGS {
