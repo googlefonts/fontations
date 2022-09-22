@@ -26,8 +26,8 @@ table Gsub {
     2 => Multiple(MultipleSubstFormat1),
     3 => Alternate(AlternateSubstFormat1),
     4 => Ligature(LigatureSubstFormat1),
-    5 => Contextual(SequenceContext),
-    6 => ChainContextual(ChainedSequenceContext),
+    5 => Contextual(SubstitutionSequenceContext),
+    6 => ChainContextual(SubstitutionChainContext),
     7 => Extension(ExtensionSubtable),
     8 => Reverse(ReverseChainSingleSubstFormat1),
 }
@@ -163,8 +163,8 @@ table Ligature {
 }
 
 /// [Extension Substitution Subtable Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#71-extension-substitution-subtable-format-1)
-#[skip_compile]
 #[phantom(T)]
+#[skip_font_write]
 table ExtensionSubstFormat1 {
     /// Format identifier. Set to 1.
     #[format = 1]
@@ -184,8 +184,8 @@ table ExtensionSubstFormat1 {
     2 => Multiple(MultipleSubstFormat1),
     3 => Alternate(AlternateSubstFormat1),
     4 => Ligature(LigatureSubstFormat1),
-    5 => Contextual(SequenceContext),
-    6 => ChainContextual(ChainedSequenceContext),
+    5 => Contextual(SubstitutionSequenceContext),
+    6 => ChainContextual(SubstitutionChainContext),
     8 => Reverse(ReverseChainSingleSubstFormat1),
 }
 
@@ -203,14 +203,14 @@ table ReverseChainSingleSubstFormat1 {
     /// Array of offsets to coverage tables in backtrack sequence, in
     /// glyph sequence order.
     #[count($backtrack_glyph_count)]
-    backtrack_coverage_offsets: [BigEndian<Offset16>],
+    backtrack_coverage_offsets: [BigEndian<Offset16<CoverageTable>>],
     /// Number of glyphs in lookahead sequence.
     #[compile(array_len($lookahead_coverage_offsets))]
     lookahead_glyph_count: BigEndian<u16>,
     /// Array of offsets to coverage tables in lookahead sequence, in
     /// glyph sequence order.
     #[count($lookahead_glyph_count)]
-    lookahead_coverage_offsets: [BigEndian<Offset16>],
+    lookahead_coverage_offsets: [BigEndian<Offset16<CoverageTable>>],
     /// Number of glyph IDs in the substituteGlyphIDs array.
     #[compile(array_len($substitute_glyph_ids))]
     glyph_count: BigEndian<u16>,

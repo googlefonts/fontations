@@ -63,6 +63,8 @@ macro_rules! table_newtype {
 
 pub mod gdef;
 pub mod gpos;
+pub mod gsub;
+
 mod value_record;
 
 #[cfg(test)]

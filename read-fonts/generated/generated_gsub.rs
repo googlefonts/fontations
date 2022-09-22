@@ -161,8 +161,8 @@ pub enum SubstitutionLookup<'a> {
     Multiple(Lookup<'a, MultipleSubstFormat1<'a>>),
     Alternate(Lookup<'a, AlternateSubstFormat1<'a>>),
     Ligature(Lookup<'a, LigatureSubstFormat1<'a>>),
-    Contextual(Lookup<'a, SequenceContext<'a>>),
-    ChainContextual(Lookup<'a, ChainedSequenceContext<'a>>),
+    Contextual(Lookup<'a, SubstitutionSequenceContext<'a>>),
+    ChainContextual(Lookup<'a, SubstitutionChainContext<'a>>),
     Extension(Lookup<'a, ExtensionSubtable<'a>>),
     Reverse(Lookup<'a, ReverseChainSingleSubstFormat1<'a>>),
 }
@@ -1290,8 +1290,8 @@ pub enum ExtensionSubtable<'a> {
     Multiple(ExtensionSubstFormat1<'a, MultipleSubstFormat1<'a>>),
     Alternate(ExtensionSubstFormat1<'a, AlternateSubstFormat1<'a>>),
     Ligature(ExtensionSubstFormat1<'a, LigatureSubstFormat1<'a>>),
-    Contextual(ExtensionSubstFormat1<'a, SequenceContext<'a>>),
-    ChainContextual(ExtensionSubstFormat1<'a, ChainedSequenceContext<'a>>),
+    Contextual(ExtensionSubstFormat1<'a, SubstitutionSequenceContext<'a>>),
+    ChainContextual(ExtensionSubstFormat1<'a, SubstitutionChainContext<'a>>),
     Reverse(ExtensionSubstFormat1<'a, ReverseChainSingleSubstFormat1<'a>>),
 }
 
@@ -1445,6 +1445,15 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
         self.data.read_array(range).unwrap()
     }
 
+    pub fn backtrack_coverage(
+        &self,
+    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+        let data = self.data;
+        self.backtrack_coverage_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
+    }
+
     /// Number of glyphs in lookahead sequence.
     pub fn lookahead_glyph_count(&self) -> u16 {
         let range = self.shape.lookahead_glyph_count_byte_range();
@@ -1456,6 +1465,15 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     pub fn lookahead_coverage_offsets(&self) -> &'a [BigEndian<Offset16>] {
         let range = self.shape.lookahead_coverage_offsets_byte_range();
         self.data.read_array(range).unwrap()
+    }
+
+    pub fn lookahead_coverage(
+        &self,
+    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+        let data = self.data;
+        self.lookahead_coverage_offsets()
+            .iter()
+            .map(move |off| off.get().resolve(data))
     }
 
     /// Number of glyph IDs in the substituteGlyphIDs array.
@@ -1487,18 +1505,38 @@ impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
                 "backtrack_glyph_count",
                 self.backtrack_glyph_count(),
             )),
-            3usize => Some(Field::new(
-                "backtrack_coverage_offsets",
-                self.backtrack_coverage_offsets(),
-            )),
+            3usize => Some({
+                let data = self.data;
+                Field::new(
+                    "backtrack_coverage_offsets",
+                    FieldType::offset_array(
+                        better_type_name::<CoverageTable>(),
+                        self.backtrack_coverage_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<CoverageTable>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
+                )
+            }),
             4usize => Some(Field::new(
                 "lookahead_glyph_count",
                 self.lookahead_glyph_count(),
             )),
-            5usize => Some(Field::new(
-                "lookahead_coverage_offsets",
-                self.lookahead_coverage_offsets(),
-            )),
+            5usize => Some({
+                let data = self.data;
+                Field::new(
+                    "lookahead_coverage_offsets",
+                    FieldType::offset_array(
+                        better_type_name::<CoverageTable>(),
+                        self.lookahead_coverage_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<CoverageTable>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
+                )
+            }),
             6usize => Some(Field::new("glyph_count", self.glyph_count())),
             7usize => Some(Field::new(
                 "substitute_glyph_ids",
