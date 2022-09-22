@@ -112,6 +112,7 @@ table LookupList {
 #[skip_font_write]
 table Lookup {
     /// Different enumerations for GSUB and GPOS
+    #[compile(skip)]
     lookup_type: BigEndian<u16>,
     /// Lookup qualifiers
     lookup_flag: BigEndian<u16>,
