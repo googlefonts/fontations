@@ -5,6 +5,61 @@ use std::collections::HashSet;
 #[cfg(feature = "parsing")]
 use read_fonts::FontRead;
 
+/// A macro to implement the [LookupType] trait.
+macro_rules! lookup_type {
+    ($ty:ty, $val:expr) => {
+        impl LookupType for $ty {
+            const TYPE: u16 = $val;
+        }
+    };
+}
+
+/// A macro to define a newtype around an exisitng table, that defers all
+/// impls to that table.
+///
+/// We use this to ensure that shared lookup types (Sequence/Chain
+/// lookups) can be given different lookup ids for each of GSUB/GPOS.
+macro_rules! table_newtype {
+    ($name:ident, $inner:ident, $read_type:path) => {
+        #[derive(Debug, Clone)]
+        pub struct $name($inner);
+        impl std::ops::Deref for $name {
+            type Target = $inner;
+            fn deref(&self) -> &Self::Target {
+                &self.0
+            }
+        }
+
+        impl std::ops::DerefMut for $name {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.0
+            }
+        }
+
+        impl FontWrite for $name {
+            fn write_into(&self, writer: &mut TableWriter) {
+                self.0.write_into(writer)
+            }
+        }
+
+        impl Validate for $name {
+            fn validate_impl(&self, ctx: &mut ValidationCtx) {
+                self.0.validate_impl(ctx)
+            }
+        }
+
+        #[cfg(feature = "parsing")]
+        impl<'a> FromObjRef<$read_type> for $name {
+            fn from_obj_ref(obj: &$read_type, _data: FontData) -> Self {
+                Self(FromObjRef::from_obj_ref(obj, _data))
+            }
+        }
+
+        #[cfg(feature = "parsing")]
+        impl<'a> FromTableRef<$read_type> for $name {}
+    };
+}
+
 pub mod gdef;
 pub mod gpos;
 mod value_record;
@@ -28,29 +83,14 @@ impl<T: LookupType + FontWrite> FontWrite for Lookup<T> {
     }
 }
 
-/// A utility trait for writing lookup tables
+/// A utility trait for writing lookup tables.
+///
+/// This allows us to attach the numerical lookup type to the appropriate concrete
+/// types, so that we can write it as needed without passing it around.
 pub trait LookupType {
-    /// The format type of this subtable.
+    /// The lookup type of this layout subtable.
     const TYPE: u16;
 }
-
-macro_rules! subtable_type {
-    ($ty:ty, $val:expr) => {
-        impl LookupType for $ty {
-            const TYPE: u16 = $val;
-        }
-    };
-}
-
-subtable_type!(gpos::SinglePos, 1);
-subtable_type!(gpos::PairPos, 2);
-subtable_type!(gpos::CursivePosFormat1, 3);
-subtable_type!(gpos::MarkBasePosFormat1, 4);
-subtable_type!(gpos::MarkLigPosFormat1, 5);
-subtable_type!(gpos::MarkMarkPosFormat1, 6);
-subtable_type!(SequenceContext, 7);
-subtable_type!(ChainedSequenceContext, 8);
-subtable_type!(gpos::Extension, 9);
 
 #[derive(Debug, Clone)]
 pub enum FeatureParams {

@@ -19,6 +19,18 @@ mod tests;
 /// A GPOS lookup list table.
 type PositionLookupList = LookupList<PositionLookup>;
 
+table_newtype!(
+    PositionSequenceContext,
+    SequenceContext,
+    read_fonts::layout::SequenceContext<'a>
+);
+
+table_newtype!(
+    PositionChainContext,
+    ChainedSequenceContext,
+    read_fonts::layout::ChainedSequenceContext<'a>
+);
+
 impl Gpos {
     fn compute_version(&self) -> MajorMinor {
         if self.feature_variations_offset.get().is_none() {
@@ -29,6 +41,16 @@ impl Gpos {
     }
 }
 
+lookup_type!(SinglePos, 1);
+lookup_type!(PairPos, 2);
+lookup_type!(CursivePosFormat1, 3);
+lookup_type!(MarkBasePosFormat1, 4);
+lookup_type!(MarkLigPosFormat1, 5);
+lookup_type!(MarkMarkPosFormat1, 6);
+lookup_type!(PositionSequenceContext, 7);
+lookup_type!(PositionChainContext, 8);
+lookup_type!(Extension, 9);
+
 /// A GPOS lookup
 #[derive(Debug, Clone)]
 pub enum PositionLookup {
@@ -38,8 +60,8 @@ pub enum PositionLookup {
     MarkToBase(Lookup<MarkBasePosFormat1>),
     MarkToLig(Lookup<MarkLigPosFormat1>),
     MarkToMark(Lookup<MarkMarkPosFormat1>),
-    Contextual(Lookup<SequenceContext>),
-    ChainContextual(Lookup<ChainedSequenceContext>),
+    Contextual(Lookup<PositionSequenceContext>),
+    ChainContextual(Lookup<PositionChainContext>),
     Extension(Lookup<Extension>),
 }
 
@@ -52,8 +74,8 @@ pub enum Extension {
     MarkToBase(ExtensionPosFormat1<MarkBasePosFormat1>),
     MarkToLig(ExtensionPosFormat1<MarkLigPosFormat1>),
     MarkToMark(ExtensionPosFormat1<MarkMarkPosFormat1>),
-    Contextual(ExtensionPosFormat1<SequenceContext>),
-    ChainContextual(ExtensionPosFormat1<ChainedSequenceContext>),
+    Contextual(ExtensionPosFormat1<PositionSequenceContext>),
+    ChainContextual(ExtensionPosFormat1<PositionChainContext>),
 }
 
 impl<T: LookupType + FontWrite> FontWrite for ExtensionPosFormat1<T> {
