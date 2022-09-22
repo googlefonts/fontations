@@ -167,7 +167,7 @@ pub(crate) struct FieldAttrs {
     pub(crate) version: Option<syn::Path>,
     pub(crate) format: Option<Attr<syn::LitInt>>,
     pub(crate) count: Option<Attr<Count>>,
-    pub(crate) compile: Option<Attr<InlineExpr>>,
+    pub(crate) compile: Option<Attr<CustomCompile>>,
     pub(crate) compile_type: Option<Attr<syn::Path>>,
     pub(crate) len: Option<Attr<InlineExpr>>,
     pub(crate) read_with_args: Option<Attr<FieldReadArgs>>,
@@ -215,6 +215,15 @@ pub(crate) enum Count {
     Field(syn::Ident),
     Expr(InlineExpr),
     All,
+}
+
+/// Attributes for specifying how to compile a field
+#[derive(Debug, Clone)]
+pub(crate) enum CustomCompile {
+    /// this field is ignored
+    Skip,
+    /// an inline is provided for calculating this field's value
+    Expr(InlineExpr),
 }
 
 /// an inline expression used in an attribute
@@ -319,6 +328,7 @@ mod kw {
     syn::custom_keyword!(flags);
     syn::custom_keyword!(format);
     syn::custom_keyword!(group);
+    syn::custom_keyword!(skip);
 }
 
 impl Parse for Items {
@@ -845,6 +855,18 @@ impl Parse for Count {
         } else {
             input.parse().map(Self::Expr)
         }
+    }
+}
+
+impl Parse for CustomCompile {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let fork = input.fork();
+        if fork.parse::<kw::skip>().is_ok() && fork.is_empty() {
+            input.parse::<kw::skip>()?;
+            return Ok(Self::Skip);
+        }
+
+        input.parse().map(Self::Expr)
     }
 }
 

@@ -3,9 +3,10 @@
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
-use crate::parsing::{Count, NeededWhen, ReferencedFields};
-
-use super::parsing::{Field, FieldReadArgs, FieldType, Fields, Record};
+use super::parsing::{
+    Count, CustomCompile, Field, FieldReadArgs, FieldType, Fields, NeededWhen, Record,
+    ReferencedFields,
+};
 
 impl Fields {
     pub(crate) fn new(mut fields: Vec<Field>) -> syn::Result<Self> {
@@ -782,13 +783,18 @@ impl Field {
             quote!( (#format as #typ) )
         } else if let Some(computed) = &self.attrs.compile {
             let typ = self.typ.cooked_type_tokens();
-            let expr = computed.compile_expr();
-            if !computed.referenced_fields.is_empty() {
-                quote!( (#expr.unwrap() as #typ) )
-            } else {
-                quote!( (#expr as #typ) )
+            match &computed.attr {
+                CustomCompile::Expr(inline_expr) => {
+                    let expr = inline_expr.compile_expr();
+                    if !inline_expr.referenced_fields.is_empty() {
+                        quote!( (#expr.unwrap() as #typ) )
+                    } else {
+                        quote!( (#expr as #typ) )
+                    }
+                }
+                // noop
+                CustomCompile::Skip => return Default::default(),
             }
-            // not computed
         } else {
             let name = &self.name;
             quote!( self.#name )
