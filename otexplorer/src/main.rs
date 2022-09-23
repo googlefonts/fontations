@@ -89,6 +89,7 @@ fn get_some_table<'a>(
 ) -> Result<Box<dyn SomeTable<'a> + 'a>, ReadError> {
     match tag {
         read_fonts::tables::gpos::TAG => font.gpos().map(|x| Box::new(x) as _),
+        read_fonts::tables::gsub::TAG => font.gsub().map(|x| Box::new(x) as _),
         read_fonts::tables::cmap::TAG => font.cmap().map(|x| Box::new(x) as _),
         read_fonts::tables::gdef::TAG => font.gdef().map(|x| Box::new(x) as _),
         read_fonts::tables::glyf::TAG => font.glyf().map(|x| Box::new(x) as _),

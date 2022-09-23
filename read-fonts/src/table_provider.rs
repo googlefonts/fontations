@@ -80,4 +80,9 @@ pub trait TableProvider<'a> {
         self.expect_data_for_tag(tables::gpos::TAG)
             .and_then(FontRead::read)
     }
+
+    fn gsub(&self) -> Result<tables::gsub::Gsub<'a>, ReadError> {
+        self.expect_data_for_tag(tables::gsub::TAG)
+            .and_then(FontRead::read)
+    }
 }
