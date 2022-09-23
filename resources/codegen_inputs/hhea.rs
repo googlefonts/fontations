@@ -3,6 +3,7 @@
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
 table Hhea {
     /// The major/minor version (1, 0)
+    #[compile(MajorMinor::VERSION_1_0)]
     version: BigEndian<MajorMinor>,
     /// Typographic ascent—see note below.
     ascender: BigEndian<FWord>,
@@ -48,6 +49,7 @@ table Hhea {
     #[compile(0)]
     reserved4: BigEndian<i16>,
     /// 0 for current format.
+    #[compile(0)]
     metric_data_format: BigEndian<i16>,
     /// Number of hMetric entries in 'hmtx' table
     number_of_h_metrics: BigEndian<u16>,
