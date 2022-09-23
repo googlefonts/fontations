@@ -4,6 +4,7 @@
 table Maxp {
     /// The version: 0x00005000 for version 0.5, 0x00010000 for version 1.0.
     #[version]
+    #[compile(self.compute_version())]
     version: BigEndian<Version16Dot16>,
     /// The number of glyphs in the font.
     num_glyphs: BigEndian<u16>,
