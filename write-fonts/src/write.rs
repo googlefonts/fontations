@@ -224,6 +224,8 @@ write_be_bytes!(i64);
 write_be_bytes!(font_types::Uint24);
 write_be_bytes!(font_types::F2Dot14);
 write_be_bytes!(font_types::Fixed);
+write_be_bytes!(font_types::FWord);
+write_be_bytes!(font_types::UfWord);
 write_be_bytes!(font_types::LongDateTime);
 write_be_bytes!(font_types::Tag);
 write_be_bytes!(font_types::Version16Dot16);
