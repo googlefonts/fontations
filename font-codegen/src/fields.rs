@@ -48,9 +48,13 @@ impl Fields {
 
     // we use this to add disable a clippy lint if needed
     pub(crate) fn compile_write_contains_int_casts(&self) -> bool {
-        self.fields
-            .iter()
-            .any(Field::compile_write_contains_int_cast)
+        self.iter().any(Field::compile_write_contains_int_cast)
+    }
+
+    /// If this table has a version field, return it.
+    pub(crate) fn version_field(&self) -> Option<&Field> {
+        self.iter()
+            .find_map(|fld| fld.attrs.version.is_some().then_some(fld))
     }
 
     // used for validating lengths. handles both fields and 'virtual fields',
@@ -81,6 +85,19 @@ impl Fields {
             let recursive_stmt = field
                 .gets_recursive_validation()
                 .then(|| quote!( self.#name.validate_impl(ctx); ));
+            let required_by_version = field
+                .attrs
+                .available
+                .as_ref()
+                .filter(|_| field.attrs.nullable.is_none())
+                .map(|attr| {
+                    let available = &attr.attr;
+                    quote! {
+                        if version.compatible(#available) && self.#name.is_none() {
+                            ctx.report(format!("field must be present for version {version}"));
+                        }
+                    }
+                });
 
             let array_len_check =
                 if let Some(Count::Field(count_name)) = field.attrs.count.as_deref() {
@@ -94,9 +111,13 @@ impl Fields {
                     None
                 };
 
-            if recursive_stmt.is_some() || array_len_check.is_some() {
+            if recursive_stmt.is_some()
+                || array_len_check.is_some()
+                || required_by_version.is_some()
+            {
                 stmts.push(quote! {
                     ctx.in_field(#name_str, |ctx| {
+                        #required_by_version
                         #array_len_check
                         #recursive_stmt
                     });
@@ -440,7 +461,8 @@ impl Field {
         if let Some(typ) = &self.attrs.compile_type {
             return typ.into_token_stream();
         }
-        self.typ.compile_type(self.is_nullable())
+        self.typ
+            .compile_type(self.is_nullable(), self.is_version_dependent())
     }
 
     pub(crate) fn table_getter(&self, generic: Option<&syn::Ident>) -> Option<TokenStream> {
@@ -815,7 +837,10 @@ impl Field {
             };
 
             if let Some(avail) = self.attrs.available.as_ref() {
-                quote!(version.compatible(#avail).then(|| #value_expr.write_into(writer)))
+                let expect = self.attrs.nullable.is_none().then(
+                    || quote!(.expect("missing versioned field should have failed validation")),
+                );
+                quote!(version.compatible(#avail).then(|| #value_expr #expect .write_into(writer)))
             } else {
                 quote!(#value_expr.write_into(writer))
             }
@@ -826,7 +851,7 @@ impl Field {
         self.attrs.format.is_some() || self.attrs.compile.is_some()
     }
 
-    pub(crate) fn gets_recursive_validation(&self) -> bool {
+    fn gets_recursive_validation(&self) -> bool {
         match &self.typ {
             FieldType::Scalar { .. } | FieldType::Other { .. } => false,
             FieldType::Offset { target: None, .. } => false,
@@ -908,8 +933,8 @@ impl FieldType {
         }
     }
 
-    fn compile_type(&self, nullable: bool) -> TokenStream {
-        match self {
+    fn compile_type(&self, nullable: bool, version_dependent: bool) -> TokenStream {
+        let raw_type = match self {
             FieldType::Scalar { typ } => typ.into_token_stream(),
             FieldType::Other { typ } => typ.into_token_stream(),
             FieldType::Offset { typ, target } => {
@@ -919,7 +944,9 @@ impl FieldType {
                     .unwrap_or_else(|| quote!(Box<dyn FontWrite>));
                 let width = width_for_offset(typ);
                 if nullable {
-                    quote!(NullableOffsetMarker<#target, #width>)
+                    // we don't bother wrapping this in an Option if versioned,
+                    // since it already acts like an Option
+                    return quote!(NullableOffsetMarker<#target, #width>);
                 } else {
                     quote!(OffsetMarker<#target, #width>)
                 }
@@ -929,10 +956,15 @@ impl FieldType {
                     panic!("nesting arrays is not supported");
                 }
 
-                let inner_tokens = inner_typ.compile_type(nullable);
+                let inner_tokens = inner_typ.compile_type(nullable, false);
                 quote!( Vec<#inner_tokens> )
             }
             FieldType::ComputedArray(array) => array.compile_type(),
+        };
+        if version_dependent {
+            quote!( Option<#raw_type> )
+        } else {
+            raw_type
         }
     }
 }

@@ -3,7 +3,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use super::parsing::{Field, Fields, Record, TableAttrs};
+use super::parsing::{CustomCompile, Field, Fields, Record, TableAttrs};
 
 pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
     if item.attrs.skip_parse.is_some() {
@@ -152,6 +152,29 @@ pub(crate) fn generate_compile_impl(
     let maybe_allow_casts = fields
         .compile_write_contains_int_casts()
         .then(|| quote!(#[allow(clippy::unnecessary_cast)]));
+
+    // if we have fields that should be present for a specific version, declare
+    // a 'version' binding at the top of our validation block
+    let needs_version_decl = fields
+        .iter()
+        .any(|fld| fld.attrs.available.is_some() && fld.attrs.nullable.is_none());
+
+    let version_decl = fields
+        .version_field()
+        .filter(|_| needs_version_decl)
+        .map(|fld| {
+            let name = &fld.name;
+            match fld.attrs.compile.as_ref().map(|attr| &attr.attr) {
+                Some(CustomCompile::Expr(inline_expr)) => {
+                    let typ = fld.typ.cooked_type_tokens();
+                    let expr = inline_expr.compile_expr();
+                    quote! { let version: #typ = #expr; }
+                }
+                Some(_) => panic!("version fields are never skipped"),
+                None => quote! { let version = self.#name; },
+            }
+        });
+
     let write_stmts = fields.iter_compile_write_stmts();
     let write_impl_params = generic_param.map(|t| quote! { <#t: FontWrite> });
     let validate_impl_params = generic_param.map(|t| quote! { <#t: Validate> });
@@ -172,6 +195,7 @@ pub(crate) fn generate_compile_impl(
             fn validate_impl(&self, ctx: &mut ValidationCtx) {
                 ctx.in_table(#name_string, |ctx| {
                     #custom_validation
+                    #version_decl
                     #( #validation_stmts)*
                 })
             }
