@@ -1,6 +1,6 @@
 //! The various font tables
 
-pub use super::layout::{gdef, gpos};
+pub use super::layout::{gdef, gpos, gsub};
 pub mod cmap;
 pub mod glyf;
 pub mod head;
