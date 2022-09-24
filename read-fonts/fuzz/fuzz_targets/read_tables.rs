@@ -15,6 +15,8 @@ fuzz_target!(|data: &[u8]| {
         let _ = font.hhea();
         let _ = font.hmtx();
         let _ = font.loca(None);
+        let _ = font.loca(false);
+        let _ = font.loca(true);
         let _ = font.maxp();
         let _ = font.name();
         let _ = font.post();
