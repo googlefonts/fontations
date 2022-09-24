@@ -1,0 +1,25 @@
+[package]
+name = "read-fonts-fuzz"
+version = "0.0.0"
+authors = ["Automatically generated"]
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+
+[dependencies.read-fonts]
+path = ".."
+
+# Prevent this from interfering with workspaces
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "read_tables"
+path = "fuzz_targets/read_tables.rs"
+test = false
+doc = false
