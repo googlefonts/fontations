@@ -619,7 +619,7 @@ record FeatureTableSubstitutionRecord {
     feature_index: BigEndian<u16>,
     /// Offset to an alternate feature table, from start of the
     /// FeatureTableSubstitution table.
-    #[skip_offset_getter] // custom impl, we need to pass a fake tag
+    #[offset_getter(alternate_feature)] // custom impl, we need to pass a fake tag
     alternate_feature_offset: BigEndian<Offset32<Feature>>,
 }
 

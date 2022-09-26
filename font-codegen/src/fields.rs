@@ -546,7 +546,7 @@ impl Field {
         record: Option<&Record>,
     ) -> Option<TokenStream> {
         let (_, target) = match &self.typ {
-            _ if self.attrs.skip_offset_getter.is_some() => return None,
+            _ if self.attrs.offset_getter.is_some() => return None,
             FieldType::Offset {
                 typ,
                 target: Some(target),
@@ -635,6 +635,10 @@ impl Field {
         if !self.is_offset_or_array_of_offsets() {
             return None;
         }
+        if let Some(getter) = &self.attrs.offset_getter {
+            return Some(getter.attr.clone());
+        }
+
         let name_string = self.name.to_string();
         let offset_name = name_string
             .trim_end_matches("_offsets")

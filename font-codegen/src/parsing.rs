@@ -159,8 +159,8 @@ pub(crate) struct FieldAttrs {
     pub(crate) nullable: Option<syn::Path>,
     pub(crate) available: Option<Attr<syn::Expr>>,
     pub(crate) skip_getter: Option<syn::Path>,
-    /// if present, we will not try to resolve this offset
-    pub(crate) skip_offset_getter: Option<syn::Path>,
+    /// specify that an offset getter has a custom impl
+    pub(crate) offset_getter: Option<Attr<syn::Ident>>,
     pub(crate) version: Option<syn::Path>,
     pub(crate) format: Option<Attr<syn::LitInt>>,
     pub(crate) count: Option<Attr<Count>>,
@@ -702,7 +702,7 @@ static COUNT: &str = "count";
 static AVAILABLE: &str = "available";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
-static SKIP_OFFSET_GETTER: &str = "skip_offset_getter";
+static OFFSET_GETTER: &str = "offset_getter";
 static COMPILE: &str = "compile";
 static COMPILE_TYPE: &str = "compile_type";
 static READ_WITH: &str = "read_with";
@@ -726,8 +726,8 @@ impl Parse for FieldAttrs {
                 this.nullable = Some(attr.path);
             } else if ident == SKIP_GETTER {
                 this.skip_getter = Some(attr.path);
-            } else if ident == SKIP_OFFSET_GETTER {
-                this.skip_offset_getter = Some(attr.path);
+            } else if ident == OFFSET_GETTER {
+                this.offset_getter = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == VERSION {
                 this.version = Some(attr.path);
             } else if ident == COUNT {
