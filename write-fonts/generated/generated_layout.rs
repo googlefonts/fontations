@@ -782,7 +782,9 @@ impl FontWrite for ClassRangeRecord {
 impl Validate for ClassRangeRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ClassRangeRecord", |ctx| {
-            self.validate_glyph_range(ctx);
+            ctx.in_field("start_glyph_id", |ctx| {
+                self.validate_glyph_range(ctx);
+            });
         })
     }
 }
