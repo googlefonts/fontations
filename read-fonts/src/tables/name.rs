@@ -1,5 +1,7 @@
 //! The [name (Naming)](https://docs.microsoft.com/en-us/typography/opentype/spec/name) table
 
+use crate::FontData;
+
 /// 'name'
 pub const TAG: Tag = Tag::new(b"name");
 
@@ -20,17 +22,33 @@ impl<'a> Name<'a> {
     }
 }
 
+impl NameRecord {
+    /// Return a type that can decode the string data for this name entry.
+    pub fn string<'a>(&self, data: FontData<'a>) -> Result<NameString<'a>, ReadError> {
+        let start = self.string_offset().non_null().unwrap_or(0);
+        let end = start + self.length() as usize;
+
+        let data = data
+            .as_bytes()
+            .get(start..end)
+            .ok_or(ReadError::OutOfBounds)?;
+
+        let encoding = encoding(self.platform_id(), self.encoding_id());
+        Ok(NameString { data, encoding })
+    }
+}
+
 //-- all this is from pinot https://github.com/dfrg/pinot/blob/eff5239018ca50290fb890a84da3dd51505da364/src/name.rs
 /// Entry for a name in the naming table.
 ///
 /// This provides an iterator over characters.
 #[derive(Copy, Clone)]
-pub struct Entry<'a> {
+pub struct NameString<'a> {
     data: &'a [u8],
     encoding: Encoding,
 }
 
-impl<'a> Entry<'a> {
+impl<'a> NameString<'a> {
     /// An iterator over the `char`s in this name.
     pub fn chars(&self) -> CharIter<'a> {
         CharIter {
@@ -49,7 +67,7 @@ impl<'a> IntoIterator for Entry<'a> {
     }
 }
 
-impl<'a> std::fmt::Display for Entry<'a> {
+impl<'a> std::fmt::Display for NameString<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         for c in self.chars() {
             c.fmt(f)?;
