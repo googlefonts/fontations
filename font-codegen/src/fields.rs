@@ -179,6 +179,10 @@ fn traversal_arm_for_field(
     let name_str = &fld.name.to_string();
     let name = &fld.name;
     let maybe_unwrap = fld.attrs.available.is_some().then(|| quote!(.unwrap()));
+    if let Some(traverse_with) = &fld.attrs.traverse_with {
+        let traverse_fn = &traverse_with.attr;
+        return quote!(Field::new(#name_str, self.#traverse_fn(#pass_data)));
+    }
     match &fld.typ {
         FieldType::Offset {
             target: Some(_), ..
@@ -198,12 +202,13 @@ fn traversal_arm_for_field(
                 quote!(Field::new( #name_str, self.#name()#maybe_unwrap))
             }
             FieldType::Other { typ } if !in_record => {
+                let offset_data = fld.offset_getter_data_src();
                 quote!(Field::new(
                         #name_str,
                         traversal::FieldType::array_of_records(
                             stringify!(#typ),
                             self.#name()#maybe_unwrap,
-                            self.offset_data(),
+                            #offset_data,
                         )
                 ))
             }
@@ -245,7 +250,7 @@ fn traversal_arm_for_field(
             // Class1Record
             let data = in_record
                 .then(|| quote!(FontData::new(&[])))
-                .unwrap_or_else(|| quote!(self.offset_data()));
+                .unwrap_or_else(|| fld.offset_getter_data_src());
             // in a record we return things by value, so clone
             let maybe_clone = in_record.then(|| quote!(.clone()));
             let typ_str = arr.raw_inner_type().to_string();
@@ -644,6 +649,20 @@ impl Field {
             .trim_end_matches("_offsets")
             .trim_end_matches("_offset");
         Some(syn::Ident::new(offset_name, self.name.span()))
+    }
+
+    /// if the #[offset_data] attribute is specified, returns its value,
+    /// else returns self.offset_data().
+    ///
+    /// This does not make sense in records.
+    fn offset_getter_data_src(&self) -> TokenStream {
+        match self.attrs.offset_data.as_ref() {
+            Some(attr) => {
+                let expr = &attr.expr;
+                quote!(#expr)
+            }
+            None => quote!(self.offset_data()),
+        }
     }
 
     /// the code generated for this field to validate data at parse time.

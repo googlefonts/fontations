@@ -39,6 +39,8 @@ pub enum FieldType<'a> {
     GlyphId(GlyphId),
     BareOffset(OffsetType),
     ResolvedOffset(ResolvedOffset<'a>),
+    /// Used in tables like name/post so we can actually print the strings
+    StringOffset(StringOffset<'a>),
     Record(RecordResolver<'a>),
     ValueRecord(ValueRecord),
     Array(Box<dyn SomeArray<'a> + 'a>),
@@ -64,6 +66,14 @@ impl OffsetType {
 pub struct ResolvedOffset<'a> {
     pub offset: OffsetType,
     pub target: Result<Box<dyn SomeTable<'a> + 'a>, ReadError>,
+}
+
+/// An offset to string data.
+///
+/// This is a special case for the name table (and maybe elsewhere?)
+pub struct StringOffset<'a> {
+    pub offset: OffsetType,
+    pub target: Result<Box<dyn SomeString<'a> + 'a>, ReadError>,
 }
 
 pub struct ArrayOfOffsets<'a, O> {
@@ -273,6 +283,16 @@ impl<'a> SomeArray<'a> for Box<dyn SomeArray<'a> + 'a> {
     }
 }
 
+pub trait SomeString<'a> {
+    fn iter_chars(&self) -> Box<dyn Iterator<Item = char> + 'a>;
+}
+
+impl<'a> SomeString<'a> for Box<dyn SomeString<'a> + 'a> {
+    fn iter_chars(&self) -> Box<dyn Iterator<Item = char> + 'a> {
+        self.deref().iter_chars()
+    }
+}
+
 // only used as Box<dyn SomeArray<'a>>
 struct ComputedArrayOfRecords<'a, T: ReadArgs> {
     pub(crate) type_name: &'static str,
@@ -392,6 +412,10 @@ impl<'a> Debug for FieldType<'a> {
                 write!(f, "g")?;
                 arg0.to_u16().fmt(f)
             }
+            Self::StringOffset(string) => match &string.target {
+                Ok(arg0) => arg0.as_ref().fmt(f),
+                Err(_) => string.target.fmt(f),
+            },
             Self::BareOffset(arg0) => write!(f, "0x{:04X}", arg0.to_u32()),
             Self::ResolvedOffset(ResolvedOffset {
                 target: Ok(arg0), ..
@@ -418,6 +442,16 @@ impl<'a, 'b> std::fmt::Debug for DebugPrintTable<'a, 'b> {
 impl<'a> Debug for dyn SomeTable<'a> + 'a {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         DebugPrintTable(self).fmt(f)
+    }
+}
+
+impl<'a> Debug for dyn SomeString<'a> + 'a {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "\"")?;
+        for c in self.iter_chars() {
+            write!(f, "{c}")?
+        }
+        write!(f, "\"")
     }
 }
 

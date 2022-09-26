@@ -26,7 +26,7 @@ impl NameMarker {
     }
     fn storage_offset_byte_range(&self) -> Range<usize> {
         let start = self.count_byte_range().end;
-        start..start + Offset16::RAW_BYTE_LEN
+        start..start + u16::RAW_BYTE_LEN
     }
     fn name_record_byte_range(&self) -> Range<usize> {
         let start = self.storage_offset_byte_range().end;
@@ -48,7 +48,7 @@ impl TableInfo for NameMarker {
         let mut cursor = data.cursor();
         let version: u16 = cursor.read()?;
         let count: u16 = cursor.read()?;
-        cursor.advance::<Offset16>();
+        cursor.advance::<u16>();
         let name_record_byte_len = count as usize * NameRecord::RAW_BYTE_LEN;
         cursor.advance_by(name_record_byte_len);
         let lang_tag_count_byte_start = version
@@ -96,7 +96,7 @@ impl<'a> Name<'a> {
     }
 
     /// Offset to start of string storage (from start of table).
-    pub fn storage_offset(&self) -> Offset16 {
+    pub fn storage_offset(&self) -> u16 {
         let range = self.shape.storage_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -130,16 +130,13 @@ impl<'a> SomeTable<'a> for Name<'a> {
         match idx {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new("count", self.count())),
-            2usize => Some(Field::new(
-                "storage_offset",
-                FieldType::unknown_offset(self.storage_offset()),
-            )),
+            2usize => Some(Field::new("storage_offset", self.storage_offset())),
             3usize => Some(Field::new(
                 "name_record",
                 traversal::FieldType::array_of_records(
                     stringify!(NameRecord),
                     self.name_record(),
-                    self.offset_data(),
+                    self.string_data(),
                 ),
             )),
             4usize if version.compatible(1) => {
@@ -283,10 +280,7 @@ impl<'a> SomeRecord<'a> for NameRecord {
                 2usize => Some(Field::new("language_id", self.language_id())),
                 3usize => Some(Field::new("name_id", self.name_id())),
                 4usize => Some(Field::new("length", self.length())),
-                5usize => Some(Field::new(
-                    "string_offset",
-                    FieldType::unknown_offset(self.string_offset()),
-                )),
+                5usize => Some(Field::new("string_offset", self.traverse_string(_data))),
                 _ => None,
             }),
             data,

@@ -7,9 +7,10 @@ table Name {
     /// Number of name records.
     count: BigEndian<u16>,
     /// Offset to start of string storage (from start of table).
-    storage_offset: BigEndian<Offset16>,
+    storage_offset: BigEndian<u16>,
     /// The name records where count is the number of records.
     #[count($count)]
+    #[offset_data(self.string_data())]
     name_record: [NameRecord],
     /// Number of language-tag records.
     #[available(1)]
@@ -42,6 +43,7 @@ record NameRecord {
     /// String length (in bytes).
     length: BigEndian<u16>,
     /// String offset from start of storage area (in bytes).
+    #[traverse_with(traverse_string)]
     #[offset_getter(string)]
     string_offset: BigEndian<Offset16<NameString>>,
 }
