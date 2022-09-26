@@ -178,6 +178,7 @@ fn field_type_name(field_type: &FieldType) -> Cow<'static, str> {
             target: Ok(table), ..
         }) => table.type_name().to_string().into(),
         FieldType::ResolvedOffset(_) | FieldType::BareOffset(_) => "Offset".into(),
+        FieldType::StringOffset(_) => "String".into(),
     }
 }
 

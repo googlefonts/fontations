@@ -3,7 +3,9 @@
 use std::io::Write;
 
 use ansi_term::{Color, Style};
-use read_fonts::traversal::{FieldType, OffsetType, ResolvedOffset, SomeArray, SomeTable};
+use read_fonts::traversal::{
+    FieldType, OffsetType, ResolvedOffset, SomeArray, SomeString, SomeTable, StringOffset,
+};
 
 static MANY_SPACES: [u8; 200] = [0x20; 200];
 // width of the left column, which contains the textual representation.
@@ -191,6 +193,16 @@ impl<'a> PrettyPrinter<'a> {
                     Err(e) => write!(self, "Error: '{e}'"),
                 }?;
             }
+            FieldType::StringOffset(StringOffset { offset, target }) => match target {
+                Ok(string) => {
+                    self.print_with_style(Color::Blue.into(), |this| write!(this, "{offset}"))?;
+                    self.print_current_array_pos()?;
+                    self.print_offset_hex(*offset)?;
+                    self.print_newline()?;
+                    self.indented(|this| this.print_string(string))?;
+                }
+                Err(e) => write!(self, "Error: '{e}'")?,
+            },
             FieldType::BareOffset(offset) => {
                 if self.line_pos == 0 {
                     self.print_indent()?;
@@ -236,6 +248,45 @@ impl<'a> PrettyPrinter<'a> {
             _ => (),
         }
         Ok(())
+    }
+
+    // handles very naive linebreaking
+    fn print_string(&mut self, string: &dyn SomeString) -> std::io::Result<()> {
+        let mut iter = string.iter_chars();
+        let mut buf = Vec::new();
+
+        fn fill_next_word(buf: &mut Vec<u8>, iter: &mut impl Iterator<Item = char>) -> usize {
+            buf.clear();
+            let mut n_chars = 0;
+            for next in iter {
+                write!(buf, "{next}").unwrap();
+                n_chars += 1;
+                if next == ' ' {
+                    break;
+                }
+            }
+            n_chars
+        }
+
+        self.print_indent()?;
+
+        loop {
+            match fill_next_word(&mut buf, &mut iter) {
+                0 => {
+                    self.print_hex(&[])?;
+                    return Ok(());
+                }
+                len if self.line_pos + len < L_COLUMN_WIDTH => {
+                    self.print_with_style(Style::default().italic(), |this| this.write_all(&buf))?;
+                }
+                _ => {
+                    self.print_hex(&[])?;
+                    self.print_newline()?;
+                    self.print_indent()?;
+                    self.print_with_style(Style::default().italic(), |this| this.write_all(&buf))?;
+                }
+            }
+        }
     }
 
     fn print_offset_hex(&mut self, offset: OffsetType) -> std::io::Result<()> {

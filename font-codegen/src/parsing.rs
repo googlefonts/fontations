@@ -161,6 +161,8 @@ pub(crate) struct FieldAttrs {
     pub(crate) skip_getter: Option<syn::Path>,
     /// specify that an offset getter has a custom impl
     pub(crate) offset_getter: Option<Attr<syn::Ident>>,
+    /// optionally provide custom offset data (default is start of parent table)
+    pub(crate) offset_data: Option<Attr<InlineExpr>>,
     pub(crate) version: Option<syn::Path>,
     pub(crate) format: Option<Attr<syn::LitInt>>,
     pub(crate) count: Option<Attr<Count>>,
@@ -168,6 +170,9 @@ pub(crate) struct FieldAttrs {
     pub(crate) compile_type: Option<Attr<syn::Path>>,
     pub(crate) read_with_args: Option<Attr<FieldReadArgs>>,
     pub(crate) read_offset_args: Option<Attr<FieldReadArgs>>,
+    /// If present, a custom method that returns a FieldType for this field,
+    /// during traversal.
+    pub(crate) traverse_with: Option<Attr<syn::Ident>>,
     pub(crate) to_owned: Option<Attr<InlineExpr>>,
     /// Custom validation behaviour
     pub(crate) validation: Option<Attr<FieldValidation>>,
@@ -703,10 +708,12 @@ static AVAILABLE: &str = "available";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
 static OFFSET_GETTER: &str = "offset_getter";
+static OFFSET_DATA: &str = "offset_data";
 static COMPILE: &str = "compile";
 static COMPILE_TYPE: &str = "compile_type";
 static READ_WITH: &str = "read_with";
 static READ_OFFSET_WITH: &str = "read_offset_with";
+static TRAVERSE_WITH: &str = "traverse_with";
 static TO_OWNED: &str = "to_owned";
 static VALIDATE: &str = "validate";
 
@@ -728,6 +735,8 @@ impl Parse for FieldAttrs {
                 this.skip_getter = Some(attr.path);
             } else if ident == OFFSET_GETTER {
                 this.offset_getter = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == OFFSET_DATA {
+                this.offset_data = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == VERSION {
                 this.version = Some(attr.path);
             } else if ident == COUNT {
@@ -749,6 +758,8 @@ impl Parse for FieldAttrs {
                 this.read_with_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_OFFSET_WITH {
                 this.read_offset_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == TRAVERSE_WITH {
+                this.traverse_with = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == FORMAT {
                 this.format = Some(Attr::new(ident.clone(), parse_attr_eq_value(attr.tokens)?))
             } else {

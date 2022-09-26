@@ -8,17 +8,11 @@ pub const TAG: Tag = Tag::new(b"name");
 include!("../../generated/generated_name.rs");
 
 impl<'a> Name<'a> {
-    pub fn resolve(&self, name: &NameRecord) -> Option<Entry<'a>> {
-        let data_start = self.storage_offset();
-        let len = name.length() as usize;
-        let offset = name.string_offset();
-        //dbg!(data_start, offset);
-        let offset = data_start
-            .non_null()
-            .map(|off| off + offset.non_null().unwrap_or(0))?;
-        let data = self.offset_data().as_bytes().get(offset..offset + len)?;
-        let encoding = encoding(name.platform_id(), name.encoding_id());
-        Some(Entry { data, encoding })
+    /// The FontData containing the encoded name strings.
+    pub(crate) fn string_data(&self) -> FontData<'a> {
+        let base = self.offset_data();
+        let off = self.storage_offset();
+        base.split_off(off as usize).unwrap_or_default()
     }
 }
 
@@ -59,7 +53,24 @@ impl<'a> NameString<'a> {
     }
 }
 
-impl<'a> IntoIterator for Entry<'a> {
+#[cfg(feature = "traversal")]
+impl<'a> traversal::SomeString<'a> for NameString<'a> {
+    fn iter_chars(&self) -> Box<dyn Iterator<Item = char> + 'a> {
+        Box::new(self.into_iter())
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl NameRecord {
+    fn traverse_string<'a>(&self, data: FontData<'a>) -> traversal::FieldType<'a> {
+        FieldType::StringOffset(traversal::StringOffset {
+            offset: self.string_offset().into(),
+            target: self.string(data).map(|s| Box::new(s) as _),
+        })
+    }
+}
+
+impl<'a> IntoIterator for NameString<'a> {
     type Item = char;
     type IntoIter = CharIter<'a>;
     fn into_iter(self) -> Self::IntoIter {
