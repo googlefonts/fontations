@@ -200,9 +200,9 @@ table ClassDefFormat2 {
 }
 
 /// Used in [ClassDefFormat2]
-#[validation_method(validate_glyph_range)]
 record ClassRangeRecord {
     /// First glyph ID in the range
+    #[validate(validate_glyph_range)]
     start_glyph_id: BigEndian<GlyphId>,
     /// Last glyph ID in the range
     end_glyph_id: BigEndian<GlyphId>,

@@ -172,13 +172,8 @@ pub(crate) fn generate_compile_impl(
     let validate_impl_params = generic_param.map(|t| quote! { <#t: Validate> });
 
     let name_string = name.to_string();
-    let custom_validation = attrs.validation_method.as_ref().map(|path| {
-        quote! (
-                self.#path(ctx);
-        )
-    });
     let validation_stmts = fields.compilation_validation_stmts();
-    let validation_fn = if custom_validation.is_none() && validation_stmts.is_empty() {
+    let validation_fn = if validation_stmts.is_empty() {
         quote!(
             fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
         )
@@ -186,7 +181,6 @@ pub(crate) fn generate_compile_impl(
         quote! {
             fn validate_impl(&self, ctx: &mut ValidationCtx) {
                 ctx.in_table(#name_string, |ctx| {
-                    #custom_validation
                     #version_decl
                     #( #validation_stmts)*
                 })

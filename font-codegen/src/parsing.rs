@@ -45,7 +45,6 @@ pub(crate) struct TableAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) skip_font_write: Option<syn::Path>,
     pub(crate) skip_from_obj: Option<syn::Path>,
-    pub(crate) validation_method: Option<Attr<syn::Path>>,
     pub(crate) read_args: Option<Attr<TableReadArgs>>,
     pub(crate) phantom: Option<Attr<syn::Ident>>,
 }
@@ -170,6 +169,8 @@ pub(crate) struct FieldAttrs {
     pub(crate) read_with_args: Option<Attr<FieldReadArgs>>,
     pub(crate) read_offset_args: Option<Attr<FieldReadArgs>>,
     pub(crate) to_owned: Option<Attr<InlineExpr>>,
+    /// Custom validation behaviour
+    pub(crate) validation: Option<Attr<FieldValidation>>,
 }
 
 #[derive(Debug, Clone)]
@@ -221,6 +222,17 @@ pub(crate) enum CustomCompile {
     Skip,
     /// an inline is provided for calculating this field's value
     Expr(InlineExpr),
+}
+
+/// Attributes for specifying how to validate a field
+#[derive(Debug, Clone)]
+pub(crate) enum FieldValidation {
+    /// this field is not validated
+    Skip,
+    /// the field is validated with a custom method.
+    ///
+    /// This must be a method with a &self param and a &mut ValidationCtx param.
+    Custom(syn::Ident),
 }
 
 /// an inline expression used in an attribute
@@ -696,6 +708,7 @@ static COMPILE_TYPE: &str = "compile_type";
 static READ_WITH: &str = "read_with";
 static READ_OFFSET_WITH: &str = "read_offset_with";
 static TO_OWNED: &str = "to_owned";
+static VALIDATE: &str = "validate";
 
 impl Parse for FieldAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -723,6 +736,8 @@ impl Parse for FieldAttrs {
                 this.compile = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == COMPILE_TYPE {
                 this.compile_type = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == VALIDATE {
+                this.validation = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == TO_OWNED {
                 this.to_owned = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == AVAILABLE {
@@ -749,7 +764,6 @@ impl Parse for FieldAttrs {
 
 static SKIP_FROM_OBJ: &str = "skip_from_obj";
 static SKIP_FONT_WRITE: &str = "skip_font_write";
-static VALIDATION_METHOD: &str = "validation_method";
 static READ_ARGS: &str = "read_args";
 static PHANTOM: &str = "phantom";
 
@@ -769,8 +783,6 @@ impl Parse for TableAttrs {
                 this.skip_from_obj = Some(attr.path);
             } else if ident == SKIP_FONT_WRITE {
                 this.skip_font_write = Some(attr.path);
-            } else if ident == VALIDATION_METHOD {
-                this.validation_method = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_ARGS {
                 this.read_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == PHANTOM {
@@ -855,6 +867,18 @@ impl Parse for CustomCompile {
         }
 
         input.parse().map(Self::Expr)
+    }
+}
+
+impl Parse for FieldValidation {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let fork = input.fork();
+        if fork.parse::<kw::skip>().is_ok() && fork.is_empty() {
+            input.parse::<kw::skip>()?;
+            return Ok(Self::Skip);
+        }
+
+        input.parse().map(Self::Custom)
     }
 }
 

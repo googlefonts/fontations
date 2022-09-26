@@ -3,6 +3,8 @@
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
+use crate::parsing::FieldValidation;
+
 use super::parsing::{
     Count, CustomCompile, Field, FieldReadArgs, FieldType, Fields, NeededWhen, Record,
     ReferencedFields,
@@ -82,9 +84,15 @@ impl Fields {
         for field in self.fields.iter() {
             let name = &field.name;
             let name_str = field.name.to_string();
-            let recursive_stmt = field
-                .gets_recursive_validation()
-                .then(|| quote!( self.#name.validate_impl(ctx); ));
+            let validation_call = match field.attrs.validation.as_deref() {
+                Some(FieldValidation::Skip) => continue,
+                Some(FieldValidation::Custom(ident)) => Some(quote!( self.#ident(ctx); )),
+                None if field.gets_recursive_validation() => {
+                    Some(quote!( self.#name.validate_impl(ctx); ))
+                }
+                None => None,
+            };
+
             let required_by_version = field
                 .attrs
                 .available
@@ -111,7 +119,7 @@ impl Fields {
                     None
                 };
 
-            if recursive_stmt.is_some()
+            if validation_call.is_some()
                 || array_len_check.is_some()
                 || required_by_version.is_some()
             {
@@ -119,7 +127,7 @@ impl Fields {
                     ctx.in_field(#name_str, |ctx| {
                         #required_by_version
                         #array_len_check
-                        #recursive_stmt
+                        #validation_call
                     });
                 })
             }
