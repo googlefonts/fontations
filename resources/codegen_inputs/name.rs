@@ -42,5 +42,6 @@ record NameRecord {
     /// String length (in bytes).
     length: BigEndian<u16>,
     /// String offset from start of storage area (in bytes).
-    string_offset: BigEndian<Offset16>,
+    #[offset_getter(string)]
+    string_offset: BigEndian<Offset16<NameString>>,
 }
