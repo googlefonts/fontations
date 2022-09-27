@@ -107,17 +107,26 @@ impl Fields {
                     }
                 });
 
-            let array_len_check =
-                if let Some(Count::Field(count_name)) = field.attrs.count.as_deref() {
-                    let typ = self.get_scalar_field_type(count_name);
-                    Some(quote! {
-                        if self.#name.len() > (#typ::MAX as usize) {
-                            ctx.report("array excedes max length");
-                        }
-                    })
-                } else {
-                    None
-                };
+            // this all deals with the case where we have an optional field.
+            let maybe_check_is_some = required_by_version
+                .is_some()
+                .then(|| quote!(self.#name.is_some() &&));
+            let maybe_unwrap = required_by_version
+                .is_some()
+                .then(|| quote!(.as_ref().unwrap()));
+
+            let array_len_check = if let Some(Count::Field(count_name)) =
+                field.attrs.count.as_deref()
+            {
+                let typ = self.get_scalar_field_type(count_name);
+                Some(quote! {
+                    if #maybe_check_is_some self.#name #maybe_unwrap.len() > (#typ::MAX as usize) {
+                        ctx.report("array excedes max length");
+                    }
+                })
+            } else {
+                None
+            };
 
             if validation_call.is_some()
                 || array_len_check.is_some()
@@ -851,7 +860,7 @@ impl Field {
 
             if let Some(avail) = self.attrs.available.as_ref() {
                 let expect = self.attrs.nullable.is_none().then(
-                    || quote!(.expect("missing versioned field should have failed validation")),
+                    || quote!(.as_ref().expect("missing versioned field should have failed validation")),
                 );
                 quote!(version.compatible(#avail).then(|| #value_expr #expect .write_into(writer)))
             } else {
@@ -912,17 +921,36 @@ impl Field {
                 let offset_getter = self.offset_getter_name().unwrap();
                 quote!(obj.#offset_getter(#pass_offset_data).into())
             }
-            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
-                FieldType::Scalar { .. } => quote!(obj.#name().iter().map(|x| x.get()).collect()),
-                FieldType::Offset { .. } => {
-                    let offset_getter = self.offset_getter_name().unwrap();
-                    quote!(obj.#offset_getter(#pass_offset_data).map(|x| x.into()).collect())
+            FieldType::Array { inner_typ } => {
+                // we write different code based on whether or not this is a versioned field
+                let (getter, converter) = match inner_typ.as_ref() {
+                    FieldType::Scalar { .. } => (
+                        quote!(obj.#name()),
+                        quote!(.iter().map(|x| x.get()).collect()),
+                    ),
+                    FieldType::Offset { .. } => {
+                        let offset_getter = self.offset_getter_name().unwrap();
+                        (
+                            quote!(obj.#offset_getter(#pass_offset_data)),
+                            quote!(.map(|x| x.into()).collect()),
+                        )
+                    }
+                    FieldType::Other { .. } => (
+                        quote!(obj.#name()),
+                        quote!(.iter().map(|x| FromObjRef::from_obj_ref(x, offset_data)).collect()),
+                    ),
+                    _ => (
+                        quote!(compile_error!("requires custom to_owned impl")),
+                        Default::default(),
+                    ),
+                };
+
+                if self.attrs.available.is_some() {
+                    quote!(#getter.map(|obj| obj #converter))
+                } else {
+                    quote!(#getter #converter)
                 }
-                FieldType::Other { .. } => {
-                    quote!(obj.#name().iter().map(|x| FromObjRef::from_obj_ref(x, offset_data)).collect())
-                }
-                _ => quote!(compile_error!("requires custom to_owned impl")),
-            },
+            }
             FieldType::ComputedArray(_array) => {
                 quote!(obj.#name().iter().filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok()).collect())
             }
