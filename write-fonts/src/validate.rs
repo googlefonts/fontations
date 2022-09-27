@@ -215,3 +215,12 @@ impl<const N: usize, T: Validate> Validate for NullableOffsetMarker<T, N> {
         }
     }
 }
+
+impl<T: Validate> Validate for Option<T> {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Some(t) => t.validate_impl(ctx),
+            None => (),
+        }
+    }
+}

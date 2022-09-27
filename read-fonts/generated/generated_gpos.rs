@@ -111,7 +111,7 @@ impl<'a> Gpos<'a> {
     /// Attempt to resolve [`feature_variations_offset`][Self::feature_variations_offset].
     pub fn feature_variations(&self) -> Option<Result<FeatureVariations<'a>, ReadError>> {
         let data = self.data;
-        self.feature_variations_offset()?.resolve(data)
+        self.feature_variations_offset().map(|x| x.resolve(data))?
     }
 }
 
@@ -1133,6 +1133,7 @@ impl<'a> PairPosFormat1<'a> {
         self.data.read_array(range).unwrap()
     }
 
+    /// Attempt to resolve [`pair_set_offsets`][Self::pair_set_offsets].
     pub fn pair_set(&self) -> impl Iterator<Item = Result<PairSet<'a>, ReadError>> + 'a {
         let data = self.data;
         let args = (self.value_format1(), self.value_format2());
@@ -2144,6 +2145,7 @@ impl<'a> BaseRecord<'a> {
         self.base_anchor_offsets
     }
 
+    /// Attempt to resolve [`base_anchor_offsets`][Self::base_anchor_offsets].
     pub fn base_anchor(
         &self,
         data: FontData<'a>,
@@ -2417,6 +2419,7 @@ impl<'a> LigatureArray<'a> {
         self.data.read_array(range).unwrap()
     }
 
+    /// Attempt to resolve [`ligature_attach_offsets`][Self::ligature_attach_offsets].
     pub fn ligature_attach(
         &self,
     ) -> impl Iterator<Item = Result<LigatureAttach<'a>, ReadError>> + 'a {
@@ -2577,6 +2580,7 @@ impl<'a> ComponentRecord<'a> {
         self.ligature_anchor_offsets
     }
 
+    /// Attempt to resolve [`ligature_anchor_offsets`][Self::ligature_anchor_offsets].
     pub fn ligature_anchor(
         &self,
         data: FontData<'a>,
@@ -2901,6 +2905,7 @@ impl<'a> Mark2Record<'a> {
         self.mark2_anchor_offsets
     }
 
+    /// Attempt to resolve [`mark2_anchor_offsets`][Self::mark2_anchor_offsets].
     pub fn mark2_anchor(
         &self,
         data: FontData<'a>,

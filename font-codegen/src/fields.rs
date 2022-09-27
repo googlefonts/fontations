@@ -82,6 +82,9 @@ impl Fields {
     pub(crate) fn compilation_validation_stmts(&self) -> Vec<TokenStream> {
         let mut stmts = Vec::new();
         for field in self.fields.iter() {
+            if field.is_computed() {
+                continue;
+            }
             let name = &field.name;
             let name_str = field.name.to_string();
             let validation_call = match field.attrs.validation.as_deref() {
@@ -93,11 +96,12 @@ impl Fields {
                 None => None,
             };
 
+            let is_single_nullable_offset = field.is_nullable() && !field.is_array();
             let required_by_version = field
                 .attrs
                 .available
                 .as_ref()
-                .filter(|_| field.attrs.nullable.is_none())
+                .filter(|_| !is_single_nullable_offset)
                 .map(|attr| {
                     let available = &attr.attr;
                     quote! {
@@ -582,11 +586,14 @@ impl Field {
         let where_read_clause = target_is_generic.then(|| quote!(where T: FontRead<'a>));
         let mut return_type = quote!(Result<#target #add_lifetime, ReadError>);
 
-        if self.is_nullable() || self.attrs.available.is_some() {
+        if self.is_nullable() || (self.attrs.available.is_some() && !self.is_array()) {
             return_type = quote!(Option<#return_type>);
         }
         if self.is_array() {
             return_type = quote!(impl Iterator<Item=#return_type> + 'a);
+            if self.attrs.available.is_some() {
+                return_type = quote!(Option<#return_type>);
+            }
         }
 
         let resolve = match self.attrs.read_offset_args.as_deref() {
@@ -607,30 +614,33 @@ impl Field {
         // if a table, data is self.data, else it is passed as an argument
         let data_alias_if_needed = record.is_none().then(|| quote!(let data = self.data;));
 
-        // if this is version dependent we append ? when we call the offset getter
-        let try_op = self.is_version_dependent().then(|| quote!(?));
-
         let docs = format!(" Attempt to resolve [`{raw_name}`][Self::{raw_name}].");
-
-        if self.is_array() {
-            let name = &self.name;
-            Some(quote! {
-                pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type #where_read_clause {
-                    #data_alias_if_needed
-                    #args_if_needed
-                    self.#name().iter().map(move |off| off.get().#resolve)
-                }
-            })
+        let (base_method, convert_impl) = if self.is_array() {
+            (
+                &self.name,
+                quote!( .iter().map(move |off| off.get().#resolve) ),
+            )
         } else {
-            Some(quote! {
-                #[doc = #docs]
-                pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type #where_read_clause {
-                    #data_alias_if_needed
-                    #args_if_needed
-                    self.#raw_name() #try_op .#resolve
-                }
-            })
-        }
+            (raw_name, quote!( .#resolve))
+        };
+
+        let getter_impl = if self.is_version_dependent() {
+            // if this is not an array and *is* nullable we need to add an extra ?
+            // to avoid returning Option<Option<_>>
+            let try_op = (self.is_nullable() && !self.is_array()).then(|| quote!(?));
+            quote!( self.#base_method().map(|x| x #convert_impl) #try_op )
+        } else {
+            quote!( self.#base_method() #convert_impl )
+        };
+
+        Some(quote! {
+            #[doc = #docs]
+            pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type #where_read_clause {
+                #data_alias_if_needed
+                #args_if_needed
+                #getter_impl
+            }
+        })
     }
 
     fn is_offset_or_array_of_offsets(&self) -> bool {
@@ -859,7 +869,9 @@ impl Field {
             };
 
             if let Some(avail) = self.attrs.available.as_ref() {
-                let expect = self.attrs.nullable.is_none().then(
+                let needs_unwrap =
+                    !(self.is_computed() || (self.attrs.nullable.is_some() && !self.is_array()));
+                let expect = needs_unwrap.then(
                     || quote!(.as_ref().expect("missing versioned field should have failed validation")),
                 );
                 quote!(version.compatible(#avail).then(|| #value_expr #expect .write_into(writer)))
@@ -919,7 +931,11 @@ impl Field {
                 target: Some(_), ..
             } => {
                 let offset_getter = self.offset_getter_name().unwrap();
-                quote!(obj.#offset_getter(#pass_offset_data).into())
+                if self.is_version_dependent() && !self.is_nullable() {
+                    quote!(obj.#offset_getter(#pass_offset_data).map(|obj| obj.into()))
+                } else {
+                    quote!(obj.#offset_getter(#pass_offset_data).into())
+                }
             }
             FieldType::Array { inner_typ } => {
                 // we write different code based on whether or not this is a versioned field
