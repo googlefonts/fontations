@@ -27,13 +27,13 @@ impl NameRecord {
             .get(start..end)
             .ok_or(ReadError::OutOfBounds)?;
 
-        let encoding = encoding(self.platform_id(), self.encoding_id());
+        let encoding = Encoding::new(self.platform_id(), self.encoding_id());
         Ok(NameString { data, encoding })
     }
 }
 
 //-- all this is from pinot https://github.com/dfrg/pinot/blob/eff5239018ca50290fb890a84da3dd51505da364/src/name.rs
-/// Entry for a name in the naming table.
+/// Encoded string for a name in the naming table.
 ///
 /// This provides an iterator over characters.
 #[derive(Copy, Clone)]
@@ -144,21 +144,25 @@ impl<'a> Iterator for CharIter<'a> {
     }
 }
 
+/// The encoding used by the name table.
 #[derive(Copy, Clone)]
-enum Encoding {
+pub enum Encoding {
     Utf16Be,
     MacRoman,
     Unknown,
 }
 
-fn encoding(platform_id: u16, encoding_id: u16) -> Encoding {
-    match (platform_id, encoding_id) {
-        (0, _) => Encoding::Utf16Be,
-        (1, 0) => Encoding::MacRoman,
-        (3, 0) => Encoding::Utf16Be,
-        (3, 1) => Encoding::Utf16Be,
-        (3, 10) => Encoding::Utf16Be,
-        _ => Encoding::Unknown,
+impl Encoding {
+    /// Determine the coding from the platform and encoding id.
+    pub fn new(platform_id: u16, encoding_id: u16) -> Encoding {
+        match (platform_id, encoding_id) {
+            (0, _) => Encoding::Utf16Be,
+            (1, 0) => Encoding::MacRoman,
+            (3, 0) => Encoding::Utf16Be,
+            (3, 1) => Encoding::Utf16Be,
+            (3, 10) => Encoding::Utf16Be,
+            _ => Encoding::Unknown,
+        }
     }
 }
 
