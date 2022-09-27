@@ -145,7 +145,7 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`mark_glyph_sets_def_offset`][Self::mark_glyph_sets_def_offset].
     pub fn mark_glyph_sets_def(&self) -> Option<Result<MarkGlyphSets<'a>, ReadError>> {
         let data = self.data;
-        self.mark_glyph_sets_def_offset()?.resolve(data)
+        self.mark_glyph_sets_def_offset().map(|x| x.resolve(data))?
     }
 
     /// Offset to the Item Variation Store table, from beginning of
@@ -158,7 +158,7 @@ impl<'a> Gdef<'a> {
     /// Attempt to resolve [`item_var_store_offset`][Self::item_var_store_offset].
     pub fn item_var_store(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
         let data = self.data;
-        self.item_var_store_offset()?.resolve(data)
+        self.item_var_store_offset().map(|x| x.resolve(data))?
     }
 }
 
@@ -325,6 +325,7 @@ impl<'a> AttachList<'a> {
         self.data.read_array(range).unwrap()
     }
 
+    /// Attempt to resolve [`attach_point_offsets`][Self::attach_point_offsets].
     pub fn attach_point(&self) -> impl Iterator<Item = Result<AttachPoint<'a>, ReadError>> + 'a {
         let data = self.data;
         self.attach_point_offsets()
@@ -505,6 +506,7 @@ impl<'a> LigCaretList<'a> {
         self.data.read_array(range).unwrap()
     }
 
+    /// Attempt to resolve [`lig_glyph_offsets`][Self::lig_glyph_offsets].
     pub fn lig_glyph(&self) -> impl Iterator<Item = Result<LigGlyph<'a>, ReadError>> + 'a {
         let data = self.data;
         self.lig_glyph_offsets()
@@ -599,6 +601,7 @@ impl<'a> LigGlyph<'a> {
         self.data.read_array(range).unwrap()
     }
 
+    /// Attempt to resolve [`caret_value_offsets`][Self::caret_value_offsets].
     pub fn caret_value(&self) -> impl Iterator<Item = Result<CaretValue<'a>, ReadError>> + 'a {
         let data = self.data;
         self.caret_value_offsets()
@@ -978,6 +981,7 @@ impl<'a> MarkGlyphSets<'a> {
         self.data.read_array(range).unwrap()
     }
 
+    /// Attempt to resolve [`coverage_offsets`][Self::coverage_offsets].
     pub fn coverage(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
         let data = self.data;
         self.coverage_offsets()
