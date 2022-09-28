@@ -1,5 +1,6 @@
 //! Raw types for compiling opentype tables
 
+mod collections;
 mod font_builder;
 #[cfg(feature = "parsing")]
 mod from_obj;
@@ -33,8 +34,8 @@ pub(crate) mod codegen_prelude {
     };
 
     /// checked conversion to u16
-    pub fn array_len<T>(s: &[T]) -> Result<u16, TryFromIntError> {
-        s.len().try_into()
+    pub fn array_len<T: super::collections::HasLen>(s: &T) -> Result<u16, TryFromIntError> {
+        s.checked_len()
     }
 
     pub fn plus_one(val: &usize) -> Result<u16, TryFromIntError> {
