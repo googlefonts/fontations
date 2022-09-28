@@ -164,6 +164,10 @@ pub(crate) struct FieldAttrs {
     /// optionally a method on the parent type used to generate the offset data
     /// source for this item.
     pub(crate) offset_data: Option<Attr<syn::Ident>>,
+    /// If present, argument is an expression that evaluates to a u32, and is
+    /// used to adjust the write position of offsets.
+    //TODO: this could maybe be combined with offset_data?
+    pub(crate) offset_adjustment: Option<Attr<InlineExpr>>,
     pub(crate) version: Option<syn::Path>,
     pub(crate) format: Option<Attr<syn::LitInt>>,
     pub(crate) count: Option<Attr<Count>>,
@@ -710,6 +714,7 @@ static FORMAT: &str = "format";
 static VERSION: &str = "version";
 static OFFSET_GETTER: &str = "offset_getter";
 static OFFSET_DATA: &str = "offset_data_method";
+static OFFSET_ADJUSTMENT: &str = "offset_adjustment";
 static COMPILE: &str = "compile";
 static COMPILE_TYPE: &str = "compile_type";
 static READ_WITH: &str = "read_with";
@@ -738,6 +743,8 @@ impl Parse for FieldAttrs {
                 this.offset_getter = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == OFFSET_DATA {
                 this.offset_data = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == OFFSET_ADJUSTMENT {
+                this.offset_adjustment = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == VERSION {
                 this.version = Some(attr.path);
             } else if ident == COUNT {

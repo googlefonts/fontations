@@ -24,6 +24,14 @@ pub struct TableWriter {
     ///
     /// Tables are processed as they are encountered (as subtables)
     stack: Vec<TableData>,
+    /// An adjustment factor subtracted from written offsets.
+    ///
+    /// This is '0', unless a particular offset is expected to be relative some
+    /// position *other* than the start of the table.
+    ///
+    /// This should only ever be non-zero in the body of a closure passed to
+    /// [adjust_offsets](Self::adjust_offsets)
+    offset_adjustment: u32,
 }
 
 /// Attempt to serialize a table.
@@ -53,17 +61,17 @@ fn dump_impl(order: &[ObjectId], nodes: &HashMap<ObjectId, TableData>) -> Vec<u8
     }
 
     // second pass: write offsets
-    let mut off = 0;
+    let mut table_head = 0;
     for id in order {
         let node = nodes.get(id).unwrap();
         for offset in &node.offsets {
             let abs_off = *offsets.get(&offset.object).unwrap();
-            let rel_off = abs_off - off as u32;
-            let buffer_pos = off + offset.pos as usize;
-            let write_over = out.get_mut(buffer_pos..).unwrap();
+            let rel_off = abs_off - (table_head + offset.adjustment);
+            let buffer_pos = table_head + offset.pos;
+            let write_over = out.get_mut(buffer_pos as usize..).unwrap();
             write_offset(write_over, offset.len, rel_off).unwrap();
         }
-        off += node.bytes.len();
+        table_head += node.bytes.len() as u32;
     }
     out
 }
@@ -102,6 +110,13 @@ impl TableWriter {
         Graph::from_obj_store(self.tables, id)
     }
 
+    /// Call the provided closure, adjusting any written offsets by `adjustment`.
+    pub(crate) fn adjust_offsets(&mut self, adjustment: u32, f: impl FnOnce(&mut TableWriter)) {
+        self.offset_adjustment = adjustment;
+        f(self);
+        self.offset_adjustment = 0;
+    }
+
     /// Write raw bytes into this table.
     ///
     /// The caller is responsible for ensuring bytes are in big-endian order.
@@ -127,11 +142,10 @@ impl TableWriter {
     pub fn write_offset(&mut self, obj: &dyn FontWrite, width: usize) {
         let obj_id = self.add_table(obj);
         let data = self.stack.last_mut().unwrap();
-        data.add_offset(obj_id, width);
+        data.add_offset(obj_id, width, self.offset_adjustment);
     }
 
     /// used when writing top-level font objects, which are done more manually.
-    #[allow(dead_code)] // will be used later, probably? :o
     pub(crate) fn into_data(mut self) -> Vec<u8> {
         assert_eq!(self.stack.len(), 1);
         let result = self.stack.pop().unwrap();
@@ -145,6 +159,7 @@ impl Default for TableWriter {
         TableWriter {
             tables: ObjectStore::default(),
             stack: vec![TableData::default()],
+            offset_adjustment: 0,
         }
     }
 }
@@ -165,10 +180,17 @@ pub(crate) struct OffsetRecord {
     pub(crate) len: OffsetLen,
     /// The object pointed to by the offset
     pub(crate) object: ObjectId,
+    /// a value subtracted from the resolved offset before writing.
+    ///
+    /// In general we assume that offsets are relative to the start of the parent
+    /// table, but in some cases this is not true (for instance, offsets to
+    /// strings in the name table are relative to the end of the table.)
+    pub(crate) adjustment: u32,
 }
 
 impl TableData {
-    fn add_offset(&mut self, object: ObjectId, width: usize) {
+    /// the 'adjustment' param is used to modify the written position.
+    fn add_offset(&mut self, object: ObjectId, width: usize, adjustment: u32) {
         self.offsets.push(OffsetRecord {
             pos: self.bytes.len() as u32,
             len: match width {
@@ -177,6 +199,7 @@ impl TableData {
                 _ => OffsetLen::Offset32,
             },
             object,
+            adjustment,
         });
         let null_bytes = &[0u8, 0, 0, 0].get(..width.min(4)).unwrap();
 
@@ -198,7 +221,12 @@ impl TableData {
     #[cfg(test)]
     pub fn add_mock_offset(&mut self, object: ObjectId, len: OffsetLen) {
         let pos = self.offsets.iter().map(|off| off.len as u8 as u32).sum();
-        self.offsets.push(OffsetRecord { pos, len, object });
+        self.offsets.push(OffsetRecord {
+            pos,
+            len,
+            object,
+            adjustment: 0,
+        });
     }
 }
 
