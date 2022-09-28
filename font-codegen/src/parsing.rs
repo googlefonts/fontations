@@ -161,8 +161,9 @@ pub(crate) struct FieldAttrs {
     pub(crate) skip_getter: Option<syn::Path>,
     /// specify that an offset getter has a custom impl
     pub(crate) offset_getter: Option<Attr<syn::Ident>>,
-    /// optionally provide custom offset data (default is start of parent table)
-    pub(crate) offset_data: Option<Attr<InlineExpr>>,
+    /// optionally a method on the parent type used to generate the offset data
+    /// source for this item.
+    pub(crate) offset_data: Option<Attr<syn::Ident>>,
     pub(crate) version: Option<syn::Path>,
     pub(crate) format: Option<Attr<syn::LitInt>>,
     pub(crate) count: Option<Attr<Count>>,
@@ -708,7 +709,7 @@ static AVAILABLE: &str = "available";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
 static OFFSET_GETTER: &str = "offset_getter";
-static OFFSET_DATA: &str = "offset_data";
+static OFFSET_DATA: &str = "offset_data_method";
 static COMPILE: &str = "compile";
 static COMPILE_TYPE: &str = "compile_type";
 static READ_WITH: &str = "read_with";

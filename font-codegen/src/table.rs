@@ -3,7 +3,7 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 
-use crate::parsing::GenericGroup;
+use crate::parsing::{Attr, GenericGroup};
 
 use super::parsing::{Field, ReferencedFields, Table, TableFormat, TableReadArg, TableReadArgs};
 
@@ -321,10 +321,17 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
         }
     });
 
-    let maybe_bind_offset_data = item
-        .fields
-        .from_obj_requires_offset_data(false)
-        .then(|| quote!( let offset_data = obj.offset_data(); ));
+    let should_bind_offset_data = item.fields.from_obj_requires_offset_data(false);
+    let offset_data_src = item.fields.iter().find_map(|fld| {
+        fld.attrs
+            .offset_data
+            .as_ref()
+            .map(|Attr { attr, .. }| quote!(#attr))
+    });
+    let maybe_bind_offset_data = should_bind_offset_data.then(|| match offset_data_src {
+        Some(ident) => quote!(let offset_data = obj. #ident ();),
+        None => quote!( let offset_data = obj.offset_data(); ),
+    });
 
     Ok(quote! {
         #[cfg(feature = "parsing")]

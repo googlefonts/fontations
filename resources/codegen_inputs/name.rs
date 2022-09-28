@@ -10,7 +10,7 @@ table Name {
     storage_offset: BigEndian<u16>,
     /// The name records where count is the number of records.
     #[count($count)]
-    #[offset_data(self.string_data())]
+    #[offset_data_method(string_data)]
     name_record: [NameRecord],
     /// Number of language-tag records.
     #[available(1)]
