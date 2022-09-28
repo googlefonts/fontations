@@ -1,11 +1,10 @@
 //impl ToOwnedTable for super::Gpos<'_> {}
 
 use write_fonts::{
-    layout::{ClassDef, CoverageTableBuilder},
+    layout::{ClassDef, CoverageTableBuilder, LookupList},
     tables::gpos::{
         Gpos, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1, PairPos, PairPosFormat1,
-        PairPosFormat2, PairSet, PositionLookup, PositionLookupList, SinglePos, SinglePosFormat1,
-        SinglePosFormat2,
+        PairPosFormat2, PairSet, PositionLookup, SinglePos, SinglePosFormat1, SinglePosFormat2,
     },
 };
 
@@ -21,7 +20,7 @@ impl Subset for Gpos {
     }
 }
 
-impl Subset for PositionLookupList {
+impl Subset for LookupList<PositionLookup> {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
         let mut err = Ok(());
         let mut next_id = 0u16;

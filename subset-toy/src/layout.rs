@@ -151,14 +151,15 @@ impl Subset for CoverageTable {
 impl<T: Subset> Subset for Lookup<T> {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
         let mut err = Ok(());
-        self.subtables.retain_mut(|table| match table.subset(plan) {
-            Err(e) => {
-                err = Err(e);
-                false
-            }
-            Ok(retain) => retain,
-        });
+        self.subtable_offsets
+            .retain_mut(|table| match table.subset(plan) {
+                Err(e) => {
+                    err = Err(e);
+                    false
+                }
+                Ok(retain) => retain,
+            });
         err?;
-        Ok(!self.subtables.is_empty())
+        Ok(!self.subtable_offsets.is_empty())
     }
 }
