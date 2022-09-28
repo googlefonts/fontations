@@ -15,6 +15,7 @@ table Name {
     #[count($count)]
     #[offset_data_method(string_data)]
     #[offset_adjustment(self.compute_storage_offset() as u32)]
+    #[compile_type(BTreeSet<NameRecord>)]
     name_record: [NameRecord],
     /// Number of language-tag records.
     #[available(1)]
