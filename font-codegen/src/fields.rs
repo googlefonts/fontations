@@ -3,7 +3,7 @@
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
-use crate::parsing::FieldValidation;
+use crate::parsing::{Attr, FieldValidation};
 
 use super::parsing::{
     Count, CustomCompile, Field, FieldReadArgs, FieldType, Fields, NeededWhen, Record,
@@ -30,8 +30,23 @@ impl Fields {
     }
 
     pub(crate) fn sanity_check(&self) -> syn::Result<()> {
+        let mut custom_offset_data_fld: Option<&Field> = None;
+        let mut normal_offset_data_fld = None;
         for fld in &self.fields {
+            if let Some(attr) = fld.attrs.offset_data.as_ref() {
+                if let Some(prev_field) = custom_offset_data_fld.replace(fld) {
+                    if prev_field.attrs.offset_data.as_ref().unwrap().attr != attr.attr {
+                        return Err(syn::Error::new(fld.name.span(), format!("field has custom offset data, but previous field '{}' already specified different custom offset data", prev_field.name)));
+                    }
+                }
+            } else if fld.is_offset_or_array_of_offsets() {
+                normal_offset_data_fld = Some(fld);
+            }
             fld.sanity_check()?;
+        }
+
+        if let (Some(custom), Some(normal)) = (custom_offset_data_fld, normal_offset_data_fld) {
+            return Err(syn::Error::new(custom.name.span(), format!("Not implemented: field requires custom offset data, but sibling field '{}' expects default offset data", normal.name)));
         }
         Ok(())
     }
@@ -670,16 +685,13 @@ impl Field {
         Some(syn::Ident::new(offset_name, self.name.span()))
     }
 
-    /// if the #[offset_data] attribute is specified, returns its value,
-    /// else returns self.offset_data().
+    /// if the `#[offset_data_method]` attribute is specified, self.#method(),
+    /// else return self.offset_data().
     ///
     /// This does not make sense in records.
     fn offset_getter_data_src(&self) -> TokenStream {
         match self.attrs.offset_data.as_ref() {
-            Some(attr) => {
-                let expr = &attr.expr;
-                quote!(#expr)
-            }
+            Some(Attr { attr, .. }) => quote!(self.#attr()),
             None => quote!(self.offset_data()),
         }
     }
@@ -919,7 +931,6 @@ impl Field {
         }
 
         let pass_offset_data = in_record.then(|| quote!(offset_data));
-
         let name = &self.name;
         let init_stmt = match &self.typ {
             _ if self.attrs.to_owned.is_some() => {
