@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 use crate::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
 use crate::validate::{Validate, ValidationReport};
@@ -261,6 +261,12 @@ write_be_bytes!(font_types::MajorMinor);
 write_be_bytes!(font_types::GlyphId);
 
 impl<T: FontWrite> FontWrite for [T] {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.iter().for_each(|item| item.write_into(writer))
+    }
+}
+
+impl<T: FontWrite> FontWrite for BTreeSet<T> {
     fn write_into(&self, writer: &mut TableWriter) {
         self.iter().for_each(|item| item.write_into(writer))
     }

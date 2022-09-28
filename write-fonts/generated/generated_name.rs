@@ -11,7 +11,7 @@ pub struct Name {
     /// Table version number (0 or 1)
     pub version: u16,
     /// The name records where count is the number of records.
-    pub name_record: Vec<NameRecord>,
+    pub name_record: BTreeSet<NameRecord>,
     /// The language-tag records where langTagCount is the number of records.
     pub lang_tag_record: Option<Vec<LangTagRecord>>,
 }

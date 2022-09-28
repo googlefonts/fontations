@@ -1,6 +1,9 @@
 //! The pre-compilation validation pass
 
-use std::fmt::{Debug, Display};
+use std::{
+    collections::BTreeSet,
+    fmt::{Debug, Display},
+};
 
 use crate::offsets::{NullableOffsetMarker, OffsetMarker};
 
@@ -222,5 +225,17 @@ impl<T: Validate> Validate for Option<T> {
             Some(t) => t.validate_impl(ctx),
             None => (),
         }
+    }
+}
+
+impl<T: Validate> Validate for BTreeSet<T> {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_array(|ctx| {
+            for item in self.iter() {
+                ctx.array_item(|ctx| {
+                    item.validate_impl(ctx);
+                })
+            }
+        });
     }
 }

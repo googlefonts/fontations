@@ -232,6 +232,45 @@ mod tests {
     }
 
     #[test]
+    fn sorting() {
+        let mut table = Name {
+            version: 0,
+            name_record: Default::default(),
+            lang_tag_record: None,
+        };
+        table.name_record.insert(NameRecord {
+            platform_id: 3,
+            encoding_id: 1,
+            language_id: 0,
+            name_id: 1030,
+            string_offset: OffsetMarker::new("Ordinær".into()),
+        });
+        table.name_record.insert(NameRecord {
+            platform_id: 0,
+            encoding_id: 4,
+            language_id: 0,
+            name_id: 4,
+            string_offset: OffsetMarker::new("oh".into()),
+        });
+        table.name_record.insert(NameRecord {
+            platform_id: 3,
+            encoding_id: 1,
+            language_id: 0,
+            name_id: 1029,
+            string_offset: OffsetMarker::new("Regular".into()),
+        });
+
+        let _dumped = crate::dump_table(&table).unwrap();
+        #[cfg(feature = "parsing")]
+        {
+            let loaded = read_fonts::tables::name::Name::read(FontData::new(&_dumped)).unwrap();
+            assert_eq!(loaded.name_record()[0].encoding_id, 4);
+            assert_eq!(loaded.name_record()[1].name_id, 1029);
+            assert_eq!(loaded.name_record()[2].name_id, 1030);
+        }
+    }
+
+    #[test]
     #[cfg(feature = "parsing")]
     fn roundtrip() {
         #[rustfmt::skip]

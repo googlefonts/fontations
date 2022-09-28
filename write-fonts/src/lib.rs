@@ -25,6 +25,7 @@ pub(crate) mod codegen_prelude {
     pub use super::validate::{Validate, ValidationCtx};
     pub use super::write::{FontWrite, TableWriter};
     pub use font_types::*;
+    pub use std::collections::BTreeSet;
 
     #[cfg(feature = "parsing")]
     pub use super::from_obj::{FromObjRef, FromTableRef, ToOwnedObj, ToOwnedTable};
