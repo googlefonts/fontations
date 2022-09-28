@@ -685,7 +685,7 @@ impl Field {
         Some(syn::Ident::new(offset_name, self.name.span()))
     }
 
-    /// if the `#[offset_data_method]` attribute is specified, self.#method(),
+    /// if the #[offset_data_method] attribute is specified, self.#method(),
     /// else return self.offset_data().
     ///
     /// This does not make sense in records.
@@ -868,7 +868,7 @@ impl Field {
             quote!( self.#name )
         };
 
-        if self.attrs.version.is_some() {
+        let write_expr = if self.attrs.version.is_some() {
             quote! {
                 let version = #value_expr;
                 version.write_into(writer)
@@ -890,6 +890,15 @@ impl Field {
             } else {
                 quote!(#value_expr.write_into(writer))
             }
+        };
+
+        if let Some(expr) = self.attrs.offset_adjustment.as_ref() {
+            let expr = expr.compile_expr();
+            quote! {
+                writer.adjust_offsets(#expr, |writer| { #write_expr; })
+            }
+        } else {
+            write_expr
         }
     }
 
