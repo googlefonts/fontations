@@ -9,7 +9,7 @@ include!("../../generated/generated_name.rs");
 
 impl<'a> Name<'a> {
     /// The FontData containing the encoded name strings.
-    pub(crate) fn string_data(&self) -> FontData<'a> {
+    pub fn string_data(&self) -> FontData<'a> {
         let base = self.offset_data();
         let off = self.storage_offset();
         base.split_off(off as usize).unwrap_or_default()
@@ -32,11 +32,27 @@ impl NameRecord {
     }
 }
 
+impl LangTagRecord {
+    /// Return a type that can decode the string data for this name entry.
+    pub fn lang_tag<'a>(&self, data: FontData<'a>) -> Result<NameString<'a>, ReadError> {
+        let start = self.lang_tag_offset().non_null().unwrap_or(0);
+        let end = start + self.length() as usize;
+
+        let data = data
+            .as_bytes()
+            .get(start..end)
+            .ok_or(ReadError::OutOfBounds)?;
+
+        let encoding = Encoding::Utf16Be;
+        Ok(NameString { data, encoding })
+    }
+}
+
 //-- all this is from pinot https://github.com/dfrg/pinot/blob/eff5239018ca50290fb890a84da3dd51505da364/src/name.rs
-/// Encoded string for a name in the naming table.
+/// Entry for a name in the naming table.
 ///
 /// This provides an iterator over characters.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub struct NameString<'a> {
     data: &'a [u8],
     encoding: Encoding,
@@ -70,6 +86,16 @@ impl NameRecord {
     }
 }
 
+#[cfg(feature = "traversal")]
+impl LangTagRecord {
+    fn traverse_lang_tag<'a>(&self, data: FontData<'a>) -> traversal::FieldType<'a> {
+        FieldType::StringOffset(traversal::StringOffset {
+            offset: self.lang_tag_offset().into(),
+            target: self.lang_tag(data).map(|s| Box::new(s) as _),
+        })
+    }
+}
+
 impl<'a> IntoIterator for NameString<'a> {
     type Item = char;
     type IntoIter = CharIter<'a>;
@@ -84,6 +110,12 @@ impl<'a> std::fmt::Display for NameString<'a> {
             c.fmt(f)?;
         }
         Ok(())
+    }
+}
+
+impl<'a> std::fmt::Debug for NameString<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        write!(f, "\"{self}\"")
     }
 }
 
@@ -145,7 +177,7 @@ impl<'a> Iterator for CharIter<'a> {
 }
 
 /// The encoding used by the name table.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Encoding {
     Utf16Be,
     MacRoman,

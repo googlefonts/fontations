@@ -147,7 +147,7 @@ impl<'a> SomeTable<'a> for Name<'a> {
                 traversal::FieldType::array_of_records(
                     stringify!(LangTagRecord),
                     self.lang_tag_record().unwrap(),
-                    self.offset_data(),
+                    self.string_data(),
                 ),
             )),
             _ => None,
@@ -198,10 +198,7 @@ impl<'a> SomeRecord<'a> for LangTagRecord {
             name: "LangTagRecord",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("length", self.length())),
-                1usize => Some(Field::new(
-                    "lang_tag_offset",
-                    FieldType::unknown_offset(self.lang_tag_offset()),
-                )),
+                1usize => Some(Field::new("lang_tag_offset", self.traverse_lang_tag(_data))),
                 _ => None,
             }),
             data,
