@@ -1,5 +1,7 @@
 //! Custom array types
 
+use font_types::{FixedSized, ReadScalar};
+
 use crate::read::{ComputeSize, FontReadWithArgs, ReadArgs};
 use crate::{FontData, FontRead, ReadError};
 
@@ -95,17 +97,15 @@ impl<T: ReadArgs> std::fmt::Debug for ComputedArray<'_, T> {
 /// A trait for types that have variable length.
 ///
 /// As a rule, these types have an initial length field.
-//TODO this would be easier with just an assoc type that is the type of the leading length field?
 pub trait VarLen {
-    /// Determine the length of the item, from the start of `data`.
-    ///
-    /// If data does not contain a valid value for Self, returns `None`.
-    ///
-    ///
-    /// If the returned value is not None, it should be greater than zero
-    /// and <= `data.len()`, and it should include the length of the length
-    /// field itself.
-    fn compute_len(data: FontData) -> Option<usize>;
+    /// The type of the first (length) field of the item.
+    type Len: ReadScalar + FixedSized + Into<u32>;
+
+    #[doc(hidden)]
+    fn read_len_at(data: FontData, pos: usize) -> Option<usize> {
+        let asu32 = data.read_at::<Self::Len>(pos).ok()?.into();
+        Some(asu32 as usize + Self::Len::RAW_BYTE_LEN)
+    }
 }
 
 /// An array of items of non-uniform length.
@@ -122,7 +122,11 @@ impl<'a, T: FontRead<'a> + VarLen> VarLenArray<'a, T> {
     ///
     /// This performs a linear search.
     pub fn get(&self, idx: usize) -> Option<Result<T, ReadError>> {
-        self.iter().nth(idx)
+        let mut pos = 0;
+        for _ in 0..idx {
+            pos += T::read_len_at(self.data, pos)?;
+        }
+        self.data.split_off(pos).map(T::read)
     }
 
     /// Return an iterator over this array's items.
@@ -132,7 +136,8 @@ impl<'a, T: FontRead<'a> + VarLen> VarLenArray<'a, T> {
             if data.is_empty() {
                 return None;
             }
-            let item_len = T::compute_len(data)?;
+
+            let item_len = T::read_len_at(data, 0)?;
             let next = T::read(data);
             data = data.split_off(item_len)?;
             Some(next)
