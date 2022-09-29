@@ -47,9 +47,8 @@ table Post {
     glyph_name_index: [BigEndian<u16>],
     /// Storage for the string data.
     #[count(..)]
-    #[to_owned(parse_pstrings(obj.string_data()))]
-    #[compile_type(Option<Vec<PostString>>)]
     #[validate(skip)]
     #[available(Version16Dot16::VERSION_2_0)]
-    string_data: [u8],
+    #[traverse_with(traverse_string_data)]
+    string_data: VarLenArray<PString<'a>>,
 }

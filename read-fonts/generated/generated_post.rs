@@ -207,9 +207,9 @@ impl<'a> Post<'a> {
     }
 
     /// Storage for the string data.
-    pub fn string_data(&self) -> Option<&'a [u8]> {
+    pub fn string_data(&self) -> Option<VarLenArray<'a, PString<'a>>> {
         let range = self.shape.string_data_byte_range()?;
-        Some(self.data.read_array(range).unwrap())
+        Some(VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap())
     }
 }
 
@@ -241,7 +241,7 @@ impl<'a> SomeTable<'a> for Post<'a> {
                 self.glyph_name_index().unwrap(),
             )),
             11usize if version.compatible(Version16Dot16::VERSION_2_0) => {
-                Some(Field::new("string_data", self.string_data().unwrap()))
+                Some(Field::new("string_data", self.traverse_string_data()))
             }
             _ => None,
         }

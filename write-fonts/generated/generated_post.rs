@@ -48,7 +48,7 @@ pub struct Post {
     /// Array of indices into the string data. See below for details.
     pub glyph_name_index: Option<Vec<u16>>,
     /// Storage for the string data.
-    pub string_data: Option<Vec<PostString>>,
+    pub string_data: Option<Vec<PString>>,
 }
 
 impl FontWrite for Post {
@@ -112,6 +112,7 @@ impl Validate for Post {
 #[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::tables::post::Post<'a>> for Post {
     fn from_obj_ref(obj: &read_fonts::tables::post::Post<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
         Post {
             version: obj.version(),
             italic_angle: obj.italic_angle(),
@@ -126,7 +127,11 @@ impl<'a> FromObjRef<read_fonts::tables::post::Post<'a>> for Post {
             glyph_name_index: obj
                 .glyph_name_index()
                 .map(|obj| obj.iter().map(|x| x.get()).collect()),
-            string_data: parse_pstrings(obj.string_data()),
+            string_data: obj.string_data().map(|obj| {
+                obj.iter()
+                    .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())
+                    .collect()
+            }),
         }
     }
 }
