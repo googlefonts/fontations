@@ -11,7 +11,7 @@ extern crate std;
 #[macro_use]
 extern crate core as std;
 
-mod array;
+pub mod array;
 mod font_data;
 pub mod layout;
 mod offset;
@@ -29,8 +29,8 @@ pub mod test_data;
 #[path = "tests/test_helpers.rs"]
 pub mod test_helpers;
 
-pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
 pub use font_data::FontData;
+pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
 pub use read::{ComputeSize, FontRead, FontReadWithArgs, ReadArgs, ReadError};
 pub use table_provider::TableProvider;
 pub use table_ref::TableRef;
@@ -38,7 +38,7 @@ pub use table_ref::TableRef;
 /// All the types that may be referenced in auto-generated code.
 #[doc(hidden)]
 pub(crate) mod codegen_prelude {
-    pub use crate::array::ComputedArray;
+    pub use crate::array::{ComputedArray, VarLenArray};
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
     pub use crate::read::{ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError};

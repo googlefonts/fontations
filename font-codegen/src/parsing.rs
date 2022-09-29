@@ -281,17 +281,19 @@ pub(crate) enum FieldType {
     Array {
         inner_typ: Box<FieldType>,
     },
-    ComputedArray(ComputedArray),
+    ComputedArray(CustomArray),
+    VarLenArray(CustomArray),
 }
 
+/// A representation shared between computed & varlen arrays
 #[derive(Debug, Clone)]
-pub(crate) struct ComputedArray {
+pub(crate) struct CustomArray {
     span: Span,
     inner: syn::Ident,
     lifetime: Option<syn::Lifetime>,
 }
 
-impl ComputedArray {
+impl CustomArray {
     pub(crate) fn compile_type(&self) -> TokenStream {
         let inner = &self.inner;
         quote!(Vec<#inner>)
@@ -601,15 +603,20 @@ impl Parse for FieldType {
         let path = input.parse::<syn::Path>()?;
         let last = get_single_path_segment(&path)?;
 
-        if last.ident == "ComputedArray" {
+        if last.ident == "ComputedArray" || last.ident == "VarLenArray" {
             let inner_typ = get_single_generic_type_arg(&last.arguments)?;
-            let last = get_single_path_segment(&inner_typ)?;
-            let lifetime = get_single_lifetime(&last.arguments)?;
-            return Ok(FieldType::ComputedArray(ComputedArray {
-                span: last.span(),
-                inner: last.ident.clone(),
+            let inner = get_single_path_segment(&inner_typ)?;
+            let lifetime = get_single_lifetime(&inner.arguments)?;
+            let array = CustomArray {
+                span: inner.span(),
+                inner: inner.ident.clone(),
                 lifetime,
-            }));
+            };
+            if last.ident == "ComputedArray" {
+                return Ok(FieldType::ComputedArray(array));
+            } else {
+                return Ok(FieldType::VarLenArray(array));
+            }
         }
 
         if last.ident != "BigEndian" {
