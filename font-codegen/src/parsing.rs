@@ -43,7 +43,6 @@ impl Table {
 #[derive(Debug, Default, Clone)]
 pub(crate) struct TableAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
-    pub(crate) skip_compile: Option<syn::Path>,
     pub(crate) skip_font_write: Option<syn::Path>,
     pub(crate) skip_from_obj: Option<syn::Path>,
     pub(crate) validation_method: Option<Attr<syn::Path>>,
@@ -752,7 +751,6 @@ impl Parse for FieldAttrs {
     }
 }
 
-static SKIP_COMPILE: &str = "skip_compile";
 static SKIP_FROM_OBJ: &str = "skip_from_obj";
 static SKIP_FONT_WRITE: &str = "skip_font_write";
 static VALIDATION_METHOD: &str = "validation_method";
@@ -771,8 +769,6 @@ impl Parse for TableAttrs {
             })?;
             if ident == DOC {
                 this.docs.push(attr);
-            } else if ident == SKIP_COMPILE {
-                this.skip_compile = Some(attr.path);
             } else if ident == SKIP_FROM_OBJ {
                 this.skip_from_obj = Some(attr.path);
             } else if ident == SKIP_FONT_WRITE {
