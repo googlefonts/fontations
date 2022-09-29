@@ -167,7 +167,6 @@ pub(crate) struct FieldAttrs {
     pub(crate) count: Option<Attr<Count>>,
     pub(crate) compile: Option<Attr<CustomCompile>>,
     pub(crate) compile_type: Option<Attr<syn::Path>>,
-    pub(crate) len: Option<Attr<InlineExpr>>,
     pub(crate) read_with_args: Option<Attr<FieldReadArgs>>,
     pub(crate) read_offset_args: Option<Attr<FieldReadArgs>>,
     pub(crate) to_owned: Option<Attr<InlineExpr>>,
@@ -688,7 +687,6 @@ static DOC: &str = "doc";
 static NULLABLE: &str = "nullable";
 static SKIP_GETTER: &str = "skip_getter";
 static COUNT: &str = "count";
-static LEN: &str = "len_expr";
 static AVAILABLE: &str = "available";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
@@ -732,8 +730,6 @@ impl Parse for FieldAttrs {
                     name: ident.clone(),
                     attr: attr.parse_args()?,
                 });
-            } else if ident == LEN {
-                this.len = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_WITH {
                 this.read_with_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_OFFSET_WITH {
