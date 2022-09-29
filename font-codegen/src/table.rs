@@ -8,9 +8,6 @@ use crate::parsing::GenericGroup;
 use super::parsing::{Field, ReferencedFields, Table, TableFormat, TableReadArg, TableReadArgs};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
-    if item.attrs.skip_parse.is_some() {
-        return Ok(Default::default());
-    }
     let docs = &item.attrs.docs;
     let generic = item.attrs.phantom.as_ref();
     let generic_with_default = generic.map(|t| quote!(#t = ()));
