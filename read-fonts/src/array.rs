@@ -1,7 +1,7 @@
 //! Custom array types
 
 use crate::read::{ComputeSize, FontReadWithArgs, ReadArgs};
-use crate::{FontData, ReadError};
+use crate::{FontData, FontRead, ReadError};
 
 /// An array whose items size is not known at compile time.
 ///
@@ -89,5 +89,62 @@ impl<T: ReadArgs> std::fmt::Debug for ComputedArray<'_, T> {
         f.debug_struct("DynSizedArray")
             .field("bytes", &self.data)
             .finish()
+    }
+}
+
+/// A trait for types that have variable length.
+///
+/// As a rule, these types have an initial length field.
+//TODO this would be easier with just an assoc type that is the type of the leading length field?
+pub trait VarLen {
+    /// Determine the length of the item, from the start of `data`.
+    ///
+    /// If data does not contain a valid value for Self, returns `None`.
+    ///
+    ///
+    /// If the returned value is not None, it should be greater than zero
+    /// and <= `data.len()`, and it should include the length of the length
+    /// field itself.
+    fn compute_len(data: FontData) -> Option<usize>;
+}
+
+/// An array of items of non-uniform length.
+///
+/// Random access into this array cannot be especially efficient, since it requires
+/// a linear scan.
+pub struct VarLenArray<'a, T> {
+    data: FontData<'a>,
+    phantom: std::marker::PhantomData<*const T>,
+}
+
+impl<'a, T: FontRead<'a> + VarLen> VarLenArray<'a, T> {
+    /// Return the item at the provided index.
+    ///
+    /// This performs a linear search.
+    pub fn get(&self, idx: usize) -> Option<Result<T, ReadError>> {
+        self.iter().nth(idx)
+    }
+
+    /// Return an iterator over this array's items.
+    pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a {
+        let mut data = self.data;
+        std::iter::from_fn(move || {
+            if data.is_empty() {
+                return None;
+            }
+            let item_len = T::compute_len(data)?;
+            let next = T::read(data);
+            data = data.split_off(item_len)?;
+            Some(next)
+        })
+    }
+}
+
+impl<'a, T> FontRead<'a> for VarLenArray<'a, T> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(VarLenArray {
+            data,
+            phantom: core::marker::PhantomData,
+        })
     }
 }

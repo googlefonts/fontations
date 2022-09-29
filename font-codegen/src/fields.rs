@@ -32,7 +32,7 @@ impl Fields {
     pub(crate) fn sanity_check(&self) -> syn::Result<()> {
         let mut custom_offset_data_fld: Option<&Field> = None;
         let mut normal_offset_data_fld = None;
-        for fld in &self.fields {
+        for (i, fld) in self.fields.iter().enumerate() {
             if let Some(attr) = fld.attrs.offset_data.as_ref() {
                 if let Some(prev_field) = custom_offset_data_fld.replace(fld) {
                     if prev_field.attrs.offset_data.as_ref().unwrap().attr != attr.attr {
@@ -41,6 +41,16 @@ impl Fields {
                 }
             } else if fld.is_offset_or_array_of_offsets() {
                 normal_offset_data_fld = Some(fld);
+            }
+
+            if (matches!(fld.typ, FieldType::VarLenArray(_))
+                || matches!(fld.attrs.count.as_deref(), Some(Count::All)))
+                && i != self.fields.len() - 1
+            {
+                return Err(syn::Error::new(
+                    fld.name.span(),
+                    "#[count(..)] or VarLenArray fields can only be last field in table.",
+                ));
             }
             fld.sanity_check()?;
         }
@@ -291,6 +301,9 @@ fn traversal_arm_for_field(
                     )
             ))
         }
+        FieldType::VarLenArray(_) => {
+            quote!(Field::new(#name_str, traversal::FieldType::var_array(self.#name()#maybe_unwrap)))
+        }
         FieldType::Other { typ } if typ.is_ident("ValueRecord") => {
             let clone = in_record.then(|| quote!(.clone()));
             quote!(Field::new(#name_str, self.#name() #clone #maybe_unwrap))
@@ -313,6 +326,7 @@ impl Field {
                 let inner = array.type_with_lifetime();
                 quote!(ComputedArray<'a, #inner>)
             }
+            FieldType::VarLenArray(_) => quote!(compile_error("VarLenArray not used in records?")),
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
                 FieldType::Offset { typ, .. } if self.is_nullable() => {
                     quote!(&'a [BigEndian<Nullable<#typ>>])
@@ -345,6 +359,10 @@ impl Field {
 
     pub(crate) fn is_computed_array(&self) -> bool {
         matches!(&self.typ, FieldType::ComputedArray { .. })
+    }
+
+    fn is_var_array(&self) -> bool {
+        matches!(&self.typ, FieldType::VarLenArray { .. })
     }
 
     pub(crate) fn has_computed_len(&self) -> bool {
@@ -420,7 +438,10 @@ impl Field {
             FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
                 quote!(#typ::RAW_BYTE_LEN)
             }
-            FieldType::Other { .. } | FieldType::Array { .. } | FieldType::ComputedArray { .. } => {
+            FieldType::Other { .. }
+            | FieldType::Array { .. }
+            | FieldType::ComputedArray { .. }
+            | FieldType::VarLenArray(_) => {
                 let len_field = self.shape_byte_len_field_name();
                 let try_op = self.is_version_dependent().then(|| quote!(?));
                 quote!(self.#len_field #try_op)
@@ -482,6 +503,10 @@ impl Field {
                 let inner = array.type_with_lifetime();
                 quote!(ComputedArray<'a, #inner>)
             }
+            FieldType::VarLenArray(array) => {
+                let inner = array.type_with_lifetime();
+                quote!(VarLenArray<'a, #inner>)
+            }
         }
     }
 
@@ -500,6 +525,7 @@ impl Field {
 
         let name = &self.name;
         let is_array = self.is_array();
+        let is_var_array = self.is_var_array();
         let is_versioned = self.is_version_dependent();
 
         let mut return_type = self.raw_getter_return_type();
@@ -511,6 +537,8 @@ impl Field {
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
             let get_args = args.to_tokens_for_table_getter();
             quote!( self.data.read_with_args(range, &#get_args).unwrap() )
+        } else if is_var_array {
+            quote!(VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap())
         } else if is_array {
             quote!(self.data.read_array(range).unwrap())
         } else {
@@ -552,7 +580,9 @@ impl Field {
 
         let getter_expr = match &self.typ {
             FieldType::Scalar { .. } | FieldType::Offset { .. } => quote!(self.#name.get()),
-            FieldType::Other { .. } | FieldType::ComputedArray { .. } => quote!(&self.#name),
+            FieldType::Other { .. }
+            | FieldType::ComputedArray { .. }
+            | FieldType::VarLenArray(_) => quote!(&self.#name),
             FieldType::Array { .. } => quote!(self.#name),
         };
 
@@ -685,7 +715,7 @@ impl Field {
         Some(syn::Ident::new(offset_name, self.name.span()))
     }
 
-    /// if the #[offset_data_method] attribute is specified, self.#method(),
+    /// if the `#[offset_data_method]` attribute is specified, self.#method(),
     /// else return self.offset_data().
     ///
     /// This does not make sense in records.
@@ -849,9 +879,9 @@ impl Field {
             let typ = self.typ.cooked_type_tokens();
             quote!(#format as #typ)
         } else if let Some(computed) = &self.attrs.compile {
-            let typ = self.typ.cooked_type_tokens();
             match &computed.attr {
                 CustomCompile::Expr(inline_expr) => {
+                    let typ = self.typ.cooked_type_tokens();
                     let expr = inline_expr.compile_expr();
                     if !inline_expr.referenced_fields.is_empty() {
                         quote!(#expr.unwrap() as #typ)
@@ -910,7 +940,9 @@ impl Field {
         match &self.typ {
             FieldType::Scalar { .. } | FieldType::Other { .. } => false,
             FieldType::Offset { target: None, .. } => false,
-            FieldType::Offset { .. } | FieldType::ComputedArray { .. } => true,
+            FieldType::Offset { .. }
+            | FieldType::ComputedArray { .. }
+            | FieldType::VarLenArray(_) => true,
             FieldType::Array { inner_typ } => matches!(
                 inner_typ.as_ref(),
                 FieldType::Offset { .. } | FieldType::Other { .. }
@@ -923,7 +955,7 @@ impl Field {
         match &self.typ {
             _ if self.attrs.to_owned.is_some() => false,
             FieldType::Offset { .. } => in_record,
-            FieldType::ComputedArray(_) => true,
+            FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => true,
             FieldType::Other { .. } => true,
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
                 FieldType::Offset { .. } => in_record,
@@ -988,8 +1020,14 @@ impl Field {
                     quote!(#getter #converter)
                 }
             }
-            FieldType::ComputedArray(_array) => {
-                quote!(obj.#name().iter().filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok()).collect())
+            FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
+                let getter = quote!(obj.#name());
+                let converter = quote!( .iter().filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok()).collect() );
+                if self.attrs.available.is_some() {
+                    quote!(#getter.map(|obj| obj #converter))
+                } else {
+                    quote!(#getter #converter)
+                }
             }
             _ => quote!(compile_error!("requires custom to_owned impl")),
         };
@@ -1005,7 +1043,9 @@ impl FieldType {
             FieldType::Other { typ } => typ
                 .get_ident()
                 .expect("non-trivial custom types never cooked"),
-            FieldType::Array { .. } | FieldType::ComputedArray { .. } => {
+            FieldType::Array { .. }
+            | FieldType::ComputedArray { .. }
+            | FieldType::VarLenArray(_) => {
                 panic!("array tokens never cooked")
             }
         }
@@ -1037,7 +1077,7 @@ impl FieldType {
                 let inner_tokens = inner_typ.compile_type(nullable, false);
                 quote!( Vec<#inner_tokens> )
             }
-            FieldType::ComputedArray(array) => array.compile_type(),
+            FieldType::ComputedArray(array) | FieldType::VarLenArray(array) => array.compile_type(),
         };
         if version_dependent {
             quote!( Option<#raw_type> )
