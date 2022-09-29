@@ -6,10 +6,6 @@ use quote::quote;
 use super::parsing::{CustomCompile, Field, Fields, Record, TableAttrs};
 
 pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
-    if item.attrs.skip_parse.is_some() {
-        return Ok(Default::default());
-    }
-
     let name = &item.name;
     let docs = &item.attrs.docs;
     let field_names = item.fields.iter().map(|fld| &fld.name).collect::<Vec<_>>();
