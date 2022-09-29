@@ -138,10 +138,6 @@ pub(crate) fn generate_compile_impl(
     attrs: &TableAttrs,
     fields: &Fields,
 ) -> syn::Result<TokenStream> {
-    if attrs.skip_compile.is_some() {
-        return Ok(Default::default());
-    }
-
     let docs = &attrs.docs;
     let field_decls = fields.iter_compile_decls();
     let generic_param = attrs.phantom.as_ref();
