@@ -79,6 +79,11 @@ source = "resources/codegen_inputs/post.rs"
 target = "read-fonts/generated/generated_post.rs"
 
 [[generate]]
+mode = "compile"
+source = "resources/codegen_inputs/post.rs"
+target = "write-fonts/generated/generated_post.rs"
+
+[[generate]]
 mode = "parse"
 source = "resources/codegen_inputs/hhea.rs"
 target = "read-fonts/generated/generated_hhea.rs"

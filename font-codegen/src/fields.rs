@@ -921,6 +921,7 @@ impl Field {
     #[allow(clippy::wrong_self_convention)]
     fn from_obj_requires_offset_data(&self, in_record: bool) -> bool {
         match &self.typ {
+            _ if self.attrs.to_owned.is_some() => false,
             FieldType::Offset { .. } => in_record,
             FieldType::ComputedArray(_) => true,
             FieldType::Other { .. } => true,
