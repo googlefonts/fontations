@@ -2,6 +2,8 @@
 
 use font_types::{GlyphId, Tag, Version16Dot16};
 
+use crate::array::VarLen;
+
 /// 'post'
 pub const TAG: Tag = Tag::new(b"post");
 
@@ -23,20 +25,72 @@ impl<'a> Post<'a> {
             Version16Dot16::VERSION_1_0 => DEFAULT_GLYPH_NAMES.get(glyph_id).copied(),
             Version16Dot16::VERSION_2_0 => {
                 let idx = self.glyph_name_index()?.get(glyph_id)?.get() as usize;
-                if let Some(name) = DEFAULT_GLYPH_NAMES.get(idx) {
-                    return Some(name);
+                if idx < DEFAULT_GLYPH_NAMES.len() {
+                    return DEFAULT_GLYPH_NAMES.get(idx).copied();
                 }
                 let idx = idx - DEFAULT_GLYPH_NAMES.len();
-                let mut offset = 0;
-                for _ in 0..idx {
-                    offset += self.string_data()?.get(offset).copied().unwrap_or(0) as usize + 1;
+                match self.string_data().unwrap().get(idx) {
+                    Some(Ok(s)) => Some(s.0),
+                    _ => None,
                 }
-                let len = self.string_data()?.get(offset).copied().unwrap_or(0) as usize;
-                let bytes = self.string_data()?.get(offset + 1..offset + 1 + len)?;
-                std::str::from_utf8(bytes).ok()
             }
             _ => None,
         }
+    }
+
+    //FIXME: how do we want to traverse this? I want to stop needing to
+    // add special cases for things...
+    #[cfg(feature = "traversal")]
+    fn traverse_string_data(&self) -> FieldType<'a> {
+        FieldType::I8(-42) // meaningless value
+    }
+}
+
+/// A string in the post table.
+///
+/// This is basically just a newtype that knows how to parse from a Pascal-style
+/// string.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PString<'a>(&'a str);
+
+impl<'a> PString<'a> {
+    pub fn as_str(&self) -> &'a str {
+        self.0
+    }
+}
+
+impl<'a> std::ops::Deref for PString<'a> {
+    type Target = str;
+    fn deref(&self) -> &Self::Target {
+        self.0
+    }
+}
+
+impl PartialEq<&str> for PString<'_> {
+    fn eq(&self, other: &&str) -> bool {
+        self.0 == *other
+    }
+}
+
+impl<'a> FontRead<'a> for PString<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let len: u8 = data.read_at(0)?;
+        let pstring = data
+            .as_bytes()
+            .get(1..len as usize + 1)
+            .ok_or(ReadError::OutOfBounds)?;
+        if pstring.is_ascii() {
+            Ok(PString(unsafe { std::str::from_utf8_unchecked(pstring) }))
+        } else {
+            //FIXME not really sure how we want to handle this?
+            Err(ReadError::MalformedData("Must be valid ascii"))
+        }
+    }
+}
+
+impl VarLen for PString<'_> {
+    fn compute_len(data: FontData) -> Option<usize> {
+        data.read_at::<u8>(0).ok().map(|x| x as usize + 1)
     }
 }
 
@@ -72,3 +126,21 @@ const DEFAULT_GLYPH_NAMES: [&str; 258] = [
     "onequarter", "threequarters", "franc", "Gbreve", "gbreve", "Idotaccent", "Scedilla",
     "scedilla", "Cacute", "cacute", "Ccaron", "ccaron", "dcroat",
 ];
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::test_data::post as test_data;
+
+    #[test]
+    fn test_post() {
+        let table = Post::read(test_data::SIMPLE).unwrap();
+        assert_eq!(table.version(), Version16Dot16::VERSION_2_0);
+        assert_eq!(table.underline_position(), FWord::new(-75));
+        assert_eq!(table.glyph_name(GlyphId::new(1)), Some(".notdef"));
+        assert_eq!(table.glyph_name(GlyphId::new(2)), Some("space"));
+        assert_eq!(table.glyph_name(GlyphId::new(7)), Some("hello"));
+        assert_eq!(table.glyph_name(GlyphId::new(8)), Some("hi"));
+        assert_eq!(table.glyph_name(GlyphId::new(9)), Some("hola"));
+    }
+}
