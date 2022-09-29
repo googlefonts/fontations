@@ -89,9 +89,7 @@ impl<'a> FontRead<'a> for PString<'a> {
 }
 
 impl VarLen for PString<'_> {
-    fn compute_len(data: FontData) -> Option<usize> {
-        data.read_at::<u8>(0).ok().map(|x| x as usize + 1)
-    }
+    type Len = u8;
 }
 
 #[rustfmt::skip]
