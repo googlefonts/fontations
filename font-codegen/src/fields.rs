@@ -307,9 +307,7 @@ impl Field {
     }
 
     pub(crate) fn has_computed_len(&self) -> bool {
-        self.attrs.len.is_some()
-            || self.attrs.count.is_some()
-            || self.attrs.read_with_args.is_some()
+        self.attrs.count.is_some() || self.attrs.read_with_args.is_some()
     }
 
     pub(crate) fn is_version_dependent(&self) -> bool {
@@ -330,19 +328,13 @@ impl Field {
                 ));
             }
         }
-        if self.is_array() && (self.attrs.count.is_none() && self.attrs.len.is_none()) {
+        if self.is_array() && self.attrs.count.is_none() {
             return Err(syn::Error::new(
                 self.name.span(),
                 "array requires #[count] attribute",
             ));
         }
         if let Some(args) = &self.attrs.read_with_args {
-            if let Some(len) = &self.attrs.len {
-                return Err(syn::Error::new(
-                    len.span(),
-                    "#[len_expr] unnecessary, #[read_with] provides computed length",
-                ));
-            }
             match &self.typ {
                 FieldType::ComputedArray(array) if self.attrs.count.is_none() => {
                     return Err(syn::Error::new(array.span(), "missing count attribute"));
@@ -408,11 +400,6 @@ impl Field {
                     .cloned()
                     .map(|fld| (fld, NeededWhen::Parse))
             })
-            .chain(self.attrs.len.as_ref().into_iter().flat_map(|expr| {
-                expr.referenced_fields
-                    .iter()
-                    .map(|x| (x.clone(), NeededWhen::Parse))
-            }))
             .chain(
                 self.attrs
                     .read_with_args
@@ -723,29 +710,24 @@ impl Field {
             return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args)));
         }
 
-        let len_expr = if let Some(expr) = &self.attrs.len {
-            expr.expr.to_token_stream()
-        } else if let Some(Count::All) = self.attrs.count.as_deref() {
-            quote!(cursor.remaining_bytes())
-        } else {
-            let count_expr = self
-                .attrs
-                .count
-                .as_deref()
-                .map(Count::count_expr)
-                .expect("must have one of count/count_expr/len");
-            let size_expr = match &self.typ {
-                FieldType::Array { inner_typ } => {
-                    let inner_typ = inner_typ.cooked_type_tokens();
-                    quote!( #inner_typ::RAW_BYTE_LEN )
-                }
-                FieldType::ComputedArray(array) => {
-                    let inner = array.raw_inner_type();
-                    quote!( <#inner as ComputeSize>::compute_size(&#read_args) )
-                }
-                _ => unreachable!("count not valid here"),
-            };
-            quote!(  #count_expr * #size_expr )
+        let len_expr = match self.attrs.count.as_deref() {
+            Some(Count::All) => quote!(cursor.remaining_bytes()),
+            Some(other) => {
+                let count_expr = other.count_expr();
+                let size_expr = match &self.typ {
+                    FieldType::Array { inner_typ } => {
+                        let inner_typ = inner_typ.cooked_type_tokens();
+                        quote!( #inner_typ::RAW_BYTE_LEN )
+                    }
+                    FieldType::ComputedArray(array) => {
+                        let inner = array.raw_inner_type();
+                        quote!( <#inner as ComputeSize>::compute_size(&#read_args) )
+                    }
+                    _ => unreachable!("count not valid here"),
+                };
+                quote!(  #count_expr * #size_expr )
+            }
+            None => quote!(compile_error!("missing count attribute?")),
         };
         Some(len_expr)
     }
