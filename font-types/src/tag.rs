@@ -167,7 +167,7 @@ impl Display for InvalidTag {
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for Tag {}
+impl std::error::Error for InvalidTag {}
 
 impl Debug for Tag {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
