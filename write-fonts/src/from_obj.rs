@@ -24,7 +24,6 @@ pub trait FromTableRef<T>: FromObjRef<T> {
 ///
 /// [`validate`]: [crate::Validate::validate]
 pub trait FromObjRef<T: ?Sized>: Sized {
-    //type Owned;
     fn from_obj_ref(from: &T, data: FontData) -> Self;
 }
 

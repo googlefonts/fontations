@@ -21,7 +21,6 @@ pub trait ReadArgs {
 
 /// A trait for types that require external data in order to be constructed.
 pub trait FontReadWithArgs<'a>: Sized + ReadArgs {
-    //type Args;
     /// read an item, using the provided args.
     ///
     /// If successful, returns a new item of this type, and the number of bytes
