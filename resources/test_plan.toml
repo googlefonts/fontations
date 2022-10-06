@@ -11,3 +11,8 @@ mode = "parse"
 source = "resources/codegen_inputs/test.rs"
 target = "read-fonts/generated/generated_test.rs"
 
+[[generate]]
+mode = "compile"
+source = "resources/codegen_inputs/test.rs"
+target = "write-fonts/generated/generated_test.rs"
+
