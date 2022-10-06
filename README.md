@@ -36,4 +36,5 @@ described in more detail in [`font-codegen/README.md`][codegen-readme].
 [`read-fonts`]: ./read-fonts
 [`font-types`]: ./font-types
 [`write-fonts`]: ./write-fonts
+[`otexplorer`]: ./otexplorer
 [oxidize]: https://github.com/googlefonts/oxidize
