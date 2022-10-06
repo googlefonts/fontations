@@ -5,13 +5,16 @@ mod font_builder;
 #[cfg(feature = "parsing")]
 mod from_obj;
 mod graph;
-#[cfg(test)]
-mod hex_diff;
 pub mod layout;
 mod offsets;
 pub mod tables;
 pub mod validate;
 mod write;
+
+#[cfg(test)]
+mod codegen_test;
+#[cfg(test)]
+mod hex_diff;
 
 pub use font_builder::FontBuilder;
 pub use offsets::{NullableOffsetMarker, OffsetMarker};

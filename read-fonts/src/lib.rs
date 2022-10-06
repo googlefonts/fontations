@@ -22,8 +22,8 @@ pub mod tables;
 #[cfg(feature = "traversal")]
 pub mod traversal;
 
-#[cfg(test)]
-mod codegen_test;
+#[cfg(any(test, feature = "test_data"))]
+pub mod codegen_test;
 #[cfg(any(test, feature = "test_data"))]
 #[path = "tests/test_data.rs"]
 pub mod test_data;
