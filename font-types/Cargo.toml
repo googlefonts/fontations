@@ -1,10 +1,12 @@
 [package]
 name = "font-types"
-version = "0.1.0"
+version = "0.0.1"
 edition = "2021"
 license = "MIT/Apache-2.0"
-
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+description = "Scalar types used in fonts."
+repository = "https://github.com/cmyr/fontations"
+readme = "README.md"
+categories = ["text-processing"]
 
 [features]
 std = []
