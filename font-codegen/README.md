@@ -3,26 +3,67 @@
 This crate contains utilities used to generate code for parsing and
 compiling various font tables.
 
-As a quick overview, adding a new table works like this:
-- the raw text of the table/record/bitfield objects is copied from the
-  [Microsoft OpenType® docs][opentype] into a text file in `resources/raw_tables`.
-- the `preprocessor` binary is run, converting this into a DSL with 'rust-like syntax'.
-  This is written into a file in `resources/codegen_inputs`.
-- if necessary, this syntax is annotated by hand with various attributes which
-  instruct the codegen tool on how to treat various objects and fields.
-- *this* file is then run through the actual `codegen` binary, which outputs
-  (hopefully) valid rust code.
-- the generated file is (generally) then written to `read/write-fonts/generated`.
-- by convention, the contents of these generated files (which are not in the
-  crate's module tree) are glob-imported into some file that *is* in that tree.
-  Any hand-written implementation code lives in that file, which is only edited
-  manually.
-- you can also write a 'codegen plan', which is a toml file describing inputs
-  and targets for the codegen tool, to be run in bulk. You can see one of these
-  in `resources/codegen_plan.toml`.
+The basics:
+- Inputs live in `resources/codegen_inputs`.
+- Inputs are (generally) executed through a 'codegen plan', which describes the
+  inputs and their destinations. The default plan lives in
+  `resources/codegen_plan.toml`.
+- outputs are written into `$crate/generated/generated_$name.rs` (where `$crate` is one of
+  `read-fonts` or `write-fonts`.)
+- these output files (which are not in the module tree) are included with the
+  [`include!`][] macro into a corresponding module, generally in
+  `$crate/src/tables/$name.rs`.
 
+
+## Adding a new table
+
+- Create a new codegen input file in `resources/codegen_inputs`. The name of
+  this file is not important, but in general it should be the name of the
+  corresponding table in the spec. Each top-level table (table with a tag) gets
+  its own file. To assist with creating this file, you may use the
+  [preprocessor](#preprocessor); see below.
+- Add a task in `resources/codegen_plan.toml` to generate an output in
+  `read-fonts/generated`.
+- Add a module corresponding to the new table to the `read-fonts` crate. In
+  general this means adding a new file in `read-fonts/src/tables`, and adding an
+  entry in `read-fonts/src/tables.rs`. The module should `include!` the
+  generated file.
+- Run the codegen tool, with
+  `$ cargo run --bin=codegen resources/codegen_plan.toml`, and run `cargo check`
+  to see if there are any errors.
+- If there are any errors, add [attributes](#annotations) as to your table
+  as appropriate. Look at other tables for examples.
+- Update `read-fonts/src/table_provider.rs` to provide a getter for your table.
+- Update `otexplorer` to add support for your table. Run the `otexplorer` tool,
+  and ensure it is producing reasonable output.
+- Repeat this process for the `write-fonts` crate.
+
+
+## Modifying the codegen code
+
+It is possible that in adding a table you will need to modify the codegen code
+itself, for instance to add a new attribute.
+
+This can be a fiddily process. In general, the workflow is something like this:
+
+- Update `codegen_inputs/test.rs` to include an input matching the input you are
+  trying to support.
+- Make a modification to the codegen code.
+- Run `$ cargo run --bin=codegen resources/test_plan.toml && cargo test` to see
+  if the generated code compiles, and inspect to see that it is working as
+  intended.
+- repeat the edit/test cycle until you are satisfied.
 
 ## preprocessor
+
+To speed up writing of the codegen inputs, there is a *preprocessor*, which
+takes a simple text input and does basic reformatting into the expected input
+format.
+
+The text in the preprocessor inputs (which live in `resources/raw_tables`) is
+copied directly from the [Microsoft OpenType® docs][opentype]; it is then
+augmented with links to the original documentation, and a few basic annotations
+to indicate the type of the object (record/table/flags/enums)
 
 Inputs to the preprocessor look like this:
 
@@ -152,8 +193,6 @@ The following annotations are supported on top-level objects:
   in `FromObjRef` to convert the parse type to the compile type.
 
 
-[opentype]: https://docs.microsoft.com/en-us/typography/opentype/
-
 ### codegen plans
 
 There is also the concept of a 'codegen plan', which is a simple toml file
@@ -161,3 +200,7 @@ describing a number of different operations to be run in parallel. This is
 intended to be the general mechanism by which codegen is run.
 
 See `../resources/codegen_plan.toml` for an example.
+
+[opentype]: https://docs.microsoft.com/en-us/typography/opentype/
+[`include!`]: http://doc.rust-lang.org/1.64.0/std/macro.include.html
+
