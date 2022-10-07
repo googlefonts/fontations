@@ -497,7 +497,7 @@ where
 #[derive(Clone, Debug, Default)]
 pub struct Lookup<T> {
     /// Lookup qualifiers
-    pub lookup_flag: u16,
+    pub lookup_flag: LookupFlag,
     /// Array of offsets to lookup subtables, from beginning of Lookup
     /// table
     pub subtables: Vec<OffsetMarker<T>>,
@@ -509,7 +509,7 @@ pub struct Lookup<T> {
 
 impl<T: Default> Lookup<T> {
     /// Construct a new `Lookup`
-    pub fn new(lookup_flag: u16, subtables: Vec<T>, mark_filtering_set: u16) -> Self {
+    pub fn new(lookup_flag: LookupFlag, subtables: Vec<T>, mark_filtering_set: u16) -> Self {
         Self {
             lookup_flag,
             subtables: subtables.into_iter().map(Into::into).collect(),

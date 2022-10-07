@@ -737,7 +737,7 @@ impl<T> LookupMarker<T> {
     }
     fn lookup_flag_byte_range(&self) -> Range<usize> {
         let start = self.lookup_type_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + LookupFlag::RAW_BYTE_LEN
     }
     fn sub_table_count_byte_range(&self) -> Range<usize> {
         let start = self.lookup_flag_byte_range().end;
@@ -768,7 +768,7 @@ impl<'a, T> FontRead<'a> for Lookup<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
-        cursor.advance::<u16>();
+        cursor.advance::<LookupFlag>();
         let sub_table_count: u16 = cursor.read()?;
         let subtable_offsets_byte_len = sub_table_count as usize * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(subtable_offsets_byte_len);
@@ -805,7 +805,7 @@ impl<'a, T> Lookup<'a, T> {
     }
 
     /// Lookup qualifiers
-    pub fn lookup_flag(&self) -> u16 {
+    pub fn lookup_flag(&self) -> LookupFlag {
         let range = self.shape.lookup_flag_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -851,7 +851,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("lookup_type", self.lookup_type())),
-            1usize => Some(Field::new("lookup_flag", self.lookup_flag())),
+            1usize => Some(Field::new("lookup_flag", self.traverse_lookup_flag())),
             2usize => Some(Field::new("sub_table_count", self.sub_table_count())),
             3usize => Some({
                 let data = self.data;

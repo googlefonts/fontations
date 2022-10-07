@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
+pub use read_fonts::tables::layout::LookupFlag;
 use read_fonts::FontRead;
 
 #[cfg(test)]
@@ -66,6 +67,12 @@ macro_rules! table_newtype {
 
 pub(crate) use lookup_type;
 pub(crate) use table_newtype;
+
+impl FontWrite for LookupFlag {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.to_bits().write_into(writer)
+    }
+}
 
 impl<T: LookupType + FontWrite> FontWrite for Lookup<T> {
     fn write_into(&self, writer: &mut TableWriter) {

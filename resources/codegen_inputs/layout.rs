@@ -1,6 +1,8 @@
 // path (from compile crate) to the generated parse module for this table.
 #![parse_module(read_fonts::tables::layout)]
 
+extern scalar LookupFlag;
+
 /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 table ScriptList {
     /// Number of ScriptRecords
@@ -115,7 +117,8 @@ table Lookup {
     #[compile(skip)]
     lookup_type: u16,
     /// Lookup qualifiers
-    lookup_flag: u16,
+    #[traverse_with(traverse_lookup_flag)]
+    lookup_flag: LookupFlag,
     /// Number of subtables for this lookup
     #[compile(array_len($subtable_offsets))]
     sub_table_count: u16,
