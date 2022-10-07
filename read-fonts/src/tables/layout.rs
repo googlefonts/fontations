@@ -1,5 +1,10 @@
 //! OpenType Layout common table formats
 
+#[path = "./lookupflag.rs"]
+mod lookupflag;
+
+pub use lookupflag::LookupFlag;
+
 #[cfg(test)]
 #[path = "../tests/layout.rs"]
 mod tests;
@@ -9,6 +14,11 @@ include!("../../generated/generated_layout.rs");
 impl<'a, T: FontRead<'a>> Lookup<'a, T> {
     pub fn get_subtable(&self, offset: Offset16) -> Result<T, ReadError> {
         self.resolve_offset(offset)
+    }
+
+    #[cfg(feature = "traversal")]
+    fn traverse_lookup_flag(&self) -> traversal::FieldType<'a> {
+        self.lookup_flag().to_bits().into()
     }
 }
 
