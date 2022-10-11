@@ -525,7 +525,6 @@ impl ReadArgs for Feature<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Feature<'a> {
-    #[allow(unused_parens)]
     fn read_with_args(data: FontData<'a>, args: &Tag) -> Result<Self, ReadError> {
         let feature_tag = *args;
         let mut cursor = data.cursor();
