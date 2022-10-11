@@ -39,9 +39,8 @@ impl TableDirectoryMarker {
     }
 }
 
-impl TableInfo for TableDirectoryMarker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for TableDirectory<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u32>();
         let num_tables: u16 = cursor.read()?;

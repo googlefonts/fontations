@@ -44,8 +44,8 @@ impl GdefMarker {
     }
 }
 
-impl TableInfo for GdefMarker {
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for Gdef<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
         cursor.advance::<Offset16>();
@@ -282,9 +282,8 @@ impl AttachListMarker {
     }
 }
 
-impl TableInfo for AttachListMarker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for AttachList<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
         let glyph_count: u16 = cursor.read()?;
@@ -390,9 +389,8 @@ impl AttachPointMarker {
     }
 }
 
-impl TableInfo for AttachPointMarker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for AttachPoint<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let point_count: u16 = cursor.read()?;
         let point_indices_byte_len = point_count as usize * u16::RAW_BYTE_LEN;
@@ -463,9 +461,8 @@ impl LigCaretListMarker {
     }
 }
 
-impl TableInfo for LigCaretListMarker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for LigCaretList<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
         let lig_glyph_count: u16 = cursor.read()?;
@@ -571,9 +568,8 @@ impl LigGlyphMarker {
     }
 }
 
-impl TableInfo for LigGlyphMarker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for LigGlyph<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let caret_count: u16 = cursor.read()?;
         let caret_value_offsets_byte_len = caret_count as usize * Offset16::RAW_BYTE_LEN;
@@ -711,8 +707,8 @@ impl CaretValueFormat1Marker {
     }
 }
 
-impl TableInfo for CaretValueFormat1Marker {
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for CaretValueFormat1<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<i16>();
@@ -778,8 +774,8 @@ impl CaretValueFormat2Marker {
     }
 }
 
-impl TableInfo for CaretValueFormat2Marker {
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for CaretValueFormat2<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
@@ -852,8 +848,8 @@ impl CaretValueFormat3Marker {
     }
 }
 
-impl TableInfo for CaretValueFormat3Marker {
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for CaretValueFormat3<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<i16>();
@@ -944,9 +940,8 @@ impl MarkGlyphSetsMarker {
     }
 }
 
-impl TableInfo for MarkGlyphSetsMarker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for MarkGlyphSets<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let mark_glyph_set_count: u16 = cursor.read()?;

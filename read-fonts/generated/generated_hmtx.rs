@@ -24,16 +24,13 @@ impl HmtxMarker {
     }
 }
 
-impl ReadArgs for HmtxMarker {
+impl ReadArgs for Hmtx<'_> {
     type Args = (u16, u16);
 }
 
-impl TableInfoWithArgs for HmtxMarker {
+impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
     #[allow(unused_parens)]
-    fn parse_with_args<'a>(
-        data: FontData<'a>,
-        args: &(u16, u16),
-    ) -> Result<TableRef<'a, Self>, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
         let (number_of_h_metrics, num_glyphs) = *args;
         let mut cursor = data.cursor();
         let h_metrics_byte_len = number_of_h_metrics as usize * LongHorMetric::RAW_BYTE_LEN;

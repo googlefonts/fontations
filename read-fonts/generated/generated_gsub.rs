@@ -35,8 +35,8 @@ impl GsubMarker {
     }
 }
 
-impl TableInfo for GsubMarker {
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for Gsub<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
         cursor.advance::<Offset16>();
@@ -278,8 +278,8 @@ impl SingleSubstFormat1Marker {
     }
 }
 
-impl TableInfo for SingleSubstFormat1Marker {
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for SingleSubstFormat1<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
@@ -373,9 +373,8 @@ impl SingleSubstFormat2Marker {
     }
 }
 
-impl TableInfo for SingleSubstFormat2Marker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for SingleSubstFormat2<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
@@ -483,9 +482,8 @@ impl MultipleSubstFormat1Marker {
     }
 }
 
-impl TableInfo for MultipleSubstFormat1Marker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for MultipleSubstFormat1<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
@@ -600,9 +598,8 @@ impl SequenceMarker {
     }
 }
 
-impl TableInfo for SequenceMarker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for Sequence<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
         let substitute_glyph_ids_byte_len = glyph_count as usize * GlyphId::RAW_BYTE_LEN;
@@ -685,9 +682,8 @@ impl AlternateSubstFormat1Marker {
     }
 }
 
-impl TableInfo for AlternateSubstFormat1Marker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for AlternateSubstFormat1<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
@@ -805,9 +801,8 @@ impl AlternateSetMarker {
     }
 }
 
-impl TableInfo for AlternateSetMarker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for AlternateSet<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
         let alternate_glyph_ids_byte_len = glyph_count as usize * GlyphId::RAW_BYTE_LEN;
@@ -889,9 +884,8 @@ impl LigatureSubstFormat1Marker {
     }
 }
 
-impl TableInfo for LigatureSubstFormat1Marker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for LigatureSubstFormat1<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
@@ -1006,9 +1000,8 @@ impl LigatureSetMarker {
     }
 }
 
-impl TableInfo for LigatureSetMarker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for LigatureSet<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let ligature_count: u16 = cursor.read()?;
         let ligature_offsets_byte_len = ligature_count as usize * Offset16::RAW_BYTE_LEN;
@@ -1101,9 +1094,8 @@ impl LigatureMarker {
     }
 }
 
-impl TableInfo for LigatureMarker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for Ligature<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<GlyphId>();
         let component_count: u16 = cursor.read()?;
@@ -1200,8 +1192,8 @@ impl<T> Clone for ExtensionSubstFormat1Marker<T> {
 
 impl<T> Copy for ExtensionSubstFormat1Marker<T> {}
 
-impl<T> TableInfo for ExtensionSubstFormat1Marker<T> {
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
@@ -1388,9 +1380,8 @@ impl ReverseChainSingleSubstFormat1Marker {
     }
 }
 
-impl TableInfo for ReverseChainSingleSubstFormat1Marker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();

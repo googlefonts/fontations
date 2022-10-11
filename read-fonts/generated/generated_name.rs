@@ -42,9 +42,8 @@ impl NameMarker {
     }
 }
 
-impl TableInfo for NameMarker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for Name<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: u16 = cursor.read()?;
         let count: u16 = cursor.read()?;

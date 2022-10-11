@@ -44,7 +44,7 @@ pub(crate) mod codegen_prelude {
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
     pub use crate::read::{ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError};
-    pub use crate::table_ref::{TableInfo, TableInfoWithArgs, TableRef};
+    pub use crate::table_ref::TableRef;
     pub use font_types::*;
     pub use std::ops::Range;
 

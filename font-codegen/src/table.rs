@@ -107,6 +107,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
 
 fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
     let marker_name = item.marker_name();
+    let name = item.raw_name();
     let field_validation_stmts = item.iter_field_validation_stmts();
     let shape_field_names = item.iter_shape_field_names();
     let generic = item.attrs.phantom.as_ref();
@@ -134,13 +135,13 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
         let destructure_pattern = read_args.destructure_pattern();
         Ok(quote! {
             #error_if_phantom_and_read_args
-            impl ReadArgs for #marker_name {
+            impl ReadArgs for #name<'_> {
                 type Args = #args_type;
             }
 
-            impl TableInfoWithArgs for #marker_name {
+            impl<'a> FontReadWithArgs<'a> for #name<'a> {
                 #ignore_parens
-                fn parse_with_args<'a>(data: FontData<'a>, args: &#args_type) -> Result<TableRef<'a, Self>, ReadError> {
+                fn read_with_args(data: FontData<'a>, args: &#args_type) -> Result<Self, ReadError> {
                     let #destructure_pattern = *args;
                     let #maybe_mut_kw cursor = data.cursor();
                     #( #field_validation_stmts )*
@@ -152,9 +153,9 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
         })
     } else {
         Ok(quote! {
-            impl<#generic> TableInfo for #marker_name<#generic> {
+            impl<'a, #generic> FontRead<'a> for #name<'a, #generic> {
             #ignore_parens
-            fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+            fn read(data: FontData<'a>) -> Result<Self, ReadError> {
                 let #maybe_mut_kw cursor = data.cursor();
                 #( #field_validation_stmts )*
                 cursor.finish( #marker_name {
