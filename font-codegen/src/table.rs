@@ -118,14 +118,6 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
         );)
     });
 
-    // add this attribute if we're going to be generating expressions which
-    // may trigger a warning
-    let ignore_parens = item
-        .fields
-        .iter()
-        .any(|fld| fld.has_computed_len())
-        .then(|| quote!(#[allow(unused_parens)]));
-
     // the cursor doesn't need to be mut if there are no fields,
     // which happens at least once (in glyf)?
     let maybe_mut_kw = (!item.fields.fields.is_empty()).then(|| quote!(mut));
@@ -140,7 +132,6 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
             }
 
             impl<'a> FontReadWithArgs<'a> for #name<'a> {
-                #ignore_parens
                 fn read_with_args(data: FontData<'a>, args: &#args_type) -> Result<Self, ReadError> {
                     let #destructure_pattern = *args;
                     let #maybe_mut_kw cursor = data.cursor();
@@ -154,7 +145,6 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
     } else {
         Ok(quote! {
             impl<'a, #generic> FontRead<'a> for #name<'a, #generic> {
-            #ignore_parens
             fn read(data: FontData<'a>) -> Result<Self, ReadError> {
                 let #maybe_mut_kw cursor = data.cursor();
                 #( #field_validation_stmts )*

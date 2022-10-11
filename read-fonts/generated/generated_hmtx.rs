@@ -29,7 +29,6 @@ impl ReadArgs for Hmtx<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
-    #[allow(unused_parens)]
     fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
         let (number_of_h_metrics, num_glyphs) = *args;
         let mut cursor = data.cursor();

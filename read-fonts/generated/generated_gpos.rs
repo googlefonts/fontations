@@ -1206,7 +1206,6 @@ impl ReadArgs for PairSet<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for PairSet<'a> {
-    #[allow(unused_parens)]
     fn read_with_args(
         data: FontData<'a>,
         args: &(ValueFormat, ValueFormat),
@@ -2053,7 +2052,6 @@ impl ReadArgs for BaseArray<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
-    #[allow(unused_parens)]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
         let mut cursor = data.cursor();
@@ -2375,7 +2373,6 @@ impl ReadArgs for LigatureArray<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for LigatureArray<'a> {
-    #[allow(unused_parens)]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
         let mut cursor = data.cursor();
@@ -2482,7 +2479,6 @@ impl ReadArgs for LigatureAttach<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for LigatureAttach<'a> {
-    #[allow(unused_parens)]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
         let mut cursor = data.cursor();
@@ -2804,7 +2800,6 @@ impl ReadArgs for Mark2Array<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Mark2Array<'a> {
-    #[allow(unused_parens)]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mark_class_count = *args;
         let mut cursor = data.cursor();
