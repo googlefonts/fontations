@@ -12,8 +12,8 @@ pub struct GlyfMarker {}
 
 impl GlyfMarker {}
 
-impl TableInfo for GlyfMarker {
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for Glyf<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let cursor = data.cursor();
         cursor.finish(GlyfMarker {})
     }
@@ -94,9 +94,8 @@ impl SimpleGlyphMarker {
     }
 }
 
-impl TableInfo for SimpleGlyphMarker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for SimpleGlyph<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let number_of_contours: i16 = cursor.read()?;
         cursor.advance::<i16>();
@@ -267,9 +266,8 @@ impl CompositeGlyphMarker {
     }
 }
 
-impl TableInfo for CompositeGlyphMarker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for CompositeGlyph<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<i16>();
         cursor.advance::<i16>();

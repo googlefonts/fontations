@@ -81,8 +81,8 @@ impl HheaMarker {
     }
 }
 
-impl TableInfo for HheaMarker {
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for Hhea<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
         cursor.advance::<FWord>();

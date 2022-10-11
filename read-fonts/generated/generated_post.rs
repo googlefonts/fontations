@@ -67,9 +67,8 @@ impl PostMarker {
     }
 }
 
-impl TableInfo for PostMarker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for Post<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: Version16Dot16 = cursor.read()?;
         cursor.advance::<Fixed>();

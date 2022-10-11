@@ -35,8 +35,8 @@ impl KindsOfOffsetsMarker {
     }
 }
 
-impl TableInfo for KindsOfOffsetsMarker {
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
         cursor.advance::<Offset16>();
@@ -201,9 +201,8 @@ impl KindsOfArraysOfOffsetsMarker {
     }
 }
 
-impl TableInfo for KindsOfArraysOfOffsetsMarker {
-    #[allow(unused_parens)]
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
         let count: u16 = cursor.read()?;
@@ -405,8 +404,8 @@ impl DummyMarker {
     }
 }
 
-impl TableInfo for DummyMarker {
-    fn parse(data: FontData) -> Result<TableRef<Self>, ReadError> {
+impl<'a> FontRead<'a> for Dummy<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.finish(DummyMarker {})
