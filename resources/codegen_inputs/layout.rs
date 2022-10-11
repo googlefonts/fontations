@@ -1,5 +1,5 @@
 // path (from compile crate) to the generated parse module for this table.
-#![parse_module(read_fonts::layout)]
+#![parse_module(read_fonts::tables::layout)]
 
 /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 table ScriptList {

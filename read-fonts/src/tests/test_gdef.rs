@@ -1,7 +1,7 @@
 use font_types::{GlyphId, MajorMinor};
 
 use super::*;
-use crate::layout::{ClassDefFormat2, DeltaFormat};
+use crate::tables::layout::{ClassDefFormat2, DeltaFormat};
 use crate::test_data::gdef as test_data;
 
 #[test]

@@ -1,4 +1,4 @@
-#![parse_module(read_fonts::layout::gdef)]
+#![parse_module(read_fonts::tables::gdef)]
 
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
 table Gdef {

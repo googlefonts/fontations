@@ -4,7 +4,7 @@
 
 include!("../../generated/generated_gsub.rs");
 
-use super::{
+use super::layout::{
     ChainedSequenceContext, CoverageTable, FeatureList, FeatureVariations, Lookup, LookupList,
     LookupType, ScriptList, SequenceContext,
 };
@@ -16,16 +16,16 @@ mod tests;
 /// A GSUB lookup list table.
 type SubstitutionLookupList = LookupList<SubstitutionLookup>;
 
-table_newtype!(
+super::layout::table_newtype!(
     SubstitutionSequenceContext,
     SequenceContext,
-    read_fonts::layout::SequenceContext<'a>
+    read_fonts::tables::layout::SequenceContext<'a>
 );
 
-table_newtype!(
+super::layout::table_newtype!(
     SubstitutionChainContext,
     ChainedSequenceContext,
-    read_fonts::layout::ChainedSequenceContext<'a>
+    read_fonts::tables::layout::ChainedSequenceContext<'a>
 );
 
 impl Gsub {
@@ -38,14 +38,14 @@ impl Gsub {
     }
 }
 
-lookup_type!(SingleSubst, 1);
-lookup_type!(MultipleSubstFormat1, 2);
-lookup_type!(AlternateSubstFormat1, 3);
-lookup_type!(LigatureSubstFormat1, 4);
-lookup_type!(SubstitutionSequenceContext, 5);
-lookup_type!(SubstitutionChainContext, 6);
-lookup_type!(ExtensionSubtable, 7);
-lookup_type!(ReverseChainSingleSubstFormat1, 8);
+super::layout::lookup_type!(SingleSubst, 1);
+super::layout::lookup_type!(MultipleSubstFormat1, 2);
+super::layout::lookup_type!(AlternateSubstFormat1, 3);
+super::layout::lookup_type!(LigatureSubstFormat1, 4);
+super::layout::lookup_type!(SubstitutionSequenceContext, 5);
+super::layout::lookup_type!(SubstitutionChainContext, 6);
+super::layout::lookup_type!(ExtensionSubtable, 7);
+super::layout::lookup_type!(ReverseChainSingleSubstFormat1, 8);
 
 impl<T: LookupType + FontWrite> FontWrite for ExtensionSubstFormat1<T> {
     fn write_into(&self, writer: &mut TableWriter) {
@@ -58,12 +58,12 @@ impl<T: LookupType + FontWrite> FontWrite for ExtensionSubstFormat1<T> {
 // these can't have auto impls because the traits don't support generics
 impl<'a> FontRead<'a> for SubstitutionLookup {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        read_fonts::layout::gsub::SubstitutionLookup::read(data).map(|x| x.to_owned_table())
+        read_fonts::tables::gsub::SubstitutionLookup::read(data).map(|x| x.to_owned_table())
     }
 }
 
 impl<'a> FontRead<'a> for SubstitutionLookupList {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        read_fonts::layout::gsub::SubstitutionLookupList::read(data).map(|x| x.to_owned_table())
+        read_fonts::tables::gsub::SubstitutionLookupList::read(data).map(|x| x.to_owned_table())
     }
 }

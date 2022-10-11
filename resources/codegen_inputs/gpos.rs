@@ -1,5 +1,5 @@
 // path (from compile crate) to the generated parse module for this table.
-#![parse_module(read_fonts::layout::gpos)]
+#![parse_module(read_fonts::tables::gpos)]
 
 extern record ValueRecord;
 

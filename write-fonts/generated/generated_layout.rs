@@ -5,7 +5,7 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-pub use read_fonts::layout::DeltaFormat;
+pub use read_fonts::tables::layout::DeltaFormat;
 
 /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 #[derive(Clone, Debug, Default)]
@@ -44,8 +44,8 @@ impl Validate for ScriptList {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::ScriptList<'a>> for ScriptList {
-    fn from_obj_ref(obj: &read_fonts::layout::ScriptList<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::ScriptList<'a>> for ScriptList {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ScriptList<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         ScriptList {
             script_records: obj.script_records().to_owned_obj(offset_data),
@@ -53,11 +53,11 @@ impl<'a> FromObjRef<read_fonts::layout::ScriptList<'a>> for ScriptList {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::ScriptList<'a>> for ScriptList {}
+impl<'a> FromTableRef<read_fonts::tables::layout::ScriptList<'a>> for ScriptList {}
 
 impl<'a> FontRead<'a> for ScriptList {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ScriptList as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::ScriptList as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -97,8 +97,8 @@ impl Validate for ScriptRecord {
     }
 }
 
-impl FromObjRef<read_fonts::layout::ScriptRecord> for ScriptRecord {
-    fn from_obj_ref(obj: &read_fonts::layout::ScriptRecord, offset_data: FontData) -> Self {
+impl FromObjRef<read_fonts::tables::layout::ScriptRecord> for ScriptRecord {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ScriptRecord, offset_data: FontData) -> Self {
         ScriptRecord {
             script_tag: obj.script_tag(),
             script: obj.script(offset_data).to_owned_table(),
@@ -151,8 +151,8 @@ impl Validate for Script {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::Script<'a>> for Script {
-    fn from_obj_ref(obj: &read_fonts::layout::Script<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::Script<'a>> for Script {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::Script<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Script {
             default_lang_sys: obj.default_lang_sys().to_owned_table(),
@@ -161,11 +161,11 @@ impl<'a> FromObjRef<read_fonts::layout::Script<'a>> for Script {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::Script<'a>> for Script {}
+impl<'a> FromTableRef<read_fonts::tables::layout::Script<'a>> for Script {}
 
 impl<'a> FontRead<'a> for Script {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::Script as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::Script as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -204,8 +204,11 @@ impl Validate for LangSysRecord {
     }
 }
 
-impl FromObjRef<read_fonts::layout::LangSysRecord> for LangSysRecord {
-    fn from_obj_ref(obj: &read_fonts::layout::LangSysRecord, offset_data: FontData) -> Self {
+impl FromObjRef<read_fonts::tables::layout::LangSysRecord> for LangSysRecord {
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::LangSysRecord,
+        offset_data: FontData,
+    ) -> Self {
         LangSysRecord {
             lang_sys_tag: obj.lang_sys_tag(),
             lang_sys: obj.lang_sys(offset_data).to_owned_table(),
@@ -255,8 +258,8 @@ impl Validate for LangSys {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::LangSys<'a>> for LangSys {
-    fn from_obj_ref(obj: &read_fonts::layout::LangSys<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::LangSys<'a>> for LangSys {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::LangSys<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         LangSys {
             required_feature_index: obj.required_feature_index(),
@@ -265,11 +268,11 @@ impl<'a> FromObjRef<read_fonts::layout::LangSys<'a>> for LangSys {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::LangSys<'a>> for LangSys {}
+impl<'a> FromTableRef<read_fonts::tables::layout::LangSys<'a>> for LangSys {}
 
 impl<'a> FontRead<'a> for LangSys {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::LangSys as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::LangSys as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -311,8 +314,8 @@ impl Validate for FeatureList {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::FeatureList<'a>> for FeatureList {
-    fn from_obj_ref(obj: &read_fonts::layout::FeatureList<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::FeatureList<'a>> for FeatureList {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::FeatureList<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         FeatureList {
             feature_records: obj.feature_records().to_owned_obj(offset_data),
@@ -320,11 +323,12 @@ impl<'a> FromObjRef<read_fonts::layout::FeatureList<'a>> for FeatureList {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::FeatureList<'a>> for FeatureList {}
+impl<'a> FromTableRef<read_fonts::tables::layout::FeatureList<'a>> for FeatureList {}
 
 impl<'a> FontRead<'a> for FeatureList {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::FeatureList as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::FeatureList as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -364,8 +368,11 @@ impl Validate for FeatureRecord {
     }
 }
 
-impl FromObjRef<read_fonts::layout::FeatureRecord> for FeatureRecord {
-    fn from_obj_ref(obj: &read_fonts::layout::FeatureRecord, offset_data: FontData) -> Self {
+impl FromObjRef<read_fonts::tables::layout::FeatureRecord> for FeatureRecord {
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::FeatureRecord,
+        offset_data: FontData,
+    ) -> Self {
         FeatureRecord {
             feature_tag: obj.feature_tag(),
             feature: obj.feature(offset_data).to_owned_table(),
@@ -417,8 +424,8 @@ impl Validate for Feature {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::Feature<'a>> for Feature {
-    fn from_obj_ref(obj: &read_fonts::layout::Feature<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::Feature<'a>> for Feature {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::Feature<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Feature {
             feature_params: obj.feature_params().to_owned_table(),
@@ -427,7 +434,7 @@ impl<'a> FromObjRef<read_fonts::layout::Feature<'a>> for Feature {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::Feature<'a>> for Feature {}
+impl<'a> FromTableRef<read_fonts::tables::layout::Feature<'a>> for Feature {}
 
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
 #[derive(Clone, Debug, Default)]
@@ -467,19 +474,19 @@ impl<T: Validate> Validate for LookupList<T> {
     }
 }
 
-impl<'a, T, U> FromObjRef<read_fonts::layout::LookupList<'a, U>> for LookupList<T>
+impl<'a, T, U> FromObjRef<read_fonts::tables::layout::LookupList<'a, U>> for LookupList<T>
 where
     U: FontRead<'a>,
     T: FromTableRef<U> + Default + 'static,
 {
-    fn from_obj_ref(obj: &read_fonts::layout::LookupList<'a, U>, _: FontData) -> Self {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::LookupList<'a, U>, _: FontData) -> Self {
         LookupList {
             lookups: obj.lookups().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
 
-impl<'a, T, U> FromTableRef<read_fonts::layout::LookupList<'a, U>> for LookupList<T>
+impl<'a, T, U> FromTableRef<read_fonts::tables::layout::LookupList<'a, U>> for LookupList<T>
 where
     U: FontRead<'a>,
     T: FromTableRef<U> + Default + 'static,
@@ -524,12 +531,12 @@ impl<T: Validate> Validate for Lookup<T> {
     }
 }
 
-impl<'a, T, U> FromObjRef<read_fonts::layout::Lookup<'a, U>> for Lookup<T>
+impl<'a, T, U> FromObjRef<read_fonts::tables::layout::Lookup<'a, U>> for Lookup<T>
 where
     U: FontRead<'a>,
     T: FromTableRef<U> + Default + 'static,
 {
-    fn from_obj_ref(obj: &read_fonts::layout::Lookup<'a, U>, _: FontData) -> Self {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::Lookup<'a, U>, _: FontData) -> Self {
         Lookup {
             lookup_flag: obj.lookup_flag(),
             subtables: obj.subtables().map(|x| x.to_owned_table()).collect(),
@@ -538,7 +545,7 @@ where
     }
 }
 
-impl<'a, T, U> FromTableRef<read_fonts::layout::Lookup<'a, U>> for Lookup<T>
+impl<'a, T, U> FromTableRef<read_fonts::tables::layout::Lookup<'a, U>> for Lookup<T>
 where
     U: FontRead<'a>,
     T: FromTableRef<U> + Default + 'static,
@@ -582,8 +589,8 @@ impl Validate for CoverageFormat1 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::CoverageFormat1<'a>> for CoverageFormat1 {
-    fn from_obj_ref(obj: &read_fonts::layout::CoverageFormat1<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::CoverageFormat1<'a>> for CoverageFormat1 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::CoverageFormat1<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         CoverageFormat1 {
             glyph_array: obj.glyph_array().to_owned_obj(offset_data),
@@ -591,11 +598,12 @@ impl<'a> FromObjRef<read_fonts::layout::CoverageFormat1<'a>> for CoverageFormat1
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::CoverageFormat1<'a>> for CoverageFormat1 {}
+impl<'a> FromTableRef<read_fonts::tables::layout::CoverageFormat1<'a>> for CoverageFormat1 {}
 
 impl<'a> FontRead<'a> for CoverageFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::CoverageFormat1 as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::CoverageFormat1 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -637,8 +645,8 @@ impl Validate for CoverageFormat2 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::CoverageFormat2<'a>> for CoverageFormat2 {
-    fn from_obj_ref(obj: &read_fonts::layout::CoverageFormat2<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::CoverageFormat2<'a>> for CoverageFormat2 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::CoverageFormat2<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         CoverageFormat2 {
             range_records: obj.range_records().to_owned_obj(offset_data),
@@ -646,11 +654,12 @@ impl<'a> FromObjRef<read_fonts::layout::CoverageFormat2<'a>> for CoverageFormat2
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::CoverageFormat2<'a>> for CoverageFormat2 {}
+impl<'a> FromTableRef<read_fonts::tables::layout::CoverageFormat2<'a>> for CoverageFormat2 {}
 
 impl<'a> FontRead<'a> for CoverageFormat2 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::CoverageFormat2 as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::CoverageFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -688,8 +697,8 @@ impl Validate for RangeRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl FromObjRef<read_fonts::layout::RangeRecord> for RangeRecord {
-    fn from_obj_ref(obj: &read_fonts::layout::RangeRecord, _: FontData) -> Self {
+impl FromObjRef<read_fonts::tables::layout::RangeRecord> for RangeRecord {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::RangeRecord, _: FontData) -> Self {
         RangeRecord {
             start_glyph_id: obj.start_glyph_id(),
             end_glyph_id: obj.end_glyph_id(),
@@ -741,9 +750,9 @@ impl Validate for CoverageTable {
     }
 }
 
-impl FromObjRef<read_fonts::layout::CoverageTable<'_>> for CoverageTable {
-    fn from_obj_ref(obj: &read_fonts::layout::CoverageTable, _: FontData) -> Self {
-        use read_fonts::layout::CoverageTable as ObjRefType;
+impl FromObjRef<read_fonts::tables::layout::CoverageTable<'_>> for CoverageTable {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::CoverageTable, _: FontData) -> Self {
+        use read_fonts::tables::layout::CoverageTable as ObjRefType;
         match obj {
             ObjRefType::Format1(item) => CoverageTable::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => CoverageTable::Format2(item.to_owned_table()),
@@ -751,11 +760,12 @@ impl FromObjRef<read_fonts::layout::CoverageTable<'_>> for CoverageTable {
     }
 }
 
-impl FromTableRef<read_fonts::layout::CoverageTable<'_>> for CoverageTable {}
+impl FromTableRef<read_fonts::tables::layout::CoverageTable<'_>> for CoverageTable {}
 
 impl<'a> FontRead<'a> for CoverageTable {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::CoverageTable as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::CoverageTable as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -800,8 +810,8 @@ impl Validate for ClassDefFormat1 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::ClassDefFormat1<'a>> for ClassDefFormat1 {
-    fn from_obj_ref(obj: &read_fonts::layout::ClassDefFormat1<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::ClassDefFormat1<'a>> for ClassDefFormat1 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ClassDefFormat1<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         ClassDefFormat1 {
             start_glyph_id: obj.start_glyph_id(),
@@ -810,11 +820,12 @@ impl<'a> FromObjRef<read_fonts::layout::ClassDefFormat1<'a>> for ClassDefFormat1
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::ClassDefFormat1<'a>> for ClassDefFormat1 {}
+impl<'a> FromTableRef<read_fonts::tables::layout::ClassDefFormat1<'a>> for ClassDefFormat1 {}
 
 impl<'a> FontRead<'a> for ClassDefFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ClassDefFormat1 as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::ClassDefFormat1 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -856,8 +867,8 @@ impl Validate for ClassDefFormat2 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::ClassDefFormat2<'a>> for ClassDefFormat2 {
-    fn from_obj_ref(obj: &read_fonts::layout::ClassDefFormat2<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::ClassDefFormat2<'a>> for ClassDefFormat2 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ClassDefFormat2<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         ClassDefFormat2 {
             class_range_records: obj.class_range_records().to_owned_obj(offset_data),
@@ -865,11 +876,12 @@ impl<'a> FromObjRef<read_fonts::layout::ClassDefFormat2<'a>> for ClassDefFormat2
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::ClassDefFormat2<'a>> for ClassDefFormat2 {}
+impl<'a> FromTableRef<read_fonts::tables::layout::ClassDefFormat2<'a>> for ClassDefFormat2 {}
 
 impl<'a> FontRead<'a> for ClassDefFormat2 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ClassDefFormat2 as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::ClassDefFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -913,8 +925,8 @@ impl Validate for ClassRangeRecord {
     }
 }
 
-impl FromObjRef<read_fonts::layout::ClassRangeRecord> for ClassRangeRecord {
-    fn from_obj_ref(obj: &read_fonts::layout::ClassRangeRecord, _: FontData) -> Self {
+impl FromObjRef<read_fonts::tables::layout::ClassRangeRecord> for ClassRangeRecord {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ClassRangeRecord, _: FontData) -> Self {
         ClassRangeRecord {
             start_glyph_id: obj.start_glyph_id(),
             end_glyph_id: obj.end_glyph_id(),
@@ -966,9 +978,9 @@ impl Validate for ClassDef {
     }
 }
 
-impl FromObjRef<read_fonts::layout::ClassDef<'_>> for ClassDef {
-    fn from_obj_ref(obj: &read_fonts::layout::ClassDef, _: FontData) -> Self {
-        use read_fonts::layout::ClassDef as ObjRefType;
+impl FromObjRef<read_fonts::tables::layout::ClassDef<'_>> for ClassDef {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ClassDef, _: FontData) -> Self {
+        use read_fonts::tables::layout::ClassDef as ObjRefType;
         match obj {
             ObjRefType::Format1(item) => ClassDef::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => ClassDef::Format2(item.to_owned_table()),
@@ -976,11 +988,11 @@ impl FromObjRef<read_fonts::layout::ClassDef<'_>> for ClassDef {
     }
 }
 
-impl FromTableRef<read_fonts::layout::ClassDef<'_>> for ClassDef {}
+impl FromTableRef<read_fonts::tables::layout::ClassDef<'_>> for ClassDef {}
 
 impl<'a> FontRead<'a> for ClassDef {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ClassDef as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::ClassDef as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -1014,8 +1026,8 @@ impl Validate for SequenceLookupRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl FromObjRef<read_fonts::layout::SequenceLookupRecord> for SequenceLookupRecord {
-    fn from_obj_ref(obj: &read_fonts::layout::SequenceLookupRecord, _: FontData) -> Self {
+impl FromObjRef<read_fonts::tables::layout::SequenceLookupRecord> for SequenceLookupRecord {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::SequenceLookupRecord, _: FontData) -> Self {
         SequenceLookupRecord {
             sequence_index: obj.sequence_index(),
             lookup_list_index: obj.lookup_list_index(),
@@ -1070,8 +1082,13 @@ impl Validate for SequenceContextFormat1 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat1<'a>> for SequenceContextFormat1 {
-    fn from_obj_ref(obj: &read_fonts::layout::SequenceContextFormat1<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::SequenceContextFormat1<'a>>
+    for SequenceContextFormat1
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::SequenceContextFormat1<'a>,
+        _: FontData,
+    ) -> Self {
         SequenceContextFormat1 {
             coverage: obj.coverage().to_owned_table(),
             seq_rule_sets: obj.seq_rule_sets().map(|x| x.to_owned_table()).collect(),
@@ -1079,11 +1096,14 @@ impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat1<'a>> for Sequence
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::SequenceContextFormat1<'a>> for SequenceContextFormat1 {}
+impl<'a> FromTableRef<read_fonts::tables::layout::SequenceContextFormat1<'a>>
+    for SequenceContextFormat1
+{
+}
 
 impl<'a> FontRead<'a> for SequenceContextFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::SequenceContextFormat1 as FontRead>::read(data)
+        <read_fonts::tables::layout::SequenceContextFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1126,19 +1146,20 @@ impl Validate for SequenceRuleSet {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::SequenceRuleSet<'a>> for SequenceRuleSet {
-    fn from_obj_ref(obj: &read_fonts::layout::SequenceRuleSet<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::SequenceRuleSet<'a>> for SequenceRuleSet {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::SequenceRuleSet<'a>, _: FontData) -> Self {
         SequenceRuleSet {
             seq_rules: obj.seq_rules().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::SequenceRuleSet<'a>> for SequenceRuleSet {}
+impl<'a> FromTableRef<read_fonts::tables::layout::SequenceRuleSet<'a>> for SequenceRuleSet {}
 
 impl<'a> FontRead<'a> for SequenceRuleSet {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::SequenceRuleSet as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::SequenceRuleSet as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -1184,8 +1205,8 @@ impl Validate for SequenceRule {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::SequenceRule<'a>> for SequenceRule {
-    fn from_obj_ref(obj: &read_fonts::layout::SequenceRule<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::SequenceRule<'a>> for SequenceRule {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::SequenceRule<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         SequenceRule {
             input_sequence: obj.input_sequence().to_owned_obj(offset_data),
@@ -1194,11 +1215,12 @@ impl<'a> FromObjRef<read_fonts::layout::SequenceRule<'a>> for SequenceRule {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::SequenceRule<'a>> for SequenceRule {}
+impl<'a> FromTableRef<read_fonts::tables::layout::SequenceRule<'a>> for SequenceRule {}
 
 impl<'a> FontRead<'a> for SequenceRule {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::SequenceRule as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::SequenceRule as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -1261,8 +1283,13 @@ impl Validate for SequenceContextFormat2 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat2<'a>> for SequenceContextFormat2 {
-    fn from_obj_ref(obj: &read_fonts::layout::SequenceContextFormat2<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::SequenceContextFormat2<'a>>
+    for SequenceContextFormat2
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::SequenceContextFormat2<'a>,
+        _: FontData,
+    ) -> Self {
         SequenceContextFormat2 {
             coverage: obj.coverage().to_owned_table(),
             class_def: obj.class_def().to_owned_table(),
@@ -1274,11 +1301,14 @@ impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat2<'a>> for Sequence
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::SequenceContextFormat2<'a>> for SequenceContextFormat2 {}
+impl<'a> FromTableRef<read_fonts::tables::layout::SequenceContextFormat2<'a>>
+    for SequenceContextFormat2
+{
+}
 
 impl<'a> FontRead<'a> for SequenceContextFormat2 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::SequenceContextFormat2 as FontRead>::read(data)
+        <read_fonts::tables::layout::SequenceContextFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1321,19 +1351,25 @@ impl Validate for ClassSequenceRuleSet {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::ClassSequenceRuleSet<'a>> for ClassSequenceRuleSet {
-    fn from_obj_ref(obj: &read_fonts::layout::ClassSequenceRuleSet<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::ClassSequenceRuleSet<'a>> for ClassSequenceRuleSet {
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::ClassSequenceRuleSet<'a>,
+        _: FontData,
+    ) -> Self {
         ClassSequenceRuleSet {
             class_seq_rules: obj.class_seq_rules().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::ClassSequenceRuleSet<'a>> for ClassSequenceRuleSet {}
+impl<'a> FromTableRef<read_fonts::tables::layout::ClassSequenceRuleSet<'a>>
+    for ClassSequenceRuleSet
+{
+}
 
 impl<'a> FontRead<'a> for ClassSequenceRuleSet {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ClassSequenceRuleSet as FontRead>::read(data)
+        <read_fonts::tables::layout::ClassSequenceRuleSet as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1381,8 +1417,8 @@ impl Validate for ClassSequenceRule {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::ClassSequenceRule<'a>> for ClassSequenceRule {
-    fn from_obj_ref(obj: &read_fonts::layout::ClassSequenceRule<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::ClassSequenceRule<'a>> for ClassSequenceRule {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ClassSequenceRule<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         ClassSequenceRule {
             input_sequence: obj.input_sequence().to_owned_obj(offset_data),
@@ -1391,11 +1427,12 @@ impl<'a> FromObjRef<read_fonts::layout::ClassSequenceRule<'a>> for ClassSequence
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::ClassSequenceRule<'a>> for ClassSequenceRule {}
+impl<'a> FromTableRef<read_fonts::tables::layout::ClassSequenceRule<'a>> for ClassSequenceRule {}
 
 impl<'a> FontRead<'a> for ClassSequenceRule {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ClassSequenceRule as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::ClassSequenceRule as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -1452,8 +1489,13 @@ impl Validate for SequenceContextFormat3 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat3<'a>> for SequenceContextFormat3 {
-    fn from_obj_ref(obj: &read_fonts::layout::SequenceContextFormat3<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::SequenceContextFormat3<'a>>
+    for SequenceContextFormat3
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::SequenceContextFormat3<'a>,
+        _: FontData,
+    ) -> Self {
         let offset_data = obj.offset_data();
         SequenceContextFormat3 {
             coverages: obj.coverages().map(|x| x.to_owned_table()).collect(),
@@ -1462,11 +1504,14 @@ impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat3<'a>> for Sequence
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::SequenceContextFormat3<'a>> for SequenceContextFormat3 {}
+impl<'a> FromTableRef<read_fonts::tables::layout::SequenceContextFormat3<'a>>
+    for SequenceContextFormat3
+{
+}
 
 impl<'a> FontRead<'a> for SequenceContextFormat3 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::SequenceContextFormat3 as FontRead>::read(data)
+        <read_fonts::tables::layout::SequenceContextFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1532,9 +1577,9 @@ impl Validate for SequenceContext {
     }
 }
 
-impl FromObjRef<read_fonts::layout::SequenceContext<'_>> for SequenceContext {
-    fn from_obj_ref(obj: &read_fonts::layout::SequenceContext, _: FontData) -> Self {
-        use read_fonts::layout::SequenceContext as ObjRefType;
+impl FromObjRef<read_fonts::tables::layout::SequenceContext<'_>> for SequenceContext {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::SequenceContext, _: FontData) -> Self {
+        use read_fonts::tables::layout::SequenceContext as ObjRefType;
         match obj {
             ObjRefType::Format1(item) => SequenceContext::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => SequenceContext::Format2(item.to_owned_table()),
@@ -1543,11 +1588,12 @@ impl FromObjRef<read_fonts::layout::SequenceContext<'_>> for SequenceContext {
     }
 }
 
-impl FromTableRef<read_fonts::layout::SequenceContext<'_>> for SequenceContext {}
+impl FromTableRef<read_fonts::tables::layout::SequenceContext<'_>> for SequenceContext {}
 
 impl<'a> FontRead<'a> for SequenceContext {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::SequenceContext as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::SequenceContext as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -1601,11 +1647,11 @@ impl Validate for ChainedSequenceContextFormat1 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat1<'a>>
+impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceContextFormat1<'a>>
     for ChainedSequenceContextFormat1
 {
     fn from_obj_ref(
-        obj: &read_fonts::layout::ChainedSequenceContextFormat1<'a>,
+        obj: &read_fonts::tables::layout::ChainedSequenceContextFormat1<'a>,
         _: FontData,
     ) -> Self {
         ChainedSequenceContextFormat1 {
@@ -1618,14 +1664,14 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat1<'a>>
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::ChainedSequenceContextFormat1<'a>>
+impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceContextFormat1<'a>>
     for ChainedSequenceContextFormat1
 {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ChainedSequenceContextFormat1 as FontRead>::read(data)
+        <read_fonts::tables::layout::ChainedSequenceContextFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1668,8 +1714,13 @@ impl Validate for ChainedSequenceRuleSet {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceRuleSet<'a>> for ChainedSequenceRuleSet {
-    fn from_obj_ref(obj: &read_fonts::layout::ChainedSequenceRuleSet<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceRuleSet<'a>>
+    for ChainedSequenceRuleSet
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::ChainedSequenceRuleSet<'a>,
+        _: FontData,
+    ) -> Self {
         ChainedSequenceRuleSet {
             chained_seq_rules: obj
                 .chained_seq_rules()
@@ -1679,11 +1730,14 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceRuleSet<'a>> for ChainedS
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::ChainedSequenceRuleSet<'a>> for ChainedSequenceRuleSet {}
+impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceRuleSet<'a>>
+    for ChainedSequenceRuleSet
+{
+}
 
 impl<'a> FontRead<'a> for ChainedSequenceRuleSet {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ChainedSequenceRuleSet as FontRead>::read(data)
+        <read_fonts::tables::layout::ChainedSequenceRuleSet as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1755,8 +1809,11 @@ impl Validate for ChainedSequenceRule {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceRule<'a>> for ChainedSequenceRule {
-    fn from_obj_ref(obj: &read_fonts::layout::ChainedSequenceRule<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceRule<'a>> for ChainedSequenceRule {
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::ChainedSequenceRule<'a>,
+        _: FontData,
+    ) -> Self {
         let offset_data = obj.offset_data();
         ChainedSequenceRule {
             backtrack_sequence: obj.backtrack_sequence().to_owned_obj(offset_data),
@@ -1767,11 +1824,11 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceRule<'a>> for ChainedSequ
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::ChainedSequenceRule<'a>> for ChainedSequenceRule {}
+impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceRule<'a>> for ChainedSequenceRule {}
 
 impl<'a> FontRead<'a> for ChainedSequenceRule {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ChainedSequenceRule as FontRead>::read(data)
+        <read_fonts::tables::layout::ChainedSequenceRule as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1856,11 +1913,11 @@ impl Validate for ChainedSequenceContextFormat2 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat2<'a>>
+impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceContextFormat2<'a>>
     for ChainedSequenceContextFormat2
 {
     fn from_obj_ref(
-        obj: &read_fonts::layout::ChainedSequenceContextFormat2<'a>,
+        obj: &read_fonts::tables::layout::ChainedSequenceContextFormat2<'a>,
         _: FontData,
     ) -> Self {
         ChainedSequenceContextFormat2 {
@@ -1876,14 +1933,14 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat2<'a>>
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::ChainedSequenceContextFormat2<'a>>
+impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceContextFormat2<'a>>
     for ChainedSequenceContextFormat2
 {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat2 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ChainedSequenceContextFormat2 as FontRead>::read(data)
+        <read_fonts::tables::layout::ChainedSequenceContextFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1929,11 +1986,11 @@ impl Validate for ChainedClassSequenceRuleSet {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::ChainedClassSequenceRuleSet<'a>>
+impl<'a> FromObjRef<read_fonts::tables::layout::ChainedClassSequenceRuleSet<'a>>
     for ChainedClassSequenceRuleSet
 {
     fn from_obj_ref(
-        obj: &read_fonts::layout::ChainedClassSequenceRuleSet<'a>,
+        obj: &read_fonts::tables::layout::ChainedClassSequenceRuleSet<'a>,
         _: FontData,
     ) -> Self {
         ChainedClassSequenceRuleSet {
@@ -1945,14 +2002,14 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedClassSequenceRuleSet<'a>>
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::ChainedClassSequenceRuleSet<'a>>
+impl<'a> FromTableRef<read_fonts::tables::layout::ChainedClassSequenceRuleSet<'a>>
     for ChainedClassSequenceRuleSet
 {
 }
 
 impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ChainedClassSequenceRuleSet as FontRead>::read(data)
+        <read_fonts::tables::layout::ChainedClassSequenceRuleSet as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -2025,8 +2082,13 @@ impl Validate for ChainedClassSequenceRule {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::ChainedClassSequenceRule<'a>> for ChainedClassSequenceRule {
-    fn from_obj_ref(obj: &read_fonts::layout::ChainedClassSequenceRule<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::ChainedClassSequenceRule<'a>>
+    for ChainedClassSequenceRule
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::ChainedClassSequenceRule<'a>,
+        _: FontData,
+    ) -> Self {
         let offset_data = obj.offset_data();
         ChainedClassSequenceRule {
             backtrack_sequence: obj.backtrack_sequence().to_owned_obj(offset_data),
@@ -2037,14 +2099,14 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedClassSequenceRule<'a>> for Chaine
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::ChainedClassSequenceRule<'a>>
+impl<'a> FromTableRef<read_fonts::tables::layout::ChainedClassSequenceRule<'a>>
     for ChainedClassSequenceRule
 {
 }
 
 impl<'a> FontRead<'a> for ChainedClassSequenceRule {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ChainedClassSequenceRule as FontRead>::read(data)
+        <read_fonts::tables::layout::ChainedClassSequenceRule as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -2125,11 +2187,11 @@ impl Validate for ChainedSequenceContextFormat3 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat3<'a>>
+impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceContextFormat3<'a>>
     for ChainedSequenceContextFormat3
 {
     fn from_obj_ref(
-        obj: &read_fonts::layout::ChainedSequenceContextFormat3<'a>,
+        obj: &read_fonts::tables::layout::ChainedSequenceContextFormat3<'a>,
         _: FontData,
     ) -> Self {
         let offset_data = obj.offset_data();
@@ -2148,14 +2210,14 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat3<'a>>
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::ChainedSequenceContextFormat3<'a>>
+impl<'a> FromTableRef<read_fonts::tables::layout::ChainedSequenceContextFormat3<'a>>
     for ChainedSequenceContextFormat3
 {
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContextFormat3 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ChainedSequenceContextFormat3 as FontRead>::read(data)
+        <read_fonts::tables::layout::ChainedSequenceContextFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -2238,9 +2300,9 @@ impl Validate for ChainedSequenceContext {
     }
 }
 
-impl FromObjRef<read_fonts::layout::ChainedSequenceContext<'_>> for ChainedSequenceContext {
-    fn from_obj_ref(obj: &read_fonts::layout::ChainedSequenceContext, _: FontData) -> Self {
-        use read_fonts::layout::ChainedSequenceContext as ObjRefType;
+impl FromObjRef<read_fonts::tables::layout::ChainedSequenceContext<'_>> for ChainedSequenceContext {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ChainedSequenceContext, _: FontData) -> Self {
+        use read_fonts::tables::layout::ChainedSequenceContext as ObjRefType;
         match obj {
             ObjRefType::Format1(item) => ChainedSequenceContext::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => ChainedSequenceContext::Format2(item.to_owned_table()),
@@ -2249,11 +2311,14 @@ impl FromObjRef<read_fonts::layout::ChainedSequenceContext<'_>> for ChainedSeque
     }
 }
 
-impl FromTableRef<read_fonts::layout::ChainedSequenceContext<'_>> for ChainedSequenceContext {}
+impl FromTableRef<read_fonts::tables::layout::ChainedSequenceContext<'_>>
+    for ChainedSequenceContext
+{
+}
 
 impl<'a> FontRead<'a> for ChainedSequenceContext {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ChainedSequenceContext as FontRead>::read(data)
+        <read_fonts::tables::layout::ChainedSequenceContext as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -2308,8 +2373,8 @@ impl Validate for Device {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl<'a> FromObjRef<read_fonts::layout::Device<'a>> for Device {
-    fn from_obj_ref(obj: &read_fonts::layout::Device<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::Device<'a>> for Device {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::Device<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Device {
             start_size: obj.start_size(),
@@ -2320,11 +2385,11 @@ impl<'a> FromObjRef<read_fonts::layout::Device<'a>> for Device {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::Device<'a>> for Device {}
+impl<'a> FromTableRef<read_fonts::tables::layout::Device<'a>> for Device {}
 
 impl<'a> FontRead<'a> for Device {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::Device as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::Device as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -2364,8 +2429,8 @@ impl Validate for VariationIndex {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl<'a> FromObjRef<read_fonts::layout::VariationIndex<'a>> for VariationIndex {
-    fn from_obj_ref(obj: &read_fonts::layout::VariationIndex<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::VariationIndex<'a>> for VariationIndex {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::VariationIndex<'a>, _: FontData) -> Self {
         VariationIndex {
             delta_set_outer_index: obj.delta_set_outer_index(),
             delta_set_inner_index: obj.delta_set_inner_index(),
@@ -2374,11 +2439,12 @@ impl<'a> FromObjRef<read_fonts::layout::VariationIndex<'a>> for VariationIndex {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::VariationIndex<'a>> for VariationIndex {}
+impl<'a> FromTableRef<read_fonts::tables::layout::VariationIndex<'a>> for VariationIndex {}
 
 impl<'a> FontRead<'a> for VariationIndex {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::VariationIndex as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::VariationIndex as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -2423,8 +2489,8 @@ impl Validate for FeatureVariations {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::FeatureVariations<'a>> for FeatureVariations {
-    fn from_obj_ref(obj: &read_fonts::layout::FeatureVariations<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::FeatureVariations<'a>> for FeatureVariations {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::FeatureVariations<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         FeatureVariations {
             feature_variation_records: obj.feature_variation_records().to_owned_obj(offset_data),
@@ -2432,11 +2498,12 @@ impl<'a> FromObjRef<read_fonts::layout::FeatureVariations<'a>> for FeatureVariat
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::FeatureVariations<'a>> for FeatureVariations {}
+impl<'a> FromTableRef<read_fonts::tables::layout::FeatureVariations<'a>> for FeatureVariations {}
 
 impl<'a> FontRead<'a> for FeatureVariations {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::FeatureVariations as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::FeatureVariations as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -2484,9 +2551,9 @@ impl Validate for FeatureVariationRecord {
     }
 }
 
-impl FromObjRef<read_fonts::layout::FeatureVariationRecord> for FeatureVariationRecord {
+impl FromObjRef<read_fonts::tables::layout::FeatureVariationRecord> for FeatureVariationRecord {
     fn from_obj_ref(
-        obj: &read_fonts::layout::FeatureVariationRecord,
+        obj: &read_fonts::tables::layout::FeatureVariationRecord,
         offset_data: FontData,
     ) -> Self {
         FeatureVariationRecord {
@@ -2536,19 +2603,20 @@ impl Validate for ConditionSet {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::ConditionSet<'a>> for ConditionSet {
-    fn from_obj_ref(obj: &read_fonts::layout::ConditionSet<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::ConditionSet<'a>> for ConditionSet {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ConditionSet<'a>, _: FontData) -> Self {
         ConditionSet {
             conditions: obj.conditions().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::ConditionSet<'a>> for ConditionSet {}
+impl<'a> FromTableRef<read_fonts::tables::layout::ConditionSet<'a>> for ConditionSet {}
 
 impl<'a> FontRead<'a> for ConditionSet {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ConditionSet as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::ConditionSet as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -2595,8 +2663,8 @@ impl Validate for ConditionFormat1 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl<'a> FromObjRef<read_fonts::layout::ConditionFormat1<'a>> for ConditionFormat1 {
-    fn from_obj_ref(obj: &read_fonts::layout::ConditionFormat1<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::ConditionFormat1<'a>> for ConditionFormat1 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ConditionFormat1<'a>, _: FontData) -> Self {
         ConditionFormat1 {
             axis_index: obj.axis_index(),
             filter_range_min_value: obj.filter_range_min_value(),
@@ -2605,11 +2673,12 @@ impl<'a> FromObjRef<read_fonts::layout::ConditionFormat1<'a>> for ConditionForma
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::ConditionFormat1<'a>> for ConditionFormat1 {}
+impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat1<'a>> for ConditionFormat1 {}
 
 impl<'a> FontRead<'a> for ConditionFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::ConditionFormat1 as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::ConditionFormat1 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -2651,8 +2720,13 @@ impl Validate for FeatureTableSubstitution {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::FeatureTableSubstitution<'a>> for FeatureTableSubstitution {
-    fn from_obj_ref(obj: &read_fonts::layout::FeatureTableSubstitution<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::FeatureTableSubstitution<'a>>
+    for FeatureTableSubstitution
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::FeatureTableSubstitution<'a>,
+        _: FontData,
+    ) -> Self {
         let offset_data = obj.offset_data();
         FeatureTableSubstitution {
             substitutions: obj.substitutions().to_owned_obj(offset_data),
@@ -2660,14 +2734,14 @@ impl<'a> FromObjRef<read_fonts::layout::FeatureTableSubstitution<'a>> for Featur
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::FeatureTableSubstitution<'a>>
+impl<'a> FromTableRef<read_fonts::tables::layout::FeatureTableSubstitution<'a>>
     for FeatureTableSubstitution
 {
 }
 
 impl<'a> FontRead<'a> for FeatureTableSubstitution {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::FeatureTableSubstitution as FontRead>::read(data)
+        <read_fonts::tables::layout::FeatureTableSubstitution as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -2709,11 +2783,11 @@ impl Validate for FeatureTableSubstitutionRecord {
     }
 }
 
-impl FromObjRef<read_fonts::layout::FeatureTableSubstitutionRecord>
+impl FromObjRef<read_fonts::tables::layout::FeatureTableSubstitutionRecord>
     for FeatureTableSubstitutionRecord
 {
     fn from_obj_ref(
-        obj: &read_fonts::layout::FeatureTableSubstitutionRecord,
+        obj: &read_fonts::tables::layout::FeatureTableSubstitutionRecord,
         offset_data: FontData,
     ) -> Self {
         FeatureTableSubstitutionRecord {
@@ -2790,8 +2864,8 @@ impl Validate for SizeParams {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl<'a> FromObjRef<read_fonts::layout::SizeParams<'a>> for SizeParams {
-    fn from_obj_ref(obj: &read_fonts::layout::SizeParams<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::SizeParams<'a>> for SizeParams {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::SizeParams<'a>, _: FontData) -> Self {
         SizeParams {
             design_size: obj.design_size(),
             identifier: obj.identifier(),
@@ -2802,11 +2876,11 @@ impl<'a> FromObjRef<read_fonts::layout::SizeParams<'a>> for SizeParams {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::SizeParams<'a>> for SizeParams {}
+impl<'a> FromTableRef<read_fonts::tables::layout::SizeParams<'a>> for SizeParams {}
 
 impl<'a> FontRead<'a> for SizeParams {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::SizeParams as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::SizeParams as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -2843,19 +2917,20 @@ impl Validate for StylisticSetParams {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl<'a> FromObjRef<read_fonts::layout::StylisticSetParams<'a>> for StylisticSetParams {
-    fn from_obj_ref(obj: &read_fonts::layout::StylisticSetParams<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::StylisticSetParams<'a>> for StylisticSetParams {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::StylisticSetParams<'a>, _: FontData) -> Self {
         StylisticSetParams {
             ui_name_id: obj.ui_name_id(),
         }
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::StylisticSetParams<'a>> for StylisticSetParams {}
+impl<'a> FromTableRef<read_fonts::tables::layout::StylisticSetParams<'a>> for StylisticSetParams {}
 
 impl<'a> FontRead<'a> for StylisticSetParams {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::StylisticSetParams as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::layout::StylisticSetParams as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -2931,8 +3006,13 @@ impl Validate for CharacterVariantParams {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::CharacterVariantParams<'a>> for CharacterVariantParams {
-    fn from_obj_ref(obj: &read_fonts::layout::CharacterVariantParams<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::layout::CharacterVariantParams<'a>>
+    for CharacterVariantParams
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::layout::CharacterVariantParams<'a>,
+        _: FontData,
+    ) -> Self {
         let offset_data = obj.offset_data();
         CharacterVariantParams {
             feat_ui_label_name_id: obj.feat_ui_label_name_id(),
@@ -2945,11 +3025,14 @@ impl<'a> FromObjRef<read_fonts::layout::CharacterVariantParams<'a>> for Characte
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::CharacterVariantParams<'a>> for CharacterVariantParams {}
+impl<'a> FromTableRef<read_fonts::tables::layout::CharacterVariantParams<'a>>
+    for CharacterVariantParams
+{
+}
 
 impl<'a> FontRead<'a> for CharacterVariantParams {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::CharacterVariantParams as FontRead>::read(data)
+        <read_fonts::tables::layout::CharacterVariantParams as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }

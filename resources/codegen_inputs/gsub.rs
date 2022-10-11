@@ -1,5 +1,5 @@
 // path (from compile crate) to the generated parse module for this table.
-#![parse_module(read_fonts::layout::gsub)]
+#![parse_module(read_fonts::tables::gsub)]
 
 /// [GSUB](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsub-header)
 table Gsub {

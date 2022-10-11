@@ -162,14 +162,16 @@ fn contextualposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-10-contextual-positioning-format-1
 
     let _table =
-        crate::layout::SequenceContextFormat1::read(test_data::CONTEXTUALPOSFORMAT1).unwrap();
+        crate::tables::layout::SequenceContextFormat1::read(test_data::CONTEXTUALPOSFORMAT1)
+            .unwrap();
 }
 
 #[test]
 fn contextualposformat2() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-11-contextual-positioning-format-1
     let _table =
-        crate::layout::SequenceContextFormat2::read(test_data::CONTEXTUALPOSFORMAT2).unwrap();
+        crate::tables::layout::SequenceContextFormat2::read(test_data::CONTEXTUALPOSFORMAT2)
+            .unwrap();
 }
 
 #[test]
@@ -177,7 +179,8 @@ fn contextualposformat3() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-12-contextual-positioning-format-3
 
     let _table =
-        crate::layout::SequenceContextFormat3::read(test_data::CONTEXTUALPOSFORMAT3).unwrap();
+        crate::tables::layout::SequenceContextFormat3::read(test_data::CONTEXTUALPOSFORMAT3)
+            .unwrap();
 }
 
 //FIXME: we don't have a way to instantiate individual records right now?
@@ -185,7 +188,7 @@ fn contextualposformat3() {
 fn sequencelookuprecord() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-13-sequencelookuprecord
     let record = test_data::SEQUENCELOOKUPRECORD
-        .read_ref_at::<crate::layout::SequenceLookupRecord>(0)
+        .read_ref_at::<crate::tables::layout::SequenceLookupRecord>(0)
         .unwrap();
     assert_eq!(record.sequence_index(), 1);
     assert_eq!(record.lookup_list_index(), 1);

@@ -4,7 +4,7 @@
 
 use font_types::MajorMinor;
 
-use super::{ClassDef, CoverageTable, Device};
+use super::layout::{ClassDef, CoverageTable, Device};
 
 include!("../../generated/generated_gdef.rs");
 
@@ -29,7 +29,7 @@ mod tests {
         // this should compile, and version should be 1.3
         let gdef = Gdef {
             item_var_store: NullableOffsetMarker::new(Some(ClassDef::Format1(
-                crate::layout::ClassDefFormat1 {
+                crate::tables::layout::ClassDefFormat1 {
                     start_glyph_id: GlyphId::new(2),
                     class_value_array: vec![1, 2, 0],
                 },

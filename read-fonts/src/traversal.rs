@@ -17,8 +17,8 @@ use font_types::{
 
 use crate::{
     array::{ComputedArray, VarLenArray},
-    layout::gpos::ValueRecord,
     read::{ComputeSize, ReadArgs},
+    tables::gpos::ValueRecord,
     FontData, FontRead, FontReadWithArgs, ReadError, VarSize,
 };
 

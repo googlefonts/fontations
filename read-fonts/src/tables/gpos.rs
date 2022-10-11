@@ -8,7 +8,7 @@ mod value_record;
 use crate::array::ComputedArray;
 
 /// reexport stuff from layout that we use
-pub use super::{
+pub use super::layout::{
     ClassDef, CoverageTable, Device, FeatureList, FeatureVariations, Lookup, ScriptList,
 };
 pub use value_record::ValueRecord;
@@ -22,11 +22,11 @@ pub const TAG: Tag = Tag::new(b"GPOS");
 
 include!("../../generated/generated_gpos.rs");
 
-/// A typed GPOS [LookupList](super::LookupList) table
-pub type PositionLookupList<'a> = super::LookupList<'a, PositionLookup<'a>>;
+/// A typed GPOS [LookupList](super::layout::LookupList) table
+pub type PositionLookupList<'a> = super::layout::LookupList<'a, PositionLookup<'a>>;
 
-/// A GPOS [SequenceContext](super::SequenceContext)
-pub type PositionSequenceContext<'a> = super::SequenceContext<'a>;
+/// A GPOS [SequenceContext](super::layout::SequenceContext)
+pub type PositionSequenceContext<'a> = super::layout::SequenceContext<'a>;
 
-/// A GPOS [ChainedSequenceContext](super::ChainedSequenceContext)
-pub type PositionChainContext<'a> = super::ChainedSequenceContext<'a>;
+/// A GPOS [ChainedSequenceContext](super::layout::ChainedSequenceContext)
+pub type PositionChainContext<'a> = super::layout::ChainedSequenceContext<'a>;

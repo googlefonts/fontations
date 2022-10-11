@@ -2,7 +2,7 @@
 //!
 //! [GDEF]: https://docs.microsoft.com/en-us/typography/opentype/spec/gdef
 
-pub use super::{
+pub use super::layout::{
     ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
     Lookup, LookupList, ScriptList, SequenceContext,
 };

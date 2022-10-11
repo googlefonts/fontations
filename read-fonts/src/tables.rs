@@ -1,15 +1,19 @@
 //! The various font tables
 
-pub use super::layout::{gdef, gpos, gsub};
 pub mod avar;
+//pub use layout::{gdef, gpos, gsub};
 pub mod cmap;
 pub mod colr;
 pub mod cpal;
+pub mod gdef;
 pub mod glyf;
+pub mod gpos;
+pub mod gsub;
 pub mod head;
 pub mod hhea;
 pub mod hmtx;
 pub mod hvar;
+pub mod layout;
 pub mod loca;
 pub mod maxp;
 pub mod mvar;

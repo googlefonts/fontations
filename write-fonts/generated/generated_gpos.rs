@@ -5,7 +5,7 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-pub use read_fonts::layout::gpos::ValueFormat;
+pub use read_fonts::tables::gpos::ValueFormat;
 
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
@@ -69,8 +69,8 @@ impl Validate for Gpos {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::Gpos<'a>> for Gpos {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::Gpos<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::Gpos<'a>> for Gpos {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::Gpos<'a>, _: FontData) -> Self {
         Gpos {
             script_list: obj.script_list().to_owned_table(),
             feature_list: obj.feature_list().to_owned_table(),
@@ -80,11 +80,11 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::Gpos<'a>> for Gpos {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::Gpos<'a>> for Gpos {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::Gpos<'a>> for Gpos {}
 
 impl<'a> FontRead<'a> for Gpos {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::Gpos as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::gpos::Gpos as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -140,41 +140,41 @@ impl Validate for PositionLookup {
     }
 }
 
-impl FromObjRef<read_fonts::layout::gpos::PositionLookup<'_>> for PositionLookup {
-    fn from_obj_ref(from: &read_fonts::layout::gpos::PositionLookup<'_>, data: FontData) -> Self {
+impl FromObjRef<read_fonts::tables::gpos::PositionLookup<'_>> for PositionLookup {
+    fn from_obj_ref(from: &read_fonts::tables::gpos::PositionLookup<'_>, data: FontData) -> Self {
         match from {
-            read_fonts::layout::gpos::PositionLookup::Single(table) => {
+            read_fonts::tables::gpos::PositionLookup::Single(table) => {
                 Self::Single(table.to_owned_obj(data))
             }
-            read_fonts::layout::gpos::PositionLookup::Pair(table) => {
+            read_fonts::tables::gpos::PositionLookup::Pair(table) => {
                 Self::Pair(table.to_owned_obj(data))
             }
-            read_fonts::layout::gpos::PositionLookup::Cursive(table) => {
+            read_fonts::tables::gpos::PositionLookup::Cursive(table) => {
                 Self::Cursive(table.to_owned_obj(data))
             }
-            read_fonts::layout::gpos::PositionLookup::MarkToBase(table) => {
+            read_fonts::tables::gpos::PositionLookup::MarkToBase(table) => {
                 Self::MarkToBase(table.to_owned_obj(data))
             }
-            read_fonts::layout::gpos::PositionLookup::MarkToLig(table) => {
+            read_fonts::tables::gpos::PositionLookup::MarkToLig(table) => {
                 Self::MarkToLig(table.to_owned_obj(data))
             }
-            read_fonts::layout::gpos::PositionLookup::MarkToMark(table) => {
+            read_fonts::tables::gpos::PositionLookup::MarkToMark(table) => {
                 Self::MarkToMark(table.to_owned_obj(data))
             }
-            read_fonts::layout::gpos::PositionLookup::Contextual(table) => {
+            read_fonts::tables::gpos::PositionLookup::Contextual(table) => {
                 Self::Contextual(table.to_owned_obj(data))
             }
-            read_fonts::layout::gpos::PositionLookup::ChainContextual(table) => {
+            read_fonts::tables::gpos::PositionLookup::ChainContextual(table) => {
                 Self::ChainContextual(table.to_owned_obj(data))
             }
-            read_fonts::layout::gpos::PositionLookup::Extension(table) => {
+            read_fonts::tables::gpos::PositionLookup::Extension(table) => {
                 Self::Extension(table.to_owned_obj(data))
             }
         }
     }
 }
 
-impl FromTableRef<read_fonts::layout::gpos::PositionLookup<'_>> for PositionLookup {}
+impl FromTableRef<read_fonts::tables::gpos::PositionLookup<'_>> for PositionLookup {}
 
 impl FontWrite for ValueFormat {
     fn write_into(&self, writer: &mut TableWriter) {
@@ -244,9 +244,9 @@ impl Validate for AnchorTable {
     }
 }
 
-impl FromObjRef<read_fonts::layout::gpos::AnchorTable<'_>> for AnchorTable {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::AnchorTable, _: FontData) -> Self {
-        use read_fonts::layout::gpos::AnchorTable as ObjRefType;
+impl FromObjRef<read_fonts::tables::gpos::AnchorTable<'_>> for AnchorTable {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::AnchorTable, _: FontData) -> Self {
+        use read_fonts::tables::gpos::AnchorTable as ObjRefType;
         match obj {
             ObjRefType::Format1(item) => AnchorTable::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => AnchorTable::Format2(item.to_owned_table()),
@@ -255,11 +255,11 @@ impl FromObjRef<read_fonts::layout::gpos::AnchorTable<'_>> for AnchorTable {
     }
 }
 
-impl FromTableRef<read_fonts::layout::gpos::AnchorTable<'_>> for AnchorTable {}
+impl FromTableRef<read_fonts::tables::gpos::AnchorTable<'_>> for AnchorTable {}
 
 impl<'a> FontRead<'a> for AnchorTable {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::AnchorTable as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::gpos::AnchorTable as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -295,8 +295,8 @@ impl Validate for AnchorFormat1 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::AnchorFormat1<'a>> for AnchorFormat1 {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::AnchorFormat1<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::AnchorFormat1<'a>> for AnchorFormat1 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::AnchorFormat1<'a>, _: FontData) -> Self {
         AnchorFormat1 {
             x_coordinate: obj.x_coordinate(),
             y_coordinate: obj.y_coordinate(),
@@ -304,11 +304,11 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::AnchorFormat1<'a>> for AnchorForma
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::AnchorFormat1<'a>> for AnchorFormat1 {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::AnchorFormat1<'a>> for AnchorFormat1 {}
 
 impl<'a> FontRead<'a> for AnchorFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::AnchorFormat1 as FontRead>::read(data)
+        <read_fonts::tables::gpos::AnchorFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -349,8 +349,8 @@ impl Validate for AnchorFormat2 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::AnchorFormat2<'a>> for AnchorFormat2 {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::AnchorFormat2<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::AnchorFormat2<'a>> for AnchorFormat2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::AnchorFormat2<'a>, _: FontData) -> Self {
         AnchorFormat2 {
             x_coordinate: obj.x_coordinate(),
             y_coordinate: obj.y_coordinate(),
@@ -359,11 +359,11 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::AnchorFormat2<'a>> for AnchorForma
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::AnchorFormat2<'a>> for AnchorFormat2 {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::AnchorFormat2<'a>> for AnchorFormat2 {}
 
 impl<'a> FontRead<'a> for AnchorFormat2 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::AnchorFormat2 as FontRead>::read(data)
+        <read_fonts::tables::gpos::AnchorFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -426,8 +426,8 @@ impl Validate for AnchorFormat3 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::AnchorFormat3<'a>> for AnchorFormat3 {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::AnchorFormat3<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::AnchorFormat3<'a>> for AnchorFormat3 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::AnchorFormat3<'a>, _: FontData) -> Self {
         AnchorFormat3 {
             x_coordinate: obj.x_coordinate(),
             y_coordinate: obj.y_coordinate(),
@@ -437,11 +437,11 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::AnchorFormat3<'a>> for AnchorForma
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::AnchorFormat3<'a>> for AnchorFormat3 {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::AnchorFormat3<'a>> for AnchorFormat3 {}
 
 impl<'a> FontRead<'a> for AnchorFormat3 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::AnchorFormat3 as FontRead>::read(data)
+        <read_fonts::tables::gpos::AnchorFormat3 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -484,8 +484,8 @@ impl Validate for MarkArray {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::MarkArray<'a>> for MarkArray {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkArray<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::MarkArray<'a>> for MarkArray {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::MarkArray<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         MarkArray {
             mark_records: obj.mark_records().to_owned_obj(offset_data),
@@ -493,11 +493,11 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::MarkArray<'a>> for MarkArray {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::MarkArray<'a>> for MarkArray {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::MarkArray<'a>> for MarkArray {}
 
 impl<'a> FontRead<'a> for MarkArray {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::MarkArray as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::gpos::MarkArray as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -537,8 +537,8 @@ impl Validate for MarkRecord {
     }
 }
 
-impl FromObjRef<read_fonts::layout::gpos::MarkRecord> for MarkRecord {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkRecord, offset_data: FontData) -> Self {
+impl FromObjRef<read_fonts::tables::gpos::MarkRecord> for MarkRecord {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::MarkRecord, offset_data: FontData) -> Self {
         MarkRecord {
             mark_class: obj.mark_class(),
             mark_anchor: obj.mark_anchor(offset_data).to_owned_table(),
@@ -589,9 +589,9 @@ impl Validate for SinglePos {
     }
 }
 
-impl FromObjRef<read_fonts::layout::gpos::SinglePos<'_>> for SinglePos {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::SinglePos, _: FontData) -> Self {
-        use read_fonts::layout::gpos::SinglePos as ObjRefType;
+impl FromObjRef<read_fonts::tables::gpos::SinglePos<'_>> for SinglePos {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::SinglePos, _: FontData) -> Self {
+        use read_fonts::tables::gpos::SinglePos as ObjRefType;
         match obj {
             ObjRefType::Format1(item) => SinglePos::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => SinglePos::Format2(item.to_owned_table()),
@@ -599,11 +599,11 @@ impl FromObjRef<read_fonts::layout::gpos::SinglePos<'_>> for SinglePos {
     }
 }
 
-impl FromTableRef<read_fonts::layout::gpos::SinglePos<'_>> for SinglePos {}
+impl FromTableRef<read_fonts::tables::gpos::SinglePos<'_>> for SinglePos {}
 
 impl<'a> FontRead<'a> for SinglePos {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::SinglePos as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::gpos::SinglePos as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -647,8 +647,8 @@ impl Validate for SinglePosFormat1 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::SinglePosFormat1<'a>> for SinglePosFormat1 {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::SinglePosFormat1<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::SinglePosFormat1<'a>> for SinglePosFormat1 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::SinglePosFormat1<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         SinglePosFormat1 {
             coverage: obj.coverage().to_owned_table(),
@@ -657,11 +657,11 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::SinglePosFormat1<'a>> for SinglePo
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::SinglePosFormat1<'a>> for SinglePosFormat1 {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::SinglePosFormat1<'a>> for SinglePosFormat1 {}
 
 impl<'a> FontRead<'a> for SinglePosFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::SinglePosFormat1 as FontRead>::read(data)
+        <read_fonts::tables::gpos::SinglePosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -712,8 +712,8 @@ impl Validate for SinglePosFormat2 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::SinglePosFormat2<'a>> for SinglePosFormat2 {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::SinglePosFormat2<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::SinglePosFormat2<'a>> for SinglePosFormat2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::SinglePosFormat2<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         SinglePosFormat2 {
             coverage: obj.coverage().to_owned_table(),
@@ -726,11 +726,11 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::SinglePosFormat2<'a>> for SinglePo
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::SinglePosFormat2<'a>> for SinglePosFormat2 {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::SinglePosFormat2<'a>> for SinglePosFormat2 {}
 
 impl<'a> FontRead<'a> for SinglePosFormat2 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::SinglePosFormat2 as FontRead>::read(data)
+        <read_fonts::tables::gpos::SinglePosFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -788,9 +788,9 @@ impl Validate for PairPos {
     }
 }
 
-impl FromObjRef<read_fonts::layout::gpos::PairPos<'_>> for PairPos {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::PairPos, _: FontData) -> Self {
-        use read_fonts::layout::gpos::PairPos as ObjRefType;
+impl FromObjRef<read_fonts::tables::gpos::PairPos<'_>> for PairPos {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::PairPos, _: FontData) -> Self {
+        use read_fonts::tables::gpos::PairPos as ObjRefType;
         match obj {
             ObjRefType::Format1(item) => PairPos::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => PairPos::Format2(item.to_owned_table()),
@@ -798,11 +798,11 @@ impl FromObjRef<read_fonts::layout::gpos::PairPos<'_>> for PairPos {
     }
 }
 
-impl FromTableRef<read_fonts::layout::gpos::PairPos<'_>> for PairPos {}
+impl FromTableRef<read_fonts::tables::gpos::PairPos<'_>> for PairPos {}
 
 impl<'a> FontRead<'a> for PairPos {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::PairPos as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::gpos::PairPos as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -854,8 +854,8 @@ impl Validate for PairPosFormat1 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::PairPosFormat1<'a>> for PairPosFormat1 {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::PairPosFormat1<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::PairPosFormat1<'a>> for PairPosFormat1 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::PairPosFormat1<'a>, _: FontData) -> Self {
         PairPosFormat1 {
             coverage: obj.coverage().to_owned_table(),
             pair_sets: obj.pair_sets().map(|x| x.to_owned_table()).collect(),
@@ -863,11 +863,11 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::PairPosFormat1<'a>> for PairPosFor
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::PairPosFormat1<'a>> for PairPosFormat1 {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::PairPosFormat1<'a>> for PairPosFormat1 {}
 
 impl<'a> FontRead<'a> for PairPosFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::PairPosFormat1 as FontRead>::read(data)
+        <read_fonts::tables::gpos::PairPosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -908,8 +908,8 @@ impl Validate for PairSet {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::PairSet<'a>> for PairSet {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::PairSet<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::PairSet<'a>> for PairSet {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::PairSet<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         PairSet {
             pair_value_records: obj
@@ -921,7 +921,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::PairSet<'a>> for PairSet {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::PairSet<'a>> for PairSet {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::PairSet<'a>> for PairSet {}
 
 /// Part of [PairSet]
 #[derive(Clone, Debug, Default)]
@@ -962,9 +962,9 @@ impl Validate for PairValueRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl FromObjRef<read_fonts::layout::gpos::PairValueRecord> for PairValueRecord {
+impl FromObjRef<read_fonts::tables::gpos::PairValueRecord> for PairValueRecord {
     fn from_obj_ref(
-        obj: &read_fonts::layout::gpos::PairValueRecord,
+        obj: &read_fonts::tables::gpos::PairValueRecord,
         offset_data: FontData,
     ) -> Self {
         PairValueRecord {
@@ -1044,8 +1044,8 @@ impl Validate for PairPosFormat2 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::PairPosFormat2<'a>> for PairPosFormat2 {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::PairPosFormat2<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::PairPosFormat2<'a>> for PairPosFormat2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::PairPosFormat2<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         PairPosFormat2 {
             coverage: obj.coverage().to_owned_table(),
@@ -1060,11 +1060,11 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::PairPosFormat2<'a>> for PairPosFor
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::PairPosFormat2<'a>> for PairPosFormat2 {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::PairPosFormat2<'a>> for PairPosFormat2 {}
 
 impl<'a> FontRead<'a> for PairPosFormat2 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::PairPosFormat2 as FontRead>::read(data)
+        <read_fonts::tables::gpos::PairPosFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1102,8 +1102,8 @@ impl Validate for Class1Record {
     }
 }
 
-impl FromObjRef<read_fonts::layout::gpos::Class1Record<'_>> for Class1Record {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::Class1Record, offset_data: FontData) -> Self {
+impl FromObjRef<read_fonts::tables::gpos::Class1Record<'_>> for Class1Record {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::Class1Record, offset_data: FontData) -> Self {
         Class1Record {
             class2_records: obj
                 .class2_records()
@@ -1144,8 +1144,8 @@ impl Validate for Class2Record {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl FromObjRef<read_fonts::layout::gpos::Class2Record> for Class2Record {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::Class2Record, offset_data: FontData) -> Self {
+impl FromObjRef<read_fonts::tables::gpos::Class2Record> for Class2Record {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::Class2Record, offset_data: FontData) -> Self {
         Class2Record {
             value_record1: obj.value_record1().to_owned_obj(offset_data),
             value_record2: obj.value_record2().to_owned_obj(offset_data),
@@ -1198,8 +1198,8 @@ impl Validate for CursivePosFormat1 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::CursivePosFormat1<'a>> for CursivePosFormat1 {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::CursivePosFormat1<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::CursivePosFormat1<'a>> for CursivePosFormat1 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::CursivePosFormat1<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         CursivePosFormat1 {
             coverage: obj.coverage().to_owned_table(),
@@ -1208,11 +1208,11 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::CursivePosFormat1<'a>> for Cursive
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::CursivePosFormat1<'a>> for CursivePosFormat1 {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::CursivePosFormat1<'a>> for CursivePosFormat1 {}
 
 impl<'a> FontRead<'a> for CursivePosFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::CursivePosFormat1 as FontRead>::read(data)
+        <read_fonts::tables::gpos::CursivePosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1258,9 +1258,9 @@ impl Validate for EntryExitRecord {
     }
 }
 
-impl FromObjRef<read_fonts::layout::gpos::EntryExitRecord> for EntryExitRecord {
+impl FromObjRef<read_fonts::tables::gpos::EntryExitRecord> for EntryExitRecord {
     fn from_obj_ref(
-        obj: &read_fonts::layout::gpos::EntryExitRecord,
+        obj: &read_fonts::tables::gpos::EntryExitRecord,
         offset_data: FontData,
     ) -> Self {
         EntryExitRecord {
@@ -1335,8 +1335,8 @@ impl Validate for MarkBasePosFormat1 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::MarkBasePosFormat1<'a>> for MarkBasePosFormat1 {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkBasePosFormat1<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::MarkBasePosFormat1<'a>> for MarkBasePosFormat1 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::MarkBasePosFormat1<'a>, _: FontData) -> Self {
         MarkBasePosFormat1 {
             mark_coverage: obj.mark_coverage().to_owned_table(),
             base_coverage: obj.base_coverage().to_owned_table(),
@@ -1346,11 +1346,11 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::MarkBasePosFormat1<'a>> for MarkBa
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::MarkBasePosFormat1<'a>> for MarkBasePosFormat1 {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::MarkBasePosFormat1<'a>> for MarkBasePosFormat1 {}
 
 impl<'a> FontRead<'a> for MarkBasePosFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::MarkBasePosFormat1 as FontRead>::read(data)
+        <read_fonts::tables::gpos::MarkBasePosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1390,8 +1390,8 @@ impl Validate for BaseArray {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::BaseArray<'a>> for BaseArray {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::BaseArray<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::BaseArray<'a>> for BaseArray {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::BaseArray<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         BaseArray {
             base_records: obj
@@ -1403,7 +1403,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::BaseArray<'a>> for BaseArray {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::BaseArray<'a>> for BaseArray {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::BaseArray<'a>> for BaseArray {}
 
 /// Part of [BaseArray]
 #[derive(Clone, Debug, Default)]
@@ -1442,8 +1442,8 @@ impl Validate for BaseRecord {
     }
 }
 
-impl FromObjRef<read_fonts::layout::gpos::BaseRecord<'_>> for BaseRecord {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::BaseRecord, offset_data: FontData) -> Self {
+impl FromObjRef<read_fonts::tables::gpos::BaseRecord<'_>> for BaseRecord {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::BaseRecord, offset_data: FontData) -> Self {
         BaseRecord {
             base_anchors: obj
                 .base_anchors(offset_data)
@@ -1518,8 +1518,8 @@ impl Validate for MarkLigPosFormat1 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::MarkLigPosFormat1<'a>> for MarkLigPosFormat1 {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkLigPosFormat1<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::MarkLigPosFormat1<'a>> for MarkLigPosFormat1 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::MarkLigPosFormat1<'a>, _: FontData) -> Self {
         MarkLigPosFormat1 {
             mark_coverage: obj.mark_coverage().to_owned_table(),
             ligature_coverage: obj.ligature_coverage().to_owned_table(),
@@ -1529,11 +1529,11 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::MarkLigPosFormat1<'a>> for MarkLig
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::MarkLigPosFormat1<'a>> for MarkLigPosFormat1 {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::MarkLigPosFormat1<'a>> for MarkLigPosFormat1 {}
 
 impl<'a> FontRead<'a> for MarkLigPosFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::MarkLigPosFormat1 as FontRead>::read(data)
+        <read_fonts::tables::gpos::MarkLigPosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1577,8 +1577,8 @@ impl Validate for LigatureArray {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::LigatureArray<'a>> for LigatureArray {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::LigatureArray<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::LigatureArray<'a>> for LigatureArray {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::LigatureArray<'a>, _: FontData) -> Self {
         LigatureArray {
             ligature_attaches: obj
                 .ligature_attaches()
@@ -1588,7 +1588,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::LigatureArray<'a>> for LigatureArr
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::LigatureArray<'a>> for LigatureArray {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::LigatureArray<'a>> for LigatureArray {}
 
 /// Part of [MarkLigPosFormat1]
 #[derive(Clone, Debug, Default)]
@@ -1625,8 +1625,8 @@ impl Validate for LigatureAttach {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::LigatureAttach<'a>> for LigatureAttach {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::LigatureAttach<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::LigatureAttach<'a>> for LigatureAttach {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::LigatureAttach<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         LigatureAttach {
             component_records: obj
@@ -1638,7 +1638,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::LigatureAttach<'a>> for LigatureAt
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::LigatureAttach<'a>> for LigatureAttach {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::LigatureAttach<'a>> for LigatureAttach {}
 
 /// Part of [MarkLigPosFormat1]
 #[derive(Clone, Debug, Default)]
@@ -1677,9 +1677,9 @@ impl Validate for ComponentRecord {
     }
 }
 
-impl FromObjRef<read_fonts::layout::gpos::ComponentRecord<'_>> for ComponentRecord {
+impl FromObjRef<read_fonts::tables::gpos::ComponentRecord<'_>> for ComponentRecord {
     fn from_obj_ref(
-        obj: &read_fonts::layout::gpos::ComponentRecord,
+        obj: &read_fonts::tables::gpos::ComponentRecord,
         offset_data: FontData,
     ) -> Self {
         ComponentRecord {
@@ -1756,8 +1756,8 @@ impl Validate for MarkMarkPosFormat1 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::MarkMarkPosFormat1<'a>> for MarkMarkPosFormat1 {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkMarkPosFormat1<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::MarkMarkPosFormat1<'a>> for MarkMarkPosFormat1 {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::MarkMarkPosFormat1<'a>, _: FontData) -> Self {
         MarkMarkPosFormat1 {
             mark1_coverage: obj.mark1_coverage().to_owned_table(),
             mark2_coverage: obj.mark2_coverage().to_owned_table(),
@@ -1767,11 +1767,11 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::MarkMarkPosFormat1<'a>> for MarkMa
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::MarkMarkPosFormat1<'a>> for MarkMarkPosFormat1 {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::MarkMarkPosFormat1<'a>> for MarkMarkPosFormat1 {}
 
 impl<'a> FontRead<'a> for MarkMarkPosFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gpos::MarkMarkPosFormat1 as FontRead>::read(data)
+        <read_fonts::tables::gpos::MarkMarkPosFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -1811,8 +1811,8 @@ impl Validate for Mark2Array {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gpos::Mark2Array<'a>> for Mark2Array {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::Mark2Array<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gpos::Mark2Array<'a>> for Mark2Array {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::Mark2Array<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Mark2Array {
             mark2_records: obj
@@ -1824,7 +1824,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::Mark2Array<'a>> for Mark2Array {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gpos::Mark2Array<'a>> for Mark2Array {}
+impl<'a> FromTableRef<read_fonts::tables::gpos::Mark2Array<'a>> for Mark2Array {}
 
 /// Part of [MarkMarkPosFormat1]
 #[derive(Clone, Debug, Default)]
@@ -1863,8 +1863,8 @@ impl Validate for Mark2Record {
     }
 }
 
-impl FromObjRef<read_fonts::layout::gpos::Mark2Record<'_>> for Mark2Record {
-    fn from_obj_ref(obj: &read_fonts::layout::gpos::Mark2Record, offset_data: FontData) -> Self {
+impl FromObjRef<read_fonts::tables::gpos::Mark2Record<'_>> for Mark2Record {
+    fn from_obj_ref(obj: &read_fonts::tables::gpos::Mark2Record, offset_data: FontData) -> Self {
         Mark2Record {
             mark2_anchors: obj
                 .mark2_anchors(offset_data)
@@ -1906,14 +1906,14 @@ impl<T: Validate> Validate for ExtensionPosFormat1<T> {
     }
 }
 
-impl<'a, T, U> FromObjRef<read_fonts::layout::gpos::ExtensionPosFormat1<'a, U>>
+impl<'a, T, U> FromObjRef<read_fonts::tables::gpos::ExtensionPosFormat1<'a, U>>
     for ExtensionPosFormat1<T>
 where
     U: FontRead<'a>,
     T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(
-        obj: &read_fonts::layout::gpos::ExtensionPosFormat1<'a, U>,
+        obj: &read_fonts::tables::gpos::ExtensionPosFormat1<'a, U>,
         _: FontData,
     ) -> Self {
         ExtensionPosFormat1 {
@@ -1923,7 +1923,7 @@ where
     }
 }
 
-impl<'a, T, U> FromTableRef<read_fonts::layout::gpos::ExtensionPosFormat1<'a, U>>
+impl<'a, T, U> FromTableRef<read_fonts::tables::gpos::ExtensionPosFormat1<'a, U>>
     for ExtensionPosFormat1<T>
 where
     U: FontRead<'a>,
@@ -1980,38 +1980,38 @@ impl Validate for ExtensionSubtable {
     }
 }
 
-impl FromObjRef<read_fonts::layout::gpos::ExtensionSubtable<'_>> for ExtensionSubtable {
+impl FromObjRef<read_fonts::tables::gpos::ExtensionSubtable<'_>> for ExtensionSubtable {
     fn from_obj_ref(
-        from: &read_fonts::layout::gpos::ExtensionSubtable<'_>,
+        from: &read_fonts::tables::gpos::ExtensionSubtable<'_>,
         data: FontData,
     ) -> Self {
         match from {
-            read_fonts::layout::gpos::ExtensionSubtable::Single(table) => {
+            read_fonts::tables::gpos::ExtensionSubtable::Single(table) => {
                 Self::Single(table.to_owned_obj(data))
             }
-            read_fonts::layout::gpos::ExtensionSubtable::Pair(table) => {
+            read_fonts::tables::gpos::ExtensionSubtable::Pair(table) => {
                 Self::Pair(table.to_owned_obj(data))
             }
-            read_fonts::layout::gpos::ExtensionSubtable::Cursive(table) => {
+            read_fonts::tables::gpos::ExtensionSubtable::Cursive(table) => {
                 Self::Cursive(table.to_owned_obj(data))
             }
-            read_fonts::layout::gpos::ExtensionSubtable::MarkToBase(table) => {
+            read_fonts::tables::gpos::ExtensionSubtable::MarkToBase(table) => {
                 Self::MarkToBase(table.to_owned_obj(data))
             }
-            read_fonts::layout::gpos::ExtensionSubtable::MarkToLig(table) => {
+            read_fonts::tables::gpos::ExtensionSubtable::MarkToLig(table) => {
                 Self::MarkToLig(table.to_owned_obj(data))
             }
-            read_fonts::layout::gpos::ExtensionSubtable::MarkToMark(table) => {
+            read_fonts::tables::gpos::ExtensionSubtable::MarkToMark(table) => {
                 Self::MarkToMark(table.to_owned_obj(data))
             }
-            read_fonts::layout::gpos::ExtensionSubtable::Contextual(table) => {
+            read_fonts::tables::gpos::ExtensionSubtable::Contextual(table) => {
                 Self::Contextual(table.to_owned_obj(data))
             }
-            read_fonts::layout::gpos::ExtensionSubtable::ChainContextual(table) => {
+            read_fonts::tables::gpos::ExtensionSubtable::ChainContextual(table) => {
                 Self::ChainContextual(table.to_owned_obj(data))
             }
         }
     }
 }
 
-impl FromTableRef<read_fonts::layout::gpos::ExtensionSubtable<'_>> for ExtensionSubtable {}
+impl FromTableRef<read_fonts::tables::gpos::ExtensionSubtable<'_>> for ExtensionSubtable {}

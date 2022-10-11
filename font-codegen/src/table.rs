@@ -53,7 +53,7 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         quote! {
                impl<'a> #raw_name<'a, ()> {
                    #[allow(dead_code)]
-                   fn into_concrete<T>(self) -> #raw_name<'a, #t> {
+                   pub(crate) fn into_concrete<T>(self) -> #raw_name<'a, #t> {
                        let TableRef { data, #shape_name} = self;
                        TableRef {
                            shape: #marker_name {
