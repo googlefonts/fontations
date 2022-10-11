@@ -67,6 +67,8 @@ pub mod gsub;
 
 mod value_record;
 
+pub use value_record::ValueRecord;
+
 #[cfg(test)]
 #[path = "./tests/layout.rs"]
 #[cfg(feature = "parsing")]
