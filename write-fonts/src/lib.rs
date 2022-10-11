@@ -4,7 +4,6 @@ mod collections;
 mod font_builder;
 pub mod from_obj;
 mod graph;
-pub mod layout;
 mod offsets;
 pub mod tables;
 pub mod validate;

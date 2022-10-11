@@ -647,7 +647,7 @@ impl<'a, T> FontRead<'a> for LookupList<'a, T> {
 
 impl<'a> LookupList<'a, ()> {
     #[allow(dead_code)]
-    fn into_concrete<T>(self) -> LookupList<'a, T> {
+    pub(crate) fn into_concrete<T>(self) -> LookupList<'a, T> {
         let TableRef { data, shape } = self;
         TableRef {
             shape: LookupListMarker {
@@ -782,7 +782,7 @@ impl<'a, T> FontRead<'a> for Lookup<'a, T> {
 
 impl<'a> Lookup<'a, ()> {
     #[allow(dead_code)]
-    fn into_concrete<T>(self) -> Lookup<'a, T> {
+    pub(crate) fn into_concrete<T>(self) -> Lookup<'a, T> {
         let TableRef { data, shape } = self;
         TableRef {
             shape: LookupMarker {

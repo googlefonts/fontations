@@ -6,8 +6,8 @@ include!("../../generated/generated_gpos.rs");
 
 use std::collections::HashSet;
 
-use super::value_record::ValueRecord;
-use super::{
+//use super::layout::value_record::ValueRecord;
+use super::layout::{
     ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
     Lookup, LookupList, LookupType, ScriptList, SequenceContext,
 };
@@ -16,19 +16,23 @@ use super::{
 #[path = "../tests/gpos.rs"]
 mod tests;
 
+#[path = "./value_record.rs"]
+mod value_record;
+pub use value_record::ValueRecord;
+
 /// A GPOS lookup list table.
 type PositionLookupList = LookupList<PositionLookup>;
 
-table_newtype!(
+super::layout::table_newtype!(
     PositionSequenceContext,
     SequenceContext,
-    read_fonts::layout::SequenceContext<'a>
+    read_fonts::tables::layout::SequenceContext<'a>
 );
 
-table_newtype!(
+super::layout::table_newtype!(
     PositionChainContext,
     ChainedSequenceContext,
-    read_fonts::layout::ChainedSequenceContext<'a>
+    read_fonts::tables::layout::ChainedSequenceContext<'a>
 );
 
 impl Gpos {
@@ -41,15 +45,15 @@ impl Gpos {
     }
 }
 
-lookup_type!(SinglePos, 1);
-lookup_type!(PairPos, 2);
-lookup_type!(CursivePosFormat1, 3);
-lookup_type!(MarkBasePosFormat1, 4);
-lookup_type!(MarkLigPosFormat1, 5);
-lookup_type!(MarkMarkPosFormat1, 6);
-lookup_type!(PositionSequenceContext, 7);
-lookup_type!(PositionChainContext, 8);
-lookup_type!(ExtensionSubtable, 9);
+super::layout::lookup_type!(SinglePos, 1);
+super::layout::lookup_type!(PairPos, 2);
+super::layout::lookup_type!(CursivePosFormat1, 3);
+super::layout::lookup_type!(MarkBasePosFormat1, 4);
+super::layout::lookup_type!(MarkLigPosFormat1, 5);
+super::layout::lookup_type!(MarkMarkPosFormat1, 6);
+super::layout::lookup_type!(PositionSequenceContext, 7);
+super::layout::lookup_type!(PositionChainContext, 8);
+super::layout::lookup_type!(ExtensionSubtable, 9);
 
 impl<T: LookupType + FontWrite> FontWrite for ExtensionPosFormat1<T> {
     fn write_into(&self, writer: &mut TableWriter) {
@@ -62,13 +66,13 @@ impl<T: LookupType + FontWrite> FontWrite for ExtensionPosFormat1<T> {
 // these can't have auto impls because the traits don't support generics
 impl<'a> FontRead<'a> for PositionLookup {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        read_fonts::layout::gpos::PositionLookup::read(data).map(|x| x.to_owned_table())
+        read_fonts::tables::gpos::PositionLookup::read(data).map(|x| x.to_owned_table())
     }
 }
 
 impl<'a> FontRead<'a> for PositionLookupList {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        read_fonts::layout::gpos::PositionLookupList::read(data).map(|x| x.to_owned_table())
+        read_fonts::tables::gpos::PositionLookupList::read(data).map(|x| x.to_owned_table())
     }
 }
 

@@ -100,7 +100,8 @@ fn contextualposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-10-contextual-positioning-format-1
 
     let table =
-        crate::layout::SequenceContextFormat1::read(test_data::CONTEXTUALPOSFORMAT1).unwrap();
+        crate::tables::layout::SequenceContextFormat1::read(test_data::CONTEXTUALPOSFORMAT1)
+            .unwrap();
     let dumped = crate::write::dump_table(&table).unwrap();
 
     assert_hex_eq!(test_data::CONTEXTUALPOSFORMAT1.as_ref(), &dumped);
@@ -111,7 +112,8 @@ fn contextualposformat2() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-11-contextual-positioning-format-1
 
     let table =
-        crate::layout::SequenceContextFormat2::read(test_data::CONTEXTUALPOSFORMAT2).unwrap();
+        crate::tables::layout::SequenceContextFormat2::read(test_data::CONTEXTUALPOSFORMAT2)
+            .unwrap();
     let dumped = crate::write::dump_table(&table).unwrap();
 
     assert_hex_eq!(test_data::CONTEXTUALPOSFORMAT2.as_ref(), &dumped);
@@ -122,7 +124,8 @@ fn contextualposformat3() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-12-contextual-positioning-format-3
 
     let table =
-        crate::layout::SequenceContextFormat3::read(test_data::CONTEXTUALPOSFORMAT3).unwrap();
+        crate::tables::layout::SequenceContextFormat3::read(test_data::CONTEXTUALPOSFORMAT3)
+            .unwrap();
     let dumped = crate::write::dump_table(&table).unwrap();
 
     assert_hex_eq!(test_data::CONTEXTUALPOSFORMAT3.as_ref(), &dumped);

@@ -13,7 +13,7 @@ extern crate core as std;
 
 pub mod array;
 mod font_data;
-pub mod layout;
+//pub mod layout;
 mod offset;
 mod read;
 mod table_provider;

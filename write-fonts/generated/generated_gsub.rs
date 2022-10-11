@@ -68,8 +68,8 @@ impl Validate for Gsub {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gsub::Gsub<'a>> for Gsub {
-    fn from_obj_ref(obj: &read_fonts::layout::gsub::Gsub<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gsub::Gsub<'a>> for Gsub {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::Gsub<'a>, _: FontData) -> Self {
         Gsub {
             script_list: obj.script_list().to_owned_table(),
             feature_list: obj.feature_list().to_owned_table(),
@@ -79,11 +79,11 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::Gsub<'a>> for Gsub {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gsub::Gsub<'a>> for Gsub {}
+impl<'a> FromTableRef<read_fonts::tables::gsub::Gsub<'a>> for Gsub {}
 
 impl<'a> FontRead<'a> for Gsub {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gsub::Gsub as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::gsub::Gsub as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -136,41 +136,41 @@ impl Validate for SubstitutionLookup {
     }
 }
 
-impl FromObjRef<read_fonts::layout::gsub::SubstitutionLookup<'_>> for SubstitutionLookup {
+impl FromObjRef<read_fonts::tables::gsub::SubstitutionLookup<'_>> for SubstitutionLookup {
     fn from_obj_ref(
-        from: &read_fonts::layout::gsub::SubstitutionLookup<'_>,
+        from: &read_fonts::tables::gsub::SubstitutionLookup<'_>,
         data: FontData,
     ) -> Self {
         match from {
-            read_fonts::layout::gsub::SubstitutionLookup::Single(table) => {
+            read_fonts::tables::gsub::SubstitutionLookup::Single(table) => {
                 Self::Single(table.to_owned_obj(data))
             }
-            read_fonts::layout::gsub::SubstitutionLookup::Multiple(table) => {
+            read_fonts::tables::gsub::SubstitutionLookup::Multiple(table) => {
                 Self::Multiple(table.to_owned_obj(data))
             }
-            read_fonts::layout::gsub::SubstitutionLookup::Alternate(table) => {
+            read_fonts::tables::gsub::SubstitutionLookup::Alternate(table) => {
                 Self::Alternate(table.to_owned_obj(data))
             }
-            read_fonts::layout::gsub::SubstitutionLookup::Ligature(table) => {
+            read_fonts::tables::gsub::SubstitutionLookup::Ligature(table) => {
                 Self::Ligature(table.to_owned_obj(data))
             }
-            read_fonts::layout::gsub::SubstitutionLookup::Contextual(table) => {
+            read_fonts::tables::gsub::SubstitutionLookup::Contextual(table) => {
                 Self::Contextual(table.to_owned_obj(data))
             }
-            read_fonts::layout::gsub::SubstitutionLookup::ChainContextual(table) => {
+            read_fonts::tables::gsub::SubstitutionLookup::ChainContextual(table) => {
                 Self::ChainContextual(table.to_owned_obj(data))
             }
-            read_fonts::layout::gsub::SubstitutionLookup::Extension(table) => {
+            read_fonts::tables::gsub::SubstitutionLookup::Extension(table) => {
                 Self::Extension(table.to_owned_obj(data))
             }
-            read_fonts::layout::gsub::SubstitutionLookup::Reverse(table) => {
+            read_fonts::tables::gsub::SubstitutionLookup::Reverse(table) => {
                 Self::Reverse(table.to_owned_obj(data))
             }
         }
     }
 }
 
-impl FromTableRef<read_fonts::layout::gsub::SubstitutionLookup<'_>> for SubstitutionLookup {}
+impl FromTableRef<read_fonts::tables::gsub::SubstitutionLookup<'_>> for SubstitutionLookup {}
 
 /// LookupType 1: [Single Substitution](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#lookuptype-1-single-substitution-subtable) Subtable
 #[derive(Clone, Debug)]
@@ -215,9 +215,9 @@ impl Validate for SingleSubst {
     }
 }
 
-impl FromObjRef<read_fonts::layout::gsub::SingleSubst<'_>> for SingleSubst {
-    fn from_obj_ref(obj: &read_fonts::layout::gsub::SingleSubst, _: FontData) -> Self {
-        use read_fonts::layout::gsub::SingleSubst as ObjRefType;
+impl FromObjRef<read_fonts::tables::gsub::SingleSubst<'_>> for SingleSubst {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::SingleSubst, _: FontData) -> Self {
+        use read_fonts::tables::gsub::SingleSubst as ObjRefType;
         match obj {
             ObjRefType::Format1(item) => SingleSubst::Format1(item.to_owned_table()),
             ObjRefType::Format2(item) => SingleSubst::Format2(item.to_owned_table()),
@@ -225,11 +225,11 @@ impl FromObjRef<read_fonts::layout::gsub::SingleSubst<'_>> for SingleSubst {
     }
 }
 
-impl FromTableRef<read_fonts::layout::gsub::SingleSubst<'_>> for SingleSubst {}
+impl FromTableRef<read_fonts::tables::gsub::SingleSubst<'_>> for SingleSubst {}
 
 impl<'a> FontRead<'a> for SingleSubst {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gsub::SingleSubst as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::gsub::SingleSubst as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -272,8 +272,8 @@ impl Validate for SingleSubstFormat1 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gsub::SingleSubstFormat1<'a>> for SingleSubstFormat1 {
-    fn from_obj_ref(obj: &read_fonts::layout::gsub::SingleSubstFormat1<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gsub::SingleSubstFormat1<'a>> for SingleSubstFormat1 {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::SingleSubstFormat1<'a>, _: FontData) -> Self {
         SingleSubstFormat1 {
             coverage: obj.coverage().to_owned_table(),
             delta_glyph_id: obj.delta_glyph_id(),
@@ -281,11 +281,11 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::SingleSubstFormat1<'a>> for Single
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gsub::SingleSubstFormat1<'a>> for SingleSubstFormat1 {}
+impl<'a> FromTableRef<read_fonts::tables::gsub::SingleSubstFormat1<'a>> for SingleSubstFormat1 {}
 
 impl<'a> FontRead<'a> for SingleSubstFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gsub::SingleSubstFormat1 as FontRead>::read(data)
+        <read_fonts::tables::gsub::SingleSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -335,8 +335,8 @@ impl Validate for SingleSubstFormat2 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gsub::SingleSubstFormat2<'a>> for SingleSubstFormat2 {
-    fn from_obj_ref(obj: &read_fonts::layout::gsub::SingleSubstFormat2<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gsub::SingleSubstFormat2<'a>> for SingleSubstFormat2 {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::SingleSubstFormat2<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         SingleSubstFormat2 {
             coverage: obj.coverage().to_owned_table(),
@@ -345,11 +345,11 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::SingleSubstFormat2<'a>> for Single
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gsub::SingleSubstFormat2<'a>> for SingleSubstFormat2 {}
+impl<'a> FromTableRef<read_fonts::tables::gsub::SingleSubstFormat2<'a>> for SingleSubstFormat2 {}
 
 impl<'a> FontRead<'a> for SingleSubstFormat2 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gsub::SingleSubstFormat2 as FontRead>::read(data)
+        <read_fonts::tables::gsub::SingleSubstFormat2 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -401,8 +401,8 @@ impl Validate for MultipleSubstFormat1 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gsub::MultipleSubstFormat1<'a>> for MultipleSubstFormat1 {
-    fn from_obj_ref(obj: &read_fonts::layout::gsub::MultipleSubstFormat1<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gsub::MultipleSubstFormat1<'a>> for MultipleSubstFormat1 {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::MultipleSubstFormat1<'a>, _: FontData) -> Self {
         MultipleSubstFormat1 {
             coverage: obj.coverage().to_owned_table(),
             sequences: obj.sequences().map(|x| x.to_owned_table()).collect(),
@@ -410,11 +410,11 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::MultipleSubstFormat1<'a>> for Mult
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gsub::MultipleSubstFormat1<'a>> for MultipleSubstFormat1 {}
+impl<'a> FromTableRef<read_fonts::tables::gsub::MultipleSubstFormat1<'a>> for MultipleSubstFormat1 {}
 
 impl<'a> FontRead<'a> for MultipleSubstFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gsub::MultipleSubstFormat1 as FontRead>::read(data)
+        <read_fonts::tables::gsub::MultipleSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -455,8 +455,8 @@ impl Validate for Sequence {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gsub::Sequence<'a>> for Sequence {
-    fn from_obj_ref(obj: &read_fonts::layout::gsub::Sequence<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gsub::Sequence<'a>> for Sequence {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::Sequence<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Sequence {
             substitute_glyph_ids: obj.substitute_glyph_ids().to_owned_obj(offset_data),
@@ -464,11 +464,11 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::Sequence<'a>> for Sequence {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gsub::Sequence<'a>> for Sequence {}
+impl<'a> FromTableRef<read_fonts::tables::gsub::Sequence<'a>> for Sequence {}
 
 impl<'a> FontRead<'a> for Sequence {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gsub::Sequence as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::gsub::Sequence as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -519,9 +519,9 @@ impl Validate for AlternateSubstFormat1 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gsub::AlternateSubstFormat1<'a>> for AlternateSubstFormat1 {
+impl<'a> FromObjRef<read_fonts::tables::gsub::AlternateSubstFormat1<'a>> for AlternateSubstFormat1 {
     fn from_obj_ref(
-        obj: &read_fonts::layout::gsub::AlternateSubstFormat1<'a>,
+        obj: &read_fonts::tables::gsub::AlternateSubstFormat1<'a>,
         _: FontData,
     ) -> Self {
         AlternateSubstFormat1 {
@@ -531,14 +531,14 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::AlternateSubstFormat1<'a>> for Alt
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gsub::AlternateSubstFormat1<'a>>
+impl<'a> FromTableRef<read_fonts::tables::gsub::AlternateSubstFormat1<'a>>
     for AlternateSubstFormat1
 {
 }
 
 impl<'a> FontRead<'a> for AlternateSubstFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gsub::AlternateSubstFormat1 as FontRead>::read(data)
+        <read_fonts::tables::gsub::AlternateSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -579,8 +579,8 @@ impl Validate for AlternateSet {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gsub::AlternateSet<'a>> for AlternateSet {
-    fn from_obj_ref(obj: &read_fonts::layout::gsub::AlternateSet<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gsub::AlternateSet<'a>> for AlternateSet {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::AlternateSet<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         AlternateSet {
             alternate_glyph_ids: obj.alternate_glyph_ids().to_owned_obj(offset_data),
@@ -588,11 +588,11 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::AlternateSet<'a>> for AlternateSet
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gsub::AlternateSet<'a>> for AlternateSet {}
+impl<'a> FromTableRef<read_fonts::tables::gsub::AlternateSet<'a>> for AlternateSet {}
 
 impl<'a> FontRead<'a> for AlternateSet {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gsub::AlternateSet as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::gsub::AlternateSet as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -643,8 +643,8 @@ impl Validate for LigatureSubstFormat1 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gsub::LigatureSubstFormat1<'a>> for LigatureSubstFormat1 {
-    fn from_obj_ref(obj: &read_fonts::layout::gsub::LigatureSubstFormat1<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gsub::LigatureSubstFormat1<'a>> for LigatureSubstFormat1 {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::LigatureSubstFormat1<'a>, _: FontData) -> Self {
         LigatureSubstFormat1 {
             coverage: obj.coverage().to_owned_table(),
             ligature_sets: obj.ligature_sets().map(|x| x.to_owned_table()).collect(),
@@ -652,11 +652,11 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::LigatureSubstFormat1<'a>> for Liga
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gsub::LigatureSubstFormat1<'a>> for LigatureSubstFormat1 {}
+impl<'a> FromTableRef<read_fonts::tables::gsub::LigatureSubstFormat1<'a>> for LigatureSubstFormat1 {}
 
 impl<'a> FontRead<'a> for LigatureSubstFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gsub::LigatureSubstFormat1 as FontRead>::read(data)
+        <read_fonts::tables::gsub::LigatureSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -699,19 +699,19 @@ impl Validate for LigatureSet {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gsub::LigatureSet<'a>> for LigatureSet {
-    fn from_obj_ref(obj: &read_fonts::layout::gsub::LigatureSet<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gsub::LigatureSet<'a>> for LigatureSet {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::LigatureSet<'a>, _: FontData) -> Self {
         LigatureSet {
             ligatures: obj.ligatures().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gsub::LigatureSet<'a>> for LigatureSet {}
+impl<'a> FromTableRef<read_fonts::tables::gsub::LigatureSet<'a>> for LigatureSet {}
 
 impl<'a> FontRead<'a> for LigatureSet {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gsub::LigatureSet as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::gsub::LigatureSet as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -748,8 +748,8 @@ impl Validate for Ligature {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gsub::Ligature<'a>> for Ligature {
-    fn from_obj_ref(obj: &read_fonts::layout::gsub::Ligature<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::gsub::Ligature<'a>> for Ligature {
+    fn from_obj_ref(obj: &read_fonts::tables::gsub::Ligature<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Ligature {
             ligature_glyph: obj.ligature_glyph(),
@@ -758,11 +758,11 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::Ligature<'a>> for Ligature {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gsub::Ligature<'a>> for Ligature {}
+impl<'a> FromTableRef<read_fonts::tables::gsub::Ligature<'a>> for Ligature {}
 
 impl<'a> FontRead<'a> for Ligature {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gsub::Ligature as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::gsub::Ligature as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
 
@@ -798,14 +798,14 @@ impl<T: Validate> Validate for ExtensionSubstFormat1<T> {
     }
 }
 
-impl<'a, T, U> FromObjRef<read_fonts::layout::gsub::ExtensionSubstFormat1<'a, U>>
+impl<'a, T, U> FromObjRef<read_fonts::tables::gsub::ExtensionSubstFormat1<'a, U>>
     for ExtensionSubstFormat1<T>
 where
     U: FontRead<'a>,
     T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(
-        obj: &read_fonts::layout::gsub::ExtensionSubstFormat1<'a, U>,
+        obj: &read_fonts::tables::gsub::ExtensionSubstFormat1<'a, U>,
         _: FontData,
     ) -> Self {
         ExtensionSubstFormat1 {
@@ -815,7 +815,7 @@ where
     }
 }
 
-impl<'a, T, U> FromTableRef<read_fonts::layout::gsub::ExtensionSubstFormat1<'a, U>>
+impl<'a, T, U> FromTableRef<read_fonts::tables::gsub::ExtensionSubstFormat1<'a, U>>
     for ExtensionSubstFormat1<T>
 where
     U: FontRead<'a>,
@@ -869,38 +869,38 @@ impl Validate for ExtensionSubtable {
     }
 }
 
-impl FromObjRef<read_fonts::layout::gsub::ExtensionSubtable<'_>> for ExtensionSubtable {
+impl FromObjRef<read_fonts::tables::gsub::ExtensionSubtable<'_>> for ExtensionSubtable {
     fn from_obj_ref(
-        from: &read_fonts::layout::gsub::ExtensionSubtable<'_>,
+        from: &read_fonts::tables::gsub::ExtensionSubtable<'_>,
         data: FontData,
     ) -> Self {
         match from {
-            read_fonts::layout::gsub::ExtensionSubtable::Single(table) => {
+            read_fonts::tables::gsub::ExtensionSubtable::Single(table) => {
                 Self::Single(table.to_owned_obj(data))
             }
-            read_fonts::layout::gsub::ExtensionSubtable::Multiple(table) => {
+            read_fonts::tables::gsub::ExtensionSubtable::Multiple(table) => {
                 Self::Multiple(table.to_owned_obj(data))
             }
-            read_fonts::layout::gsub::ExtensionSubtable::Alternate(table) => {
+            read_fonts::tables::gsub::ExtensionSubtable::Alternate(table) => {
                 Self::Alternate(table.to_owned_obj(data))
             }
-            read_fonts::layout::gsub::ExtensionSubtable::Ligature(table) => {
+            read_fonts::tables::gsub::ExtensionSubtable::Ligature(table) => {
                 Self::Ligature(table.to_owned_obj(data))
             }
-            read_fonts::layout::gsub::ExtensionSubtable::Contextual(table) => {
+            read_fonts::tables::gsub::ExtensionSubtable::Contextual(table) => {
                 Self::Contextual(table.to_owned_obj(data))
             }
-            read_fonts::layout::gsub::ExtensionSubtable::ChainContextual(table) => {
+            read_fonts::tables::gsub::ExtensionSubtable::ChainContextual(table) => {
                 Self::ChainContextual(table.to_owned_obj(data))
             }
-            read_fonts::layout::gsub::ExtensionSubtable::Reverse(table) => {
+            read_fonts::tables::gsub::ExtensionSubtable::Reverse(table) => {
                 Self::Reverse(table.to_owned_obj(data))
             }
         }
     }
 }
 
-impl FromTableRef<read_fonts::layout::gsub::ExtensionSubtable<'_>> for ExtensionSubtable {}
+impl FromTableRef<read_fonts::tables::gsub::ExtensionSubtable<'_>> for ExtensionSubtable {}
 
 /// [Reverse Chaining Contextual Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#81-reverse-chaining-contextual-single-substitution-format-1-coverage-based-glyph-contexts)
 #[derive(Clone, Debug, Default)]
@@ -976,11 +976,11 @@ impl Validate for ReverseChainSingleSubstFormat1 {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::layout::gsub::ReverseChainSingleSubstFormat1<'a>>
+impl<'a> FromObjRef<read_fonts::tables::gsub::ReverseChainSingleSubstFormat1<'a>>
     for ReverseChainSingleSubstFormat1
 {
     fn from_obj_ref(
-        obj: &read_fonts::layout::gsub::ReverseChainSingleSubstFormat1<'a>,
+        obj: &read_fonts::tables::gsub::ReverseChainSingleSubstFormat1<'a>,
         _: FontData,
     ) -> Self {
         let offset_data = obj.offset_data();
@@ -999,14 +999,14 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::ReverseChainSingleSubstFormat1<'a>
     }
 }
 
-impl<'a> FromTableRef<read_fonts::layout::gsub::ReverseChainSingleSubstFormat1<'a>>
+impl<'a> FromTableRef<read_fonts::tables::gsub::ReverseChainSingleSubstFormat1<'a>>
     for ReverseChainSingleSubstFormat1
 {
 }
 
 impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::layout::gsub::ReverseChainSingleSubstFormat1 as FontRead>::read(data)
+        <read_fonts::tables::gsub::ReverseChainSingleSubstFormat1 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }

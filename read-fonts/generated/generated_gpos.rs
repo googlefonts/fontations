@@ -3006,7 +3006,7 @@ impl<'a, T> FontRead<'a> for ExtensionPosFormat1<'a, T> {
 
 impl<'a> ExtensionPosFormat1<'a, ()> {
     #[allow(dead_code)]
-    fn into_concrete<T>(self) -> ExtensionPosFormat1<'a, T> {
+    pub(crate) fn into_concrete<T>(self) -> ExtensionPosFormat1<'a, T> {
         let TableRef { data, .. } = self;
         TableRef {
             shape: ExtensionPosFormat1Marker {

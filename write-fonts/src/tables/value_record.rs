@@ -3,7 +3,7 @@
 use crate::from_obj::FromObjRef;
 use read_fonts::FontData;
 
-use super::gpos::ValueFormat;
+use super::ValueFormat;
 use crate::{
     validate::Validate,
     write::{FontWrite, TableWriter},
@@ -88,8 +88,8 @@ impl Validate for ValueRecord {
     fn validate_impl(&self, _ctx: &mut crate::validate::ValidationCtx) {}
 }
 
-impl FromObjRef<read_fonts::layout::gpos::ValueRecord> for ValueRecord {
-    fn from_obj_ref(from: &read_fonts::layout::gpos::ValueRecord, _data: FontData) -> Self {
+impl FromObjRef<read_fonts::tables::gpos::ValueRecord> for ValueRecord {
+    fn from_obj_ref(from: &read_fonts::tables::gpos::ValueRecord, _data: FontData) -> Self {
         ValueRecord {
             x_placement: from.x_placement.map(|val| val.get()),
             y_placement: from.y_placement.map(|val| val.get()),

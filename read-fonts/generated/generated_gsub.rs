@@ -1206,7 +1206,7 @@ impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
 
 impl<'a> ExtensionSubstFormat1<'a, ()> {
     #[allow(dead_code)]
-    fn into_concrete<T>(self) -> ExtensionSubstFormat1<'a, T> {
+    pub(crate) fn into_concrete<T>(self) -> ExtensionSubstFormat1<'a, T> {
         let TableRef { data, .. } = self;
         TableRef {
             shape: ExtensionSubstFormat1Marker {

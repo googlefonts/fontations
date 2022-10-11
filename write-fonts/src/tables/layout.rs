@@ -4,6 +4,12 @@ use std::collections::{BTreeMap, HashSet};
 
 use read_fonts::FontRead;
 
+#[cfg(test)]
+#[path = "../tests/layout.rs"]
+mod spec_tests;
+
+include!("../../generated/generated_layout.rs");
+
 /// A macro to implement the [LookupType] trait.
 macro_rules! lookup_type {
     ($ty:ty, $val:expr) => {
@@ -58,19 +64,8 @@ macro_rules! table_newtype {
     };
 }
 
-pub mod gdef;
-pub mod gpos;
-pub mod gsub;
-
-mod value_record;
-
-pub use value_record::ValueRecord;
-
-#[cfg(test)]
-#[path = "./tests/layout.rs"]
-mod spec_tests;
-
-include!("../generated/generated_layout.rs");
+pub(crate) use lookup_type;
+pub(crate) use table_newtype;
 
 impl<T: LookupType + FontWrite> FontWrite for Lookup<T> {
     fn write_into(&self, writer: &mut TableWriter) {
@@ -120,9 +115,9 @@ impl Validate for FeatureParams {
     }
 }
 
-impl FromObjRef<read_fonts::layout::FeatureParams<'_>> for FeatureParams {
-    fn from_obj_ref(from: &read_fonts::layout::FeatureParams, data: FontData) -> Self {
-        use read_fonts::layout::FeatureParams as FromType;
+impl FromObjRef<read_fonts::tables::layout::FeatureParams<'_>> for FeatureParams {
+    fn from_obj_ref(from: &read_fonts::tables::layout::FeatureParams, data: FontData) -> Self {
+        use read_fonts::tables::layout::FeatureParams as FromType;
         match from {
             FromType::Size(thing) => Self::Size(SizeParams::from_obj_ref(thing, data)),
             FromType::StylisticSet(thing) => {
@@ -135,7 +130,7 @@ impl FromObjRef<read_fonts::layout::FeatureParams<'_>> for FeatureParams {
     }
 }
 
-impl FromTableRef<read_fonts::layout::FeatureParams<'_>> for FeatureParams {}
+impl FromTableRef<read_fonts::tables::layout::FeatureParams<'_>> for FeatureParams {}
 
 impl ClassDefFormat1 {
     fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {

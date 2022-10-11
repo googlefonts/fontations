@@ -1,14 +1,10 @@
-//! OpenType Layout
-
-pub mod gdef;
-pub mod gpos;
-pub mod gsub;
+//! OpenType Layout common table formats
 
 #[cfg(test)]
-#[path = "./tests/layout.rs"]
+#[path = "../tests/layout.rs"]
 mod tests;
 
-include!("../generated/generated_layout.rs");
+include!("../../generated/generated_layout.rs");
 
 impl<'a, T: FontRead<'a>> Lookup<'a, T> {
     pub fn get_subtable(&self, offset: Offset16) -> Result<T, ReadError> {
