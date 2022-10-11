@@ -182,13 +182,13 @@ impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfArraysOfOffsets<'a>>
         KindsOfArraysOfOffsets {
             version: obj.version(),
             count: obj.count(),
-            nonnullable_offsets: obj.nonnullable().map(|x| x.into()).collect(),
-            nullable_offsets: obj.nullable().map(|x| x.into()).collect(),
+            nonnullable_offsets: obj.nonnullables().map(|x| x.into()).collect(),
+            nullable_offsets: obj.nullables().map(|x| x.into()).collect(),
             versioned_nonnullable_offsets: obj
-                .versioned_nonnullable()
+                .versioned_nonnullables()
                 .map(|obj| obj.map(|x| x.into()).collect()),
             versioned_nullable_offsets: obj
-                .versioned_nullable()
+                .versioned_nullables()
                 .map(|obj| obj.map(|x| x.into()).collect()),
         }
     }

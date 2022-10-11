@@ -264,7 +264,7 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     /// Attempt to resolve [`nonnullable_offsets`][Self::nonnullable_offsets].
-    pub fn nonnullable(&self) -> impl Iterator<Item = Result<Dummy<'a>, ReadError>> + 'a {
+    pub fn nonnullables(&self) -> impl Iterator<Item = Result<Dummy<'a>, ReadError>> + 'a {
         let data = self.data;
         self.nonnullable_offsets()
             .iter()
@@ -278,7 +278,7 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     /// Attempt to resolve [`nullable_offsets`][Self::nullable_offsets].
-    pub fn nullable(&self) -> impl Iterator<Item = Option<Result<Dummy<'a>, ReadError>>> + 'a {
+    pub fn nullables(&self) -> impl Iterator<Item = Option<Result<Dummy<'a>, ReadError>>> + 'a {
         let data = self.data;
         self.nullable_offsets()
             .iter()
@@ -292,7 +292,7 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     /// Attempt to resolve [`versioned_nonnullable_offsets`][Self::versioned_nonnullable_offsets].
-    pub fn versioned_nonnullable(
+    pub fn versioned_nonnullables(
         &self,
     ) -> Option<impl Iterator<Item = Result<Dummy<'a>, ReadError>> + 'a> {
         let data = self.data;
@@ -307,7 +307,7 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
     }
 
     /// Attempt to resolve [`versioned_nullable_offsets`][Self::versioned_nullable_offsets].
-    pub fn versioned_nullable(
+    pub fn versioned_nullables(
         &self,
     ) -> Option<impl Iterator<Item = Option<Result<Dummy<'a>, ReadError>>> + 'a> {
         let data = self.data;

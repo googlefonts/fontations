@@ -349,7 +349,7 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::MultipleSubstFormat1<'a>> for Mult
     fn from_obj_ref(obj: &read_fonts::layout::gsub::MultipleSubstFormat1<'a>, _: FontData) -> Self {
         MultipleSubstFormat1 {
             coverage_offset: obj.coverage().into(),
-            sequence_offsets: obj.sequence().map(|x| x.into()).collect(),
+            sequence_offsets: obj.sequences().map(|x| x.into()).collect(),
         }
     }
 }
@@ -456,7 +456,7 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::AlternateSubstFormat1<'a>> for Alt
     ) -> Self {
         AlternateSubstFormat1 {
             coverage_offset: obj.coverage().into(),
-            alternate_set_offsets: obj.alternate_set().map(|x| x.into()).collect(),
+            alternate_set_offsets: obj.alternate_sets().map(|x| x.into()).collect(),
         }
     }
 }
@@ -563,7 +563,7 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::LigatureSubstFormat1<'a>> for Liga
     fn from_obj_ref(obj: &read_fonts::layout::gsub::LigatureSubstFormat1<'a>, _: FontData) -> Self {
         LigatureSubstFormat1 {
             coverage_offset: obj.coverage().into(),
-            ligature_set_offsets: obj.ligature_set().map(|x| x.into()).collect(),
+            ligature_set_offsets: obj.ligature_sets().map(|x| x.into()).collect(),
         }
     }
 }
@@ -612,7 +612,7 @@ impl Validate for LigatureSet {
 impl<'a> FromObjRef<read_fonts::layout::gsub::LigatureSet<'a>> for LigatureSet {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::LigatureSet<'a>, _: FontData) -> Self {
         LigatureSet {
-            ligature_offsets: obj.ligature().map(|x| x.into()).collect(),
+            ligature_offsets: obj.ligatures().map(|x| x.into()).collect(),
         }
     }
 }
@@ -861,8 +861,8 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::ReverseChainSingleSubstFormat1<'a>
     ) -> Self {
         ReverseChainSingleSubstFormat1 {
             coverage_offset: obj.coverage().into(),
-            backtrack_coverage_offsets: obj.backtrack_coverage().map(|x| x.into()).collect(),
-            lookahead_coverage_offsets: obj.lookahead_coverage().map(|x| x.into()).collect(),
+            backtrack_coverage_offsets: obj.backtrack_coverages().map(|x| x.into()).collect(),
+            lookahead_coverage_offsets: obj.lookahead_coverages().map(|x| x.into()).collect(),
             substitute_glyph_ids: obj.substitute_glyph_ids().iter().map(|x| x.get()).collect(),
         }
     }

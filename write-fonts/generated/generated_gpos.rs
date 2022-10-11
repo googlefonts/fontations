@@ -707,7 +707,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::PairPosFormat1<'a>> for PairPosFor
     fn from_obj_ref(obj: &read_fonts::layout::gpos::PairPosFormat1<'a>, _: FontData) -> Self {
         PairPosFormat1 {
             coverage_offset: obj.coverage().into(),
-            pair_set_offsets: obj.pair_set().map(|x| x.into()).collect(),
+            pair_set_offsets: obj.pair_sets().map(|x| x.into()).collect(),
         }
     }
 }
@@ -1209,7 +1209,7 @@ impl Validate for BaseRecord {
 impl FromObjRef<read_fonts::layout::gpos::BaseRecord<'_>> for BaseRecord {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::BaseRecord, offset_data: FontData) -> Self {
         BaseRecord {
-            base_anchor_offsets: obj.base_anchor(offset_data).map(|x| x.into()).collect(),
+            base_anchor_offsets: obj.base_anchors(offset_data).map(|x| x.into()).collect(),
         }
     }
 }
@@ -1319,7 +1319,7 @@ impl Validate for LigatureArray {
 impl<'a> FromObjRef<read_fonts::layout::gpos::LigatureArray<'a>> for LigatureArray {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::LigatureArray<'a>, _: FontData) -> Self {
         LigatureArray {
-            ligature_attach_offsets: obj.ligature_attach().map(|x| x.into()).collect(),
+            ligature_attach_offsets: obj.ligature_attaches().map(|x| x.into()).collect(),
         }
     }
 }
@@ -1407,7 +1407,10 @@ impl FromObjRef<read_fonts::layout::gpos::ComponentRecord<'_>> for ComponentReco
         offset_data: FontData,
     ) -> Self {
         ComponentRecord {
-            ligature_anchor_offsets: obj.ligature_anchor(offset_data).map(|x| x.into()).collect(),
+            ligature_anchor_offsets: obj
+                .ligature_anchors(offset_data)
+                .map(|x| x.into())
+                .collect(),
         }
     }
 }
@@ -1560,7 +1563,7 @@ impl Validate for Mark2Record {
 impl FromObjRef<read_fonts::layout::gpos::Mark2Record<'_>> for Mark2Record {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::Mark2Record, offset_data: FontData) -> Self {
         Mark2Record {
-            mark2_anchor_offsets: obj.mark2_anchor(offset_data).map(|x| x.into()).collect(),
+            mark2_anchor_offsets: obj.mark2_anchors(offset_data).map(|x| x.into()).collect(),
         }
     }
 }

@@ -686,7 +686,7 @@ impl<'a, T> LookupList<'a, T> {
     }
 
     /// Attempt to resolve [`lookup_offsets`][Self::lookup_offsets].
-    pub fn lookup(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a
+    pub fn lookups(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a
     where
         T: FontRead<'a>,
     {
@@ -834,7 +834,7 @@ impl<'a, T> Lookup<'a, T> {
     }
 
     /// Attempt to resolve [`subtable_offsets`][Self::subtable_offsets].
-    pub fn subtable(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a
+    pub fn subtables(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a
     where
         T: FontRead<'a>,
     {
@@ -1572,7 +1572,7 @@ impl<'a> SequenceContextFormat1<'a> {
     }
 
     /// Attempt to resolve [`seq_rule_set_offsets`][Self::seq_rule_set_offsets].
-    pub fn seq_rule_set(
+    pub fn seq_rule_sets(
         &self,
     ) -> impl Iterator<Item = Option<Result<SequenceRuleSet<'a>, ReadError>>> + 'a {
         let data = self.data;
@@ -1670,7 +1670,7 @@ impl<'a> SequenceRuleSet<'a> {
     }
 
     /// Attempt to resolve [`seq_rule_offsets`][Self::seq_rule_offsets].
-    pub fn seq_rule(&self) -> impl Iterator<Item = Result<SequenceRule<'a>, ReadError>> + 'a {
+    pub fn seq_rules(&self) -> impl Iterator<Item = Result<SequenceRule<'a>, ReadError>> + 'a {
         let data = self.data;
         self.seq_rule_offsets()
             .iter()
@@ -1917,7 +1917,7 @@ impl<'a> SequenceContextFormat2<'a> {
     }
 
     /// Attempt to resolve [`class_seq_rule_set_offsets`][Self::class_seq_rule_set_offsets].
-    pub fn class_seq_rule_set(
+    pub fn class_seq_rule_sets(
         &self,
     ) -> impl Iterator<Item = Option<Result<ClassSequenceRuleSet<'a>, ReadError>>> + 'a {
         let data = self.data;
@@ -2023,7 +2023,7 @@ impl<'a> ClassSequenceRuleSet<'a> {
     }
 
     /// Attempt to resolve [`class_seq_rule_offsets`][Self::class_seq_rule_offsets].
-    pub fn class_seq_rule(
+    pub fn class_seq_rules(
         &self,
     ) -> impl Iterator<Item = Result<ClassSequenceRule<'a>, ReadError>> + 'a {
         let data = self.data;
@@ -2259,7 +2259,7 @@ impl<'a> SequenceContextFormat3<'a> {
     }
 
     /// Attempt to resolve [`coverage_offsets`][Self::coverage_offsets].
-    pub fn coverage(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+    pub fn coverages(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
         let data = self.data;
         self.coverage_offsets()
             .iter()
@@ -2446,7 +2446,7 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     }
 
     /// Attempt to resolve [`chained_seq_rule_set_offsets`][Self::chained_seq_rule_set_offsets].
-    pub fn chained_seq_rule_set(
+    pub fn chained_seq_rule_sets(
         &self,
     ) -> impl Iterator<Item = Option<Result<ChainedSequenceRuleSet<'a>, ReadError>>> + 'a {
         let data = self.data;
@@ -2548,7 +2548,7 @@ impl<'a> ChainedSequenceRuleSet<'a> {
     }
 
     /// Attempt to resolve [`chained_seq_rule_offsets`][Self::chained_seq_rule_offsets].
-    pub fn chained_seq_rule(
+    pub fn chained_seq_rules(
         &self,
     ) -> impl Iterator<Item = Result<ChainedSequenceRule<'a>, ReadError>> + 'a {
         let data = self.data;
@@ -2896,7 +2896,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     }
 
     /// Attempt to resolve [`chained_class_seq_rule_set_offsets`][Self::chained_class_seq_rule_set_offsets].
-    pub fn chained_class_seq_rule_set(
+    pub fn chained_class_seq_rule_sets(
         &self,
     ) -> impl Iterator<Item = Option<Result<ChainedClassSequenceRuleSet<'a>, ReadError>>> + 'a {
         let data = self.data;
@@ -3016,7 +3016,7 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
     }
 
     /// Attempt to resolve [`chained_class_seq_rule_offsets`][Self::chained_class_seq_rule_offsets].
-    pub fn chained_class_seq_rule(
+    pub fn chained_class_seq_rules(
         &self,
     ) -> impl Iterator<Item = Result<ChainedClassSequenceRule<'a>, ReadError>> + 'a {
         let data = self.data;
@@ -3333,7 +3333,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 
     /// Attempt to resolve [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
-    pub fn backtrack_coverage(
+    pub fn backtrack_coverages(
         &self,
     ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
         let data = self.data;
@@ -3355,7 +3355,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 
     /// Attempt to resolve [`input_coverage_offsets`][Self::input_coverage_offsets].
-    pub fn input_coverage(
+    pub fn input_coverages(
         &self,
     ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
         let data = self.data;
@@ -3377,7 +3377,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 
     /// Attempt to resolve [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
-    pub fn lookahead_coverage(
+    pub fn lookahead_coverages(
         &self,
     ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
         let data = self.data;
@@ -3959,7 +3959,7 @@ impl<'a> ConditionSet<'a> {
     }
 
     /// Attempt to resolve [`condition_offsets`][Self::condition_offsets].
-    pub fn condition(&self) -> impl Iterator<Item = Result<ConditionFormat1<'a>, ReadError>> + 'a {
+    pub fn conditions(&self) -> impl Iterator<Item = Result<ConditionFormat1<'a>, ReadError>> + 'a {
         let data = self.data;
         self.condition_offsets()
             .iter()

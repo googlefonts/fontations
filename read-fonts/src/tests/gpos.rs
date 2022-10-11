@@ -43,8 +43,8 @@ fn pairposformat1() {
     assert_eq!(table.value_format2(), ValueFormat::X_PLACEMENT);
     assert_eq!(table.pair_set_count(), 2);
 
-    let set1 = table.pair_set().next().unwrap().unwrap();
-    let set2 = table.pair_set().nth(1).unwrap().unwrap();
+    let set1 = table.pair_sets().next().unwrap().unwrap();
+    let set2 = table.pair_sets().nth(1).unwrap().unwrap();
     assert_eq!(set1.pair_value_records().iter().count(), 1);
     assert_eq!(set2.pair_value_records().iter().count(), 1);
 
@@ -124,7 +124,7 @@ fn markligposformat1() {
     let table = MarkLigPosFormat1::read(test_data::MARKLIGPOSFORMAT1).unwrap();
     let lig_array = table.ligature_array().unwrap();
     assert_eq!(lig_array.ligature_count(), 1);
-    let lig_attach = lig_array.ligature_attach().next().unwrap().unwrap();
+    let lig_attach = lig_array.ligature_attaches().next().unwrap().unwrap();
     assert_eq!(lig_attach.component_count(), 3);
     let comp_record = lig_attach
         .component_records()

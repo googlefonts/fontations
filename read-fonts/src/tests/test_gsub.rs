@@ -27,8 +27,8 @@ fn singlesubstformat2() {
 fn multiplesubstformat1() {
     // https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#example-4-multiplesubstformat1-subtable
     let table = MultipleSubstFormat1::read(test_data::MULTIPLESUBSTFORMAT1_TABLE).unwrap();
-    assert_eq!(table.sequence().count(), 1);
-    let seq0 = table.sequence().next().unwrap().unwrap();
+    assert_eq!(table.sequences().count(), 1);
+    let seq0 = table.sequences().next().unwrap().unwrap();
     assert_eq!(
         seq0.substitute_glyph_ids(),
         &[GlyphId::new(26), GlyphId::new(26), GlyphId::new(29)]
@@ -39,8 +39,8 @@ fn multiplesubstformat1() {
 fn alternatesubstformat1() {
     // https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#example-5-alternatesubstformat-1-subtable
     let table = AlternateSubstFormat1::read(test_data::ALTERNATESUBSTFORMAT1_TABLE).unwrap();
-    assert_eq!(table.alternate_set().count(), 1);
-    let altset0 = table.alternate_set().next().unwrap().unwrap();
+    assert_eq!(table.alternate_sets().count(), 1);
+    let altset0 = table.alternate_sets().next().unwrap().unwrap();
     assert_eq!(
         altset0.alternate_glyph_ids(),
         &[GlyphId::new(0xc9), GlyphId::new(0xca)]
@@ -51,19 +51,19 @@ fn alternatesubstformat1() {
 fn ligaturesubstformat1() {
     // https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#example-6-ligaturesubstformat1-subtable
     let table = LigatureSubstFormat1::read(test_data::LIGATURESUBSTFORMAT1_TABLE).unwrap();
-    assert_eq!(table.ligature_set().count(), 2);
-    let ligset0 = table.ligature_set().next().unwrap().unwrap();
+    assert_eq!(table.ligature_sets().count(), 2);
+    let ligset0 = table.ligature_sets().next().unwrap().unwrap();
 
-    assert_eq!(ligset0.ligature().count(), 1);
-    let lig0 = ligset0.ligature().next().unwrap().unwrap();
+    assert_eq!(ligset0.ligatures().count(), 1);
+    let lig0 = ligset0.ligatures().next().unwrap().unwrap();
     assert_eq!(lig0.ligature_glyph(), GlyphId::new(347));
     assert_eq!(
         lig0.component_glyph_ids(),
         &[GlyphId::new(0x28), GlyphId::new(0x17)]
     );
 
-    let ligset1 = table.ligature_set().nth(1).unwrap().unwrap();
-    let lig0 = ligset1.ligature().next().unwrap().unwrap();
+    let ligset1 = table.ligature_sets().nth(1).unwrap().unwrap();
+    let lig0 = ligset1.ligatures().next().unwrap().unwrap();
     assert_eq!(lig0.ligature_glyph(), GlyphId::new(0xf1));
     assert_eq!(
         lig0.component_glyph_ids(),

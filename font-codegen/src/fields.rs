@@ -709,10 +709,23 @@ impl Field {
         }
 
         let name_string = self.name.to_string();
-        let offset_name = name_string
-            .trim_end_matches("_offsets")
-            .trim_end_matches("_offset");
-        Some(syn::Ident::new(offset_name, self.name.span()))
+        if name_string.ends_with('s') {
+            // if this is an array of offsets (is pluralized) we also pluralize the getter name
+            let temp = name_string.trim_end_matches("_offsets");
+            // hacky attempt to respect pluralization rules. we can update this
+            // as we encounter actual tables, instead of trying to be systematic
+            let plural_es = temp.ends_with("attach");
+            let suffix = if plural_es { "es" } else { "s" };
+            Some(syn::Ident::new(
+                &format!("{temp}{suffix}"),
+                self.name.span(),
+            ))
+        } else {
+            Some(syn::Ident::new(
+                name_string.trim_end_matches("_offset"),
+                self.name.span(),
+            ))
+        }
     }
 
     /// if the `#[offset_data_method]` attribute is specified, self.#method(),
