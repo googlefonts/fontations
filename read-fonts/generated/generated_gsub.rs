@@ -535,7 +535,7 @@ impl<'a> MultipleSubstFormat1<'a> {
     }
 
     /// Attempt to resolve [`sequence_offsets`][Self::sequence_offsets].
-    pub fn sequence(&self) -> impl Iterator<Item = Result<Sequence<'a>, ReadError>> + 'a {
+    pub fn sequences(&self) -> impl Iterator<Item = Result<Sequence<'a>, ReadError>> + 'a {
         let data = self.data;
         self.sequence_offsets()
             .iter()
@@ -737,7 +737,7 @@ impl<'a> AlternateSubstFormat1<'a> {
     }
 
     /// Attempt to resolve [`alternate_set_offsets`][Self::alternate_set_offsets].
-    pub fn alternate_set(&self) -> impl Iterator<Item = Result<AlternateSet<'a>, ReadError>> + 'a {
+    pub fn alternate_sets(&self) -> impl Iterator<Item = Result<AlternateSet<'a>, ReadError>> + 'a {
         let data = self.data;
         self.alternate_set_offsets()
             .iter()
@@ -941,7 +941,7 @@ impl<'a> LigatureSubstFormat1<'a> {
     }
 
     /// Attempt to resolve [`ligature_set_offsets`][Self::ligature_set_offsets].
-    pub fn ligature_set(&self) -> impl Iterator<Item = Result<LigatureSet<'a>, ReadError>> + 'a {
+    pub fn ligature_sets(&self) -> impl Iterator<Item = Result<LigatureSet<'a>, ReadError>> + 'a {
         let data = self.data;
         self.ligature_set_offsets()
             .iter()
@@ -1037,7 +1037,7 @@ impl<'a> LigatureSet<'a> {
     }
 
     /// Attempt to resolve [`ligature_offsets`][Self::ligature_offsets].
-    pub fn ligature(&self) -> impl Iterator<Item = Result<Ligature<'a>, ReadError>> + 'a {
+    pub fn ligatures(&self) -> impl Iterator<Item = Result<Ligature<'a>, ReadError>> + 'a {
         let data = self.data;
         self.ligature_offsets()
             .iter()
@@ -1450,7 +1450,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     }
 
     /// Attempt to resolve [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
-    pub fn backtrack_coverage(
+    pub fn backtrack_coverages(
         &self,
     ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
         let data = self.data;
@@ -1473,7 +1473,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     }
 
     /// Attempt to resolve [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
-    pub fn lookahead_coverage(
+    pub fn lookahead_coverages(
         &self,
     ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
         let data = self.data;

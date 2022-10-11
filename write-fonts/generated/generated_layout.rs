@@ -413,7 +413,7 @@ where
 {
     fn from_obj_ref(obj: &read_fonts::layout::LookupList<'a, U>, _: FontData) -> Self {
         LookupList {
-            lookup_offsets: obj.lookup().map(|x| x.into()).collect(),
+            lookup_offsets: obj.lookups().map(|x| x.into()).collect(),
         }
     }
 }
@@ -462,7 +462,7 @@ where
     fn from_obj_ref(obj: &read_fonts::layout::Lookup<'a, U>, _: FontData) -> Self {
         Lookup {
             lookup_flag: obj.lookup_flag(),
-            subtable_offsets: obj.subtable().map(|x| x.into()).collect(),
+            subtable_offsets: obj.subtables().map(|x| x.into()).collect(),
             mark_filtering_set: obj.mark_filtering_set(),
         }
     }
@@ -918,7 +918,7 @@ impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat1<'a>> for Sequence
     fn from_obj_ref(obj: &read_fonts::layout::SequenceContextFormat1<'a>, _: FontData) -> Self {
         SequenceContextFormat1 {
             coverage_offset: obj.coverage().into(),
-            seq_rule_set_offsets: obj.seq_rule_set().map(|x| x.into()).collect(),
+            seq_rule_set_offsets: obj.seq_rule_sets().map(|x| x.into()).collect(),
         }
     }
 }
@@ -967,7 +967,7 @@ impl Validate for SequenceRuleSet {
 impl<'a> FromObjRef<read_fonts::layout::SequenceRuleSet<'a>> for SequenceRuleSet {
     fn from_obj_ref(obj: &read_fonts::layout::SequenceRuleSet<'a>, _: FontData) -> Self {
         SequenceRuleSet {
-            seq_rule_offsets: obj.seq_rule().map(|x| x.into()).collect(),
+            seq_rule_offsets: obj.seq_rules().map(|x| x.into()).collect(),
         }
     }
 }
@@ -1089,7 +1089,7 @@ impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat2<'a>> for Sequence
         SequenceContextFormat2 {
             coverage_offset: obj.coverage().into(),
             class_def_offset: obj.class_def().into(),
-            class_seq_rule_set_offsets: obj.class_seq_rule_set().map(|x| x.into()).collect(),
+            class_seq_rule_set_offsets: obj.class_seq_rule_sets().map(|x| x.into()).collect(),
         }
     }
 }
@@ -1138,7 +1138,7 @@ impl Validate for ClassSequenceRuleSet {
 impl<'a> FromObjRef<read_fonts::layout::ClassSequenceRuleSet<'a>> for ClassSequenceRuleSet {
     fn from_obj_ref(obj: &read_fonts::layout::ClassSequenceRuleSet<'a>, _: FontData) -> Self {
         ClassSequenceRuleSet {
-            class_seq_rule_offsets: obj.class_seq_rule().map(|x| x.into()).collect(),
+            class_seq_rule_offsets: obj.class_seq_rules().map(|x| x.into()).collect(),
         }
     }
 }
@@ -1257,7 +1257,7 @@ impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat3<'a>> for Sequence
     fn from_obj_ref(obj: &read_fonts::layout::SequenceContextFormat3<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         SequenceContextFormat3 {
-            coverage_offsets: obj.coverage().map(|x| x.into()).collect(),
+            coverage_offsets: obj.coverages().map(|x| x.into()).collect(),
             seq_lookup_records: obj
                 .seq_lookup_records()
                 .iter()
@@ -1374,7 +1374,7 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat1<'a>>
     ) -> Self {
         ChainedSequenceContextFormat1 {
             coverage_offset: obj.coverage().into(),
-            chained_seq_rule_set_offsets: obj.chained_seq_rule_set().map(|x| x.into()).collect(),
+            chained_seq_rule_set_offsets: obj.chained_seq_rule_sets().map(|x| x.into()).collect(),
         }
     }
 }
@@ -1426,7 +1426,7 @@ impl Validate for ChainedSequenceRuleSet {
 impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceRuleSet<'a>> for ChainedSequenceRuleSet {
     fn from_obj_ref(obj: &read_fonts::layout::ChainedSequenceRuleSet<'a>, _: FontData) -> Self {
         ChainedSequenceRuleSet {
-            chained_seq_rule_offsets: obj.chained_seq_rule().map(|x| x.into()).collect(),
+            chained_seq_rule_offsets: obj.chained_seq_rules().map(|x| x.into()).collect(),
         }
     }
 }
@@ -1592,7 +1592,7 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat2<'a>>
             input_class_def_offset: obj.input_class_def().into(),
             lookahead_class_def_offset: obj.lookahead_class_def().into(),
             chained_class_seq_rule_set_offsets: obj
-                .chained_class_seq_rule_set()
+                .chained_class_seq_rule_sets()
                 .map(|x| x.into())
                 .collect(),
         }
@@ -1652,7 +1652,7 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedClassSequenceRuleSet<'a>>
     ) -> Self {
         ChainedClassSequenceRuleSet {
             chained_class_seq_rule_offsets: obj
-                .chained_class_seq_rule()
+                .chained_class_seq_rules()
                 .map(|x| x.into())
                 .collect(),
         }
@@ -1824,9 +1824,9 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat3<'a>>
     ) -> Self {
         let offset_data = obj.offset_data();
         ChainedSequenceContextFormat3 {
-            backtrack_coverage_offsets: obj.backtrack_coverage().map(|x| x.into()).collect(),
-            input_coverage_offsets: obj.input_coverage().map(|x| x.into()).collect(),
-            lookahead_coverage_offsets: obj.lookahead_coverage().map(|x| x.into()).collect(),
+            backtrack_coverage_offsets: obj.backtrack_coverages().map(|x| x.into()).collect(),
+            input_coverage_offsets: obj.input_coverages().map(|x| x.into()).collect(),
+            lookahead_coverage_offsets: obj.lookahead_coverages().map(|x| x.into()).collect(),
             seq_lookup_records: obj
                 .seq_lookup_records()
                 .iter()
@@ -2151,7 +2151,7 @@ impl Validate for ConditionSet {
 impl<'a> FromObjRef<read_fonts::layout::ConditionSet<'a>> for ConditionSet {
     fn from_obj_ref(obj: &read_fonts::layout::ConditionSet<'a>, _: FontData) -> Self {
         ConditionSet {
-            condition_offsets: obj.condition().map(|x| x.into()).collect(),
+            condition_offsets: obj.conditions().map(|x| x.into()).collect(),
         }
     }
 }

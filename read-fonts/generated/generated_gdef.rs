@@ -326,7 +326,7 @@ impl<'a> AttachList<'a> {
     }
 
     /// Attempt to resolve [`attach_point_offsets`][Self::attach_point_offsets].
-    pub fn attach_point(&self) -> impl Iterator<Item = Result<AttachPoint<'a>, ReadError>> + 'a {
+    pub fn attach_points(&self) -> impl Iterator<Item = Result<AttachPoint<'a>, ReadError>> + 'a {
         let data = self.data;
         self.attach_point_offsets()
             .iter()
@@ -507,7 +507,7 @@ impl<'a> LigCaretList<'a> {
     }
 
     /// Attempt to resolve [`lig_glyph_offsets`][Self::lig_glyph_offsets].
-    pub fn lig_glyph(&self) -> impl Iterator<Item = Result<LigGlyph<'a>, ReadError>> + 'a {
+    pub fn lig_glyphs(&self) -> impl Iterator<Item = Result<LigGlyph<'a>, ReadError>> + 'a {
         let data = self.data;
         self.lig_glyph_offsets()
             .iter()
@@ -602,7 +602,7 @@ impl<'a> LigGlyph<'a> {
     }
 
     /// Attempt to resolve [`caret_value_offsets`][Self::caret_value_offsets].
-    pub fn caret_value(&self) -> impl Iterator<Item = Result<CaretValue<'a>, ReadError>> + 'a {
+    pub fn caret_values(&self) -> impl Iterator<Item = Result<CaretValue<'a>, ReadError>> + 'a {
         let data = self.data;
         self.caret_value_offsets()
             .iter()
@@ -982,7 +982,7 @@ impl<'a> MarkGlyphSets<'a> {
     }
 
     /// Attempt to resolve [`coverage_offsets`][Self::coverage_offsets].
-    pub fn coverage(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+    pub fn coverages(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
         let data = self.data;
         self.coverage_offsets()
             .iter()

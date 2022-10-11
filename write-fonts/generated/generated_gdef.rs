@@ -157,7 +157,7 @@ impl<'a> FromObjRef<read_fonts::layout::gdef::AttachList<'a>> for AttachList {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::AttachList<'a>, _: FontData) -> Self {
         AttachList {
             coverage_offset: obj.coverage().into(),
-            attach_point_offsets: obj.attach_point().map(|x| x.into()).collect(),
+            attach_point_offsets: obj.attach_points().map(|x| x.into()).collect(),
         }
     }
 }
@@ -258,7 +258,7 @@ impl<'a> FromObjRef<read_fonts::layout::gdef::LigCaretList<'a>> for LigCaretList
     fn from_obj_ref(obj: &read_fonts::layout::gdef::LigCaretList<'a>, _: FontData) -> Self {
         LigCaretList {
             coverage_offset: obj.coverage().into(),
-            lig_glyph_offsets: obj.lig_glyph().map(|x| x.into()).collect(),
+            lig_glyph_offsets: obj.lig_glyphs().map(|x| x.into()).collect(),
         }
     }
 }
@@ -306,7 +306,7 @@ impl Validate for LigGlyph {
 impl<'a> FromObjRef<read_fonts::layout::gdef::LigGlyph<'a>> for LigGlyph {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::LigGlyph<'a>, _: FontData) -> Self {
         LigGlyph {
-            caret_value_offsets: obj.caret_value().map(|x| x.into()).collect(),
+            caret_value_offsets: obj.caret_values().map(|x| x.into()).collect(),
         }
     }
 }
@@ -534,7 +534,7 @@ impl Validate for MarkGlyphSets {
 impl<'a> FromObjRef<read_fonts::layout::gdef::MarkGlyphSets<'a>> for MarkGlyphSets {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::MarkGlyphSets<'a>, _: FontData) -> Self {
         MarkGlyphSets {
-            coverage_offsets: obj.coverage().map(|x| x.into()).collect(),
+            coverage_offsets: obj.coverages().map(|x| x.into()).collect(),
         }
     }
 }

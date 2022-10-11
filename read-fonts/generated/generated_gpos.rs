@@ -1134,7 +1134,7 @@ impl<'a> PairPosFormat1<'a> {
     }
 
     /// Attempt to resolve [`pair_set_offsets`][Self::pair_set_offsets].
-    pub fn pair_set(&self) -> impl Iterator<Item = Result<PairSet<'a>, ReadError>> + 'a {
+    pub fn pair_sets(&self) -> impl Iterator<Item = Result<PairSet<'a>, ReadError>> + 'a {
         let data = self.data;
         let args = (self.value_format1(), self.value_format2());
         self.pair_set_offsets()
@@ -2146,7 +2146,7 @@ impl<'a> BaseRecord<'a> {
     }
 
     /// Attempt to resolve [`base_anchor_offsets`][Self::base_anchor_offsets].
-    pub fn base_anchor(
+    pub fn base_anchors(
         &self,
         data: FontData<'a>,
     ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + 'a {
@@ -2420,7 +2420,7 @@ impl<'a> LigatureArray<'a> {
     }
 
     /// Attempt to resolve [`ligature_attach_offsets`][Self::ligature_attach_offsets].
-    pub fn ligature_attach(
+    pub fn ligature_attaches(
         &self,
     ) -> impl Iterator<Item = Result<LigatureAttach<'a>, ReadError>> + 'a {
         let data = self.data;
@@ -2581,7 +2581,7 @@ impl<'a> ComponentRecord<'a> {
     }
 
     /// Attempt to resolve [`ligature_anchor_offsets`][Self::ligature_anchor_offsets].
-    pub fn ligature_anchor(
+    pub fn ligature_anchors(
         &self,
         data: FontData<'a>,
     ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + 'a {
@@ -2906,7 +2906,7 @@ impl<'a> Mark2Record<'a> {
     }
 
     /// Attempt to resolve [`mark2_anchor_offsets`][Self::mark2_anchor_offsets].
-    pub fn mark2_anchor(
+    pub fn mark2_anchors(
         &self,
         data: FontData<'a>,
     ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + 'a {
