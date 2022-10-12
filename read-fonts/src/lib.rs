@@ -33,7 +33,7 @@ pub mod test_helpers;
 
 pub use font_data::FontData;
 pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
-pub use read::{ComputeSize, FontRead, FontReadWithArgs, ReadArgs, ReadError};
+pub use read::{ComputeSize, FontRead, FontReadWithArgs, ReadArgs, ReadError, VarSize};
 pub use table_provider::TableProvider;
 pub use table_ref::TableRef;
 
@@ -43,7 +43,9 @@ pub(crate) mod codegen_prelude {
     pub use crate::array::{ComputedArray, VarLenArray};
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
-    pub use crate::read::{ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError};
+    pub use crate::read::{
+        ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError, VarSize,
+    };
     pub use crate::table_ref::TableRef;
     pub use font_types::*;
     pub use std::ops::Range;

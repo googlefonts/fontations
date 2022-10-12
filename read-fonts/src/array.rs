@@ -1,8 +1,6 @@
 //! Custom array types
 
-use font_types::{FixedSize, ReadScalar};
-
-use crate::read::{ComputeSize, FontReadWithArgs, ReadArgs};
+use crate::read::{ComputeSize, FontReadWithArgs, ReadArgs, VarSize};
 use crate::{FontData, FontRead, ReadError};
 
 /// An array whose items size is not known at compile time.
@@ -94,20 +92,6 @@ impl<T: ReadArgs> std::fmt::Debug for ComputedArray<'_, T> {
     }
 }
 
-/// A trait for types that have variable length.
-///
-/// As a rule, these types have an initial length field.
-pub trait VarLen {
-    /// The type of the first (length) field of the item.
-    type Len: ReadScalar + FixedSize + Into<u32>;
-
-    #[doc(hidden)]
-    fn read_len_at(data: FontData, pos: usize) -> Option<usize> {
-        let asu32 = data.read_at::<Self::Len>(pos).ok()?.into();
-        Some(asu32 as usize + Self::Len::RAW_BYTE_LEN)
-    }
-}
-
 /// An array of items of non-uniform length.
 ///
 /// Random access into this array cannot be especially efficient, since it requires
@@ -117,7 +101,7 @@ pub struct VarLenArray<'a, T> {
     phantom: std::marker::PhantomData<*const T>,
 }
 
-impl<'a, T: FontRead<'a> + VarLen> VarLenArray<'a, T> {
+impl<'a, T: FontRead<'a> + VarSize> VarLenArray<'a, T> {
     /// Return the item at the provided index.
     ///
     /// This performs a linear search.
