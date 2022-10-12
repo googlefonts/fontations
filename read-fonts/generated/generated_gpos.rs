@@ -1326,7 +1326,6 @@ impl ComputeSize for PairValueRecord {
 }
 
 impl<'a> FontReadWithArgs<'a> for PairValueRecord {
-    #[allow(unused_parens)]
     fn read_with_args(
         data: FontData<'a>,
         args: &(ValueFormat, ValueFormat),
@@ -1592,7 +1591,6 @@ impl ComputeSize for Class1Record<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Class1Record<'a> {
-    #[allow(unused_parens)]
     fn read_with_args(
         data: FontData<'a>,
         args: &(u16, ValueFormat, ValueFormat),
@@ -1663,7 +1661,6 @@ impl ComputeSize for Class2Record {
 }
 
 impl<'a> FontReadWithArgs<'a> for Class2Record {
-    #[allow(unused_parens)]
     fn read_with_args(
         data: FontData<'a>,
         args: &(ValueFormat, ValueFormat),
@@ -2157,7 +2154,6 @@ impl ComputeSize for BaseRecord<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for BaseRecord<'a> {
-    #[allow(unused_parens)]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
@@ -2584,7 +2580,6 @@ impl ComputeSize for ComponentRecord<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for ComponentRecord<'a> {
-    #[allow(unused_parens)]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
@@ -2905,7 +2900,6 @@ impl ComputeSize for Mark2Record<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Mark2Record<'a> {
-    #[allow(unused_parens)]
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let mark_class_count = *args;
