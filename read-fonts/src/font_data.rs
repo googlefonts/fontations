@@ -138,7 +138,7 @@ impl<'a> FontData<'a> {
     /// `T` must be a struct or scalar that has alignment of 1, a non-zero size,
     /// and no internal padding, and `range` must have a length that is non-zero
     /// and is a multiple of `size_of::<T>()`.
-    pub unsafe fn read_array_unchecked<T>(&self, range: Range<usize>) -> &'a [T] {
+    pub unsafe fn read_array_unchecked<T: FixedSized>(&self, range: Range<usize>) -> &'a [T] {
         let bytes = self.bytes.get_unchecked(range);
         let elems = bytes.len() / std::mem::size_of::<T>();
         std::slice::from_raw_parts(bytes.as_ptr() as *const _, elems)

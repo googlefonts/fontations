@@ -1282,8 +1282,6 @@ impl<'a> std::fmt::Debug for PairSet<'a> {
 
 /// Part of [PairSet]
 #[derive(Clone, Debug)]
-#[repr(C)]
-#[repr(packed)]
 pub struct PairValueRecord {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
@@ -1629,8 +1627,6 @@ impl<'a> SomeRecord<'a> for Class1Record<'a> {
 
 /// Part of [PairPosFormat2]
 #[derive(Clone, Debug)]
-#[repr(C)]
-#[repr(packed)]
 pub struct Class2Record {
     /// Positioning for first glyph — empty if valueFormat1 = 0.
     pub value_record1: ValueRecord,
