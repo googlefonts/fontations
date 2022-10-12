@@ -19,17 +19,26 @@ pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
         quote!( #( #docs )* )
     });
     let getters = item.fields.iter().map(|fld| fld.record_getter(item));
-    let extra_traits = generate_extra_traits(item)?;
     let traversal_impl = generate_traversal(item)?;
 
-    let repr_packed = item.lifetime.is_none().then(|| {
+    let lifetime = &item.lifetime;
+    let is_zerocopy = item.attrs.read_args.is_none();
+    let repr_packed = is_zerocopy.then(|| {
         quote! {
             #[repr(C)]
             #[repr(packed)]
         }
     });
 
-    let lifetime = &item.lifetime;
+    let maybe_impl_fixed_size = is_zerocopy.then(|| {
+        let inner_types = item.fields.iter().map(|fld| fld.typ.cooked_type_tokens());
+        quote! {
+            impl FixedSized for #name {
+                const RAW_BYTE_LEN: usize = #( #inner_types::RAW_BYTE_LEN )+*;
+            }
+        }
+    });
+    let maybe_impl_read_with_args = (!is_zerocopy).then(|| generate_read_with_args(item));
 
     Ok(quote! {
     #( #docs )*
@@ -43,24 +52,18 @@ pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
         #( #getters )*
     }
 
-    #extra_traits
+    #maybe_impl_fixed_size
+    #maybe_impl_read_with_args
     #traversal_impl
         })
 }
 
-fn generate_extra_traits(item: &Record) -> syn::Result<TokenStream> {
+fn generate_read_with_args(item: &Record) -> TokenStream {
+    assert!(item.attrs.read_args.is_some()); // expected this to be checked already
+                                             //
     let name = &item.name;
     let lifetime = &item.lifetime;
     let anon_lifetime = lifetime.is_some().then(|| quote!(<'_>));
-
-    if item.attrs.read_args.is_none() {
-        let inner_types = item.fields.iter().map(|fld| fld.typ.cooked_type_tokens());
-        return Ok(quote! {
-            impl FixedSized for #name {
-                const RAW_BYTE_LEN: usize = #( #inner_types::RAW_BYTE_LEN )+*;
-            }
-        });
-    }
 
     let args = item.attrs.read_args.as_ref().unwrap();
     let args_type = args.args_type();
@@ -68,7 +71,7 @@ fn generate_extra_traits(item: &Record) -> syn::Result<TokenStream> {
     let field_size_expr = item.fields.iter().map(Field::record_len_expr);
     let field_inits = item.fields.iter().map(Field::record_init_stmt);
 
-    Ok(quote! {
+    quote! {
         impl ReadArgs for #name #anon_lifetime {
             type Args = #args_type;
         }
@@ -91,7 +94,7 @@ fn generate_extra_traits(item: &Record) -> syn::Result<TokenStream> {
 
             }
         }
-    })
+    }
 }
 
 fn generate_traversal(item: &Record) -> syn::Result<TokenStream> {
