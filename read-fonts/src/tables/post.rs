@@ -2,8 +2,6 @@
 
 use font_types::{GlyphId, Tag, Version16Dot16};
 
-use crate::array::VarLen;
-
 /// 'post'
 pub const TAG: Tag = Tag::new(b"post");
 
@@ -88,8 +86,8 @@ impl<'a> FontRead<'a> for PString<'a> {
     }
 }
 
-impl VarLen for PString<'_> {
-    type Len = u8;
+impl VarSize for PString<'_> {
+    type Size = u8;
 }
 
 #[rustfmt::skip]

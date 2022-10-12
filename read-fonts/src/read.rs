@@ -1,6 +1,6 @@
 //! Traits for interpreting font data
 
-use font_types::Tag;
+use font_types::{FixedSize, ReadScalar, Tag};
 
 use crate::font_data::FontData;
 
@@ -50,9 +50,32 @@ pub trait Format<T> {
 }
 
 /// A type that can compute its size at runtime, based on some input.
+///
+/// For types with a constant size, see [`FixedSize`](font_types::FixedSize) and
+/// for types which store their size inline, see [`VarSize`].
 pub trait ComputeSize: ReadArgs {
     /// Compute the number of bytes required to represent this type.
     fn compute_size(args: &Self::Args) -> usize;
+}
+
+/// A trait for types that have variable length.
+///
+/// As a rule, these types have an initial length field.
+///
+/// For types with a constant size, see [`FixedSize`](font_types::FixedSize) and
+/// for types which can pre-compute their size, see [`ComputeSize`].
+pub trait VarSize {
+    /// The type of the first (length) field of the item.
+    ///
+    /// When reading this type, we will read this value first, and use it to
+    /// determine the total length.
+    type Size: ReadScalar + FixedSize + Into<u32>;
+
+    #[doc(hidden)]
+    fn read_len_at(data: FontData, pos: usize) -> Option<usize> {
+        let asu32 = data.read_at::<Self::Size>(pos).ok()?.into();
+        Some(asu32 as usize + Self::Size::RAW_BYTE_LEN)
+    }
 }
 
 /// An error that occurs when reading font data
