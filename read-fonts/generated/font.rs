@@ -162,7 +162,7 @@ impl TableRecord {
     }
 }
 
-impl FixedSized for TableRecord {
+impl FixedSize for TableRecord {
     const RAW_BYTE_LEN: usize =
         Tag::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }

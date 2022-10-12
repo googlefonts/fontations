@@ -113,7 +113,7 @@ impl LongHorMetric {
     }
 }
 
-impl FixedSized for LongHorMetric {
+impl FixedSize for LongHorMetric {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
 }
 

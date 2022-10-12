@@ -2,7 +2,7 @@
 
 use std::ops::{Range, RangeBounds};
 
-use font_types::{FixedSized, ReadScalar};
+use font_types::{FixedSize, ReadScalar};
 
 use crate::array::ComputedArray;
 use crate::read::{ComputeSize, FontReadWithArgs, ReadError};
@@ -95,7 +95,7 @@ impl<'a> FontData<'a> {
     //
     // In practice I believe my *current* use is correct, as it is all in auto-generated
     // code, and I know the invariants, but this should be revisited.
-    pub fn read_ref_at<T: FixedSized>(&self, offset: usize) -> Result<&'a T, ReadError> {
+    pub fn read_ref_at<T: FixedSize>(&self, offset: usize) -> Result<&'a T, ReadError> {
         assert_ne!(std::mem::size_of::<T>(), 0);
         assert_eq!(std::mem::align_of::<T>(), 1);
         self.bytes
@@ -112,13 +112,13 @@ impl<'a> FontData<'a> {
     /// `T` must be a struct or scalar that has alignment of 1, a non-zero size,
     /// and no internal padding, and offset must point to a slice of bytes that
     /// has length >= `size_of::<T>()`.
-    unsafe fn read_ref_unchecked<T: FixedSized>(&self, offset: usize) -> &'a T {
+    unsafe fn read_ref_unchecked<T: FixedSize>(&self, offset: usize) -> &'a T {
         let bytes = self.bytes.get_unchecked(offset..offset + T::RAW_BYTE_LEN);
         &*(bytes.as_ptr() as *const T)
     }
 
     //NOTE: unsound, see the note on read_ref_at
-    pub fn read_array<T: FixedSized>(&self, range: Range<usize>) -> Result<&'a [T], ReadError> {
+    pub fn read_array<T: FixedSize>(&self, range: Range<usize>) -> Result<&'a [T], ReadError> {
         assert_ne!(std::mem::size_of::<T>(), 0);
         assert_eq!(std::mem::align_of::<T>(), 1);
         let bytes = self
@@ -138,7 +138,7 @@ impl<'a> FontData<'a> {
     /// `T` must be a struct or scalar that has alignment of 1, a non-zero size,
     /// and no internal padding, and `range` must have a length that is non-zero
     /// and is a multiple of `size_of::<T>()`.
-    pub unsafe fn read_array_unchecked<T: FixedSized>(&self, range: Range<usize>) -> &'a [T] {
+    pub unsafe fn read_array_unchecked<T: FixedSize>(&self, range: Range<usize>) -> &'a [T] {
         let bytes = self.bytes.get_unchecked(range);
         let elems = bytes.len() / std::mem::size_of::<T>();
         std::slice::from_raw_parts(bytes.as_ptr() as *const _, elems)
@@ -203,7 +203,7 @@ impl<'a> Cursor<'a> {
         temp
     }
 
-    pub(crate) fn read_array<T: FixedSized>(&mut self, len: usize) -> Result<&'a [T], ReadError> {
+    pub(crate) fn read_array<T: FixedSize>(&mut self, len: usize) -> Result<&'a [T], ReadError> {
         let len = len * T::RAW_BYTE_LEN;
         let temp = self.data.read_array(self.pos..self.pos + len);
         self.pos += len;

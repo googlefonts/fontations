@@ -16,14 +16,14 @@ pub trait Scalar {
     fn to_raw(self) -> Self::Raw;
 }
 
-/// A trait for types that have a known size.
-pub trait FixedSized: Sized {
-    /// The number of bytes required to encode this type.
+/// A trait for types that have a known, constant size.
+pub trait FixedSize: Sized {
+    /// The size of this type, in bytes.
     const RAW_BYTE_LEN: usize;
 }
 
 /// A trait for types that can be represented as raw bytes.
-pub trait ReadScalar: FixedSized {
+pub trait ReadScalar: FixedSize {
     fn read(bytes: &[u8]) -> Option<Self>;
 }
 
@@ -73,7 +73,7 @@ impl<T: Scalar + Copy + PartialEq> PartialEq<T> for BigEndian<T> {
 }
 
 // these following impls are an elaborate way to impl ReadScalar for BigEndian<T>
-impl<const N: usize> FixedSized for [u8; N] {
+impl<const N: usize> FixedSize for [u8; N] {
     const RAW_BYTE_LEN: usize = N;
 }
 
@@ -86,7 +86,7 @@ impl<const N: usize> ReadScalar for [u8; N] {
 
 impl<T> ReadScalar for BigEndian<T>
 where
-    T: Scalar + FixedSized,
+    T: Scalar + FixedSize,
     <T as Scalar>::Raw: ReadScalar,
 {
     #[inline]
@@ -98,7 +98,7 @@ where
 // and then we can impl ReadScalar for T based on the impl for BigEndian<T>
 impl<T> ReadScalar for T
 where
-    T: Scalar + FixedSized,
+    T: Scalar + FixedSize,
     <T as Scalar>::Raw: ReadScalar,
 {
     #[inline]
@@ -108,16 +108,16 @@ where
 }
 
 // and impl FixedSized for T based on the impl for the arrays
-impl<T> FixedSized for T
+impl<T> FixedSize for T
 where
     T: Scalar,
-    <T as Scalar>::Raw: FixedSized,
+    <T as Scalar>::Raw: FixedSize,
 {
     const RAW_BYTE_LEN: usize = <T as Scalar>::Raw::RAW_BYTE_LEN;
 }
 
 // and impl FixedSized for BigEndian<T> based on the impl forr T
-impl<T: Scalar + FixedSized> FixedSized for BigEndian<T> {
+impl<T: Scalar + FixedSize> FixedSize for BigEndian<T> {
     const RAW_BYTE_LEN: usize = T::RAW_BYTE_LEN;
 }
 
