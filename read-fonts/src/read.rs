@@ -4,8 +4,19 @@ use font_types::Tag;
 
 use crate::font_data::FontData;
 
-/// A type that can be parsed from raw table data.
+/// A type that can be read from raw table data.
+///
+/// This trait is implemented for all font tables that are self-describing: that
+/// is, tables that do not require any external state in order to interpret their
+/// underlying bytes. (Tables that require external state implement
+/// [`FontReadWithArgs`] instead)
 pub trait FontRead<'a>: Sized {
+    /// Read an instace of `Self` from the provided data, performing validation.
+    ///
+    /// In the case of a table, this method is responsible for ensuring the input
+    /// data is consistent: this means ensuring that any versioned fields are
+    /// present as required by the version, and that any array lengths are not
+    /// out-of-bounds.
     fn read(data: FontData<'a>) -> Result<Self, ReadError>;
 }
 
