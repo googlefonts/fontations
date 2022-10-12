@@ -128,7 +128,7 @@ impl EncodingRecord {
     }
 }
 
-impl FixedSized for EncodingRecord {
+impl FixedSize for EncodingRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
@@ -494,7 +494,7 @@ impl SubHeader {
     }
 }
 
-impl FixedSized for SubHeader {
+impl FixedSize for SubHeader {
     const RAW_BYTE_LEN: usize =
         u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
@@ -1027,7 +1027,7 @@ impl SequentialMapGroup {
     }
 }
 
-impl FixedSized for SequentialMapGroup {
+impl FixedSize for SequentialMapGroup {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
@@ -1443,7 +1443,7 @@ impl ConstantMapGroup {
     }
 }
 
-impl FixedSized for ConstantMapGroup {
+impl FixedSize for ConstantMapGroup {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
@@ -1604,7 +1604,7 @@ impl VariationSelector {
     }
 }
 
-impl FixedSized for VariationSelector {
+impl FixedSize for VariationSelector {
     const RAW_BYTE_LEN: usize =
         Uint24::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
@@ -1730,7 +1730,7 @@ impl UVSMapping {
     }
 }
 
-impl FixedSized for UVSMapping {
+impl FixedSize for UVSMapping {
     const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
@@ -1772,7 +1772,7 @@ impl UnicodeRange {
     }
 }
 
-impl FixedSized for UnicodeRange {
+impl FixedSize for UnicodeRange {
     const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
 }
 

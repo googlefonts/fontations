@@ -680,7 +680,7 @@ impl MarkRecord {
     }
 }
 
-impl FixedSized for MarkRecord {
+impl FixedSize for MarkRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
@@ -1840,7 +1840,7 @@ impl EntryExitRecord {
     }
 }
 
-impl FixedSized for EntryExitRecord {
+impl FixedSize for EntryExitRecord {
     const RAW_BYTE_LEN: usize = Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 

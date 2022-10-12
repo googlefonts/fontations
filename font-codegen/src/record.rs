@@ -33,7 +33,7 @@ pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
     let maybe_impl_fixed_size = is_zerocopy.then(|| {
         let inner_types = item.fields.iter().map(|fld| fld.typ.cooked_type_tokens());
         quote! {
-            impl FixedSized for #name {
+            impl FixedSize for #name {
                 const RAW_BYTE_LEN: usize = #( #inner_types::RAW_BYTE_LEN )+*;
             }
         }

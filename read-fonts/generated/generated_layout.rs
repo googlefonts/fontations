@@ -108,7 +108,7 @@ impl ScriptRecord {
     }
 }
 
-impl FixedSized for ScriptRecord {
+impl FixedSize for ScriptRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
@@ -255,7 +255,7 @@ impl LangSysRecord {
     }
 }
 
-impl FixedSized for LangSysRecord {
+impl FixedSize for LangSysRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
@@ -475,7 +475,7 @@ impl FeatureRecord {
     }
 }
 
-impl FixedSized for FeatureRecord {
+impl FixedSize for FeatureRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
@@ -1085,7 +1085,7 @@ impl RangeRecord {
     }
 }
 
-impl FixedSized for RangeRecord {
+impl FixedSize for RangeRecord {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
@@ -1370,7 +1370,7 @@ impl ClassRangeRecord {
     }
 }
 
-impl FixedSized for ClassRangeRecord {
+impl FixedSize for ClassRangeRecord {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
@@ -1457,7 +1457,7 @@ impl SequenceLookupRecord {
     }
 }
 
-impl FixedSized for SequenceLookupRecord {
+impl FixedSize for SequenceLookupRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
@@ -3852,7 +3852,7 @@ impl FeatureVariationRecord {
     }
 }
 
-impl FixedSized for FeatureVariationRecord {
+impl FixedSize for FeatureVariationRecord {
     const RAW_BYTE_LEN: usize = Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
@@ -4183,7 +4183,7 @@ impl FeatureTableSubstitutionRecord {
     }
 }
 
-impl FixedSized for FeatureTableSubstitutionRecord {
+impl FixedSize for FeatureTableSubstitutionRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 

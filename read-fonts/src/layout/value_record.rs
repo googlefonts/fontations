@@ -1,6 +1,6 @@
 //! A GPOS ValueRecord
 
-use font_types::{BigEndian, FixedSized};
+use font_types::{BigEndian, FixedSize};
 
 use super::ValueFormat;
 

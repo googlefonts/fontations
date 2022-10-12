@@ -1,6 +1,6 @@
 //! Custom array types
 
-use font_types::{FixedSized, ReadScalar};
+use font_types::{FixedSize, ReadScalar};
 
 use crate::read::{ComputeSize, FontReadWithArgs, ReadArgs};
 use crate::{FontData, FontRead, ReadError};
@@ -99,7 +99,7 @@ impl<T: ReadArgs> std::fmt::Debug for ComputedArray<'_, T> {
 /// As a rule, these types have an initial length field.
 pub trait VarLen {
     /// The type of the first (length) field of the item.
-    type Len: ReadScalar + FixedSized + Into<u32>;
+    type Len: ReadScalar + FixedSize + Into<u32>;
 
     #[doc(hidden)]
     fn read_len_at(data: FontData, pos: usize) -> Option<usize> {

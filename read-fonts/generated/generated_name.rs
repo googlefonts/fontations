@@ -186,7 +186,7 @@ impl LangTagRecord {
     }
 }
 
-impl FixedSized for LangTagRecord {
+impl FixedSize for LangTagRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
@@ -256,7 +256,7 @@ impl NameRecord {
     }
 }
 
-impl FixedSized for NameRecord {
+impl FixedSize for NameRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
