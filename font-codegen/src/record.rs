@@ -84,7 +84,6 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
         }
 
         impl<'a> FontReadWithArgs<'a> for #name #lifetime {
-            #[allow(unused_parens)]
             fn read_with_args(data: FontData<'a>, args: &#args_type) -> Result<Self, ReadError> {
                 let mut cursor = data.cursor();
                 let #destructure_pattern = *args;
