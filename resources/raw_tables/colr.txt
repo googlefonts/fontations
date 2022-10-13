@@ -1,0 +1,426 @@
+/// [COLR (Color)](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#colr-header) table
+@table Colr0
+uint16	version	Table version number - set to 0.
+uint16	numBaseGlyphRecords	Number of BaseGlyph records.
+Offset32	baseGlyphRecordsOffset	Offset to baseGlyphRecords array.
+Offset32	layerRecordsOffset	Offset to layerRecords array.
+uint16	numLayerRecords	Number of Layer records.
+
+/// [COLR (Color)](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#colr-header) table
+@table Colr1
+uint16	version	Table version number - set to 1.
+uint16	numBaseGlyphRecords	Number of BaseGlyph records; may be 0 in a version 1 table.
+Offset32	baseGlyphRecordsOffset	Offset to baseGlyphRecords array (may be NULL).
+Offset32	layerRecordsOffset	Offset to layerRecords array (may be NULL).
+uint16	numLayerRecords	Number of Layer records; may be 0 in a version 1 table.
+Offset32	baseGlyphListOffset	Offset to BaseGlyphList table.
+Offset32	layerListOffset	Offset to LayerList table (may be NULL).
+Offset32	clipListOffset	Offset to ClipList table (may be NULL).
+Offset32	varIndexMapOffset	Offset to DeltaSetIndexMap table (may be NULL).
+Offset32	itemVariationStoreOffset	Offset to ItemVariationStore (may be NULL).
+
+/// [BaseGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
+@record BaseGlyph
+uint16	glyphID	Glyph ID of the base glyph.
+uint16	firstLayerIndex	Index (base 0) into the layerRecords array.
+uint16	numLayers	Number of color layers associated with this glyph.
+
+/// [Layer](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
+@record Layer
+uint16	glyphID	Glyph ID of the glyph used for a given layer.
+uint16	paletteIndex	Index (base 0) for a palette entry in the CPAL table.
+
+/// [BaseGlyphList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
+@table BaseGlyphList
+uint32	numBaseGlyphPaintRecords	
+BaseGlyphPaintRecord	baseGlyphPaintRecords[numBaseGlyphPaintRecords]
+
+/// [BaseGlyphPaint](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
+@record BaseGlyphPaint
+uint16	glyphID	Glyph ID of the base glyph.
+Offset32	paintOffset	Offset to a Paint table.
+
+/// [LayerList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
+@table LayerList
+uint32	numLayers	
+Offset32	paintOffsets[numLayers]	Offsets to Paint tables.
+
+/// [ClipList](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) table
+@table ClipList
+uint8	format	Set to 1.
+uint32	numClips	Number of Clip records.
+Clip	clips[numClips]	Clip records. Sorted by startGlyphID.
+
+/// [Clip](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
+@record Clip
+uint16	startGlyphID	First glyph ID in the range.
+uint16	endGlyphID	Last glyph ID in the range.
+Offset24	clipBoxOffset	Offset to a ClipBox table.
+
+/// [ClipBoxFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
+@record ClipBoxFormat1
+uint8	format	Set to 1.
+FWORD	xMin	Minimum x of clip box.
+FWORD	yMin	Minimum y of clip box.
+FWORD	xMax	Maximum x of clip box.
+FWORD	yMax	Maximum y of clip box.
+
+/// [ClipBoxFormat2](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
+@record ClipBoxFormat2
+uint8	format	Set to 2.
+FWORD	xMin	Minimum x of clip box. For variation, use varIndexBase + 0.
+FWORD	yMin	Minimum y of clip box. For variation, use varIndexBase + 1.
+FWORD	xMax	Maximum x of clip box. For variation, use varIndexBase + 2.
+FWORD	yMax	Maximum y of clip box. For variation, use varIndexBase + 3.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [ColorIndex](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
+@record ColorIndex
+uint16	paletteIndex	Index for a CPAL palette entry.
+F2DOT14	alpha	Alpha value.
+
+/// [VarColorIndex](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
+@record VarColorIndex
+uint16	paletteIndex	Index for a CPAL palette entry.
+F2DOT14	alpha	Alpha value. For variation, use varIndexBase + 0.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [ColorStop](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
+@record ColorStop
+F2DOT14	stopOffset	Position on a color line.
+uint16	paletteIndex	Index for a CPAL palette entry.
+F2DOT14	alpha	Alpha value.
+
+/// [VarColorStop](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
+@record VarColorStop
+F2DOT14	stopOffset	Position on a color line. For variation, use varIndexBase + 0.
+uint16	paletteIndex	Index for a CPAL palette entry.
+F2DOT14	alpha	Alpha value. For variation, use varIndexBase + 1.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [ColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
+@table ColorLine
+uint8	extend	An Extend enum value.
+uint16	numStops	Number of ColorStop records.
+ColorStop	colorStops[numStops]
+
+/// [VarColorLine](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) table
+@table VarColorLine
+uint8	extend	An Extend enum value.
+uint16	numStops	Number of ColorStop records.
+VarColorStop	colorStops[numStops]	Allows for variations.
+
+/// [Extend](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) enumeration
+@enum(u8) Extend
+0	EXTEND_PAD	Use nearest color stop.
+1	EXTEND_REPEAT	Repeat from farthest color stop.
+2	EXTEND_REFLECT	Mirror color line from nearest end.
+
+/// [PaintColrLayers](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-1-paintcolrlayers) table
+@table PaintColrLayers
+uint8	format	Set to 1.
+uint8	numLayers	Number of offsets to paint tables to read from LayerList.
+uint32	firstLayerIndex	Index (base 0) into the LayerList.
+
+/// [PaintSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
+@table PaintSolid
+uint8	format	Set to 2.
+uint16	paletteIndex	Index for a CPAL palette entry.
+F2DOT14	alpha	Alpha value.
+
+/// [PaintVarSolid](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-2-and-3-paintsolid-paintvarsolid) table
+@table PaintVarSolid
+uint8	format	Set to 3.
+uint16	paletteIndex	Index for a CPAL palette entry.
+F2DOT14	alpha	Alpha value. For variation, use varIndexBase + 0.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [PaintLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
+@table PaintLinearGradient
+uint8	format	Set to 4.
+Offset24	colorLineOffset	Offset to ColorLine table.
+FWORD	x0	Start point (p₀) x coordinate.
+FWORD	y0	Start point (p₀) y coordinate.
+FWORD	x1	End point (p₁) x coordinate.
+FWORD	y1	End point (p₁) y coordinate.
+FWORD	x2	Rotation point (p₂) x coordinate.
+FWORD	y2	Rotation point (p₂) y coordinate.
+
+/// [PaintVarLinearGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-4-and-5-paintlineargradient-paintvarlineargradient) table
+@table PaintVarLinearGradient
+uint8	format	Set to 5.
+Offset24	colorLineOffset	Offset to VarColorLine table.
+FWORD	x0	Start point (p₀) x coordinate. For variation, use varIndexBase + 0.
+FWORD	y0	Start point (p₀) y coordinate. For variation, use varIndexBase + 1.
+FWORD	x1	End point (p₁) x coordinate. For variation, use varIndexBase + 2.
+FWORD	y1	End point (p₁) y coordinate. For variation, use varIndexBase + 3.
+FWORD	x2	Rotation point (p₂) x coordinate. For variation, use varIndexBase + 4.
+FWORD	y2	Rotation point (p₂) y coordinate. For variation, use varIndexBase + 5.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [PaintRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
+@table PaintRadialGradient
+uint8	format	Set to 6.
+Offset24	colorLineOffset	Offset to ColorLine table.
+FWORD	x0	Start circle center x coordinate.
+FWORD	y0	Start circle center y coordinate.
+UFWORD	radius0	Start circle radius.
+FWORD	x1	End circle center x coordinate.
+FWORD	y1	End circle center y coordinate.
+UFWORD	radius1	End circle radius.
+
+/// [PaintVarRadialGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-6-and-7-paintradialgradient-paintvarradialgradient) table
+@table PaintVarRadialGradient
+uint8	format	Set to 7.
+Offset24	colorLineOffset	Offset to VarColorLine table.
+FWORD	x0	Start circle center x coordinate. For variation, use varIndexBase + 0.
+FWORD	y0	Start circle center y coordinate. For variation, use varIndexBase + 1.
+UFWORD	radius0	Start circle radius. For variation, use varIndexBase + 2.
+FWORD	x1	End circle center x coordinate. For variation, use varIndexBase + 3.
+FWORD	y1	End circle center y coordinate. For variation, use varIndexBase + 4.
+UFWORD	radius1	End circle radius. For variation, use varIndexBase + 5.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [PaintSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
+@table PaintSweepGradient
+uint8	format	Set to 8.
+Offset24	colorLineOffset	Offset to ColorLine table.
+FWORD	centerX	Center x coordinate.
+FWORD	centerY	Center y coordinate.
+F2DOT14	startAngle	Start of the angular range of the gradient, 180° in counter-clockwise degrees per 1.0 of value.
+F2DOT14	endAngle	End of the angular range of the gradient, 180° in counter-clockwise degrees per 1.0 of value.
+
+/// [PaintVarSweepGradient](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-8-and-9-paintsweepgradient-paintvarsweepgradient) table
+@table PaintVarSweepGradient
+uint8	format	Set to 9.
+Offset24	colorLineOffset	Offset to VarColorLine table.
+FWORD	centerX	Center x coordinate. For variation, use varIndexBase + 0.
+FWORD	centerY	Center y coordinate. For variation, use varIndexBase + 1.
+F2DOT14	startAngle	Start of the angular range of the gradient, 180° in counter-clockwise degrees per 1.0 of value. For variation, use varIndexBase + 2.
+F2DOT14	endAngle	End of the angular range of the gradient, 180° in counter-clockwise degrees per 1.0 of value. For variation, use varIndexBase + 3.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [PaintGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-10-paintglyph) table
+@table PaintGlyph
+uint8	format	Set to 10.
+Offset24	paintOffset	Offset to a Paint table.
+uint16	glyphID	Glyph ID for the source outline.
+
+/// [PaintColrGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-11-paintcolrglyph) table
+@table PaintColrGlyph
+uint8	format	Set to 11.
+uint16	glyphID	Glyph ID for a BaseGlyphList base glyph.
+
+/// [PaintTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
+@table PaintTransform
+uint8	format	Set to 12.
+Offset24	paintOffset	Offset to a Paint subtable.
+Offset24	transformOffset	Offset to an Affine2x3 table.
+
+/// [PaintVarTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
+@table PaintVarTransform
+uint8	format	Set to 13.
+Offset24	paintOffset	Offset to a Paint subtable.
+Offset24	transformOffset	Offset to a VarAffine2x3 table.
+
+/// [Affine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
+@record Affine2x3
+Fixed	xx	x-component of transformed x-basis vector.
+Fixed	yx	y-component of transformed x-basis vector.
+Fixed	xy	x-component of transformed y-basis vector.
+Fixed	yy	y-component of transformed y-basis vector.
+Fixed	dx	Translation in x direction.
+Fixed	dy	Translation in y direction.
+
+/// [VarAffine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
+@record VarAffine2x3
+Fixed	xx	x-component of transformed x-basis vector. For variation, use varIndexBase + 0.
+Fixed	yx	y-component of transformed x-basis vector. For variation, use varIndexBase + 1.
+Fixed	xy	x-component of transformed y-basis vector. For variation, use varIndexBase + 2.
+Fixed	yy	y-component of transformed y-basis vector. For variation, use varIndexBase + 3.
+Fixed	dx	Translation in x direction. For variation, use varIndexBase + 4.
+Fixed	dy	Translation in y direction. For variation, use varIndexBase + 5.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [PaintTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
+@table PaintTranslate
+uint8	format	Set to 14.
+Offset24	paintOffset	Offset to a Paint subtable.
+FWORD	dx	Translation in x direction.
+FWORD	dy	Translation in y direction.
+
+/// [PaintVarTranslate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-14-and-15-painttranslate-paintvartranslate) table
+@table PaintVarTranslate
+uint8	format	Set to 15.
+Offset24	paintOffset	Offset to a Paint subtable.
+FWORD	dx	Translation in x direction. For variation, use varIndexBase + 0.
+FWORD	dy	Translation in y direction. For variation, use varIndexBase + 1.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [PaintScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
+@table PaintScale
+uint8	format	Set to 16.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	scaleX	Scale factor in x direction.
+F2DOT14	scaleY	Scale factor in y direction.
+
+/// [PaintVarScale](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
+@table PaintVarScale
+uint8	format	Set to 17.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	scaleX	Scale factor in x direction. For variation, use varIndexBase + 0.
+F2DOT14	scaleY	Scale factor in y direction. For variation, use varIndexBase + 1.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [PaintScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
+@table PaintScaleAroundCenter
+uint8	format	Set to 18.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	scaleX	Scale factor in x direction.
+F2DOT14	scaleY	Scale factor in y direction.
+FWORD	centerX	x coordinate for the center of scaling.
+FWORD	centerY	y coordinate for the center of scaling.
+
+/// [PaintVarScaleAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
+@table PaintVarScaleAroundCenter
+uint8	format	Set to 19.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	scaleX	Scale factor in x direction. For variation, use varIndexBase + 0.
+F2DOT14	scaleY	Scale factor in y direction. For variation, use varIndexBase + 1.
+FWORD	centerX	x coordinate for the center of scaling. For variation, use varIndexBase + 2.
+FWORD	centerY	y coordinate for the center of scaling. For variation, use varIndexBase + 3.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [PaintScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
+@table PaintScaleUniform
+uint8	format	Set to 20.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	scale	Scale factor in x and y directions.
+
+/// [PaintVarScaleUniform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
+@table PaintVarScaleUniform
+uint8	format	Set to 21.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	scale	Scale factor in x and y directions. For variation, use varIndexBase + 0.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [PaintScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
+@table PaintScaleUniformAroundCenter 
+uint8	format	Set to 22.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	scale	Scale factor in x and y directions.
+FWORD	centerX	x coordinate for the center of scaling.
+FWORD	centerY	y coordinate for the center of scaling.
+
+/// [PaintVarScaleUniformAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-16-to-23-paintscale-and-variant-scaling-formats) table
+@table PaintVarScaleUniformAroundCenter 
+uint8	format	Set to 23.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	scale	Scale factor in x and y directions. For variation, use varIndexBase + 0.
+FWORD	centerX	x coordinate for the center of scaling. For variation, use varIndexBase + 1.
+FWORD	centerY	y coordinate for the center of scaling. For variation, use varIndexBase + 2.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [PaintRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
+@table PaintRotate
+uint8	format	Set to 24.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	angle	Rotation angle, 180° in counter-clockwise degrees per 1.0 of value.
+
+/// [PaintVarRotate](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
+@table PaintVarRotate
+uint8	format	Set to 25.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	angle	Rotation angle, 180° in counter-clockwise degrees per 1.0 of value. For variation, use varIndexBase + 0.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [PaintRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
+@table PaintRotateAroundCenter
+uint8	format	Set to 26.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	angle	Rotation angle, 180° in counter-clockwise degrees per 1.0 of value.
+FWORD	centerX	x coordinate for the center of rotation.
+FWORD	centerY	y coordinate for the center of rotation.
+
+/// [PaintVarRotateAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-24-to-27-paintrotate-paintvarrotate-paintrotatearoundcenter-paintvarrotatearoundcenter) table
+@table PaintVarRotateAroundCenter
+uint8	format	Set to 27.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	angle	Rotation angle, 180° in counter-clockwise degrees per 1.0 of value. For variation, use varIndexBase + 0.
+FWORD	centerX	x coordinate for the center of rotation. For variation, use varIndexBase + 1.
+FWORD	centerY	y coordinate for the center of rotation. For variation, use varIndexBase + 2.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [PaintSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
+@table PaintSkew
+uint8	format	Set to 28.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	xSkewAngle	Angle of skew in the direction of the x-axis, 180° in counter-clockwise degrees per 1.0 of value.
+F2DOT14	ySkewAngle	Angle of skew in the direction of the y-axis, 180° in counter-clockwise degrees per 1.0 of value.
+
+/// [PaintVarSkew](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
+@table PaintVarSkew
+uint8	format	Set to 29.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	xSkewAngle	Angle of skew in the direction of the x-axis, 180° in counter-clockwise degrees per 1.0 of value. For variation, use varIndexBase + 0.
+F2DOT14	ySkewAngle	Angle of skew in the direction of the y-axis, 180° in counter-clockwise degrees per 1.0 of value. For variation, use varIndexBase + 1.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [PaintSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
+@table PaintSkewAroundCenter
+uint8	format	Set to 30.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	xSkewAngle	Angle of skew in the direction of the x-axis, 180° in counter-clockwise degrees per 1.0 of value.
+F2DOT14	ySkewAngle	Angle of skew in the direction of the y-axis, 180° in counter-clockwise degrees per 1.0 of value.
+FWORD	centerX	x coordinate for the center of rotation.
+FWORD	centerY	y coordinate for the center of rotation.
+
+/// [PaintVarSkewAroundCenter](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-28-to-31-paintskew-paintvarskew-paintskewaroundcenter-paintvarskewaroundcenter) table
+@table PaintVarSkewAroundCenter
+uint8	format	Set to 31.
+Offset24	paintOffset	Offset to a Paint subtable.
+F2DOT14	xSkewAngle	Angle of skew in the direction of the x-axis, 180° in counter-clockwise degrees per 1.0 of value. For variation, use varIndexBase + 0.
+F2DOT14	ySkewAngle	Angle of skew in the direction of the y-axis, 180° in counter-clockwise degrees per 1.0 of value. For variation, use varIndexBase + 1.
+FWORD	centerX	x coordinate for the center of rotation. For variation, use varIndexBase + 2.
+FWORD	centerY	y coordinate for the center of rotation. For variation, use varIndexBase + 3.
+uint32	varIndexBase	Base index into DeltaSetIndexMap.
+
+/// [PaintComposite](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite) table
+@table PaintComposite
+uint8	format	Set to 32.
+Offset24	sourcePaintOffset	Offset to a source Paint table.
+uint8	compositeMode	A CompositeMode enumeration value.
+Offset24	backdropPaintOffset	Offset to a backdrop Paint table.
+
+@enum(u8) CompositeMode
+#	Porter-Duff modes	
+0	COMPOSITE_CLEAR	Clear
+1	COMPOSITE_SRC	Source (“Copy” in Composition & Blending Level 1)
+2	COMPOSITE_DEST	Destination
+3	COMPOSITE_SRC_OVER	Source Over
+4	COMPOSITE_DEST_OVER	Destination Over
+5	COMPOSITE_SRC_IN	Source In
+6	COMPOSITE_DEST_IN	Destination In
+7	COMPOSITE_SRC_OUT	Source Out
+8	COMPOSITE_DEST_OUT	Destination Out
+9	COMPOSITE_SRC_ATOP	Source Atop
+10	COMPOSITE_DEST_ATOP	Destination Atop
+11	COMPOSITE_XOR	XOR
+12	COMPOSITE_PLUS	Plus (“Lighter” in Composition & Blending Level 1)
+# Separable color blend modes:	
+13	COMPOSITE_SCREEN	screen
+14	COMPOSITE_OVERLAY	overlay
+15	COMPOSITE_DARKEN	darken
+16	COMPOSITE_LIGHTEN	lighten
+17	COMPOSITE_COLOR_DODGE	color-dodge
+18	COMPOSITE_COLOR_BURN	color-burn
+19	COMPOSITE_HARD_LIGHT	hard-light
+20	COMPOSITE_SOFT_LIGHT	soft-light
+21	COMPOSITE_DIFFERENCE	difference
+22	COMPOSITE_EXCLUSION	exclusion
+23	COMPOSITE_MULTIPLY	multiply
+# Non-separable color blend modes:	
+24	COMPOSITE_HSL_HUE	hue
+25	COMPOSITE_HSL_SATURATION	saturation
+26	COMPOSITE_HSL_COLOR	color
+27	COMPOSITE_HSL_LUMINOSITY	luminosity
