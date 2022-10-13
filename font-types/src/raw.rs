@@ -18,12 +18,31 @@ pub trait Scalar {
 
 /// A trait for types that have a known, constant size.
 pub trait FixedSize: Sized {
-    /// The size of this type, in bytes.
+    /// The raw size of this type, in bytes.
+    ///
+    /// This is the size required to represent this type in a font file, which
+    /// may differ from the size of the native type:
+    ///
+    /// ```
+    /// # use font_types::{FixedSize, Offset24};
+    /// assert_eq!(std::mem::size_of::<u16>(), u16::RAW_BYTE_LEN);
+    /// assert_eq!(Offset24::RAW_BYTE_LEN, 3);
+    /// assert_eq!(std::mem::size_of::<Offset24>(), 4);
+    /// ```
     const RAW_BYTE_LEN: usize;
 }
 
-/// A trait for types that can be represented as raw bytes.
+/// A trait for types that can be read from raw bytes.
+///
+/// This is a generalization that gives us a failable read method for all our
+/// `Scalar` types, as well as their `BigEndian` representations.
+///
+/// You should not need to implement this trait; it is provided automatically
+/// when you implement [`Scalar`].
 pub trait ReadScalar: FixedSize {
+    /// Interpret the provided bytes as `Self`, if they are the right length.
+    ///
+    /// This should use all the provided bytes; bounds checking is performed upstream.
     fn read(bytes: &[u8]) -> Option<Self>;
 }
 
