@@ -3,7 +3,7 @@
 mod collections;
 mod font_builder;
 #[cfg(feature = "parsing")]
-mod from_obj;
+pub mod from_obj;
 mod graph;
 pub mod layout;
 mod offsets;
