@@ -29,8 +29,10 @@ and [`write-fonts`][], in addition to one binary crate, [`otexplorer`][]:
 ## codegen
 
 Much of the code in the `read-fonts` and `write-fonts` crate is generated
-automatically. Code generation is performed by the `font-codegen` crate, and is
-described in more detail in [`font-codegen/README.md`][codegen-readme].
+automatically. Code generation is performed by the `font-codegen` crate. For an
+overview of what we generate and how it works, see the [codegen-tour][]. For an
+overview of how to use the `font-codegen` crate, see the readme at
+[`font-codegen/README.md`][codegen-readme].
 
 [codegen-readme]: ./font-codegen/README.md
 [`read-fonts`]: ./read-fonts
@@ -38,3 +40,4 @@ described in more detail in [`font-codegen/README.md`][codegen-readme].
 [`write-fonts`]: ./write-fonts
 [`otexplorer`]: ./otexplorer
 [oxidize]: https://github.com/googlefonts/oxidize
+[codegen-tour]: ./docs/codegen-tour.md

@@ -1,7 +1,8 @@
 # codegen
 
 This crate contains utilities used to generate code for parsing and
-compiling various font tables.
+compiling various font tables. For an in-depth overview of what code we generate
+and how it works, see the [codegen-tour][] document.
 
 The basics:
 - Inputs live in `resources/codegen_inputs`.
@@ -203,4 +204,5 @@ See `../resources/codegen_plan.toml` for an example.
 
 [opentype]: https://docs.microsoft.com/en-us/typography/opentype/
 [`include!`]: http://doc.rust-lang.org/1.64.0/std/macro.include.html
+[codegen-tour]: ../docs/codegen-tour.md
 
