@@ -20,10 +20,11 @@ pub trait FromTableRef<T>: FromObjRef<T> {
 /// on the generated object.
 ///
 /// This is implemented for the majority of parse types. Those that are the base
-/// for offset data the provided data and use their own.
+/// for offset data ignore the provided data and use their own.
 ///
 /// [`validate`]: [crate::Validate::validate]
 pub trait FromObjRef<T: ?Sized>: Sized {
+    /// Convert `from` to an instance of `Self`, using the provided data to resolve offsets.
     fn from_obj_ref(from: &T, data: FontData) -> Self;
 }
 
@@ -33,6 +34,7 @@ pub trait FromObjRef<T: ?Sized>: Sized {
 /// You should avoid implementing this trait manually. Like [`std::convert::Into`],
 /// it is provided as a blanket impl when you implement [`FromObjRef<T>`].
 pub trait ToOwnedObj<T> {
+    /// Convert this type into `T`, using the provided data to resolve any offsets.
     fn to_owned_obj(&self, data: FontData) -> T;
 }
 

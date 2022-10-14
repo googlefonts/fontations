@@ -21,7 +21,7 @@ pub struct MajorMinor {
     pub minor: u16,
 }
 
-/// Version compatibility
+/// A trait for determining whether versions are compatible.
 pub trait Compatible: Sized {
     /// return `true` if this version is field-compatible with `other`.
     ///
