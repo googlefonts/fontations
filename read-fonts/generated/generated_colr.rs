@@ -119,10 +119,23 @@ impl<'a> Colr<'a> {
         let range = self.shape.base_glyph_records_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
+    /// Attempt to resolve [`base_glyph_records_offset`][Self::base_glyph_records_offset].
+    pub fn base_glyph_records(&self) -> Option<Result<BaseGlyphRecordArray<'a>, ReadError>> {
+        let data = self.data;
+        let args = self.num_base_glyph_records();
+        self.base_glyph_records_offset()
+            .resolve_with_args(data, &args)
+    }
     /// Offset to layerRecords array (may be NULL).
     pub fn layer_records_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.layer_records_offset_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+    /// Attempt to resolve [`layer_records_offset`][Self::layer_records_offset].
+    pub fn layer_records(&self) -> Option<Result<LayerRecordArray<'a>, ReadError>> {
+        let data = self.data;
+        let args = self.num_layer_records();
+        self.layer_records_offset().resolve_with_args(data, &args)
     }
     /// Number of Layer records; may be 0 in a version 1 table.
     pub fn num_layer_records(&self) -> u16 {
@@ -186,11 +199,11 @@ impl<'a> SomeTable<'a> for Colr<'a> {
             )),
             2usize => Some(Field::new(
                 "base_glyph_records_offset",
-                FieldType::unknown_offset(self.base_glyph_records_offset()),
+                FieldType::offset(self.base_glyph_records_offset(), self.base_glyph_records()),
             )),
             3usize => Some(Field::new(
                 "layer_records_offset",
-                FieldType::unknown_offset(self.layer_records_offset()),
+                FieldType::offset(self.layer_records_offset(), self.layer_records()),
             )),
             4usize => Some(Field::new("num_layer_records", self.num_layer_records())),
             5usize if version.compatible(1) => Some(Field::new(
@@ -231,13 +244,80 @@ impl<'a> std::fmt::Debug for Colr<'a> {
     }
 }
 
+/// [BaseGlyphRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct BaseGlyphRecordArrayMarker {
+    base_glyph_records_byte_len: usize,
+}
+
+impl BaseGlyphRecordArrayMarker {
+    fn base_glyph_records_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + self.base_glyph_records_byte_len
+    }
+}
+
+impl ReadArgs for BaseGlyphRecordArray<'_> {
+    type Args = u16;
+}
+
+impl<'a> FontReadWithArgs<'a> for BaseGlyphRecordArray<'a> {
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let num_base_glyph_records = *args;
+        let mut cursor = data.cursor();
+        let base_glyph_records_byte_len = num_base_glyph_records as usize * BaseGlyph::RAW_BYTE_LEN;
+        cursor.advance_by(base_glyph_records_byte_len);
+        cursor.finish(BaseGlyphRecordArrayMarker {
+            base_glyph_records_byte_len,
+        })
+    }
+}
+
+/// [BaseGlyphRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table
+pub type BaseGlyphRecordArray<'a> = TableRef<'a, BaseGlyphRecordArrayMarker>;
+impl<'a> BaseGlyphRecordArray<'a> {
+    /// Array of BaseGlyph records
+    pub fn base_glyph_records(&self) -> &'a [BaseGlyph] {
+        let range = self.shape.base_glyph_records_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for BaseGlyphRecordArray<'a> {
+    fn type_name(&self) -> &str {
+        "BaseGlyphRecordArray"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new(
+                "base_glyph_records",
+                traversal::FieldType::array_of_records(
+                    stringify!(BaseGlyph),
+                    self.base_glyph_records(),
+                    self.offset_data(),
+                ),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for BaseGlyphRecordArray<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
 /// [BaseGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
 #[derive(Clone, Debug)]
 #[repr(C)]
 #[repr(packed)]
 pub struct BaseGlyph {
     /// Glyph ID of the base glyph.
-    pub glyph_id: BigEndian<u16>,
+    pub glyph_id: BigEndian<GlyphId>,
     /// Index (base 0) into the layerRecords array.
     pub first_layer_index: BigEndian<u16>,
     /// Number of color layers associated with this glyph.
@@ -246,7 +326,7 @@ pub struct BaseGlyph {
 
 impl BaseGlyph {
     /// Glyph ID of the base glyph.
-    pub fn glyph_id(&self) -> u16 {
+    pub fn glyph_id(&self) -> GlyphId {
         self.glyph_id.get()
     }
     /// Index (base 0) into the layerRecords array.
@@ -260,7 +340,7 @@ impl BaseGlyph {
 }
 
 impl FixedSize for BaseGlyph {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -279,20 +359,87 @@ impl<'a> SomeRecord<'a> for BaseGlyph {
     }
 }
 
+/// [LayerRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct LayerRecordArrayMarker {
+    layer_record_byte_len: usize,
+}
+
+impl LayerRecordArrayMarker {
+    fn layer_record_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + self.layer_record_byte_len
+    }
+}
+
+impl ReadArgs for LayerRecordArray<'_> {
+    type Args = u16;
+}
+
+impl<'a> FontReadWithArgs<'a> for LayerRecordArray<'a> {
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let num_layer_records = *args;
+        let mut cursor = data.cursor();
+        let layer_record_byte_len = num_layer_records as usize * Layer::RAW_BYTE_LEN;
+        cursor.advance_by(layer_record_byte_len);
+        cursor.finish(LayerRecordArrayMarker {
+            layer_record_byte_len,
+        })
+    }
+}
+
+/// [LayerRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table
+pub type LayerRecordArray<'a> = TableRef<'a, LayerRecordArrayMarker>;
+impl<'a> LayerRecordArray<'a> {
+    /// Array of Layer records
+    pub fn layer_record(&self) -> &'a [Layer] {
+        let range = self.shape.layer_record_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for LayerRecordArray<'a> {
+    fn type_name(&self) -> &str {
+        "LayerRecordArray"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new(
+                "layer_record",
+                traversal::FieldType::array_of_records(
+                    stringify!(Layer),
+                    self.layer_record(),
+                    self.offset_data(),
+                ),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for LayerRecordArray<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
 /// [Layer](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
 #[derive(Clone, Debug)]
 #[repr(C)]
 #[repr(packed)]
 pub struct Layer {
     /// Glyph ID of the glyph used for a given layer.
-    pub glyph_id: BigEndian<u16>,
+    pub glyph_id: BigEndian<GlyphId>,
     /// Index (base 0) for a palette entry in the CPAL table.
     pub palette_index: BigEndian<u16>,
 }
 
 impl Layer {
     /// Glyph ID of the glyph used for a given layer.
-    pub fn glyph_id(&self) -> u16 {
+    pub fn glyph_id(&self) -> GlyphId {
         self.glyph_id.get()
     }
     /// Index (base 0) for a palette entry in the CPAL table.
@@ -302,7 +449,7 @@ impl Layer {
 }
 
 impl FixedSize for Layer {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -401,14 +548,14 @@ impl<'a> std::fmt::Debug for BaseGlyphList<'a> {
 #[repr(packed)]
 pub struct BaseGlyphPaint {
     /// Glyph ID of the base glyph.
-    pub glyph_id: BigEndian<u16>,
+    pub glyph_id: BigEndian<GlyphId>,
     /// Offset to a Paint table.
     pub paint_offset: BigEndian<Offset32>,
 }
 
 impl BaseGlyphPaint {
     /// Glyph ID of the base glyph.
-    pub fn glyph_id(&self) -> u16 {
+    pub fn glyph_id(&self) -> GlyphId {
         self.glyph_id.get()
     }
     /// Offset to a Paint table.
@@ -422,7 +569,7 @@ impl BaseGlyphPaint {
 }
 
 impl FixedSize for BaseGlyphPaint {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -616,20 +763,20 @@ impl<'a> std::fmt::Debug for ClipList<'a> {
 #[repr(packed)]
 pub struct Clip {
     /// First glyph ID in the range.
-    pub start_glyph_id: BigEndian<u16>,
+    pub start_glyph_id: BigEndian<GlyphId>,
     /// Last glyph ID in the range.
-    pub end_glyph_id: BigEndian<u16>,
+    pub end_glyph_id: BigEndian<GlyphId>,
     /// Offset to a ClipBox table.
     pub clip_box_offset: BigEndian<Offset24>,
 }
 
 impl Clip {
     /// First glyph ID in the range.
-    pub fn start_glyph_id(&self) -> u16 {
+    pub fn start_glyph_id(&self) -> GlyphId {
         self.start_glyph_id.get()
     }
     /// Last glyph ID in the range.
-    pub fn end_glyph_id(&self) -> u16 {
+    pub fn end_glyph_id(&self) -> GlyphId {
         self.end_glyph_id.get()
     }
     /// Offset to a ClipBox table.
@@ -643,7 +790,8 @@ impl Clip {
 }
 
 impl FixedSize for Clip {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize =
+        GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -1278,9 +1426,9 @@ impl<'a> std::fmt::Debug for VarColorLine<'a> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Extend {
-    EXTEND_PAD = 0,
-    EXTEND_REPEAT = 1,
-    EXTEND_REFLECT = 2,
+    Pad = 0,
+    Repeat = 1,
+    Reflect = 2,
     Unknown,
 }
 
@@ -1290,9 +1438,9 @@ impl Extend {
     #[doc = r" This will never fail; unknown values will be mapped to the `Unknown` variant"]
     pub fn new(raw: u8) -> Self {
         match raw {
-            0 => Self::EXTEND_PAD,
-            1 => Self::EXTEND_REPEAT,
-            2 => Self::EXTEND_REFLECT,
+            0 => Self::Pad,
+            1 => Self::Repeat,
+            2 => Self::Reflect,
             _ => Self::Unknown,
         }
     }
@@ -2560,7 +2708,7 @@ impl PaintGlyphMarker {
     }
     fn glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.paint_offset_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + GlyphId::RAW_BYTE_LEN
     }
 }
 
@@ -2569,7 +2717,7 @@ impl<'a> FontRead<'a> for PaintGlyph<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
         cursor.advance::<Offset24>();
-        cursor.advance::<u16>();
+        cursor.advance::<GlyphId>();
         cursor.finish(PaintGlyphMarker {})
     }
 }
@@ -2593,7 +2741,7 @@ impl<'a> PaintGlyph<'a> {
         self.paint_offset().resolve(data)
     }
     /// Glyph ID for the source outline.
-    pub fn glyph_id(&self) -> u16 {
+    pub fn glyph_id(&self) -> GlyphId {
         let range = self.shape.glyph_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -2639,7 +2787,7 @@ impl PaintColrGlyphMarker {
     }
     fn glyph_id_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + GlyphId::RAW_BYTE_LEN
     }
 }
 
@@ -2647,7 +2795,7 @@ impl<'a> FontRead<'a> for PaintColrGlyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
-        cursor.advance::<u16>();
+        cursor.advance::<GlyphId>();
         cursor.finish(PaintColrGlyphMarker {})
     }
 }
@@ -2661,7 +2809,7 @@ impl<'a> PaintColrGlyph<'a> {
         self.data.read_at(range.start).unwrap()
     }
     /// Glyph ID for a BaseGlyphList base glyph.
-    pub fn glyph_id(&self) -> u16 {
+    pub fn glyph_id(&self) -> GlyphId {
         let range = self.shape.glyph_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -5109,34 +5257,34 @@ impl<'a> std::fmt::Debug for PaintComposite<'a> {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 #[repr(u8)]
 pub enum CompositeMode {
-    COMPOSITE_CLEAR = 0,
-    COMPOSITE_SRC = 1,
-    COMPOSITE_DEST = 2,
-    COMPOSITE_SRC_OVER = 3,
-    COMPOSITE_DEST_OVER = 4,
-    COMPOSITE_SRC_IN = 5,
-    COMPOSITE_DEST_IN = 6,
-    COMPOSITE_SRC_OUT = 7,
-    COMPOSITE_DEST_OUT = 8,
-    COMPOSITE_SRC_ATOP = 9,
-    COMPOSITE_DEST_ATOP = 10,
-    COMPOSITE_XOR = 11,
-    COMPOSITE_PLUS = 12,
-    COMPOSITE_SCREEN = 13,
-    COMPOSITE_OVERLAY = 14,
-    COMPOSITE_DARKEN = 15,
-    COMPOSITE_LIGHTEN = 16,
-    COMPOSITE_COLOR_DODGE = 17,
-    COMPOSITE_COLOR_BURN = 18,
-    COMPOSITE_HARD_LIGHT = 19,
-    COMPOSITE_SOFT_LIGHT = 20,
-    COMPOSITE_DIFFERENCE = 21,
-    COMPOSITE_EXCLUSION = 22,
-    COMPOSITE_MULTIPLY = 23,
-    COMPOSITE_HSL_HUE = 24,
-    COMPOSITE_HSL_SATURATION = 25,
-    COMPOSITE_HSL_COLOR = 26,
-    COMPOSITE_HSL_LUMINOSITY = 27,
+    Clear = 0,
+    Src = 1,
+    Dest = 2,
+    SrcOver = 3,
+    DestOver = 4,
+    SrcIn = 5,
+    DestIn = 6,
+    SrcOut = 7,
+    DestOut = 8,
+    SrcAtop = 9,
+    DestAtop = 10,
+    Xor = 11,
+    Plus = 12,
+    Screen = 13,
+    Overlay = 14,
+    Darken = 15,
+    Lighten = 16,
+    ColorDodge = 17,
+    ColorBurn = 18,
+    HardLight = 19,
+    SoftLight = 20,
+    Difference = 21,
+    Exclusion = 22,
+    Multiply = 23,
+    HslHue = 24,
+    HslSaturation = 25,
+    HslColor = 26,
+    HslLuminosity = 27,
     Unknown,
 }
 
@@ -5146,34 +5294,34 @@ impl CompositeMode {
     #[doc = r" This will never fail; unknown values will be mapped to the `Unknown` variant"]
     pub fn new(raw: u8) -> Self {
         match raw {
-            0 => Self::COMPOSITE_CLEAR,
-            1 => Self::COMPOSITE_SRC,
-            2 => Self::COMPOSITE_DEST,
-            3 => Self::COMPOSITE_SRC_OVER,
-            4 => Self::COMPOSITE_DEST_OVER,
-            5 => Self::COMPOSITE_SRC_IN,
-            6 => Self::COMPOSITE_DEST_IN,
-            7 => Self::COMPOSITE_SRC_OUT,
-            8 => Self::COMPOSITE_DEST_OUT,
-            9 => Self::COMPOSITE_SRC_ATOP,
-            10 => Self::COMPOSITE_DEST_ATOP,
-            11 => Self::COMPOSITE_XOR,
-            12 => Self::COMPOSITE_PLUS,
-            13 => Self::COMPOSITE_SCREEN,
-            14 => Self::COMPOSITE_OVERLAY,
-            15 => Self::COMPOSITE_DARKEN,
-            16 => Self::COMPOSITE_LIGHTEN,
-            17 => Self::COMPOSITE_COLOR_DODGE,
-            18 => Self::COMPOSITE_COLOR_BURN,
-            19 => Self::COMPOSITE_HARD_LIGHT,
-            20 => Self::COMPOSITE_SOFT_LIGHT,
-            21 => Self::COMPOSITE_DIFFERENCE,
-            22 => Self::COMPOSITE_EXCLUSION,
-            23 => Self::COMPOSITE_MULTIPLY,
-            24 => Self::COMPOSITE_HSL_HUE,
-            25 => Self::COMPOSITE_HSL_SATURATION,
-            26 => Self::COMPOSITE_HSL_COLOR,
-            27 => Self::COMPOSITE_HSL_LUMINOSITY,
+            0 => Self::Clear,
+            1 => Self::Src,
+            2 => Self::Dest,
+            3 => Self::SrcOver,
+            4 => Self::DestOver,
+            5 => Self::SrcIn,
+            6 => Self::DestIn,
+            7 => Self::SrcOut,
+            8 => Self::DestOut,
+            9 => Self::SrcAtop,
+            10 => Self::DestAtop,
+            11 => Self::Xor,
+            12 => Self::Plus,
+            13 => Self::Screen,
+            14 => Self::Overlay,
+            15 => Self::Darken,
+            16 => Self::Lighten,
+            17 => Self::ColorDodge,
+            18 => Self::ColorBurn,
+            19 => Self::HardLight,
+            20 => Self::SoftLight,
+            21 => Self::Difference,
+            22 => Self::Exclusion,
+            23 => Self::Multiply,
+            24 => Self::HslHue,
+            25 => Self::HslSaturation,
+            26 => Self::HslColor,
+            27 => Self::HslLuminosity,
             _ => Self::Unknown,
         }
     }

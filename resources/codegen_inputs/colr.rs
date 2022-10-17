@@ -10,10 +10,12 @@ table Colr {
     num_base_glyph_records: BigEndian<u16>,
     /// Offset to baseGlyphRecords array (may be NULL).
     #[nullable]
-    base_glyph_records_offset: BigEndian<Offset32>,
+    #[read_offset_with($num_base_glyph_records)]
+    base_glyph_records_offset: BigEndian<Offset32<BaseGlyphRecordArray>>,
     /// Offset to layerRecords array (may be NULL).
     #[nullable]
-    layer_records_offset: BigEndian<Offset32>,
+    #[read_offset_with($num_layer_records)]
+    layer_records_offset: BigEndian<Offset32<LayerRecordArray>>,
     /// Number of Layer records; may be 0 in a version 1 table.
     num_layer_records: BigEndian<u16>,
     /// Offset to BaseGlyphList table.
@@ -38,20 +40,36 @@ table Colr {
     item_variation_store_offset: BigEndian<Offset32>,
 }
 
+/// [BaseGlyphRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table
+#[read_args(num_base_glyph_records: u16)]
+table BaseGlyphRecordArray {
+    /// Array of BaseGlyph records
+    #[count($num_base_glyph_records)]
+    base_glyph_records: [BaseGlyph],
+}
+
 /// [BaseGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
 record BaseGlyph {
     /// Glyph ID of the base glyph.
-    glyph_id: BigEndian<u16>,
+    glyph_id: BigEndian<GlyphId>,
     /// Index (base 0) into the layerRecords array.
     first_layer_index: BigEndian<u16>,
     /// Number of color layers associated with this glyph.
     num_layers: BigEndian<u16>,
 }
 
+/// [LayerRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table
+#[read_args(num_layer_records: u16)]
+table LayerRecordArray {
+    /// Array of Layer records
+    #[count($num_layer_records)]
+    layer_record: [Layer],
+}
+
 /// [Layer](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
 record Layer {
     /// Glyph ID of the glyph used for a given layer.
-    glyph_id: BigEndian<u16>,
+    glyph_id: BigEndian<GlyphId>,
     /// Index (base 0) for a palette entry in the CPAL table.
     palette_index: BigEndian<u16>,
 }
@@ -66,7 +84,7 @@ table BaseGlyphList {
 /// [BaseGlyphPaint](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
 record BaseGlyphPaint {
     /// Glyph ID of the base glyph.
-    glyph_id: BigEndian<u16>,
+    glyph_id: BigEndian<GlyphId>,
     /// Offset to a Paint table.
     paint_offset: BigEndian<Offset32<Paint>>,
 }
@@ -93,9 +111,9 @@ table ClipList {
 /// [Clip](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
 record Clip {
     /// First glyph ID in the range.
-    start_glyph_id: BigEndian<u16>,
+    start_glyph_id: BigEndian<GlyphId>,
     /// Last glyph ID in the range.
-    end_glyph_id: BigEndian<u16>,
+    end_glyph_id: BigEndian<GlyphId>,
     /// Offset to a ClipBox table.
     clip_box_offset: BigEndian<Offset24<ClipBox>>,
 }
@@ -201,9 +219,9 @@ table VarColorLine {
 
 /// [Extend](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) enumeration
 enum u8 Extend {
-    EXTEND_PAD = 0,
-    EXTEND_REPEAT = 1,
-    EXTEND_REFLECT = 2,
+    Pad = 0,
+    Repeat = 1,
+    Reflect = 2,
 }
 
 /// [Paint](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#paint-tables) tables
@@ -425,7 +443,7 @@ table PaintGlyph {
     /// Offset to a Paint table.
     paint_offset: BigEndian<Offset24<Paint>>,
     /// Glyph ID for the source outline.
-    glyph_id: BigEndian<u16>,
+    glyph_id: BigEndian<GlyphId>,
 }
 
 /// [PaintColrGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-11-paintcolrglyph) table
@@ -434,7 +452,7 @@ table PaintColrGlyph {
     #[format = 11]
     format: BigEndian<u8>,
     /// Glyph ID for a BaseGlyphList base glyph.
-    glyph_id: BigEndian<u16>,
+    glyph_id: BigEndian<GlyphId>,
 }
 
 /// [PaintTransform](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) table
@@ -810,32 +828,32 @@ table PaintComposite {
 
 /// [CompositeMode](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite) enumeration
 enum u8 CompositeMode {
-    COMPOSITE_CLEAR = 0,
-    COMPOSITE_SRC = 1,
-    COMPOSITE_DEST = 2,
-    COMPOSITE_SRC_OVER = 3,
-    COMPOSITE_DEST_OVER = 4,
-    COMPOSITE_SRC_IN = 5,
-    COMPOSITE_DEST_IN = 6,
-    COMPOSITE_SRC_OUT = 7,
-    COMPOSITE_DEST_OUT = 8,
-    COMPOSITE_SRC_ATOP = 9,
-    COMPOSITE_DEST_ATOP = 10,
-    COMPOSITE_XOR = 11,
-    COMPOSITE_PLUS = 12,
-    COMPOSITE_SCREEN = 13,
-    COMPOSITE_OVERLAY = 14,
-    COMPOSITE_DARKEN = 15,
-    COMPOSITE_LIGHTEN = 16,
-    COMPOSITE_COLOR_DODGE = 17,
-    COMPOSITE_COLOR_BURN = 18,
-    COMPOSITE_HARD_LIGHT = 19,
-    COMPOSITE_SOFT_LIGHT = 20,
-    COMPOSITE_DIFFERENCE = 21,
-    COMPOSITE_EXCLUSION = 22,
-    COMPOSITE_MULTIPLY = 23,
-    COMPOSITE_HSL_HUE = 24,
-    COMPOSITE_HSL_SATURATION = 25,
-    COMPOSITE_HSL_COLOR = 26,
-    COMPOSITE_HSL_LUMINOSITY = 27,
+    Clear = 0,
+    Src = 1,
+    Dest = 2,
+    SrcOver = 3,
+    DestOver = 4,
+    SrcIn = 5,
+    DestIn = 6,
+    SrcOut = 7,
+    DestOut = 8,
+    SrcAtop = 9,
+    DestAtop = 10,
+    Xor = 11,
+    Plus = 12,
+    Screen = 13,
+    Overlay = 14,
+    Darken = 15,
+    Lighten = 16,
+    ColorDodge = 17,
+    ColorBurn = 18,
+    HardLight = 19,
+    SoftLight = 20,
+    Difference = 21,
+    Exclusion = 22,
+    Multiply = 23,
+    HslHue = 24,
+    HslSaturation = 25,
+    HslColor = 26,
+    HslLuminosity = 27,
 }
