@@ -1,4 +1,4 @@
-﻿//! The [COLR](https://docs.microsoft.com/en-us/typography/opentype/spec/colr) table
+//! The [COLR](https://docs.microsoft.com/en-us/typography/opentype/spec/colr) table
 
 use font_types::Tag;
 
