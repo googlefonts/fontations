@@ -244,7 +244,8 @@ impl<'a> std::fmt::Debug for Colr<'a> {
     }
 }
 
-/// [BaseGlyphRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table
+/// [BaseGlyphRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table. This
+/// is not present in the specification and is a shim to support reading a raw array of records (i.e. a non-table) through an offset.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct BaseGlyphRecordArrayMarker {
@@ -274,7 +275,8 @@ impl<'a> FontReadWithArgs<'a> for BaseGlyphRecordArray<'a> {
     }
 }
 
-/// [BaseGlyphRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table
+/// [BaseGlyphRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table. This
+/// is not present in the specification and is a shim to support reading a raw array of records (i.e. a non-table) through an offset.
 pub type BaseGlyphRecordArray<'a> = TableRef<'a, BaseGlyphRecordArrayMarker>;
 impl<'a> BaseGlyphRecordArray<'a> {
     /// Array of BaseGlyph records
@@ -359,7 +361,8 @@ impl<'a> SomeRecord<'a> for BaseGlyph {
     }
 }
 
-/// [LayerRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table
+/// [LayerRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table. This
+/// is not present in the specification and is a shim to support reading a raw array of records (i.e. a non-table) through an offset.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct LayerRecordArrayMarker {
@@ -389,7 +392,8 @@ impl<'a> FontReadWithArgs<'a> for LayerRecordArray<'a> {
     }
 }
 
-/// [LayerRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table
+/// [LayerRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table. This
+/// is not present in the specification and is a shim to support reading a raw array of records (i.e. a non-table) through an offset.
 pub type LayerRecordArray<'a> = TableRef<'a, LayerRecordArrayMarker>;
 impl<'a> LayerRecordArray<'a> {
     /// Array of Layer records

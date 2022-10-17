@@ -40,7 +40,8 @@ table Colr {
     item_variation_store_offset: BigEndian<Offset32>,
 }
 
-/// [BaseGlyphRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table
+/// [BaseGlyphRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table. This
+/// is not present in the specification and is a shim to support reading a raw array of records (i.e. a non-table) through an offset. 
 #[read_args(num_base_glyph_records: u16)]
 table BaseGlyphRecordArray {
     /// Array of BaseGlyph records
@@ -58,7 +59,8 @@ record BaseGlyph {
     num_layers: BigEndian<u16>,
 }
 
-/// [LayerRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table
+/// [LayerRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table. This
+/// is not present in the specification and is a shim to support reading a raw array of records (i.e. a non-table) through an offset.
 #[read_args(num_layer_records: u16)]
 table LayerRecordArray {
     /// Array of Layer records
