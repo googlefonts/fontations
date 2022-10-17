@@ -16,6 +16,7 @@ require refinement.
 - [overview](#overview)
 - [`read-fonts`](#read-fonts)
     - [scalars and `BigEndian<T>`](#scalars-detour)
+    - [tables and records](#tables-and-records)
     - [tables](#read-tables)
         - [`FontRead` and `FontReadWithArgs`](#font-read-args)
         - [versioned tables](#versioned-tables)
@@ -53,22 +54,6 @@ We will examine each of these crates separately.
 
 ## <a id="read-fonts"></a> `read-fonts`
 
-In the [`read-fonts`][] crate, we make a distinction between *table* objects and
-*record* objects, and we generate different code for each.
-
-The distinction between a *table* and a *record* is blurry, but the
-specification offers two "general criteria":
-
-> - Tables are referenced by offsets. If a table contains an offset to a
-> sub-structure, the offset is normally from the start of that table.
-> - Records occur sequentially within a parent structure, either within a
-> sequence of table fields or within an array of records of a given type. If a
-> record contains an offset to a sub-structure, that structure is logically a
-> subtable of the record’s parent table and the offset is normally from the start
-> of the parent table.
->
-> ([The OpenType font file][otff])
-
 ### <a id="scalars-detour"></a> A brief detour on scalars and `BigEndian<T>`
 
 #### a description of the problem
@@ -84,6 +69,11 @@ exactly match the memory layout (including byte ordering) of the underlying font
 file; this is necessary for us to take advance of zerocopy semantics (see the
 [zerocopy section](#zerocopy) below.)
 
+In addition to endianness, it is also sometimes the case that types will be
+represented by a different number of bytes in the raw file than when are
+manipulating them natively; for instance `Offset24` is represented as three
+bytes on disk, but represented as a `u32` in native code.
+
 This leads us to a situation where we require two distinct types for each
 scalar: a native type that we will use in our program logic, and a
 'raw' type that will represent the bytes in the font file (as well as some
@@ -94,11 +84,6 @@ would be to just have two parallel sets of types: for instance alongside the
 `F2Dot14` type, we might have `RawF2Dot14`, or `F2Dot14Be`. Another option might
 be to have types that are generic over byte-order, such that you end up with
 types like `U16<BE>` and `U16<LE>`.
-
-There's one additional complication around these values: certain types in the
-spec are stored as three bytes, (`uint24` and `Offset24`) but in native code it
-is easier and more efficient to represent these as 32-bit integers. This means
-that the raw and normal types may not have the same size.
 
 I have taken a slightly different approach, which tries to be more ergonomic and
 intuitive to the user, at the cost of having a slightly more complicated
@@ -146,7 +131,8 @@ trait Scalar {
 }
 ```
 
-But this is not currently something we can express with Rust's generics.
+But this is not []currently something we can express with Rust's generics,
+although [it should become possible eventaully](generic-const-exprs).
 
 In any case: what this lets us do is avoid having two separate sets of types for
 the 'raw' and 'native' cases; we have a single wrapper type that we use anytime
@@ -173,6 +159,24 @@ pub trait FixedSize: Sized {
 This is implemented for both all the scalar values, as well as all their
 `BigEndian` equivalents; and in both cases, the value of `RAW_BYTE_LEN` is the
 size of the raw (big-endian) representation.
+
+### <a id="tables-and-records"></a> tables and records
+
+In the [`read-fonts`][] crate, we make a distinction between *table* objects and
+*record* objects, and we generate different code for each.
+
+The distinction between a *table* and a *record* is blurry, but the
+specification offers two "general criteria":
+
+> - Tables are referenced by offsets. If a table contains an offset to a
+> sub-structure, the offset is normally from the start of that table.
+> - Records occur sequentially within a parent structure, either within a
+> sequence of table fields or within an array of records of a given type. If a
+> record contains an offset to a sub-structure, that structure is logically a
+> subtable of the record’s parent table and the offset is normally from the start
+> of the parent table.
+>
+> ([The OpenType font file][otff])
 
 ### <a id="read-tables"></a> tables
 
@@ -841,3 +845,4 @@ clarify.
 [validation-ctx]: https://docs.rs/write-fonts/latest/write_fonts/validate/struct.ValidationCtx.html
 [`FontWrite`]: https://docs.rs/write-fonts/latest/write_fonts/trait.FontWrite.html
 [`FixedSize`]: https://docs.rs/font-types/latest/font_types/trait.FixedSize.html
+[generic-const-exprs]: https://github.com/rust-lang/rust/issues/60551#issuecomment-917511891
