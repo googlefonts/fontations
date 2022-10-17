@@ -30,3 +30,5 @@ equivalent:
 -q GPOS.lookupListOffset.lookupOffsets.1.subtableOffsets.0
 -q GPOS.look.off.1.off.0
 ```
+
+[ttx]: https://fonttools.readthedocs.io/en/latest/ttx.html

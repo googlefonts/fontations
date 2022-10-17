@@ -14,7 +14,7 @@ table Cmap {
 /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
 record EncodingRecord {
     /// Platform ID.
-    platform_id: BigEndian<u16>,
+    platform_id: BigEndian<PlatformId>,
     /// Platform-specific encoding ID.
     encoding_id: BigEndian<u16>,
     /// Byte offset from beginning of table to the subtable for this

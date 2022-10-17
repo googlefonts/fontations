@@ -97,7 +97,7 @@ impl<'a> std::fmt::Debug for Cmap<'a> {
 #[repr(packed)]
 pub struct EncodingRecord {
     /// Platform ID.
-    pub platform_id: BigEndian<u16>,
+    pub platform_id: BigEndian<PlatformId>,
     /// Platform-specific encoding ID.
     pub encoding_id: BigEndian<u16>,
     /// Byte offset from beginning of table to the subtable for this
@@ -107,7 +107,7 @@ pub struct EncodingRecord {
 
 impl EncodingRecord {
     /// Platform ID.
-    pub fn platform_id(&self) -> u16 {
+    pub fn platform_id(&self) -> PlatformId {
         self.platform_id.get()
     }
 
@@ -129,7 +129,8 @@ impl EncodingRecord {
 }
 
 impl FixedSize for EncodingRecord {
-    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize =
+        PlatformId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]

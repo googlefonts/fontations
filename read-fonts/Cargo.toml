@@ -1,6 +1,6 @@
 [package]
 name = "read-fonts"
-version = "0.0.1"
+version = "0.0.2"
 edition = "2021"
 license = "MIT/Apache-2.0"
 description = "Reading OpenType font files."
@@ -15,5 +15,5 @@ traversal = ["std"]
 default = ["traversal"]
 
 [dependencies]
-font-types = { version = "0.0.1", path = "../font-types" }
+font-types = { version = "0.0.2", path = "../font-types" }
 bitflags = "1.3"
