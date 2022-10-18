@@ -3,6 +3,6 @@
 use font_types::Tag;
 
 /// 'os/2'
-pub const TAG: Tag = Tag::new(b"os/2");
+pub const TAG: Tag = Tag::new(b"OS/2");
 
 include!("../../generated/generated_os2.rs");
