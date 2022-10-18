@@ -52,6 +52,7 @@ fn list_tables(font: &FontRef) {
 }
 
 fn print_tables(font: &FontRef, filter: &TableFilter) {
+    let mut printed = HashSet::new();
     for tag in font
         .table_directory
         .table_records()
@@ -59,7 +60,14 @@ fn print_tables(font: &FontRef, filter: &TableFilter) {
         .map(|rec| rec.tag())
         .filter(|tag| filter.should_print(*tag))
     {
+        printed.insert(tag);
         print_table(font, tag)
+    }
+
+    if let TableFilter::Include(to_print) = filter {
+        for unprinted in to_print.difference(&printed) {
+            println!("Table {unprinted} not found");
+        }
     }
 }
 
