@@ -15,7 +15,9 @@ require refinement.
 
 - [overview](#overview)
 - [`read-fonts`](#read-fonts)
-    - [scalars and `BigEndian<T>`](#scalars-detour)
+    - [the code we don't generate](#what-we-dont-generate)
+        - [scalars and `BigEndian<T>`](#scalars-detour)
+        - [`FontData`](#font-data)
     - [tables and records](#tables-and-records)
     - [tables](#read-tables)
         - [`FontRead` and `FontReadWithArgs`](#font-read-args)
@@ -54,9 +56,22 @@ We will examine each of these crates separately.
 
 ## <a id="read-fonts"></a> `read-fonts`
 
-### <a id="scalars-detour"></a> A brief detour on scalars and `BigEndian<T>`
+### <a id="what-we-dont-generate"></a> The code we *don't* generate
 
-#### a description of the problem
+Although this writeup is focused specifically on the code we generate, that code
+is closely entwined with code that we hand-write. This is a general pattern: we
+manually implement some set of types and traits, which are then used in our
+generated code.
+
+All of the types which are used in codegen are reexported in the
+[`codegen_prelude`][read-prelude] module; this is glob imported at the top of
+evey generated file.
+
+We will describe various of these manually implemented types as we encounter
+them throughout this document, but before we get started it is worth touching on
+two cases: `FontData` and scalars / `BigEndian<T>`.
+
+#### <a id="scalars-detour"></a> Scalars and `BigEndian<T>`
 
 Before we dive into the specifics of the tables and records in `read-fonts`, I
 want to talk briefly about how we represent and handle the [basic data types](ot-data-types)
@@ -89,7 +104,7 @@ I have taken a slightly different approach, which tries to be more ergonomic and
 intuitive to the user, at the cost of having a slightly more complicated
 implementation.
 
-#### `BigEndian<T>` and `Scalar`
+##### `BigEndian<T>` and `Scalar`
 
 Our design has two basic components: a trait, `Scalar` and a type
 `BigEndian<T>`, which look like this:
@@ -131,7 +146,7 @@ trait Scalar {
 }
 ```
 
-But this is not []currently something we can express with Rust's generics,
+But this is not currently something we can express with Rust's generics,
 although [it should become possible eventaully](generic-const-exprs).
 
 In any case: what this lets us do is avoid having two separate sets of types for
@@ -142,7 +157,7 @@ advantage that we can define new types in our generated code that implement
 useful for things like custom enums and flags that are defined at various points
 in the spec.
 
-### `FixedSize`
+##### `FixedSize`
 
 In addition to these two traits, we also have a [`FixedSize`][] trait, which is
 implemented for all scalar types (and later, for structs consisting only of
@@ -159,6 +174,22 @@ pub trait FixedSize: Sized {
 This is implemented for both all the scalar values, as well as all their
 `BigEndian` equivalents; and in both cases, the value of `RAW_BYTE_LEN` is the
 size of the raw (big-endian) representation.
+
+#### <a id="font-data"></a> `FontData`
+
+The [`FontData`][] struct is at the core of all of our font reading code. It
+represents a pointer to raw bytes, augmented with a bunch of methods for safely
+reading scalar values from that raw data.
+
+It looks approximately like this:
+
+```rust
+pub struct FontData<'a>(&'a [u8]);
+```
+
+And can be thought of as a specialized interface on top of a Rust byte
+slice.This type is used extensively in the API, and will show up frequently in
+subsequent code snippets.
 
 ### <a id="tables-and-records"></a> tables and records
 
@@ -260,6 +291,17 @@ cases, however, this is not possible. A simple example is the [`loca` table][loc
 the data for this table cannot be interpreted correctly without knowing the
 number of glyphs in the font (stored in the `maxp` table) as well as whether the
 format is long or short, which is stored in the `head` table.
+
+> ***note***:
+>
+> The `FontRead` trait is similar the 'sanitize' methods in HarfBuzz: that is to
+> say that it does not parse the data, but only ensures that it is well-formed.
+> Unlike 'sanitize', however, `FontRead` is not recursive (it does not chase
+> offsets) and it does not in anyway modify the structure; it merely returns an
+> error if the structure is malformed.
+>
+> We will likely want to change the name of this method at some point, to
+> clarify the fact that it is not exactly *reading*.
 
 In either case, the generated table code is very similar.
 
@@ -846,3 +888,5 @@ clarify.
 [`FontWrite`]: https://docs.rs/write-fonts/latest/write_fonts/trait.FontWrite.html
 [`FixedSize`]: https://docs.rs/font-types/latest/font_types/trait.FixedSize.html
 [generic-const-exprs]: https://github.com/rust-lang/rust/issues/60551#issuecomment-917511891
+[read-prelude]: https://github.com/cmyr/fontations/blob/main/read-fonts/src/lib.rs#L42
+[`FontData`]: https://docs.rs/read-fonts/latest/read_fonts/struct.FontData.html
