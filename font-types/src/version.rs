@@ -22,12 +22,12 @@ pub struct MajorMinor {
 }
 
 /// A trait for determining whether versions are compatible.
-pub trait Compatible: Sized {
+pub trait Compatible<Rhs = Self>: Sized {
     /// return `true` if this version is field-compatible with `other`.
     ///
     /// This is kind of poorly defined, but basically means 'same major version,
     /// greater than or equal minor version'.
-    fn compatible(&self, other: Self) -> bool;
+    fn compatible(&self, other: Rhs) -> bool;
 }
 
 impl Version16Dot16 {
