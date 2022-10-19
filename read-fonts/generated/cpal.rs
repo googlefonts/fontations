@@ -124,11 +124,9 @@ impl<'a> Cpal<'a> {
     }
 
     /// Attempt to resolve [`color_records_array_offset`][Self::color_records_array_offset].
-    pub fn color_records_array(&self) -> Option<Result<ColorRecord<'a>, ReadError>> {
+    pub fn color_records_array(&self) -> Option<Result<ColorRecordArray<'a>, ReadError>> {
         let data = self.data;
-        let args = self.num_color_records();
-        self.color_records_array_offset()
-            .resolve_with_args(data, &args)
+        self.color_records_array_offset().resolve(data)
     }
 
     /// Index of each palette’s first color record in the combined
@@ -236,6 +234,75 @@ impl<'a> SomeTable<'a> for Cpal<'a> {
 
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cpal<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+/// [CPAL (Palette Type Array)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array) record
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ColorRecordArrayMarker {
+    color_records_byte_len: usize,
+}
+
+impl ColorRecordArrayMarker {
+    fn color_records_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + self.color_records_byte_len
+    }
+}
+
+impl ReadArgs for ColorRecordArray<'_> {
+    type Args = u16;
+}
+
+impl<'a> FontReadWithArgs<'a> for ColorRecordArray<'a> {
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let num_color_records = *args;
+        let mut cursor = data.cursor();
+        let color_records_byte_len = num_color_records as usize * ColorRecord::RAW_BYTE_LEN;
+        cursor.advance_by(color_records_byte_len);
+        cursor.finish(ColorRecordArrayMarker {
+            color_records_byte_len,
+        })
+    }
+}
+
+/// [CPAL (Palette Type Array)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array) record
+pub type ColorRecordArray<'a> = TableRef<'a, ColorRecordArrayMarker>;
+
+impl<'a> ColorRecordArray<'a> {
+    /// Array of 32-bit flag fields that describe properties of each
+    /// palette. See below for details.
+    pub fn color_records(&self) -> &'a [ColorRecord] {
+        let range = self.shape.color_records_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ColorRecordArray<'a> {
+    fn type_name(&self) -> &str {
+        "ColorRecordArray"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new(
+                "color_records",
+                traversal::FieldType::array_of_records(
+                    stringify!(ColorRecord),
+                    self.color_records(),
+                    self.offset_data(),
+                ),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ColorRecordArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }

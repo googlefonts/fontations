@@ -5,4 +5,4 @@ use font_types::Tag;
 /// 'COLR'
 pub const TAG: Tag = Tag::new(b"COLR");
 
-include!("../../generated/generated_colr.rs");
+include!("../../generated/colr.rs");

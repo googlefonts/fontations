@@ -14,8 +14,7 @@ table Cpal {
     /// Offset from the beginning of CPAL table to the first 
     /// ColorRecord.
     #[nullable]
-    #[read_offset_with($num_color_records)]
-    color_records_array_offset: BigEndian<Offset32<ColorRecord>>,
+    color_records_array_offset: BigEndian<Offset32<ColorRecordArray>>,
     /// Index of each palette’s first color record in the combined 
     /// color record array.
     #[count($num_palettes)]
@@ -36,6 +35,15 @@ table Cpal {
     #[available(1)]
     #[nullable]
     palette_entry_labels_array_offset: BigEndian<Offset32<PaletteLabelEntryArray>>,
+}
+
+/// [CPAL (Palette Type Array)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array) record
+#[read_args(num_color_records: u16)]
+table ColorRecordArray {
+    /// Array of 32-bit flag fields that describe properties of each 
+    /// palette. See below for details.
+    #[count($num_color_records)]
+    color_records: [ColorRecord],
 }
 
 /// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record

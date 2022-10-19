@@ -5,4 +5,4 @@ use font_types::Tag;
 /// 'CPAL'
 pub const TAG: Tag = Tag::new(b"CPAL");
 
-include!("../../generated/generated_cpal.rs");
+include!("../../generated/cpal.rs");
