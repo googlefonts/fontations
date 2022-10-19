@@ -79,6 +79,30 @@ jobs:
           command: test
           args: --all-targets --all-features
 
+  ensure-clean-codegen:
+    name: check codegen is up-to-date
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+
+      - name: run codegen
+        uses: actions-rs/cargo@v1
+        with:
+          command: run
+          args: --bin=codegen resources/codegen_plan.toml
+      - name: ensure no unstaged changes
+        run: |
+          git add .
+          git status -sb
+          git diff-index --quiet HEAD --
+
   check-no-std:
     name: cargo check no std
     runs-on: ubuntu-latest
