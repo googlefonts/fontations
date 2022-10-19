@@ -69,6 +69,6 @@ enums, we generate a raw Rust enum.
 
 [shaping]: https://fonts.google.com/knowledge/glossary/shaping
 [`include!`]: http://doc.rust-lang.org/1.63.0/std/macro.include.html
-[gdef-marker]: https://github.com/cmyr/fontations/blob/main/read-fonts/generated/generated_gdef.rs#L11
-[Gdef]: https://github.com/cmyr/fontations/blob/main/read-fonts/generated/generated_gdef.rs#L77
+[gdef-marker]: https://github.com/googlefonts/fontations/blob/main/read-fonts/generated/generated_gdef.rs#L11
+[Gdef]: https://github.com/googlefonts/fontations/blob/main/read-fonts/generated/generated_gdef.rs#L77
 [bitflags]: https://docs.rs/bitflags/latest/bitflags/
