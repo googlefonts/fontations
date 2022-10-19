@@ -1003,7 +1003,17 @@ impl ReferencedFields {
 
 impl FromIterator<(syn::Ident, NeededWhen)> for ReferencedFields {
     fn from_iter<T: IntoIterator<Item = (syn::Ident, NeededWhen)>>(iter: T) -> Self {
-        Self(iter.into_iter().collect())
+        let mut map = HashMap::new();
+        for (key, new_val) in iter {
+            let value = map.entry(key).or_insert(new_val);
+            // if a value is referenced by multiple fields, we combine them
+            *value = match (*value, new_val) {
+                (NeededWhen::Parse, NeededWhen::Parse) => NeededWhen::Parse,
+                (NeededWhen::Runtime, NeededWhen::Runtime) => NeededWhen::Runtime,
+                _ => NeededWhen::Both,
+            };
+        }
+        Self(map)
     }
 }
 
