@@ -19,7 +19,7 @@ fn main() -> Result<(), Error> {
     let index = args.index.unwrap_or(0);
     let bytes = std::fs::read(&args.input).unwrap();
     let data = FontData::new(&bytes);
-    let font = FontFileRef::new(data).get_font(index).unwrap(); //FontRef::new(data).unwrap();
+    let font = FontFileRef::new(data).get_font(index).unwrap();
     if args.list {
         list_tables(&font);
         return Ok(());
