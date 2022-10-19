@@ -41,7 +41,7 @@ table Colr {
 }
 
 /// [BaseGlyphRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table. This
-/// is not present in the specification and is a shim to support reading a raw array of records (i.e. a non-table) through an offset. 
+/// is not present in the specification and is a shim to support reading a raw array of records (i.e. a non-table) through an offset.
 #[read_args(num_base_glyph_records: u16)]
 table BaseGlyphRecordArray {
     /// Array of BaseGlyph records
@@ -304,17 +304,17 @@ table PaintLinearGradient {
     format: BigEndian<u8>,
     /// Offset to ColorLine table.
     color_line_offset: BigEndian<Offset24<ColorLine>>,
-    /// Start point (pΓéÇ) x coordinate.
+    /// Start point (p₀) x coordinate.
     x0: BigEndian<FWord>,
-    /// Start point (pΓéÇ) y coordinate.
+    /// Start point (p₀) y coordinate.
     y0: BigEndian<FWord>,
-    /// End point (pΓéü) x coordinate.
+    /// End point (p₁) x coordinate.
     x1: BigEndian<FWord>,
-    /// End point (pΓéü) y coordinate.
+    /// End point (p₁) y coordinate.
     y1: BigEndian<FWord>,
-    /// Rotation point (pΓéé) x coordinate.
+    /// Rotation point (p₂) x coordinate.
     x2: BigEndian<FWord>,
-    /// Rotation point (pΓéé) y coordinate.
+    /// Rotation point (p₂) y coordinate.
     y2: BigEndian<FWord>,
 }
 
@@ -325,22 +325,22 @@ table PaintVarLinearGradient {
     format: BigEndian<u8>,
     /// Offset to VarColorLine table.
     color_line_offset: BigEndian<Offset24<VarColorLine>>,
-    /// Start point (pΓéÇ) x coordinate. For variation, use 
+    /// Start point (p₀) x coordinate. For variation, use
     /// varIndexBase + 0.
     x0: BigEndian<FWord>,
-    /// Start point (pΓéÇ) y coordinate. For variation, use 
+    /// Start point (p₀) y coordinate. For variation, use
     /// varIndexBase + 1.
     y0: BigEndian<FWord>,
-    /// End point (pΓéü) x coordinate. For variation, use varIndexBase 
+    /// End point (p₁) x coordinate. For variation, use varIndexBase
     /// + 2.
     x1: BigEndian<FWord>,
-    /// End point (pΓéü) y coordinate. For variation, use varIndexBase 
+    /// End point (p₁) y coordinate. For variation, use varIndexBase
     /// + 3.
     y1: BigEndian<FWord>,
-    /// Rotation point (pΓéé) x coordinate. For variation, use 
+    /// Rotation point (p₂) x coordinate. For variation, use
     /// varIndexBase + 4.
     x2: BigEndian<FWord>,
-    /// Rotation point (pΓéé) y coordinate. For variation, use 
+    /// Rotation point (p₂) y coordinate. For variation, use
     /// varIndexBase + 5.
     y2: BigEndian<FWord>,
     /// Base index into DeltaSetIndexMap.
@@ -375,18 +375,18 @@ table PaintVarRadialGradient {
     format: BigEndian<u8>,
     /// Offset to VarColorLine table.
     color_line_offset: BigEndian<Offset24<VarColorLine>>,
-    /// Start circle center x coordinate. For variation, use 
+    /// Start circle center x coordinate. For variation, use
     /// varIndexBase + 0.
     x0: BigEndian<FWord>,
-    /// Start circle center y coordinate. For variation, use 
+    /// Start circle center y coordinate. For variation, use
     /// varIndexBase + 1.
     y0: BigEndian<FWord>,
     /// Start circle radius. For variation, use varIndexBase + 2.
     radius0: BigEndian<UfWord>,
-    /// End circle center x coordinate. For variation, use varIndexBase 
+    /// End circle center x coordinate. For variation, use varIndexBase
     /// + 3.
     x1: BigEndian<FWord>,
-    /// End circle center y coordinate. For variation, use varIndexBase 
+    /// End circle center y coordinate. For variation, use varIndexBase
     /// + 4.
     y1: BigEndian<FWord>,
     /// End circle radius. For variation, use varIndexBase + 5.
@@ -406,10 +406,10 @@ table PaintSweepGradient {
     center_x: BigEndian<FWord>,
     /// Center y coordinate.
     center_y: BigEndian<FWord>,
-    /// Start of the angular range of the gradient, 180┬░ in 
+    /// Start of the angular range of the gradient, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     start_angle: BigEndian<F2Dot14>,
-    /// End of the angular range of the gradient, 180┬░ in 
+    /// End of the angular range of the gradient, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     end_angle: BigEndian<F2Dot14>,
 }
@@ -425,12 +425,12 @@ table PaintVarSweepGradient {
     center_x: BigEndian<FWord>,
     /// Center y coordinate. For variation, use varIndexBase + 1.
     center_y: BigEndian<FWord>,
-    /// Start of the angular range of the gradient, 180┬░ in 
-    /// counter-clockwise degrees per 1.0 of value. For variation, use 
+    /// Start of the angular range of the gradient, 180° in
+    /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 2.
     start_angle: BigEndian<F2Dot14>,
-    /// End of the angular range of the gradient, 180┬░ in 
-    /// counter-clockwise degrees per 1.0 of value. For variation, use 
+    /// End of the angular range of the gradient, 180° in
+    /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 3.
     end_angle: BigEndian<F2Dot14>,
     /// Base index into DeltaSetIndexMap.
@@ -497,16 +497,16 @@ table Affine2x3 {
 
 /// [VarAffine2x3](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#formats-12-and-13-painttransform-paintvartransform) record
 table VarAffine2x3 {
-    /// x-component of transformed x-basis vector. For variation, use 
+    /// x-component of transformed x-basis vector. For variation, use
     /// varIndexBase + 0.
     xx: BigEndian<Fixed>,
-    /// y-component of transformed x-basis vector. For variation, use 
+    /// y-component of transformed x-basis vector. For variation, use
     /// varIndexBase + 1.
     yx: BigEndian<Fixed>,
-    /// x-component of transformed y-basis vector. For variation, use 
+    /// x-component of transformed y-basis vector. For variation, use
     /// varIndexBase + 2.
     xy: BigEndian<Fixed>,
-    /// y-component of transformed y-basis vector. For variation, use 
+    /// y-component of transformed y-basis vector. For variation, use
     /// varIndexBase + 3.
     yy: BigEndian<Fixed>,
     /// Translation in x direction. For variation, use varIndexBase + 4.
@@ -565,10 +565,10 @@ table PaintVarScale {
     format: BigEndian<u8>,
     /// Offset to a Paint subtable.
     paint_offset: BigEndian<Offset24<Paint>>,
-    /// Scale factor in x direction. For variation, use varIndexBase + 
+    /// Scale factor in x direction. For variation, use varIndexBase +
     /// 0.
     scale_x: BigEndian<F2Dot14>,
-    /// Scale factor in y direction. For variation, use varIndexBase + 
+    /// Scale factor in y direction. For variation, use varIndexBase +
     /// 1.
     scale_y: BigEndian<F2Dot14>,
     /// Base index into DeltaSetIndexMap.
@@ -599,16 +599,16 @@ table PaintVarScaleAroundCenter {
     format: BigEndian<u8>,
     /// Offset to a Paint subtable.
     paint_offset: BigEndian<Offset24<Paint>>,
-    /// Scale factor in x direction. For variation, use varIndexBase + 
+    /// Scale factor in x direction. For variation, use varIndexBase +
     /// 0.
     scale_x: BigEndian<F2Dot14>,
-    /// Scale factor in y direction. For variation, use varIndexBase + 
+    /// Scale factor in y direction. For variation, use varIndexBase +
     /// 1.
     scale_y: BigEndian<F2Dot14>,
-    /// x coordinate for the center of scaling. For variation, use 
+    /// x coordinate for the center of scaling. For variation, use
     /// varIndexBase + 2.
     center_x: BigEndian<FWord>,
-    /// y coordinate for the center of scaling. For variation, use 
+    /// y coordinate for the center of scaling. For variation, use
     /// varIndexBase + 3.
     center_y: BigEndian<FWord>,
     /// Base index into DeltaSetIndexMap.
@@ -633,7 +633,7 @@ table PaintVarScaleUniform {
     format: BigEndian<u8>,
     /// Offset to a Paint subtable.
     paint_offset: BigEndian<Offset24<Paint>>,
-    /// Scale factor in x and y directions. For variation, use 
+    /// Scale factor in x and y directions. For variation, use
     /// varIndexBase + 0.
     scale: BigEndian<F2Dot14>,
     /// Base index into DeltaSetIndexMap.
@@ -662,13 +662,13 @@ table PaintVarScaleUniformAroundCenter {
     format: BigEndian<u8>,
     /// Offset to a Paint subtable.
     paint_offset: BigEndian<Offset24<Paint>>,
-    /// Scale factor in x and y directions. For variation, use 
+    /// Scale factor in x and y directions. For variation, use
     /// varIndexBase + 0.
     scale: BigEndian<F2Dot14>,
-    /// x coordinate for the center of scaling. For variation, use 
+    /// x coordinate for the center of scaling. For variation, use
     /// varIndexBase + 1.
     center_x: BigEndian<FWord>,
-    /// y coordinate for the center of scaling. For variation, use 
+    /// y coordinate for the center of scaling. For variation, use
     /// varIndexBase + 2.
     center_y: BigEndian<FWord>,
     /// Base index into DeltaSetIndexMap.
@@ -682,7 +682,7 @@ table PaintRotate {
     format: BigEndian<u8>,
     /// Offset to a Paint subtable.
     paint_offset: BigEndian<Offset24<Paint>>,
-    /// Rotation angle, 180┬░ in counter-clockwise degrees per 1.0 of 
+    /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value.
     angle: BigEndian<F2Dot14>,
 }
@@ -694,7 +694,7 @@ table PaintVarRotate {
     format: BigEndian<u8>,
     /// Offset to a Paint subtable.
     paint_offset: BigEndian<Offset24<Paint>>,
-    /// Rotation angle, 180┬░ in counter-clockwise degrees per 1.0 of 
+    /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value. For variation, use varIndexBase + 0.
     angle: BigEndian<F2Dot14>,
     /// Base index into DeltaSetIndexMap.
@@ -708,7 +708,7 @@ table PaintRotateAroundCenter {
     format: BigEndian<u8>,
     /// Offset to a Paint subtable.
     paint_offset: BigEndian<Offset24<Paint>>,
-    /// Rotation angle, 180┬░ in counter-clockwise degrees per 1.0 of 
+    /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value.
     angle: BigEndian<F2Dot14>,
     /// x coordinate for the center of rotation.
@@ -724,13 +724,13 @@ table PaintVarRotateAroundCenter {
     format: BigEndian<u8>,
     /// Offset to a Paint subtable.
     paint_offset: BigEndian<Offset24<Paint>>,
-    /// Rotation angle, 180┬░ in counter-clockwise degrees per 1.0 of 
+    /// Rotation angle, 180° in counter-clockwise degrees per 1.0 of
     /// value. For variation, use varIndexBase + 0.
     angle: BigEndian<F2Dot14>,
-    /// x coordinate for the center of rotation. For variation, use 
+    /// x coordinate for the center of rotation. For variation, use
     /// varIndexBase + 1.
     center_x: BigEndian<FWord>,
-    /// y coordinate for the center of rotation. For variation, use 
+    /// y coordinate for the center of rotation. For variation, use
     /// varIndexBase + 2.
     center_y: BigEndian<FWord>,
     /// Base index into DeltaSetIndexMap.
@@ -744,10 +744,10 @@ table PaintSkew {
     format: BigEndian<u8>,
     /// Offset to a Paint subtable.
     paint_offset: BigEndian<Offset24<Paint>>,
-    /// Angle of skew in the direction of the x-axis, 180┬░ in 
+    /// Angle of skew in the direction of the x-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     x_skew_angle: BigEndian<F2Dot14>,
-    /// Angle of skew in the direction of the y-axis, 180┬░ in 
+    /// Angle of skew in the direction of the y-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     y_skew_angle: BigEndian<F2Dot14>,
 }
@@ -759,12 +759,12 @@ table PaintVarSkew {
     format: BigEndian<u8>,
     /// Offset to a Paint subtable.
     paint_offset: BigEndian<Offset24<Paint>>,
-    /// Angle of skew in the direction of the x-axis, 180┬░ in 
-    /// counter-clockwise degrees per 1.0 of value. For variation, use 
+    /// Angle of skew in the direction of the x-axis, 180° ┬░ in
+    /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 0.
     x_skew_angle: BigEndian<F2Dot14>,
-    /// Angle of skew in the direction of the y-axis, 180┬░ in 
-    /// counter-clockwise degrees per 1.0 of value. For variation, use 
+    /// Angle of skew in the direction of the y-axis, 180° in
+    /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 1.
     y_skew_angle: BigEndian<F2Dot14>,
     /// Base index into DeltaSetIndexMap.
@@ -778,10 +778,10 @@ table PaintSkewAroundCenter {
     format: BigEndian<u8>,
     /// Offset to a Paint subtable.
     paint_offset: BigEndian<Offset24<Paint>>,
-    /// Angle of skew in the direction of the x-axis, 180┬░ in 
+    /// Angle of skew in the direction of the x-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     x_skew_angle: BigEndian<F2Dot14>,
-    /// Angle of skew in the direction of the y-axis, 180┬░ in 
+    /// Angle of skew in the direction of the y-axis, 180° in
     /// counter-clockwise degrees per 1.0 of value.
     y_skew_angle: BigEndian<F2Dot14>,
     /// x coordinate for the center of rotation.
@@ -797,18 +797,18 @@ table PaintVarSkewAroundCenter {
     format: BigEndian<u8>,
     /// Offset to a Paint subtable.
     paint_offset: BigEndian<Offset24<Paint>>,
-    /// Angle of skew in the direction of the x-axis, 180┬░ in 
-    /// counter-clockwise degrees per 1.0 of value. For variation, use 
+    /// Angle of skew in the direction of the x-axis, 180° in
+    /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 0.
     x_skew_angle: BigEndian<F2Dot14>,
-    /// Angle of skew in the direction of the y-axis, 180┬░ in 
-    /// counter-clockwise degrees per 1.0 of value. For variation, use 
+    /// Angle of skew in the direction of the y-axis, 180° in
+    /// counter-clockwise degrees per 1.0 of value. For variation, use
     /// varIndexBase + 1.
     y_skew_angle: BigEndian<F2Dot14>,
-    /// x coordinate for the center of rotation. For variation, use 
+    /// x coordinate for the center of rotation. For variation, use
     /// varIndexBase + 2.
     center_x: BigEndian<FWord>,
-    /// y coordinate for the center of rotation. For variation, use 
+    /// y coordinate for the center of rotation. For variation, use
     /// varIndexBase + 3.
     center_y: BigEndian<FWord>,
     /// Base index into DeltaSetIndexMap.
