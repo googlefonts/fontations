@@ -71,6 +71,63 @@ pub(crate) mod codegen_prelude {
 
 include!("../generated/font.rs");
 
+const TTC_HEADER_TAG: Tag = Tag::new(b"ttcf");
+
+pub struct FontFileRef<'a> {
+    pub data: FontData<'a>,
+}
+
+impl<'a> FontFileRef<'a> {
+    pub fn new(data: FontData<'a>) -> Self {
+        Self { data }
+    }
+
+    pub fn is_collection(&self) -> bool {
+        self.ttc_header().is_some()
+    }
+
+    pub fn num_fonts(&self) -> u32 {
+        if let Some(ttc_header) = self.ttc_header() {
+            ttc_header.num_fonts()
+        } else if FontRef::new(self.data).is_ok() {
+            1
+        } else {
+            0
+        }
+    }
+
+    pub fn get_font(&self, index: u32) -> Option<FontRef<'a>> {
+        if index > self.num_fonts() {
+            return None;
+        }
+        if let Some(ttc_header) = self.ttc_header() {
+            let offset = ttc_header
+                .table_directory_offsets()
+                .get(index as usize)?
+                .get() as usize;
+            let data = self.data.slice(offset..)?;
+            let table_directory = TableDirectory::read(data).ok()?;
+            Some(FontRef {
+                data: self.data,
+                table_directory,
+            })
+        } else if index == 0 {
+            FontRef::new(self.data).ok()
+        } else {
+            None
+        }
+    }
+
+    fn ttc_header(&self) -> Option<TtcHeader<'a>> {
+        let header = TtcHeader::read(self.data).ok()?;
+        if header.ttc_tag() == TTC_HEADER_TAG {
+            Some(header)
+        } else {
+            None
+        }
+    }
+}
+
 /// A temporary type for accessing tables
 pub struct FontRef<'a> {
     data: FontData<'a>,

@@ -29,3 +29,19 @@ record TableRecord {
     /// Length of the table.
     length: BigEndian<u32>,
 }
+
+/// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
+table TtcHeader {
+    ttc_tag: BigEndian<Tag>,
+    #[version]
+    version: BigEndian<Version16Dot16>,
+    num_fonts: BigEndian<u32>,
+    #[count($num_fonts)]
+    table_directory_offsets: [BigEndian<u32>],
+    #[available(Version16Dot16::VERSION_2_0)]
+    dsig_tag: BigEndian<u32>,
+    #[available(Version16Dot16::VERSION_2_0)]
+    dsig_length: BigEndian<u32>,
+    #[available(Version16Dot16::VERSION_2_0)]
+    dsig_offset: BigEndian<u32>,
+}

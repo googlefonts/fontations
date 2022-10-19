@@ -4,7 +4,6 @@
 
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
-
 /// The OpenType [Table Directory](https://docs.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
 #[derive(Clone, Debug)]
 pub struct TableDirectory {
@@ -66,4 +65,100 @@ impl FontWrite for TableRecord {
 
 impl Validate for TableRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+/// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
+#[derive(Clone, Debug)]
+pub struct TtcHeader {
+    pub ttc_tag: Tag,
+    pub version: Version16Dot16,
+    pub num_fonts: u32,
+    pub table_directory_offsets: Vec<u32>,
+    pub dsig_tag: Option<u32>,
+    pub dsig_length: Option<u32>,
+    pub dsig_offset: Option<u32>,
+}
+
+impl FontWrite for TtcHeader {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.ttc_tag.write_into(writer);
+        let version = self.version;
+        version.write_into(writer);
+        self.num_fonts.write_into(writer);
+        self.table_directory_offsets.write_into(writer);
+        version.compatible(Version16Dot16::VERSION_2_0).then(|| {
+            self.dsig_tag
+                .as_ref()
+                .expect("missing versioned field should have failed validation")
+                .write_into(writer)
+        });
+        version.compatible(Version16Dot16::VERSION_2_0).then(|| {
+            self.dsig_length
+                .as_ref()
+                .expect("missing versioned field should have failed validation")
+                .write_into(writer)
+        });
+        version.compatible(Version16Dot16::VERSION_2_0).then(|| {
+            self.dsig_offset
+                .as_ref()
+                .expect("missing versioned field should have failed validation")
+                .write_into(writer)
+        });
+    }
+}
+
+impl Validate for TtcHeader {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("TtcHeader", |ctx| {
+            let version = self.version;
+            ctx.in_field("table_directory_offsets", |ctx| {
+                if self.table_directory_offsets.len() > (u32::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+            });
+            ctx.in_field("dsig_tag", |ctx| {
+                if version.compatible(Version16Dot16::VERSION_2_0) && self.dsig_tag.is_none() {
+                    ctx.report(format!("field must be present for version {version}"));
+                }
+            });
+            ctx.in_field("dsig_length", |ctx| {
+                if version.compatible(Version16Dot16::VERSION_2_0) && self.dsig_length.is_none() {
+                    ctx.report(format!("field must be present for version {version}"));
+                }
+            });
+            ctx.in_field("dsig_offset", |ctx| {
+                if version.compatible(Version16Dot16::VERSION_2_0) && self.dsig_offset.is_none() {
+                    ctx.report(format!("field must be present for version {version}"));
+                }
+            });
+        })
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl<'a> FromObjRef<read_fonts::TtcHeader<'a>> for TtcHeader {
+    fn from_obj_ref(obj: &read_fonts::TtcHeader<'a>, _: FontData) -> Self {
+        TtcHeader {
+            ttc_tag: obj.ttc_tag(),
+            version: obj.version(),
+            num_fonts: obj.num_fonts(),
+            table_directory_offsets: obj
+                .table_directory_offsets()
+                .iter()
+                .map(|x| x.get())
+                .collect(),
+            dsig_tag: obj.dsig_tag(),
+            dsig_length: obj.dsig_length(),
+            dsig_offset: obj.dsig_offset(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl<'a> FromTableRef<read_fonts::TtcHeader<'a>> for TtcHeader {}
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for TtcHeader {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::TtcHeader as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
 }

@@ -6,7 +6,7 @@
 use std::{collections::HashSet, str::FromStr};
 
 use font_types::Tag;
-use read_fonts::{traversal::SomeTable, FontData, FontRef, ReadError, TableProvider};
+use read_fonts::{traversal::SomeTable, FontData, FontFileRef, FontRef, ReadError, TableProvider};
 
 mod print;
 mod query;
@@ -16,9 +16,10 @@ use query::Query;
 
 fn main() -> Result<(), Error> {
     let args = flags::Args::from_env().map_err(|e| Error(e.to_string()))?;
+    let index = args.index.unwrap_or(0);
     let bytes = std::fs::read(&args.input).unwrap();
     let data = FontData::new(&bytes);
-    let font = FontRef::new(data).unwrap();
+    let font = FontFileRef::new(data).get_font(index).unwrap(); //FontRef::new(data).unwrap();
     if args.list {
         list_tables(&font);
         return Ok(());
@@ -196,6 +197,7 @@ mod flags {
         cmd args
             required input: PathBuf
             {
+                optional -i, --index index: u32
                 optional -l, --list
                 optional -q, --query query: Query
                 optional -t, --tables include: String
