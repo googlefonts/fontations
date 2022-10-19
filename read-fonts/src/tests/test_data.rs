@@ -329,3 +329,21 @@ pub mod post {
         0x4, 0x68, 0x6f, 0x6c, 0x61, // 4, h o l a
     ]);
 }
+
+pub mod cpal {
+    use crate::{tables::cpal::Cpal, FontRef, TableProvider};
+
+    use super::test_fonts::COLR_GRADIENT_RECT;
+
+    pub fn sample() -> Cpal<'static> {
+        return FontRef::new(COLR_GRADIENT_RECT).unwrap().cpal().unwrap();
+    }
+}
+
+pub mod test_fonts {
+    use crate::FontData;
+
+    pub static COLR_GRADIENT_RECT: FontData<'static> = FontData::new(include_bytes!(
+        "../../../resources/test_fonts/ttf/linear_gradient_rect_colr_1.ttf"
+    ));
+}

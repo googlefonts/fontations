@@ -1,0 +1,43 @@
+/// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
+@table Cpal0
+uint16	    version	Table version number (=0).
+uint16	    numPaletteEntries	Number of palette entries in each palette.
+uint16	    numPalettes	Number of palettes in the table.
+uint16	    numColorRecords	Total number of color records, combined for all palettes.
+Offset32	colorRecordsArrayOffset	Offset from the beginning of CPAL table to the first ColorRecord.
+uint16	    colorRecordIndices[numPalettes]	Index of each palette’s first color record in the combined color record array.
+
+/// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
+@table Cpal1
+uint16	    version	Table version number (=1).
+uint16	    numPaletteEntries	Number of palette entries in each palette.
+uint16	    numPalettes	Number of palettes in the table.
+uint16	    numColorRecords	Total number of color records, combined for all palettes.
+Offset32	colorRecordsArrayOffset	Offset from the beginning of CPAL table to the first ColorRecord.
+uint16	    colorRecordIndices[numPalettes]	Index of each palette’s first color record in the combined color record array.
+Offset32	paletteTypesArrayOffset	Offset from the beginning of CPAL table to the Palette Types Array. Set to 0 if no array is provided.
+Offset32	paletteLabelsArrayOffset	Offset from the beginning of CPAL table to the Palette Labels Array. Set to 0 if no array is provided.
+Offset32	paletteEntryLabelsArrayOffset	Offset from the beginning of CPAL table to the Palette Entry Labels Array. Set to 0 if no array is provided.
+
+/// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record
+@record ColorRecords
+ColorRecord	colorRecords[numColorRecords]	Color records for all palettes
+
+/// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record
+@record ColorRecord
+uint8	blue	Blue value (B0).
+uint8	green	Green value (B1).
+uint8	red	    Red value (B2).
+uint8	alpha	Alpha value (B3).
+
+/// [CPAL (Palette Type Array)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array) record
+@record PaletteTypes
+uint32	paletteTypes[numPalettes]	Array of 32-bit flag fields that describe properties of each palette. See below for details.
+
+/// [CPAL (Palette Label Array)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-labels-array) record
+@record PaletteLabels
+uint16	paletteLabels[numPalettes]	Array of 'name' table IDs (typically in the font-specific name ID range) that specify user interface strings associated with each palette. Use 0xFFFF if no name ID is provided for a palette.
+
+/// [CPAL (Palette Label Entry Array)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entry-label-array) record
+@record PaletteLabelEntries
+uint16	paletteEntryLabels[numPaletteEntries]	Array of 'name' table IDs (typically in the font-specific name ID range) that specify user interface strings associated with each palette entry, e.g. “Outline”, “Fill”. This set of palette entry labels applies to all palettes in the font. Use 0xFFFF if no name ID is provided for a palette entry.
