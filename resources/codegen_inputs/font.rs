@@ -31,7 +31,7 @@ record TableRecord {
 }
 
 /// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
-table TtcHeader {
+table TTCHeader {
     ttc_tag: BigEndian<Tag>,
     #[version]
     version: BigEndian<Version16Dot16>,

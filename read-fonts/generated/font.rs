@@ -180,14 +180,14 @@ impl<'a> SomeRecord<'a> for TableRecord {
 /// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct TtcHeaderMarker {
+pub struct TTCHeaderMarker {
     table_directory_offsets_byte_len: usize,
     dsig_tag_byte_start: Option<usize>,
     dsig_length_byte_start: Option<usize>,
     dsig_offset_byte_start: Option<usize>,
 }
 
-impl TtcHeaderMarker {
+impl TTCHeaderMarker {
     fn ttc_tag_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + Tag::RAW_BYTE_LEN
@@ -218,7 +218,7 @@ impl TtcHeaderMarker {
     }
 }
 
-impl<'a> FontRead<'a> for TtcHeader<'a> {
+impl<'a> FontRead<'a> for TTCHeader<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<Tag>();
@@ -247,7 +247,7 @@ impl<'a> FontRead<'a> for TtcHeader<'a> {
         version
             .compatible(Version16Dot16::VERSION_2_0)
             .then(|| cursor.advance::<u32>());
-        cursor.finish(TtcHeaderMarker {
+        cursor.finish(TTCHeaderMarker {
             table_directory_offsets_byte_len,
             dsig_tag_byte_start,
             dsig_length_byte_start,
@@ -257,8 +257,8 @@ impl<'a> FontRead<'a> for TtcHeader<'a> {
 }
 
 /// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
-pub type TtcHeader<'a> = TableRef<'a, TtcHeaderMarker>;
-impl<'a> TtcHeader<'a> {
+pub type TTCHeader<'a> = TableRef<'a, TTCHeaderMarker>;
+impl<'a> TTCHeader<'a> {
     pub fn ttc_tag(&self) -> Tag {
         let range = self.shape.ttc_tag_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -290,7 +290,7 @@ impl<'a> TtcHeader<'a> {
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for TtcHeader<'a> {
+impl<'a> SomeTable<'a> for TTCHeader<'a> {
     fn type_name(&self) -> &str {
         "TtcHeader"
     }
@@ -319,7 +319,7 @@ impl<'a> SomeTable<'a> for TtcHeader<'a> {
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for TtcHeader<'a> {
+impl<'a> std::fmt::Debug for TTCHeader<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
