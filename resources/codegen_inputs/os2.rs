@@ -1,8 +1,7 @@
 #![parse_module(read_fonts::tables::os2)]
 
-/// [`os2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
+/// [`OS2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
 table Os2 {
-    /// The version: 0x00005000 for version 0.5, 0x00010000 for version 1.0.
     #[version]
     #[compile(self.compute_version())]
     version: BigEndian<u16>,
