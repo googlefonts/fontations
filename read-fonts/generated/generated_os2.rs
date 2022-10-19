@@ -299,191 +299,249 @@ impl<'a> Os2<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The Average Character Width parameter specifies the arithmetic average
+    /// of the escapement (width) of all non-zero width glyphs in the font.
     pub fn x_avg_char_width(&self) -> i16 {
         let range = self.shape.x_avg_char_width_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Indicates the visual weight (degree of blackness or thickness of
+    /// strokes) of the characters in the font. Values from 1 to 1000 are valid.
     pub fn us_weight_class(&self) -> u16 {
         let range = self.shape.us_weight_class_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Indicates a relative change from the normal aspect ratio (width to
+    /// height ratio) as specified by a font designer for the glyphs in a font.
     pub fn us_width_class(&self) -> u16 {
         let range = self.shape.us_width_class_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Indicates font embedding licensing rights for the font.
     pub fn fs_type(&self) -> u16 {
         let range = self.shape.fs_type_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The recommended horizontal size in font design units for subscripts for
+    /// this font.
     pub fn y_subscript_x_size(&self) -> i16 {
         let range = self.shape.y_subscript_x_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The recommended vertical size in font design units for subscripts for
+    /// this font.
     pub fn y_subscript_y_size(&self) -> i16 {
         let range = self.shape.y_subscript_y_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The recommended horizontal offset in font design units for subscripts
+    /// for this font.
     pub fn y_subscript_x_offset(&self) -> i16 {
         let range = self.shape.y_subscript_x_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The recommended vertical offset in font design units for subscripts
+    /// for this font.
     pub fn y_subscript_y_offset(&self) -> i16 {
         let range = self.shape.y_subscript_y_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The recommended horizontal size in font design units for superscripts
+    /// for this font.
     pub fn y_superscript_x_size(&self) -> i16 {
         let range = self.shape.y_superscript_x_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The recommended vertical size in font design units for superscripts
+    /// for this font.
     pub fn y_superscript_y_size(&self) -> i16 {
         let range = self.shape.y_superscript_y_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The recommended horizontal offset in font design units for superscripts
+    /// for this font.
     pub fn y_superscript_x_offset(&self) -> i16 {
         let range = self.shape.y_superscript_x_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The recommended vertical offset in font design units for superscripts
+    /// for this font.
     pub fn y_superscript_y_offset(&self) -> i16 {
         let range = self.shape.y_superscript_y_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Thickness of the strikeout stroke in font design units.
     pub fn y_strikeout_size(&self) -> i16 {
         let range = self.shape.y_strikeout_size_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The position of the top of the strikeout stroke relative to the
+    /// baseline in font design units.
     pub fn y_strikeout_position(&self) -> i16 {
         let range = self.shape.y_strikeout_position_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// This parameter is a classification of font-family design.
     pub fn s_family_class(&self) -> i16 {
         let range = self.shape.s_family_class_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Additional specifications are required for PANOSE to classify non-Latin
+    /// character sets.
     pub fn panose_10(&self) -> u8 {
         let range = self.shape.panose_10_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Unicode Character Range (bits 0-31).
     pub fn ul_unicode_range_1(&self) -> u32 {
         let range = self.shape.ul_unicode_range_1_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Unicode Character Range (bits 32-63).
     pub fn ul_unicode_range_2(&self) -> u32 {
         let range = self.shape.ul_unicode_range_2_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Unicode Character Range (bits 64-95).
     pub fn ul_unicode_range_3(&self) -> u32 {
         let range = self.shape.ul_unicode_range_3_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Unicode Character Range (bits 96-127).
     pub fn ul_unicode_range_4(&self) -> u32 {
         let range = self.shape.ul_unicode_range_4_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The four-character identifier for the vendor of the given type face.
     pub fn ach_vend_id(&self) -> Tag {
         let range = self.shape.ach_vend_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Contains information concerning the nature of the font patterns.
     pub fn fs_selection(&self) -> u16 {
         let range = self.shape.fs_selection_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The minimum Unicode index (character code) in this font.
     pub fn us_first_char_index(&self) -> u16 {
         let range = self.shape.us_first_char_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The maximum Unicode index (character code) in this font.
     pub fn us_last_char_index(&self) -> u16 {
         let range = self.shape.us_last_char_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The typographic ascender for this font.
     pub fn s_typo_ascender(&self) -> i16 {
         let range = self.shape.s_typo_ascender_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The typographic descender for this font.
     pub fn s_typo_decender(&self) -> i16 {
         let range = self.shape.s_typo_decender_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The typographic line gap for this font.
     pub fn s_typo_line_gap(&self) -> i16 {
         let range = self.shape.s_typo_line_gap_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The “Windows ascender” metric. This should be used to specify the
+    /// height above the baseline for a clipping region.
     pub fn us_win_ascent(&self) -> u16 {
         let range = self.shape.us_win_ascent_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// The “Windows descender” metric. This should be used to specify the
+    /// vertical extend below the baseline for a clipping region.
     pub fn us_win_descent(&self) -> u16 {
         let range = self.shape.us_win_descent_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// Code page character range bits 0-31.
     pub fn ul_code_page_range_1(&self) -> Option<u32> {
         let range = self.shape.ul_code_page_range_1_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    /// Code page character range bits 32-63.
     pub fn ul_code_page_range_2(&self) -> Option<u32> {
         let range = self.shape.ul_code_page_range_2_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    /// This metric specifies the distance between the baseline and the
+    /// approximate height of non-ascending lowercase letters measured in
+    /// FUnits.
     pub fn sx_height(&self) -> Option<i16> {
         let range = self.shape.sx_height_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    /// This metric specifies the distance between the baseline and the
+    /// approximate height of uppercase letters measured in FUnits.
     pub fn s_cap_height(&self) -> Option<i16> {
         let range = self.shape.s_cap_height_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    /// This is the Unicode code point, in UTF-16 encoding, of a character that
+    /// can be used for a default glyph.
     pub fn us_default_char(&self) -> Option<u16> {
         let range = self.shape.us_default_char_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    /// his is the Unicode code point, in UTF-16 encoding, of a character that
+    /// can be used as a default break character.
     pub fn us_break_char(&self) -> Option<u16> {
         let range = self.shape.us_break_char_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    /// This field is used for fonts with multiple optical styles.
     pub fn us_max_context(&self) -> Option<u16> {
         let range = self.shape.us_max_context_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    /// This field is used for fonts with multiple optical styles.
     pub fn us_lower_optical_point_size(&self) -> Option<u16> {
         let range = self.shape.us_lower_optical_point_size_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    /// This field is used for fonts with multiple optical styles.
     pub fn us_upper_optical_point_size(&self) -> Option<u16> {
         let range = self.shape.us_upper_optical_point_size_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
