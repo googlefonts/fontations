@@ -21,8 +21,7 @@ fn main() -> Result<(), Error> {
     let font = FileRef::new(data)
         .unwrap()
         .fonts()
-        .skip(args.index.unwrap_or(0) as usize)
-        .next()
+        .nth(args.index.unwrap_or(0) as usize)
         .unwrap()
         .unwrap();
     if args.list {
