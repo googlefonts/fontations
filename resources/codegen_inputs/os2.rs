@@ -5,7 +5,7 @@ table Os2 {
     /// The version: 0x00005000 for version 0.5, 0x00010000 for version 1.0.
     #[version]
     #[compile(self.compute_version())]
-    version: BigEndian<Version16Dot16>,
+    version: BigEndian<u16>,
     /// The Average Character Width parameter specifies the arithmetic average
     /// of the escapement (width) of all non-zero width glyphs in the font.
     x_avg_char_width: BigEndian<i16>,
@@ -81,37 +81,37 @@ table Os2 {
     us_win_descent: BigEndian<u16>,
 
     /// Code page character range bits 0-31.
-    #[available(Version16Dot16::VERSION_1_0)]
+    #[available(1)]
     ul_code_page_range_1: BigEndian<u32>,
     /// Code page character range bits 32-63.
-    #[available(Version16Dot16::VERSION_1_0)]
+    #[available(1)]
     ul_code_page_range_2: BigEndian<u32>,
 
     /// This metric specifies the distance between the baseline and the
     /// approximate height of non-ascending lowercase letters measured in
     /// FUnits.
-    #[available(Version16Dot16::VERSION_2_0)]
+    #[available(2)]
     sx_height: BigEndian<i16>,
     /// This metric specifies the distance between the baseline and the
     /// approximate height of uppercase letters measured in FUnits.
-    #[available(Version16Dot16::VERSION_2_0)]
+    #[available(2)]
     s_cap_height: BigEndian<i16>,
     /// This is the Unicode code point, in UTF-16 encoding, of a character that
     /// can be used for a default glyph.
-    #[available(Version16Dot16::VERSION_2_0)]
+    #[available(2)]
     us_default_char: BigEndian<u16>,
     /// his is the Unicode code point, in UTF-16 encoding, of a character that
     /// can be used as a default break character.
-    #[available(Version16Dot16::VERSION_2_0)]
+    #[available(2)]
     us_break_char: BigEndian<u16>,
     /// This field is used for fonts with multiple optical styles.
-    #[available(Version16Dot16::VERSION_2_0)]
+    #[available(2)]
     us_max_context: BigEndian<u16>,
 
     /// This field is used for fonts with multiple optical styles.
-    #[available(Version16Dot16::VERSION_5_0)]
+    #[available(5)]
     us_lower_optical_point_size: BigEndian<u16>,
     /// This field is used for fonts with multiple optical styles.
-    #[available(Version16Dot16::VERSION_5_0)]
+    #[available(5)]
     us_upper_optical_point_size: BigEndian<u16>,
 }

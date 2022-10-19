@@ -109,7 +109,7 @@ pub struct Os2 {
 impl FontWrite for Os2 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        let version = self.compute_version() as Version16Dot16;
+        let version = self.compute_version() as u16;
         version.write_into(writer);
         self.x_avg_char_width.write_into(writer);
         self.us_weight_class.write_into(writer);
@@ -140,55 +140,55 @@ impl FontWrite for Os2 {
         self.s_typo_line_gap.write_into(writer);
         self.us_win_ascent.write_into(writer);
         self.us_win_descent.write_into(writer);
-        version.compatible(Version16Dot16::VERSION_1_0).then(|| {
+        version.compatible(1).then(|| {
             self.ul_code_page_range_1
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_1_0).then(|| {
+        version.compatible(1).then(|| {
             self.ul_code_page_range_2
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_2_0).then(|| {
+        version.compatible(2).then(|| {
             self.sx_height
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_2_0).then(|| {
+        version.compatible(2).then(|| {
             self.s_cap_height
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_2_0).then(|| {
+        version.compatible(2).then(|| {
             self.us_default_char
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_2_0).then(|| {
+        version.compatible(2).then(|| {
             self.us_break_char
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_2_0).then(|| {
+        version.compatible(2).then(|| {
             self.us_max_context
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_5_0).then(|| {
+        version.compatible(5).then(|| {
             self.us_lower_optical_point_size
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_5_0).then(|| {
+        version.compatible(5).then(|| {
             self.us_upper_optical_point_size
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
@@ -200,59 +200,49 @@ impl FontWrite for Os2 {
 impl Validate for Os2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Os2", |ctx| {
-            let version: Version16Dot16 = self.compute_version();
+            let version: u16 = self.compute_version();
             ctx.in_field("ul_code_page_range_1", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_1_0)
-                    && self.ul_code_page_range_1.is_none()
-                {
+                if version.compatible(1) && self.ul_code_page_range_1.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("ul_code_page_range_2", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_1_0)
-                    && self.ul_code_page_range_2.is_none()
-                {
+                if version.compatible(1) && self.ul_code_page_range_2.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("sx_height", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_2_0) && self.sx_height.is_none() {
+                if version.compatible(2) && self.sx_height.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("s_cap_height", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_2_0) && self.s_cap_height.is_none() {
+                if version.compatible(2) && self.s_cap_height.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("us_default_char", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_2_0) && self.us_default_char.is_none()
-                {
+                if version.compatible(2) && self.us_default_char.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("us_break_char", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_2_0) && self.us_break_char.is_none() {
+                if version.compatible(2) && self.us_break_char.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("us_max_context", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_2_0) && self.us_max_context.is_none()
-                {
+                if version.compatible(2) && self.us_max_context.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("us_lower_optical_point_size", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_5_0)
-                    && self.us_lower_optical_point_size.is_none()
-                {
+                if version.compatible(5) && self.us_lower_optical_point_size.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("us_upper_optical_point_size", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_5_0)
-                    && self.us_upper_optical_point_size.is_none()
-                {
+                if version.compatible(5) && self.us_upper_optical_point_size.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
