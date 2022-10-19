@@ -97,9 +97,6 @@ impl<'a> FontFileRef<'a> {
     }
 
     pub fn get_font(&self, index: u32) -> Option<FontRef<'a>> {
-        if index > self.num_fonts() {
-            return None;
-        }
         if let Some(ttc_header) = self.ttc_header() {
             let offset = ttc_header
                 .table_directory_offsets()
