@@ -2,14 +2,14 @@
 
 use std::collections::HashMap;
 
-use proc_macro2::{Span, TokenStream};
+use proc_macro2::{Span, TokenStream, Ident, Punct};
 use quote::{quote, ToTokens};
 use syn::{
     braced, bracketed, parenthesized,
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
     spanned::Spanned,
-    token, Attribute, Token,
+    token, Attribute, Token
 };
 
 pub(crate) struct Items {
@@ -283,6 +283,10 @@ pub(crate) enum FieldType {
     },
     ComputedArray(CustomArray),
     VarLenArray(CustomArray),
+    SizedArray {
+        typ: syn::Ident,
+        len: syn::Ident,
+    }
 }
 
 /// A representation shared between computed & varlen arrays
@@ -587,6 +591,24 @@ impl Parse for Field {
 
 impl Parse for FieldType {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        if input.peek(token::Bracket) {
+            // An array. It should be Ident, Punct(;), Ident
+            let content;
+            bracketed!(content in input);
+
+            let array_type: Ident = content.parse()?;
+            let punct = content.parse::<Punct>()?;
+            if punct.as_char() != ';' {
+                return Err(syn::Error::new(punct.span(), "Invalid separator"));
+            }
+            let array_len: Ident = content.parse()?;
+
+            // Should be no further content
+            if !content.is_empty() {
+                return Err(syn::Error::new(content.span(), "Unexpected content"));
+            }
+            return Ok(FieldType::SizedArray { typ: array_type, len: array_len });
+        }
         if input.lookahead1().peek(token::Bracket) {
             let content;
             bracketed!(content in input);

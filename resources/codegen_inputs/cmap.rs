@@ -5,10 +5,8 @@ table Cmap {
     /// Table version number (0).
     version: BigEndian<u16>,
     /// Number of encoding tables that follow.
-    #[compile(array_len($encoding_records))]
     num_tables: BigEndian<u16>,
-    #[count($num_tables)]
-    encoding_records: [EncodingRecord],
+    encoding_records: [EncodingRecord; num_tables],
 }
 
 /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
