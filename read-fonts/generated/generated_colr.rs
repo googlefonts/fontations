@@ -125,7 +125,7 @@ impl<'a> Colr<'a> {
     }
 
     /// Attempt to resolve [`base_glyph_records_offset`][Self::base_glyph_records_offset].
-    pub fn base_glyph_records(&self) -> Option<Result<BaseGlyphRecordArray<'a>, ReadError>> {
+    pub fn base_glyph_records(&self) -> Option<Result<&'a [BaseGlyph], ReadError>> {
         let data = self.data;
         let args = self.num_base_glyph_records();
         self.base_glyph_records_offset()
@@ -139,7 +139,7 @@ impl<'a> Colr<'a> {
     }
 
     /// Attempt to resolve [`layer_records_offset`][Self::layer_records_offset].
-    pub fn layer_records(&self) -> Option<Result<LayerRecordArray<'a>, ReadError>> {
+    pub fn layer_records(&self) -> Option<Result<&'a [Layer], ReadError>> {
         let data = self.data;
         let args = self.num_layer_records();
         self.layer_records_offset().resolve_with_args(data, &args)
@@ -215,11 +215,21 @@ impl<'a> SomeTable<'a> for Colr<'a> {
             )),
             2usize => Some(Field::new(
                 "base_glyph_records_offset",
-                FieldType::offset(self.base_glyph_records_offset(), self.base_glyph_records()),
+                traversal::FieldType::offset_to_array_of_records(
+                    self.base_glyph_records_offset(),
+                    self.base_glyph_records(),
+                    stringify!(BaseGlyph),
+                    self.offset_data(),
+                ),
             )),
             3usize => Some(Field::new(
                 "layer_records_offset",
-                FieldType::offset(self.layer_records_offset(), self.layer_records()),
+                traversal::FieldType::offset_to_array_of_records(
+                    self.layer_records_offset(),
+                    self.layer_records(),
+                    stringify!(Layer),
+                    self.offset_data(),
+                ),
             )),
             4usize => Some(Field::new("num_layer_records", self.num_layer_records())),
             5usize if version.compatible(1) => Some(Field::new(
@@ -255,76 +265,6 @@ impl<'a> SomeTable<'a> for Colr<'a> {
 
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Colr<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
-/// [BaseGlyphRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table. This
-/// is not present in the specification and is a shim to support reading a raw array of records (i.e. a non-table) through an offset.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct BaseGlyphRecordArrayMarker {
-    base_glyph_records_byte_len: usize,
-}
-
-impl BaseGlyphRecordArrayMarker {
-    fn base_glyph_records_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + self.base_glyph_records_byte_len
-    }
-}
-
-impl ReadArgs for BaseGlyphRecordArray<'_> {
-    type Args = u16;
-}
-
-impl<'a> FontReadWithArgs<'a> for BaseGlyphRecordArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let num_base_glyph_records = *args;
-        let mut cursor = data.cursor();
-        let base_glyph_records_byte_len = num_base_glyph_records as usize * BaseGlyph::RAW_BYTE_LEN;
-        cursor.advance_by(base_glyph_records_byte_len);
-        cursor.finish(BaseGlyphRecordArrayMarker {
-            base_glyph_records_byte_len,
-        })
-    }
-}
-
-/// [BaseGlyphRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table. This
-/// is not present in the specification and is a shim to support reading a raw array of records (i.e. a non-table) through an offset.
-pub type BaseGlyphRecordArray<'a> = TableRef<'a, BaseGlyphRecordArrayMarker>;
-
-impl<'a> BaseGlyphRecordArray<'a> {
-    /// Array of BaseGlyph records
-    pub fn base_glyph_records(&self) -> &'a [BaseGlyph] {
-        let range = self.shape.base_glyph_records_byte_range();
-        self.data.read_array(range).unwrap()
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for BaseGlyphRecordArray<'a> {
-    fn type_name(&self) -> &str {
-        "BaseGlyphRecordArray"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "base_glyph_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(BaseGlyph),
-                    self.base_glyph_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for BaseGlyphRecordArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -377,76 +317,6 @@ impl<'a> SomeRecord<'a> for BaseGlyph {
             }),
             data,
         }
-    }
-}
-
-/// [LayerRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table. This
-/// is not present in the specification and is a shim to support reading a raw array of records (i.e. a non-table) through an offset.
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct LayerRecordArrayMarker {
-    layer_record_byte_len: usize,
-}
-
-impl LayerRecordArrayMarker {
-    fn layer_record_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + self.layer_record_byte_len
-    }
-}
-
-impl ReadArgs for LayerRecordArray<'_> {
-    type Args = u16;
-}
-
-impl<'a> FontReadWithArgs<'a> for LayerRecordArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let num_layer_records = *args;
-        let mut cursor = data.cursor();
-        let layer_record_byte_len = num_layer_records as usize * Layer::RAW_BYTE_LEN;
-        cursor.advance_by(layer_record_byte_len);
-        cursor.finish(LayerRecordArrayMarker {
-            layer_record_byte_len,
-        })
-    }
-}
-
-/// [LayerRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table. This
-/// is not present in the specification and is a shim to support reading a raw array of records (i.e. a non-table) through an offset.
-pub type LayerRecordArray<'a> = TableRef<'a, LayerRecordArrayMarker>;
-
-impl<'a> LayerRecordArray<'a> {
-    /// Array of Layer records
-    pub fn layer_record(&self) -> &'a [Layer] {
-        let range = self.shape.layer_record_byte_range();
-        self.data.read_array(range).unwrap()
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for LayerRecordArray<'a> {
-    fn type_name(&self) -> &str {
-        "LayerRecordArray"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "layer_record",
-                traversal::FieldType::array_of_records(
-                    stringify!(Layer),
-                    self.layer_record(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for LayerRecordArray<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
