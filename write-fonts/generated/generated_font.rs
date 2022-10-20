@@ -71,12 +71,19 @@ impl Validate for TableRecord {
 /// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
 #[derive(Clone, Debug)]
 pub struct TTCHeader {
+    /// Font Collection ID string: \"ttcf\"
     pub ttc_tag: Tag,
-    pub version: Version16Dot16,
+    /// Major/minor version of the TTC Header
+    pub version: MajorMinor,
+    /// Number of fonts in TTC
     pub num_fonts: u32,
+    /// Array of offsets to the TableDirectory for each font from the beginning of the file
     pub table_directory_offsets: Vec<u32>,
+    /// Tag indicating that a DSIG table exists, 0x44534947 ('DSIG') (null if no signature)
     pub dsig_tag: Option<u32>,
+    /// The length (in bytes) of the DSIG table (null if no signature)
     pub dsig_length: Option<u32>,
+    /// The offset (in bytes) of the DSIG table from the beginning of the TTC file (null if no signature)
     pub dsig_offset: Option<u32>,
 }
 
@@ -87,19 +94,19 @@ impl FontWrite for TTCHeader {
         version.write_into(writer);
         self.num_fonts.write_into(writer);
         self.table_directory_offsets.write_into(writer);
-        version.compatible(Version16Dot16::VERSION_2_0).then(|| {
+        version.compatible(MajorMinor::VERSION_2_0).then(|| {
             self.dsig_tag
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_2_0).then(|| {
+        version.compatible(MajorMinor::VERSION_2_0).then(|| {
             self.dsig_length
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_2_0).then(|| {
+        version.compatible(MajorMinor::VERSION_2_0).then(|| {
             self.dsig_offset
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
@@ -118,17 +125,17 @@ impl Validate for TTCHeader {
                 }
             });
             ctx.in_field("dsig_tag", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_2_0) && self.dsig_tag.is_none() {
+                if version.compatible(MajorMinor::VERSION_2_0) && self.dsig_tag.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("dsig_length", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_2_0) && self.dsig_length.is_none() {
+                if version.compatible(MajorMinor::VERSION_2_0) && self.dsig_length.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("dsig_offset", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_2_0) && self.dsig_offset.is_none() {
+                if version.compatible(MajorMinor::VERSION_2_0) && self.dsig_offset.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });

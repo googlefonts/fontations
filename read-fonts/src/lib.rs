@@ -81,6 +81,7 @@ pub enum FileRef<'a> {
 }
 
 impl<'a> FileRef<'a> {
+    /// Creates a new reference to a file representing a font or font collection.
     pub fn new(data: FontData<'a>) -> Result<Self, ReadError> {
         Ok(if let Ok(collection) = CollectionRef::new(data) {
             Self::Collection(collection)
@@ -89,20 +90,15 @@ impl<'a> FileRef<'a> {
         })
     }
 
+    /// Returns an iterator over the fonts contained in the file.
     pub fn fonts(&self) -> impl Iterator<Item = Result<FontRef<'a>, ReadError>> + 'a + Clone {
-        let copy = self.clone();
-        let len = match self {
-            Self::Collection(collection) => collection.len(),
-            _ => 1,
+        let (iter_one, iter_two) = match self {
+            Self::Font(font) => (Some(Ok(font.clone())), None),
+            Self::Collection(collection) => (None, Some(collection.iter())),
         };
-        (0..len).filter_map(move |ix| match &copy {
-            Self::Font(font) => Some(Ok(font.clone())),
-            Self::Collection(collection) => collection.get(ix),
-        })
+        iter_two.into_iter().flatten().chain(iter_one)
     }
 }
-
-const TTC_HEADER_TAG: Tag = Tag::new(b"ttcf");
 
 /// Reference to the content of a font collection file.
 #[derive(Clone)]
@@ -112,6 +108,7 @@ pub struct CollectionRef<'a> {
 }
 
 impl<'a> CollectionRef<'a> {
+    /// Creates a new reference to a font collection.
     pub fn new(data: FontData<'a>) -> Result<Self, ReadError> {
         let header = TTCHeader::read(data)?;
         if header.ttc_tag() != TTC_HEADER_TAG {
@@ -121,32 +118,32 @@ impl<'a> CollectionRef<'a> {
         }
     }
 
+    /// Returns the number of fonts in the collection.
     pub fn len(&self) -> u32 {
         self.header.num_fonts()
     }
 
+    /// Returns true if the collection is empty.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
-    pub fn get(&self, index: u32) -> Option<Result<FontRef<'a>, ReadError>> {
-        if index >= self.len() {
-            return None;
-        }
+    /// Returns the font in the collection at the specified index.
+    pub fn get(&self, index: u32) -> Result<FontRef<'a>, ReadError> {
         let offset = self
             .header
             .table_directory_offsets()
-            .get(index as usize)?
+            .get(index as usize)
+            .ok_or(ReadError::InvalidCollectionIndex(index))?
             .get() as usize;
-        match TableDirectory::read(self.data.slice(offset..)?) {
-            Ok(table_directory) => Some(FontRef::with_table_directory(self.data, table_directory)),
-            _ => None,
-        }
+        let table_dir_data = self.data.slice(offset..).ok_or(ReadError::OutOfBounds)?;
+        FontRef::with_table_directory(self.data, TableDirectory::read(table_dir_data)?)
     }
 
+    /// Returns an iterator over the fonts in the collection.
     pub fn iter(&self) -> impl Iterator<Item = Result<FontRef<'a>, ReadError>> + 'a + Clone {
         let copy = self.clone();
-        (0..self.len()).filter_map(move |ix| copy.get(ix))
+        (0..self.len()).map(move |ix| copy.get(ix))
     }
 }
 
@@ -158,10 +155,12 @@ pub struct FontRef<'a> {
 }
 
 impl<'a> FontRef<'a> {
+    /// Creates a new reference to a font.
     pub fn new(data: FontData<'a>) -> Result<Self, ReadError> {
         Self::with_table_directory(data, TableDirectory::read(data)?)
     }
 
+    /// Returns the data for the table with the specified tag, if present.
     pub fn table_data(&self, tag: Tag) -> Option<FontData<'a>> {
         self.table_directory
             .table_records()
