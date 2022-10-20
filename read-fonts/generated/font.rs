@@ -4,6 +4,7 @@
 
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
+
 /// The OpenType [Table Directory](https://docs.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -56,29 +57,35 @@ impl<'a> FontRead<'a> for TableDirectory<'a> {
 
 /// The OpenType [Table Directory](https://docs.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
 pub type TableDirectory<'a> = TableRef<'a, TableDirectoryMarker>;
+
 impl<'a> TableDirectory<'a> {
     /// 0x00010000 or 0x4F54544F
     pub fn sfnt_version(&self) -> u32 {
         let range = self.shape.sfnt_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
+
     /// Number of tables.
     pub fn num_tables(&self) -> u16 {
         let range = self.shape.num_tables_byte_range();
         self.data.read_at(range.start).unwrap()
     }
+
     pub fn search_range(&self) -> u16 {
         let range = self.shape.search_range_byte_range();
         self.data.read_at(range.start).unwrap()
     }
+
     pub fn entry_selector(&self) -> u16 {
         let range = self.shape.entry_selector_byte_range();
         self.data.read_at(range.start).unwrap()
     }
+
     pub fn range_shift(&self) -> u16 {
         let range = self.shape.range_shift_byte_range();
         self.data.read_at(range.start).unwrap()
     }
+
     /// Table records array—one for each top-level table in the font
     pub fn table_records(&self) -> &'a [TableRecord] {
         let range = self.shape.table_records_byte_range();
@@ -138,14 +145,17 @@ impl TableRecord {
     pub fn tag(&self) -> Tag {
         self.tag.get()
     }
+
     /// Checksum for the table.
     pub fn checksum(&self) -> u32 {
         self.checksum.get()
     }
+
     /// Offset from the beginning of the font data.
     pub fn offset(&self) -> Offset32 {
         self.offset.get()
     }
+
     /// Length of the table.
     pub fn length(&self) -> u32 {
         self.length.get()
@@ -258,31 +268,38 @@ impl<'a> FontRead<'a> for TTCHeader<'a> {
 
 /// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
 pub type TTCHeader<'a> = TableRef<'a, TTCHeaderMarker>;
+
 impl<'a> TTCHeader<'a> {
     pub fn ttc_tag(&self) -> Tag {
         let range = self.shape.ttc_tag_byte_range();
         self.data.read_at(range.start).unwrap()
     }
+
     pub fn version(&self) -> Version16Dot16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
+
     pub fn num_fonts(&self) -> u32 {
         let range = self.shape.num_fonts_byte_range();
         self.data.read_at(range.start).unwrap()
     }
+
     pub fn table_directory_offsets(&self) -> &'a [BigEndian<u32>] {
         let range = self.shape.table_directory_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
+
     pub fn dsig_tag(&self) -> Option<u32> {
         let range = self.shape.dsig_tag_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
+
     pub fn dsig_length(&self) -> Option<u32> {
         let range = self.shape.dsig_length_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
+
     pub fn dsig_offset(&self) -> Option<u32> {
         let range = self.shape.dsig_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
@@ -292,7 +309,7 @@ impl<'a> TTCHeader<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> SomeTable<'a> for TTCHeader<'a> {
     fn type_name(&self) -> &str {
-        "TtcHeader"
+        "TTCHeader"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         let version = self.version();

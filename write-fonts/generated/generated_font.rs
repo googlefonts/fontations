@@ -4,6 +4,7 @@
 
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
+
 /// The OpenType [Table Directory](https://docs.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
 #[derive(Clone, Debug)]
 pub struct TableDirectory {
@@ -156,6 +157,7 @@ impl<'a> FromObjRef<read_fonts::TTCHeader<'a>> for TTCHeader {
 
 #[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::TTCHeader<'a>> for TTCHeader {}
+
 #[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for TTCHeader {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
