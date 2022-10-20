@@ -5,9 +5,16 @@ compiling various font tables.
 
 The basics:
 - Inputs live in `resources/codegen_inputs`.
-- Inputs are (generally) executed through a 'codegen plan', which describes the
-  inputs and their destinations. The default plan lives in
-  `resources/codegen_plan.toml`.
+- The codegen tool can be run on a per-file basis with,
+  ```sh
+  $ cargo run --bin=codegen file $mode $input
+  ```
+  where `$input` is the path to an input file, and `$mode` is one of 'parse' or
+  'compile', and which will generate the code corresponding to the `read-fonts`
+  or `write-fonts` crate, respectively. This will print the output to `stdout`;
+  you can redirect it elsewhere as desired.
+- But inputs are more commonly run through a 'codegen plan', which describes the
+  inputs and their destinations. The default plan lives in `resources/codegen_plan.toml`.
 - outputs are written into `$crate/generated/generated_$name.rs` (where `$crate` is one of
   `read-fonts` or `write-fonts`.)
 - these output files (which are not in the module tree) are included with the
