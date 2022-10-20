@@ -11,11 +11,11 @@ table Colr {
     /// Offset to baseGlyphRecords array (may be NULL).
     #[nullable]
     #[read_offset_with($num_base_glyph_records)]
-    base_glyph_records_offset: BigEndian<Offset32<BaseGlyphRecordArray>>,
+    base_glyph_records_offset: BigEndian<Offset32<[BaseGlyph]>>,
     /// Offset to layerRecords array (may be NULL).
     #[nullable]
     #[read_offset_with($num_layer_records)]
-    layer_records_offset: BigEndian<Offset32<LayerRecordArray>>,
+    layer_records_offset: BigEndian<Offset32<[Layer]>>,
     /// Number of Layer records; may be 0 in a version 1 table.
     num_layer_records: BigEndian<u16>,
     /// Offset to BaseGlyphList table.
@@ -40,15 +40,6 @@ table Colr {
     item_variation_store_offset: BigEndian<Offset32>,
 }
 
-/// [BaseGlyphRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table. This
-/// is not present in the specification and is a shim to support reading a raw array of records (i.e. a non-table) through an offset.
-#[read_args(num_base_glyph_records: u16)]
-table BaseGlyphRecordArray {
-    /// Array of BaseGlyph records
-    #[count($num_base_glyph_records)]
-    base_glyph_records: [BaseGlyph],
-}
-
 /// [BaseGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
 record BaseGlyph {
     /// Glyph ID of the base glyph.
@@ -57,15 +48,6 @@ record BaseGlyph {
     first_layer_index: BigEndian<u16>,
     /// Number of color layers associated with this glyph.
     num_layers: BigEndian<u16>,
-}
-
-/// [LayerRecordArray](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) table. This
-/// is not present in the specification and is a shim to support reading a raw array of records (i.e. a non-table) through an offset.
-#[read_args(num_layer_records: u16)]
-table LayerRecordArray {
-    /// Array of Layer records
-    #[count($num_layer_records)]
-    layer_record: [Layer],
 }
 
 /// [Layer](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
