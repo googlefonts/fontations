@@ -9,6 +9,11 @@ table KindsOfOffsets {
     /// An offset that is nullable, but always present
     #[nullable]
     nullable_offset: BigEndian<Offset16<Dummy>>,
+    /// count of the array at array_offset
+    array_offset_count: BigEndian<u16>,
+    /// An offset to an array:
+    #[read_offset_with($array_offset_count)]
+    array_offset: BigEndian<Offset16<[BigEndian<u16>]>>,
     /// A normal offset that is versioned
     #[available(MajorMinor::VERSION_1_1)]
     versioned_nonnullable_offset: BigEndian<Offset16<Dummy>>,

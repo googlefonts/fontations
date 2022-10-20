@@ -1,5 +1,7 @@
 //! Custom array types
 
+use font_types::FixedSize;
+
 use crate::read::{ComputeSize, FontReadWithArgs, ReadArgs, VarSize};
 use crate::{FontData, FontRead, ReadError};
 
@@ -135,5 +137,16 @@ impl<'a, T> FontRead<'a> for VarLenArray<'a, T> {
             data,
             phantom: core::marker::PhantomData,
         })
+    }
+}
+
+impl<'a, T: FixedSize> ReadArgs for &'a [T] {
+    type Args = u16;
+}
+
+impl<'a, T: FixedSize> FontReadWithArgs<'a> for &'a [T] {
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let len = *args as usize * T::RAW_BYTE_LEN;
+        data.read_array(0..len)
     }
 }

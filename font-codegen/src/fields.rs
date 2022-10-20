@@ -3,7 +3,7 @@
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
-use crate::parsing::{Attr, FieldValidation};
+use crate::parsing::{Attr, FieldValidation, OffsetTarget};
 
 use super::parsing::{
     Count, CustomCompile, Field, FieldReadArgs, FieldType, Fields, NeededWhen, Record,
@@ -223,7 +223,8 @@ fn traversal_arm_for_field(
     }
     match &fld.typ {
         FieldType::Offset {
-            target: Some(_), ..
+            target: Some(OffsetTarget::Table(_)),
+            ..
         } => {
             let getter = fld.offset_getter_name();
             quote!(Field::new(#name_str, FieldType::offset(self.#name()#maybe_unwrap, self.#getter(#pass_data)#maybe_unwrap)))
@@ -252,7 +253,7 @@ fn traversal_arm_for_field(
             }
 
             FieldType::Offset {
-                target: Some(target),
+                target: Some(OffsetTarget::Table(target)),
                 ..
             } => {
                 let maybe_data = pass_data.is_none().then(|| quote!(let data = self.data;));
@@ -279,6 +280,12 @@ fn traversal_arm_for_field(
                         ))
                 }}
             }
+            FieldType::Offset {
+                target: Some(OffsetTarget::Array(_)),
+                ..
+            } => quote!(compile_error!(
+                "achievement unlocked: 'added arrays of offsets to arrays to OpenType spec'"
+            )),
             FieldType::Offset { .. } => quote!(Field::new(#name_str, self.#name()#maybe_unwrap)),
             _ => quote!(compile_error!("unhandled traversal case")),
         },
@@ -626,10 +633,10 @@ impl Field {
 
         let raw_name = &self.name;
         let getter_name = self.offset_getter_name().unwrap();
-        let target_is_generic = Some(target) == generic;
-        let add_lifetime = (!target_is_generic).then(|| quote!(<'a>));
+        let target_is_generic =
+            matches!(target, OffsetTarget::Table(ident) if Some(ident) == generic);
         let where_read_clause = target_is_generic.then(|| quote!(where T: FontRead<'a>));
-        let mut return_type = quote!(Result<#target #add_lifetime, ReadError>);
+        let mut return_type = target.getter_return_type(target_is_generic);
 
         if self.is_nullable() || (self.attrs.available.is_some() && !self.is_array()) {
             return_type = quote!(Option<#return_type>);
@@ -1071,7 +1078,7 @@ impl FieldType {
             FieldType::Offset { typ, target } => {
                 let target = target
                     .as_ref()
-                    .map(|t| t.into_token_stream())
+                    .map(OffsetTarget::compile_type)
                     .unwrap_or_else(|| quote!(Box<dyn FontWrite>));
                 let width = width_for_offset(typ);
                 if nullable {
