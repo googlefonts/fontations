@@ -271,3 +271,9 @@ impl<T: FontWrite> FontWrite for BTreeSet<T> {
         self.iter().for_each(|item| item.write_into(writer))
     }
 }
+
+impl<T: FontWrite> FontWrite for Vec<T> {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.iter().for_each(|item| item.write_into(writer))
+    }
+}

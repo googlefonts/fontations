@@ -1,5 +1,7 @@
 //! methods on fields
 
+use std::ops::Deref;
+
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
@@ -960,6 +962,10 @@ impl Field {
         match &self.typ {
             FieldType::Scalar { .. } | FieldType::Other { .. } => false,
             FieldType::Offset { target: None, .. } => false,
+            FieldType::Offset {
+                target: Some(OffsetTarget::Array(elem)),
+                ..
+            } if matches!(elem.deref(), FieldType::Scalar { .. }) => false,
             FieldType::Offset { .. }
             | FieldType::ComputedArray { .. }
             | FieldType::VarLenArray(_) => true,

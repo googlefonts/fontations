@@ -3,6 +3,8 @@
 #[cfg(feature = "parsing")]
 use crate::from_obj::FromTableRef;
 #[cfg(feature = "parsing")]
+use font_types::{BigEndian, Scalar};
+#[cfg(feature = "parsing")]
 use read_fonts::ReadError;
 
 use super::write::{FontWrite, TableWriter};
@@ -155,6 +157,35 @@ where
                 .ok()
                 .flatten()
                 .map(|x| T::from_table_ref(&x)),
+        )
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl<'a, const N: usize, T: Scalar> From<Result<&'a [BigEndian<T>], ReadError>>
+    for OffsetMarker<Vec<T>, N>
+where
+    BigEndian<T>: Copy,
+{
+    fn from(from: Result<&'a [BigEndian<T>], ReadError>) -> Self {
+        // convert slice to vec, converting to native types:
+        let as_vec = from.map(|slice| slice.iter().copied().map(BigEndian::get).collect());
+        OffsetMarker::new_maybe_null(as_vec.ok())
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl<'a, const N: usize, T: Scalar> From<Option<Result<&'a [BigEndian<T>], ReadError>>>
+    for NullableOffsetMarker<Vec<T>, N>
+where
+    BigEndian<T>: Copy,
+{
+    fn from(from: Option<Result<&'a [BigEndian<T>], read_fonts::ReadError>>) -> Self {
+        NullableOffsetMarker::new(
+            from.transpose()
+                .ok()
+                .flatten()
+                .map(|vec| vec.iter().map(|x| x.get()).collect()),
         )
     }
 }

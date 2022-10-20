@@ -13,6 +13,10 @@ pub struct KindsOfOffsets {
     pub nonnullable_offset: OffsetMarker<Dummy>,
     /// An offset that is nullable, but always present
     pub nullable_offset: NullableOffsetMarker<Dummy>,
+    /// count of the array at array_offset
+    pub array_offset_count: u16,
+    /// An offset to an array:
+    pub array_offset: OffsetMarker<Vec<u16>>,
     /// A normal offset that is versioned
     pub versioned_nonnullable_offset: Option<OffsetMarker<Dummy>>,
     /// An offset that is nullable and versioned
@@ -25,6 +29,8 @@ impl FontWrite for KindsOfOffsets {
         version.write_into(writer);
         self.nonnullable_offset.write_into(writer);
         self.nullable_offset.write_into(writer);
+        self.array_offset_count.write_into(writer);
+        self.array_offset.write_into(writer);
         version.compatible(MajorMinor::VERSION_1_1).then(|| {
             self.versioned_nonnullable_offset
                 .as_ref()
@@ -69,6 +75,8 @@ impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfOffsets<'a>> for KindsOfOff
             version: obj.version(),
             nonnullable_offset: obj.nonnullable().into(),
             nullable_offset: obj.nullable().into(),
+            array_offset_count: obj.array_offset_count(),
+            array_offset: obj.array().into(),
             versioned_nonnullable_offset: obj.versioned_nonnullable().map(|obj| obj.into()),
             versioned_nullable_offset: obj.versioned_nullable().into(),
         }
