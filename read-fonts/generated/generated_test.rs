@@ -169,7 +169,7 @@ impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
             3usize => Some(Field::new("array_offset_count", self.array_offset_count())),
             4usize => Some(Field::new(
                 "array_offset",
-                FieldType::unknown_offset(self.array_offset()),
+                FieldType::offset_to_array_of_scalars(self.array_offset(), self.array()),
             )),
             5usize if version.compatible(MajorMinor::VERSION_1_1) => Some(Field::new(
                 "versioned_nonnullable_offset",

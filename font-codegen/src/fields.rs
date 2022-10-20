@@ -225,11 +225,32 @@ fn traversal_arm_for_field(
     }
     match &fld.typ {
         FieldType::Offset {
-            target: Some(OffsetTarget::Table(_)),
+            target: Some(OffsetTarget::Array(inner)),
+            ..
+        } if matches!(inner.deref(), FieldType::Other { .. }) => {
+            let typ = inner.cooked_type_tokens();
+            let getter = fld.offset_getter_name();
+            let offset_data = fld.offset_getter_data_src();
+            quote!(Field::new(
+                    #name_str,
+                    traversal::FieldType::offset_to_array_of_records(
+                        self.#name()#maybe_unwrap,
+                        self.#getter(#pass_data)#maybe_unwrap,
+                        stringify!(#typ),
+                        #offset_data,
+                    )
+            ))
+        }
+        FieldType::Offset {
+            target: Some(target),
             ..
         } => {
+            let constructor_name = match target {
+                OffsetTarget::Table(_) => quote!(offset),
+                OffsetTarget::Array(_) => quote!(offset_to_array_of_scalars),
+            };
             let getter = fld.offset_getter_name();
-            quote!(Field::new(#name_str, FieldType::offset(self.#name()#maybe_unwrap, self.#getter(#pass_data)#maybe_unwrap)))
+            quote!(Field::new(#name_str, FieldType::#constructor_name(self.#name()#maybe_unwrap, self.#getter(#pass_data)#maybe_unwrap)))
         }
         FieldType::Offset { .. } => {
             quote!(Field::new(#name_str, FieldType::unknown_offset(self.#name()#maybe_unwrap)))
