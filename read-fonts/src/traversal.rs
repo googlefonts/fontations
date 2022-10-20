@@ -46,6 +46,8 @@ pub enum FieldType<'a> {
     ResolvedOffset(ResolvedOffset<'a>),
     /// Used in tables like name/post so we can actually print the strings
     StringOffset(StringOffset<'a>),
+    /// Used in COLR/CPAL
+    ArrayOffset(ArrayOffset<'a>),
     Record(RecordResolver<'a>),
     ValueRecord(ValueRecord),
     Array(Box<dyn SomeArray<'a> + 'a>),
@@ -84,6 +86,12 @@ pub struct ResolvedOffset<'a> {
 pub struct StringOffset<'a> {
     pub offset: OffsetType,
     pub target: Result<Box<dyn SomeString<'a> + 'a>, ReadError>,
+}
+
+/// An offset to an array.
+pub struct ArrayOffset<'a> {
+    pub offset: OffsetType,
+    pub target: Result<Box<dyn SomeArray<'a> + 'a>, ReadError>,
 }
 
 pub(crate) struct ArrayOfOffsets<'a, O> {
@@ -149,6 +157,7 @@ impl<'a> FieldType<'a> {
     ///
     /// The `resolver` argument is a function that takes an offset and resolves
     /// it.
+    //TODO: rename this to array_of_offsets?
     pub fn offset_array<O>(
         type_name: &'static str,
         offsets: &'a [O],
@@ -160,6 +169,44 @@ where {
             offsets,
             resolver: Box::new(resolver),
         }))
+    }
+
+    /// Convenience method for creating a `FieldType` from an offset to an array.
+    pub fn offset_to_array_of_scalars<T: SomeArray<'a> + 'a>(
+        offset: impl Into<OffsetType>,
+        result: impl Into<Option<Result<T, ReadError>>>,
+    ) -> Self {
+        let offset = offset.into();
+        match result.into() {
+            Some(target) => FieldType::ArrayOffset(ArrayOffset {
+                offset,
+                target: target.map(|x| Box::new(x) as Box<dyn SomeArray>),
+            }),
+            None => FieldType::BareOffset(offset),
+        }
+    }
+
+    /// Convenience method for creating a `FieldType` from an offset to an array.
+    pub fn offset_to_array_of_records<T: Clone + SomeRecord<'a> + 'a>(
+        offset: impl Into<OffsetType>,
+        result: impl Into<Option<Result<&'a [T], ReadError>>>,
+        type_name: &'static str,
+        data: FontData<'a>,
+    ) -> Self {
+        let offset = offset.into();
+        match result.into() {
+            Some(target) => {
+                let target = target.map(|records| {
+                    Box::new(ArrayOfRecords {
+                        type_name,
+                        data,
+                        records,
+                    }) as Box<dyn SomeArray>
+                });
+                FieldType::ArrayOffset(ArrayOffset { offset, target })
+            }
+            None => FieldType::BareOffset(offset),
+        }
     }
 
     //FIXME: I bet this is generating a *lot* of code
@@ -446,6 +493,10 @@ impl<'a> Debug for FieldType<'a> {
             Self::StringOffset(string) => match &string.target {
                 Ok(arg0) => arg0.as_ref().fmt(f),
                 Err(_) => string.target.fmt(f),
+            },
+            Self::ArrayOffset(array) => match &array.target {
+                Ok(arg0) => arg0.as_ref().fmt(f),
+                Err(_) => array.target.fmt(f),
             },
             Self::BareOffset(arg0) => write!(f, "0x{:04X}", arg0.to_u32()),
             Self::ResolvedOffset(ResolvedOffset {

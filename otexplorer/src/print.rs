@@ -4,7 +4,8 @@ use std::io::Write;
 
 use ansi_term::{Color, Style};
 use read_fonts::traversal::{
-    FieldType, OffsetType, ResolvedOffset, SomeArray, SomeString, SomeTable, StringOffset,
+    ArrayOffset, FieldType, OffsetType, ResolvedOffset, SomeArray, SomeString, SomeTable,
+    StringOffset,
 };
 
 static MANY_SPACES: [u8; 200] = [0x20; 200];
@@ -200,6 +201,16 @@ impl<'a> PrettyPrinter<'a> {
                     self.print_offset_hex(*offset)?;
                     self.print_newline()?;
                     self.indented(|this| this.print_string(string))?;
+                }
+                Err(e) => write!(self, "Error: '{e}'")?,
+            },
+            FieldType::ArrayOffset(ArrayOffset { offset, target }) => match target {
+                Ok(array) => {
+                    self.print_with_style(Color::Blue.into(), |this| write!(this, "{offset}"))?;
+                    self.print_current_array_pos()?;
+                    self.print_offset_hex(*offset)?;
+                    self.print_newline()?;
+                    self.indented(|this| this.print_array(array))?;
                 }
                 Err(e) => write!(self, "Error: '{e}'")?,
             },
