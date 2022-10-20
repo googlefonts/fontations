@@ -270,7 +270,7 @@ impl InlineExpr {
 pub(crate) enum FieldType {
     Offset {
         typ: syn::Ident,
-        target: Option<syn::Ident>,
+        target: Option<OffsetTarget>,
     },
     Scalar {
         typ: syn::Ident,
@@ -283,6 +283,12 @@ pub(crate) enum FieldType {
     },
     ComputedArray(CustomArray),
     VarLenArray(CustomArray),
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum OffsetTarget {
+    Table(syn::Ident),
+    Array(syn::TypeSlice),
 }
 
 /// A representation shared between computed & varlen arrays
@@ -626,9 +632,7 @@ impl Parse for FieldType {
         let inner = get_single_generic_type_arg(&last.arguments)?;
         let last = inner.segments.last().unwrap();
         if ["Offset16", "Offset24", "Offset32"].contains(&last.ident.to_string().as_str()) {
-            let target = get_single_generic_type_arg(&last.arguments)
-                .ok()
-                .map(|p| p.segments.last().unwrap().ident.clone());
+            let target = get_offset_target(&last.arguments)?;
             Ok(FieldType::Offset {
                 typ: last.ident.clone(),
                 target,
@@ -1001,6 +1005,23 @@ impl ReferencedFields {
     }
 }
 
+impl OffsetTarget {
+    pub(crate) fn getter_return_type(&self, is_generic: bool) -> TokenStream {
+        match self {
+            OffsetTarget::Table(ident) if !is_generic => quote!(Result<#ident <'a>, ReadError>),
+            OffsetTarget::Table(ident) => quote!(Result<#ident, ReadError>),
+            OffsetTarget::Array(path) => quote!(Result<&'a #path, ReadError>),
+        }
+    }
+
+    pub(crate) fn compile_type(&self) -> TokenStream {
+        match self {
+            Self::Table(ident) => ident.to_token_stream(),
+            Self::Array(thing) => thing.to_token_stream(),
+        }
+    }
+}
+
 impl FromIterator<(syn::Ident, NeededWhen)> for ReferencedFields {
     fn from_iter<T: IntoIterator<Item = (syn::Ident, NeededWhen)>>(iter: T) -> Self {
         let mut map = HashMap::new();
@@ -1051,35 +1072,55 @@ fn get_optional_docs(input: ParseStream) -> Result<Vec<syn::Attribute>, syn::Err
 }
 
 fn get_single_generic_type_arg(input: &syn::PathArguments) -> syn::Result<syn::Path> {
-    match input {
-        syn::PathArguments::AngleBracketed(args) if args.args.len() == 1 => {
-            let arg = args.args.last().unwrap();
-            if let syn::GenericArgument::Type(syn::Type::Path(path)) = arg {
-                if path.qself.is_none() && path.path.segments.len() == 1 {
-                    return Ok(path.path.clone());
-                }
-            }
+    match get_single_generic_arg(input)? {
+        Some(syn::GenericArgument::Type(syn::Type::Path(path)))
+            if path.qself.is_none() && path.path.segments.len() == 1 =>
+        {
+            Ok(path.path.clone())
         }
-        _ => (),
+        _ => Err(syn::Error::new(input.span(), "expected type")),
     }
-    Err(syn::Error::new(
-        input.span(),
-        "expected single generic type arg",
-    ))
+}
+
+fn get_single_generic_arg(
+    input: &syn::PathArguments,
+) -> syn::Result<Option<&syn::GenericArgument>> {
+    match input {
+        syn::PathArguments::None => Ok(None),
+        syn::PathArguments::AngleBracketed(args) if args.args.len() == 1 => {
+            Ok(Some(args.args.last().unwrap()))
+        }
+        _ => Err(syn::Error::new(
+            input.span(),
+            "expected single generic argument",
+        )),
+    }
+}
+
+// either a single ident or an array
+fn get_offset_target(input: &syn::PathArguments) -> syn::Result<Option<OffsetTarget>> {
+    match get_single_generic_arg(input)? {
+        Some(syn::GenericArgument::Type(syn::Type::Slice(t))) => {
+            Ok(Some(OffsetTarget::Array(t.clone())))
+        }
+        Some(syn::GenericArgument::Type(syn::Type::Path(t)))
+            if t.path.segments.len() == 1 && t.path.get_ident().is_some() =>
+        {
+            Ok(Some(OffsetTarget::Table(
+                t.path.get_ident().unwrap().clone(),
+            )))
+        }
+        Some(_) => Err(syn::Error::new(input.span(), "expected path or slice")),
+        None => Ok(None),
+    }
 }
 
 fn get_single_lifetime(input: &syn::PathArguments) -> syn::Result<Option<syn::Lifetime>> {
-    match input {
-        syn::PathArguments::None => return Ok(None),
-        syn::PathArguments::AngleBracketed(args) if args.args.len() == 1 => {
-            let arg = args.args.last().unwrap();
-            if let syn::GenericArgument::Lifetime(lifetime) = arg {
-                return Ok(Some(lifetime.clone()));
-            }
-        }
-        _ => (),
+    match get_single_generic_arg(input)? {
+        None => Ok(None),
+        Some(syn::GenericArgument::Lifetime(arg)) => Ok(Some(arg.clone())),
+        _ => Err(syn::Error::new(input.span(), "expected single lifetime")),
     }
-    Err(syn::Error::new(input.span(), "expected single lifetime"))
 }
 
 #[cfg(test)]
@@ -1108,5 +1149,27 @@ mod tests {
             inline.expr.into_token_stream().to_string(),
             "div_me (hi * 5 + hi)"
         );
+    }
+
+    fn make_path_seg(s: &str) -> syn::PathSegment {
+        let path = syn::parse_str::<syn::Path>(s).unwrap();
+        path.segments.last().unwrap().clone()
+    }
+
+    #[test]
+    fn offset_target() {
+        let array_target = make_path_seg("Offset16<[BigEndian<u16>]>");
+        assert!(get_offset_target(&array_target.arguments)
+            .unwrap()
+            .is_some());
+
+        let path_target = make_path_seg("Offset16<SomeType>");
+        assert!(get_offset_target(&path_target.arguments).unwrap().is_some());
+
+        let non_target = make_path_seg("Offset16");
+        assert!(get_offset_target(&non_target.arguments).unwrap().is_none());
+
+        let tuple_target = make_path_seg("Offset16<(u16, u16)>");
+        assert!(get_offset_target(&tuple_target.arguments).is_err());
     }
 }

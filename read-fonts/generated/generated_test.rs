@@ -25,6 +25,14 @@ impl KindsOfOffsetsMarker {
         let start = self.nonnullable_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
+    fn array_offset_count_byte_range(&self) -> Range<usize> {
+        let start = self.nullable_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.array_offset_count_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
     fn versioned_nonnullable_offset_byte_range(&self) -> Option<Range<usize>> {
         let start = self.versioned_nonnullable_offset_byte_start?;
         Some(start..start + Offset16::RAW_BYTE_LEN)
@@ -40,6 +48,8 @@ impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
         cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let versioned_nonnullable_offset_byte_start = version
             .compatible(MajorMinor::VERSION_1_1)
@@ -95,6 +105,25 @@ impl<'a> KindsOfOffsets<'a> {
         self.nullable_offset().resolve(data)
     }
 
+    /// count of the array at array_offset
+    pub fn array_offset_count(&self) -> u16 {
+        let range = self.shape.array_offset_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// An offset to an array:
+    pub fn array_offset(&self) -> Offset16 {
+        let range = self.shape.array_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`array_offset`][Self::array_offset].
+    pub fn array(&self) -> Result<&'a [BigEndian<u16>], ReadError> {
+        let data = self.data;
+        let args = self.array_offset_count();
+        self.array_offset().resolve_with_args(data, &args)
+    }
+
     /// A normal offset that is versioned
     pub fn versioned_nonnullable_offset(&self) -> Option<Offset16> {
         let range = self.shape.versioned_nonnullable_offset_byte_range()?;
@@ -137,14 +166,19 @@ impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
                 "nullable_offset",
                 FieldType::offset(self.nullable_offset(), self.nullable()),
             )),
-            3usize if version.compatible(MajorMinor::VERSION_1_1) => Some(Field::new(
+            3usize => Some(Field::new("array_offset_count", self.array_offset_count())),
+            4usize => Some(Field::new(
+                "array_offset",
+                FieldType::unknown_offset(self.array_offset()),
+            )),
+            5usize if version.compatible(MajorMinor::VERSION_1_1) => Some(Field::new(
                 "versioned_nonnullable_offset",
                 FieldType::offset(
                     self.versioned_nonnullable_offset().unwrap(),
                     self.versioned_nonnullable().unwrap(),
                 ),
             )),
-            4usize if version.compatible(MajorMinor::VERSION_1_1) => Some(Field::new(
+            6usize if version.compatible(MajorMinor::VERSION_1_1) => Some(Field::new(
                 "versioned_nullable_offset",
                 FieldType::offset(
                     self.versioned_nullable_offset().unwrap(),
