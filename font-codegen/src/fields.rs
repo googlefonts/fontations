@@ -308,6 +308,12 @@ fn traversal_arm_for_field(
             let clone = in_record.then(|| quote!(.clone()));
             quote!(Field::new(#name_str, self.#name() #clone #maybe_unwrap))
         }
+        FieldType::ArrayOf { typ, len } => {
+            todo!("traversal_arm_for_field of ArrayOf({}, {})", typ, len);
+        }
+        FieldType::ArrayOfFixedSize { typ, len } => {
+            todo!("traversal_arm_for_field of ArrayOfFixedSize({}, {})", typ, len);
+        }
         FieldType::Other { .. } => {
             quote!(compile_error!(concat!("another weird type: ", #name_str)))
         }
@@ -337,6 +343,12 @@ impl Field {
                 FieldType::Other { typ } => quote!( &[#typ] ),
                 _ => unreachable!("no nested arrays"),
             },
+            FieldType::ArrayOf { typ, len} => {
+                todo!("type_for_record of ArrayOf({}, {})", typ, len);
+            },
+            FieldType::ArrayOfFixedSize { typ, len} => {
+                todo!("type_for_record of ArrayOfFixedSize({}, {})", typ, len);
+            }
         }
     }
 
@@ -440,8 +452,11 @@ impl Field {
             }
             FieldType::Other { .. }
             | FieldType::Array { .. }
+            | FieldType::ArrayOf { .. }
+            | FieldType::ArrayOfFixedSize { .. }
             | FieldType::ComputedArray { .. }
             | FieldType::VarLenArray(_) => {
+                eprintln!("shape_len_expr {:#?}", self);
                 let len_field = self.shape_byte_len_field_name();
                 let try_op = self.is_version_dependent().then(|| quote!(?));
                 quote!(self.#len_field #try_op)
@@ -506,6 +521,12 @@ impl Field {
             FieldType::VarLenArray(array) => {
                 let inner = array.type_with_lifetime();
                 quote!(VarLenArray<'a, #inner>)
+            },
+            FieldType::ArrayOf { typ, len} => {
+                todo!("raw_getter_return_type of ArrayOf({}, {})", typ, len);
+            },
+            FieldType::ArrayOfFixedSize { typ, len} => {
+                todo!("raw_getter_return_type of ArrayOfFixedSize({}, {})", typ, len);
             }
         }
     }
@@ -583,7 +604,12 @@ impl Field {
             FieldType::Other { .. }
             | FieldType::ComputedArray { .. }
             | FieldType::VarLenArray(_) => quote!(&self.#name),
-            FieldType::Array { .. } => quote!(self.#name),
+            FieldType::Array { .. }
+            | FieldType::ArrayOf { .. }
+            | FieldType::ArrayOfFixedSize { .. } => {
+                eprintln!("shape_len_expr {:#?}", self);
+                quote!(self.#name)
+            },
         };
 
         let offset_getter = self.typed_offset_field_getter(None, Some(record));
@@ -956,10 +982,16 @@ impl Field {
             FieldType::Offset { .. }
             | FieldType::ComputedArray { .. }
             | FieldType::VarLenArray(_) => true,
-            FieldType::Array { inner_typ } => matches!(
+            FieldType::Array{ inner_typ } => matches!(
                 inner_typ.as_ref(),
                 FieldType::Offset { .. } | FieldType::Other { .. }
             ),
+            FieldType::ArrayOf { typ, len } => {
+                todo!("gets_recursive_validation for ArrayOf({}, {})", typ, len);
+            },
+            FieldType::ArrayOfFixedSize { typ, len } => {
+                todo!("gets_recursive_validation for ArrayOfFixedSize({}, {})", typ, len);
+            }
         }
     }
 
@@ -1058,6 +1090,8 @@ impl FieldType {
                 .expect("non-trivial custom types never cooked"),
             FieldType::Array { .. }
             | FieldType::ComputedArray { .. }
+            | FieldType::ArrayOf { .. }
+            | FieldType::ArrayOfFixedSize { .. }
             | FieldType::VarLenArray(_) => {
                 panic!("array tokens never cooked")
             }
@@ -1091,6 +1125,12 @@ impl FieldType {
                 quote!( Vec<#inner_tokens> )
             }
             FieldType::ComputedArray(array) | FieldType::VarLenArray(array) => array.compile_type(),
+            FieldType::ArrayOf { typ, len } => {
+                todo!("compile_type for ArrayOf({}, {})", typ, len);
+            }
+            FieldType::ArrayOfFixedSize { typ, len } => {
+                todo!("compile_type for ArrayOfFixedSize({}, {})", typ, len);
+            }
         };
         if version_dependent {
             quote!( Option<#raw_type> )

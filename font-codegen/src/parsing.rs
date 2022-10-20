@@ -9,7 +9,7 @@ use syn::{
     parse::{Parse, ParseStream},
     punctuated::Punctuated,
     spanned::Spanned,
-    token, Attribute, Token
+    token, Attribute, Token, AngleBracketedGenericArguments, LitInt
 };
 
 pub(crate) struct Items {
@@ -283,7 +283,11 @@ pub(crate) enum FieldType {
     },
     ComputedArray(CustomArray),
     VarLenArray(CustomArray),
-    SizedArray {
+    ArrayOfFixedSize {
+        typ: syn::Ident,
+        len: u32,
+    },
+    ArrayOf {
         typ: syn::Ident,
         len: syn::Ident,
     }
@@ -591,24 +595,63 @@ impl Parse for Field {
 
 impl Parse for FieldType {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        eprintln!("parse {:#?}", input);
         if input.peek(token::Bracket) {
-            // An array. It should be Ident, Punct(;), Ident
-            let content;
+            // An array. It should be Ident, Punct(;), Ident, Int, or Computed(...)
+            let content;            
             bracketed!(content in input);
-
+                        
+            // What goes in this array?
             let array_type: Ident = content.parse()?;
+            // Accept BigEndian<T> as being part of the array type
+            if array_type.to_string() == "BigEndian" {
+                let _be_args: AngleBracketedGenericArguments = content.parse()?;
+            }
+            
             let punct = content.parse::<Punct>()?;
             if punct.as_char() != ';' {
                 return Err(syn::Error::new(punct.span(), "Invalid separator"));
             }
-            let array_len: Ident = content.parse()?;
+
+            // Try to figure out the length format        
+            let result: FieldType = if content.peek(LitInt) {
+                let len: LitInt = content.parse()?;     
+                let len_span = len.span();           
+                if let Ok(len) = len.to_string().parse::<u32>() {
+                    FieldType::ArrayOfFixedSize { typ: array_type, len: len }
+                } else {
+                    return Err(syn::Error::new(len_span, "Invalid array size"));
+                }
+            } else {
+                let ident: Ident = content.parse()?;
+
+                match ident.to_string().as_str() {
+                    // A basic computation?
+                    "Div" => {
+                        // TODO actual field type
+                        let _subcontent: AngleBracketedGenericArguments = content.parse()?;
+                        FieldType::ArrayOf { typ: array_type, len: ident }
+                    },
+
+                    // A computation we cannot express in schema?
+                    "UnknownLength" => {
+                        // TODO actual field type
+                        FieldType::ArrayOf { typ: array_type, len: ident }
+                    }
+
+                    // Should be the ident of a field that gives the length
+                    _ => FieldType::ArrayOf { typ: array_type, len: ident }
+                }
+            };
 
             // Should be no further content
             if !content.is_empty() {
                 return Err(syn::Error::new(content.span(), "Unexpected content"));
             }
-            return Ok(FieldType::SizedArray { typ: array_type, len: array_len });
+            eprintln!("[] complete {:#?}", result);
+            return Ok(result);
         }
+
         if input.lookahead1().peek(token::Bracket) {
             let content;
             bracketed!(content in input);

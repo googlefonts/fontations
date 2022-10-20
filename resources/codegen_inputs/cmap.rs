@@ -54,8 +54,7 @@ table Cmap0 {
     /// the language field in 'cmap' subtables” in this document.
     language: BigEndian<u16>,
     /// An array that maps character codes to glyph index values.
-    #[count(256)]
-    glyph_id_array: [BigEndian<u8>],
+    glyph_id_array: [BigEndian<u8>; 256],
 }
 
     /// [cmap Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-2-high-byte-mapping-through-table): High-byte mapping through table
@@ -71,8 +70,7 @@ table Cmap2 {
     language: BigEndian<u16>,
     /// Array that maps high bytes to subHeaders: value is subHeader
     /// index × 8.
-    #[count(256)]
-    sub_header_keys: [BigEndian<u16>],
+    sub_header_keys: [BigEndian<u16>; 256],
 
     //FIXME: these two fields will require some custom handling
     ///// Variable-length array of SubHeader records.
@@ -120,23 +118,18 @@ table Cmap4 {
     /// searchRange)
     range_shift: BigEndian<u16>,
     /// End characterCode for each segment, last=0xFFFF.
-    #[count($seg_count_x2 as usize / 2)]
-    end_code: [BigEndian<u16>],
+    end_code: [BigEndian<u16>; Div<seg_count_x2, 2>],
     /// Set to 0.
     #[skip_getter]
     reserved_pad: BigEndian<u16>,
     /// Start character code for each segment.
-    #[count($seg_count_x2 as usize / 2)]
-    start_code: [BigEndian<u16>],
+    start_code: [BigEndian<u16>; Div<seg_count_x2, 2>],
     /// Delta for all character codes in segment.
-    #[count($seg_count_x2 as usize / 2)]
-    id_delta: [BigEndian<i16>],
+    id_delta: [BigEndian<i16>; Div<seg_count_x2, 2>],
     /// Offsets into glyphIdArray or 0
-    #[count($seg_count_x2 as usize / 2)]
-    id_range_offsets: [BigEndian<u16>],
+    id_range_offsets: [BigEndian<u16>; Div<seg_count_x2, 2>],
     /// Glyph index array (arbitrary length)
-    #[count(..)]
-    glyph_id_array: [BigEndian<u16>],
+    glyph_id_array: [BigEndian<u16>; UnknownLength],
 }
 
 /// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
@@ -154,8 +147,7 @@ table Cmap6 {
     /// Number of character codes in subrange.
     entry_count: BigEndian<u16>,
     /// Array of glyph index values for character codes in the range.
-    #[count($entry_count)]
-    glyph_id_array: [BigEndian<u16>],
+    glyph_id_array: [BigEndian<u16>; entry_count],
 }
 
 /// [cmap Format 8](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-8-mixed-16-bit-and-32-bit-coverage): mixed 16-bit and 32-bit coverage
@@ -174,13 +166,11 @@ table Cmap8 {
     /// Tightly packed array of bits (8K bytes total) indicating
     /// whether the particular 16-bit (index) value is the start of a
     /// 32-bit character code
-    #[count(8192)]
-    is32: [BigEndian<u8>],
+    is32: [BigEndian<u8>; 8192],
     /// Number of groupings which follow
     num_groups: BigEndian<u32>,
     /// Array of SequentialMapGroup records.
-    #[count($num_groups)]
-    groups: [SequentialMapGroup],
+    groups: [SequentialMapGroup; num_groups],
 }
 
 /// Used in [Cmap8] and [Cmap12]
@@ -215,8 +205,7 @@ table Cmap10 {
     /// Number of character codes covered
     num_chars: BigEndian<u32>,
     /// Array of glyph indices for the character codes covered
-    #[count(..)]
-    glyph_id_array: [BigEndian<u16>],
+    glyph_id_array: [BigEndian<u16>; UnknownLength],
 }
 
 /// [cmap Format 12](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage): Segmented coverage
@@ -235,8 +224,7 @@ table Cmap12 {
     /// Number of groupings which follow
     num_groups: BigEndian<u32>,
     /// Array of SequentialMapGroup records.
-    #[count($num_groups)]
-    groups: [SequentialMapGroup],
+    groups: [SequentialMapGroup; num_groups],
 }
 
 /// [cmap Format 13](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-13-many-to-one-range-mappings): Many-to-one range mappings
@@ -255,8 +243,7 @@ table Cmap13 {
     /// Number of groupings which follow
     num_groups: BigEndian<u32>,
     /// Array of ConstantMapGroup records.
-    #[count($num_groups)]
-    groups: [ConstantMapGroup],
+    groups: [ConstantMapGroup; num_groups],
 }
 
 /// Part of [Cmap13]
@@ -280,8 +267,7 @@ table Cmap14 {
     /// Number of variation Selector Records
     num_var_selector_records: BigEndian<u32>,
     /// Array of VariationSelector records.
-    #[count($num_var_selector_records)]
-    var_selector: [VariationSelector],
+    var_selector: [VariationSelector; num_var_selector_records],
 }
 
 /// Part of [Cmap14]
@@ -301,8 +287,7 @@ table DefaultUvs {
     /// Number of Unicode character ranges.
     num_unicode_value_ranges: BigEndian<u32>,
     /// Array of UnicodeRange records.
-    #[count($num_unicode_value_ranges)]
-    ranges: [UnicodeRange],
+    ranges: [UnicodeRange; num_unicode_value_ranges],
 }
 
 /// Part of [Cmap14]
