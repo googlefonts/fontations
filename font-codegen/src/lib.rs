@@ -1,5 +1,6 @@
 //! Generating types from the opentype spec
 
+use log::debug;
 use quote::quote;
 
 mod error;
@@ -13,6 +14,8 @@ use parsing::{Item, Items};
 
 pub use error::ErrorReport;
 
+use crate::parsing::Phase;
+
 /// Codegeneration mode.
 #[derive(Debug, Clone, Copy, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -23,11 +26,7 @@ pub enum Mode {
     Compile,
 }
 
-pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
-    let tables = match mode {
-        Mode::Parse => generate_parse_module(code_str),
-        Mode::Compile => generate_compile_module(code_str),
-    }?;
+fn touchup_code(tables: proc_macro2::TokenStream) -> Result<String, syn::Error> {
     // if this is not valid code just pass it through directly, and then we
     // can see the compiler errors
     let source_str = match rustfmt_wrapper::rustfmt(&tables) {
@@ -43,7 +42,31 @@ pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
     // add newlines after top-level items
     let re2 = regex::Regex::new(r"\n\}").unwrap();
     let source_str = re2.replace_all(&source_str, "\n}\n\n");
-    let source_str = rustfmt_wrapper::rustfmt(source_str).unwrap();
+    Ok(rustfmt_wrapper::rustfmt(source_str).unwrap())
+}
+
+pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
+    // Generation is done in phases (https://github.com/googlefonts/fontations/issues/71):
+    // 1. Parse
+    debug!("Parse (mode {:?})", mode);
+    let mut items: Items = syn::parse_str(code_str)?;
+    items.sanity_check(Phase::Parse)?;
+
+    // 2. Contemplate (semantic analysis)
+    debug!("Analyze (mode {:?})", mode);
+    items.resolve_pending()?;
+    items.sanity_check(Phase::Analysis)?;
+
+    // 3. Generate
+    debug!("Generate (mode {:?})", mode);
+    let tables = match &mode {
+        Mode::Parse => generate_parse_module(&items),
+        Mode::Compile => generate_compile_module(&items),
+    }?;
+
+    // 4. Touchup
+    debug!("Touchup (mode {:?})", mode);
+    let source_str = touchup_code(tables)?;
 
     Ok(format!(
         "\
@@ -54,9 +77,7 @@ pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
     ))
 }
 
-pub fn generate_parse_module(code: &str) -> Result<proc_macro2::TokenStream, syn::Error> {
-    let items: Items = syn::parse_str(code)?;
-    items.sanity_check()?;
+pub(crate) fn generate_parse_module(items: &Items) -> Result<proc_macro2::TokenStream, syn::Error> {
     let mut code = Vec::new();
     for item in &items.items {
         let item_code = match item {
@@ -77,10 +98,9 @@ pub fn generate_parse_module(code: &str) -> Result<proc_macro2::TokenStream, syn
     })
 }
 
-pub fn generate_compile_module(code: &str) -> Result<proc_macro2::TokenStream, syn::Error> {
-    let items: Items = syn::parse_str(code)?;
-    items.sanity_check()?;
-
+pub(crate) fn generate_compile_module(
+    items: &Items,
+) -> Result<proc_macro2::TokenStream, syn::Error> {
     let code = items
         .items
         .iter()

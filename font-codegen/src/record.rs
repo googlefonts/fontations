@@ -3,6 +3,8 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
+use crate::parsing::Phase;
+
 use super::parsing::{CustomCompile, Field, Fields, Record, TableAttrs};
 
 pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
@@ -244,8 +246,8 @@ fn generate_from_obj_impl(item: &Record, parse_module: &syn::Path) -> syn::Resul
 }
 
 impl Record {
-    pub(crate) fn sanity_check(&self) -> syn::Result<()> {
-        self.fields.sanity_check()?;
+    pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
+        self.fields.sanity_check(phase)?;
         let field_needs_lifetime = self
             .fields
             .iter()

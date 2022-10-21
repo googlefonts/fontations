@@ -5,7 +5,7 @@ use std::ops::Deref;
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 
-use crate::parsing::{Attr, FieldValidation, OffsetTarget};
+use crate::parsing::{Attr, FieldValidation, OffsetTarget, Phase};
 
 use super::parsing::{
     Count, CustomCompile, Field, FieldReadArgs, FieldType, Fields, NeededWhen, Record,
@@ -31,7 +31,7 @@ impl Fields {
         })
     }
 
-    pub(crate) fn sanity_check(&self) -> syn::Result<()> {
+    pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
         let mut custom_offset_data_fld: Option<&Field> = None;
         let mut normal_offset_data_fld = None;
         for (i, fld) in self.fields.iter().enumerate() {
@@ -54,7 +54,7 @@ impl Fields {
                     "#[count(..)] or VarLenArray fields can only be last field in table.",
                 ));
             }
-            fld.sanity_check()?;
+            fld.sanity_check(phase)?;
         }
 
         if let (Some(custom), Some(normal)) = (custom_offset_data_fld, normal_offset_data_fld) {
@@ -211,6 +211,13 @@ impl Fields {
     }
 }
 
+fn big_endian(typ: &syn::Ident) -> TokenStream {
+    if typ == "u8" {
+        return quote!(#typ);
+    }
+    quote!(BigEndian<#typ>)
+}
+
 fn traversal_arm_for_field(
     fld: &Field,
     in_record: bool,
@@ -227,7 +234,7 @@ fn traversal_arm_for_field(
         FieldType::Offset {
             target: Some(OffsetTarget::Array(inner)),
             ..
-        } if matches!(inner.deref(), FieldType::Other { .. }) => {
+        } if matches!(inner.deref(), FieldType::Struct { .. }) => {
             let typ = inner.cooked_type_tokens();
             let getter = fld.offset_getter_name();
             let offset_data = fld.offset_getter_data_src();
@@ -260,10 +267,10 @@ fn traversal_arm_for_field(
         FieldType::Array { inner_typ } => match inner_typ.as_ref() {
             FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name()#maybe_unwrap)),
             //HACK: glyf has fields that are [u8]
-            FieldType::Other { typ } if typ.is_ident("u8") => {
+            FieldType::Struct { typ } if typ == "u8" => {
                 quote!(Field::new( #name_str, self.#name()#maybe_unwrap))
             }
-            FieldType::Other { typ } if !in_record => {
+            FieldType::Struct { typ } if !in_record => {
                 let offset_data = fld.offset_getter_data_src();
                 quote!(Field::new(
                         #name_str,
@@ -306,9 +313,10 @@ fn traversal_arm_for_field(
             FieldType::Offset {
                 target: Some(OffsetTarget::Array(_)),
                 ..
-            } => quote!(compile_error!(
-                "achievement unlocked: 'added arrays of offsets to arrays to OpenType spec'"
-            )),
+            } => panic!(
+                "achievement unlocked: 'added arrays of offsets to arrays to OpenType spec' {:#?}",
+                fld
+            ),
             FieldType::Offset { .. } => quote!(Field::new(#name_str, self.#name()#maybe_unwrap)),
             _ => quote!(compile_error!("unhandled traversal case")),
         },
@@ -334,14 +342,32 @@ fn traversal_arm_for_field(
         FieldType::VarLenArray(_) => {
             quote!(Field::new(#name_str, traversal::FieldType::var_array(self.#name()#maybe_unwrap)))
         }
-        FieldType::Other { typ } if typ.is_ident("ValueRecord") => {
+        // HACK: who wouldn't want to hard-code ValueRecord handling
+        FieldType::Struct { typ } if typ == "ValueRecord" => {
             let clone = in_record.then(|| quote!(.clone()));
             quote!(Field::new(#name_str, self.#name() #clone #maybe_unwrap))
         }
-        FieldType::Other { .. } => {
+        FieldType::Struct { .. } => {
             quote!(compile_error!(concat!("another weird type: ", #name_str)))
         }
+        FieldType::PendingResolution { .. } => panic!("Should have resolved {:#?}", fld),
     }
+}
+
+fn check_resolution(phase: Phase, field_type: &FieldType) -> syn::Result<()> {
+    if let Phase::Parse = phase {
+        return Ok(());
+    }
+    if let FieldType::PendingResolution { typ } = field_type {
+        return Err(syn::Error::new(
+            typ.span(),
+            format!(
+                "{}: be ye struct or scalar? - we certainly don't know.",
+                typ
+            ),
+        ));
+    }
+    Ok(())
 }
 
 impl Field {
@@ -350,8 +376,8 @@ impl Field {
             FieldType::Offset { typ, .. } if self.is_nullable() => {
                 quote!(BigEndian<Nullable<#typ>>)
             }
-            FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => quote!(BigEndian<#typ>),
-            FieldType::Other { typ } => typ.to_token_stream(),
+            FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => big_endian(typ),
+            FieldType::Struct { typ } => typ.to_token_stream(),
             FieldType::ComputedArray(array) => {
                 let inner = array.type_with_lifetime();
                 quote!(ComputedArray<'a, #inner>)
@@ -362,11 +388,18 @@ impl Field {
                     quote!(&'a [BigEndian<Nullable<#typ>>])
                 }
                 FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
-                    quote!(&'a [BigEndian<#typ>])
+                    let be = big_endian(typ);
+                    quote!(&'a [#be])
                 }
-                FieldType::Other { typ } => quote!( &[#typ] ),
+                FieldType::Struct { typ } => quote!( &[#typ] ),
+                FieldType::PendingResolution { typ } => {
+                    panic!("Should have resolved {}", quote! { #typ })
+                }
                 _ => unreachable!("no nested arrays"),
             },
+            FieldType::PendingResolution { typ } => {
+                panic!("Should have resolved {}", quote! { #typ })
+            }
         }
     }
 
@@ -403,9 +436,9 @@ impl Field {
         self.attrs.available.is_some()
     }
 
-    /// Ensure attributes are sane; this is run after parsing, so we can report
-    /// any errors in a reasonable way.
-    fn sanity_check(&self) -> syn::Result<()> {
+    /// Sanity check we are in a sane state for the end of phase
+    fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
+        check_resolution(phase, &self.typ)?;
         if let FieldType::Array { inner_typ } = &self.typ {
             if matches!(
                 inner_typ.as_ref(),
@@ -416,6 +449,14 @@ impl Field {
                     "nested arrays are not allowed",
                 ));
             }
+            check_resolution(phase, inner_typ)?;
+        }
+        if let FieldType::Offset {
+            target: Some(OffsetTarget::Array(inner_typ)),
+            ..
+        } = &self.typ
+        {
+            check_resolution(phase, inner_typ)?;
         }
         if self.is_array() && self.attrs.count.is_none() {
             return Err(syn::Error::new(
@@ -440,6 +481,7 @@ impl Field {
                 _ => (),
             }
         }
+
         Ok(())
     }
 
@@ -468,7 +510,7 @@ impl Field {
             FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
                 quote!(#typ::RAW_BYTE_LEN)
             }
-            FieldType::Other { .. }
+            FieldType::Struct { .. }
             | FieldType::Array { .. }
             | FieldType::ComputedArray { .. }
             | FieldType::VarLenArray(_) => {
@@ -476,6 +518,7 @@ impl Field {
                 let try_op = self.is_version_dependent().then(|| quote!(?));
                 quote!(self.#len_field #try_op)
             }
+            FieldType::PendingResolution { .. } => panic!("Should have resolved {:?}", self),
         }
     }
 
@@ -517,17 +560,20 @@ impl Field {
     pub(crate) fn raw_getter_return_type(&self) -> TokenStream {
         match &self.typ {
             FieldType::Offset { typ, .. } if self.is_nullable() => quote!(Nullable<#typ>),
-            FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => typ.to_token_stream(),
-            FieldType::Other { typ } => typ.to_token_stream(),
+            FieldType::Offset { typ, .. }
+            | FieldType::Scalar { typ }
+            | FieldType::Struct { typ } => typ.to_token_stream(),
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
                 FieldType::Offset { typ, .. } if self.is_nullable() => {
                     quote!(&'a [BigEndian<Nullable<#typ>>])
                 }
                 FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => {
-                    quote!(&'a [BigEndian<#typ>])
+                    let be = big_endian(typ);
+                    quote!(&'a [#be])
                 }
-                FieldType::Other { typ } => quote!( &'a [#typ] ),
-                _ => unreachable!(),
+                FieldType::Struct { typ } => quote!(&'a [#typ]),
+                FieldType::PendingResolution { typ } => quote!( &'a [#typ] ),
+                _ => unreachable!("An array should never contain {:#?}", inner_typ),
             },
             FieldType::ComputedArray(array) => {
                 let inner = array.type_with_lifetime();
@@ -537,6 +583,7 @@ impl Field {
                 let inner = array.type_with_lifetime();
                 quote!(VarLenArray<'a, #inner>)
             }
+            FieldType::PendingResolution { .. } => panic!("Should have resolved {:?}", self),
         }
     }
 
@@ -604,16 +651,25 @@ impl Field {
         // their fields on access.
         let add_borrow_just_for_record = matches!(
             self.typ,
-            FieldType::Other { .. } | FieldType::ComputedArray { .. }
+            FieldType::Struct { .. } | FieldType::ComputedArray { .. }
         )
         .then(|| quote!(&));
 
         let getter_expr = match &self.typ {
-            FieldType::Scalar { .. } | FieldType::Offset { .. } => quote!(self.#name.get()),
-            FieldType::Other { .. }
+            FieldType::Scalar { typ } | FieldType::Offset { typ, .. } => {
+                if typ == "u8" {
+                    quote!(self.#name)
+                } else {
+                    quote!(self.#name.get())
+                }
+            }
+            FieldType::Struct { .. }
             | FieldType::ComputedArray { .. }
             | FieldType::VarLenArray(_) => quote!(&self.#name),
             FieldType::Array { .. } => quote!(self.#name),
+            FieldType::PendingResolution { .. } => {
+                panic!("Should have resolved {:?}", self)
+            }
         };
 
         let offset_getter = self.typed_offset_field_getter(None, Some(record));
@@ -841,10 +897,12 @@ impl Field {
             .as_deref()
             .map(FieldReadArgs::to_tokens_for_validation);
 
-        if let FieldType::Other { typ } = &self.typ {
+        if let FieldType::Struct { typ } = &self.typ {
             return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args)));
         }
-
+        if let FieldType::PendingResolution { .. } = &self.typ {
+            panic!("Should have resolved {:?}", self)
+        }
         let len_expr = match self.attrs.count.as_deref() {
             Some(Count::All) => quote!(cursor.remaining_bytes()),
             Some(other) => {
@@ -981,7 +1039,7 @@ impl Field {
 
     fn gets_recursive_validation(&self) -> bool {
         match &self.typ {
-            FieldType::Scalar { .. } | FieldType::Other { .. } => false,
+            FieldType::Scalar { .. } | FieldType::Struct { .. } => false,
             FieldType::Offset { target: None, .. } => false,
             FieldType::Offset {
                 target: Some(OffsetTarget::Array(elem)),
@@ -992,8 +1050,11 @@ impl Field {
             | FieldType::VarLenArray(_) => true,
             FieldType::Array { inner_typ } => matches!(
                 inner_typ.as_ref(),
-                FieldType::Offset { .. } | FieldType::Other { .. }
+                FieldType::Offset { .. } | FieldType::Struct { .. }
             ),
+            FieldType::PendingResolution { typ } => {
+                panic!("Should have resolved {}", quote! { #typ });
+            }
         }
     }
 
@@ -1003,10 +1064,10 @@ impl Field {
             _ if self.attrs.to_owned.is_some() => false,
             FieldType::Offset { .. } => in_record,
             FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => true,
-            FieldType::Other { .. } => true,
+            FieldType::Struct { .. } => true,
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
                 FieldType::Offset { .. } => in_record,
-                FieldType::Other { .. } => true,
+                FieldType::Struct { .. } => true,
                 _ => false,
             },
             _ => false,
@@ -1026,7 +1087,7 @@ impl Field {
                 self.attrs.to_owned.as_ref().unwrap().expr.to_token_stream()
             }
             FieldType::Scalar { .. } => quote!(obj.#name()),
-            FieldType::Other { .. } => quote!(obj.#name().to_owned_obj(offset_data)),
+            FieldType::Struct { .. } => quote!(obj.#name().to_owned_obj(offset_data)),
             FieldType::Offset {
                 target: Some(_), ..
             } => {
@@ -1051,7 +1112,7 @@ impl Field {
                             quote!(.map(|x| x.into()).collect()),
                         )
                     }
-                    FieldType::Other { .. } => (
+                    FieldType::Struct { .. } => (
                         quote!(obj.#name()),
                         quote!(.iter().map(|x| FromObjRef::from_obj_ref(x, offset_data)).collect()),
                     ),
@@ -1086,10 +1147,12 @@ impl FieldType {
     /// 'cooked', as in now 'raw', i.e no 'BigEndian' wrapper
     pub(crate) fn cooked_type_tokens(&self) -> &syn::Ident {
         match &self {
-            FieldType::Offset { typ, .. } | FieldType::Scalar { typ } => typ,
-            FieldType::Other { typ } => typ
-                .get_ident()
-                .expect("non-trivial custom types never cooked"),
+            FieldType::Offset { typ, .. }
+            | FieldType::Scalar { typ }
+            | FieldType::Struct { typ } => typ,
+            FieldType::PendingResolution { .. } => {
+                panic!("Should never cook a type pending resolution {:#?}", self);
+            }
             FieldType::Array { .. }
             | FieldType::ComputedArray { .. }
             | FieldType::VarLenArray(_) => {
@@ -1101,7 +1164,7 @@ impl FieldType {
     fn compile_type(&self, nullable: bool, version_dependent: bool) -> TokenStream {
         let raw_type = match self {
             FieldType::Scalar { typ } => typ.into_token_stream(),
-            FieldType::Other { typ } => typ.into_token_stream(),
+            FieldType::Struct { typ } => typ.into_token_stream(),
             FieldType::Offset { typ, target } => {
                 let target = target
                     .as_ref()
@@ -1125,6 +1188,7 @@ impl FieldType {
                 quote!( Vec<#inner_tokens> )
             }
             FieldType::ComputedArray(array) | FieldType::VarLenArray(array) => array.compile_type(),
+            FieldType::PendingResolution { .. } => panic!("Should have resolved {:?}", self),
         };
         if version_dependent {
             quote!( Option<#raw_type> )

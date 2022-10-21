@@ -4,13 +4,13 @@
 #[skip_from_obj]
 table TableDirectory {
     /// 0x00010000 or 0x4F54544F
-    sfnt_version: BigEndian<u32>,
+    sfnt_version: u32,
     /// Number of tables.
     #[compile(array_len($table_records))]
-    num_tables: BigEndian<u16>,
-    search_range: BigEndian<u16>,
-    entry_selector: BigEndian<u16>,
-    range_shift: BigEndian<u16>,
+    num_tables: u16,
+    search_range: u16,
+    entry_selector: u16,
+    range_shift: u16,
     /// Table records array—one for each top-level table in the font
     #[count($num_tables)]
     table_records: [ TableRecord ],
@@ -20,36 +20,36 @@ table TableDirectory {
 #[skip_from_obj]
 record TableRecord {
     /// Table identifier.
-    tag: BigEndian<Tag>,
+    tag: Tag,
     /// Checksum for the table.
-    checksum: BigEndian<u32>,
+    checksum: u32,
     /// Offset from the beginning of the font data.
     #[compile_type(u32)] // we set these manually
-    offset: BigEndian<Offset32>,
+    offset: Offset32,
     /// Length of the table.
-    length: BigEndian<u32>,
+    length: u32,
 }
 
 /// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
 table TTCHeader {
     /// Font Collection ID string: "ttcf"
-    ttc_tag: BigEndian<Tag>,
+    ttc_tag: Tag,
     /// Major/minor version of the TTC Header
     #[version]
-    version: BigEndian<MajorMinor>,
+    version: MajorMinor,
     /// Number of fonts in TTC
-    num_fonts: BigEndian<u32>,
+    num_fonts: u32,
     /// Array of offsets to the TableDirectory for each font from the beginning of the file
     #[count($num_fonts)]
-    table_directory_offsets: [BigEndian<u32>],
+    table_directory_offsets: [u32],
 
     /// Tag indicating that a DSIG table exists, 0x44534947 ('DSIG') (null if no signature)
     #[available(MajorMinor::VERSION_2_0)]
-    dsig_tag: BigEndian<u32>,
+    dsig_tag: u32,
     /// The length (in bytes) of the DSIG table (null if no signature)
     #[available(MajorMinor::VERSION_2_0)]
-    dsig_length: BigEndian<u32>,
+    dsig_length: u32,
     /// The offset (in bytes) of the DSIG table from the beginning of the TTC file (null if no signature)
     #[available(MajorMinor::VERSION_2_0)]
-    dsig_offset: BigEndian<u32>,
+    dsig_offset: u32,
 }

@@ -169,7 +169,7 @@ impl<'a> SimpleGlyph<'a> {
     }
 
     /// Array of instruction byte code for the glyph.
-    pub fn instructions(&self) -> &'a [BigEndian<u8>] {
+    pub fn instructions(&self) -> &'a [u8] {
         let range = self.shape.instructions_byte_range();
         self.data.read_array(range).unwrap()
     }

@@ -1,7 +1,8 @@
 //! raw parsing code
 
-use std::{collections::HashMap, ops::Deref};
+use std::{collections::HashMap, ops::Deref, str::FromStr};
 
+use log::{debug, trace};
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::{
@@ -12,11 +13,13 @@ use syn::{
     Attribute, Token,
 };
 
+#[derive(Debug)]
 pub(crate) struct Items {
     pub(crate) parse_module_path: syn::Path,
     pub(crate) items: Vec<Item>,
 }
 
+#[derive(Debug, Clone)]
 pub(crate) enum Item {
     Table(Table),
     Record(Record),
@@ -24,6 +27,12 @@ pub(crate) enum Item {
     GenericGroup(GenericGroup),
     RawEnum(RawEnum),
     Flags(BitFlags),
+}
+
+#[derive(Debug, Copy, Clone)]
+pub(crate) enum Phase {
+    Parse,
+    Analysis,
 }
 
 #[derive(Debug, Clone)]
@@ -275,8 +284,15 @@ pub(crate) enum FieldType {
     Scalar {
         typ: syn::Ident,
     },
-    Other {
-        typ: syn::Path,
+    Struct {
+        typ: syn::Ident,
+    },
+    /// A type that may be a struct or a scalar.
+    ///
+    /// This only exists at parse time; when parsing is finished this will be
+    /// resolved (or be an error).
+    PendingResolution {
+        typ: syn::Ident,
     },
     Array {
         inner_typ: Box<FieldType>,
@@ -598,8 +614,78 @@ impl Parse for FieldType {
     }
 }
 
+// https://learn.microsoft.com/en-us/typography/opentype/spec/otff#data-types
+// Offset(16,24,32) get special handling, not listed here
+// GlyphId and MajorMinor are *not* spec names for scalar but are captured here
+#[derive(Debug, PartialEq)]
+enum WellKnownScalar {
+    UInt8,
+    Int8,
+    UInt16,
+    Int16,
+    UInt24,
+    UInt32,
+    Int32,
+    Fixed,
+    FWord,
+    UFWord,
+    F2Dot14,
+    LongDateTime,
+    Tag,
+    Version16Dot16,
+    GlyphId,
+    MajorMinor,
+}
+
+impl FromStr for WellKnownScalar {
+    type Err = ();
+
+    // TODO(https://github.com/googlefonts/fontations/issues/84) use spec names
+    fn from_str(str: &str) -> Result<WellKnownScalar, ()> {
+        match str {
+            "u8" => Ok(WellKnownScalar::UInt8),
+            "i8" => Ok(WellKnownScalar::Int8),
+            "u16" => Ok(WellKnownScalar::UInt16),
+            "i16" => Ok(WellKnownScalar::Int16),
+            "u24" => Ok(WellKnownScalar::UInt24),
+            "Uint24" => Ok(WellKnownScalar::UInt24),
+            "u32" => Ok(WellKnownScalar::UInt32),
+            "i32" => Ok(WellKnownScalar::Int32),
+            "Fixed" => Ok(WellKnownScalar::Fixed),
+            "FWord" => Ok(WellKnownScalar::FWord),
+            "UfWord" => Ok(WellKnownScalar::UFWord),
+            "F2Dot14" => Ok(WellKnownScalar::F2Dot14),
+            "LongDateTime" => Ok(WellKnownScalar::LongDateTime),
+            "Tag" => Ok(WellKnownScalar::Tag),
+            "Version16Dot16" => Ok(WellKnownScalar::Version16Dot16),
+            "GlyphId" => Ok(WellKnownScalar::GlyphId),
+            "MajorMinor" => Ok(WellKnownScalar::MajorMinor),
+            _ => Err(()),
+        }
+    }
+}
+
+impl WellKnownScalar {
+    fn from_path(path: &syn::PathSegment) -> Result<WellKnownScalar, ()> {
+        if !path.arguments.is_empty() {
+            return Err(());
+        }
+        WellKnownScalar::from_str(path.ident.to_string().as_str())
+    }
+}
+
+// TODO use an explicit declaration of user defined types and delete this
+fn is_wellknown_struct(path: &syn::PathSegment) -> bool {
+    if !path.arguments.is_empty() {
+        return false;
+    }
+    matches!(path.ident.to_string().as_str(), "ValueRecord")
+}
+
 impl FieldType {
     fn from_syn_type(type_: &syn::Type) -> syn::Result<Self> {
+        // Figure out any "obvious" types, leave anything non-obvious for later
+
         if let syn::Type::Slice(slice) = type_ {
             let inner_type = FieldType::from_syn_type(&slice.elem)?;
             if matches!(inner_type, FieldType::Array { .. }) {
@@ -636,25 +722,34 @@ impl FieldType {
             }
         }
 
-        if last.ident != "BigEndian" {
-            return Ok(FieldType::Other { typ: path.clone() });
+        if WellKnownScalar::from_path(last).is_ok() {
+            return Ok(FieldType::Scalar {
+                typ: last.ident.clone(),
+            });
         }
 
-        let inner = get_single_generic_type_arg(&last.arguments)?;
-        let last = inner.segments.last().unwrap();
+        if is_wellknown_struct(last) {
+            return Ok(FieldType::Struct {
+                typ: last.ident.clone(),
+            });
+        }
+
         if ["Offset16", "Offset24", "Offset32"].contains(&last.ident.to_string().as_str()) {
             let target = get_offset_target(&last.arguments)?;
-            Ok(FieldType::Offset {
+            return Ok(FieldType::Offset {
                 typ: last.ident.clone(),
                 target,
-            })
-        } else if last.arguments.is_empty() {
-            Ok(FieldType::Scalar {
-                typ: last.ident.clone(),
-            })
-        } else {
-            Err(syn::Error::new(last.span(), "unexpected arguments"))
+            });
         }
+
+        // We'll figure it out later, what could go wrong?
+        if !last.arguments.is_empty() {
+            return Err(syn::Error::new(path.span(), "Not sure how to handle this"));
+        }
+        debug!("Pending {}", quote! { #last });
+        Ok(FieldType::PendingResolution {
+            typ: last.ident.clone(),
+        })
     }
 }
 
@@ -670,7 +765,12 @@ fn get_offset_target(input: &syn::PathArguments) -> syn::Result<Option<OffsetTar
     match get_single_generic_arg(input)? {
         Some(syn::GenericArgument::Type(syn::Type::Slice(t))) => {
             let inner = FieldType::from_syn_type(&t.elem)?;
-            if matches!(inner, FieldType::Scalar { .. } | FieldType::Other { .. }) {
+            if matches!(
+                inner,
+                FieldType::Scalar { .. }
+                    | FieldType::Struct { .. }
+                    | FieldType::PendingResolution { .. }
+            ) {
                 Ok(Some(OffsetTarget::Array(Box::new(inner))))
             } else {
                 Err(syn::Error::new(
@@ -883,20 +983,142 @@ impl Parse for TableReadArg {
     }
 }
 
+fn build_type_map(items: &Items) -> HashMap<String, FieldType> {
+    return items
+        .items
+        .iter()
+        .filter(|item| !matches!(item, Item::Format(..) | Item::GenericGroup(..)))
+        // clone like crazy to avoid holding an immutable borrow of the items
+        .map(|item| match item {
+            // We're "forgetting" this is a record, could keep if we find a need
+            Item::Record(data) => (
+                data.name.to_string(),
+                FieldType::Struct {
+                    typ: data.name.clone(),
+                },
+            ),
+            // We're "forgetting" this is a table, could keep if we find a need
+            Item::Table(data) => (
+                data.raw_name().to_string(),
+                FieldType::Struct {
+                    typ: data.raw_name().clone(),
+                },
+            ),
+            // We're "forgetting" the underlying type, could keep if we find a need
+            Item::RawEnum(data) => (
+                data.name.to_string(),
+                FieldType::Scalar {
+                    typ: data.name.clone(),
+                },
+            ),
+            // We're "forgetting" the underlying type, could keep if we find a need
+            Item::Flags(data) => (
+                data.name.to_string(),
+                FieldType::Scalar {
+                    typ: data.name.clone(),
+                },
+            ),
+            Item::Format(..) | Item::GenericGroup(..) => unreachable!("We filtered you out!!"),
+        })
+        .collect();
+}
+
+fn resolve_ident<'a>(
+    known: &'a HashMap<String, FieldType>,
+    field_name: &syn::Ident,
+    ident: &syn::Ident,
+) -> Result<&'a FieldType, syn::Error> {
+    if let Some(item) = known.get(&ident.to_string()) {
+        debug!("Resolve {}: {} to {:?}", field_name, ident, item);
+        Ok(item)
+    } else {
+        Err(syn::Error::new(
+            field_name.span(),
+            format!(
+                "I don't know what this is, do you? {}: {}",
+                field_name.to_string().as_str(),
+                ident
+            ),
+        ))
+    }
+}
+
+fn resolve_field(known: &HashMap<String, FieldType>, field: &mut Field) -> Result<(), syn::Error> {
+    if let FieldType::PendingResolution { typ } = &field.typ {
+        let resolved_typ = resolve_ident(known, &field.name, typ)?;
+        *field = Field {
+            typ: resolved_typ.clone(),
+            ..field.clone()
+        }
+    }
+
+    // Array and offsets can nest FieldType, pursue the rabbit
+    if let FieldType::Array { inner_typ } = &field.typ {
+        if let FieldType::PendingResolution { typ } = inner_typ.as_ref() {
+            let resolved_typ = resolve_ident(known, &field.name, typ)?;
+            *field = Field {
+                typ: FieldType::Array {
+                    inner_typ: Box::new(resolved_typ.clone()),
+                },
+                ..field.clone()
+            }
+        }
+    }
+
+    if let FieldType::Offset { typ, target } = &field.typ {
+        let offset_typ = typ;
+        if let Some(OffsetTarget::Array(array_of)) = target {
+            if let FieldType::PendingResolution { typ } = array_of.as_ref() {
+                let resolved_typ = resolve_ident(known, &field.name, typ)?;
+                *field = Field {
+                    typ: FieldType::Offset {
+                        typ: offset_typ.clone(),
+                        target: Some(OffsetTarget::Array(Box::new(resolved_typ.clone()))),
+                    },
+                    ..field.clone()
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
 impl Items {
-    pub(crate) fn sanity_check(&self) -> syn::Result<()> {
+    pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
         for item in &self.items {
-            item.sanity_check()?;
+            item.sanity_check(phase)?;
+        }
+        Ok(())
+    }
+
+    pub(crate) fn resolve_pending(&mut self) -> Result<(), syn::Error> {
+        // We should know what some stuff is now
+        // In theory we could repeat resolution until we succeed or stop learning
+        // but I don't think ever need that currently
+        let known = build_type_map(self);
+
+        known.iter().for_each(|(k, v)| trace!("{} => {:?}", k, v));
+
+        // Try to resolve everything pending against the known world
+        for item in &mut self.items {
+            let fields = match item {
+                Item::Record(item) => &mut item.fields.fields,
+                Item::Table(item) => &mut item.fields.fields,
+                _ => continue,
+            };
+            for field in fields {
+                resolve_field(&known, field)?;
+            }
         }
         Ok(())
     }
 }
 
 impl Item {
-    fn sanity_check(&self) -> syn::Result<()> {
+    fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
         match self {
-            Item::Table(item) => item.sanity_check(),
-            Item::Record(item) => item.sanity_check(),
+            Item::Table(item) => item.sanity_check(phase),
+            Item::Record(item) => item.sanity_check(phase),
             Item::Format(_) => Ok(()),
             Item::RawEnum(_) => Ok(()),
             Item::Flags(_) => Ok(()),
@@ -1050,7 +1272,7 @@ impl OffsetTarget {
             OffsetTarget::Array(inner) => {
                 let elem_type = match inner.deref() {
                     FieldType::Scalar { typ } => quote!(BigEndian<#typ>),
-                    FieldType::Other { typ } => typ.to_token_stream(),
+                    FieldType::Struct { typ } => typ.to_token_stream(),
                     _ => panic!("we should have returned a humane error before now"),
                 };
                 quote!(Result<&'a [#elem_type], ReadError>)
@@ -1187,7 +1409,7 @@ mod tests {
 
     #[test]
     fn offset_target() {
-        let array_target = make_path_seg("Offset16<[BigEndian<u16>]>");
+        let array_target = make_path_seg("Offset16<[u16]>");
         assert!(get_offset_target(&array_target.arguments)
             .unwrap()
             .is_some());

@@ -266,34 +266,34 @@ impl<'a> std::fmt::Debug for Cpal<'a> {
 #[repr(packed)]
 pub struct ColorRecord {
     /// Blue value (B0).
-    pub blue: BigEndian<u8>,
+    pub blue: u8,
     /// Green value (B1).
-    pub green: BigEndian<u8>,
+    pub green: u8,
     ///     Red value (B2).
-    pub red: BigEndian<u8>,
+    pub red: u8,
     /// Alpha value (B3).
-    pub alpha: BigEndian<u8>,
+    pub alpha: u8,
 }
 
 impl ColorRecord {
     /// Blue value (B0).
     pub fn blue(&self) -> u8 {
-        self.blue.get()
+        self.blue
     }
 
     /// Green value (B1).
     pub fn green(&self) -> u8 {
-        self.green.get()
+        self.green
     }
 
     ///     Red value (B2).
     pub fn red(&self) -> u8 {
-        self.red.get()
+        self.red
     }
 
     /// Alpha value (B3).
     pub fn alpha(&self) -> u8 {
-        self.alpha.get()
+        self.alpha
     }
 }
 

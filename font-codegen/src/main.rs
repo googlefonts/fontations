@@ -5,10 +5,12 @@
 use std::path::{Path, PathBuf};
 
 use font_codegen::{ErrorReport, Mode};
+use log::{debug, error};
 use miette::miette;
 use serde::Deserialize;
 
 fn main() -> miette::Result<()> {
+    env_logger::init();
     match flags::Args::from_env() {
         Ok(args) => match args.subcommand {
             flags::ArgsCmd::Plan(plan) => run_plan(&plan.path),
@@ -19,7 +21,7 @@ fn main() -> miette::Result<()> {
             }
         },
         Err(e) => {
-            eprintln!("{e}");
+            error!("{e}");
             std::process::exit(1);
         }
     }
@@ -33,15 +35,15 @@ fn run_plan(path: &Path) -> miette::Result<()> {
 
     for path in &plan.clean {
         if path.exists() {
-            println!("removing {}", path.display());
+            debug!("removing {}", path.display());
             if path.is_dir() {
                 std::fs::remove_dir_all(path)
                     .map_err(|e| miette!("failed to clean dir '{}': {e}", path.display()))?;
-                println!("creating {}", path.display());
+                debug!("creating {}", path.display());
                 std::fs::create_dir_all(path)
                     .map_err(|e| miette!("failed to create directory '{}': {e}", path.display()))?;
             } else {
-                std::fs::remove_file(&path)
+                std::fs::remove_file(path)
                     .map_err(|e| miette!("failed to clean path '{}': {e}", path.display()))?;
             }
         }
@@ -54,7 +56,7 @@ fn run_plan(path: &Path) -> miette::Result<()> {
         .collect::<Result<Vec<_>, _>>()?;
 
     for (op, generated) in plan.generate.iter().zip(results.iter()) {
-        println!(
+        debug!(
             "writing {} bytes to {}",
             generated.len(),
             op.target.display()
@@ -88,7 +90,7 @@ struct CodegenOp {
 }
 
 fn read_contents(path: &Path) -> miette::Result<String> {
-    std::fs::read_to_string(&path).map_err(|e| {
+    std::fs::read_to_string(path).map_err(|e| {
         { ErrorReport::message(format!("error reading '{}': {}", path.display(), e)) }.into()
     })
 }
