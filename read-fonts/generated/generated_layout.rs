@@ -700,7 +700,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for LookupList<'a, 
                 let data = self.data;
                 Field::new(
                     "lookup_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<T>(),
                         self.lookup_offsets(),
                         move |off| {
@@ -857,7 +857,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
                 let data = self.data;
                 Field::new(
                     "subtable_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<T>(),
                         self.subtable_offsets(),
                         move |off| {
@@ -1584,7 +1584,7 @@ impl<'a> SomeTable<'a> for SequenceContextFormat1<'a> {
                 let data = self.data;
                 Field::new(
                     "seq_rule_set_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<SequenceRuleSet>(),
                         self.seq_rule_set_offsets(),
                         move |off| {
@@ -1674,7 +1674,7 @@ impl<'a> SomeTable<'a> for SequenceRuleSet<'a> {
                 let data = self.data;
                 Field::new(
                     "seq_rule_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<SequenceRule>(),
                         self.seq_rule_offsets(),
                         move |off| {
@@ -1933,7 +1933,7 @@ impl<'a> SomeTable<'a> for SequenceContextFormat2<'a> {
                 let data = self.data;
                 Field::new(
                     "class_seq_rule_set_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<ClassSequenceRuleSet>(),
                         self.class_seq_rule_set_offsets(),
                         move |off| {
@@ -2029,7 +2029,7 @@ impl<'a> SomeTable<'a> for ClassSequenceRuleSet<'a> {
                 let data = self.data;
                 Field::new(
                     "class_seq_rule_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<ClassSequenceRule>(),
                         self.class_seq_rule_offsets(),
                         move |off| {
@@ -2266,7 +2266,7 @@ impl<'a> SomeTable<'a> for SequenceContextFormat3<'a> {
                 let data = self.data;
                 Field::new(
                     "coverage_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<CoverageTable>(),
                         self.coverage_offsets(),
                         move |off| {
@@ -2454,7 +2454,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat1<'a> {
                 let data = self.data;
                 Field::new(
                     "chained_seq_rule_set_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<ChainedSequenceRuleSet>(),
                         self.chained_seq_rule_set_offsets(),
                         move |off| {
@@ -2550,7 +2550,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceRuleSet<'a> {
                 let data = self.data;
                 Field::new(
                     "chained_seq_rule_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<ChainedSequenceRule>(),
                         self.chained_seq_rule_offsets(),
                         move |off| {
@@ -2919,7 +2919,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat2<'a> {
                 let data = self.data;
                 Field::new(
                     "chained_class_seq_rule_set_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<ChainedClassSequenceRuleSet>(),
                         self.chained_class_seq_rule_set_offsets(),
                         move |off| {
@@ -3015,7 +3015,7 @@ impl<'a> SomeTable<'a> for ChainedClassSequenceRuleSet<'a> {
                 let data = self.data;
                 Field::new(
                     "chained_class_seq_rule_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<ChainedClassSequenceRule>(),
                         self.chained_class_seq_rule_offsets(),
                         move |off| {
@@ -3387,7 +3387,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                 let data = self.data;
                 Field::new(
                     "backtrack_coverage_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<CoverageTable>(),
                         self.backtrack_coverage_offsets(),
                         move |off| {
@@ -3402,7 +3402,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                 let data = self.data;
                 Field::new(
                     "input_coverage_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<CoverageTable>(),
                         self.input_coverage_offsets(),
                         move |off| {
@@ -3420,7 +3420,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContextFormat3<'a> {
                 let data = self.data;
                 Field::new(
                     "lookahead_coverage_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<CoverageTable>(),
                         self.lookahead_coverage_offsets(),
                         move |off| {
@@ -3948,7 +3948,7 @@ impl<'a> SomeTable<'a> for ConditionSet<'a> {
                 let data = self.data;
                 Field::new(
                     "condition_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<ConditionFormat1>(),
                         self.condition_offsets(),
                         move |off| {

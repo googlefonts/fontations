@@ -293,7 +293,7 @@ fn traversal_arm_for_field(
                     #maybe_data
                     #args_if_needed
                     Field::new(#name_str,
-                        FieldType::offset_array(
+                        FieldType::array_of_offsets(
                             better_type_name::<#target>(),
                             self.#name()#maybe_unwrap,
                             move |off| {

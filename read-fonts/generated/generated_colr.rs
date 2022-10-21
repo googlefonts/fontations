@@ -555,7 +555,7 @@ impl<'a> SomeTable<'a> for LayerList<'a> {
                 let data = self.data;
                 Field::new(
                     "paint_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<Paint>(),
                         self.paint_offsets(),
                         move |off| {

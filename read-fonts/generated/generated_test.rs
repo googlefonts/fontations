@@ -363,7 +363,7 @@ impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
                 let data = self.data;
                 Field::new(
                     "nonnullable_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<Dummy>(),
                         self.nonnullable_offsets(),
                         move |off| {
@@ -377,7 +377,7 @@ impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
                 let data = self.data;
                 Field::new(
                     "nullable_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<Dummy>(),
                         self.nullable_offsets(),
                         move |off| {
@@ -391,7 +391,7 @@ impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
                 let data = self.data;
                 Field::new(
                     "versioned_nonnullable_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<Dummy>(),
                         self.versioned_nonnullable_offsets().unwrap(),
                         move |off| {
@@ -405,7 +405,7 @@ impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
                 let data = self.data;
                 Field::new(
                     "versioned_nullable_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<Dummy>(),
                         self.versioned_nullable_offsets().unwrap(),
                         move |off| {

@@ -349,7 +349,7 @@ impl<'a> SomeTable<'a> for AttachList<'a> {
                 let data = self.data;
                 Field::new(
                     "attach_point_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<AttachPoint>(),
                         self.attach_point_offsets(),
                         move |off| {
@@ -528,7 +528,7 @@ impl<'a> SomeTable<'a> for LigCaretList<'a> {
                 let data = self.data;
                 Field::new(
                     "lig_glyph_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<LigGlyph>(),
                         self.lig_glyph_offsets(),
                         move |off| {
@@ -618,7 +618,7 @@ impl<'a> SomeTable<'a> for LigGlyph<'a> {
                 let data = self.data;
                 Field::new(
                     "caret_value_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<CaretValue>(),
                         self.caret_value_offsets(),
                         move |off| {
@@ -1001,7 +1001,7 @@ impl<'a> SomeTable<'a> for MarkGlyphSets<'a> {
                 let data = self.data;
                 Field::new(
                     "coverage_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<CoverageTable>(),
                         self.coverage_offsets(),
                         move |off| {
