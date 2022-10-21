@@ -1,3 +1,9 @@
+// This file is a test input that can be rebuilt when making changes to the
+// codegen tool itself.
+//
+// There is a separate codegen plan at resources/test_plan.toml that can be run
+// to only rebuild the test outputs.
+
 #![parse_module(read_fonts::codegen_test)]
 
 table KindsOfOffsets {
