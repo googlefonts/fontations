@@ -780,7 +780,6 @@ impl Parse for VariantAttrs {
 static DOC: &str = "doc";
 static NULLABLE: &str = "nullable";
 static SKIP_GETTER: &str = "skip_getter";
-static COUNT: &str = "count";
 static AVAILABLE: &str = "available";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
@@ -819,8 +818,6 @@ impl Parse for FieldAttrs {
                 this.offset_adjustment = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == VERSION {
                 this.version = Some(attr.path);
-            } else if ident == COUNT {
-                this.count = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == COMPILE {
                 this.compile = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == COMPILE_TYPE {

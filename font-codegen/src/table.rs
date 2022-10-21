@@ -122,6 +122,8 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
     // which happens at least once (in glyf)?
     let maybe_mut_kw = (!item.fields.fields.is_empty()).then(|| quote!(mut));
 
+    eprintln!("generate_fond_read {:#?}", item);
+
     if let Some(read_args) = &item.attrs.read_args {
         let args_type = read_args.args_type();
         let destructure_pattern = read_args.destructure_pattern();

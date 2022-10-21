@@ -309,10 +309,28 @@ fn traversal_arm_for_field(
             quote!(Field::new(#name_str, self.#name() #clone #maybe_unwrap))
         }
         FieldType::ArrayOf { typ, len } => {
-            todo!("traversal_arm_for_field of ArrayOf({}, {})", typ, len);
+            eprintln!("traversal_arm_for_field of ArrayOf({}, {})", typ, len);
+            let offset_data = fld.offset_getter_data_src();
+            quote!(Field::new(
+                    #name_str,
+                    traversal::FieldType::array_of_records(
+                        stringify!(#typ),
+                        self.#name()#maybe_unwrap,
+                        #offset_data,
+                    )
+            ))
         }
         FieldType::ArrayOfFixedSize { typ, len } => {
-            todo!("traversal_arm_for_field of ArrayOfFixedSize({}, {})", typ, len);
+            eprintln!("traversal_arm_for_field of ArrayOfFixedSize({}, {})", typ, len);
+            let offset_data = fld.offset_getter_data_src();
+            quote!(Field::new(
+                    #name_str,
+                    traversal::FieldType::array_of_records(
+                        stringify!(#typ),
+                        self.#name()#maybe_unwrap,
+                        #offset_data,
+                    )
+            ))
         }
         FieldType::Other { .. } => {
             quote!(compile_error!(concat!("another weird type: ", #name_str)))
@@ -377,8 +395,14 @@ impl Field {
         matches!(&self.typ, FieldType::VarLenArray { .. })
     }
 
+    // TODO rename as fixed length array doesn't exactly have a computed length
     pub(crate) fn has_computed_len(&self) -> bool {
-        self.attrs.count.is_some() || self.attrs.read_with_args.is_some()
+        self.attrs.count.is_some() || self.attrs.read_with_args.is_some()    
+        || match self.typ {
+            FieldType::ArrayOf { .. } => true,
+            FieldType::ArrayOfFixedSize { .. } => true,
+            _ => false,
+        }    
     }
 
     pub(crate) fn is_version_dependent(&self) -> bool {
@@ -523,10 +547,12 @@ impl Field {
                 quote!(VarLenArray<'a, #inner>)
             },
             FieldType::ArrayOf { typ, len} => {
-                todo!("raw_getter_return_type of ArrayOf({}, {})", typ, len);
+                eprintln!("raw_getter_return_type of ArrayOf({}, {})", typ, len);
+                quote!(&'a [BigEndian<#typ>])
             },
             FieldType::ArrayOfFixedSize { typ, len} => {
-                todo!("raw_getter_return_type of ArrayOfFixedSize({}, {})", typ, len);
+                eprintln!("raw_getter_return_type of ArrayOfFixedSize({}, {})", typ, len);
+                quote!(&'a [BigEndian<#typ>; #len])
             }
         }
     }
@@ -1093,7 +1119,7 @@ impl FieldType {
             | FieldType::ArrayOf { .. }
             | FieldType::ArrayOfFixedSize { .. }
             | FieldType::VarLenArray(_) => {
-                panic!("array tokens never cooked")
+                panic!("array tokens never cooked {:#?}", &self)
             }
         }
     }
