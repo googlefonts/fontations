@@ -124,7 +124,7 @@ impl<'a> Cpal<'a> {
     }
 
     /// Attempt to resolve [`color_records_array_offset`][Self::color_records_array_offset].
-    pub fn color_records_array(&self) -> Option<Result<ColorRecordArray<'a>, ReadError>> {
+    pub fn color_records_array(&self) -> Option<Result<&'a [ColorRecord], ReadError>> {
         let data = self.data;
         let args = self.num_color_records();
         self.color_records_array_offset()
@@ -138,47 +138,60 @@ impl<'a> Cpal<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Offset from the beginning of CPAL table to the Palette Types
-    /// Array. Set to 0 if no array is provided.
+    /// Offset from the beginning of CPAL table to the [Palette Types Array][].
+    ///
+    /// This is an array of 32-bit flag fields that describe properties of each palette.
+    ///
+    /// [Palette Types Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array
     pub fn palette_types_array_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.palette_types_array_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`palette_types_array_offset`][Self::palette_types_array_offset].
-    pub fn palette_types_array(&self) -> Option<Result<PaletteTypeArray<'a>, ReadError>> {
+    pub fn palette_types_array(&self) -> Option<Result<&'a [BigEndian<u32>], ReadError>> {
         let data = self.data;
         let args = self.num_palettes();
         self.palette_types_array_offset()
             .map(|x| x.resolve_with_args(data, &args))?
     }
 
-    /// Offset from the beginning of CPAL table to the Palette Labels
-    /// Array. Set to 0 if no array is provided.
+    /// Offset from the beginning of CPAL table to the [Palette Labels Array][].
+    ///
+    /// This is an array of 'name' table IDs (typically in the font-specific name
+    /// ID range) that specify user interface strings associated with  each palette.
+    /// Use 0xFFFF if no name ID is provided for a palette.
+    ///
+    /// [Palette Labels Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-labels-array
     pub fn palette_labels_array_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.palette_labels_array_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`palette_labels_array_offset`][Self::palette_labels_array_offset].
-    pub fn palette_labels_array(&self) -> Option<Result<PaletteLabelArray<'a>, ReadError>> {
+    pub fn palette_labels_array(&self) -> Option<Result<&'a [BigEndian<u16>], ReadError>> {
         let data = self.data;
         let args = self.num_palettes();
         self.palette_labels_array_offset()
             .map(|x| x.resolve_with_args(data, &args))?
     }
 
-    /// Offset from the beginning of CPAL table to the Palette Entry
-    /// Labels Array. Set to 0 if no array is provided.
+    /// Offset from the beginning of CPAL table to the [Palette Entry Labels Array][].
+    ///
+    /// This is an array of 'name' table IDs (typically in the font-specific name
+    /// ID range) that specify user interface strings associated with  each palette
+    /// entry, e.g. “Outline”, “Fill”. This set of palette entry labels applies
+    /// to all palettes in the font. Use  0xFFFF if no name ID is provided for a
+    /// palette entry.
+    ///
+    /// [Palette Entry Labels Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entry-label-array
     pub fn palette_entry_labels_array_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.palette_entry_labels_array_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
 
     /// Attempt to resolve [`palette_entry_labels_array_offset`][Self::palette_entry_labels_array_offset].
-    pub fn palette_entry_labels_array(
-        &self,
-    ) -> Option<Result<PaletteLabelEntryArray<'a>, ReadError>> {
+    pub fn palette_entry_labels_array(&self) -> Option<Result<&'a [BigEndian<u16>], ReadError>> {
         let data = self.data;
         let args = self.num_palette_entries();
         self.palette_entry_labels_array_offset()
@@ -203,9 +216,11 @@ impl<'a> SomeTable<'a> for Cpal<'a> {
             3usize => Some(Field::new("num_color_records", self.num_color_records())),
             4usize => Some(Field::new(
                 "color_records_array_offset",
-                FieldType::offset(
+                traversal::FieldType::offset_to_array_of_records(
                     self.color_records_array_offset(),
                     self.color_records_array(),
+                    stringify!(ColorRecord),
+                    self.offset_data(),
                 ),
             )),
             5usize => Some(Field::new(
@@ -214,21 +229,21 @@ impl<'a> SomeTable<'a> for Cpal<'a> {
             )),
             6usize if version.compatible(1) => Some(Field::new(
                 "palette_types_array_offset",
-                FieldType::offset(
+                FieldType::offset_to_array_of_scalars(
                     self.palette_types_array_offset().unwrap(),
                     self.palette_types_array().unwrap(),
                 ),
             )),
             7usize if version.compatible(1) => Some(Field::new(
                 "palette_labels_array_offset",
-                FieldType::offset(
+                FieldType::offset_to_array_of_scalars(
                     self.palette_labels_array_offset().unwrap(),
                     self.palette_labels_array().unwrap(),
                 ),
             )),
             8usize if version.compatible(1) => Some(Field::new(
                 "palette_entry_labels_array_offset",
-                FieldType::offset(
+                FieldType::offset_to_array_of_scalars(
                     self.palette_entry_labels_array_offset().unwrap(),
                     self.palette_entry_labels_array().unwrap(),
                 ),
@@ -240,75 +255,6 @@ impl<'a> SomeTable<'a> for Cpal<'a> {
 
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Cpal<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
-/// [CPAL (Palette Type Array)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array) record
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct ColorRecordArrayMarker {
-    color_records_byte_len: usize,
-}
-
-impl ColorRecordArrayMarker {
-    fn color_records_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + self.color_records_byte_len
-    }
-}
-
-impl ReadArgs for ColorRecordArray<'_> {
-    type Args = u16;
-}
-
-impl<'a> FontReadWithArgs<'a> for ColorRecordArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let num_color_records = *args;
-        let mut cursor = data.cursor();
-        let color_records_byte_len = num_color_records as usize * ColorRecord::RAW_BYTE_LEN;
-        cursor.advance_by(color_records_byte_len);
-        cursor.finish(ColorRecordArrayMarker {
-            color_records_byte_len,
-        })
-    }
-}
-
-/// [CPAL (Palette Type Array)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array) record
-pub type ColorRecordArray<'a> = TableRef<'a, ColorRecordArrayMarker>;
-
-impl<'a> ColorRecordArray<'a> {
-    /// Array of 32-bit flag fields that describe properties of each
-    /// palette. See below for details.
-    pub fn color_records(&self) -> &'a [ColorRecord] {
-        let range = self.shape.color_records_byte_range();
-        self.data.read_array(range).unwrap()
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for ColorRecordArray<'a> {
-    fn type_name(&self) -> &str {
-        "ColorRecordArray"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "color_records",
-                traversal::FieldType::array_of_records(
-                    stringify!(ColorRecord),
-                    self.color_records(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for ColorRecordArray<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
@@ -370,199 +316,5 @@ impl<'a> SomeRecord<'a> for ColorRecord {
             }),
             data,
         }
-    }
-}
-
-/// [CPAL (Palette Type Array)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array) record
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaletteTypeArrayMarker {
-    palette_types_byte_len: usize,
-}
-
-impl PaletteTypeArrayMarker {
-    fn palette_types_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + self.palette_types_byte_len
-    }
-}
-
-impl ReadArgs for PaletteTypeArray<'_> {
-    type Args = u16;
-}
-
-impl<'a> FontReadWithArgs<'a> for PaletteTypeArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let num_palettes = *args;
-        let mut cursor = data.cursor();
-        let palette_types_byte_len = num_palettes as usize * u32::RAW_BYTE_LEN;
-        cursor.advance_by(palette_types_byte_len);
-        cursor.finish(PaletteTypeArrayMarker {
-            palette_types_byte_len,
-        })
-    }
-}
-
-/// [CPAL (Palette Type Array)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array) record
-pub type PaletteTypeArray<'a> = TableRef<'a, PaletteTypeArrayMarker>;
-
-impl<'a> PaletteTypeArray<'a> {
-    /// Array of 32-bit flag fields that describe properties of each
-    /// palette. See below for details.
-    pub fn palette_types(&self) -> &'a [BigEndian<u32>] {
-        let range = self.shape.palette_types_byte_range();
-        self.data.read_array(range).unwrap()
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for PaletteTypeArray<'a> {
-    fn type_name(&self) -> &str {
-        "PaletteTypeArray"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("palette_types", self.palette_types())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for PaletteTypeArray<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
-/// [CPAL (Palette Label Array)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-labels-array) record
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaletteLabelArrayMarker {
-    palette_labels_byte_len: usize,
-}
-
-impl PaletteLabelArrayMarker {
-    fn palette_labels_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + self.palette_labels_byte_len
-    }
-}
-
-impl ReadArgs for PaletteLabelArray<'_> {
-    type Args = u16;
-}
-
-impl<'a> FontReadWithArgs<'a> for PaletteLabelArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let num_palettes = *args;
-        let mut cursor = data.cursor();
-        let palette_labels_byte_len = num_palettes as usize * u16::RAW_BYTE_LEN;
-        cursor.advance_by(palette_labels_byte_len);
-        cursor.finish(PaletteLabelArrayMarker {
-            palette_labels_byte_len,
-        })
-    }
-}
-
-/// [CPAL (Palette Label Array)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-labels-array) record
-pub type PaletteLabelArray<'a> = TableRef<'a, PaletteLabelArrayMarker>;
-
-impl<'a> PaletteLabelArray<'a> {
-    /// Array of 'name' table IDs (typically in the font-specific name
-    /// ID range) that specify user interface strings associated with
-    /// each palette. Use 0xFFFF if no name ID is provided for a
-    /// palette.
-    pub fn palette_labels(&self) -> &'a [BigEndian<u16>] {
-        let range = self.shape.palette_labels_byte_range();
-        self.data.read_array(range).unwrap()
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for PaletteLabelArray<'a> {
-    fn type_name(&self) -> &str {
-        "PaletteLabelArray"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("palette_labels", self.palette_labels())),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for PaletteLabelArray<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
-/// [CPAL (Palette Label Entry Array)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entry-label-array) record
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct PaletteLabelEntryArrayMarker {
-    palette_entry_labels_byte_len: usize,
-}
-
-impl PaletteLabelEntryArrayMarker {
-    fn palette_entry_labels_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + self.palette_entry_labels_byte_len
-    }
-}
-
-impl ReadArgs for PaletteLabelEntryArray<'_> {
-    type Args = u16;
-}
-
-impl<'a> FontReadWithArgs<'a> for PaletteLabelEntryArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let num_palette_entries = *args;
-        let mut cursor = data.cursor();
-        let palette_entry_labels_byte_len = num_palette_entries as usize * u16::RAW_BYTE_LEN;
-        cursor.advance_by(palette_entry_labels_byte_len);
-        cursor.finish(PaletteLabelEntryArrayMarker {
-            palette_entry_labels_byte_len,
-        })
-    }
-}
-
-/// [CPAL (Palette Label Entry Array)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entry-label-array) record
-pub type PaletteLabelEntryArray<'a> = TableRef<'a, PaletteLabelEntryArrayMarker>;
-
-impl<'a> PaletteLabelEntryArray<'a> {
-    /// Array of 'name' table IDs (typically in the font-specific name
-    /// ID range) that specify user interface strings associated with
-    /// each palette entry, e.g. “Outline”, “Fill”. This set of
-    /// palette entry labels applies to all palettes in the font. Use
-    /// 0xFFFF if no name ID is provided for a palette entry.
-    pub fn palette_entry_labels(&self) -> &'a [BigEndian<u16>] {
-        let range = self.shape.palette_entry_labels_byte_range();
-        self.data.read_array(range).unwrap()
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for PaletteLabelEntryArray<'a> {
-    fn type_name(&self) -> &str {
-        "PaletteLabelEntryArray"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new(
-                "palette_entry_labels",
-                self.palette_entry_labels(),
-            )),
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for PaletteLabelEntryArray<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }

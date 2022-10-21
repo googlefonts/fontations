@@ -19,11 +19,7 @@ mod tests {
         assert_eq!(table.num_palettes(), 2);
         assert_eq!(table.num_color_records(), 4);
 
-        let color_records = table
-            .color_records_array()
-            .unwrap()
-            .unwrap()
-            .color_records();
+        let color_records = table.color_records_array().unwrap().unwrap();
 
         assert_eq!(color_records.len(), 4);
         let color_tuples: Vec<[u8; 4]> = color_records
