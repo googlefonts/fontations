@@ -80,6 +80,8 @@ impl MajorMinor {
     pub const VERSION_1_2: MajorMinor = MajorMinor::new(1, 2);
     /// Version 1.3
     pub const VERSION_1_3: MajorMinor = MajorMinor::new(1, 3);
+    /// Version 2.0
+    pub const VERSION_2_0: MajorMinor = MajorMinor::new(2, 0);
 
     /// Create a new version with major and minor parts.
     #[inline]

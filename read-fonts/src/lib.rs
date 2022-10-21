@@ -71,6 +71,83 @@ pub(crate) mod codegen_prelude {
 
 include!("../generated/font.rs");
 
+#[derive(Clone)]
+/// Reference to the content of a font or font collection file.
+pub enum FileRef<'a> {
+    /// A single font.
+    Font(FontRef<'a>),
+    /// A collection of fonts.
+    Collection(CollectionRef<'a>),
+}
+
+impl<'a> FileRef<'a> {
+    /// Creates a new reference to a file representing a font or font collection.
+    pub fn new(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(if let Ok(collection) = CollectionRef::new(data) {
+            Self::Collection(collection)
+        } else {
+            Self::Font(FontRef::new(data)?)
+        })
+    }
+
+    /// Returns an iterator over the fonts contained in the file.
+    pub fn fonts(&self) -> impl Iterator<Item = Result<FontRef<'a>, ReadError>> + 'a + Clone {
+        let (iter_one, iter_two) = match self {
+            Self::Font(font) => (Some(Ok(font.clone())), None),
+            Self::Collection(collection) => (None, Some(collection.iter())),
+        };
+        iter_two.into_iter().flatten().chain(iter_one)
+    }
+}
+
+/// Reference to the content of a font collection file.
+#[derive(Clone)]
+pub struct CollectionRef<'a> {
+    data: FontData<'a>,
+    header: TTCHeader<'a>,
+}
+
+impl<'a> CollectionRef<'a> {
+    /// Creates a new reference to a font collection.
+    pub fn new(data: FontData<'a>) -> Result<Self, ReadError> {
+        let header = TTCHeader::read(data)?;
+        if header.ttc_tag() != TTC_HEADER_TAG {
+            Err(ReadError::InvalidTtc(header.ttc_tag()))
+        } else {
+            Ok(Self { data, header })
+        }
+    }
+
+    /// Returns the number of fonts in the collection.
+    pub fn len(&self) -> u32 {
+        self.header.num_fonts()
+    }
+
+    /// Returns true if the collection is empty.
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Returns the font in the collection at the specified index.
+    pub fn get(&self, index: u32) -> Result<FontRef<'a>, ReadError> {
+        let offset = self
+            .header
+            .table_directory_offsets()
+            .get(index as usize)
+            .ok_or(ReadError::InvalidCollectionIndex(index))?
+            .get() as usize;
+        let table_dir_data = self.data.slice(offset..).ok_or(ReadError::OutOfBounds)?;
+        FontRef::with_table_directory(self.data, TableDirectory::read(table_dir_data)?)
+    }
+
+    /// Returns an iterator over the fonts in the collection.
+    pub fn iter(&self) -> impl Iterator<Item = Result<FontRef<'a>, ReadError>> + 'a + Clone {
+        let copy = self.clone();
+        (0..self.len()).map(move |ix| copy.get(ix))
+    }
+}
+
+#[derive(Clone)]
 /// A temporary type for accessing tables
 pub struct FontRef<'a> {
     data: FontData<'a>,
@@ -78,18 +155,12 @@ pub struct FontRef<'a> {
 }
 
 impl<'a> FontRef<'a> {
+    /// Creates a new reference to a font.
     pub fn new(data: FontData<'a>) -> Result<Self, ReadError> {
-        let table_directory = TableDirectory::read(data)?;
-        if [TT_SFNT_VERSION, CFF_SFTN_VERSION].contains(&table_directory.sfnt_version()) {
-            Ok(FontRef {
-                data,
-                table_directory,
-            })
-        } else {
-            Err(ReadError::InvalidSfnt(table_directory.sfnt_version()))
-        }
+        Self::with_table_directory(data, TableDirectory::read(data)?)
     }
 
+    /// Returns the data for the table with the specified tag, if present.
     pub fn table_data(&self, tag: Tag) -> Option<FontData<'a>> {
         self.table_directory
             .table_records()
@@ -101,6 +172,20 @@ impl<'a> FontRef<'a> {
                 let len = record.length() as usize;
                 self.data.slice(start..start + len)
             })
+    }
+
+    fn with_table_directory(
+        data: FontData<'a>,
+        table_directory: TableDirectory<'a>,
+    ) -> Result<Self, ReadError> {
+        if [TT_SFNT_VERSION, CFF_SFTN_VERSION].contains(&table_directory.sfnt_version()) {
+            Ok(FontRef {
+                data,
+                table_directory,
+            })
+        } else {
+            Err(ReadError::InvalidSfnt(table_directory.sfnt_version()))
+        }
     }
 }
 

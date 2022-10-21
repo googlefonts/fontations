@@ -33,6 +33,9 @@ pub use tag::{InvalidTag, Tag};
 pub use uint24::Uint24;
 pub use version::{Compatible, MajorMinor, Version16Dot16};
 
+/// The header tag for a font collection file.
+pub const TTC_HEADER_TAG: Tag = Tag::new(b"ttcf");
+
 /// The SFNT version for fonts containing TrueType outlines.
 pub const TT_SFNT_VERSION: u32 = 0x00010000;
 /// The SFNT version for fonts containing CFF outlines.

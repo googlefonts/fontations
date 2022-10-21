@@ -29,3 +29,27 @@ record TableRecord {
     /// Length of the table.
     length: BigEndian<u32>,
 }
+
+/// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
+table TTCHeader {
+    /// Font Collection ID string: "ttcf"
+    ttc_tag: BigEndian<Tag>,
+    /// Major/minor version of the TTC Header
+    #[version]
+    version: BigEndian<MajorMinor>,
+    /// Number of fonts in TTC
+    num_fonts: BigEndian<u32>,
+    /// Array of offsets to the TableDirectory for each font from the beginning of the file
+    #[count($num_fonts)]
+    table_directory_offsets: [BigEndian<u32>],
+
+    /// Tag indicating that a DSIG table exists, 0x44534947 ('DSIG') (null if no signature)
+    #[available(MajorMinor::VERSION_2_0)]
+    dsig_tag: BigEndian<u32>,
+    /// The length (in bytes) of the DSIG table (null if no signature)
+    #[available(MajorMinor::VERSION_2_0)]
+    dsig_length: BigEndian<u32>,
+    /// The offset (in bytes) of the DSIG table from the beginning of the TTC file (null if no signature)
+    #[available(MajorMinor::VERSION_2_0)]
+    dsig_offset: BigEndian<u32>,
+}

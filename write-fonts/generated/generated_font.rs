@@ -67,3 +67,107 @@ impl FontWrite for TableRecord {
 impl Validate for TableRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
+
+/// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
+#[derive(Clone, Debug)]
+pub struct TTCHeader {
+    /// Font Collection ID string: \"ttcf\"
+    pub ttc_tag: Tag,
+    /// Major/minor version of the TTC Header
+    pub version: MajorMinor,
+    /// Number of fonts in TTC
+    pub num_fonts: u32,
+    /// Array of offsets to the TableDirectory for each font from the beginning of the file
+    pub table_directory_offsets: Vec<u32>,
+    /// Tag indicating that a DSIG table exists, 0x44534947 ('DSIG') (null if no signature)
+    pub dsig_tag: Option<u32>,
+    /// The length (in bytes) of the DSIG table (null if no signature)
+    pub dsig_length: Option<u32>,
+    /// The offset (in bytes) of the DSIG table from the beginning of the TTC file (null if no signature)
+    pub dsig_offset: Option<u32>,
+}
+
+impl FontWrite for TTCHeader {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.ttc_tag.write_into(writer);
+        let version = self.version;
+        version.write_into(writer);
+        self.num_fonts.write_into(writer);
+        self.table_directory_offsets.write_into(writer);
+        version.compatible(MajorMinor::VERSION_2_0).then(|| {
+            self.dsig_tag
+                .as_ref()
+                .expect("missing versioned field should have failed validation")
+                .write_into(writer)
+        });
+        version.compatible(MajorMinor::VERSION_2_0).then(|| {
+            self.dsig_length
+                .as_ref()
+                .expect("missing versioned field should have failed validation")
+                .write_into(writer)
+        });
+        version.compatible(MajorMinor::VERSION_2_0).then(|| {
+            self.dsig_offset
+                .as_ref()
+                .expect("missing versioned field should have failed validation")
+                .write_into(writer)
+        });
+    }
+}
+
+impl Validate for TTCHeader {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("TTCHeader", |ctx| {
+            let version = self.version;
+            ctx.in_field("table_directory_offsets", |ctx| {
+                if self.table_directory_offsets.len() > (u32::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+            });
+            ctx.in_field("dsig_tag", |ctx| {
+                if version.compatible(MajorMinor::VERSION_2_0) && self.dsig_tag.is_none() {
+                    ctx.report(format!("field must be present for version {version}"));
+                }
+            });
+            ctx.in_field("dsig_length", |ctx| {
+                if version.compatible(MajorMinor::VERSION_2_0) && self.dsig_length.is_none() {
+                    ctx.report(format!("field must be present for version {version}"));
+                }
+            });
+            ctx.in_field("dsig_offset", |ctx| {
+                if version.compatible(MajorMinor::VERSION_2_0) && self.dsig_offset.is_none() {
+                    ctx.report(format!("field must be present for version {version}"));
+                }
+            });
+        })
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl<'a> FromObjRef<read_fonts::TTCHeader<'a>> for TTCHeader {
+    fn from_obj_ref(obj: &read_fonts::TTCHeader<'a>, _: FontData) -> Self {
+        TTCHeader {
+            ttc_tag: obj.ttc_tag(),
+            version: obj.version(),
+            num_fonts: obj.num_fonts(),
+            table_directory_offsets: obj
+                .table_directory_offsets()
+                .iter()
+                .map(|x| x.get())
+                .collect(),
+            dsig_tag: obj.dsig_tag(),
+            dsig_length: obj.dsig_length(),
+            dsig_offset: obj.dsig_offset(),
+        }
+    }
+}
+
+#[cfg(feature = "parsing")]
+impl<'a> FromTableRef<read_fonts::TTCHeader<'a>> for TTCHeader {}
+
+#[cfg(feature = "parsing")]
+impl<'a> FontRead<'a> for TTCHeader {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::TTCHeader as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}

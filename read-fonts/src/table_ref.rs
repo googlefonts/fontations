@@ -6,6 +6,7 @@ use crate::{
     offset::{Offset, ResolveOffset},
 };
 
+#[derive(Clone)]
 /// Typed access to raw table data.
 pub struct TableRef<'a, T> {
     pub(crate) shape: T,

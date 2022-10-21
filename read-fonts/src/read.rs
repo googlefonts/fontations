@@ -85,6 +85,8 @@ pub enum ReadError {
     // i64 is flexible enough to store any value we might encounter
     InvalidFormat(i64),
     InvalidSfnt(u32),
+    InvalidTtc(Tag),
+    InvalidCollectionIndex(u32),
     InvalidArrayLen,
     ValidationError,
     NullOffset,
@@ -98,6 +100,10 @@ impl std::fmt::Display for ReadError {
             ReadError::OutOfBounds => write!(f, "An offset was out of bounds"),
             ReadError::InvalidFormat(x) => write!(f, "Invalid format '{x}'"),
             ReadError::InvalidSfnt(ver) => write!(f, "Invalid sfnt version 0x{ver:08X}"),
+            ReadError::InvalidTtc(tag) => write!(f, "Invalid ttc tag {tag}"),
+            ReadError::InvalidCollectionIndex(ix) => {
+                write!(f, "Invalid index {ix} for font collection")
+            }
             ReadError::InvalidArrayLen => {
                 write!(f, "Specified array length not a multiple of item size")
             }
