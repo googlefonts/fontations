@@ -153,12 +153,11 @@ impl<'a> FieldType<'a> {
         .into()
     }
 
-    /// Convenience method for creating a `FieldType` from an array of offests.
+    /// Convenience method for creating a `FieldType` from an array of offsets.
     ///
     /// The `resolver` argument is a function that takes an offset and resolves
     /// it.
-    //TODO: rename this to array_of_offsets?
-    pub fn offset_array<O>(
+    pub fn array_of_offsets<O>(
         type_name: &'static str,
         offsets: &'a [O],
         resolver: impl Fn(&O) -> FieldType<'a> + 'a,

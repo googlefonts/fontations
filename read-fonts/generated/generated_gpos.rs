@@ -1159,7 +1159,7 @@ impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
                 let args = (self.value_format1(), self.value_format2());
                 Field::new(
                     "pair_set_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<PairSet>(),
                         self.pair_set_offsets(),
                         move |off| {
@@ -2168,7 +2168,7 @@ impl<'a> SomeRecord<'a> for BaseRecord<'a> {
                 0usize => Some({
                     Field::new(
                         "base_anchor_offsets",
-                        FieldType::offset_array(
+                        FieldType::array_of_offsets(
                             better_type_name::<AnchorTable>(),
                             self.base_anchor_offsets(),
                             move |off| {
@@ -2425,7 +2425,7 @@ impl<'a> SomeTable<'a> for LigatureArray<'a> {
                 let args = self.mark_class_count();
                 Field::new(
                     "ligature_attach_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<LigatureAttach>(),
                         self.ligature_attach_offsets(),
                         move |off| {
@@ -2594,7 +2594,7 @@ impl<'a> SomeRecord<'a> for ComponentRecord<'a> {
                 0usize => Some({
                     Field::new(
                         "ligature_anchor_offsets",
-                        FieldType::offset_array(
+                        FieldType::array_of_offsets(
                             better_type_name::<AnchorTable>(),
                             self.ligature_anchor_offsets(),
                             move |off| {
@@ -2914,7 +2914,7 @@ impl<'a> SomeRecord<'a> for Mark2Record<'a> {
                 0usize => Some({
                     Field::new(
                         "mark2_anchor_offsets",
-                        FieldType::offset_array(
+                        FieldType::array_of_offsets(
                             better_type_name::<AnchorTable>(),
                             self.mark2_anchor_offsets(),
                             move |off| {

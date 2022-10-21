@@ -558,7 +558,7 @@ impl<'a> SomeTable<'a> for MultipleSubstFormat1<'a> {
                 let data = self.data;
                 Field::new(
                     "sequence_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<Sequence>(),
                         self.sequence_offsets(),
                         move |off| {
@@ -761,7 +761,7 @@ impl<'a> SomeTable<'a> for AlternateSubstFormat1<'a> {
                 let data = self.data;
                 Field::new(
                     "alternate_set_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<AlternateSet>(),
                         self.alternate_set_offsets(),
                         move |off| {
@@ -960,7 +960,7 @@ impl<'a> SomeTable<'a> for LigatureSubstFormat1<'a> {
                 let data = self.data;
                 Field::new(
                     "ligature_set_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<LigatureSet>(),
                         self.ligature_set_offsets(),
                         move |off| {
@@ -1050,7 +1050,7 @@ impl<'a> SomeTable<'a> for LigatureSet<'a> {
                 let data = self.data;
                 Field::new(
                     "ligature_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<Ligature>(),
                         self.ligature_offsets(),
                         move |off| {
@@ -1506,7 +1506,7 @@ impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
                 let data = self.data;
                 Field::new(
                     "backtrack_coverage_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<CoverageTable>(),
                         self.backtrack_coverage_offsets(),
                         move |off| {
@@ -1524,7 +1524,7 @@ impl<'a> SomeTable<'a> for ReverseChainSingleSubstFormat1<'a> {
                 let data = self.data;
                 Field::new(
                     "lookahead_coverage_offsets",
-                    FieldType::offset_array(
+                    FieldType::array_of_offsets(
                         better_type_name::<CoverageTable>(),
                         self.lookahead_coverage_offsets(),
                         move |off| {
