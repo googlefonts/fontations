@@ -1,0 +1,30 @@
+/// [fvar (Font Variations Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar) table
+@table Fvar
+uint16	majorVersion	Major version number of the font variations table — set to 1.
+uint16	minorVersion	Minor version number of the font variations table — set to 0.
+Offset16	axesArrayOffset	Offset in bytes from the beginning of the table to the start of the VariationAxisRecord array.
+uint16	(reserved)	This field is permanently reserved. Set to 2.
+uint16	axisCount	The number of variation axes in the font (the number of records in the axes array).
+uint16	axisSize	The size in bytes of each VariationAxisRecord — set to 20 (0x0014) for this version.
+uint16	instanceCount	The number of named instances defined in the font (the number of records in the instances array).
+uint16	instanceSize	The size in bytes of each InstanceRecord — set to either axisCount * sizeof(Fixed) + 4, or to axisCount * sizeof(Fixed) + 6.
+
+@record VariationAxisRecord
+Tag	    axisTag	        Tag identifying the design variation for the axis.
+Fixed	minValue	    The minimum coordinate value for the axis.
+Fixed	defaultValue	The default coordinate value for the axis.
+Fixed	maxValue	    The maximum coordinate value for the axis.
+uint16	flags	        Axis qualifiers — see details below.
+uint16	axisNameID	    The name ID for entries in the 'name' table that provide a display name for this axis.
+
+@record InstanceRecord
+Fixed	coordinates[axisCount]	Coordinate array specifying a position within the font’s variation space.
+
+@record InstanceRecord
+uint16	subfamilyNameID	The name ID for entries in the 'name' table that provide subfamily names for this instance.
+uint16	flags	Reserved for future use — set to 0.
+UserTuple	coordinates	The coordinates array for this instance.
+uint16	postScriptNameID	Optional. The name ID for entries in the 'name' table that provide PostScript names for this instance.
+
+@record UserTuple
+Fixed	coordinates[axisCount]	Coordinate array specifying a position within the font’s variation space.

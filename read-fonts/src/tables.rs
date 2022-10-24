@@ -4,6 +4,7 @@ pub use super::layout::{gdef, gpos, gsub};
 pub mod cmap;
 pub mod colr;
 pub mod cpal;
+pub mod fvar;
 pub mod glyf;
 pub mod head;
 pub mod hhea;
