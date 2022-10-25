@@ -46,7 +46,7 @@ pub(crate) struct TableAttrs {
     pub(crate) skip_font_write: Option<syn::Path>,
     pub(crate) skip_from_obj: Option<syn::Path>,
     pub(crate) read_args: Option<Attr<TableReadArgs>>,
-    pub(crate) phantom: Option<Attr<syn::Ident>>,
+    pub(crate) generic_offset: Option<Attr<syn::Ident>>,
 }
 
 #[derive(Debug, Clone)]
@@ -832,7 +832,7 @@ impl Parse for FieldAttrs {
 static SKIP_FROM_OBJ: &str = "skip_from_obj";
 static SKIP_FONT_WRITE: &str = "skip_font_write";
 static READ_ARGS: &str = "read_args";
-static PHANTOM: &str = "phantom";
+static GENERIC_OFFSET: &str = "generic_offset";
 
 impl Parse for TableAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -852,8 +852,8 @@ impl Parse for TableAttrs {
                 this.skip_font_write = Some(attr.path);
             } else if ident == READ_ARGS {
                 this.read_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
-            } else if ident == PHANTOM {
-                this.phantom = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == GENERIC_OFFSET {
+                this.generic_offset = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else {
                 return Err(syn::Error::new(
                     ident.span(),

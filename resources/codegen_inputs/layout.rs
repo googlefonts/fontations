@@ -96,7 +96,7 @@ table Feature {
 }
 
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
-#[phantom(T)]
+#[generic_offset(T)]
 table LookupList {
     /// Number of lookups in this table
     #[compile(array_len($lookup_offsets))]
@@ -108,7 +108,7 @@ table LookupList {
 }
 
 /// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
-#[phantom(T)]
+#[generic_offset(T)]
 #[skip_font_write]
 table Lookup {
     /// Different enumerations for GSUB and GPOS
