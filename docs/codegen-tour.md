@@ -30,6 +30,7 @@ require refinement.
         - [zerocopy](#zerocopy)
         - [copy-on-read](#copy-on-read)
         - [offsets in records](#offsets-in-records)
+    - [arrays](#arrays)
     - [flags and enums](#flags-and-enums)
     - [traversal](#traversal)
 - [`write-fonts`](#write-fonts)
@@ -687,6 +688,26 @@ fancy `RecordData` struct that would be a thin wrapper around a record plus the
 parent data, and which would implement the record getters, but deref to the
 record otherwise.... I'm really not sure.
 
+### <a id="arrays"></a> arrays
+
+Arrays of scalars, offsets, and records occur frequently in the spec. How we
+represent these arrays in codegen depends on what we know about the size of the
+contents the array. There are essentially three cases:
+
+- if the contents of an array have a fixed uniform size, known at compile time, then we
+  represent the array as a rust slice: `&[T]`. This is true for all scalars
+  (including offsets) as well as the majority of records.
+- if the contents of an array have a uniform size, but the size can only be
+  determined at runtime, we represent the array using the [`ComputedArray`][] type.
+  This requires the inner type to implement [`FontReadWithArgs`][], and the
+  array itself wraps the raw bytes and instantiates its elements lazily as they
+  are accessed.
+- finally, if an array contains elements of non-uniform sizes, we use the
+  [`VarLenArray`][] type. This requires the inner type to have a leading field
+  which contains the length of the item, and this array does not allow for
+  random access; an example is the array of Pascal-style strings in the ['post'
+  table][pstring]. The inner type must implement the implement the [`VarSize`][]
+  trait, via which it indicates the type of its leading length field.
 
 ### <a id="flags-and-enums"></a> flags and enums
 
@@ -890,3 +911,8 @@ clarify.
 [generic-const-exprs]: https://github.com/rust-lang/rust/issues/60551#issuecomment-917511891
 [read-prelude]: https://github.com/cmyr/fontations/blob/main/read-fonts/src/lib.rs#L42
 [`FontData`]: https://docs.rs/read-fonts/latest/read_fonts/struct.FontData.html
+[`ComputedArray`]: https://docs.rs/read-fonts/latest/read_fonts/array/struct.ComputedArray.html
+[`VarLenArray`]: https://docs.rs/read-fonts/latest/read_fonts/array/struct.VarLenArray.html
+[`VarSize`]: https://docs.rs/read-fonts/latest/read_fonts/trait.VarSize.html
+[pstring]: https://learn.microsoft.com/en-us/typography/opentype/spec/post#version-20
+

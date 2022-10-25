@@ -7,8 +7,12 @@ use crate::{FontData, FontRead, ReadError};
 
 /// An array whose items size is not known at compile time.
 ///
+/// This requires the inner type to implement [`FontReadWithArgs`] as well as
+/// [`ComputeSize`].
+///
 /// At runtime, `Args` are provided which will be used to compute the size
-/// of each item.
+/// of each item; this size is then used to compute the positions of the items
+/// within the underlying data, from which they will be read lazily.
 #[derive(Clone)]
 pub struct ComputedArray<'a, T: ReadArgs> {
     // the length of each item
