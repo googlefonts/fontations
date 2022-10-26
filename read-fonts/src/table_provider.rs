@@ -95,4 +95,9 @@ pub trait TableProvider<'a> {
         self.expect_data_for_tag(tables::cpal::TAG)
             .and_then(FontRead::read)
     }
+
+    fn stat(&self) -> Result<tables::stat::Stat<'a>, ReadError> {
+        self.expect_data_for_tag(tables::stat::TAG)
+            .and_then(FontRead::read)
+    }
 }
