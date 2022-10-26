@@ -1,6 +1,8 @@
 // path (from compile crate) to the generated parse module for this table.
 #![parse_module(read_fonts::layout::gpos)]
 
+extern record ValueRecord;
+
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 table Gpos {
