@@ -408,3 +408,48 @@ impl<'a> SomeTable<'a> for Component {
 //}),
 //))
 //}
+
+#[cfg(test)]
+mod tests {
+    use super::Glyph;
+    use crate::test_data;
+    use crate::{FontRef, GlyphId, TableProvider};
+
+    #[test]
+    fn simple_glyph() {
+        let font = FontRef::new(test_data::test_fonts::COLR_GRADIENT_RECT).unwrap();
+        let loca = font.loca(None).unwrap();
+        let glyf = font.glyf().unwrap();
+        let glyph = loca.get_glyf(GlyphId::new(0), &glyf).unwrap();
+        assert_eq!(glyph.number_of_contours(), 2);
+        let simple_glyph = if let Glyph::Simple(simple) = glyph {
+            simple
+        } else {
+            panic!("expected simple glyph");
+        };
+        assert_eq!(
+            simple_glyph
+                .end_pts_of_contours()
+                .iter()
+                .map(|x| x.get())
+                .collect::<Vec<_>>(),
+            &[3, 7]
+        );
+        assert_eq!(
+            simple_glyph
+                .points()
+                .map(|pt| (pt.x, pt.y, pt.on_curve))
+                .collect::<Vec<_>>(),
+            &[
+                (5, 0, true),
+                (5, 100, true),
+                (45, 100, true),
+                (45, 0, true),
+                (10, 5, true),
+                (40, 5, true),
+                (40, 95, true),
+                (10, 95, true),
+            ]
+        );
+    }
+}
