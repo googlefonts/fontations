@@ -116,6 +116,7 @@ fn get_some_table<'a>(
         read_fonts::tables::name::TAG => font.name().map(|x| Box::new(x) as _),
         read_fonts::tables::post::TAG => font.post().map(|x| Box::new(x) as _),
         read_fonts::tables::colr::TAG => font.colr().map(|x| Box::new(x) as _),
+        read_fonts::tables::stat::TAG => font.stat().map(|x| Box::new(x) as _),
         _ => Err(ReadError::TableIsMissing(tag)),
     }
 }

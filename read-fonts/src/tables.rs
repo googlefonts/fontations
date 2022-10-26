@@ -12,3 +12,4 @@ pub mod loca;
 pub mod maxp;
 pub mod name;
 pub mod post;
+pub mod stat;
