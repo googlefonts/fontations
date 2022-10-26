@@ -36,11 +36,11 @@ fn touchup_code(tables: proc_macro2::TokenStream) -> Result<String, syn::Error> 
     // convert doc comment attributes into normal doc comments
     let doc_comments = regex::Regex::new(r#"#\[doc = "(.*)"\]"#).unwrap();
     let source_str = doc_comments.replace_all(&source_str, "///$1");
-    let newlines_before_docs = regex::Regex::new(r#"([;\}])\n( *)(///|pub|impl|#)"#).unwrap();
+    let newlines_before_docs = regex::Regex::new(r#"([;\}])\r?\n( *)(///|pub|impl|#)"#).unwrap();
     let source_str = newlines_before_docs.replace_all(&source_str, "$1\n\n$2$3");
 
     // add newlines after top-level items
-    let re2 = regex::Regex::new(r"\n\}").unwrap();
+    let re2 = regex::Regex::new(r"\r?\n\}").unwrap();
     let source_str = re2.replace_all(&source_str, "\n}\n\n");
     Ok(rustfmt_wrapper::rustfmt(source_str).unwrap())
 }
