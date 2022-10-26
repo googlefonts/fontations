@@ -10,13 +10,13 @@ table Hmtx {
     /// Left side bearings for glyph IDs greater than or equal to
     /// numberOfHMetrics.
     #[count($num_glyphs.saturating_sub($number_of_h_metrics) as usize)]
-    left_side_bearings: [BigEndian<i16>],
+    left_side_bearings: [i16],
 }
 
 record LongHorMetric {
     /// Advance width, in font design units.
-    advance_width: BigEndian<u16>,
+    advance_width: u16,
     /// Glyph left side bearing, in font design units.
-    lsb: BigEndian<i16>,
+    lsb: i16,
 }
 

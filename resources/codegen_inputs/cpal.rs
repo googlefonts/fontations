@@ -4,22 +4,22 @@
 table Cpal {
     /// Table version number (=0).
     #[version]
-    version: BigEndian<u16>,
+    version: u16,
     /// Number of palette entries in each palette.
-    num_palette_entries: BigEndian<u16>,
+    num_palette_entries: u16,
     /// Number of palettes in the table.
-    num_palettes: BigEndian<u16>,
+    num_palettes: u16,
     /// Total number of color records, combined for all palettes.
-    num_color_records: BigEndian<u16>,
+    num_color_records: u16,
     /// Offset from the beginning of CPAL table to the first
     /// ColorRecord.
     #[nullable]
     #[read_offset_with($num_color_records)]
-    color_records_array_offset: BigEndian<Offset32<[ColorRecord]>>,
+    color_records_array_offset: Offset32<[ColorRecord]>,
     /// Index of each palette’s first color record in the combined
     /// color record array.
     #[count($num_palettes)]
-    color_record_indices: [BigEndian<u16>],
+    color_record_indices: [u16],
 
     /// Offset from the beginning of CPAL table to the [Palette Types Array][].
     ///
@@ -29,7 +29,7 @@ table Cpal {
     #[available(1)]
     #[nullable]
     #[read_offset_with($num_palettes)]
-    palette_types_array_offset: BigEndian<Offset32<[BigEndian<u32>]>>,
+    palette_types_array_offset: Offset32<[u32]>,
     /// Offset from the beginning of CPAL table to the [Palette Labels Array][].
     ///
     /// This is an array of 'name' table IDs (typically in the font-specific name
@@ -40,7 +40,7 @@ table Cpal {
     #[available(1)]
     #[nullable]
     #[read_offset_with($num_palettes)]
-    palette_labels_array_offset: BigEndian<Offset32<[BigEndian<u16>]>>,
+    palette_labels_array_offset: Offset32<[u16]>,
     /// Offset from the beginning of CPAL table to the [Palette Entry Labels Array][].
     ///
     /// This is an array of 'name' table IDs (typically in the font-specific name
@@ -53,17 +53,17 @@ table Cpal {
     #[available(1)]
     #[nullable]
     #[read_offset_with($num_palette_entries)]
-    palette_entry_labels_array_offset: BigEndian<Offset32<[BigEndian<u16>]>>,
+    palette_entry_labels_array_offset: Offset32<[u16]>,
 }
 
 /// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record
 record ColorRecord {
     /// Blue value (B0).
-    blue: BigEndian<u8>,
+    blue: u8,
     /// Green value (B1).
-    green: BigEndian<u8>,
+    green: u8,
     ///     Red value (B2).
-    red: BigEndian<u8>,
+    red: u8,
     /// Alpha value (B3).
-    alpha: BigEndian<u8>,
+    alpha: u8,
 }

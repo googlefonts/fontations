@@ -3,7 +3,7 @@
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 
-use crate::parsing::{Attr, GenericGroup};
+use crate::parsing::{Attr, GenericGroup, Phase};
 
 use super::parsing::{Field, ReferencedFields, Table, TableFormat, TableReadArg, TableReadArgs};
 
@@ -574,8 +574,8 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
 }
 
 impl Table {
-    pub(crate) fn sanity_check(&self) -> syn::Result<()> {
-        self.fields.sanity_check()
+    pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
+        self.fields.sanity_check(phase)
     }
 
     fn marker_name(&self) -> syn::Ident {

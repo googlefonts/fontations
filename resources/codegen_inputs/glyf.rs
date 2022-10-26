@@ -7,15 +7,15 @@ table Glyf {}
     ///// If the number of contours is greater than or equal to zero,
     ///// this is a simple glyph. If negative, this is a composite glyph
     ///// — the value -1 should be used for composite glyphs.
-    //number_of_contours: BigEndian<i16>,
+    //number_of_contours: i16,
     ///// Minimum x for coordinate data.
-    //x_min: BigEndian<i16>,
+    //x_min: i16,
     ///// Minimum y for coordinate data.
-    //y_min: BigEndian<i16>,
+    //y_min: i16,
     ///// Maximum x for coordinate data.
-    //x_max: BigEndian<i16>,
+    //x_max: i16,
     ///// Maximum y for coordinate data.
-    //y_max: BigEndian<i16>,
+    //y_max: i16,
 //}
 
 
@@ -24,26 +24,26 @@ table SimpleGlyph {
     /// If the number of contours is greater than or equal to zero,
     /// this is a simple glyph. If negative, this is a composite glyph
     /// — the value -1 should be used for composite glyphs.
-    number_of_contours: BigEndian<i16>,
+    number_of_contours: i16,
     /// Minimum x for coordinate data.
-    x_min: BigEndian<i16>,
+    x_min: i16,
     /// Minimum y for coordinate data.
-    y_min: BigEndian<i16>,
+    y_min: i16,
     /// Maximum x for coordinate data.
-    x_max: BigEndian<i16>,
+    x_max: i16,
     /// Maximum y for coordinate data.
-    y_max: BigEndian<i16>,
+    y_max: i16,
     /// Array of point indices for the last point of each contour,
     /// in increasing numeric order
     #[count($number_of_contours.max(0) as usize)]
-    end_pts_of_contours: [BigEndian<u16>],
+    end_pts_of_contours: [u16],
     /// Total number of bytes for instructions. If instructionLength is
     /// zero, no instructions are present for this glyph, and this
     /// field is followed directly by the flags field.
-    instruction_length: BigEndian<u16>,
+    instruction_length: u16,
     /// Array of instruction byte code for the glyph.
     #[count($instruction_length)]
-    instructions: [BigEndian<u8>],
+    instructions: [u8],
     #[count(..)]
     //#[hidden]
     /// the raw data for flags & x/y coordinates
@@ -52,7 +52,7 @@ table SimpleGlyph {
     ///// Array of flag elements. See below for details regarding the
     ///// number of flag array elements.
     //#[count(variable)]
-    //flags: [BigEndian<SimpleGlyphFlags>],
+    //flags: [SimpleGlyphFlags],
     ///// Contour point x-coordinates. See below for details regarding
     ///// the number of coordinate array elements. Coordinate for the
     ///// first point is relative to (0,0); others are relative to
@@ -143,20 +143,20 @@ table CompositeGlyph {
     /// If the number of contours is greater than or equal to zero,
     /// this is a simple glyph. If negative, this is a composite glyph
     /// — the value -1 should be used for composite glyphs.
-    number_of_contours: BigEndian<i16>,
+    number_of_contours: i16,
     /// Minimum x for coordinate data.
-    x_min: BigEndian<i16>,
+    x_min: i16,
     /// Minimum y for coordinate data.
-    y_min: BigEndian<i16>,
+    y_min: i16,
     /// Maximum x for coordinate data.
-    x_max: BigEndian<i16>,
+    x_max: i16,
     /// Maximum y for coordinate data.
-    y_max: BigEndian<i16>,
+    y_max: i16,
     //header: GlyphHeader,
     /// component flag
-    //flags: BigEndian<CompositeGlyphFlags>,
+    //flags: CompositeGlyphFlags,
     /// glyph index of component
-    //glyph_index: BigEndian<u16>,
+    //glyph_index: u16,
     #[count(..)]
     component_data: [u8],
 

@@ -331,7 +331,7 @@ impl<'a> Cmap0<'a> {
     }
 
     /// An array that maps character codes to glyph index values.
-    pub fn glyph_id_array(&self) -> &'a [BigEndian<u8>] {
+    pub fn glyph_id_array(&self) -> &'a [u8] {
         let range = self.shape.glyph_id_array_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -940,7 +940,7 @@ impl<'a> Cmap8<'a> {
     /// Tightly packed array of bits (8K bytes total) indicating
     /// whether the particular 16-bit (index) value is the start of a
     /// 32-bit character code
-    pub fn is32(&self) -> &'a [BigEndian<u8>] {
+    pub fn is32(&self) -> &'a [u8] {
         let range = self.shape.is32_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -1758,7 +1758,7 @@ pub struct UnicodeRange {
     /// First value in this range
     pub start_unicode_value: BigEndian<Uint24>,
     /// Number of additional values in this range
-    pub additional_count: BigEndian<u8>,
+    pub additional_count: u8,
 }
 
 impl UnicodeRange {
@@ -1769,7 +1769,7 @@ impl UnicodeRange {
 
     /// Number of additional values in this range
     pub fn additional_count(&self) -> u8 {
-        self.additional_count.get()
+        self.additional_count
     }
 }
 

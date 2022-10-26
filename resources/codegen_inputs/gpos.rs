@@ -7,16 +7,16 @@ table Gpos {
     /// The major and minor version of the GPOS table, as a tuple (u16, u16)
     #[version]
     #[compile(self.compute_version())]
-    version: BigEndian<MajorMinor>,
+    version: MajorMinor,
     /// Offset to ScriptList table, from beginning of GPOS table
-    script_list_offset: BigEndian<Offset16<ScriptList>>,
+    script_list_offset: Offset16<ScriptList>,
     /// Offset to FeatureList table, from beginning of GPOS table
-    feature_list_offset: BigEndian<Offset16<FeatureList>>,
+    feature_list_offset: Offset16<FeatureList>,
     /// Offset to LookupList table, from beginning of GPOS table
-    lookup_list_offset: BigEndian<Offset16<PositionLookupList>>,
+    lookup_list_offset: Offset16<PositionLookupList>,
     #[available(MajorMinor::VERSION_1_1)]
     #[nullable]
-    feature_variations_offset: BigEndian<Offset32<FeatureVariations>>,
+    feature_variations_offset: Offset32<FeatureVariations>,
 }
 
 /// A [GPOS Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#gsubLookupTypeEnum) subtable.
@@ -68,52 +68,52 @@ format u16 AnchorTable {
 table AnchorFormat1 {
     /// Format identifier, = 1
     #[format = 1]
-    anchor_format: BigEndian<u16>,
+    anchor_format: u16,
     /// Horizontal value, in design units
-    x_coordinate: BigEndian<i16>,
+    x_coordinate: i16,
     /// Vertical value, in design units
-    y_coordinate: BigEndian<i16>,
+    y_coordinate: i16,
 }
 
 /// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
 table AnchorFormat2 {
     /// Format identifier, = 2
     #[format = 2]
-    anchor_format: BigEndian<u16>,
+    anchor_format: u16,
     /// Horizontal value, in design units
-    x_coordinate: BigEndian<i16>,
+    x_coordinate: i16,
     /// Vertical value, in design units
-    y_coordinate: BigEndian<i16>,
+    y_coordinate: i16,
     /// Index to glyph contour point
-    anchor_point: BigEndian<u16>,
+    anchor_point: u16,
 }
 
 /// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
 table AnchorFormat3 {
     /// Format identifier, = 3
     #[format = 3]
-    anchor_format: BigEndian<u16>,
+    anchor_format: u16,
     /// Horizontal value, in design units
-    x_coordinate: BigEndian<i16>,
+    x_coordinate: i16,
     /// Vertical value, in design units
-    y_coordinate: BigEndian<i16>,
+    y_coordinate: i16,
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for X coordinate, from beginning of
     /// Anchor table (may be NULL)
     #[nullable]
-    x_device_offset: BigEndian<Offset16<Device>>,
+    x_device_offset: Offset16<Device>,
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for Y coordinate, from beginning of
     /// Anchor table (may be NULL)
     #[nullable]
-    y_device_offset: BigEndian<Offset16<Device>>,
+    y_device_offset: Offset16<Device>,
 }
 
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
 table MarkArray {
     /// Number of MarkRecords
     #[compile(array_len($mark_records))]
-    mark_count: BigEndian<u16>,
+    mark_count: u16,
     /// Array of MarkRecords, ordered by corresponding glyphs in the
     /// associated mark Coverage table.
     #[count($mark_count)]
@@ -123,9 +123,9 @@ table MarkArray {
 /// Part of [MarkArray]
 record MarkRecord {
     /// Class defined for the associated mark.
-    mark_class: BigEndian<u16>,
+    mark_class: u16,
     /// Offset to Anchor table, from beginning of MarkArray table.
-    mark_anchor_offset: BigEndian<Offset16<AnchorTable>>,
+    mark_anchor_offset: Offset16<AnchorTable>,
 }
 
 /// [Lookup Type 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-1-single-adjustment-positioning-subtable): Single Adjustment Positioning Subtable
@@ -138,12 +138,12 @@ format u16 SinglePos {
 table SinglePosFormat1 {
     /// Format identifier: format = 1
     #[format = 1]
-    pos_format: BigEndian<u16>,
+    pos_format: u16,
     /// Offset to Coverage table, from beginning of SinglePos subtable.
-    coverage_offset: BigEndian<Offset16<CoverageTable>>,
+    coverage_offset: Offset16<CoverageTable>,
     /// Defines the types of data in the ValueRecord.
     #[compile(self.compute_value_format())]
-    value_format: BigEndian<ValueFormat>,
+    value_format: ValueFormat,
     /// Defines positioning value(s) — applied to all glyphs in the
     /// Coverage table.
     #[read_with($value_format)]
@@ -154,16 +154,16 @@ table SinglePosFormat1 {
 table SinglePosFormat2 {
     /// Format identifier: format = 2
     #[format = 2]
-    pos_format: BigEndian<u16>,
+    pos_format: u16,
     /// Offset to Coverage table, from beginning of SinglePos subtable.
-    coverage_offset: BigEndian<Offset16<CoverageTable>>,
+    coverage_offset: Offset16<CoverageTable>,
     /// Defines the types of data in the ValueRecords.
     #[compile(self.compute_value_format())]
-    value_format: BigEndian<ValueFormat>,
+    value_format: ValueFormat,
     /// Number of ValueRecords — must equal glyphCount in the
     /// Coverage table.
     #[compile(array_len($value_records))]
-    value_count: BigEndian<u16>,
+    value_count: u16,
     /// Array of ValueRecords — positioning values applied to glyphs.
     #[count($value_count)]
     #[read_with($value_format)]
@@ -180,25 +180,25 @@ format u16 PairPos {
 table PairPosFormat1 {
     /// Format identifier: format = 1
     #[format = 1]
-    pos_format: BigEndian<u16>,
+    pos_format: u16,
     /// Offset to Coverage table, from beginning of PairPos subtable.
-    coverage_offset: BigEndian<Offset16<CoverageTable>>,
+    coverage_offset: Offset16<CoverageTable>,
     /// Defines the types of data in valueRecord1 — for the first
     /// glyph in the pair (may be zero).
     #[compile(self.compute_value_format1())]
-    value_format1: BigEndian<ValueFormat>,
+    value_format1: ValueFormat,
     /// Defines the types of data in valueRecord2 — for the second
     /// glyph in the pair (may be zero).
     #[compile(self.compute_value_format2())]
-    value_format2: BigEndian<ValueFormat>,
+    value_format2: ValueFormat,
     /// Number of PairSet tables
     #[compile(array_len($pair_set_offsets))]
-    pair_set_count: BigEndian<u16>,
+    pair_set_count: u16,
     /// Array of offsets to PairSet tables. Offsets are from beginning
     /// of PairPos subtable, ordered by Coverage Index.
     #[count($pair_set_count)]
     #[read_offset_with($value_format1, $value_format2)]
-    pair_set_offsets: [BigEndian<Offset16<PairSet>>],
+    pair_set_offsets: [Offset16<PairSet>],
 }
 
 /// Part of [PairPosFormat1]
@@ -206,7 +206,7 @@ table PairPosFormat1 {
 table PairSet {
     /// Number of PairValueRecords
     #[compile(array_len($pair_value_records))]
-    pair_value_count: BigEndian<u16>,
+    pair_value_count: u16,
     /// Array of PairValueRecords, ordered by glyph ID of the second
     /// glyph.
     #[count($pair_value_count)]
@@ -219,7 +219,7 @@ table PairSet {
 record PairValueRecord {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
-    second_glyph: BigEndian<GlyphId>,
+    second_glyph: GlyphId,
     /// Positioning data for the first glyph in the pair.
     #[read_with($value_format1)]
     value_record1: ValueRecord,
@@ -232,29 +232,29 @@ record PairValueRecord {
 table PairPosFormat2 {
     /// Format identifier: format = 2
     #[format = 2]
-    pos_format: BigEndian<u16>,
+    pos_format: u16,
     /// Offset to Coverage table, from beginning of PairPos subtable.
-    coverage_offset: BigEndian<Offset16<CoverageTable>>,
+    coverage_offset: Offset16<CoverageTable>,
     /// ValueRecord definition — for the first glyph of the pair (may
     /// be zero).
     #[compile(self.compute_value_format1())]
-    value_format1: BigEndian<ValueFormat>,
+    value_format1: ValueFormat,
     /// ValueRecord definition — for the second glyph of the pair
     /// (may be zero).
     #[compile(self.compute_value_format2())]
-    value_format2: BigEndian<ValueFormat>,
+    value_format2: ValueFormat,
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the first glyph of the pair.
-    class_def1_offset: BigEndian<Offset16<ClassDef>>,
+    class_def1_offset: Offset16<ClassDef>,
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the second glyph of the pair.
-    class_def2_offset: BigEndian<Offset16<ClassDef>>,
+    class_def2_offset: Offset16<ClassDef>,
     /// Number of classes in classDef1 table — includes Class 0.
     #[compile(self.compute_class1_count())]
-    class1_count: BigEndian<u16>,
+    class1_count: u16,
     /// Number of classes in classDef2 table — includes Class 0.
     #[compile(self.compute_class2_count())]
-    class2_count: BigEndian<u16>,
+    class2_count: u16,
     /// Array of Class1 records, ordered by classes in classDef1.
     #[read_with($class2_count, $value_format1, $value_format2)]
     #[count($class1_count)]
@@ -291,12 +291,12 @@ record Class2Record {
 table CursivePosFormat1 {
     /// Format identifier: format = 1
     #[format = 1]
-    pos_format: BigEndian<u16>,
+    pos_format: u16,
     /// Offset to Coverage table, from beginning of CursivePos subtable.
-    coverage_offset: BigEndian<Offset16<CoverageTable>>,
+    coverage_offset: Offset16<CoverageTable>,
     /// Number of EntryExit records
     #[compile(array_len($entry_exit_record))]
-    entry_exit_count: BigEndian<u16>,
+    entry_exit_count: u16,
     /// Array of EntryExit records, in Coverage index order.
     #[count($entry_exit_count)]
     entry_exit_record: [EntryExitRecord],
@@ -307,11 +307,11 @@ record EntryExitRecord {
     /// Offset to entryAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
     #[nullable]
-    entry_anchor_offset: BigEndian<Offset16<AnchorTable>>,
+    entry_anchor_offset: Offset16<AnchorTable>,
     /// Offset to exitAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
     #[nullable]
-    exit_anchor_offset: BigEndian<Offset16<AnchorTable>>,
+    exit_anchor_offset: Offset16<AnchorTable>,
 }
 
 /////// [Lookup Type 4](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#lookup-type-4-mark-to-base-attachment-positioning-subtable): Mark-to-Base Attachment Positioning Subtable
@@ -324,23 +324,23 @@ record EntryExitRecord {
 table MarkBasePosFormat1 {
     /// Format identifier: format = 1
     #[format = 1]
-    pos_format: BigEndian<u16>,
+    pos_format: u16,
     /// Offset to markCoverage table, from beginning of MarkBasePos
     /// subtable.
-    mark_coverage_offset: BigEndian<Offset16<CoverageTable>>,
+    mark_coverage_offset: Offset16<CoverageTable>,
     /// Offset to baseCoverage table, from beginning of MarkBasePos
     /// subtable.
-    base_coverage_offset: BigEndian<Offset16<CoverageTable>>,
+    base_coverage_offset: Offset16<CoverageTable>,
     /// Number of classes defined for marks
     #[compile(self.compute_mark_class_count())]
-    mark_class_count: BigEndian<u16>,
+    mark_class_count: u16,
     /// Offset to MarkArray table, from beginning of MarkBasePos
     /// subtable.
-    mark_array_offset: BigEndian<Offset16<MarkArray>>,
+    mark_array_offset: Offset16<MarkArray>,
     /// Offset to BaseArray table, from beginning of MarkBasePos
     /// subtable.
     #[read_offset_with($mark_class_count)]
-    base_array_offset: BigEndian<Offset16<BaseArray>>,
+    base_array_offset: Offset16<BaseArray>,
 }
 
 /// Part of [MarkBasePosFormat1]
@@ -348,7 +348,7 @@ table MarkBasePosFormat1 {
 table BaseArray {
     /// Number of BaseRecords
     #[compile(array_len($base_records))]
-    base_count: BigEndian<u16>,
+    base_count: u16,
     /// Array of BaseRecords, in order of baseCoverage Index.
     #[count($base_count)]
     #[read_with($mark_class_count)]
@@ -363,30 +363,30 @@ record BaseRecord<'a> {
     /// (offsets may be NULL).
     #[nullable]
     #[count($mark_class_count)]
-    base_anchor_offsets: [BigEndian<Offset16<AnchorTable>>],
+    base_anchor_offsets: [Offset16<AnchorTable>],
 }
 
 /// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
 table MarkLigPosFormat1 {
     /// Format identifier: format = 1
     #[format = 1]
-    pos_format: BigEndian<u16>,
+    pos_format: u16,
     /// Offset to markCoverage table, from beginning of MarkLigPos
     /// subtable.
-    mark_coverage_offset: BigEndian<Offset16<CoverageTable>>,
+    mark_coverage_offset: Offset16<CoverageTable>,
     /// Offset to ligatureCoverage table, from beginning of MarkLigPos
     /// subtable.
-    ligature_coverage_offset: BigEndian<Offset16<CoverageTable>>,
+    ligature_coverage_offset: Offset16<CoverageTable>,
     /// Number of defined mark classes
     #[compile(self.compute_mark_class_count())]
-    mark_class_count: BigEndian<u16>,
+    mark_class_count: u16,
     /// Offset to MarkArray table, from beginning of MarkLigPos
     /// subtable.
-    mark_array_offset: BigEndian<Offset16<MarkArray>>,
+    mark_array_offset: Offset16<MarkArray>,
     /// Offset to LigatureArray table, from beginning of MarkLigPos
     /// subtable.
     #[read_offset_with($mark_class_count)]
-    ligature_array_offset: BigEndian<Offset16<LigatureArray>>,
+    ligature_array_offset: Offset16<LigatureArray>,
 }
 
 /// Part of [MarkLigPosFormat1]
@@ -394,13 +394,13 @@ table MarkLigPosFormat1 {
 table LigatureArray {
     /// Number of LigatureAttach table offsets
     #[compile(array_len($ligature_attach_offsets))]
-    ligature_count: BigEndian<u16>,
+    ligature_count: u16,
     /// Array of offsets to LigatureAttach tables. Offsets are from
     /// beginning of LigatureArray table, ordered by ligatureCoverage
     /// index.
     #[count($ligature_count)]
     #[read_offset_with($mark_class_count)]
-    ligature_attach_offsets: [BigEndian<Offset16<LigatureAttach>>],
+    ligature_attach_offsets: [Offset16<LigatureAttach>],
 }
 
 /// Part of [MarkLigPosFormat1]
@@ -408,7 +408,7 @@ table LigatureArray {
 table LigatureAttach {
     /// Number of ComponentRecords in this ligature
     #[compile(array_len($component_records))]
-    component_count: BigEndian<u16>,
+    component_count: u16,
     /// Array of Component records, ordered in writing direction.
     #[count($component_count)]
     #[read_with($mark_class_count)]
@@ -423,30 +423,30 @@ record ComponentRecord<'a> {
     /// (offsets may be NULL).
     #[nullable]
     #[count($mark_class_count)]
-    ligature_anchor_offsets: [BigEndian<Offset16<AnchorTable>>],
+    ligature_anchor_offsets: [Offset16<AnchorTable>],
 }
 
 /// [Mark-to-Mark Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-mark-attachment-positioning-format-1-mark-to-mark-attachment): Mark-to-Mark Attachment
 table MarkMarkPosFormat1 {
     /// Format identifier: format = 1
     #[format = 1]
-    pos_format: BigEndian<u16>,
+    pos_format: u16,
     /// Offset to Combining Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
-    mark1_coverage_offset: BigEndian<Offset16<CoverageTable>>,
+    mark1_coverage_offset: Offset16<CoverageTable>,
     /// Offset to Base Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
-    mark2_coverage_offset: BigEndian<Offset16<CoverageTable>>,
+    mark2_coverage_offset: Offset16<CoverageTable>,
     /// Number of Combining Mark classes defined
     #[compile(self.compute_mark_class_count())]
-    mark_class_count: BigEndian<u16>,
+    mark_class_count: u16,
     /// Offset to MarkArray table for mark1, from beginning of
     /// MarkMarkPos subtable.
-    mark1_array_offset: BigEndian<Offset16<MarkArray>>,
+    mark1_array_offset: Offset16<MarkArray>,
     /// Offset to Mark2Array table for mark2, from beginning of
     /// MarkMarkPos subtable.
     #[read_offset_with($mark_class_count)]
-    mark2_array_offset: BigEndian<Offset16<Mark2Array>>,
+    mark2_array_offset: Offset16<Mark2Array>,
 }
 
 /// Part of [MarkMarkPosFormat1]Class2Record
@@ -454,7 +454,7 @@ table MarkMarkPosFormat1 {
 table Mark2Array {
     /// Number of Mark2 records
     #[compile(array_len($mark2_records))]
-    mark2_count: BigEndian<u16>,
+    mark2_count: u16,
     /// Array of Mark2Records, in Coverage order.
     #[count($mark2_count)]
     #[read_with($mark_class_count)]
@@ -469,7 +469,7 @@ record Mark2Record<'a> {
     /// be NULL).
     #[count($mark_class_count)]
     #[nullable]
-    mark2_anchor_offsets: [BigEndian<Offset16<AnchorTable>>],
+    mark2_anchor_offsets: [Offset16<AnchorTable>],
 }
 
 /// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
@@ -478,14 +478,14 @@ record Mark2Record<'a> {
 table ExtensionPosFormat1 {
     /// Format identifier: format = 1
     #[format = 1]
-    pos_format: BigEndian<u16>,
+    pos_format: u16,
     /// Lookup type of subtable referenced by extensionOffset (i.e. the
     /// extension subtable).
-    extension_lookup_type: BigEndian<u16>,
+    extension_lookup_type: u16,
     /// Offset to the extension subtable, of lookup type
     /// extensionLookupType, relative to the start of the
     /// ExtensionPosFormat1 subtable.
-    extension_offset: BigEndian<Offset32<T>>,
+    extension_offset: Offset32<T>,
 }
 
 /// A [GPOS Extension Positioning](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#lookuptype-9-extension-positioning) subtable

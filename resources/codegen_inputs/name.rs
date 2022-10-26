@@ -4,13 +4,13 @@
 table Name {
     /// Table version number (0 or 1)
     #[version]
-    version: BigEndian<u16>,
+    version: u16,
     /// Number of name records.
     #[compile(array_len($name_record))]
-    count: BigEndian<u16>,
+    count: u16,
     /// Offset to start of string storage (from start of table).
     #[compile(self.compute_storage_offset())]
-    storage_offset: BigEndian<u16>,
+    storage_offset: u16,
     /// The name records where count is the number of records.
     #[count($count)]
     #[offset_data_method(string_data)]
@@ -20,7 +20,7 @@ table Name {
     /// Number of language-tag records.
     #[available(1)]
     #[compile(array_len($lang_tag_record))]
-    lang_tag_count: BigEndian<u16>,
+    lang_tag_count: u16,
     /// The language-tag records where langTagCount is the number of records.
     #[count($lang_tag_count)]
     #[offset_data_method(string_data)]
@@ -34,34 +34,34 @@ table Name {
 record LangTagRecord {
     /// Language-tag string length (in bytes)
     #[compile(skip)]
-    length: BigEndian<u16>,
+    length: u16,
     /// Language-tag string offset from start of storage area (in
     /// bytes).
     #[offset_getter(lang_tag)]
     #[traverse_with(traverse_lang_tag)]
     #[compile_type(OffsetMarker<String>)]
     #[validate(skip)]
-    lang_tag_offset: BigEndian<Offset16<NameString>>,
+    lang_tag_offset: Offset16<NameString>,
 }
 
 ///[Name Records](https://docs.microsoft.com/en-us/typography/opentype/spec/name#name-records)
 #[skip_font_write]
 record NameRecord {
     /// Platform ID.
-    platform_id: BigEndian<u16>,
+    platform_id: u16,
     /// Platform-specific encoding ID.
-    encoding_id: BigEndian<u16>,
+    encoding_id: u16,
     /// Language ID.
-    language_id: BigEndian<u16>,
+    language_id: u16,
     /// Name ID.
-    name_id: BigEndian<u16>,
+    name_id: u16,
     /// String length (in bytes).
     #[compile(skip)]
-    length: BigEndian<u16>,
+    length: u16,
     /// String offset from start of storage area (in bytes).
     #[traverse_with(traverse_string)]
     #[offset_getter(string)]
     #[compile_type(OffsetMarker<String>)]
     #[validate(validate_string_data)]
-    string_offset: BigEndian<Offset16<NameString>>,
+    string_offset: Offset16<NameString>,
 }
