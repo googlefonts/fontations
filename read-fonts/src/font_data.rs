@@ -24,6 +24,7 @@ pub struct FontData<'a> {
 /// # Note
 ///
 /// call `finish` when you're done to ensure you're in bounds
+#[derive(Debug, Default, Clone, Copy)]
 pub struct Cursor<'a> {
     pos: usize,
     data: FontData<'a>,

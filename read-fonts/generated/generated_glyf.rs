@@ -371,6 +371,7 @@ impl<'a> From<CompositeGlyphFlags> for FieldType<'a> {
     }
 }
 
+/// Simple or composite glyph.
 pub enum Glyph<'a> {
     Simple(SimpleGlyph<'a>),
     Composite(CompositeGlyph<'a>),

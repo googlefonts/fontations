@@ -218,6 +218,7 @@ flags u16 CompositeGlyphFlags {
     //Reserved = 0xE010,
 }
 
+/// Simple or composite glyph.
 format i16 Glyph {
     #[match_if($format >= 0)]
     Simple(SimpleGlyph),
