@@ -74,6 +74,25 @@ impl<'a> FontRead<'a> for PositionLookupList {
     }
 }
 
+impl AnchorTable {
+    /// Create a new [`AnchorFormat1`] table.
+    pub fn format_1(x_coordinate: i16, y_coordinate: i16) -> Self {
+        Self::Format1(AnchorFormat1 {
+            x_coordinate,
+            y_coordinate,
+        })
+    }
+
+    /// Create a new [`AnchorFormat2`] table.
+    pub fn format_2(x_coordinate: i16, y_coordinate: i16, anchor_point: u16) -> Self {
+        Self::Format2(AnchorFormat2 {
+            x_coordinate,
+            y_coordinate,
+            anchor_point,
+        })
+    }
+}
+
 impl SinglePosFormat1 {
     fn compute_value_format(&self) -> ValueFormat {
         self.value_record.format()
