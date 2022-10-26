@@ -147,10 +147,11 @@ The following annotations are supported on top-level objects:
   implementation of `FontReadWithArgs`, expecting the provided arguments. The
   provided names will be available to other attributes on this type, as if they
   were fields on the type itself.
-- `#[phantom(T)]` Indicate that this type has a phantom generic parameter. This
-  is used for common tables that contain offsets which point to different
-  concrete types depending on the containing table, such as the `Layout`
-  subtable shared between GPOS and GSUB.
+- `#[generic_offset(T)]` Indicate that this type contains an offset with a generic
+  target, for which we will add a `PhantomData` field. This is is used for
+  common tables that contain offsets which point to different concrete types
+  depending on the containing table, such as the `Layout` subtable shared
+  between GPOS and GSUB.
 
 
 #### field attributes

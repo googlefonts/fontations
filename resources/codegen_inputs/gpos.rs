@@ -473,7 +473,7 @@ record Mark2Record<'a> {
 }
 
 /// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
-#[phantom(T)]
+#[generic_offset(T)]
 #[skip_font_write]
 table ExtensionPosFormat1 {
     /// Format identifier: format = 1

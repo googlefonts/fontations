@@ -607,7 +607,7 @@ impl<'a> std::fmt::Debug for Feature<'a> {
 #[doc(hidden)]
 pub struct LookupListMarker<T = ()> {
     lookup_offsets_byte_len: usize,
-    phantom: std::marker::PhantomData<*const T>,
+    offset_type: std::marker::PhantomData<*const T>,
 }
 
 impl<T> LookupListMarker<T> {
@@ -625,7 +625,7 @@ impl<T> Clone for LookupListMarker<T> {
     fn clone(&self) -> Self {
         Self {
             lookup_offsets_byte_len: self.lookup_offsets_byte_len,
-            phantom: std::marker::PhantomData,
+            offset_type: std::marker::PhantomData,
         }
     }
 }
@@ -640,7 +640,7 @@ impl<'a, T> FontRead<'a> for LookupList<'a, T> {
         cursor.advance_by(lookup_offsets_byte_len);
         cursor.finish(LookupListMarker {
             lookup_offsets_byte_len,
-            phantom: std::marker::PhantomData,
+            offset_type: std::marker::PhantomData,
         })
     }
 }
@@ -652,7 +652,7 @@ impl<'a> LookupList<'a, ()> {
         TableRef {
             shape: LookupListMarker {
                 lookup_offsets_byte_len: shape.lookup_offsets_byte_len,
-                phantom: std::marker::PhantomData,
+                offset_type: std::marker::PhantomData,
             },
             data,
         }
@@ -727,7 +727,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for LookupList<'a
 #[doc(hidden)]
 pub struct LookupMarker<T = ()> {
     subtable_offsets_byte_len: usize,
-    phantom: std::marker::PhantomData<*const T>,
+    offset_type: std::marker::PhantomData<*const T>,
 }
 
 impl<T> LookupMarker<T> {
@@ -757,7 +757,7 @@ impl<T> Clone for LookupMarker<T> {
     fn clone(&self) -> Self {
         Self {
             subtable_offsets_byte_len: self.subtable_offsets_byte_len,
-            phantom: std::marker::PhantomData,
+            offset_type: std::marker::PhantomData,
         }
     }
 }
@@ -775,7 +775,7 @@ impl<'a, T> FontRead<'a> for Lookup<'a, T> {
         cursor.advance::<u16>();
         cursor.finish(LookupMarker {
             subtable_offsets_byte_len,
-            phantom: std::marker::PhantomData,
+            offset_type: std::marker::PhantomData,
         })
     }
 }
@@ -787,7 +787,7 @@ impl<'a> Lookup<'a, ()> {
         TableRef {
             shape: LookupMarker {
                 subtable_offsets_byte_len: shape.subtable_offsets_byte_len,
-                phantom: std::marker::PhantomData,
+                offset_type: std::marker::PhantomData,
             },
             data,
         }

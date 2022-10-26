@@ -144,7 +144,7 @@ pub(crate) fn generate_compile_impl(
 ) -> syn::Result<TokenStream> {
     let docs = &attrs.docs;
     let field_decls = fields.iter_compile_decls();
-    let generic_param = attrs.phantom.as_ref();
+    let generic_param = attrs.generic_offset.as_ref();
     let maybe_allow_casts = fields
         .compile_write_contains_int_casts()
         .then(|| quote!(#[allow(clippy::unnecessary_cast)]));

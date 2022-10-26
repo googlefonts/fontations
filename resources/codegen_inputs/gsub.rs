@@ -163,7 +163,7 @@ table Ligature {
 }
 
 /// [Extension Substitution Subtable Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#71-extension-substitution-subtable-format-1)
-#[phantom(T)]
+#[generic_offset(T)]
 #[skip_font_write]
 table ExtensionSubstFormat1 {
     /// Format identifier. Set to 1.

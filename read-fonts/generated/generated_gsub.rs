@@ -1164,7 +1164,7 @@ impl Format<u16> for ExtensionSubstFormat1Marker {
 #[derive(Debug)]
 #[doc(hidden)]
 pub struct ExtensionSubstFormat1Marker<T = ()> {
-    phantom: std::marker::PhantomData<*const T>,
+    offset_type: std::marker::PhantomData<*const T>,
 }
 
 impl<T> ExtensionSubstFormat1Marker<T> {
@@ -1185,7 +1185,7 @@ impl<T> ExtensionSubstFormat1Marker<T> {
 impl<T> Clone for ExtensionSubstFormat1Marker<T> {
     fn clone(&self) -> Self {
         Self {
-            phantom: std::marker::PhantomData,
+            offset_type: std::marker::PhantomData,
         }
     }
 }
@@ -1199,7 +1199,7 @@ impl<'a, T> FontRead<'a> for ExtensionSubstFormat1<'a, T> {
         cursor.advance::<u16>();
         cursor.advance::<Offset32>();
         cursor.finish(ExtensionSubstFormat1Marker {
-            phantom: std::marker::PhantomData,
+            offset_type: std::marker::PhantomData,
         })
     }
 }
@@ -1210,7 +1210,7 @@ impl<'a> ExtensionSubstFormat1<'a, ()> {
         let TableRef { data, .. } = self;
         TableRef {
             shape: ExtensionSubstFormat1Marker {
-                phantom: std::marker::PhantomData,
+                offset_type: std::marker::PhantomData,
             },
             data,
         }
