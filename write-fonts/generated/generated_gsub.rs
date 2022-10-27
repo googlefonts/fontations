@@ -289,9 +289,10 @@ impl Validate for SingleSubstFormat2 {
 
 impl<'a> FromObjRef<read_fonts::layout::gsub::SingleSubstFormat2<'a>> for SingleSubstFormat2 {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::SingleSubstFormat2<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
         SingleSubstFormat2 {
             coverage_offset: obj.coverage().into(),
-            substitute_glyph_ids: obj.substitute_glyph_ids().iter().map(|x| x.get()).collect(),
+            substitute_glyph_ids: obj.substitute_glyph_ids().to_owned_obj(offset_data),
         }
     }
 }
@@ -389,8 +390,9 @@ impl Validate for Sequence {
 
 impl<'a> FromObjRef<read_fonts::layout::gsub::Sequence<'a>> for Sequence {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::Sequence<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
         Sequence {
-            substitute_glyph_ids: obj.substitute_glyph_ids().iter().map(|x| x.get()).collect(),
+            substitute_glyph_ids: obj.substitute_glyph_ids().to_owned_obj(offset_data),
         }
     }
 }
@@ -493,8 +495,9 @@ impl Validate for AlternateSet {
 
 impl<'a> FromObjRef<read_fonts::layout::gsub::AlternateSet<'a>> for AlternateSet {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::AlternateSet<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
         AlternateSet {
-            alternate_glyph_ids: obj.alternate_glyph_ids().iter().map(|x| x.get()).collect(),
+            alternate_glyph_ids: obj.alternate_glyph_ids().to_owned_obj(offset_data),
         }
     }
 }
@@ -632,9 +635,10 @@ impl Validate for Ligature {
 
 impl<'a> FromObjRef<read_fonts::layout::gsub::Ligature<'a>> for Ligature {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::Ligature<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
         Ligature {
             ligature_glyph: obj.ligature_glyph(),
-            component_glyph_ids: obj.component_glyph_ids().iter().map(|x| x.get()).collect(),
+            component_glyph_ids: obj.component_glyph_ids().to_owned_obj(offset_data),
         }
     }
 }
@@ -837,11 +841,12 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::ReverseChainSingleSubstFormat1<'a>
         obj: &read_fonts::layout::gsub::ReverseChainSingleSubstFormat1<'a>,
         _: FontData,
     ) -> Self {
+        let offset_data = obj.offset_data();
         ReverseChainSingleSubstFormat1 {
             coverage_offset: obj.coverage().into(),
             backtrack_coverage_offsets: obj.backtrack_coverages().map(|x| x.into()).collect(),
             lookahead_coverage_offsets: obj.lookahead_coverages().map(|x| x.into()).collect(),
-            substitute_glyph_ids: obj.substitute_glyph_ids().iter().map(|x| x.get()).collect(),
+            substitute_glyph_ids: obj.substitute_glyph_ids().to_owned_obj(offset_data),
         }
     }
 }

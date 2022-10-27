@@ -182,8 +182,9 @@ impl Validate for AttachPoint {
 
 impl<'a> FromObjRef<read_fonts::layout::gdef::AttachPoint<'a>> for AttachPoint {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::AttachPoint<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
         AttachPoint {
-            point_indices: obj.point_indices().iter().map(|x| x.get()).collect(),
+            point_indices: obj.point_indices().to_owned_obj(offset_data),
         }
     }
 }

@@ -278,7 +278,7 @@ impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
 pub type KindsOfArraysOfOffsets<'a> = TableRef<'a, KindsOfArraysOfOffsetsMarker>;
 
 impl<'a> KindsOfArraysOfOffsets<'a> {
-    /// The major/minor version of the GDEF table
+    /// The version
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -429,6 +429,166 @@ impl<'a> std::fmt::Debug for KindsOfArraysOfOffsets<'a> {
 
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
+pub struct KindsOfArraysMarker {
+    scalars_byte_len: usize,
+    records_byte_len: usize,
+    versioned_scalars_byte_start: Option<usize>,
+    versioned_scalars_byte_len: Option<usize>,
+    versioned_records_byte_start: Option<usize>,
+    versioned_records_byte_len: Option<usize>,
+}
+
+impl KindsOfArraysMarker {
+    fn version_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn count_byte_range(&self) -> Range<usize> {
+        let start = self.version_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn scalars_byte_range(&self) -> Range<usize> {
+        let start = self.count_byte_range().end;
+        start..start + self.scalars_byte_len
+    }
+    fn records_byte_range(&self) -> Range<usize> {
+        let start = self.scalars_byte_range().end;
+        start..start + self.records_byte_len
+    }
+    fn versioned_scalars_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.versioned_scalars_byte_start?;
+        Some(start..start + self.versioned_scalars_byte_len?)
+    }
+    fn versioned_records_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.versioned_records_byte_start?;
+        Some(start..start + self.versioned_records_byte_len?)
+    }
+}
+
+impl<'a> FontRead<'a> for KindsOfArrays<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let version: u16 = cursor.read()?;
+        let count: u16 = cursor.read()?;
+        let scalars_byte_len = count as usize * u16::RAW_BYTE_LEN;
+        cursor.advance_by(scalars_byte_len);
+        let records_byte_len = count as usize * Shmecord::RAW_BYTE_LEN;
+        cursor.advance_by(records_byte_len);
+        let versioned_scalars_byte_start = version
+            .compatible(1)
+            .then(|| cursor.position())
+            .transpose()?;
+        let versioned_scalars_byte_len = version
+            .compatible(1)
+            .then_some(count as usize * u16::RAW_BYTE_LEN);
+        if let Some(value) = versioned_scalars_byte_len {
+            cursor.advance_by(value);
+        }
+        let versioned_records_byte_start = version
+            .compatible(1)
+            .then(|| cursor.position())
+            .transpose()?;
+        let versioned_records_byte_len = version
+            .compatible(1)
+            .then_some(count as usize * Shmecord::RAW_BYTE_LEN);
+        if let Some(value) = versioned_records_byte_len {
+            cursor.advance_by(value);
+        }
+        cursor.finish(KindsOfArraysMarker {
+            scalars_byte_len,
+            records_byte_len,
+            versioned_scalars_byte_start,
+            versioned_scalars_byte_len,
+            versioned_records_byte_start,
+            versioned_records_byte_len,
+        })
+    }
+}
+
+pub type KindsOfArrays<'a> = TableRef<'a, KindsOfArraysMarker>;
+
+impl<'a> KindsOfArrays<'a> {
+    pub fn version(&self) -> u16 {
+        let range = self.shape.version_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// the number of items in each array
+    pub fn count(&self) -> u16 {
+        let range = self.shape.count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// an array of scalars
+    pub fn scalars(&self) -> &'a [BigEndian<u16>] {
+        let range = self.shape.scalars_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    /// an array of records
+    pub fn records(&self) -> &'a [Shmecord] {
+        let range = self.shape.records_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    /// a versioned array of scalars
+    pub fn versioned_scalars(&self) -> Option<&'a [BigEndian<u16>]> {
+        let range = self.shape.versioned_scalars_byte_range()?;
+        Some(self.data.read_array(range).unwrap())
+    }
+
+    /// a versioned array of scalars
+    pub fn versioned_records(&self) -> Option<&'a [Shmecord]> {
+        let range = self.shape.versioned_records_byte_range()?;
+        Some(self.data.read_array(range).unwrap())
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for KindsOfArrays<'a> {
+    fn type_name(&self) -> &str {
+        "KindsOfArrays"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let version = self.version();
+        match idx {
+            0usize => Some(Field::new("version", self.version())),
+            1usize => Some(Field::new("count", self.count())),
+            2usize => Some(Field::new("scalars", self.scalars())),
+            3usize => Some(Field::new(
+                "records",
+                traversal::FieldType::array_of_records(
+                    stringify!(Shmecord),
+                    self.records(),
+                    self.offset_data(),
+                ),
+            )),
+            4usize if version.compatible(1) => Some(Field::new(
+                "versioned_scalars",
+                self.versioned_scalars().unwrap(),
+            )),
+            5usize if version.compatible(1) => Some(Field::new(
+                "versioned_records",
+                traversal::FieldType::array_of_records(
+                    stringify!(Shmecord),
+                    self.versioned_records().unwrap(),
+                    self.offset_data(),
+                ),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for KindsOfArrays<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
 pub struct DummyMarker {}
 
 impl DummyMarker {
@@ -472,5 +632,42 @@ impl<'a> SomeTable<'a> for Dummy<'a> {
 impl<'a> std::fmt::Debug for Dummy<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Clone, Debug)]
+#[repr(C)]
+#[repr(packed)]
+pub struct Shmecord {
+    pub length: BigEndian<u16>,
+    pub breadth: BigEndian<u32>,
+}
+
+impl Shmecord {
+    pub fn length(&self) -> u16 {
+        self.length.get()
+    }
+
+    pub fn breadth(&self) -> u32 {
+        self.breadth.get()
+    }
+}
+
+impl FixedSize for Shmecord {
+    const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for Shmecord {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "Shmecord",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("length", self.length())),
+                1usize => Some(Field::new("breadth", self.breadth())),
+                _ => None,
+            }),
+            data,
+        }
     }
 }

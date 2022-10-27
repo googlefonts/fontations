@@ -67,16 +67,8 @@ impl<'a> FromObjRef<read_fonts::tables::name::Name<'a>> for Name {
     fn from_obj_ref(obj: &read_fonts::tables::name::Name<'a>, _: FontData) -> Self {
         let offset_data = obj.string_data();
         Name {
-            name_record: obj
-                .name_record()
-                .iter()
-                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                .collect(),
-            lang_tag_record: obj.lang_tag_record().map(|obj| {
-                obj.iter()
-                    .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                    .collect()
-            }),
+            name_record: obj.name_record().to_owned_obj(offset_data),
+            lang_tag_record: obj.lang_tag_record().to_owned_obj(offset_data),
         }
     }
 }

@@ -40,12 +40,8 @@ impl<'a> FromObjRef<read_fonts::tables::hmtx::Hmtx<'a>> for Hmtx {
     fn from_obj_ref(obj: &read_fonts::tables::hmtx::Hmtx<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Hmtx {
-            h_metrics: obj
-                .h_metrics()
-                .iter()
-                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                .collect(),
-            left_side_bearings: obj.left_side_bearings().iter().map(|x| x.get()).collect(),
+            h_metrics: obj.h_metrics().to_owned_obj(offset_data),
+            left_side_bearings: obj.left_side_bearings().to_owned_obj(offset_data),
         }
     }
 }

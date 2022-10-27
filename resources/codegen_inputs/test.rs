@@ -31,7 +31,7 @@ table KindsOfOffsets {
 }
 
 table KindsOfArraysOfOffsets {
-    /// The major/minor version of the GDEF table
+    /// The version
     #[version]
     #[compile(MajorMinor::VERSION_1_1)]
     version: MajorMinor,
@@ -55,7 +55,33 @@ table KindsOfArraysOfOffsets {
     versioned_nullable_offsets: [Offset16<Dummy>],
 }
 
+table KindsOfArrays {
+    #[version]
+    #[default(1)]
+    version: u16,
+    /// the number of items in each array
+    count: u16,
+    /// an array of scalars
+    #[count($count)]
+    scalars: [u16],
+    /// an array of records
+    #[count($count)]
+    records: [Shmecord],
+    /// a versioned array of scalars
+    #[available(1)]
+    #[count($count)]
+    versioned_scalars: [u16],
+    /// a versioned array of scalars
+    #[available(1)]
+    #[count($count)]
+    versioned_records: [Shmecord],
+}
+
 table Dummy {
     value: u16,
 }
 
+record Shmecord {
+    length: u16,
+    breadth: u32,
+}

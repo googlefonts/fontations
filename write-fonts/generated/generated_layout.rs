@@ -39,11 +39,7 @@ impl<'a> FromObjRef<read_fonts::layout::ScriptList<'a>> for ScriptList {
     fn from_obj_ref(obj: &read_fonts::layout::ScriptList<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         ScriptList {
-            script_records: obj
-                .script_records()
-                .iter()
-                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                .collect(),
+            script_records: obj.script_records().to_owned_obj(offset_data),
         }
     }
 }
@@ -131,11 +127,7 @@ impl<'a> FromObjRef<read_fonts::layout::Script<'a>> for Script {
         let offset_data = obj.offset_data();
         Script {
             default_lang_sys_offset: obj.default_lang_sys().into(),
-            lang_sys_records: obj
-                .lang_sys_records()
-                .iter()
-                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                .collect(),
+            lang_sys_records: obj.lang_sys_records().to_owned_obj(offset_data),
         }
     }
 }
@@ -216,9 +208,10 @@ impl Validate for LangSys {
 
 impl<'a> FromObjRef<read_fonts::layout::LangSys<'a>> for LangSys {
     fn from_obj_ref(obj: &read_fonts::layout::LangSys<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
         LangSys {
             required_feature_index: obj.required_feature_index(),
-            feature_indices: obj.feature_indices().iter().map(|x| x.get()).collect(),
+            feature_indices: obj.feature_indices().to_owned_obj(offset_data),
         }
     }
 }
@@ -264,11 +257,7 @@ impl<'a> FromObjRef<read_fonts::layout::FeatureList<'a>> for FeatureList {
     fn from_obj_ref(obj: &read_fonts::layout::FeatureList<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         FeatureList {
-            feature_records: obj
-                .feature_records()
-                .iter()
-                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                .collect(),
+            feature_records: obj.feature_records().to_owned_obj(offset_data),
         }
     }
 }
@@ -352,9 +341,10 @@ impl Validate for Feature {
 
 impl<'a> FromObjRef<read_fonts::layout::Feature<'a>> for Feature {
     fn from_obj_ref(obj: &read_fonts::layout::Feature<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
         Feature {
             feature_params_offset: obj.feature_params().into(),
-            lookup_list_indices: obj.lookup_list_indices().iter().map(|x| x.get()).collect(),
+            lookup_list_indices: obj.lookup_list_indices().to_owned_obj(offset_data),
         }
     }
 }
@@ -487,8 +477,9 @@ impl Validate for CoverageFormat1 {
 
 impl<'a> FromObjRef<read_fonts::layout::CoverageFormat1<'a>> for CoverageFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::CoverageFormat1<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
         CoverageFormat1 {
-            glyph_array: obj.glyph_array().iter().map(|x| x.get()).collect(),
+            glyph_array: obj.glyph_array().to_owned_obj(offset_data),
         }
     }
 }
@@ -534,11 +525,7 @@ impl<'a> FromObjRef<read_fonts::layout::CoverageFormat2<'a>> for CoverageFormat2
     fn from_obj_ref(obj: &read_fonts::layout::CoverageFormat2<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         CoverageFormat2 {
-            range_records: obj
-                .range_records()
-                .iter()
-                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                .collect(),
+            range_records: obj.range_records().to_owned_obj(offset_data),
         }
     }
 }
@@ -666,9 +653,10 @@ impl Validate for ClassDefFormat1 {
 
 impl<'a> FromObjRef<read_fonts::layout::ClassDefFormat1<'a>> for ClassDefFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::ClassDefFormat1<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
         ClassDefFormat1 {
             start_glyph_id: obj.start_glyph_id(),
-            class_value_array: obj.class_value_array().iter().map(|x| x.get()).collect(),
+            class_value_array: obj.class_value_array().to_owned_obj(offset_data),
         }
     }
 }
@@ -714,11 +702,7 @@ impl<'a> FromObjRef<read_fonts::layout::ClassDefFormat2<'a>> for ClassDefFormat2
     fn from_obj_ref(obj: &read_fonts::layout::ClassDefFormat2<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         ClassDefFormat2 {
-            class_range_records: obj
-                .class_range_records()
-                .iter()
-                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                .collect(),
+            class_range_records: obj.class_range_records().to_owned_obj(offset_data),
         }
     }
 }
@@ -984,12 +968,8 @@ impl<'a> FromObjRef<read_fonts::layout::SequenceRule<'a>> for SequenceRule {
     fn from_obj_ref(obj: &read_fonts::layout::SequenceRule<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         SequenceRule {
-            input_sequence: obj.input_sequence().iter().map(|x| x.get()).collect(),
-            seq_lookup_records: obj
-                .seq_lookup_records()
-                .iter()
-                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                .collect(),
+            input_sequence: obj.input_sequence().to_owned_obj(offset_data),
+            seq_lookup_records: obj.seq_lookup_records().to_owned_obj(offset_data),
         }
     }
 }
@@ -1148,12 +1128,8 @@ impl<'a> FromObjRef<read_fonts::layout::ClassSequenceRule<'a>> for ClassSequence
     fn from_obj_ref(obj: &read_fonts::layout::ClassSequenceRule<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         ClassSequenceRule {
-            input_sequence: obj.input_sequence().iter().map(|x| x.get()).collect(),
-            seq_lookup_records: obj
-                .seq_lookup_records()
-                .iter()
-                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                .collect(),
+            input_sequence: obj.input_sequence().to_owned_obj(offset_data),
+            seq_lookup_records: obj.seq_lookup_records().to_owned_obj(offset_data),
         }
     }
 }
@@ -1211,11 +1187,7 @@ impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat3<'a>> for Sequence
         let offset_data = obj.offset_data();
         SequenceContextFormat3 {
             coverage_offsets: obj.coverages().map(|x| x.into()).collect(),
-            seq_lookup_records: obj
-                .seq_lookup_records()
-                .iter()
-                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                .collect(),
+            seq_lookup_records: obj.seq_lookup_records().to_owned_obj(offset_data),
         }
     }
 }
@@ -1444,14 +1416,10 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceRule<'a>> for ChainedSequ
     fn from_obj_ref(obj: &read_fonts::layout::ChainedSequenceRule<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         ChainedSequenceRule {
-            backtrack_sequence: obj.backtrack_sequence().iter().map(|x| x.get()).collect(),
-            input_sequence: obj.input_sequence().iter().map(|x| x.get()).collect(),
-            lookahead_sequence: obj.lookahead_sequence().iter().map(|x| x.get()).collect(),
-            seq_lookup_records: obj
-                .seq_lookup_records()
-                .iter()
-                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                .collect(),
+            backtrack_sequence: obj.backtrack_sequence().to_owned_obj(offset_data),
+            input_sequence: obj.input_sequence().to_owned_obj(offset_data),
+            lookahead_sequence: obj.lookahead_sequence().to_owned_obj(offset_data),
+            seq_lookup_records: obj.seq_lookup_records().to_owned_obj(offset_data),
         }
     }
 }
@@ -1667,14 +1635,10 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedClassSequenceRule<'a>> for Chaine
     fn from_obj_ref(obj: &read_fonts::layout::ChainedClassSequenceRule<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         ChainedClassSequenceRule {
-            backtrack_sequence: obj.backtrack_sequence().iter().map(|x| x.get()).collect(),
-            input_sequence: obj.input_sequence().iter().map(|x| x.get()).collect(),
-            lookahead_sequence: obj.lookahead_sequence().iter().map(|x| x.get()).collect(),
-            seq_lookup_records: obj
-                .seq_lookup_records()
-                .iter()
-                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                .collect(),
+            backtrack_sequence: obj.backtrack_sequence().to_owned_obj(offset_data),
+            input_sequence: obj.input_sequence().to_owned_obj(offset_data),
+            lookahead_sequence: obj.lookahead_sequence().to_owned_obj(offset_data),
+            seq_lookup_records: obj.seq_lookup_records().to_owned_obj(offset_data),
         }
     }
 }
@@ -1762,11 +1726,7 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat3<'a>>
             backtrack_coverage_offsets: obj.backtrack_coverages().map(|x| x.into()).collect(),
             input_coverage_offsets: obj.input_coverages().map(|x| x.into()).collect(),
             lookahead_coverage_offsets: obj.lookahead_coverages().map(|x| x.into()).collect(),
-            seq_lookup_records: obj
-                .seq_lookup_records()
-                .iter()
-                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                .collect(),
+            seq_lookup_records: obj.seq_lookup_records().to_owned_obj(offset_data),
         }
     }
 }
@@ -1871,11 +1831,12 @@ impl Validate for Device {
 
 impl<'a> FromObjRef<read_fonts::layout::Device<'a>> for Device {
     fn from_obj_ref(obj: &read_fonts::layout::Device<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
         Device {
             start_size: obj.start_size(),
             end_size: obj.end_size(),
             delta_format: obj.delta_format(),
-            delta_value: obj.delta_value().iter().map(|x| x.get()).collect(),
+            delta_value: obj.delta_value().to_owned_obj(offset_data),
         }
     }
 }
@@ -1964,11 +1925,7 @@ impl<'a> FromObjRef<read_fonts::layout::FeatureVariations<'a>> for FeatureVariat
     fn from_obj_ref(obj: &read_fonts::layout::FeatureVariations<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         FeatureVariations {
-            feature_variation_records: obj
-                .feature_variation_records()
-                .iter()
-                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                .collect(),
+            feature_variation_records: obj.feature_variation_records().to_owned_obj(offset_data),
         }
     }
 }
@@ -2148,11 +2105,7 @@ impl<'a> FromObjRef<read_fonts::layout::FeatureTableSubstitution<'a>> for Featur
     fn from_obj_ref(obj: &read_fonts::layout::FeatureTableSubstitution<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         FeatureTableSubstitution {
-            substitutions: obj
-                .substitutions()
-                .iter()
-                .map(|x| FromObjRef::from_obj_ref(x, offset_data))
-                .collect(),
+            substitutions: obj.substitutions().to_owned_obj(offset_data),
         }
     }
 }
@@ -2373,13 +2326,14 @@ impl Validate for CharacterVariantParams {
 
 impl<'a> FromObjRef<read_fonts::layout::CharacterVariantParams<'a>> for CharacterVariantParams {
     fn from_obj_ref(obj: &read_fonts::layout::CharacterVariantParams<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
         CharacterVariantParams {
             feat_ui_label_name_id: obj.feat_ui_label_name_id(),
             feat_ui_tooltip_text_name_id: obj.feat_ui_tooltip_text_name_id(),
             sample_text_name_id: obj.sample_text_name_id(),
             num_named_parameters: obj.num_named_parameters(),
             first_param_ui_label_name_id: obj.first_param_ui_label_name_id(),
-            character: obj.character().iter().map(|x| x.get()).collect(),
+            character: obj.character().to_owned_obj(offset_data),
         }
     }
 }
