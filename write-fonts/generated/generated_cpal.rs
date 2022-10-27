@@ -90,11 +90,13 @@ impl<'a> FromObjRef<read_fonts::tables::cpal::Cpal<'a>> for Cpal {
             num_palette_entries: obj.num_palette_entries(),
             num_palettes: obj.num_palettes(),
             num_color_records: obj.num_color_records(),
-            color_records_array_offset: obj.color_records_array().into(),
+            color_records_array_offset: obj.color_records_array().to_owned_obj(offset_data),
             color_record_indices: obj.color_record_indices().to_owned_obj(offset_data),
-            palette_types_array_offset: obj.palette_types_array().into(),
-            palette_labels_array_offset: obj.palette_labels_array().into(),
-            palette_entry_labels_array_offset: obj.palette_entry_labels_array().into(),
+            palette_types_array_offset: obj.palette_types_array().to_owned_obj(offset_data),
+            palette_labels_array_offset: obj.palette_labels_array().to_owned_obj(offset_data),
+            palette_entry_labels_array_offset: obj
+                .palette_entry_labels_array()
+                .to_owned_obj(offset_data),
         }
     }
 }

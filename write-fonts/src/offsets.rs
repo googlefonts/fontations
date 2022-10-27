@@ -1,9 +1,5 @@
 //! compile-time representations of offsets
 
-use crate::from_obj::FromTableRef;
-use font_types::{BigEndian, Scalar};
-use read_fonts::ReadError;
-
 use super::write::{FontWrite, TableWriter};
 
 /// The width in bytes of an Offset16
@@ -146,57 +142,6 @@ impl<T, const N: usize> Default for NullableOffsetMarker<T, N> {
         Self { obj: None }
     }
 }
-
-impl<const N: usize, T, U> From<Result<U, ReadError>> for OffsetMarker<T, N>
-where
-    T: FromTableRef<U>,
-{
-    fn from(from: Result<U, ReadError>) -> Self {
-        OffsetMarker::new_maybe_null(from.ok().map(|x| T::from_table_ref(&x)))
-    }
-}
-
-impl<const N: usize, T, U> From<Option<Result<U, ReadError>>> for NullableOffsetMarker<T, N>
-where
-    T: FromTableRef<U>,
-{
-    fn from(from: Option<Result<U, ReadError>>) -> Self {
-        NullableOffsetMarker::new(
-            from.transpose()
-                .ok()
-                .flatten()
-                .map(|x| T::from_table_ref(&x)),
-        )
-    }
-}
-
-impl<'a, const N: usize, T: Scalar> From<Result<&'a [BigEndian<T>], ReadError>>
-    for OffsetMarker<Vec<T>, N>
-where
-    BigEndian<T>: Copy,
-{
-    fn from(from: Result<&'a [BigEndian<T>], ReadError>) -> Self {
-        // convert slice to vec, converting to native types:
-        let as_vec = from.map(|slice| slice.iter().copied().map(BigEndian::get).collect());
-        OffsetMarker::new_maybe_null(as_vec.ok())
-    }
-}
-
-impl<'a, const N: usize, T: Scalar> From<Option<Result<&'a [BigEndian<T>], ReadError>>>
-    for NullableOffsetMarker<Vec<T>, N>
-where
-    BigEndian<T>: Copy,
-{
-    fn from(from: Option<Result<&'a [BigEndian<T>], read_fonts::ReadError>>) -> Self {
-        NullableOffsetMarker::new(
-            from.transpose()
-                .ok()
-                .flatten()
-                .map(|vec| vec.iter().map(|x| x.get()).collect()),
-        )
-    }
-}
-
 // In case I still want to use these?
 
 //impl<T: std::fmt::Debug, const N: usize> std::fmt::Debug for OffsetMarker<T, N> {

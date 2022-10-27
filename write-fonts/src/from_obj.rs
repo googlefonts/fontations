@@ -5,7 +5,7 @@ use std::collections::BTreeSet;
 use font_types::{BigEndian, Scalar};
 use read_fonts::{FontData, ReadError};
 
-use crate::OffsetMarker;
+use crate::{NullableOffsetMarker, OffsetMarker};
 
 /// A trait for types that can fully resolve themselves.
 ///
@@ -103,11 +103,55 @@ impl<T: FromObjRef<U>, U> FromObjRef<Option<U>> for Option<T> {
     }
 }
 
-impl<T: FromObjRef<U>, U> FromObjRef<Result<U, ReadError>> for OffsetMarker<T> {
+// A blanket impl to cover converting any Option<T> if T is convertable
+impl<T: FromTableRef<U>, U> FromTableRef<Option<U>> for Option<T> {
+    fn from_table_ref(from: &Option<U>) -> Self {
+        from.as_ref().map(ToOwnedTable::to_owned_table)
+    }
+}
+
+/* blanket impls converting resolved offsets to offsetmarkers */
+
+impl<T: FromObjRef<U>, U, const N: usize> FromObjRef<Result<U, ReadError>> for OffsetMarker<T, N> {
     fn from_obj_ref(from: &Result<U, ReadError>, data: FontData) -> Self {
         match from {
             Err(_) => OffsetMarker::new_maybe_null(None),
             Ok(table) => OffsetMarker::new(table.to_owned_obj(data)),
+        }
+    }
+}
+
+impl<T: FromObjRef<U>, U, const N: usize> FromObjRef<Option<Result<U, ReadError>>>
+    for NullableOffsetMarker<T, N>
+{
+    fn from_obj_ref(from: &Option<Result<U, ReadError>>, data: FontData) -> Self {
+        match from {
+            Some(Ok(table)) => NullableOffsetMarker::new(Some(table.to_owned_obj(data))),
+            _ => NullableOffsetMarker::new(None),
+        }
+    }
+}
+
+// used for bare offsets
+impl<T: FromTableRef<U>, U, const N: usize> FromTableRef<Result<U, ReadError>>
+    for OffsetMarker<T, N>
+{
+    fn from_table_ref(from: &Result<U, ReadError>) -> Self {
+        match from {
+            Err(_) => OffsetMarker::new_maybe_null(None),
+            Ok(table) => OffsetMarker::new(table.to_owned_table()),
+        }
+    }
+}
+
+// convert bare nullable/versioned offsets to NullableOffsetMarker
+impl<T: FromTableRef<U>, U, const N: usize> FromTableRef<Option<Result<U, ReadError>>>
+    for NullableOffsetMarker<T, N>
+{
+    fn from_table_ref(from: &Option<Result<U, ReadError>>) -> Self {
+        match from {
+            Some(Ok(table)) => NullableOffsetMarker::new(Some(table.to_owned_table())),
+            _ => NullableOffsetMarker::new(None),
         }
     }
 }

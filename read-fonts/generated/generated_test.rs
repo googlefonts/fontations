@@ -8,6 +8,7 @@ use crate::codegen_prelude::*;
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct KindsOfOffsetsMarker {
+    versioned_nullable_record_array_offset_byte_start: Option<usize>,
     versioned_nonnullable_offset_byte_start: Option<usize>,
     versioned_nullable_offset_byte_start: Option<usize>,
 }
@@ -33,13 +34,21 @@ impl KindsOfOffsetsMarker {
         let start = self.array_offset_count_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
+    fn record_array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.array_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn versioned_nullable_record_array_offset_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.versioned_nullable_record_array_offset_byte_start?;
+        Some(start..start + Offset16::RAW_BYTE_LEN)
+    }
     fn versioned_nonnullable_offset_byte_range(&self) -> Option<Range<usize>> {
         let start = self.versioned_nonnullable_offset_byte_start?;
         Some(start..start + Offset16::RAW_BYTE_LEN)
     }
     fn versioned_nullable_offset_byte_range(&self) -> Option<Range<usize>> {
         let start = self.versioned_nullable_offset_byte_start?;
-        Some(start..start + Offset16::RAW_BYTE_LEN)
+        Some(start..start + Offset32::RAW_BYTE_LEN)
     }
 }
 
@@ -51,6 +60,14 @@ impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
         cursor.advance::<Offset16>();
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
+        let versioned_nullable_record_array_offset_byte_start = version
+            .compatible(MajorMinor::VERSION_1_1)
+            .then(|| cursor.position())
+            .transpose()?;
+        version
+            .compatible(MajorMinor::VERSION_1_1)
+            .then(|| cursor.advance::<Offset16>());
         let versioned_nonnullable_offset_byte_start = version
             .compatible(MajorMinor::VERSION_1_1)
             .then(|| cursor.position())
@@ -64,8 +81,9 @@ impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
             .transpose()?;
         version
             .compatible(MajorMinor::VERSION_1_1)
-            .then(|| cursor.advance::<Offset16>());
+            .then(|| cursor.advance::<Offset32>());
         cursor.finish(KindsOfOffsetsMarker {
+            versioned_nullable_record_array_offset_byte_start,
             versioned_nonnullable_offset_byte_start,
             versioned_nullable_offset_byte_start,
         })
@@ -124,6 +142,35 @@ impl<'a> KindsOfOffsets<'a> {
         self.array_offset().resolve_with_args(data, &args)
     }
 
+    /// An offset to an array of records
+    pub fn record_array_offset(&self) -> Offset16 {
+        let range = self.shape.record_array_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`record_array_offset`][Self::record_array_offset].
+    pub fn record_array(&self) -> Result<&'a [Shmecord], ReadError> {
+        let data = self.data;
+        let args = self.array_offset_count();
+        self.record_array_offset().resolve_with_args(data, &args)
+    }
+
+    /// A nullable, versioned offset to an array of records
+    pub fn versioned_nullable_record_array_offset(&self) -> Option<Nullable<Offset16>> {
+        let range = self
+            .shape
+            .versioned_nullable_record_array_offset_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
+    }
+
+    /// Attempt to resolve [`versioned_nullable_record_array_offset`][Self::versioned_nullable_record_array_offset].
+    pub fn versioned_nullable_record_array(&self) -> Option<Result<&'a [Shmecord], ReadError>> {
+        let data = self.data;
+        let args = self.array_offset_count();
+        self.versioned_nullable_record_array_offset()
+            .map(|x| x.resolve_with_args(data, &args))?
+    }
+
     /// A normal offset that is versioned
     pub fn versioned_nonnullable_offset(&self) -> Option<Offset16> {
         let range = self.shape.versioned_nonnullable_offset_byte_range()?;
@@ -137,7 +184,7 @@ impl<'a> KindsOfOffsets<'a> {
     }
 
     /// An offset that is nullable and versioned
-    pub fn versioned_nullable_offset(&self) -> Option<Nullable<Offset16>> {
+    pub fn versioned_nullable_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.versioned_nullable_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
@@ -171,14 +218,32 @@ impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
                 "array_offset",
                 FieldType::offset_to_array_of_scalars(self.array_offset(), self.array()),
             )),
-            5usize if version.compatible(MajorMinor::VERSION_1_1) => Some(Field::new(
+            5usize => Some(Field::new(
+                "record_array_offset",
+                traversal::FieldType::offset_to_array_of_records(
+                    self.record_array_offset(),
+                    self.record_array(),
+                    stringify!(Shmecord),
+                    self.offset_data(),
+                ),
+            )),
+            6usize if version.compatible(MajorMinor::VERSION_1_1) => Some(Field::new(
+                "versioned_nullable_record_array_offset",
+                traversal::FieldType::offset_to_array_of_records(
+                    self.versioned_nullable_record_array_offset().unwrap(),
+                    self.versioned_nullable_record_array().unwrap(),
+                    stringify!(Shmecord),
+                    self.offset_data(),
+                ),
+            )),
+            7usize if version.compatible(MajorMinor::VERSION_1_1) => Some(Field::new(
                 "versioned_nonnullable_offset",
                 FieldType::offset(
                     self.versioned_nonnullable_offset().unwrap(),
                     self.versioned_nonnullable().unwrap(),
                 ),
             )),
-            6usize if version.compatible(MajorMinor::VERSION_1_1) => Some(Field::new(
+            8usize if version.compatible(MajorMinor::VERSION_1_1) => Some(Field::new(
                 "versioned_nullable_offset",
                 FieldType::offset(
                     self.versioned_nullable_offset().unwrap(),
