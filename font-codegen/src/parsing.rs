@@ -1060,20 +1060,13 @@ fn build_type_map(items: &Items) -> HashMap<String, FieldType> {
 fn resolve_ident<'a>(
     known: &'a HashMap<String, FieldType>,
     field_name: &syn::Ident,
-    ident: &syn::Ident,
+    field_type: &syn::Ident,
 ) -> Result<&'a FieldType, syn::Error> {
-    if let Some(item) = known.get(&ident.to_string()) {
-        debug!("Resolve {}: {} to {:?}", field_name, ident, item);
+    if let Some(item) = known.get(&field_type.to_string()) {
+        debug!("Resolve {}: {} to {:?}", field_name, field_type, item);
         Ok(item)
     } else {
-        Err(syn::Error::new(
-            field_name.span(),
-            format!(
-                "I don't know what this is, do you? {}: {}",
-                field_name.to_string().as_str(),
-                ident
-            ),
-        ))
+        Err(syn::Error::new(field_type.span(), "Error: undeclared type"))
     }
 }
 
