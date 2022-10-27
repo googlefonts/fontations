@@ -17,10 +17,14 @@ pub struct KindsOfOffsets {
     pub array_offset_count: u16,
     /// An offset to an array:
     pub array_offset: OffsetMarker<Vec<u16>>,
+    /// An offset to an array of records
+    pub record_array_offset: OffsetMarker<Vec<Shmecord>>,
+    /// A nullable, versioned offset to an array of records
+    pub versioned_nullable_record_array_offset: NullableOffsetMarker<Vec<Shmecord>>,
     /// A normal offset that is versioned
     pub versioned_nonnullable_offset: Option<OffsetMarker<Dummy>>,
     /// An offset that is nullable and versioned
-    pub versioned_nullable_offset: NullableOffsetMarker<Dummy>,
+    pub versioned_nullable_offset: NullableOffsetMarker<Dummy, WIDTH_32>,
 }
 
 impl Default for KindsOfOffsets {
@@ -31,6 +35,8 @@ impl Default for KindsOfOffsets {
             nullable_offset: Default::default(),
             array_offset_count: Default::default(),
             array_offset: Default::default(),
+            record_array_offset: Default::default(),
+            versioned_nullable_record_array_offset: Default::default(),
             versioned_nonnullable_offset: Default::default(),
             versioned_nullable_offset: Default::default(),
         }
@@ -45,6 +51,11 @@ impl FontWrite for KindsOfOffsets {
         self.nullable_offset.write_into(writer);
         self.array_offset_count.write_into(writer);
         self.array_offset.write_into(writer);
+        self.record_array_offset.write_into(writer);
+        version.compatible(MajorMinor::VERSION_1_1).then(|| {
+            self.versioned_nullable_record_array_offset
+                .write_into(writer)
+        });
         version.compatible(MajorMinor::VERSION_1_1).then(|| {
             self.versioned_nonnullable_offset
                 .as_ref()
@@ -67,6 +78,13 @@ impl Validate for KindsOfOffsets {
             ctx.in_field("nullable_offset", |ctx| {
                 self.nullable_offset.validate_impl(ctx);
             });
+            ctx.in_field("record_array_offset", |ctx| {
+                self.record_array_offset.validate_impl(ctx);
+            });
+            ctx.in_field("versioned_nullable_record_array_offset", |ctx| {
+                self.versioned_nullable_record_array_offset
+                    .validate_impl(ctx);
+            });
             ctx.in_field("versioned_nonnullable_offset", |ctx| {
                 if version.compatible(MajorMinor::VERSION_1_1)
                     && self.versioned_nonnullable_offset.is_none()
@@ -84,14 +102,19 @@ impl Validate for KindsOfOffsets {
 
 impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfOffsets<'a>> for KindsOfOffsets {
     fn from_obj_ref(obj: &read_fonts::codegen_test::KindsOfOffsets<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
         KindsOfOffsets {
             version: obj.version(),
-            nonnullable_offset: obj.nonnullable().into(),
-            nullable_offset: obj.nullable().into(),
+            nonnullable_offset: obj.nonnullable().to_owned_table(),
+            nullable_offset: obj.nullable().to_owned_table(),
             array_offset_count: obj.array_offset_count(),
-            array_offset: obj.array().into(),
-            versioned_nonnullable_offset: obj.versioned_nonnullable().map(|obj| obj.into()),
-            versioned_nullable_offset: obj.versioned_nullable().into(),
+            array_offset: obj.array().to_owned_obj(offset_data),
+            record_array_offset: obj.record_array().to_owned_obj(offset_data),
+            versioned_nullable_record_array_offset: obj
+                .versioned_nullable_record_array()
+                .to_owned_obj(offset_data),
+            versioned_nonnullable_offset: obj.versioned_nonnullable().to_owned_table(),
+            versioned_nullable_offset: obj.versioned_nullable().to_owned_table(),
         }
     }
 }
@@ -198,14 +221,14 @@ impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfArraysOfOffsets<'a>>
     ) -> Self {
         KindsOfArraysOfOffsets {
             count: obj.count(),
-            nonnullable_offsets: obj.nonnullables().map(|x| x.into()).collect(),
-            nullable_offsets: obj.nullables().map(|x| x.into()).collect(),
+            nonnullable_offsets: obj.nonnullables().map(|x| x.to_owned_table()).collect(),
+            nullable_offsets: obj.nullables().map(|x| x.to_owned_table()).collect(),
             versioned_nonnullable_offsets: obj
                 .versioned_nonnullables()
-                .map(|obj| obj.map(|x| x.into()).collect()),
+                .map(|obj| obj.map(|x| x.to_owned_table()).collect()),
             versioned_nullable_offsets: obj
                 .versioned_nullables()
-                .map(|obj| obj.map(|x| x.into()).collect()),
+                .map(|obj| obj.map(|x| x.to_owned_table()).collect()),
         }
     }
 }

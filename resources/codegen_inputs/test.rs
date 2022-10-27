@@ -21,13 +21,21 @@ table KindsOfOffsets {
     /// An offset to an array:
     #[read_offset_with($array_offset_count)]
     array_offset: Offset16<[u16]>,
+    /// An offset to an array of records
+    #[read_offset_with($array_offset_count)]
+    record_array_offset: Offset16<[Shmecord]>,
+    /// A nullable, versioned offset to an array of records
+    #[read_offset_with($array_offset_count)]
+    #[nullable]
+    #[available(MajorMinor::VERSION_1_1)]
+    versioned_nullable_record_array_offset: Offset16<[Shmecord]>,
     /// A normal offset that is versioned
     #[available(MajorMinor::VERSION_1_1)]
     versioned_nonnullable_offset: Offset16<Dummy>,
     /// An offset that is nullable and versioned
     #[available(MajorMinor::VERSION_1_1)]
     #[nullable]
-    versioned_nullable_offset: Offset16<Dummy>,
+    versioned_nullable_offset: Offset32<Dummy>,
 }
 
 table KindsOfArraysOfOffsets {

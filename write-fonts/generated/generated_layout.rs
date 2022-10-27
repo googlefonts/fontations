@@ -82,7 +82,7 @@ impl FromObjRef<read_fonts::layout::ScriptRecord> for ScriptRecord {
     fn from_obj_ref(obj: &read_fonts::layout::ScriptRecord, offset_data: FontData) -> Self {
         ScriptRecord {
             script_tag: obj.script_tag(),
-            script_offset: obj.script(offset_data).into(),
+            script_offset: obj.script(offset_data).to_owned_table(),
         }
     }
 }
@@ -126,7 +126,7 @@ impl<'a> FromObjRef<read_fonts::layout::Script<'a>> for Script {
     fn from_obj_ref(obj: &read_fonts::layout::Script<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Script {
-            default_lang_sys_offset: obj.default_lang_sys().into(),
+            default_lang_sys_offset: obj.default_lang_sys().to_owned_table(),
             lang_sys_records: obj.lang_sys_records().to_owned_obj(offset_data),
         }
     }
@@ -169,7 +169,7 @@ impl FromObjRef<read_fonts::layout::LangSysRecord> for LangSysRecord {
     fn from_obj_ref(obj: &read_fonts::layout::LangSysRecord, offset_data: FontData) -> Self {
         LangSysRecord {
             lang_sys_tag: obj.lang_sys_tag(),
-            lang_sys_offset: obj.lang_sys(offset_data).into(),
+            lang_sys_offset: obj.lang_sys(offset_data).to_owned_table(),
         }
     }
 }
@@ -300,7 +300,7 @@ impl FromObjRef<read_fonts::layout::FeatureRecord> for FeatureRecord {
     fn from_obj_ref(obj: &read_fonts::layout::FeatureRecord, offset_data: FontData) -> Self {
         FeatureRecord {
             feature_tag: obj.feature_tag(),
-            feature_offset: obj.feature(offset_data).into(),
+            feature_offset: obj.feature(offset_data).to_owned_table(),
         }
     }
 }
@@ -343,7 +343,7 @@ impl<'a> FromObjRef<read_fonts::layout::Feature<'a>> for Feature {
     fn from_obj_ref(obj: &read_fonts::layout::Feature<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Feature {
-            feature_params_offset: obj.feature_params().into(),
+            feature_params_offset: obj.feature_params().to_owned_table(),
             lookup_list_indices: obj.lookup_list_indices().to_owned_obj(offset_data),
         }
     }
@@ -387,7 +387,7 @@ where
 {
     fn from_obj_ref(obj: &read_fonts::layout::LookupList<'a, U>, _: FontData) -> Self {
         LookupList {
-            lookup_offsets: obj.lookups().map(|x| x.into()).collect(),
+            lookup_offsets: obj.lookups().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -434,7 +434,7 @@ where
     fn from_obj_ref(obj: &read_fonts::layout::Lookup<'a, U>, _: FontData) -> Self {
         Lookup {
             lookup_flag: obj.lookup_flag(),
-            subtable_offsets: obj.subtables().map(|x| x.into()).collect(),
+            subtable_offsets: obj.subtables().map(|x| x.to_owned_table()).collect(),
             mark_filtering_set: obj.mark_filtering_set(),
         }
     }
@@ -872,8 +872,8 @@ impl Validate for SequenceContextFormat1 {
 impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat1<'a>> for SequenceContextFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::SequenceContextFormat1<'a>, _: FontData) -> Self {
         SequenceContextFormat1 {
-            coverage_offset: obj.coverage().into(),
-            seq_rule_set_offsets: obj.seq_rule_sets().map(|x| x.into()).collect(),
+            coverage_offset: obj.coverage().to_owned_table(),
+            seq_rule_set_offsets: obj.seq_rule_sets().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -919,7 +919,7 @@ impl Validate for SequenceRuleSet {
 impl<'a> FromObjRef<read_fonts::layout::SequenceRuleSet<'a>> for SequenceRuleSet {
     fn from_obj_ref(obj: &read_fonts::layout::SequenceRuleSet<'a>, _: FontData) -> Self {
         SequenceRuleSet {
-            seq_rule_offsets: obj.seq_rules().map(|x| x.into()).collect(),
+            seq_rule_offsets: obj.seq_rules().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -1029,9 +1029,12 @@ impl Validate for SequenceContextFormat2 {
 impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat2<'a>> for SequenceContextFormat2 {
     fn from_obj_ref(obj: &read_fonts::layout::SequenceContextFormat2<'a>, _: FontData) -> Self {
         SequenceContextFormat2 {
-            coverage_offset: obj.coverage().into(),
-            class_def_offset: obj.class_def().into(),
-            class_seq_rule_set_offsets: obj.class_seq_rule_sets().map(|x| x.into()).collect(),
+            coverage_offset: obj.coverage().to_owned_table(),
+            class_def_offset: obj.class_def().to_owned_table(),
+            class_seq_rule_set_offsets: obj
+                .class_seq_rule_sets()
+                .map(|x| x.to_owned_table())
+                .collect(),
         }
     }
 }
@@ -1077,7 +1080,7 @@ impl Validate for ClassSequenceRuleSet {
 impl<'a> FromObjRef<read_fonts::layout::ClassSequenceRuleSet<'a>> for ClassSequenceRuleSet {
     fn from_obj_ref(obj: &read_fonts::layout::ClassSequenceRuleSet<'a>, _: FontData) -> Self {
         ClassSequenceRuleSet {
-            class_seq_rule_offsets: obj.class_seq_rules().map(|x| x.into()).collect(),
+            class_seq_rule_offsets: obj.class_seq_rules().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -1186,7 +1189,7 @@ impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat3<'a>> for Sequence
     fn from_obj_ref(obj: &read_fonts::layout::SequenceContextFormat3<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         SequenceContextFormat3 {
-            coverage_offsets: obj.coverages().map(|x| x.into()).collect(),
+            coverage_offsets: obj.coverages().map(|x| x.to_owned_table()).collect(),
             seq_lookup_records: obj.seq_lookup_records().to_owned_obj(offset_data),
         }
     }
@@ -1298,8 +1301,11 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat1<'a>>
         _: FontData,
     ) -> Self {
         ChainedSequenceContextFormat1 {
-            coverage_offset: obj.coverage().into(),
-            chained_seq_rule_set_offsets: obj.chained_seq_rule_sets().map(|x| x.into()).collect(),
+            coverage_offset: obj.coverage().to_owned_table(),
+            chained_seq_rule_set_offsets: obj
+                .chained_seq_rule_sets()
+                .map(|x| x.to_owned_table())
+                .collect(),
         }
     }
 }
@@ -1348,7 +1354,10 @@ impl Validate for ChainedSequenceRuleSet {
 impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceRuleSet<'a>> for ChainedSequenceRuleSet {
     fn from_obj_ref(obj: &read_fonts::layout::ChainedSequenceRuleSet<'a>, _: FontData) -> Self {
         ChainedSequenceRuleSet {
-            chained_seq_rule_offsets: obj.chained_seq_rules().map(|x| x.into()).collect(),
+            chained_seq_rule_offsets: obj
+                .chained_seq_rules()
+                .map(|x| x.to_owned_table())
+                .collect(),
         }
     }
 }
@@ -1499,13 +1508,13 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat2<'a>>
         _: FontData,
     ) -> Self {
         ChainedSequenceContextFormat2 {
-            coverage_offset: obj.coverage().into(),
-            backtrack_class_def_offset: obj.backtrack_class_def().into(),
-            input_class_def_offset: obj.input_class_def().into(),
-            lookahead_class_def_offset: obj.lookahead_class_def().into(),
+            coverage_offset: obj.coverage().to_owned_table(),
+            backtrack_class_def_offset: obj.backtrack_class_def().to_owned_table(),
+            input_class_def_offset: obj.input_class_def().to_owned_table(),
+            lookahead_class_def_offset: obj.lookahead_class_def().to_owned_table(),
             chained_class_seq_rule_set_offsets: obj
                 .chained_class_seq_rule_sets()
-                .map(|x| x.into())
+                .map(|x| x.to_owned_table())
                 .collect(),
         }
     }
@@ -1562,7 +1571,7 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedClassSequenceRuleSet<'a>>
         ChainedClassSequenceRuleSet {
             chained_class_seq_rule_offsets: obj
                 .chained_class_seq_rules()
-                .map(|x| x.into())
+                .map(|x| x.to_owned_table())
                 .collect(),
         }
     }
@@ -1723,9 +1732,15 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat3<'a>>
     ) -> Self {
         let offset_data = obj.offset_data();
         ChainedSequenceContextFormat3 {
-            backtrack_coverage_offsets: obj.backtrack_coverages().map(|x| x.into()).collect(),
-            input_coverage_offsets: obj.input_coverages().map(|x| x.into()).collect(),
-            lookahead_coverage_offsets: obj.lookahead_coverages().map(|x| x.into()).collect(),
+            backtrack_coverage_offsets: obj
+                .backtrack_coverages()
+                .map(|x| x.to_owned_table())
+                .collect(),
+            input_coverage_offsets: obj.input_coverages().map(|x| x.to_owned_table()).collect(),
+            lookahead_coverage_offsets: obj
+                .lookahead_coverages()
+                .map(|x| x.to_owned_table())
+                .collect(),
             seq_lookup_records: obj.seq_lookup_records().to_owned_obj(offset_data),
         }
     }
@@ -1975,8 +1990,10 @@ impl FromObjRef<read_fonts::layout::FeatureVariationRecord> for FeatureVariation
         offset_data: FontData,
     ) -> Self {
         FeatureVariationRecord {
-            condition_set_offset: obj.condition_set(offset_data).into(),
-            feature_table_substitution_offset: obj.feature_table_substitution(offset_data).into(),
+            condition_set_offset: obj.condition_set(offset_data).to_owned_table(),
+            feature_table_substitution_offset: obj
+                .feature_table_substitution(offset_data)
+                .to_owned_table(),
         }
     }
 }
@@ -2013,7 +2030,7 @@ impl Validate for ConditionSet {
 impl<'a> FromObjRef<read_fonts::layout::ConditionSet<'a>> for ConditionSet {
     fn from_obj_ref(obj: &read_fonts::layout::ConditionSet<'a>, _: FontData) -> Self {
         ConditionSet {
-            condition_offsets: obj.conditions().map(|x| x.into()).collect(),
+            condition_offsets: obj.conditions().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -2158,7 +2175,7 @@ impl FromObjRef<read_fonts::layout::FeatureTableSubstitutionRecord>
     ) -> Self {
         FeatureTableSubstitutionRecord {
             feature_index: obj.feature_index(),
-            alternate_feature_offset: obj.alternate_feature(offset_data).into(),
+            alternate_feature_offset: obj.alternate_feature(offset_data).to_owned_table(),
         }
     }
 }

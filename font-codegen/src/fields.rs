@@ -1115,6 +1115,10 @@ impl Field {
     fn from_obj_requires_offset_data(&self, in_record: bool) -> bool {
         match &self.typ {
             _ if self.attrs.to_owned.is_some() => false,
+            FieldType::Offset {
+                target: Some(OffsetTarget::Array(_)),
+                ..
+            } => true,
             FieldType::Offset { .. } => in_record,
             FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => true,
             FieldType::Struct { .. } => true,
@@ -1142,13 +1146,19 @@ impl Field {
             FieldType::Scalar { .. } => quote!(obj.#name()),
             FieldType::Struct { .. } => quote!(obj.#name().to_owned_obj(offset_data)),
             FieldType::Offset {
-                target: Some(_), ..
+                target: Some(target),
+                ..
             } => {
                 let offset_getter = self.offset_getter_name().unwrap();
-                if self.is_version_dependent() && !self.is_nullable() {
-                    quote!(obj.#offset_getter(#pass_offset_data).map(|obj| obj.into()))
-                } else {
-                    quote!(obj.#offset_getter(#pass_offset_data).into())
+                match target {
+                    // in this case it is possible that this is an array of
+                    // records that could contain offsets
+                    OffsetTarget::Array(_) => {
+                        quote!(obj.#offset_getter(#pass_offset_data).to_owned_obj(offset_data))
+                    }
+                    OffsetTarget::Table(_) => {
+                        quote!(obj.#offset_getter(#pass_offset_data).to_owned_table())
+                    }
                 }
             }
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
@@ -1158,7 +1168,7 @@ impl Field {
                 FieldType::Offset { .. } => {
                     let offset_getter = self.offset_getter_name().unwrap();
                     let getter = quote!(obj.#offset_getter(#pass_offset_data));
-                    let converter = quote!(.map(|x| x.into()).collect());
+                    let converter = quote!(.map(|x| x.to_owned_table()).collect());
                     if self.attrs.available.is_some() {
                         quote!(#getter.map(|obj| obj #converter))
                     } else {

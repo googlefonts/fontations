@@ -56,10 +56,10 @@ impl Validate for Gpos {
 impl<'a> FromObjRef<read_fonts::layout::gpos::Gpos<'a>> for Gpos {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::Gpos<'a>, _: FontData) -> Self {
         Gpos {
-            script_list_offset: obj.script_list().into(),
-            feature_list_offset: obj.feature_list().into(),
-            lookup_list_offset: obj.lookup_list().into(),
-            feature_variations_offset: obj.feature_variations().into(),
+            script_list_offset: obj.script_list().to_owned_table(),
+            feature_list_offset: obj.feature_list().to_owned_table(),
+            lookup_list_offset: obj.lookup_list().to_owned_table(),
+            feature_variations_offset: obj.feature_variations().to_owned_table(),
         }
     }
 }
@@ -350,8 +350,8 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::AnchorFormat3<'a>> for AnchorForma
         AnchorFormat3 {
             x_coordinate: obj.x_coordinate(),
             y_coordinate: obj.y_coordinate(),
-            x_device_offset: obj.x_device().into(),
-            y_device_offset: obj.y_device().into(),
+            x_device_offset: obj.x_device().to_owned_table(),
+            y_device_offset: obj.y_device().to_owned_table(),
         }
     }
 }
@@ -441,7 +441,7 @@ impl FromObjRef<read_fonts::layout::gpos::MarkRecord> for MarkRecord {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkRecord, offset_data: FontData) -> Self {
         MarkRecord {
             mark_class: obj.mark_class(),
-            mark_anchor_offset: obj.mark_anchor(offset_data).into(),
+            mark_anchor_offset: obj.mark_anchor(offset_data).to_owned_table(),
         }
     }
 }
@@ -529,7 +529,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::SinglePosFormat1<'a>> for SinglePo
     fn from_obj_ref(obj: &read_fonts::layout::gpos::SinglePosFormat1<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         SinglePosFormat1 {
-            coverage_offset: obj.coverage().into(),
+            coverage_offset: obj.coverage().to_owned_table(),
             value_record: obj.value_record().to_owned_obj(offset_data),
         }
     }
@@ -584,7 +584,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::SinglePosFormat2<'a>> for SinglePo
     fn from_obj_ref(obj: &read_fonts::layout::gpos::SinglePosFormat2<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         SinglePosFormat2 {
-            coverage_offset: obj.coverage().into(),
+            coverage_offset: obj.coverage().to_owned_table(),
             value_records: obj
                 .value_records()
                 .iter()
@@ -693,8 +693,8 @@ impl Validate for PairPosFormat1 {
 impl<'a> FromObjRef<read_fonts::layout::gpos::PairPosFormat1<'a>> for PairPosFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::PairPosFormat1<'a>, _: FontData) -> Self {
         PairPosFormat1 {
-            coverage_offset: obj.coverage().into(),
-            pair_set_offsets: obj.pair_sets().map(|x| x.into()).collect(),
+            coverage_offset: obj.coverage().to_owned_table(),
+            pair_set_offsets: obj.pair_sets().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -845,9 +845,9 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::PairPosFormat2<'a>> for PairPosFor
     fn from_obj_ref(obj: &read_fonts::layout::gpos::PairPosFormat2<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         PairPosFormat2 {
-            coverage_offset: obj.coverage().into(),
-            class_def1_offset: obj.class_def1().into(),
-            class_def2_offset: obj.class_def2().into(),
+            coverage_offset: obj.coverage().to_owned_table(),
+            class_def1_offset: obj.class_def1().to_owned_table(),
+            class_def2_offset: obj.class_def2().to_owned_table(),
             class1_records: obj
                 .class1_records()
                 .iter()
@@ -972,7 +972,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::CursivePosFormat1<'a>> for Cursive
     fn from_obj_ref(obj: &read_fonts::layout::gpos::CursivePosFormat1<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         CursivePosFormat1 {
-            coverage_offset: obj.coverage().into(),
+            coverage_offset: obj.coverage().to_owned_table(),
             entry_exit_record: obj.entry_exit_record().to_owned_obj(offset_data),
         }
     }
@@ -1024,8 +1024,8 @@ impl FromObjRef<read_fonts::layout::gpos::EntryExitRecord> for EntryExitRecord {
         offset_data: FontData,
     ) -> Self {
         EntryExitRecord {
-            entry_anchor_offset: obj.entry_anchor(offset_data).into(),
-            exit_anchor_offset: obj.exit_anchor(offset_data).into(),
+            entry_anchor_offset: obj.entry_anchor(offset_data).to_owned_table(),
+            exit_anchor_offset: obj.exit_anchor(offset_data).to_owned_table(),
         }
     }
 }
@@ -1081,10 +1081,10 @@ impl Validate for MarkBasePosFormat1 {
 impl<'a> FromObjRef<read_fonts::layout::gpos::MarkBasePosFormat1<'a>> for MarkBasePosFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkBasePosFormat1<'a>, _: FontData) -> Self {
         MarkBasePosFormat1 {
-            mark_coverage_offset: obj.mark_coverage().into(),
-            base_coverage_offset: obj.base_coverage().into(),
-            mark_array_offset: obj.mark_array().into(),
-            base_array_offset: obj.base_array().into(),
+            mark_coverage_offset: obj.mark_coverage().to_owned_table(),
+            base_coverage_offset: obj.base_coverage().to_owned_table(),
+            mark_array_offset: obj.mark_array().to_owned_table(),
+            base_array_offset: obj.base_array().to_owned_table(),
         }
     }
 }
@@ -1172,7 +1172,10 @@ impl Validate for BaseRecord {
 impl FromObjRef<read_fonts::layout::gpos::BaseRecord<'_>> for BaseRecord {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::BaseRecord, offset_data: FontData) -> Self {
         BaseRecord {
-            base_anchor_offsets: obj.base_anchors(offset_data).map(|x| x.into()).collect(),
+            base_anchor_offsets: obj
+                .base_anchors(offset_data)
+                .map(|x| x.to_owned_table())
+                .collect(),
         }
     }
 }
@@ -1228,10 +1231,10 @@ impl Validate for MarkLigPosFormat1 {
 impl<'a> FromObjRef<read_fonts::layout::gpos::MarkLigPosFormat1<'a>> for MarkLigPosFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkLigPosFormat1<'a>, _: FontData) -> Self {
         MarkLigPosFormat1 {
-            mark_coverage_offset: obj.mark_coverage().into(),
-            ligature_coverage_offset: obj.ligature_coverage().into(),
-            mark_array_offset: obj.mark_array().into(),
-            ligature_array_offset: obj.ligature_array().into(),
+            mark_coverage_offset: obj.mark_coverage().to_owned_table(),
+            ligature_coverage_offset: obj.ligature_coverage().to_owned_table(),
+            mark_array_offset: obj.mark_array().to_owned_table(),
+            ligature_array_offset: obj.ligature_array().to_owned_table(),
         }
     }
 }
@@ -1278,7 +1281,10 @@ impl Validate for LigatureArray {
 impl<'a> FromObjRef<read_fonts::layout::gpos::LigatureArray<'a>> for LigatureArray {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::LigatureArray<'a>, _: FontData) -> Self {
         LigatureArray {
-            ligature_attach_offsets: obj.ligature_attaches().map(|x| x.into()).collect(),
+            ligature_attach_offsets: obj
+                .ligature_attaches()
+                .map(|x| x.to_owned_table())
+                .collect(),
         }
     }
 }
@@ -1364,7 +1370,7 @@ impl FromObjRef<read_fonts::layout::gpos::ComponentRecord<'_>> for ComponentReco
         ComponentRecord {
             ligature_anchor_offsets: obj
                 .ligature_anchors(offset_data)
-                .map(|x| x.into())
+                .map(|x| x.to_owned_table())
                 .collect(),
         }
     }
@@ -1421,10 +1427,10 @@ impl Validate for MarkMarkPosFormat1 {
 impl<'a> FromObjRef<read_fonts::layout::gpos::MarkMarkPosFormat1<'a>> for MarkMarkPosFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkMarkPosFormat1<'a>, _: FontData) -> Self {
         MarkMarkPosFormat1 {
-            mark1_coverage_offset: obj.mark1_coverage().into(),
-            mark2_coverage_offset: obj.mark2_coverage().into(),
-            mark1_array_offset: obj.mark1_array().into(),
-            mark2_array_offset: obj.mark2_array().into(),
+            mark1_coverage_offset: obj.mark1_coverage().to_owned_table(),
+            mark2_coverage_offset: obj.mark2_coverage().to_owned_table(),
+            mark1_array_offset: obj.mark1_array().to_owned_table(),
+            mark2_array_offset: obj.mark2_array().to_owned_table(),
         }
     }
 }
@@ -1512,7 +1518,10 @@ impl Validate for Mark2Record {
 impl FromObjRef<read_fonts::layout::gpos::Mark2Record<'_>> for Mark2Record {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::Mark2Record, offset_data: FontData) -> Self {
         Mark2Record {
-            mark2_anchor_offsets: obj.mark2_anchors(offset_data).map(|x| x.into()).collect(),
+            mark2_anchor_offsets: obj
+                .mark2_anchors(offset_data)
+                .map(|x| x.to_owned_table())
+                .collect(),
         }
     }
 }
@@ -1551,7 +1560,7 @@ where
     ) -> Self {
         ExtensionPosFormat1 {
             extension_lookup_type: obj.extension_lookup_type(),
-            extension_offset: obj.extension().into(),
+            extension_offset: obj.extension().to_owned_table(),
         }
     }
 }

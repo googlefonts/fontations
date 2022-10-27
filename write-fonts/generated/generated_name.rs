@@ -96,7 +96,7 @@ impl Validate for LangTagRecord {
 impl FromObjRef<read_fonts::tables::name::LangTagRecord> for LangTagRecord {
     fn from_obj_ref(obj: &read_fonts::tables::name::LangTagRecord, offset_data: FontData) -> Self {
         LangTagRecord {
-            lang_tag_offset: obj.lang_tag(offset_data).into(),
+            lang_tag_offset: obj.lang_tag(offset_data).to_owned_table(),
         }
     }
 }
@@ -133,7 +133,7 @@ impl FromObjRef<read_fonts::tables::name::NameRecord> for NameRecord {
             encoding_id: obj.encoding_id(),
             language_id: obj.language_id(),
             name_id: obj.name_id(),
-            string_offset: obj.string(offset_data).into(),
+            string_offset: obj.string(offset_data).to_owned_table(),
         }
     }
 }
