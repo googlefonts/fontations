@@ -340,10 +340,24 @@ pub mod cpal {
     }
 }
 
+pub mod stat {
+    use crate::{tables::stat::Stat, FontRef, TableProvider};
+    pub fn vazirmatn() -> Stat<'static> {
+        FontRef::new(super::test_fonts::VAZIRMATN_VAR)
+            .unwrap()
+            .stat()
+            .unwrap()
+    }
+}
+
 pub mod test_fonts {
     use crate::FontData;
 
     pub static COLR_GRADIENT_RECT: FontData<'static> = FontData::new(include_bytes!(
         "../../../resources/test_fonts/ttf/linear_gradient_rect_colr_1.ttf"
+    ));
+
+    pub static VAZIRMATN_VAR: FontData<'static> = FontData::new(include_bytes!(
+        "../../../resources/test_fonts/ttf/vazirmatn_var_trimmed.ttf"
     ));
 }
