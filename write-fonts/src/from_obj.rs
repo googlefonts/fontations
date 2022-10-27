@@ -1,6 +1,11 @@
 //! Traits for converting from parsed font data to their compile equivalents
 
-use read_fonts::FontData;
+use std::collections::BTreeSet;
+
+use font_types::{BigEndian, Scalar};
+use read_fonts::{FontData, ReadError};
+
+use crate::OffsetMarker;
 
 /// A trait for types that can fully resolve themselves.
 ///
@@ -60,5 +65,49 @@ where
 {
     fn to_owned_table(&self) -> U {
         U::from_table_ref(self)
+    }
+}
+
+impl<T> FromObjRef<BigEndian<T>> for T
+where
+    T: Scalar,
+    BigEndian<T>: Copy,
+{
+    fn from_obj_ref(from: &BigEndian<T>, _: FontData) -> Self {
+        from.get()
+    }
+}
+
+impl<T, U> FromObjRef<&[U]> for Vec<T>
+where
+    T: FromObjRef<U>,
+{
+    fn from_obj_ref(from: &&[U], data: FontData) -> Self {
+        from.iter().map(|item| item.to_owned_obj(data)).collect()
+    }
+}
+
+impl<T, U> FromObjRef<&[U]> for BTreeSet<T>
+where
+    T: FromObjRef<U> + std::cmp::Ord,
+{
+    fn from_obj_ref(from: &&[U], data: FontData) -> Self {
+        from.iter().map(|item| item.to_owned_obj(data)).collect()
+    }
+}
+
+// A blanket impl to cover converting any Option<T> if T is convertable
+impl<T: FromObjRef<U>, U> FromObjRef<Option<U>> for Option<T> {
+    fn from_obj_ref(from: &Option<U>, data: FontData) -> Self {
+        from.as_ref().map(|inner| T::from_obj_ref(inner, data))
+    }
+}
+
+impl<T: FromObjRef<U>, U> FromObjRef<Result<U, ReadError>> for OffsetMarker<T> {
+    fn from_obj_ref(from: &Result<U, ReadError>, data: FontData) -> Self {
+        match from {
+            Err(_) => OffsetMarker::new_maybe_null(None),
+            Ok(table) => OffsetMarker::new(table.to_owned_obj(data)),
+        }
     }
 }

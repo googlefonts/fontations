@@ -142,9 +142,7 @@ impl<'a> FromObjRef<read_fonts::tables::post::Post<'a>> for Post {
             min_mem_type1: obj.min_mem_type1(),
             max_mem_type1: obj.max_mem_type1(),
             num_glyphs: obj.num_glyphs(),
-            glyph_name_index: obj
-                .glyph_name_index()
-                .map(|obj| obj.iter().map(|x| x.get()).collect()),
+            glyph_name_index: obj.glyph_name_index().to_owned_obj(offset_data),
             string_data: obj.string_data().map(|obj| {
                 obj.iter()
                     .filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok())

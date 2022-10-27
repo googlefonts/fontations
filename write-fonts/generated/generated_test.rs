@@ -222,6 +222,119 @@ impl<'a> FontRead<'a> for KindsOfArraysOfOffsets {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct KindsOfArrays {
+    pub version: u16,
+    /// the number of items in each array
+    pub count: u16,
+    /// an array of scalars
+    pub scalars: Vec<u16>,
+    /// an array of records
+    pub records: Vec<Shmecord>,
+    /// a versioned array of scalars
+    pub versioned_scalars: Option<Vec<u16>>,
+    /// a versioned array of scalars
+    pub versioned_records: Option<Vec<Shmecord>>,
+}
+
+impl Default for KindsOfArrays {
+    fn default() -> Self {
+        Self {
+            version: 1,
+            count: Default::default(),
+            scalars: Default::default(),
+            records: Default::default(),
+            versioned_scalars: Default::default(),
+            versioned_records: Default::default(),
+        }
+    }
+}
+
+impl FontWrite for KindsOfArrays {
+    fn write_into(&self, writer: &mut TableWriter) {
+        let version = self.version;
+        version.write_into(writer);
+        self.count.write_into(writer);
+        self.scalars.write_into(writer);
+        self.records.write_into(writer);
+        version.compatible(1).then(|| {
+            self.versioned_scalars
+                .as_ref()
+                .expect("missing versioned field should have failed validation")
+                .write_into(writer)
+        });
+        version.compatible(1).then(|| {
+            self.versioned_records
+                .as_ref()
+                .expect("missing versioned field should have failed validation")
+                .write_into(writer)
+        });
+    }
+}
+
+impl Validate for KindsOfArrays {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("KindsOfArrays", |ctx| {
+            let version = self.version;
+            ctx.in_field("scalars", |ctx| {
+                if self.scalars.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+            });
+            ctx.in_field("records", |ctx| {
+                if self.records.len() > (u16::MAX as usize) {
+                    ctx.report("array excedes max length");
+                }
+                self.records.validate_impl(ctx);
+            });
+            ctx.in_field("versioned_scalars", |ctx| {
+                if version.compatible(1) && self.versioned_scalars.is_none() {
+                    ctx.report(format!("field must be present for version {version}"));
+                }
+                if self.versioned_scalars.is_some()
+                    && self.versioned_scalars.as_ref().unwrap().len() > (u16::MAX as usize)
+                {
+                    ctx.report("array excedes max length");
+                }
+            });
+            ctx.in_field("versioned_records", |ctx| {
+                if version.compatible(1) && self.versioned_records.is_none() {
+                    ctx.report(format!("field must be present for version {version}"));
+                }
+                if self.versioned_records.is_some()
+                    && self.versioned_records.as_ref().unwrap().len() > (u16::MAX as usize)
+                {
+                    ctx.report("array excedes max length");
+                }
+                self.versioned_records.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfArrays<'a>> for KindsOfArrays {
+    fn from_obj_ref(obj: &read_fonts::codegen_test::KindsOfArrays<'a>, _: FontData) -> Self {
+        let offset_data = obj.offset_data();
+        KindsOfArrays {
+            version: obj.version(),
+            count: obj.count(),
+            scalars: obj.scalars().to_owned_obj(offset_data),
+            records: obj.records().to_owned_obj(offset_data),
+            versioned_scalars: obj.versioned_scalars().to_owned_obj(offset_data),
+            versioned_records: obj.versioned_records().to_owned_obj(offset_data),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::codegen_test::KindsOfArrays<'a>> for KindsOfArrays {}
+
+impl<'a> FontRead<'a> for KindsOfArrays {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::codegen_test::KindsOfArrays as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
 #[derive(Clone, Debug, Default)]
 pub struct Dummy {
     pub value: u16,
@@ -248,5 +361,31 @@ impl<'a> FromTableRef<read_fonts::codegen_test::Dummy<'a>> for Dummy {}
 impl<'a> FontRead<'a> for Dummy {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::Dummy as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct Shmecord {
+    pub length: u16,
+    pub breadth: u32,
+}
+
+impl FontWrite for Shmecord {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.length.write_into(writer);
+        self.breadth.write_into(writer);
+    }
+}
+
+impl Validate for Shmecord {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl FromObjRef<read_fonts::codegen_test::Shmecord> for Shmecord {
+    fn from_obj_ref(obj: &read_fonts::codegen_test::Shmecord, _: FontData) -> Self {
+        Shmecord {
+            length: obj.length(),
+            breadth: obj.breadth(),
+        }
     }
 }

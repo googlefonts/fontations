@@ -1120,7 +1120,7 @@ impl Field {
             FieldType::Struct { .. } => true,
             FieldType::Array { inner_typ } => match inner_typ.as_ref() {
                 FieldType::Offset { .. } => in_record,
-                FieldType::Struct { .. } => true,
+                FieldType::Struct { .. } | FieldType::Scalar { .. } => true,
                 _ => false,
             },
             _ => false,
@@ -1151,36 +1151,24 @@ impl Field {
                     quote!(obj.#offset_getter(#pass_offset_data).into())
                 }
             }
-            FieldType::Array { inner_typ } => {
-                // we write different code based on whether or not this is a versioned field
-                let (getter, converter) = match inner_typ.as_ref() {
-                    FieldType::Scalar { .. } => (
-                        quote!(obj.#name()),
-                        quote!(.iter().map(|x| x.get()).collect()),
-                    ),
-                    FieldType::Offset { .. } => {
-                        let offset_getter = self.offset_getter_name().unwrap();
-                        (
-                            quote!(obj.#offset_getter(#pass_offset_data)),
-                            quote!(.map(|x| x.into()).collect()),
-                        )
-                    }
-                    FieldType::Struct { .. } => (
-                        quote!(obj.#name()),
-                        quote!(.iter().map(|x| FromObjRef::from_obj_ref(x, offset_data)).collect()),
-                    ),
-                    _ => (
-                        quote!(compile_error!("requires custom to_owned impl")),
-                        Default::default(),
-                    ),
-                };
-
-                if self.attrs.available.is_some() {
-                    quote!(#getter.map(|obj| obj #converter))
-                } else {
-                    quote!(#getter #converter)
+            FieldType::Array { inner_typ } => match inner_typ.as_ref() {
+                FieldType::Scalar { .. } | FieldType::Struct { .. } => {
+                    quote!(obj.#name().to_owned_obj(offset_data))
                 }
-            }
+                FieldType::Offset { .. } => {
+                    let offset_getter = self.offset_getter_name().unwrap();
+                    let getter = quote!(obj.#offset_getter(#pass_offset_data));
+                    let converter = quote!(.map(|x| x.into()).collect());
+                    if self.attrs.available.is_some() {
+                        quote!(#getter.map(|obj| obj #converter))
+                    } else {
+                        quote!(#getter #converter)
+                    }
+                }
+                _ => quote!(compile_error!(
+                    "unknown array type requires custom to_owned impl"
+                )),
+            },
             FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
                 let getter = quote!(obj.#name());
                 let converter = quote!( .iter().filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok()).collect() );
