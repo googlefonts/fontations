@@ -142,6 +142,25 @@ impl<T, const N: usize> Default for NullableOffsetMarker<T, N> {
         Self { obj: None }
     }
 }
+
+impl<T, const N: usize> From<T> for OffsetMarker<T, N> {
+    fn from(src: T) -> Self {
+        OffsetMarker::new(src)
+    }
+}
+
+impl<T, const N: usize> From<T> for NullableOffsetMarker<T, N> {
+    fn from(src: T) -> Self {
+        NullableOffsetMarker::new(Some(src))
+    }
+}
+
+impl<T, const N: usize> From<Option<T>> for NullableOffsetMarker<T, N> {
+    fn from(src: Option<T>) -> Self {
+        NullableOffsetMarker::new(src)
+    }
+}
+
 // In case I still want to use these?
 
 //impl<T: std::fmt::Debug, const N: usize> std::fmt::Debug for OffsetMarker<T, N> {
