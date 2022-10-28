@@ -2,6 +2,8 @@
 
 use std::collections::BTreeSet;
 
+use crate::{NullableOffsetMarker, OffsetMarker};
+
 /// A helper trait for array-like fields, where we need to know
 /// the length in order to populate another field.
 pub trait HasLen {
@@ -40,5 +42,17 @@ impl<T: HasLen> HasLen for Option<T> {
             Some(t) => t.len(),
             None => 0,
         }
+    }
+}
+
+impl<T: HasLen, const N: usize> HasLen for OffsetMarker<T, N> {
+    fn len(&self) -> usize {
+        self.get().map(HasLen::len).unwrap_or(0)
+    }
+}
+
+impl<T: HasLen, const N: usize> HasLen for NullableOffsetMarker<T, N> {
+    fn len(&self) -> usize {
+        self.get().map(HasLen::len).unwrap_or(0)
     }
 }
