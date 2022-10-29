@@ -110,8 +110,15 @@ impl<const N: usize, T> NullableOffsetMarker<T, N> {
 }
 
 impl<const N: usize, T> NullableOffsetMarker<T, N> {
-    pub fn new(obj: Option<T>) -> Self {
+    /// Create a new offset marker.
+    pub fn new(obj: impl Into<Option<T>>) -> Self {
+        let obj = obj.into();
         NullableOffsetMarker { obj }
+    }
+
+    /// Create a new null offset marker.
+    pub fn null() -> Self {
+        NullableOffsetMarker { obj: None }
     }
 }
 
