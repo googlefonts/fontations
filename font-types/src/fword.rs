@@ -50,6 +50,30 @@ impl std::fmt::Display for UfWord {
     }
 }
 
+impl From<u16> for UfWord {
+    fn from(src: u16) -> Self {
+        UfWord(src)
+    }
+}
+
+impl From<i16> for FWord {
+    fn from(src: i16) -> Self {
+        FWord(src)
+    }
+}
+
+impl From<FWord> for i16 {
+    fn from(src: FWord) -> Self {
+        src.0
+    }
+}
+
+impl From<UfWord> for u16 {
+    fn from(src: UfWord) -> Self {
+        src.0
+    }
+}
+
 crate::newtype_scalar!(FWord, [u8; 2]);
 crate::newtype_scalar!(UfWord, [u8; 2]);
 //TODO: we can add addition/etc as needed
