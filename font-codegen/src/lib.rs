@@ -88,7 +88,7 @@ pub(crate) fn generate_parse_module(items: &Items) -> Result<proc_macro2::TokenS
             Item::Format(item) => table::generate_format_group(item)?,
             Item::RawEnum(item) => flags_enums::generate_raw_enum(item),
             Item::Flags(item) => flags_enums::generate_flags(item),
-            Item::Extern(..) => TokenStream::new(),
+            Item::Extern(..) => Default::default(),
         };
         code.push(item_code);
     }
