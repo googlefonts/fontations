@@ -31,6 +31,7 @@ if [ ! -d "$VENV_DIR" ]; then
 fi
 
 echo "Installing fonttools"
+$PIP install --upgrade pip
 $PIP install -r $REQUIREMENTS
 
 for f in $(ls $SRC_DIR/*.ttx); do
