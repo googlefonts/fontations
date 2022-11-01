@@ -27,7 +27,7 @@ pub(crate) enum Item {
     GenericGroup(GenericGroup),
     RawEnum(RawEnum),
     Flags(BitFlags),
-    Extern(ExternTarget),
+    Extern(Extern),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -367,15 +367,16 @@ pub(crate) struct BitFlags {
 }
 
 #[derive(Debug, Clone)]
-pub(crate) enum ExternTarget {
-    Scalar(syn::Ident),
-    Record(syn::Ident),
+pub(crate) enum ExternType {
+    Scalar,
+    Record,
 }
 
 /// A scalar or record that the codegen user must define themselves
 #[derive(Debug, Clone)]
 pub(crate) struct Extern {
-    pub(crate) _target: ExternTarget,
+    pub(crate) name: syn::Ident,
+    pub(crate) typ: ExternType,
 }
 
 mod kw {
@@ -385,6 +386,7 @@ mod kw {
     syn::custom_keyword!(format);
     syn::custom_keyword!(group);
     syn::custom_keyword!(skip);
+    syn::custom_keyword!(scalar);
 }
 
 impl Parse for Items {
@@ -534,21 +536,22 @@ impl Parse for RawEnum {
     }
 }
 
-impl Parse for ExternTarget {
+impl Parse for Extern {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let _kw = input.parse::<Token![extern]>()?;
-        let target = match input.parse::<syn::Ident>()?.to_string().as_str() {
-            "scalar" => ExternTarget::Scalar(input.parse()?),
-            "record" => ExternTarget::Record(input.parse()?),
-            _ => {
-                return Err(syn::Error::new(
-                    input.span(),
-                    "expected one of 'scalar' 'record'.",
-                ))
-            }
+        let lookahead = input.lookahead1();
+        let typ = if lookahead.peek(kw::scalar) {
+            input.parse::<kw::scalar>()?;
+            ExternType::Scalar
+        } else if lookahead.peek(kw::record) {
+            input.parse::<kw::record>()?;
+            ExternType::Record
+        } else {
+            return Err(lookahead.error());
         };
+        let name = input.parse::<syn::Ident>()?;
         let _ = input.parse::<Token![;]>();
-        Ok(target)
+        Ok(Extern { name, typ })
     }
 }
 
@@ -1037,12 +1040,14 @@ fn build_type_map(items: &Items) -> HashMap<String, FieldType> {
                     typ: data.name.clone(),
                 },
             ),
-            Item::Extern(ExternTarget::Scalar(typ)) => {
-                (typ.to_string(), FieldType::Scalar { typ: typ.clone() })
-            }
-            Item::Extern(ExternTarget::Record(typ)) => {
-                (typ.to_string(), FieldType::Struct { typ: typ.clone() })
-            }
+            Item::Extern(Extern {
+                name,
+                typ: ExternType::Scalar,
+            }) => (name.to_string(), FieldType::Scalar { typ: name.clone() }),
+            Item::Extern(Extern {
+                name,
+                typ: ExternType::Record,
+            }) => (name.to_string(), FieldType::Struct { typ: name.clone() }),
             Item::Format(..) | Item::GenericGroup(..) => unreachable!("We filtered you out!!"),
         })
         .collect();
@@ -1148,7 +1153,7 @@ impl Item {
             Item::RawEnum(_) => Ok(()),
             Item::Flags(_) => Ok(()),
             Item::GenericGroup(_) => Ok(()),
-            Item::Extern(_) => Ok(()),
+            Item::Extern(..) => Ok(()),
         }
     }
 }
