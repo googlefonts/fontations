@@ -3,29 +3,36 @@
 # run this script from the repo root to rebuild the binary inputs (ttfs) from
 # their xml/ttx representations.
 
+set -o errexit
+set -o nounset
+set -o pipefail
+
 SRC_DIR=./resources/test_fonts/ttx
 OUT_DIR=./resources/test_fonts/ttf
-VERSION_FILE=$OUT_DIR/GENERATED_BY_TTX_VERSION
-PREV_VERSION=$(<$VERSION_FILE)
-THIS_VERSION=$(ttx --version)
+VENV_DIR=./.venv
+PIP=$VENV_DIR/bin/pip
+REQUIREMENTS=./resources/test_fonts/requirements.txt
+TTX=$VENV_DIR/bin/ttx
 
 if [ ! -d "$SRC_DIR" ]; then
-  echo "Error: $DIRECTORY does not exist. Are you in the repo root?" >&2
+  echo "Error: $SRC_DIR does not exist. Are you in the repo root?" >&2
   exit 1
 fi
 
-if [ "$THIS_VERSION" == "" ]; then
-  echo "Error: 'ttx' not found. Is fonttools installed?" >&2
-  exit 1
+# check that we have python3 + virtualenv installed:
+if ! python3 -m venv -h  >/dev/null 2>&1; then
+    echo "Error: script requires python3 and venv module" >&2
+    exit 1
 fi
 
-if [ "$PREV_VERSION" != "$THIS_VERSION" ]; then
-    echo "Note: using ttx version '$THIS_VERSION', files previously generated with version '$PREV_VERSION'" >&2
+if [ ! -d "$VENV_DIR" ]; then
+    echo "Setting up venv at $VENV_DIR"
+    python3 -m venv $VENV_DIR
 fi
+
+echo "Installing fonttools"
+$PIP install -r $REQUIREMENTS
 
 for f in $(ls $SRC_DIR/*.ttx); do
-    ttx -o $OUT_DIR/$(basename "$f" .ttx).ttf --no-recalc-timestamp -b $f
+    $TTX -o $OUT_DIR/$(basename "$f" .ttx).ttf --no-recalc-timestamp -b $f
 done
-
-ttx --version > $VERSION_FILE
-
