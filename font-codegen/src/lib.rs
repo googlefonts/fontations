@@ -119,9 +119,16 @@ pub(crate) fn generate_compile_module(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
+    let import_from_parse_mod = items.items.iter().filter_map(|item| match item {
+        Item::Flags(item) => Some(&item.name),
+        _ => None,
+    });
+    let parse_mod_path = &items.parse_module_path;
+
     Ok(quote! {
         #[allow(unused_imports)]
         use crate::codegen_prelude::*;
+        pub use #parse_mod_path::{ #( #import_from_parse_mod, )* };
 
         #( #code )*
     })

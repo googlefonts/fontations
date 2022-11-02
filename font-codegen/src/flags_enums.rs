@@ -50,31 +50,10 @@ pub(crate) fn generate_flags(raw: &BitFlags) -> proc_macro2::TokenStream {
 }
 
 pub(crate) fn generate_flags_compile(raw: &BitFlags) -> TokenStream {
-    //NOTE: we can reuse the declarations of these from parsing, but you need
-    //to import them manually; we only implement the traits.
+    // we reuse the type from the read-fonts crate, and so only implement our trait.
 
     let name = &raw.name;
-    let docs = &raw.docs;
-    let typ = &raw.typ;
-    let variants = raw.variants.iter().map(|variant| {
-        let name = &variant.name;
-        let value = &variant.value;
-        let docs = &variant.docs;
-        quote! {
-            #( #docs )*
-            const #name = #value;
-        }
-    });
-
     quote! {
-        bitflags::bitflags! {
-            #( #docs )*
-            pub struct #name: #typ {
-                #( #variants )*
-            }
-        }
-
-
         impl FontWrite for #name {
             fn write_into(&self, writer: &mut TableWriter) {
                 writer.write_slice(&self.bits().to_be_bytes())
