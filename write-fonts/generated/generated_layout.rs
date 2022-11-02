@@ -5,6 +5,8 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+pub use read_fonts::layout::DeltaFormat;
+
 /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
 #[derive(Clone, Debug)]
 pub struct ScriptList {
@@ -1810,29 +1812,9 @@ impl<'a> FontRead<'a> for ChainedSequenceContext {
     }
 }
 
-/// [Device](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
-/// delta formats
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u16)]
-pub enum DeltaFormat {
-    /// Signed 2-bit value, 8 values per uint16
-    Local2BitDeltas = 0x0001,
-    /// Signed 4-bit value, 4 values per uint16
-    Local4BitDeltas = 0x0002,
-    /// Signed 8-bit value, 2 values per uint16
-    Local8BitDeltas = 0x0003,
-    /// VariationIndex table, contains a delta-set index pair.
-    VariationIndex = 0x8000,
-}
-
 impl FontWrite for DeltaFormat {
     fn write_into(&self, writer: &mut TableWriter) {
-        let val: u16 = match self {
-            Self::Local2BitDeltas => 0x0001,
-            Self::Local4BitDeltas => 0x0002,
-            Self::Local8BitDeltas => 0x0003,
-            Self::VariationIndex => 0x8000,
-        };
+        let val = *self as u16;
         writer.write_slice(&val.to_be_bytes())
     }
 }
@@ -1868,7 +1850,7 @@ impl<'a> FromObjRef<read_fonts::layout::Device<'a>> for Device {
         Device {
             start_size: obj.start_size(),
             end_size: obj.end_size(),
-            delta_format: convert_delta_format(obj.delta_format()),
+            delta_format: obj.delta_format(),
             delta_value: obj.delta_value().iter().map(|x| x.get()).collect(),
         }
     }

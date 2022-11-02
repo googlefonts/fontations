@@ -121,6 +121,7 @@ pub(crate) fn generate_compile_module(
 
     let import_from_parse_mod = items.items.iter().filter_map(|item| match item {
         Item::Flags(item) => Some(&item.name),
+        Item::RawEnum(item) => Some(&item.name),
         _ => None,
     });
     let parse_mod_path = &items.parse_module_path;

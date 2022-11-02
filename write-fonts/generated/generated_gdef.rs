@@ -5,6 +5,8 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+pub use read_fonts::layout::gdef::GlyphClassDef;
+
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
 #[derive(Clone, Debug)]
 pub struct Gdef {
@@ -92,24 +94,9 @@ impl<'a> FontRead<'a> for Gdef {
     }
 }
 
-/// Used in the [Glyph Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#glyph-class-definition-table)
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-#[repr(u16)]
-pub enum GlyphClassDef {
-    Base = 1,
-    Ligature = 2,
-    Mark = 3,
-    Component = 4,
-}
-
 impl FontWrite for GlyphClassDef {
     fn write_into(&self, writer: &mut TableWriter) {
-        let val: u16 = match self {
-            Self::Base => 1,
-            Self::Ligature => 2,
-            Self::Mark => 3,
-            Self::Component => 4,
-        };
+        let val = *self as u16;
         writer.write_slice(&val.to_be_bytes())
     }
 }
