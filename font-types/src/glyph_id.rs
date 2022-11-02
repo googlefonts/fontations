@@ -32,4 +32,10 @@ impl std::fmt::Display for GlyphId {
     }
 }
 
+impl PartialEq<u16> for GlyphId {
+    fn eq(&self, other: &u16) -> bool {
+        self.0 == *other
+    }
+}
+
 crate::newtype_scalar!(GlyphId, [u8; 2]);
