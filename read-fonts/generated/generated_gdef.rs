@@ -224,6 +224,7 @@ pub enum GlyphClassDef {
     Ligature = 2,
     Mark = 3,
     Component = 4,
+    #[doc(hidden)]
     Unknown,
 }
 

@@ -1364,6 +1364,7 @@ pub enum Extend {
     Pad = 0,
     Repeat = 1,
     Reflect = 2,
+    #[doc(hidden)]
     Unknown,
 }
 
@@ -5459,6 +5460,7 @@ pub enum CompositeMode {
     HslSaturation = 25,
     HslColor = 26,
     HslLuminosity = 27,
+    #[doc(hidden)]
     Unknown,
 }
 

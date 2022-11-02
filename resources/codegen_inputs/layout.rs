@@ -526,7 +526,6 @@ table Device {
     /// Largest size to correct, in ppem
     end_size: u16,
     /// Format of deltaValue array data: 0x0001, 0x0002, or 0x0003
-    #[to_owned(convert_delta_format(obj.delta_format()))]
     delta_format: DeltaFormat,
     /// Array of compressed data
     #[count(delta_value_count($start_size, $end_size, $delta_format))]

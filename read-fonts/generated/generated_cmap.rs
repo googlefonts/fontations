@@ -161,6 +161,7 @@ pub enum PlatformId {
     ISO = 2,
     Windows = 3,
     Custom = 4,
+    #[doc(hidden)]
     Unknown,
 }
 

@@ -3510,6 +3510,7 @@ pub enum DeltaFormat {
     Local8BitDeltas = 0x0003,
     /// VariationIndex table, contains a delta-set index pair.
     VariationIndex = 0x8000,
+    #[doc(hidden)]
     Unknown,
 }
 

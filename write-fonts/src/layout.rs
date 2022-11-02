@@ -422,21 +422,6 @@ impl RangeRecord {
     }
 }
 
-fn convert_delta_format(from: read_fonts::layout::DeltaFormat) -> DeltaFormat {
-    match from as u16 {
-        0x0002 => DeltaFormat::Local4BitDeltas,
-        0x0003 => DeltaFormat::Local8BitDeltas,
-        0x8000 => DeltaFormat::VariationIndex,
-        _ => DeltaFormat::Local2BitDeltas,
-    }
-}
-
-impl Default for DeltaFormat {
-    fn default() -> Self {
-        Self::Local2BitDeltas
-    }
-}
-
 fn iter_gids(gid1: GlyphId, gid2: GlyphId) -> impl Iterator<Item = GlyphId> {
     (gid1.to_u16()..=gid2.to_u16()).map(GlyphId::new)
 }
@@ -500,5 +485,11 @@ mod tests {
             .collect();
 
         assert!(builder.prefer_format_1());
+    }
+
+    #[test]
+    fn delta_format_dflt() {
+        let some: DeltaFormat = Default::default();
+        assert_eq!(some, DeltaFormat::Local2BitDeltas);
     }
 }
