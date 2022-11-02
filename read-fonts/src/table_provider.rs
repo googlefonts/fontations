@@ -101,3 +101,56 @@ pub trait TableProvider<'a> {
             .and_then(FontRead::read)
     }
 }
+
+#[cfg(test)]
+mod tests {
+
+    use super::*;
+
+    /// https://github.com/googlefonts/fontations/issues/105
+    #[test]
+    fn bug_105() {
+        // serve some dummy versions of the tables used to compute hmtx. The only
+        // fields that matter are maxp::num_glyphs and hhea::number_of_h_metrics,
+        // everything else is zero'd out
+        struct DummyProvider;
+        impl TableProvider<'static> for DummyProvider {
+            fn data_for_tag(&self, tag: Tag) -> Option<FontData<'static>> {
+                if tag == Tag::new(b"maxp") {
+                    Some(FontData::new(&[
+                        0, 0, 0x50, 0, // version 0.5
+                        0, 3, // num_glyphs = 3
+                    ]))
+                } else if tag == Tag::new(b"hhea") {
+                    Some(FontData::new(&[
+                        0, 1, 0, 0, // version 1.0
+                        0, 0, 0, 0, // ascender/descender
+                        0, 0, 0, 0, // line gap/advance width
+                        0, 0, 0, 0, // min left/right side bearing
+                        0, 0, 0, 0, // x_max, caret_slope_rise
+                        0, 0, 0, 0, // caret_slope_run, caret_offset
+                        0, 0, 0, 0, // reserved1/2
+                        0, 0, 0, 0, // reserved 3/4
+                        0, 0, 0, 1, // metric format, number_of_h_metrics
+                    ]))
+                } else if tag == Tag::new(b"hmtx") {
+                    Some(FontData::new(&[
+                        0, 4, 0, 6, // LongHorMetric: 4, 6
+                        0, 30, 0, 111, // two lsb entries
+                    ]))
+                } else {
+                    None
+                }
+            }
+        }
+
+        let number_of_h_metrics = DummyProvider.hhea().unwrap().number_of_h_metrics();
+        let num_glyphs = DummyProvider.maxp().unwrap().num_glyphs();
+        let hmtx = DummyProvider.hmtx().unwrap();
+
+        assert_eq!(number_of_h_metrics, 1);
+        assert_eq!(num_glyphs, 3);
+        assert_eq!(hmtx.h_metrics().len(), 1);
+        assert_eq!(hmtx.left_side_bearings().len(), 2);
+    }
+}
