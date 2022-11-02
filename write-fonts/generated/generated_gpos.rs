@@ -5,6 +5,8 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+pub use read_fonts::layout::gpos::ValueFormat;
+
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
 #[derive(Clone, Debug)]
@@ -151,7 +153,6 @@ impl FromObjRef<read_fonts::layout::gpos::PositionLookup<'_>> for PositionLookup
 }
 
 impl FromTableRef<read_fonts::layout::gpos::PositionLookup<'_>> for PositionLookup {}
-bitflags::bitflags! { # [doc = " See [ValueRecord]"] pub struct ValueFormat : u16 { # [doc = " Includes horizontal adjustment for placement"] const X_PLACEMENT = 0x0001 ; # [doc = " Includes vertical adjustment for placement"] const Y_PLACEMENT = 0x0002 ; # [doc = " Includes horizontal adjustment for advance"] const X_ADVANCE = 0x0004 ; # [doc = " Includes vertical adjustment for advance"] const Y_ADVANCE = 0x0008 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal placement"] const X_PLACEMENT_DEVICE = 0x0010 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical placement"] const Y_PLACEMENT_DEVICE = 0x0020 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for horizontal advance"] const X_ADVANCE_DEVICE = 0x0040 ; # [doc = " Includes Device table (non-variable font) / VariationIndex"] # [doc = " table (variable font) for vertical advance"] const Y_ADVANCE_DEVICE = 0x0080 ; } }
 
 impl FontWrite for ValueFormat {
     fn write_into(&self, writer: &mut TableWriter) {
