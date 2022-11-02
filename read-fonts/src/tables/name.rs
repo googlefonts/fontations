@@ -162,13 +162,8 @@ impl<'a> Iterator for CharIter<'a> {
                 }
             }
             Encoding::MacRoman => {
-                let c = self.bump_u8()? as u32;
-                if c > 127 {
-                    let idx = c as usize - 128;
-                    MAC_ROMAN[idx] as u32
-                } else {
-                    c
-                }
+                let c = self.bump_u8()?;
+                MacRomanMapping.decode(c) as u32
             }
             _ => return None,
         };
@@ -198,8 +193,40 @@ impl Encoding {
     }
 }
 
+/// A helper for encoding and decoding Mac OS Roman encoded strings.
+pub struct MacRomanMapping;
+
+impl MacRomanMapping {
+    const START_REMAP: u8 = 128;
+    /// Convert from a mac-roman encoded byte to a `char`
+    pub fn decode(self, raw: u8) -> char {
+        if raw < Self::START_REMAP {
+            raw as char
+        } else {
+            let idx = raw - Self::START_REMAP;
+            char::from_u32(MAC_ROMAN[idx as usize] as u32).unwrap()
+        }
+    }
+
+    /// convert from a char to a mac-roman encoded byte, if the char is in the mac-roman charset.
+    pub fn encode(self, c: char) -> Option<u8> {
+        let raw_c = c as u32;
+        let raw_c: u16 = raw_c.try_into().ok()?;
+        if raw_c < Self::START_REMAP as u16 {
+            Some(raw_c as u8)
+        } else {
+            match MAC_ROMAN.binary_search(&raw_c) {
+                Ok(idx) => Some(idx as u8 + Self::START_REMAP),
+                Err(_) => None,
+            }
+        }
+    }
+}
+
+/// a lookup table for the mac-roman encoding. this matches the values 128..=255
+/// to specific unicode values.
 #[rustfmt::skip]
-const MAC_ROMAN: [u16; 128] = [
+static MAC_ROMAN: [u16; 128] = [
     196, 197, 199, 201, 209, 214, 220, 225, 224, 226, 228, 227, 229, 231, 233,
     232, 234, 235, 237, 236, 238, 239, 241, 243, 242, 244, 246, 245, 250, 249,
     251, 252, 8224, 176, 162, 163, 167, 8226, 182, 223, 174, 169, 8482, 180,
