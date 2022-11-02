@@ -2,7 +2,6 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-#[cfg(feature = "parsing")]
 use read_fonts::FontRead;
 
 /// A macro to implement the [LookupType] trait.
@@ -49,14 +48,12 @@ macro_rules! table_newtype {
             }
         }
 
-        #[cfg(feature = "parsing")]
         impl<'a> FromObjRef<$read_type> for $name {
             fn from_obj_ref(obj: &$read_type, _data: FontData) -> Self {
                 Self(FromObjRef::from_obj_ref(obj, _data))
             }
         }
 
-        #[cfg(feature = "parsing")]
         impl<'a> FromTableRef<$read_type> for $name {}
     };
 }
@@ -71,7 +68,6 @@ pub use value_record::ValueRecord;
 
 #[cfg(test)]
 #[path = "./tests/layout.rs"]
-#[cfg(feature = "parsing")]
 mod spec_tests;
 
 include!("../generated/generated_layout.rs");
@@ -124,7 +120,6 @@ impl Validate for FeatureParams {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl FromObjRef<read_fonts::layout::FeatureParams<'_>> for FeatureParams {
     fn from_obj_ref(from: &read_fonts::layout::FeatureParams, data: FontData) -> Self {
         use read_fonts::layout::FeatureParams as FromType;
@@ -140,7 +135,6 @@ impl FromObjRef<read_fonts::layout::FeatureParams<'_>> for FeatureParams {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl FromTableRef<read_fonts::layout::FeatureParams<'_>> for FeatureParams {}
 
 impl ClassDefFormat1 {
@@ -428,7 +422,6 @@ impl RangeRecord {
     }
 }
 
-#[cfg(feature = "parsing")]
 fn convert_delta_format(from: read_fonts::layout::DeltaFormat) -> DeltaFormat {
     match from as u16 {
         0x0002 => DeltaFormat::Local4BitDeltas,

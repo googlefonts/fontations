@@ -1,8 +1,6 @@
 //! The ValueRecord type used in the GPOS table
 
-#[cfg(feature = "parsing")]
 use crate::from_obj::FromObjRef;
-#[cfg(feature = "parsing")]
 use read_fonts::FontData;
 
 use super::gpos::ValueFormat;
@@ -90,7 +88,6 @@ impl Validate for ValueRecord {
     fn validate_impl(&self, _ctx: &mut crate::validate::ValidationCtx) {}
 }
 
-#[cfg(feature = "parsing")]
 impl FromObjRef<read_fonts::layout::gpos::ValueRecord> for ValueRecord {
     fn from_obj_ref(from: &read_fonts::layout::gpos::ValueRecord, _data: FontData) -> Self {
         ValueRecord {

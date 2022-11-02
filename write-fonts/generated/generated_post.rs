@@ -109,7 +109,6 @@ impl Validate for Post {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::tables::post::Post<'a>> for Post {
     fn from_obj_ref(obj: &read_fonts::tables::post::Post<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
@@ -136,10 +135,8 @@ impl<'a> FromObjRef<read_fonts::tables::post::Post<'a>> for Post {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::tables::post::Post<'a>> for Post {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for Post {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::post::Post as FontRead>::read(data).map(|x| x.to_owned_table())

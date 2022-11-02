@@ -1,10 +1,7 @@
 //! compile-time representations of offsets
 
-#[cfg(feature = "parsing")]
 use crate::from_obj::FromTableRef;
-#[cfg(feature = "parsing")]
 use font_types::{BigEndian, Scalar};
-#[cfg(feature = "parsing")]
 use read_fonts::ReadError;
 
 use super::write::{FontWrite, TableWriter};
@@ -136,7 +133,6 @@ impl<const N: usize, T: FontWrite> FontWrite for NullableOffsetMarker<T, N> {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<const N: usize, T, U> From<Result<U, ReadError>> for OffsetMarker<T, N>
 where
     T: FromTableRef<U>,
@@ -146,7 +142,6 @@ where
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<const N: usize, T, U> From<Option<Result<U, ReadError>>> for NullableOffsetMarker<T, N>
 where
     T: FromTableRef<U>,
@@ -161,7 +156,6 @@ where
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a, const N: usize, T: Scalar> From<Result<&'a [BigEndian<T>], ReadError>>
     for OffsetMarker<Vec<T>, N>
 where
@@ -174,7 +168,6 @@ where
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a, const N: usize, T: Scalar> From<Option<Result<&'a [BigEndian<T>], ReadError>>>
     for NullableOffsetMarker<Vec<T>, N>
 where

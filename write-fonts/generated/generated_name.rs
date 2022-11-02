@@ -65,7 +65,6 @@ impl Validate for Name {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::tables::name::Name<'a>> for Name {
     fn from_obj_ref(obj: &read_fonts::tables::name::Name<'a>, _: FontData) -> Self {
         let offset_data = obj.string_data();
@@ -85,10 +84,8 @@ impl<'a> FromObjRef<read_fonts::tables::name::Name<'a>> for Name {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::tables::name::Name<'a>> for Name {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for Name {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::name::Name as FontRead>::read(data).map(|x| x.to_owned_table())
@@ -107,7 +104,6 @@ impl Validate for LangTagRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-#[cfg(feature = "parsing")]
 impl FromObjRef<read_fonts::tables::name::LangTagRecord> for LangTagRecord {
     fn from_obj_ref(obj: &read_fonts::tables::name::LangTagRecord, offset_data: FontData) -> Self {
         LangTagRecord {
@@ -141,7 +137,6 @@ impl Validate for NameRecord {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl FromObjRef<read_fonts::tables::name::NameRecord> for NameRecord {
     fn from_obj_ref(obj: &read_fonts::tables::name::NameRecord, offset_data: FontData) -> Self {
         NameRecord {

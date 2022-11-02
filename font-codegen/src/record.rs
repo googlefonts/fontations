@@ -234,7 +234,6 @@ fn generate_from_obj_impl(item: &Record, parse_module: &syn::Path) -> syn::Resul
     };
 
     Ok(quote! {
-        #[cfg(feature = "parsing")]
         impl FromObjRef<#parse_module:: #name #lifetime> for #name {
             fn from_obj_ref(obj: &#parse_module:: #name, #offset_data_ident: FontData) -> Self {
                 #name {

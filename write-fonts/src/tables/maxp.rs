@@ -50,13 +50,10 @@ mod tests {
 
         let dumped = crate::write::dump_table(&maxp_05).unwrap();
         assert_eq!(dumped.len(), 6);
-        #[cfg(feature = "parsing")]
-        {
-            let data = FontData::new(&dumped);
-            let loaded = read_fonts::tables::maxp::Maxp::read(data).unwrap();
-            assert_eq!(loaded.version(), Version16Dot16::VERSION_0_5);
-            assert_eq!(loaded.num_glyphs(), 5);
-        }
+        let data = FontData::new(&dumped);
+        let loaded = read_fonts::tables::maxp::Maxp::read(data).unwrap();
+        assert_eq!(loaded.version(), Version16Dot16::VERSION_0_5);
+        assert_eq!(loaded.num_glyphs(), 5);
     }
 
     #[test]
@@ -80,14 +77,11 @@ mod tests {
 
         let _dumped = crate::write::dump_table(&maxp_05).unwrap();
 
-        #[cfg(feature = "parsing")]
-        {
-            let data = FontData::new(&_dumped);
-            let loaded = read_fonts::tables::maxp::Maxp::read(data).unwrap();
-            assert_eq!(loaded.version(), Version16Dot16::VERSION_1_0);
-            assert_eq!(loaded.max_composite_contours(), Some(9));
-            assert_eq!(loaded.max_zones(), Some(10));
-            assert_eq!(loaded.max_component_depth(), Some(18));
-        }
+        let data = FontData::new(&_dumped);
+        let loaded = read_fonts::tables::maxp::Maxp::read(data).unwrap();
+        assert_eq!(loaded.version(), Version16Dot16::VERSION_1_0);
+        assert_eq!(loaded.max_composite_contours(), Some(9));
+        assert_eq!(loaded.max_zones(), Some(10));
+        assert_eq!(loaded.max_component_depth(), Some(18));
     }
 }

@@ -220,7 +220,6 @@ impl Validate for Maxp {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::tables::maxp::Maxp<'a>> for Maxp {
     fn from_obj_ref(obj: &read_fonts::tables::maxp::Maxp<'a>, _: FontData) -> Self {
         Maxp {
@@ -242,10 +241,8 @@ impl<'a> FromObjRef<read_fonts::tables::maxp::Maxp<'a>> for Maxp {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::tables::maxp::Maxp<'a>> for Maxp {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for Maxp {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::maxp::Maxp as FontRead>::read(data).map(|x| x.to_owned_table())

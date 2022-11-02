@@ -43,13 +43,10 @@ mod tests {
 
         assert_eq!(gdef.compute_version(), MajorMinor::VERSION_1_3);
         let _dumped = crate::write::dump_table(&gdef).unwrap();
-        #[cfg(feature = "parsing")]
-        {
-            let data = FontData::new(&_dumped);
-            let loaded = read_fonts::tables::gdef::Gdef::read(data).unwrap();
+        let data = FontData::new(&_dumped);
+        let loaded = read_fonts::tables::gdef::Gdef::read(data).unwrap();
 
-            assert_eq!(loaded.version(), MajorMinor::VERSION_1_3);
-            assert!(!loaded.item_var_store_offset().unwrap().is_null());
-        }
+        assert_eq!(loaded.version(), MajorMinor::VERSION_1_3);
+        assert!(!loaded.item_var_store_offset().unwrap().is_null());
     }
 }

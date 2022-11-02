@@ -23,18 +23,15 @@ mod tests {
         };
 
         let _dumped = crate::write::dump_table(&hhea).unwrap();
-        #[cfg(feature = "parsing")]
-        {
-            let data = FontData::new(&_dumped);
-            let loaded = read_fonts::tables::hhea::Hhea::read(data).unwrap();
-            assert_eq!(loaded.advance_width_max(), hhea.advance_width_max);
-            assert_eq!(loaded.ascender(), hhea.ascender);
-            assert_eq!(loaded.descender(), hhea.descender);
-            assert_eq!(loaded.version(), MajorMinor::VERSION_1_0);
-            assert_eq!(loaded.min_left_side_bearing(), hhea.min_left_side_bearing);
-            assert_eq!(loaded.min_right_side_bearing(), hhea.min_right_side_bearing);
-            assert_eq!(loaded.min_right_side_bearing(), hhea.min_right_side_bearing);
-            assert_eq!(loaded.number_of_h_metrics(), hhea.number_of_h_metrics);
-        }
+        let data = FontData::new(&_dumped);
+        let loaded = read_fonts::tables::hhea::Hhea::read(data).unwrap();
+        assert_eq!(loaded.advance_width_max(), hhea.advance_width_max);
+        assert_eq!(loaded.ascender(), hhea.ascender);
+        assert_eq!(loaded.descender(), hhea.descender);
+        assert_eq!(loaded.version(), MajorMinor::VERSION_1_0);
+        assert_eq!(loaded.min_left_side_bearing(), hhea.min_left_side_bearing);
+        assert_eq!(loaded.min_right_side_bearing(), hhea.min_right_side_bearing);
+        assert_eq!(loaded.min_right_side_bearing(), hhea.min_right_side_bearing);
+        assert_eq!(loaded.number_of_h_metrics(), hhea.number_of_h_metrics);
     }
 }

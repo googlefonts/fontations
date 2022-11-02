@@ -9,7 +9,7 @@ use super::{
     LookupType, ScriptList, SequenceContext,
 };
 
-#[cfg(all(test, feature = "parsing"))]
+#[cfg(test)]
 #[path = "../tests/test_gsub.rs"]
 mod tests;
 
@@ -56,14 +56,12 @@ impl<T: LookupType + FontWrite> FontWrite for ExtensionSubstFormat1<T> {
 }
 
 // these can't have auto impls because the traits don't support generics
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for SubstitutionLookup {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         read_fonts::layout::gsub::SubstitutionLookup::read(data).map(|x| x.to_owned_table())
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for SubstitutionLookupList {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         read_fonts::layout::gsub::SubstitutionLookupList::read(data).map(|x| x.to_owned_table())
