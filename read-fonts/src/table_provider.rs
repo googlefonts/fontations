@@ -33,7 +33,7 @@ pub trait TableProvider<'a> {
         let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_h_metrics())?;
         self.expect_data_for_tag(tables::hmtx::TAG)
             .and_then(|data| {
-                FontReadWithArgs::read_with_args(data, &(num_glyphs, number_of_h_metrics))
+                FontReadWithArgs::read_with_args(data, &(number_of_h_metrics, num_glyphs))
             })
     }
 
