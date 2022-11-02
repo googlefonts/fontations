@@ -27,6 +27,7 @@ pub(crate) enum Item {
     GenericGroup(GenericGroup),
     RawEnum(RawEnum),
     Flags(BitFlags),
+    Extern(Extern),
 }
 
 #[derive(Debug, Copy, Clone)]
@@ -365,6 +366,19 @@ pub(crate) struct BitFlags {
     pub(crate) variants: Vec<RawVariant>,
 }
 
+#[derive(Debug, Clone)]
+pub(crate) enum ExternType {
+    Scalar,
+    Record,
+}
+
+/// A scalar or record that the codegen user must define themselves
+#[derive(Debug, Clone)]
+pub(crate) struct Extern {
+    pub(crate) name: syn::Ident,
+    pub(crate) typ: ExternType,
+}
+
 mod kw {
     syn::custom_keyword!(table);
     syn::custom_keyword!(record);
@@ -372,6 +386,7 @@ mod kw {
     syn::custom_keyword!(format);
     syn::custom_keyword!(group);
     syn::custom_keyword!(skip);
+    syn::custom_keyword!(scalar);
 }
 
 impl Parse for Items {
@@ -425,10 +440,12 @@ impl Parse for Item {
             Ok(Self::GenericGroup(input.parse()?))
         } else if lookahead.peek(Token![enum]) {
             Ok(Self::RawEnum(input.parse()?))
+        } else if lookahead.peek(Token![extern]) {
+            Ok(Self::Extern(input.parse()?))
         } else {
             Err(syn::Error::new(
                 input.span(),
-                "expected one of 'table' 'record' 'flags' 'format' 'enum' or 'group'.",
+                "expected one of 'table' 'record' 'flags' 'format' 'enum', 'extern', or 'group'.",
             ))
         }
     }
@@ -516,6 +533,25 @@ impl Parse for RawEnum {
             typ,
             variants,
         })
+    }
+}
+
+impl Parse for Extern {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let _kw = input.parse::<Token![extern]>()?;
+        let lookahead = input.lookahead1();
+        let typ = if lookahead.peek(kw::scalar) {
+            input.parse::<kw::scalar>()?;
+            ExternType::Scalar
+        } else if lookahead.peek(kw::record) {
+            input.parse::<kw::record>()?;
+            ExternType::Record
+        } else {
+            return Err(lookahead.error());
+        };
+        let name = input.parse::<syn::Ident>()?;
+        let _ = input.parse::<Token![;]>();
+        Ok(Extern { name, typ })
     }
 }
 
@@ -674,14 +710,6 @@ impl WellKnownScalar {
     }
 }
 
-// TODO use an explicit declaration of user defined types and delete this
-fn is_wellknown_struct(path: &syn::PathSegment) -> bool {
-    if !path.arguments.is_empty() {
-        return false;
-    }
-    matches!(path.ident.to_string().as_str(), "ValueRecord")
-}
-
 impl FieldType {
     fn from_syn_type(type_: &syn::Type) -> syn::Result<Self> {
         // Figure out any "obvious" types, leave anything non-obvious for later
@@ -724,12 +752,6 @@ impl FieldType {
 
         if WellKnownScalar::from_path(last).is_ok() {
             return Ok(FieldType::Scalar {
-                typ: last.ident.clone(),
-            });
-        }
-
-        if is_wellknown_struct(last) {
-            return Ok(FieldType::Struct {
                 typ: last.ident.clone(),
             });
         }
@@ -1018,6 +1040,14 @@ fn build_type_map(items: &Items) -> HashMap<String, FieldType> {
                     typ: data.name.clone(),
                 },
             ),
+            Item::Extern(Extern {
+                name,
+                typ: ExternType::Scalar,
+            }) => (name.to_string(), FieldType::Scalar { typ: name.clone() }),
+            Item::Extern(Extern {
+                name,
+                typ: ExternType::Record,
+            }) => (name.to_string(), FieldType::Struct { typ: name.clone() }),
             Item::Format(..) | Item::GenericGroup(..) => unreachable!("We filtered you out!!"),
         })
         .collect();
@@ -1123,6 +1153,7 @@ impl Item {
             Item::RawEnum(_) => Ok(()),
             Item::Flags(_) => Ok(()),
             Item::GenericGroup(_) => Ok(()),
+            Item::Extern(..) => Ok(()),
         }
     }
 }

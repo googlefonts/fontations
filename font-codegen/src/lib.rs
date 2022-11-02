@@ -1,6 +1,7 @@
 //! Generating types from the opentype spec
 
 use log::debug;
+use proc_macro2::TokenStream;
 use quote::quote;
 
 mod error;
@@ -87,6 +88,7 @@ pub(crate) fn generate_parse_module(items: &Items) -> Result<proc_macro2::TokenS
             Item::Format(item) => table::generate_format_group(item)?,
             Item::RawEnum(item) => flags_enums::generate_raw_enum(item),
             Item::Flags(item) => flags_enums::generate_flags(item),
+            Item::Extern(..) => Default::default(),
         };
         code.push(item_code);
     }
@@ -113,6 +115,7 @@ pub(crate) fn generate_compile_module(
             Item::Format(item) => table::generate_format_compile(item, &items.parse_module_path),
             Item::RawEnum(item) => Ok(flags_enums::generate_raw_enum_compile(item)),
             Item::Flags(item) => Ok(flags_enums::generate_flags_compile(item)),
+            Item::Extern(..) => Ok(TokenStream::new()),
         })
         .collect::<Result<Vec<_>, _>>()?;
 
