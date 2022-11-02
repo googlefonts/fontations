@@ -21,7 +21,6 @@ impl AsRef<str> for PString {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::tables::post::PString<'a>> for PString {
     fn from_obj_ref(from: &read_fonts::tables::post::PString<'a>, _: FontData) -> Self {
         PString(from.as_str().to_owned())
@@ -46,7 +45,6 @@ impl PartialEq<&str> for PString {
 mod tests {
 
     #[test]
-    #[cfg(feature = "parsing")]
     fn roundtrip() {
         use super::*;
         use read_fonts::test_data::post as test_data;

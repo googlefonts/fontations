@@ -66,7 +66,6 @@ impl Validate for Hhea {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::tables::hhea::Hhea<'a>> for Hhea {
     fn from_obj_ref(obj: &read_fonts::tables::hhea::Hhea<'a>, _: FontData) -> Self {
         Hhea {
@@ -85,10 +84,8 @@ impl<'a> FromObjRef<read_fonts::tables::hhea::Hhea<'a>> for Hhea {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::tables::hhea::Hhea<'a>> for Hhea {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for Hhea {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::hhea::Hhea as FontRead>::read(data).map(|x| x.to_owned_table())

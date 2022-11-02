@@ -143,7 +143,6 @@ impl Validate for TTCHeader {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::TTCHeader<'a>> for TTCHeader {
     fn from_obj_ref(obj: &read_fonts::TTCHeader<'a>, _: FontData) -> Self {
         TTCHeader {
@@ -162,10 +161,8 @@ impl<'a> FromObjRef<read_fonts::TTCHeader<'a>> for TTCHeader {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::TTCHeader<'a>> for TTCHeader {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for TTCHeader {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::TTCHeader as FontRead>::read(data).map(|x| x.to_owned_table())

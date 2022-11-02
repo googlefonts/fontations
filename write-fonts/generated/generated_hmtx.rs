@@ -36,7 +36,6 @@ impl Validate for Hmtx {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::tables::hmtx::Hmtx<'a>> for Hmtx {
     fn from_obj_ref(obj: &read_fonts::tables::hmtx::Hmtx<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
@@ -51,7 +50,6 @@ impl<'a> FromObjRef<read_fonts::tables::hmtx::Hmtx<'a>> for Hmtx {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::tables::hmtx::Hmtx<'a>> for Hmtx {}
 
 #[derive(Clone, Debug)]
@@ -73,7 +71,6 @@ impl Validate for LongHorMetric {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-#[cfg(feature = "parsing")]
 impl FromObjRef<read_fonts::tables::hmtx::LongHorMetric> for LongHorMetric {
     fn from_obj_ref(obj: &read_fonts::tables::hmtx::LongHorMetric, _: FontData) -> Self {
         LongHorMetric {

@@ -139,14 +139,12 @@ impl FontWrite for NameStringWriter<'_> {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl FromObjRef<read_fonts::tables::name::NameString<'_>> for String {
     fn from_obj_ref(obj: &read_fonts::tables::name::NameString<'_>, _: FontData) -> Self {
         obj.chars().collect()
     }
 }
 
-#[cfg(feature = "parsing")]
 impl FromTableRef<read_fonts::tables::name::NameString<'_>> for String {}
 
 impl PartialEq for NameRecord {
@@ -261,17 +259,13 @@ mod tests {
         });
 
         let _dumped = crate::dump_table(&table).unwrap();
-        #[cfg(feature = "parsing")]
-        {
-            let loaded = read_fonts::tables::name::Name::read(FontData::new(&_dumped)).unwrap();
-            assert_eq!(loaded.name_record()[0].encoding_id, 4);
-            assert_eq!(loaded.name_record()[1].name_id, 1029);
-            assert_eq!(loaded.name_record()[2].name_id, 1030);
-        }
+        let loaded = read_fonts::tables::name::Name::read(FontData::new(&_dumped)).unwrap();
+        assert_eq!(loaded.name_record()[0].encoding_id, 4);
+        assert_eq!(loaded.name_record()[1].name_id, 1029);
+        assert_eq!(loaded.name_record()[2].name_id, 1030);
     }
 
     #[test]
-    #[cfg(feature = "parsing")]
     fn roundtrip() {
         #[rustfmt::skip]
         static COLINS_BESPOKE_DATA: &[u8] = &[

@@ -71,7 +71,6 @@ impl Validate for Gdef {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gdef::Gdef<'a>> for Gdef {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::Gdef<'a>, _: FontData) -> Self {
         Gdef {
@@ -85,10 +84,8 @@ impl<'a> FromObjRef<read_fonts::layout::gdef::Gdef<'a>> for Gdef {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gdef::Gdef<'a>> for Gdef {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for Gdef {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gdef::Gdef as FontRead>::read(data).map(|x| x.to_owned_table())
@@ -152,7 +149,6 @@ impl Validate for AttachList {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gdef::AttachList<'a>> for AttachList {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::AttachList<'a>, _: FontData) -> Self {
         AttachList {
@@ -162,10 +158,8 @@ impl<'a> FromObjRef<read_fonts::layout::gdef::AttachList<'a>> for AttachList {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gdef::AttachList<'a>> for AttachList {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for AttachList {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gdef::AttachList as FontRead>::read(data).map(|x| x.to_owned_table())
@@ -199,7 +193,6 @@ impl Validate for AttachPoint {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gdef::AttachPoint<'a>> for AttachPoint {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::AttachPoint<'a>, _: FontData) -> Self {
         AttachPoint {
@@ -208,10 +201,8 @@ impl<'a> FromObjRef<read_fonts::layout::gdef::AttachPoint<'a>> for AttachPoint {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gdef::AttachPoint<'a>> for AttachPoint {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for AttachPoint {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gdef::AttachPoint as FontRead>::read(data).map(|x| x.to_owned_table())
@@ -253,7 +244,6 @@ impl Validate for LigCaretList {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gdef::LigCaretList<'a>> for LigCaretList {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::LigCaretList<'a>, _: FontData) -> Self {
         LigCaretList {
@@ -263,10 +253,8 @@ impl<'a> FromObjRef<read_fonts::layout::gdef::LigCaretList<'a>> for LigCaretList
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gdef::LigCaretList<'a>> for LigCaretList {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for LigCaretList {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gdef::LigCaretList as FontRead>::read(data).map(|x| x.to_owned_table())
@@ -302,7 +290,6 @@ impl Validate for LigGlyph {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gdef::LigGlyph<'a>> for LigGlyph {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::LigGlyph<'a>, _: FontData) -> Self {
         LigGlyph {
@@ -311,10 +298,8 @@ impl<'a> FromObjRef<read_fonts::layout::gdef::LigGlyph<'a>> for LigGlyph {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gdef::LigGlyph<'a>> for LigGlyph {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for LigGlyph {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gdef::LigGlyph as FontRead>::read(data).map(|x| x.to_owned_table())
@@ -349,7 +334,6 @@ impl Validate for CaretValue {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl FromObjRef<read_fonts::layout::gdef::CaretValue<'_>> for CaretValue {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::CaretValue, _: FontData) -> Self {
         use read_fonts::layout::gdef::CaretValue as ObjRefType;
@@ -361,10 +345,8 @@ impl FromObjRef<read_fonts::layout::gdef::CaretValue<'_>> for CaretValue {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl FromTableRef<read_fonts::layout::gdef::CaretValue<'_>> for CaretValue {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for CaretValue {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gdef::CaretValue as FontRead>::read(data).map(|x| x.to_owned_table())
@@ -390,7 +372,6 @@ impl Validate for CaretValueFormat1 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gdef::CaretValueFormat1<'a>> for CaretValueFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::CaretValueFormat1<'a>, _: FontData) -> Self {
         CaretValueFormat1 {
@@ -399,10 +380,8 @@ impl<'a> FromObjRef<read_fonts::layout::gdef::CaretValueFormat1<'a>> for CaretVa
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gdef::CaretValueFormat1<'a>> for CaretValueFormat1 {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for CaretValueFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gdef::CaretValueFormat1 as FontRead>::read(data)
@@ -429,7 +408,6 @@ impl Validate for CaretValueFormat2 {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gdef::CaretValueFormat2<'a>> for CaretValueFormat2 {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::CaretValueFormat2<'a>, _: FontData) -> Self {
         CaretValueFormat2 {
@@ -438,10 +416,8 @@ impl<'a> FromObjRef<read_fonts::layout::gdef::CaretValueFormat2<'a>> for CaretVa
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gdef::CaretValueFormat2<'a>> for CaretValueFormat2 {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for CaretValueFormat2 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gdef::CaretValueFormat2 as FontRead>::read(data)
@@ -479,7 +455,6 @@ impl Validate for CaretValueFormat3 {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gdef::CaretValueFormat3<'a>> for CaretValueFormat3 {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::CaretValueFormat3<'a>, _: FontData) -> Self {
         CaretValueFormat3 {
@@ -489,10 +464,8 @@ impl<'a> FromObjRef<read_fonts::layout::gdef::CaretValueFormat3<'a>> for CaretVa
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gdef::CaretValueFormat3<'a>> for CaretValueFormat3 {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for CaretValueFormat3 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gdef::CaretValueFormat3 as FontRead>::read(data)
@@ -530,7 +503,6 @@ impl Validate for MarkGlyphSets {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gdef::MarkGlyphSets<'a>> for MarkGlyphSets {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::MarkGlyphSets<'a>, _: FontData) -> Self {
         MarkGlyphSets {
@@ -539,10 +511,8 @@ impl<'a> FromObjRef<read_fonts::layout::gdef::MarkGlyphSets<'a>> for MarkGlyphSe
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gdef::MarkGlyphSets<'a>> for MarkGlyphSets {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for MarkGlyphSets {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gdef::MarkGlyphSets as FontRead>::read(data)

@@ -84,7 +84,6 @@ impl Validate for Cpal {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::tables::cpal::Cpal<'a>> for Cpal {
     fn from_obj_ref(obj: &read_fonts::tables::cpal::Cpal<'a>, _: FontData) -> Self {
         Cpal {
@@ -101,10 +100,8 @@ impl<'a> FromObjRef<read_fonts::tables::cpal::Cpal<'a>> for Cpal {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::tables::cpal::Cpal<'a>> for Cpal {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for Cpal {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::cpal::Cpal as FontRead>::read(data).map(|x| x.to_owned_table())
@@ -137,7 +134,6 @@ impl Validate for ColorRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-#[cfg(feature = "parsing")]
 impl FromObjRef<read_fonts::tables::cpal::ColorRecord> for ColorRecord {
     fn from_obj_ref(obj: &read_fonts::tables::cpal::ColorRecord, _: FontData) -> Self {
         ColorRecord {

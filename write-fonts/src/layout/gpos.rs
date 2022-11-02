@@ -12,7 +12,7 @@ use super::{
     Lookup, LookupList, LookupType, ScriptList, SequenceContext,
 };
 
-#[cfg(all(test, feature = "parsing"))]
+#[cfg(test)]
 #[path = "../tests/gpos.rs"]
 mod tests;
 
@@ -60,14 +60,12 @@ impl<T: LookupType + FontWrite> FontWrite for ExtensionPosFormat1<T> {
 }
 
 // these can't have auto impls because the traits don't support generics
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for PositionLookup {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         read_fonts::layout::gpos::PositionLookup::read(data).map(|x| x.to_owned_table())
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for PositionLookupList {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         read_fonts::layout::gpos::PositionLookupList::read(data).map(|x| x.to_owned_table())

@@ -72,7 +72,6 @@ impl Validate for Head {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::tables::head::Head<'a>> for Head {
     fn from_obj_ref(obj: &read_fonts::tables::head::Head<'a>, _: FontData) -> Self {
         Head {
@@ -93,10 +92,8 @@ impl<'a> FromObjRef<read_fonts::tables::head::Head<'a>> for Head {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::tables::head::Head<'a>> for Head {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for Head {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::head::Head as FontRead>::read(data).map(|x| x.to_owned_table())

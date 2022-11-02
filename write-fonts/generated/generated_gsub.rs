@@ -52,7 +52,6 @@ impl Validate for Gsub {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gsub::Gsub<'a>> for Gsub {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::Gsub<'a>, _: FontData) -> Self {
         Gsub {
@@ -64,10 +63,8 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::Gsub<'a>> for Gsub {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gsub::Gsub<'a>> for Gsub {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for Gsub {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gsub::Gsub as FontRead>::read(data).map(|x| x.to_owned_table())
@@ -117,7 +114,6 @@ impl Validate for SubstitutionLookup {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl FromObjRef<read_fonts::layout::gsub::SubstitutionLookup<'_>> for SubstitutionLookup {
     fn from_obj_ref(
         from: &read_fonts::layout::gsub::SubstitutionLookup<'_>,
@@ -152,7 +148,6 @@ impl FromObjRef<read_fonts::layout::gsub::SubstitutionLookup<'_>> for Substituti
     }
 }
 
-#[cfg(feature = "parsing")]
 impl FromTableRef<read_fonts::layout::gsub::SubstitutionLookup<'_>> for SubstitutionLookup {}
 
 /// LookupType 1: [Single Substitution](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#lookuptype-1-single-substitution-subtable) Subtable
@@ -180,7 +175,6 @@ impl Validate for SingleSubst {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl FromObjRef<read_fonts::layout::gsub::SingleSubst<'_>> for SingleSubst {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::SingleSubst, _: FontData) -> Self {
         use read_fonts::layout::gsub::SingleSubst as ObjRefType;
@@ -191,10 +185,8 @@ impl FromObjRef<read_fonts::layout::gsub::SingleSubst<'_>> for SingleSubst {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl FromTableRef<read_fonts::layout::gsub::SingleSubst<'_>> for SingleSubst {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for SingleSubst {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gsub::SingleSubst as FontRead>::read(data).map(|x| x.to_owned_table())
@@ -230,7 +222,6 @@ impl Validate for SingleSubstFormat1 {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gsub::SingleSubstFormat1<'a>> for SingleSubstFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::SingleSubstFormat1<'a>, _: FontData) -> Self {
         SingleSubstFormat1 {
@@ -240,10 +231,8 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::SingleSubstFormat1<'a>> for Single
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gsub::SingleSubstFormat1<'a>> for SingleSubstFormat1 {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for SingleSubstFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gsub::SingleSubstFormat1 as FontRead>::read(data)
@@ -286,7 +275,6 @@ impl Validate for SingleSubstFormat2 {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gsub::SingleSubstFormat2<'a>> for SingleSubstFormat2 {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::SingleSubstFormat2<'a>, _: FontData) -> Self {
         SingleSubstFormat2 {
@@ -296,10 +284,8 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::SingleSubstFormat2<'a>> for Single
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gsub::SingleSubstFormat2<'a>> for SingleSubstFormat2 {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for SingleSubstFormat2 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gsub::SingleSubstFormat2 as FontRead>::read(data)
@@ -344,7 +330,6 @@ impl Validate for MultipleSubstFormat1 {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gsub::MultipleSubstFormat1<'a>> for MultipleSubstFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::MultipleSubstFormat1<'a>, _: FontData) -> Self {
         MultipleSubstFormat1 {
@@ -354,10 +339,8 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::MultipleSubstFormat1<'a>> for Mult
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gsub::MultipleSubstFormat1<'a>> for MultipleSubstFormat1 {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for MultipleSubstFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gsub::MultipleSubstFormat1 as FontRead>::read(data)
@@ -392,7 +375,6 @@ impl Validate for Sequence {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gsub::Sequence<'a>> for Sequence {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::Sequence<'a>, _: FontData) -> Self {
         Sequence {
@@ -401,10 +383,8 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::Sequence<'a>> for Sequence {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gsub::Sequence<'a>> for Sequence {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for Sequence {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gsub::Sequence as FontRead>::read(data).map(|x| x.to_owned_table())
@@ -448,7 +428,6 @@ impl Validate for AlternateSubstFormat1 {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gsub::AlternateSubstFormat1<'a>> for AlternateSubstFormat1 {
     fn from_obj_ref(
         obj: &read_fonts::layout::gsub::AlternateSubstFormat1<'a>,
@@ -461,13 +440,11 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::AlternateSubstFormat1<'a>> for Alt
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gsub::AlternateSubstFormat1<'a>>
     for AlternateSubstFormat1
 {
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for AlternateSubstFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gsub::AlternateSubstFormat1 as FontRead>::read(data)
@@ -502,7 +479,6 @@ impl Validate for AlternateSet {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gsub::AlternateSet<'a>> for AlternateSet {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::AlternateSet<'a>, _: FontData) -> Self {
         AlternateSet {
@@ -511,10 +487,8 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::AlternateSet<'a>> for AlternateSet
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gsub::AlternateSet<'a>> for AlternateSet {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for AlternateSet {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gsub::AlternateSet as FontRead>::read(data).map(|x| x.to_owned_table())
@@ -558,7 +532,6 @@ impl Validate for LigatureSubstFormat1 {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gsub::LigatureSubstFormat1<'a>> for LigatureSubstFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::LigatureSubstFormat1<'a>, _: FontData) -> Self {
         LigatureSubstFormat1 {
@@ -568,10 +541,8 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::LigatureSubstFormat1<'a>> for Liga
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gsub::LigatureSubstFormat1<'a>> for LigatureSubstFormat1 {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for LigatureSubstFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gsub::LigatureSubstFormat1 as FontRead>::read(data)
@@ -608,7 +579,6 @@ impl Validate for LigatureSet {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gsub::LigatureSet<'a>> for LigatureSet {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::LigatureSet<'a>, _: FontData) -> Self {
         LigatureSet {
@@ -617,10 +587,8 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::LigatureSet<'a>> for LigatureSet {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gsub::LigatureSet<'a>> for LigatureSet {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for LigatureSet {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gsub::LigatureSet as FontRead>::read(data).map(|x| x.to_owned_table())
@@ -650,7 +618,6 @@ impl Validate for Ligature {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gsub::Ligature<'a>> for Ligature {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::Ligature<'a>, _: FontData) -> Self {
         Ligature {
@@ -660,10 +627,8 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::Ligature<'a>> for Ligature {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gsub::Ligature<'a>> for Ligature {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for Ligature {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gsub::Ligature as FontRead>::read(data).map(|x| x.to_owned_table())
@@ -692,7 +657,6 @@ impl<T: Validate> Validate for ExtensionSubstFormat1<T> {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a, T, U> FromObjRef<read_fonts::layout::gsub::ExtensionSubstFormat1<'a, U>>
     for ExtensionSubstFormat1<T>
 where
@@ -710,7 +674,6 @@ where
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a, T, U> FromTableRef<read_fonts::layout::gsub::ExtensionSubstFormat1<'a, U>>
     for ExtensionSubstFormat1<T>
 where
@@ -759,7 +722,6 @@ impl Validate for ExtensionSubtable {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl FromObjRef<read_fonts::layout::gsub::ExtensionSubtable<'_>> for ExtensionSubtable {
     fn from_obj_ref(
         from: &read_fonts::layout::gsub::ExtensionSubtable<'_>,
@@ -791,7 +753,6 @@ impl FromObjRef<read_fonts::layout::gsub::ExtensionSubtable<'_>> for ExtensionSu
     }
 }
 
-#[cfg(feature = "parsing")]
 impl FromTableRef<read_fonts::layout::gsub::ExtensionSubtable<'_>> for ExtensionSubtable {}
 
 /// [Reverse Chaining Contextual Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#81-reverse-chaining-contextual-single-substitution-format-1-coverage-based-glyph-contexts)
@@ -851,7 +812,6 @@ impl Validate for ReverseChainSingleSubstFormat1 {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::layout::gsub::ReverseChainSingleSubstFormat1<'a>>
     for ReverseChainSingleSubstFormat1
 {
@@ -868,13 +828,11 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::ReverseChainSingleSubstFormat1<'a>
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::layout::gsub::ReverseChainSingleSubstFormat1<'a>>
     for ReverseChainSingleSubstFormat1
 {
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::layout::gsub::ReverseChainSingleSubstFormat1 as FontRead>::read(data)

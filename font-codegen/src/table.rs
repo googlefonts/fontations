@@ -302,7 +302,6 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
     let impl_font_read = item.attrs.read_args.is_none() && item.attrs.generic_offset.is_none();
     let maybe_font_read = impl_font_read.then(|| {
         quote! {
-            #[cfg(feature = "parsing")]
             impl<'a> FontRead<'a> for #name {
                 fn read(data: FontData<'a>) -> Result<Self, ReadError> {
                     <#parse_module :: #name as FontRead>::read(data)
@@ -325,7 +324,6 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
     });
 
     Ok(quote! {
-        #[cfg(feature = "parsing")]
         impl<'a, #( #impl_generics, )* > FromObjRef<#parse_module :: #name<'a, #parse_generic>> for #name<#comp_generic> #where_clause {
             fn from_obj_ref(obj: &#parse_module :: #name<'a, #parse_generic>, _: FontData) -> Self {
                 #maybe_bind_offset_data
@@ -335,7 +333,6 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
             }
         }
 
-        #[cfg(feature = "parsing")]
         impl<'a, #(#impl_generics2,)* > FromTableRef<#parse_module :: #name<'a, #parse_generic >> for #name<#comp_generic> #where_clause {}
 
         #maybe_font_read
@@ -391,7 +388,6 @@ pub(crate) fn generate_group_compile(
             }
         }
 
-        #[cfg(feature = "parsing")]
         impl FromObjRef< #from_type :: <'_>> for #name {
             fn from_obj_ref(from: & #from_type :: <'_>, data: FontData) -> Self {
                 match from {
@@ -400,7 +396,6 @@ pub(crate) fn generate_group_compile(
             }
         }
 
-        #[cfg(feature = "parsing")]
         impl FromTableRef< #from_type <'_>> for #name {}
     })
 }
@@ -473,7 +468,6 @@ fn generate_format_from_obj(
     });
 
     Ok(quote! {
-        #[cfg(feature = "parsing")]
         impl FromObjRef<#parse_module:: #name<'_>> for #name {
             fn from_obj_ref(obj: &#parse_module:: #name, _: FontData) -> Self {
                 use #parse_module::#name as ObjRefType;
@@ -483,10 +477,8 @@ fn generate_format_from_obj(
             }
         }
 
-        #[cfg(feature = "parsing")]
         impl FromTableRef<#parse_module::#name<'_>> for #name {}
 
-        #[cfg(feature = "parsing")]
         impl<'a> FontRead<'a> for #name {
             fn read(data: FontData<'a>) -> Result<Self, ReadError> {
                 <#parse_module :: #name as FontRead>::read(data)

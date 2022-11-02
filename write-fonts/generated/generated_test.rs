@@ -68,7 +68,6 @@ impl Validate for KindsOfOffsets {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfOffsets<'a>> for KindsOfOffsets {
     fn from_obj_ref(obj: &read_fonts::codegen_test::KindsOfOffsets<'a>, _: FontData) -> Self {
         KindsOfOffsets {
@@ -83,10 +82,8 @@ impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfOffsets<'a>> for KindsOfOff
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::codegen_test::KindsOfOffsets<'a>> for KindsOfOffsets {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for KindsOfOffsets {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::KindsOfOffsets as FontRead>::read(data)
@@ -179,7 +176,6 @@ impl Validate for KindsOfArraysOfOffsets {
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfArraysOfOffsets<'a>>
     for KindsOfArraysOfOffsets
 {
@@ -202,13 +198,11 @@ impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfArraysOfOffsets<'a>>
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::codegen_test::KindsOfArraysOfOffsets<'a>>
     for KindsOfArraysOfOffsets
 {
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for KindsOfArraysOfOffsets {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::KindsOfArraysOfOffsets as FontRead>::read(data)
@@ -231,17 +225,14 @@ impl Validate for Dummy {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromObjRef<read_fonts::codegen_test::Dummy<'a>> for Dummy {
     fn from_obj_ref(obj: &read_fonts::codegen_test::Dummy<'a>, _: FontData) -> Self {
         Dummy { value: obj.value() }
     }
 }
 
-#[cfg(feature = "parsing")]
 impl<'a> FromTableRef<read_fonts::codegen_test::Dummy<'a>> for Dummy {}
 
-#[cfg(feature = "parsing")]
 impl<'a> FontRead<'a> for Dummy {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::Dummy as FontRead>::read(data).map(|x| x.to_owned_table())
