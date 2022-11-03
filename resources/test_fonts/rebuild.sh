@@ -1,23 +1,18 @@
 #!/usr/bin/env bash
 
-# run this script from the repo root to rebuild the binary inputs (ttfs) from
-# their xml/ttx representations.
+# this script rebuilds the binary test fonts from their xml (ttx) sources
 
 set -o errexit
 set -o nounset
 set -o pipefail
 
-SRC_DIR=./resources/test_fonts/ttx
-OUT_DIR=./resources/test_fonts/ttf
-VENV_DIR=./.venv
+SCRIPT_DIR=$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )
+SRC_DIR=$SCRIPT_DIR/ttx
+OUT_DIR=$SCRIPT_DIR/ttf
+VENV_DIR=$SCRIPT_DIR/../../.venv
+REQUIREMENTS=$SCRIPT_DIR/requirements.txt
 PIP=$VENV_DIR/bin/pip
-REQUIREMENTS=./resources/test_fonts/requirements.txt
 TTX=$VENV_DIR/bin/ttx
-
-if [ ! -d "$SRC_DIR" ]; then
-  echo "Error: $SRC_DIR does not exist. Are you in the repo root?" >&2
-  exit 1
-fi
 
 # check that we have python3 + virtualenv installed:
 if ! python3 -m venv -h  >/dev/null 2>&1; then
