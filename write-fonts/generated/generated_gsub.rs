@@ -677,7 +677,7 @@ impl<'a, T, U> FromObjRef<read_fonts::layout::gsub::ExtensionSubstFormat1<'a, U>
     for ExtensionSubstFormat1<T>
 where
     U: FontRead<'a>,
-    T: FromTableRef<U> + 'static,
+    T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(
         obj: &read_fonts::layout::gsub::ExtensionSubstFormat1<'a, U>,
@@ -694,7 +694,7 @@ impl<'a, T, U> FromTableRef<read_fonts::layout::gsub::ExtensionSubstFormat1<'a, 
     for ExtensionSubstFormat1<T>
 where
     U: FontRead<'a>,
-    T: FromTableRef<U> + 'static,
+    T: FromTableRef<U> + Default + 'static,
 {
 }
 

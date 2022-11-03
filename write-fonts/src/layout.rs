@@ -20,7 +20,7 @@ macro_rules! lookup_type {
 /// lookups) can be given different lookup ids for each of GSUB/GPOS.
 macro_rules! table_newtype {
     ($name:ident, $inner:ident, $read_type:path) => {
-        #[derive(Debug, Clone)]
+        #[derive(Clone, Debug, Default)]
         pub struct $name($inner);
 
         impl std::ops::Deref for $name {

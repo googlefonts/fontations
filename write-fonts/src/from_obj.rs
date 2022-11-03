@@ -112,10 +112,12 @@ impl<T: FromTableRef<U>, U> FromTableRef<Option<U>> for Option<T> {
 
 /* blanket impls converting resolved offsets to offsetmarkers */
 
-impl<T: FromObjRef<U>, U, const N: usize> FromObjRef<Result<U, ReadError>> for OffsetMarker<T, N> {
+impl<T: FromObjRef<U> + Default, U, const N: usize> FromObjRef<Result<U, ReadError>>
+    for OffsetMarker<T, N>
+{
     fn from_obj_ref(from: &Result<U, ReadError>, data: FontData) -> Self {
         match from {
-            Err(_) => OffsetMarker::new_maybe_null(None),
+            Err(_) => OffsetMarker::default(),
             Ok(table) => OffsetMarker::new(table.to_owned_obj(data)),
         }
     }
@@ -133,12 +135,12 @@ impl<T: FromObjRef<U>, U, const N: usize> FromObjRef<Option<Result<U, ReadError>
 }
 
 // used for bare offsets
-impl<T: FromTableRef<U>, U, const N: usize> FromTableRef<Result<U, ReadError>>
+impl<T: FromTableRef<U> + Default, U, const N: usize> FromTableRef<Result<U, ReadError>>
     for OffsetMarker<T, N>
 {
     fn from_table_ref(from: &Result<U, ReadError>) -> Self {
         match from {
-            Err(_) => OffsetMarker::new_maybe_null(None),
+            Err(_) => OffsetMarker::default(),
             Ok(table) => OffsetMarker::new(table.to_owned_table()),
         }
     }

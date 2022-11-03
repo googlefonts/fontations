@@ -33,7 +33,7 @@ table_newtype!(
 
 impl Gpos {
     fn compute_version(&self) -> MajorMinor {
-        if self.feature_variations_offset.get().is_none() {
+        if self.feature_variations_offset.is_none() {
             MajorMinor::VERSION_1_0
         } else {
             MajorMinor::VERSION_1_1
@@ -110,7 +110,6 @@ impl PairPosFormat1 {
     fn compute_value_format1(&self) -> ValueFormat {
         self.pair_set_offsets
             .first()
-            .and_then(|off| off.get())
             .and_then(|pairset| pairset.pair_value_records.first())
             .map(|rec| rec.value_record1.format())
             .unwrap_or(ValueFormat::empty())
@@ -119,7 +118,6 @@ impl PairPosFormat1 {
     fn compute_value_format2(&self) -> ValueFormat {
         self.pair_set_offsets
             .first()
-            .and_then(|off| off.get())
             .and_then(|pairset| pairset.pair_value_records.first())
             .map(|rec| rec.value_record2.format())
             .unwrap_or(ValueFormat::empty())
@@ -144,40 +142,30 @@ impl PairPosFormat2 {
     }
 
     fn compute_class1_count(&self) -> u16 {
-        self.class_def1_offset
-            .get()
-            .map(|cls| cls.class_count())
-            .unwrap_or_default()
+        self.class_def1_offset.class_count()
     }
 
     fn compute_class2_count(&self) -> u16 {
-        self.class_def2_offset
-            .get()
-            .map(|cls| cls.class_count())
-            .unwrap_or_default()
+        self.class_def2_offset.class_count()
     }
 }
 
 impl MarkBasePosFormat1 {
     fn compute_mark_class_count(&self) -> u16 {
-        mark_array_class_count(self.mark_array_offset.get())
+        self.mark_array_offset.class_count()
     }
 }
 
 impl MarkMarkPosFormat1 {
     fn compute_mark_class_count(&self) -> u16 {
-        mark_array_class_count(self.mark1_array_offset.get())
+        self.mark1_array_offset.class_count()
     }
 }
 
 impl MarkLigPosFormat1 {
     fn compute_mark_class_count(&self) -> u16 {
-        mark_array_class_count(self.mark_array_offset.get())
+        self.mark_array_offset.class_count()
     }
-}
-
-fn mark_array_class_count(mark_array: Option<&MarkArray>) -> u16 {
-    mark_array.map(MarkArray::class_count).unwrap_or_default()
 }
 
 impl MarkArray {

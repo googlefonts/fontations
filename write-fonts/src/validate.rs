@@ -3,6 +3,7 @@
 use std::{
     collections::BTreeSet,
     fmt::{Debug, Display},
+    ops::Deref,
 };
 
 use crate::offsets::{NullableOffsetMarker, OffsetMarker};
@@ -204,18 +205,13 @@ impl<T: Validate> Validate for Vec<T> {
 
 impl<const N: usize, T: Validate> Validate for OffsetMarker<T, N> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        match self.get() {
-            Some(item) => item.validate_impl(ctx),
-            None => ctx.report("null offset"),
-        }
+        self.deref().validate_impl(ctx)
     }
 }
 
 impl<const N: usize, T: Validate> Validate for NullableOffsetMarker<T, N> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        if let Some(item) = self.get() {
-            item.validate_impl(ctx)
-        }
+        self.deref().validate_impl(ctx)
     }
 }
 
