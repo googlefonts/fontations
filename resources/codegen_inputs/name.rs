@@ -4,6 +4,7 @@
 table Name {
     /// Table version number (0 or 1)
     #[version]
+    #[compile(self.compute_version())]
     version: u16,
     /// Number of name records.
     #[compile(array_len($name_record))]

@@ -6,7 +6,7 @@
 use crate::codegen_prelude::*;
 
 /// [`maxp`](https://docs.microsoft.com/en-us/typography/opentype/spec/maxp)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Maxp {
     /// The number of glyphs in the font.
     pub num_glyphs: u16,

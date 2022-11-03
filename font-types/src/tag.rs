@@ -12,14 +12,14 @@ use std::{
 pub struct Tag([u8; 4]);
 
 impl Tag {
-    /// Generate a `Tag` from a string literal, verifying it conforms to the
+    /// Generate a `Tag` from a byte slice, verifying it conforms to the
     /// OpenType spec.
     ///
-    /// The argument must be a non-empty string literal. Containing at most four
-    /// characters in the printable ascii range, `0x20..=0x7E`.
+    /// The argument must be a non-empty slice, containing at most four
+    /// bytes in the printable ascii range, `0x20..=0x7E`.
     ///
-    /// If the input has fewer than four characters, it will be padded with the space
-    /// (' ', `0x20`) character.
+    /// If the input has fewer than four bytes, it will be padded with spaces
+    /// (`0x20`).
     ///
     /// # Panics
     ///
@@ -180,6 +180,13 @@ impl Debug for Tag {
         }
         dbg.field(&std::str::from_utf8(&bytes).unwrap());
         dbg.finish()
+    }
+}
+
+// a meaningless placeholder value.
+impl Default for Tag {
+    fn default() -> Self {
+        Tag([b' '; 4])
     }
 }
 

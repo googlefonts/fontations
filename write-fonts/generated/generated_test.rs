@@ -23,6 +23,20 @@ pub struct KindsOfOffsets {
     pub versioned_nullable_offset: NullableOffsetMarker<Dummy>,
 }
 
+impl Default for KindsOfOffsets {
+    fn default() -> Self {
+        Self {
+            version: MajorMinor::VERSION_1_1,
+            nonnullable_offset: Default::default(),
+            nullable_offset: Default::default(),
+            array_offset_count: Default::default(),
+            array_offset: Default::default(),
+            versioned_nonnullable_offset: Default::default(),
+            versioned_nullable_offset: Default::default(),
+        }
+    }
+}
+
 impl FontWrite for KindsOfOffsets {
     fn write_into(&self, writer: &mut TableWriter) {
         let version = self.version;
@@ -91,10 +105,8 @@ impl<'a> FontRead<'a> for KindsOfOffsets {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct KindsOfArraysOfOffsets {
-    /// The major/minor version of the GDEF table
-    pub version: MajorMinor,
     /// The number of items in each array
     pub count: u16,
     /// A normal array offset
@@ -108,8 +120,9 @@ pub struct KindsOfArraysOfOffsets {
 }
 
 impl FontWrite for KindsOfArraysOfOffsets {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        let version = self.version;
+        let version = MajorMinor::VERSION_1_1 as MajorMinor;
         version.write_into(writer);
         self.count.write_into(writer);
         self.nonnullable_offsets.write_into(writer);
@@ -132,7 +145,7 @@ impl FontWrite for KindsOfArraysOfOffsets {
 impl Validate for KindsOfArraysOfOffsets {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("KindsOfArraysOfOffsets", |ctx| {
-            let version = self.version;
+            let version: MajorMinor = MajorMinor::VERSION_1_1;
             ctx.in_field("nonnullable_offsets", |ctx| {
                 if self.nonnullable_offsets.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
@@ -184,7 +197,6 @@ impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfArraysOfOffsets<'a>>
         _: FontData,
     ) -> Self {
         KindsOfArraysOfOffsets {
-            version: obj.version(),
             count: obj.count(),
             nonnullable_offsets: obj.nonnullables().map(|x| x.into()).collect(),
             nullable_offsets: obj.nullables().map(|x| x.into()).collect(),
@@ -210,7 +222,7 @@ impl<'a> FontRead<'a> for KindsOfArraysOfOffsets {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Dummy {
     pub value: u16,
 }

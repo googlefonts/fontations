@@ -6,10 +6,8 @@
 use crate::codegen_prelude::*;
 
 /// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Cpal {
-    /// Table version number (=0).
-    pub version: u16,
     /// Number of palette entries in each palette.
     pub num_palette_entries: u16,
     /// Number of palettes in the table.
@@ -49,8 +47,9 @@ pub struct Cpal {
 }
 
 impl FontWrite for Cpal {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        let version = self.version;
+        let version = 0 as u16;
         version.write_into(writer);
         self.num_palette_entries.write_into(writer);
         self.num_palettes.write_into(writer);
@@ -87,7 +86,6 @@ impl Validate for Cpal {
 impl<'a> FromObjRef<read_fonts::tables::cpal::Cpal<'a>> for Cpal {
     fn from_obj_ref(obj: &read_fonts::tables::cpal::Cpal<'a>, _: FontData) -> Self {
         Cpal {
-            version: obj.version(),
             num_palette_entries: obj.num_palette_entries(),
             num_palettes: obj.num_palettes(),
             num_color_records: obj.num_color_records(),
@@ -109,7 +107,7 @@ impl<'a> FontRead<'a> for Cpal {
 }
 
 /// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ColorRecord {
     /// Blue value (B0).
     pub blue: u8,

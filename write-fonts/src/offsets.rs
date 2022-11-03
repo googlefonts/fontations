@@ -17,7 +17,7 @@ pub const WIDTH_32: usize = 4;
 /// An offset subtable.
 ///
 /// The generic const `N` is the width of the offset, in bytes.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct OffsetMarker<T, const N: usize = WIDTH_16> {
     obj: Option<T>,
 }
@@ -25,7 +25,7 @@ pub struct OffsetMarker<T, const N: usize = WIDTH_16> {
 /// An offset subtable which may be null.
 ///
 /// The generic const `N` is the width of the offset, in bytes.
-#[derive(Clone, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct NullableOffsetMarker<T, const N: usize = WIDTH_16> {
     obj: Option<T>,
 }
@@ -130,6 +130,20 @@ impl<const N: usize, T: FontWrite> FontWrite for NullableOffsetMarker<T, N> {
             Some(obj) => writer.write_offset(obj, N),
             None => writer.write_slice([0u8; N].as_slice()),
         }
+    }
+}
+
+impl<T: Default, const N: usize> Default for OffsetMarker<T, N> {
+    fn default() -> Self {
+        Self {
+            obj: Some(T::default()),
+        }
+    }
+}
+
+impl<T, const N: usize> Default for NullableOffsetMarker<T, N> {
+    fn default() -> Self {
+        Self { obj: None }
     }
 }
 

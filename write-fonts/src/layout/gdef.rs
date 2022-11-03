@@ -28,17 +28,13 @@ mod tests {
     fn var_store_without_glyph_sets() {
         // this should compile, and version should be 1.3
         let gdef = Gdef {
-            glyph_class_def_offset: NullableOffsetMarker::new(None),
-            attach_list_offset: NullableOffsetMarker::new(None),
-            lig_caret_list_offset: NullableOffsetMarker::new(None),
-            mark_attach_class_def_offset: NullableOffsetMarker::new(None),
-            mark_glyph_sets_def_offset: NullableOffsetMarker::new(None),
             item_var_store_offset: NullableOffsetMarker::new(Some(ClassDef::Format1(
                 crate::layout::ClassDefFormat1 {
                     start_glyph_id: GlyphId::new(2),
                     class_value_array: vec![1, 2, 0],
                 },
             ))),
+            ..Default::default()
         };
 
         assert_eq!(gdef.compute_version(), MajorMinor::VERSION_1_3);

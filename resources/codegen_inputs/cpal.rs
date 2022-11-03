@@ -4,6 +4,7 @@
 table Cpal {
     /// Table version number (=0).
     #[version]
+    #[compile(0)]
     version: u16,
     /// Number of palette entries in each palette.
     num_palette_entries: u16,

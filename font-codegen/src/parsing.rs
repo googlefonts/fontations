@@ -182,6 +182,7 @@ pub(crate) struct FieldAttrs {
     pub(crate) format: Option<Attr<syn::LitInt>>,
     pub(crate) count: Option<Attr<Count>>,
     pub(crate) compile: Option<Attr<CustomCompile>>,
+    pub(crate) default: Option<Attr<syn::Expr>>,
     pub(crate) compile_type: Option<Attr<syn::Path>>,
     pub(crate) read_with_args: Option<Attr<FieldReadArgs>>,
     pub(crate) read_offset_args: Option<Attr<FieldReadArgs>>,
@@ -887,6 +888,7 @@ static OFFSET_DATA: &str = "offset_data_method";
 static OFFSET_ADJUSTMENT: &str = "offset_adjustment";
 static COMPILE: &str = "compile";
 static COMPILE_TYPE: &str = "compile_type";
+static DEFAULT: &str = "default";
 static READ_WITH: &str = "read_with";
 static READ_OFFSET_WITH: &str = "read_offset_with";
 static TRAVERSE_WITH: &str = "traverse_with";
@@ -923,6 +925,8 @@ impl Parse for FieldAttrs {
                 this.compile = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == COMPILE_TYPE {
                 this.compile_type = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == DEFAULT {
+                this.default = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == VALIDATE {
                 this.validation = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == TO_OWNED {

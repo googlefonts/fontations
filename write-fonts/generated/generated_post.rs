@@ -51,6 +51,25 @@ pub struct Post {
     pub string_data: Option<Vec<PString>>,
 }
 
+impl Default for Post {
+    fn default() -> Self {
+        Self {
+            version: Version16Dot16::VERSION_1_0,
+            italic_angle: Default::default(),
+            underline_position: Default::default(),
+            underline_thickness: Default::default(),
+            is_fixed_pitch: Default::default(),
+            min_mem_type42: Default::default(),
+            max_mem_type42: Default::default(),
+            min_mem_type1: Default::default(),
+            max_mem_type1: Default::default(),
+            num_glyphs: Default::default(),
+            glyph_name_index: Default::default(),
+            string_data: Default::default(),
+        }
+    }
+}
+
 impl FontWrite for Post {
     fn write_into(&self, writer: &mut TableWriter) {
         let version = self.version;

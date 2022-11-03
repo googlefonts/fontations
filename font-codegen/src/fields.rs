@@ -4,6 +4,7 @@ use std::ops::Deref;
 
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
+use syn::spanned::Spanned;
 
 use crate::parsing::{Attr, FieldValidation, OffsetTarget, Phase};
 
@@ -73,6 +74,26 @@ impl Fields {
 
     pub(crate) fn iter_compile_write_stmts(&self) -> impl Iterator<Item = TokenStream> + '_ {
         self.fields.iter().map(Field::compile_write_stmt)
+    }
+
+    pub(crate) fn iter_compile_default_inits(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        self.fields.iter().filter_map(Field::compile_default_init)
+    }
+
+    /// `Ok(true)` if no fields have custom default values, `Ok(false)` otherwise.
+    ///
+    /// This serves double duty as a validation method: if we know that default
+    /// should not be derived on a field (such as with version fields) but there
+    /// is no apprporiate annotation, we will return an error explaining the problem.
+    /// This is more helpful than generating code that does not compile, or compile_write_stmt
+    /// but is likely not desired.
+    pub(crate) fn can_derive_default(&self) -> syn::Result<bool> {
+        for field in self.iter() {
+            if !field.supports_derive_default()? {
+                return Ok(false);
+            }
+        }
+        Ok(true)
     }
 
     // we use this to add disable a clippy lint if needed
@@ -972,6 +993,38 @@ impl Field {
         let docs = &self.attrs.docs;
         let typ = self.owned_type();
         Some(quote!( #( #docs)* pub #name: #typ ))
+    }
+
+    fn supports_derive_default(&self) -> syn::Result<bool> {
+        if self.attrs.default.is_some() {
+            return Ok(false);
+        }
+        // this should maybe be in sanity check, but it's easier here, because
+        // this is only called if codegen is running in 'compile' mode; if we
+        // aren't in compile mode then this isn't an error.
+        if let Some(version) = &self.attrs.version {
+            if self.attrs.compile.is_none() {
+                return Err(syn::Error::new(
+                    version.span(),
+                    "version field needs explicit #[default(x)] or #[compile(x)] attribute.",
+                ));
+            }
+        }
+        Ok(true)
+    }
+
+    /// 'None' if this field's value is computed at compile time
+    fn compile_default_init(&self) -> Option<TokenStream> {
+        if self.is_computed() {
+            return None;
+        }
+
+        let name = &self.name;
+        if let Some(expr) = self.attrs.default.as_deref() {
+            Some(quote!( #name: #expr ))
+        } else {
+            Some(quote!( #name: Default::default() ))
+        }
     }
 
     fn compile_write_stmt(&self) -> TokenStream {

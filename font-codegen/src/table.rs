@@ -346,7 +346,6 @@ pub(crate) fn generate_group_compile(
     let docs = &item.attrs.docs;
     let name = &item.name;
     let inner = &item.inner_type;
-    //let type_field = &item.inner_field;
 
     let mut variant_decls = Vec::new();
     let mut write_match_arms = Vec::new();
@@ -364,12 +363,19 @@ pub(crate) fn generate_group_compile(
             quote! { #from_type :: #var_name(table) => Self :: #var_name(table.to_owned_obj(data)) },
         );
     }
+    let first_var_name = &item.variants.first().unwrap().name;
 
     Ok(quote! {
         #( #docs)*
         #[derive(Debug, Clone)]
         pub enum #name {
             #( #variant_decls, )*
+        }
+
+        impl Default for #name {
+            fn default() -> Self {
+                Self::#first_var_name(Default::default())
+            }
         }
 
         impl FontWrite for #name {
@@ -413,6 +419,8 @@ pub(crate) fn generate_format_compile(
         quote! ( #( #docs )* #name(#typ) )
     });
 
+    let default_variant = &item.variants.first().unwrap().name;
+
     let write_arms = item.variants.iter().map(|variant| {
         let var_name = &variant.name;
         quote!( Self::#var_name(item) => item.write_into(writer), )
@@ -434,6 +442,12 @@ pub(crate) fn generate_format_compile(
         #[derive(Clone, Debug)]
         pub enum #name {
             #( #variants ),*
+        }
+
+        impl Default for #name {
+            fn default() -> Self {
+                Self::#default_variant(Default::default())
+            }
         }
 
         impl FontWrite for #name {

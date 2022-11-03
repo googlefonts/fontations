@@ -15,6 +15,10 @@ impl Name {
         .try_into()
         .unwrap()
     }
+
+    fn compute_version(&self) -> u16 {
+        self.lang_tag_record.is_some().into()
+    }
 }
 
 impl NameRecord {
@@ -185,12 +189,16 @@ mod tests {
     }
 
     #[test]
+    fn compute_version() {
+        let mut table = Name::default();
+        assert_eq!(table.compute_version(), 0);
+        table.lang_tag_record = Some(Vec::new());
+        assert_eq!(table.compute_version(), 1);
+    }
+
+    #[test]
     fn sorting() {
-        let mut table = Name {
-            version: 0,
-            name_record: Default::default(),
-            lang_tag_record: None,
-        };
+        let mut table = Name::default();
         table.name_record.insert(NameRecord {
             platform_id: 3,
             encoding_id: 1,

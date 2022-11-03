@@ -6,7 +6,7 @@
 use crate::codegen_prelude::*;
 
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Hhea {
     /// Typographic ascent—see note below.
     pub ascender: FWord,

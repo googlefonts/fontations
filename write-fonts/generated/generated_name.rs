@@ -6,10 +6,8 @@
 use crate::codegen_prelude::*;
 
 /// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Name {
-    /// Table version number (0 or 1)
-    pub version: u16,
     /// The name records where count is the number of records.
     pub name_record: BTreeSet<NameRecord>,
     /// The language-tag records where langTagCount is the number of records.
@@ -19,7 +17,7 @@ pub struct Name {
 impl FontWrite for Name {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        let version = self.version;
+        let version = self.compute_version() as u16;
         version.write_into(writer);
         (array_len(&self.name_record).unwrap() as u16).write_into(writer);
         (self.compute_storage_offset() as u16).write_into(writer);
@@ -43,7 +41,7 @@ impl FontWrite for Name {
 impl Validate for Name {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Name", |ctx| {
-            let version = self.version;
+            let version: u16 = self.compute_version();
             ctx.in_field("name_record", |ctx| {
                 if self.name_record.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
@@ -69,7 +67,6 @@ impl<'a> FromObjRef<read_fonts::tables::name::Name<'a>> for Name {
     fn from_obj_ref(obj: &read_fonts::tables::name::Name<'a>, _: FontData) -> Self {
         let offset_data = obj.string_data();
         Name {
-            version: obj.version(),
             name_record: obj
                 .name_record()
                 .iter()
@@ -93,7 +90,7 @@ impl<'a> FontRead<'a> for Name {
 }
 
 /// Part of [Name]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct LangTagRecord {
     /// Language-tag string offset from start of storage area (in
     /// bytes).
@@ -113,7 +110,7 @@ impl FromObjRef<read_fonts::tables::name::LangTagRecord> for LangTagRecord {
 }
 
 ///[Name Records](https://docs.microsoft.com/en-us/typography/opentype/spec/name#name-records)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct NameRecord {
     /// Platform ID.
     pub platform_id: u16,
