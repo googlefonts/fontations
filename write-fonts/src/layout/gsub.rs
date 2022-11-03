@@ -30,7 +30,7 @@ table_newtype!(
 
 impl Gsub {
     fn compute_version(&self) -> MajorMinor {
-        if self.feature_variations_offset.get().is_none() {
+        if self.feature_variations_offset.is_none() {
             MajorMinor::VERSION_1_0
         } else {
             MajorMinor::VERSION_1_1

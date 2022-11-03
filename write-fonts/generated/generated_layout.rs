@@ -383,7 +383,7 @@ impl<T: Validate> Validate for LookupList<T> {
 impl<'a, T, U> FromObjRef<read_fonts::layout::LookupList<'a, U>> for LookupList<T>
 where
     U: FontRead<'a>,
-    T: FromTableRef<U> + 'static,
+    T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(obj: &read_fonts::layout::LookupList<'a, U>, _: FontData) -> Self {
         LookupList {
@@ -395,7 +395,7 @@ where
 impl<'a, T, U> FromTableRef<read_fonts::layout::LookupList<'a, U>> for LookupList<T>
 where
     U: FontRead<'a>,
-    T: FromTableRef<U> + 'static,
+    T: FromTableRef<U> + Default + 'static,
 {
 }
 
@@ -429,7 +429,7 @@ impl<T: Validate> Validate for Lookup<T> {
 impl<'a, T, U> FromObjRef<read_fonts::layout::Lookup<'a, U>> for Lookup<T>
 where
     U: FontRead<'a>,
-    T: FromTableRef<U> + 'static,
+    T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(obj: &read_fonts::layout::Lookup<'a, U>, _: FontData) -> Self {
         Lookup {
@@ -443,7 +443,7 @@ where
 impl<'a, T, U> FromTableRef<read_fonts::layout::Lookup<'a, U>> for Lookup<T>
 where
     U: FontRead<'a>,
-    T: FromTableRef<U> + 'static,
+    T: FromTableRef<U> + Default + 'static,
 {
 }
 

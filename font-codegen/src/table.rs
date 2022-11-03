@@ -295,7 +295,7 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
         quote! {
             where
                 U: FontRead<'a>,
-                #t: FromTableRef<U> + 'static,
+                #t: FromTableRef<U> + Default + 'static,
         }
     });
 

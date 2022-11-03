@@ -13,9 +13,10 @@ pub const WIDTH_32: usize = 4;
 /// An offset subtable.
 ///
 /// The generic const `N` is the width of the offset, in bytes.
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct OffsetMarker<T, const N: usize = WIDTH_16> {
-    obj: Option<T>,
+    obj: T,
+    //error: Option<Box<ReadError>>,
 }
 
 /// An offset subtable which may be null.
@@ -26,97 +27,75 @@ pub struct NullableOffsetMarker<T, const N: usize = WIDTH_16> {
     obj: Option<T>,
 }
 
-impl<const N: usize, T> OffsetMarker<T, N> {
-    /// `true` if the offset is non-null
-    pub fn is_some(&self) -> bool {
-        self.obj.is_some()
-    }
-
-    /// `true` if the offset is null
-    pub fn is_none(&self) -> bool {
-        self.obj.is_none()
-    }
-
-    //TODO: how do we handle malformed inputs? do we error earlier than this?
-    /// Get the object. Fonts in the wild may be malformed, so this still returns
-    /// an option?
-    pub fn get(&self) -> Option<&T> {
-        self.obj.as_ref()
-    }
-
-    pub fn get_mut(&mut self) -> Option<&mut T> {
-        self.obj.as_mut()
-    }
-
-    pub fn set(&mut self, obj: T) {
-        self.obj = Some(obj);
-    }
-
-    pub fn clear(&mut self) {
-        self.obj = None;
+impl<T, const N: usize> std::ops::Deref for OffsetMarker<T, N> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.obj
     }
 }
+
+impl<T, const N: usize> std::ops::DerefMut for OffsetMarker<T, N> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.obj
+    }
+}
+
+impl<T, const N: usize> std::ops::Deref for NullableOffsetMarker<T, N> {
+    type Target = Option<T>;
+    fn deref(&self) -> &Self::Target {
+        &self.obj
+    }
+}
+
+impl<T, const N: usize> std::ops::DerefMut for NullableOffsetMarker<T, N> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.obj
+    }
+}
+
+impl<T, const N: usize> AsRef<T> for OffsetMarker<T, N> {
+    fn as_ref(&self) -> &T {
+        &self.obj
+    }
+}
+
+impl<T, const N: usize> AsMut<T> for OffsetMarker<T, N> {
+    fn as_mut(&mut self) -> &mut T {
+        &mut self.obj
+    }
+}
+
+// NOTE: we don't impl AsRef/AsMut for NullableOffsetMarker, since it is less
+// useful than the Option::as_ref and Option::as_mut methods available through deref
 
 impl<const N: usize, T> OffsetMarker<T, N> {
     /// Create a new marker.
     pub fn new(obj: T) -> Self {
-        OffsetMarker { obj: Some(obj) }
-    }
-
-    /// Creates a new marker with an object that may be null.
-    //TODO: figure out how we're actually handling null offsets. Some offsets
-    //are allowed to be null, but even offsets that aren't *may* be null,
-    //and we should handle this.
-    pub fn new_maybe_null(obj: Option<T>) -> Self {
         OffsetMarker { obj }
     }
-}
 
-impl<const N: usize, T> NullableOffsetMarker<T, N> {
-    /// `true` if the offset is non-null
-    pub fn is_some(&self) -> bool {
-        self.obj.is_some()
-    }
-
-    /// `true` if the offset is null
-    pub fn is_none(&self) -> bool {
-        self.obj.is_none()
-    }
-
-    //TODO: how do we handle malformed inputs? do we error earlier than this?
-    /// Get the object, if it exists.
-    pub fn get(&self) -> Option<&T> {
-        self.obj.as_ref()
-    }
-
-    pub fn get_mut(&mut self) -> Option<&mut T> {
-        self.obj.as_mut()
-    }
-
+    //FIXME: maybe we get rid of this when we have From/Into impl'd?
+    /// Set the contents of the marker, replacing any existing contents.
     pub fn set(&mut self, obj: T) {
-        self.obj = Some(obj);
-    }
-
-    pub fn clear(&mut self) {
-        self.obj = None;
+        self.obj = obj;
     }
 }
 
 impl<const N: usize, T> NullableOffsetMarker<T, N> {
+    /// Create a new marker.
     pub fn new(obj: Option<T>) -> Self {
         NullableOffsetMarker { obj }
+    }
+
+    /// Set the contents of the marker, replacing any existing contents.
+    pub fn set(&mut self, obj: impl Into<Option<T>>) {
+        self.obj = obj.into()
     }
 }
 
 impl<const N: usize, T: FontWrite> FontWrite for OffsetMarker<T, N> {
     fn write_into(&self, writer: &mut TableWriter) {
-        match self.obj.as_ref() {
-            Some(obj) => writer.write_offset(obj, N),
-            None => {
-                eprintln!("warning: unexpected null OffsetMarker");
-                writer.write_slice([0u8; N].as_slice());
-            }
-        }
+        writer.write_offset(&self.obj, N);
     }
 }
 
@@ -125,14 +104,6 @@ impl<const N: usize, T: FontWrite> FontWrite for NullableOffsetMarker<T, N> {
         match self.obj.as_ref() {
             Some(obj) => writer.write_offset(obj, N),
             None => writer.write_slice([0u8; N].as_slice()),
-        }
-    }
-}
-
-impl<T: Default, const N: usize> Default for OffsetMarker<T, N> {
-    fn default() -> Self {
-        Self {
-            obj: Some(T::default()),
         }
     }
 }

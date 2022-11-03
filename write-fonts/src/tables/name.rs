@@ -23,10 +23,7 @@ impl Name {
 
 impl NameRecord {
     fn string(&self) -> &str {
-        self.string_offset
-            .get()
-            .map(|s| s.as_str())
-            .unwrap_or_default()
+        self.string_offset.as_str()
     }
 
     fn string_writer(&self) -> NameStringWriter {
@@ -72,10 +69,7 @@ impl FontWrite for NameRecord {
 
 impl LangTagRecord {
     fn lang_tag(&self) -> &str {
-        self.lang_tag_offset
-            .get()
-            .map(|s| s.as_str())
-            .unwrap_or_default()
+        self.lang_tag_offset.as_str()
     }
 
     fn string_writer(&self) -> NameStringWriter {
@@ -146,7 +140,7 @@ impl PartialEq for NameRecord {
             && self.encoding_id == other.encoding_id
             && self.language_id == other.language_id
             && self.name_id == other.name_id
-            && self.string_offset.get() == other.string_offset.get()
+            && self.string_offset == other.string_offset
     }
 }
 
