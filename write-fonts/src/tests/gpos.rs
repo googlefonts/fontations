@@ -195,18 +195,7 @@ fn anchorformat2() {
 // fields inappropriately.
 #[test]
 fn no_write_versioned_fields() {
-    let mut gpos = Gpos {
-        script_list_offset: OffsetMarker::new(ScriptList {
-            script_records: Vec::new(),
-        }),
-        feature_list_offset: OffsetMarker::new(FeatureList {
-            feature_records: Vec::new(),
-        }),
-        lookup_list_offset: OffsetMarker::new(PositionLookupList {
-            lookup_offsets: Vec::new(),
-        }),
-        feature_variations_offset: NullableOffsetMarker::new(None),
-    };
+    let mut gpos = Gpos::default();
 
     let dumped = crate::write::dump_table(&gpos).unwrap();
     assert_eq!(dumped.len(), 12);

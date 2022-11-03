@@ -9,6 +9,7 @@
 table KindsOfOffsets {
     /// The major/minor version of the GDEF table
     #[version]
+    #[default(MajorMinor::VERSION_1_1)]
     version: MajorMinor,
     /// A normal offset
     nonnullable_offset: Offset16<Dummy>,
@@ -32,6 +33,7 @@ table KindsOfOffsets {
 table KindsOfArraysOfOffsets {
     /// The major/minor version of the GDEF table
     #[version]
+    #[compile(MajorMinor::VERSION_1_1)]
     version: MajorMinor,
     /// The number of items in each array
     count: u16,

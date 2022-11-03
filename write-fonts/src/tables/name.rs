@@ -15,6 +15,14 @@ impl Name {
         .try_into()
         .unwrap()
     }
+
+    fn compute_version(&self) -> u16 {
+        if self.lang_tag_record.is_some() {
+            1
+        } else {
+            0
+        }
+    }
 }
 
 impl NameRecord {
@@ -186,11 +194,7 @@ mod tests {
 
     #[test]
     fn sorting() {
-        let mut table = Name {
-            version: 0,
-            name_record: Default::default(),
-            lang_tag_record: None,
-        };
+        let mut table = Name::default();
         table.name_record.insert(NameRecord {
             platform_id: 3,
             encoding_id: 1,

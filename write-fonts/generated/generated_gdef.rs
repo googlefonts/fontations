@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 pub use read_fonts::layout::gdef::GlyphClassDef;
 
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Gdef {
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
@@ -102,7 +102,7 @@ impl FontWrite for GlyphClassDef {
 }
 
 /// [Attachment Point List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#attachment-point-list-table)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AttachList {
     /// Offset to Coverage table - from beginning of AttachList table
     pub coverage_offset: OffsetMarker<CoverageTable>,
@@ -154,7 +154,7 @@ impl<'a> FontRead<'a> for AttachList {
 }
 
 /// Part of [AttachList]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AttachPoint {
     /// Array of contour point indices -in increasing numerical order
     pub point_indices: Vec<u16>,
@@ -197,7 +197,7 @@ impl<'a> FontRead<'a> for AttachPoint {
 }
 
 /// [Ligature Caret List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-caret-list-table)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct LigCaretList {
     /// Offset to Coverage table - from beginning of LigCaretList table
     pub coverage_offset: OffsetMarker<CoverageTable>,
@@ -249,7 +249,7 @@ impl<'a> FontRead<'a> for LigCaretList {
 }
 
 /// [Ligature Glyph Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#ligature-glyph-table)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct LigGlyph {
     /// Array of offsets to CaretValue tables, from beginning of
     /// LigGlyph table — in increasing coordinate order
@@ -301,6 +301,12 @@ pub enum CaretValue {
     Format3(CaretValueFormat3),
 }
 
+impl Default for CaretValue {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
 impl FontWrite for CaretValue {
     fn write_into(&self, writer: &mut TableWriter) {
         match self {
@@ -341,7 +347,7 @@ impl<'a> FontRead<'a> for CaretValue {
 }
 
 /// [CaretValue Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-1)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct CaretValueFormat1 {
     /// X or Y value, in design units
     pub coordinate: i16,
@@ -377,7 +383,7 @@ impl<'a> FontRead<'a> for CaretValueFormat1 {
 }
 
 /// [CaretValue Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-2)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct CaretValueFormat2 {
     /// Contour point index on glyph
     pub caret_value_point_index: u16,
@@ -413,7 +419,7 @@ impl<'a> FontRead<'a> for CaretValueFormat2 {
 }
 
 /// [CaretValue Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-3)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct CaretValueFormat3 {
     /// X or Y value, in design units
     pub coordinate: i16,
@@ -461,7 +467,7 @@ impl<'a> FontRead<'a> for CaretValueFormat3 {
 }
 
 /// [Mark Glyph Sets Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#mark-glyph-sets-table)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MarkGlyphSets {
     /// Array of offsets to mark glyph set coverage tables, from the
     /// start of the MarkGlyphSets table.

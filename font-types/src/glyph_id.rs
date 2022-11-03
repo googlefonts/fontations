@@ -26,6 +26,12 @@ impl GlyphId {
     }
 }
 
+impl Default for GlyphId {
+    fn default() -> Self {
+        GlyphId::NOTDEF
+    }
+}
+
 impl std::fmt::Display for GlyphId {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "GID_{}", self.0)

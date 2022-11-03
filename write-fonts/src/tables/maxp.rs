@@ -33,19 +33,7 @@ mod tests {
     fn maxp_05() {
         let maxp_05 = Maxp {
             num_glyphs: 5,
-            max_points: None,
-            max_contours: None,
-            max_composite_points: None,
-            max_composite_contours: None,
-            max_zones: None,
-            max_twilight_points: None,
-            max_storage: None,
-            max_function_defs: None,
-            max_instruction_defs: None,
-            max_stack_elements: None,
-            max_size_of_instructions: None,
-            max_component_elements: None,
-            max_component_depth: None,
+            ..Default::default()
         };
 
         let dumped = crate::write::dump_table(&maxp_05).unwrap();

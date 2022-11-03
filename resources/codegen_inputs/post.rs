@@ -6,6 +6,9 @@ table Post {
     /// 0x00025000 for version 2.5 (deprecated) 0x00030000 for version
     /// 3.0
     #[version]
+    // NOTE: we will need some sort of builder to compile post tables, and that
+    // builder should set the version. This attribute is a placeholder.
+    #[default(Version16Dot16::VERSION_1_0)]
     version: Version16Dot16,
     /// Italic angle in counter-clockwise degrees from the vertical.
     /// Zero for upright text, negative for text that leans to the

@@ -346,14 +346,17 @@ pub(crate) fn generate_group_compile(
     let docs = &item.attrs.docs;
     let name = &item.name;
     let inner = &item.inner_type;
-    //let type_field = &item.inner_field;
 
     let mut variant_decls = Vec::new();
     let mut write_match_arms = Vec::new();
     let mut validate_match_arms = Vec::new();
     let mut from_obj_match_arms = Vec::new();
     let from_type = quote!(#parse_module :: #name);
+    let mut first_var_name = None;
     for var in &item.variants {
+        if first_var_name.is_none() {
+            first_var_name = Some(&var.name);
+        }
         let var_name = &var.name;
         let typ = &var.typ;
 
@@ -370,6 +373,12 @@ pub(crate) fn generate_group_compile(
         #[derive(Debug, Clone)]
         pub enum #name {
             #( #variant_decls, )*
+        }
+
+        impl Default for #name {
+            fn default() -> Self {
+                Self::#first_var_name(Default::default())
+            }
         }
 
         impl FontWrite for #name {
@@ -413,6 +422,12 @@ pub(crate) fn generate_format_compile(
         quote! ( #( #docs )* #name(#typ) )
     });
 
+    let default_variant = &item
+        .variants
+        .first()
+        .expect("empty format groups not supported")
+        .name;
+
     let write_arms = item.variants.iter().map(|variant| {
         let var_name = &variant.name;
         quote!( Self::#var_name(item) => item.write_into(writer), )
@@ -434,6 +449,12 @@ pub(crate) fn generate_format_compile(
         #[derive(Clone, Debug)]
         pub enum #name {
             #( #variants ),*
+        }
+
+        impl Default for #name {
+            fn default() -> Self {
+                Self::#default_variant(Default::default())
+            }
         }
 
         impl FontWrite for #name {

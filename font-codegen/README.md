@@ -187,6 +187,9 @@ The following annotations are supported on top-level objects:
   compile type.
 - `#[compile_type(type)]`: specify an alternate type to be used in the struct
   generated for this type.
+- `#[default(expr)]`: specify a value that will be used in the implementation of
+  `Default` for the containing type. Unlike with `#[compile]`, this value is set
+  when the type is created, and can be manually modified by the user.
 - `#[read_with(args,+)]`: specify that this field's type needs to be read with
   `FontReadWithArgs`, and passed the provided args. Args is a comma separated
   list of fields or input args to the type.

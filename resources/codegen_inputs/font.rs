@@ -31,11 +31,14 @@ record TableRecord {
 }
 
 /// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
+#[skip_from_obj]
+#[skip_font_write]
 table TTCHeader {
     /// Font Collection ID string: "ttcf"
     ttc_tag: Tag,
     /// Major/minor version of the TTC Header
     #[version]
+    #[compile(self.compute_version())]
     version: MajorMinor,
     /// Number of fonts in TTC
     num_fonts: u32,

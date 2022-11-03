@@ -6,7 +6,7 @@
 use crate::codegen_prelude::*;
 
 /// [GSUB](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsub-header)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Gsub {
     /// Offset to ScriptList table, from beginning of GSUB table
     pub script_list_offset: OffsetMarker<ScriptList>,
@@ -84,6 +84,12 @@ pub enum SubstitutionLookup {
     Reverse(Lookup<ReverseChainSingleSubstFormat1>),
 }
 
+impl Default for SubstitutionLookup {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
+}
+
 impl FontWrite for SubstitutionLookup {
     fn write_into(&self, writer: &mut TableWriter) {
         match self {
@@ -157,6 +163,12 @@ pub enum SingleSubst {
     Format2(SingleSubstFormat2),
 }
 
+impl Default for SingleSubst {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
 impl FontWrite for SingleSubst {
     fn write_into(&self, writer: &mut TableWriter) {
         match self {
@@ -194,7 +206,7 @@ impl<'a> FontRead<'a> for SingleSubst {
 }
 
 /// [Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#11-single-substitution-format-1)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SingleSubstFormat1 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
@@ -241,7 +253,7 @@ impl<'a> FontRead<'a> for SingleSubstFormat1 {
 }
 
 /// [Single Substitution Format 2](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#12-single-substitution-format-2)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SingleSubstFormat2 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
@@ -294,7 +306,7 @@ impl<'a> FontRead<'a> for SingleSubstFormat2 {
 }
 
 /// [Multiple Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#21-multiple-substitution-format-1)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MultipleSubstFormat1 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
@@ -349,7 +361,7 @@ impl<'a> FontRead<'a> for MultipleSubstFormat1 {
 }
 
 /// Part of [MultipleSubstFormat1]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Sequence {
     /// String of glyph IDs to substitute
     pub substitute_glyph_ids: Vec<GlyphId>,
@@ -392,7 +404,7 @@ impl<'a> FontRead<'a> for Sequence {
 }
 
 /// [Alternate Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#31-alternate-substitution-format-1)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AlternateSubstFormat1 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
@@ -453,7 +465,7 @@ impl<'a> FontRead<'a> for AlternateSubstFormat1 {
 }
 
 /// Part of [AlternateSubstFormat1]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AlternateSet {
     /// Array of alternate glyph IDs, in arbitrary order
     pub alternate_glyph_ids: Vec<GlyphId>,
@@ -496,7 +508,7 @@ impl<'a> FontRead<'a> for AlternateSet {
 }
 
 /// [Ligature Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#41-ligature-substitution-format-1)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct LigatureSubstFormat1 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
@@ -551,7 +563,7 @@ impl<'a> FontRead<'a> for LigatureSubstFormat1 {
 }
 
 /// Part of [LigatureSubstFormat1]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct LigatureSet {
     /// Array of offsets to Ligature tables. Offsets are from beginning
     /// of LigatureSet table, ordered by preference.
@@ -596,7 +608,7 @@ impl<'a> FontRead<'a> for LigatureSet {
 }
 
 /// Part of [LigatureSubstFormat1]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Ligature {
     /// glyph ID of ligature to substitute
     pub ligature_glyph: GlyphId,
@@ -636,7 +648,7 @@ impl<'a> FontRead<'a> for Ligature {
 }
 
 /// [Extension Substitution Subtable Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#71-extension-substitution-subtable-format-1)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ExtensionSubstFormat1<T> {
     /// Lookup type of subtable referenced by extensionOffset (that is,
     /// the extension subtable).
@@ -692,6 +704,12 @@ pub enum ExtensionSubtable {
     Contextual(ExtensionSubstFormat1<SubstitutionSequenceContext>),
     ChainContextual(ExtensionSubstFormat1<SubstitutionChainContext>),
     Reverse(ExtensionSubstFormat1<ReverseChainSingleSubstFormat1>),
+}
+
+impl Default for ExtensionSubtable {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
 }
 
 impl FontWrite for ExtensionSubtable {
@@ -756,7 +774,7 @@ impl FromObjRef<read_fonts::layout::gsub::ExtensionSubtable<'_>> for ExtensionSu
 impl FromTableRef<read_fonts::layout::gsub::ExtensionSubtable<'_>> for ExtensionSubtable {}
 
 /// [Reverse Chaining Contextual Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#81-reverse-chaining-contextual-single-substitution-format-1-coverage-based-glyph-contexts)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ReverseChainSingleSubstFormat1 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable.

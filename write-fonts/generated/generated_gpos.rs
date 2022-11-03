@@ -9,7 +9,7 @@ pub use read_fonts::layout::gpos::ValueFormat;
 
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Gpos {
     /// Offset to ScriptList table, from beginning of GPOS table
     pub script_list_offset: OffsetMarker<ScriptList>,
@@ -84,6 +84,12 @@ pub enum PositionLookup {
     Contextual(Lookup<PositionSequenceContext>),
     ChainContextual(Lookup<PositionChainContext>),
     Extension(Lookup<ExtensionSubtable>),
+}
+
+impl Default for PositionLookup {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
 }
 
 impl FontWrite for PositionLookup {
@@ -169,6 +175,12 @@ pub enum AnchorTable {
     Format3(AnchorFormat3),
 }
 
+impl Default for AnchorTable {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
 impl FontWrite for AnchorTable {
     fn write_into(&self, writer: &mut TableWriter) {
         match self {
@@ -209,7 +221,7 @@ impl<'a> FontRead<'a> for AnchorTable {
 }
 
 /// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AnchorFormat1 {
     /// Horizontal value, in design units
     pub x_coordinate: i16,
@@ -249,7 +261,7 @@ impl<'a> FontRead<'a> for AnchorFormat1 {
 }
 
 /// [Anchor Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-2-design-units-plus-contour-point): Design Units Plus Contour Point
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AnchorFormat2 {
     /// Horizontal value, in design units
     pub x_coordinate: i16,
@@ -293,7 +305,7 @@ impl<'a> FontRead<'a> for AnchorFormat2 {
 }
 
 /// [Anchor Table Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-3-design-units-plus-device-or-variationindex-tables): Design Units Plus Device or VariationIndex Tables
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct AnchorFormat3 {
     /// Horizontal value, in design units
     pub x_coordinate: i16,
@@ -354,7 +366,7 @@ impl<'a> FontRead<'a> for AnchorFormat3 {
 }
 
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MarkArray {
     /// Array of MarkRecords, ordered by corresponding glyphs in the
     /// associated mark Coverage table.
@@ -404,7 +416,7 @@ impl<'a> FontRead<'a> for MarkArray {
 }
 
 /// Part of [MarkArray]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MarkRecord {
     /// Class defined for the associated mark.
     pub mark_class: u16,
@@ -445,6 +457,12 @@ pub enum SinglePos {
     Format2(SinglePosFormat2),
 }
 
+impl Default for SinglePos {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
 impl FontWrite for SinglePos {
     fn write_into(&self, writer: &mut TableWriter) {
         match self {
@@ -482,7 +500,7 @@ impl<'a> FontRead<'a> for SinglePos {
 }
 
 /// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SinglePosFormat1 {
     /// Offset to Coverage table, from beginning of SinglePos subtable.
     pub coverage_offset: OffsetMarker<CoverageTable>,
@@ -531,7 +549,7 @@ impl<'a> FontRead<'a> for SinglePosFormat1 {
 }
 
 /// [Single Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-2-array-of-positioning-values): Array of Positioning Values
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct SinglePosFormat2 {
     /// Offset to Coverage table, from beginning of SinglePos subtable.
     pub coverage_offset: OffsetMarker<CoverageTable>,
@@ -596,6 +614,12 @@ pub enum PairPos {
     Format2(PairPosFormat2),
 }
 
+impl Default for PairPos {
+    fn default() -> Self {
+        Self::Format1(Default::default())
+    }
+}
+
 impl FontWrite for PairPos {
     fn write_into(&self, writer: &mut TableWriter) {
         match self {
@@ -633,7 +657,7 @@ impl<'a> FontRead<'a> for PairPos {
 }
 
 /// [Pair Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-1-adjustments-for-glyph-pairs): Adjustments for Glyph Pairs
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct PairPosFormat1 {
     /// Offset to Coverage table, from beginning of PairPos subtable.
     pub coverage_offset: OffsetMarker<CoverageTable>,
@@ -689,7 +713,7 @@ impl<'a> FontRead<'a> for PairPosFormat1 {
 }
 
 /// Part of [PairPosFormat1]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct PairSet {
     /// Array of PairValueRecords, ordered by glyph ID of the second
     /// glyph.
@@ -733,7 +757,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::PairSet<'a>> for PairSet {
 impl<'a> FromTableRef<read_fonts::layout::gpos::PairSet<'a>> for PairSet {}
 
 /// Part of [PairSet]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct PairValueRecord {
     /// Glyph ID of second glyph in the pair (first glyph is listed in
     /// the Coverage table).
@@ -770,7 +794,7 @@ impl FromObjRef<read_fonts::layout::gpos::PairValueRecord> for PairValueRecord {
 }
 
 /// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct PairPosFormat2 {
     /// Offset to Coverage table, from beginning of PairPos subtable.
     pub coverage_offset: OffsetMarker<CoverageTable>,
@@ -847,7 +871,7 @@ impl<'a> FontRead<'a> for PairPosFormat2 {
 }
 
 /// Part of [PairPosFormat2]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Class1Record {
     /// Array of Class2 records, ordered by classes in classDef2.
     pub class2_records: Vec<Class2Record>,
@@ -885,7 +909,7 @@ impl FromObjRef<read_fonts::layout::gpos::Class1Record<'_>> for Class1Record {
 }
 
 /// Part of [PairPosFormat2]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Class2Record {
     /// Positioning for first glyph — empty if valueFormat1 = 0.
     pub value_record1: ValueRecord,
@@ -914,7 +938,7 @@ impl FromObjRef<read_fonts::layout::gpos::Class2Record> for Class2Record {
 }
 
 /// [Cursive Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#cursive-attachment-positioning-format1-cursive-attachment): Cursvie attachment
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct CursivePosFormat1 {
     /// Offset to Coverage table, from beginning of CursivePos subtable.
     pub coverage_offset: OffsetMarker<CoverageTable>,
@@ -972,7 +996,7 @@ impl<'a> FontRead<'a> for CursivePosFormat1 {
 }
 
 /// Part of [CursivePosFormat1]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct EntryExitRecord {
     /// Offset to entryAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
@@ -1015,7 +1039,7 @@ impl FromObjRef<read_fonts::layout::gpos::EntryExitRecord> for EntryExitRecord {
 }
 
 /// [Mark-to-Base Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-base-attachment-positioning-format-1-mark-to-base-attachment-point): Mark-to-base Attachment Point
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MarkBasePosFormat1 {
     /// Offset to markCoverage table, from beginning of MarkBasePos
     /// subtable.
@@ -1083,7 +1107,7 @@ impl<'a> FontRead<'a> for MarkBasePosFormat1 {
 }
 
 /// Part of [MarkBasePosFormat1]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BaseArray {
     /// Array of BaseRecords, in order of baseCoverage Index.
     pub base_records: Vec<BaseRecord>,
@@ -1126,7 +1150,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::BaseArray<'a>> for BaseArray {
 impl<'a> FromTableRef<read_fonts::layout::gpos::BaseArray<'a>> for BaseArray {}
 
 /// Part of [BaseArray]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct BaseRecord {
     /// Array of offsets (one per mark class) to Anchor tables. Offsets
     /// are from beginning of BaseArray table, ordered by class
@@ -1162,7 +1186,7 @@ impl FromObjRef<read_fonts::layout::gpos::BaseRecord<'_>> for BaseRecord {
 }
 
 /// [Mark-to-Ligature Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-ligature-attachment-positioning-format-1-mark-to-ligature-attachment): Mark-to-Ligature Attachment
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MarkLigPosFormat1 {
     /// Offset to markCoverage table, from beginning of MarkLigPos
     /// subtable.
@@ -1230,7 +1254,7 @@ impl<'a> FontRead<'a> for MarkLigPosFormat1 {
 }
 
 /// Part of [MarkLigPosFormat1]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct LigatureArray {
     /// Array of offsets to LigatureAttach tables. Offsets are from
     /// beginning of LigatureArray table, ordered by ligatureCoverage
@@ -1270,7 +1294,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::LigatureArray<'a>> for LigatureArr
 impl<'a> FromTableRef<read_fonts::layout::gpos::LigatureArray<'a>> for LigatureArray {}
 
 /// Part of [MarkLigPosFormat1]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct LigatureAttach {
     /// Array of Component records, ordered in writing direction.
     pub component_records: Vec<ComponentRecord>,
@@ -1313,7 +1337,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::LigatureAttach<'a>> for LigatureAt
 impl<'a> FromTableRef<read_fonts::layout::gpos::LigatureAttach<'a>> for LigatureAttach {}
 
 /// Part of [MarkLigPosFormat1]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ComponentRecord {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of LigatureAttach table, ordered by class
@@ -1355,7 +1379,7 @@ impl FromObjRef<read_fonts::layout::gpos::ComponentRecord<'_>> for ComponentReco
 }
 
 /// [Mark-to-Mark Attachment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-to-mark-attachment-positioning-format-1-mark-to-mark-attachment): Mark-to-Mark Attachment
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct MarkMarkPosFormat1 {
     /// Offset to Combining Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
@@ -1423,7 +1447,7 @@ impl<'a> FontRead<'a> for MarkMarkPosFormat1 {
 }
 
 /// Part of [MarkMarkPosFormat1]Class2Record
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Mark2Array {
     /// Array of Mark2Records, in Coverage order.
     pub mark2_records: Vec<Mark2Record>,
@@ -1466,7 +1490,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::Mark2Array<'a>> for Mark2Array {
 impl<'a> FromTableRef<read_fonts::layout::gpos::Mark2Array<'a>> for Mark2Array {}
 
 /// Part of [MarkMarkPosFormat1]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Mark2Record {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of Mark2Array table, in class order (offsets may
@@ -1502,7 +1526,7 @@ impl FromObjRef<read_fonts::layout::gpos::Mark2Record<'_>> for Mark2Record {
 }
 
 /// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct ExtensionPosFormat1<T> {
     /// Lookup type of subtable referenced by extensionOffset (i.e. the
     /// extension subtable).
@@ -1559,6 +1583,12 @@ pub enum ExtensionSubtable {
     MarkToMark(ExtensionPosFormat1<MarkMarkPosFormat1>),
     Contextual(ExtensionPosFormat1<PositionSequenceContext>),
     ChainContextual(ExtensionPosFormat1<PositionChainContext>),
+}
+
+impl Default for ExtensionSubtable {
+    fn default() -> Self {
+        Self::Single(Default::default())
+    }
 }
 
 impl FontWrite for ExtensionSubtable {

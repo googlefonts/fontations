@@ -6,7 +6,7 @@
 use crate::codegen_prelude::*;
 
 /// <https://docs.microsoft.com/en-us/typography/opentype/spec/head>
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Head {
     /// Set by font manufacturer.
     pub font_revision: Fixed,

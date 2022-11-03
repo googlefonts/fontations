@@ -3,7 +3,7 @@
 /// A simple datetime type.
 ///
 /// This represented as a number of seconds since 12:00 midnight, January 1, 1904, UTC.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LongDateTime(i64);
 
 impl LongDateTime {
