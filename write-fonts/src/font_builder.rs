@@ -88,6 +88,6 @@ fn checksum_and_padding(table: &[u8]) -> (u32, u32) {
 
 impl TTCHeader {
     fn compute_version(&self) -> MajorMinor {
-        panic!("TTCHeader writing not supported")
+        panic!("TTCHeader writing not supported (yet)")
     }
 }

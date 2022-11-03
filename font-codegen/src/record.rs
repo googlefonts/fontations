@@ -210,7 +210,7 @@ pub(crate) fn generate_compile_impl(
     });
 
     let can_derive_default = fields.can_derive_default()?;
-    let maybe_derive_default = can_derive_default.then(|| quote!(Default));
+    let maybe_derive_default = can_derive_default.then(|| quote!(, Default));
     let maybe_custom_default = (!can_derive_default).then(|| {
         let default_field_inits = fields.iter_compile_default_inits();
         let default_impl_params = generic_param.map(|t| quote! { <#t: Default> });
@@ -227,7 +227,7 @@ pub(crate) fn generate_compile_impl(
 
     Ok(quote! {
         #( #docs )*
-        #[derive(Clone, Debug, #maybe_derive_default)]
+        #[derive(Clone, Debug #maybe_derive_default)]
         pub struct #name <#generic_param> {
             #( #field_decls, )*
         }

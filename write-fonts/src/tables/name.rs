@@ -17,11 +17,7 @@ impl Name {
     }
 
     fn compute_version(&self) -> u16 {
-        if self.lang_tag_record.is_some() {
-            1
-        } else {
-            0
-        }
+        self.lang_tag_record.is_some().into()
     }
 }
 
@@ -190,6 +186,14 @@ mod tests {
             string: "hello",
         };
         assert_eq!(stringthing.compute_length(), 10);
+    }
+
+    #[test]
+    fn compute_version() {
+        let mut table = Name::default();
+        assert_eq!(table.compute_version(), 0);
+        table.lang_tag_record = Some(Vec::new());
+        assert_eq!(table.compute_version(), 1);
     }
 
     #[test]

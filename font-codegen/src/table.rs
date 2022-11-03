@@ -352,11 +352,7 @@ pub(crate) fn generate_group_compile(
     let mut validate_match_arms = Vec::new();
     let mut from_obj_match_arms = Vec::new();
     let from_type = quote!(#parse_module :: #name);
-    let mut first_var_name = None;
     for var in &item.variants {
-        if first_var_name.is_none() {
-            first_var_name = Some(&var.name);
-        }
         let var_name = &var.name;
         let typ = &var.typ;
 
@@ -367,6 +363,7 @@ pub(crate) fn generate_group_compile(
             quote! { #from_type :: #var_name(table) => Self :: #var_name(table.to_owned_obj(data)) },
         );
     }
+    let first_var_name = &item.variants.first().unwrap().name;
 
     Ok(quote! {
         #( #docs)*
@@ -422,11 +419,7 @@ pub(crate) fn generate_format_compile(
         quote! ( #( #docs )* #name(#typ) )
     });
 
-    let default_variant = &item
-        .variants
-        .first()
-        .expect("empty format groups not supported")
-        .name;
+    let default_variant = &item.variants.first().unwrap().name;
 
     let write_arms = item.variants.iter().map(|variant| {
         let var_name = &variant.name;
