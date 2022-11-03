@@ -82,8 +82,11 @@ impl Fields {
 
     /// `Ok(true)` if no fields have custom default values, `Ok(false)` otherwise.
     ///
-    /// Returns an error if a field that requires a custom default or compile value
-    /// does not have one.
+    /// This serves double duty as a validation method: if we know that default
+    /// should not be derived on a field (such as with version fields) but there
+    /// is no apprporiate annotation, we will return an error explaining the problem.
+    /// This is more helpful than generating code that does not compile, or compile_write_stmt
+    /// but is likely not desired.
     pub(crate) fn can_derive_default(&self) -> syn::Result<bool> {
         for field in self.iter() {
             if !field.supports_derive_default()? {
