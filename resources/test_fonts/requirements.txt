@@ -1,0 +1,1 @@
+fonttools[unicode]==4.38

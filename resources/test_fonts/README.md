@@ -1,6 +1,15 @@
-The ttx files are the masters. To update the binaries:
+# test files
+
+This directory contains files used for testing. The masters are the ttx files;
+these are human readable/editable. From these, we generate the binary ttf
+files that are the actual test inputs.
+
+## rebuilding
+To update the binaries, run script located at `resources/test_fonts/rebuild.sh`
+This script will install the correct version of fonttools, and then regenerate
+all of the inputs.
 
 ```shell
 # from the repo root
-for f in $(ls resources/test_fonts/ttx/*.ttx); do ttx -o ${f/.ttx/.ttf} $f; done
+somewhere/fontations $ ./resources/test_fonts/rebuild.sh
 ```
