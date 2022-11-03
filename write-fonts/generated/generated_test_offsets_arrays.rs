@@ -100,8 +100,13 @@ impl Validate for KindsOfOffsets {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfOffsets<'a>> for KindsOfOffsets {
-    fn from_obj_ref(obj: &read_fonts::codegen_test::KindsOfOffsets<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::KindsOfOffsets<'a>>
+    for KindsOfOffsets
+{
+    fn from_obj_ref(
+        obj: &read_fonts::codegen_test::offsets_arrays::KindsOfOffsets<'a>,
+        _: FontData,
+    ) -> Self {
         let offset_data = obj.offset_data();
         KindsOfOffsets {
             version: obj.version(),
@@ -119,11 +124,14 @@ impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfOffsets<'a>> for KindsOfOff
     }
 }
 
-impl<'a> FromTableRef<read_fonts::codegen_test::KindsOfOffsets<'a>> for KindsOfOffsets {}
+impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::KindsOfOffsets<'a>>
+    for KindsOfOffsets
+{
+}
 
 impl<'a> FontRead<'a> for KindsOfOffsets {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::codegen_test::KindsOfOffsets as FontRead>::read(data)
+        <read_fonts::codegen_test::offsets_arrays::KindsOfOffsets as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -212,11 +220,11 @@ impl Validate for KindsOfArraysOfOffsets {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfArraysOfOffsets<'a>>
+impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::KindsOfArraysOfOffsets<'a>>
     for KindsOfArraysOfOffsets
 {
     fn from_obj_ref(
-        obj: &read_fonts::codegen_test::KindsOfArraysOfOffsets<'a>,
+        obj: &read_fonts::codegen_test::offsets_arrays::KindsOfArraysOfOffsets<'a>,
         _: FontData,
     ) -> Self {
         KindsOfArraysOfOffsets {
@@ -233,14 +241,14 @@ impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfArraysOfOffsets<'a>>
     }
 }
 
-impl<'a> FromTableRef<read_fonts::codegen_test::KindsOfArraysOfOffsets<'a>>
+impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::KindsOfArraysOfOffsets<'a>>
     for KindsOfArraysOfOffsets
 {
 }
 
 impl<'a> FontRead<'a> for KindsOfArraysOfOffsets {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::codegen_test::KindsOfArraysOfOffsets as FontRead>::read(data)
+        <read_fonts::codegen_test::offsets_arrays::KindsOfArraysOfOffsets as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -335,8 +343,11 @@ impl Validate for KindsOfArrays {
     }
 }
 
-impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfArrays<'a>> for KindsOfArrays {
-    fn from_obj_ref(obj: &read_fonts::codegen_test::KindsOfArrays<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::KindsOfArrays<'a>> for KindsOfArrays {
+    fn from_obj_ref(
+        obj: &read_fonts::codegen_test::offsets_arrays::KindsOfArrays<'a>,
+        _: FontData,
+    ) -> Self {
         let offset_data = obj.offset_data();
         KindsOfArrays {
             version: obj.version(),
@@ -349,11 +360,14 @@ impl<'a> FromObjRef<read_fonts::codegen_test::KindsOfArrays<'a>> for KindsOfArra
     }
 }
 
-impl<'a> FromTableRef<read_fonts::codegen_test::KindsOfArrays<'a>> for KindsOfArrays {}
+impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::KindsOfArrays<'a>>
+    for KindsOfArrays
+{
+}
 
 impl<'a> FontRead<'a> for KindsOfArrays {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::codegen_test::KindsOfArrays as FontRead>::read(data)
+        <read_fonts::codegen_test::offsets_arrays::KindsOfArrays as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
@@ -373,17 +387,21 @@ impl Validate for Dummy {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl<'a> FromObjRef<read_fonts::codegen_test::Dummy<'a>> for Dummy {
-    fn from_obj_ref(obj: &read_fonts::codegen_test::Dummy<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::Dummy<'a>> for Dummy {
+    fn from_obj_ref(
+        obj: &read_fonts::codegen_test::offsets_arrays::Dummy<'a>,
+        _: FontData,
+    ) -> Self {
         Dummy { value: obj.value() }
     }
 }
 
-impl<'a> FromTableRef<read_fonts::codegen_test::Dummy<'a>> for Dummy {}
+impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::Dummy<'a>> for Dummy {}
 
 impl<'a> FontRead<'a> for Dummy {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::codegen_test::Dummy as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::codegen_test::offsets_arrays::Dummy as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
@@ -404,8 +422,8 @@ impl Validate for Shmecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl FromObjRef<read_fonts::codegen_test::Shmecord> for Shmecord {
-    fn from_obj_ref(obj: &read_fonts::codegen_test::Shmecord, _: FontData) -> Self {
+impl FromObjRef<read_fonts::codegen_test::offsets_arrays::Shmecord> for Shmecord {
+    fn from_obj_ref(obj: &read_fonts::codegen_test::offsets_arrays::Shmecord, _: FontData) -> Self {
         Shmecord {
             length: obj.length(),
             breadth: obj.breadth(),

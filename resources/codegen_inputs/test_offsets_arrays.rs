@@ -4,7 +4,7 @@
 // There is a separate codegen plan at resources/test_plan.toml that can be run
 // to only rebuild the test outputs.
 
-#![parse_module(read_fonts::codegen_test)]
+#![parse_module(read_fonts::codegen_test::offsets_arrays)]
 
 table KindsOfOffsets {
     /// The major/minor version of the GDEF table
