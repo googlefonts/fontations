@@ -891,6 +891,7 @@ impl<'a> SomeRecord<'a> for AxisValueRecord {
 
 bitflags::bitflags! {
     /// [Axis value table flags](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#flags).
+    #[derive(Default)]
     pub struct AxisValueTableFlags: u16 {
         /// If set, this axis value table provides axis value information
         /// that is applicable to other fonts within the same font family.

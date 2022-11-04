@@ -214,6 +214,7 @@ impl<'a> std::fmt::Debug for SimpleGlyph<'a> {
 
 bitflags::bitflags! {
     /// Flags used in [SimpleGlyph]
+    #[derive(Default)]
     pub struct SimpleGlyphFlags: u8 {
         /// Bit 0: If set, the point is on the curve; otherwise, it is off
         /// the curve.
@@ -421,6 +422,7 @@ impl<'a> std::fmt::Debug for CompositeGlyph<'a> {
 
 bitflags::bitflags! {
     /// Flags used in [CompositeGlyph]
+    #[derive(Default)]
     pub struct CompositeGlyphFlags: u16 {
         /// Bit 0: If this is set, the arguments are 16-bit (uint16 or
         /// int16); otherwise, they are bytes (uint8 or int8).
