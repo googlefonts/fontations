@@ -889,7 +889,22 @@ impl<'a> SomeRecord<'a> for AxisValueRecord {
     }
 }
 
-bitflags::bitflags! { # [doc = " [Axis value table flags](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#flags)."] pub struct AxisValueTableFlags : u16 { # [doc = " If set, this axis value table provides axis value information"] # [doc = " that is applicable to other fonts within the same font family."] # [doc = " This is used if the other fonts were released earlier and did"] # [doc = " not include information about values for some axis. If newer"] # [doc = " versions of the other fonts include the information themselves"] # [doc = " and are present, then this table is ignored."] const OLDER_SIBLING_FONT_ATTRIBUTE = 0x0001 ; # [doc = " If set, it indicates that the axis value represents the"] # [doc = " “normal” value for the axis and may be omitted when"] # [doc = " composing name strings."] const ELIDABLE_AXIS_VALUE_NAME = 0x0002 ; } }
+bitflags::bitflags! {
+    /// [Axis value table flags](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#flags).
+    pub struct AxisValueTableFlags: u16 {
+        /// If set, this axis value table provides axis value information
+        /// that is applicable to other fonts within the same font family.
+        /// This is used if the other fonts were released earlier and did
+        /// not include information about values for some axis. If newer
+        /// versions of the other fonts include the information themselves
+        /// and are present, then this table is ignored.
+        const OLDER_SIBLING_FONT_ATTRIBUTE = 0x0001;
+        /// If set, it indicates that the axis value represents the
+        /// “normal” value for the axis and may be omitted when
+        /// composing name strings.
+        const ELIDABLE_AXIS_VALUE_NAME = 0x0002;
+    }
+}
 
 impl font_types::Scalar for AxisValueTableFlags {
     type Raw = <u16 as font_types::Scalar>::Raw;

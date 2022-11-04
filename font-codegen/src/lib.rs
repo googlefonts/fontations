@@ -7,15 +7,14 @@ use quote::quote;
 mod error;
 mod fields;
 mod flags_enums;
+mod formatting;
 mod parsing;
 mod record;
 mod table;
 
-use parsing::{Item, Items};
+use parsing::{Item, Items, Phase};
 
 pub use error::ErrorReport;
-
-use crate::parsing::Phase;
 
 /// Codegeneration mode.
 #[derive(Debug, Clone, Copy, serde::Deserialize)]
@@ -25,25 +24,6 @@ pub enum Mode {
     Parse,
     /// Generate compilation code
     Compile,
-}
-
-fn touchup_code(tables: proc_macro2::TokenStream) -> Result<String, syn::Error> {
-    // if this is not valid code just pass it through directly, and then we
-    // can see the compiler errors
-    let source_str = match rustfmt_wrapper::rustfmt(&tables) {
-        Ok(s) => s,
-        Err(_) => return Ok(tables.to_string()),
-    };
-    // convert doc comment attributes into normal doc comments
-    let doc_comments = regex::Regex::new(r#"#\[doc = "(.*)"\]"#).unwrap();
-    let source_str = doc_comments.replace_all(&source_str, "///$1");
-    let newlines_before_docs = regex::Regex::new(r#"([;\}])\r?\n( *)(///|pub|impl|#)"#).unwrap();
-    let source_str = newlines_before_docs.replace_all(&source_str, "$1\n\n$2$3");
-
-    // add newlines after top-level items
-    let re2 = regex::Regex::new(r"\r?\n\}").unwrap();
-    let source_str = re2.replace_all(&source_str, "\n}\n\n");
-    Ok(rustfmt_wrapper::rustfmt(source_str).unwrap())
 }
 
 pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
@@ -67,7 +47,7 @@ pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
 
     // 4. Touchup
     debug!("Touchup (mode {:?})", mode);
-    let source_str = touchup_code(tables)?;
+    let source_str = formatting::format(tables)?;
 
     Ok(format!(
         "\
