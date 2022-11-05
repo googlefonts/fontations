@@ -340,6 +340,16 @@ pub mod cpal {
     }
 }
 
+pub mod os2 {
+    use crate::{tables::os2::Os2, FontRef, TableProvider};
+    pub fn sample() -> Os2<'static> {
+        FontRef::new(super::test_fonts::SIMPLE_GLYF)
+            .unwrap()
+            .os2()
+            .unwrap()
+    }
+}
+
 pub mod stat {
     use crate::{tables::stat::Stat, FontRef, TableProvider};
     pub fn vazirmatn() -> Stat<'static> {
@@ -359,5 +369,9 @@ pub mod test_fonts {
 
     pub static VAZIRMATN_VAR: FontData<'static> = FontData::new(include_bytes!(
         "../../../resources/test_fonts/ttf/vazirmatn_var_trimmed.ttf"
+    ));
+
+    pub static SIMPLE_GLYF: FontData<'static> = FontData::new(include_bytes!(
+        "../../../resources/test_fonts/ttf/simple_glyf.ttf"
     ));
 }

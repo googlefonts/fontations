@@ -135,6 +135,11 @@ target = "read-fonts/generated/generated_stat.rs"
 
 [[generate]]
 mode = "parse"
+source = "resources/codegen_inputs/os2.rs"
+target = "read-fonts/generated/generated_os2.rs"
+
+[[generate]]
+mode = "parse"
 source = "resources/codegen_inputs/glyf.rs"
 target = "read-fonts/generated/generated_glyf.rs"
 

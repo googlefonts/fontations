@@ -42,6 +42,11 @@ pub trait TableProvider<'a> {
             .and_then(FontRead::read)
     }
 
+    fn os2(&self) -> Result<tables::os2::Os2<'a>, ReadError> {
+        self.expect_data_for_tag(tables::os2::TAG)
+            .and_then(FontRead::read)
+    }
+
     fn post(&self) -> Result<tables::post::Post<'a>, ReadError> {
         self.expect_data_for_tag(tables::post::TAG)
             .and_then(FontRead::read)
