@@ -21,6 +21,7 @@ mod table_ref;
 pub mod tables;
 #[cfg(feature = "traversal")]
 pub mod traversal;
+pub mod variation;
 
 #[cfg(any(test, feature = "test_data"))]
 pub mod codegen_test;

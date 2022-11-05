@@ -35,6 +35,11 @@ target = "write-fonts/generated/generated_font.rs"
 
 [[generate]]
 mode = "parse"
+source = "resources/codegen_inputs/variation.rs"
+target = "read-fonts/generated/generated_variation.rs"
+
+[[generate]]
+mode = "parse"
 source = "resources/codegen_inputs/layout.rs"
 target = "read-fonts/generated/generated_layout.rs"
 
