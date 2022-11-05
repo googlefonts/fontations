@@ -44,15 +44,21 @@ impl<'a> Loca<'a> {
         &self,
         gid: GlyphId,
         glyf: &super::glyf::Glyf<'a>,
-    ) -> Result<super::glyf::Glyph<'a>, ReadError> {
+    ) -> Result<Option<super::glyf::Glyph<'a>>, ReadError> {
         let idx = gid.to_u16() as usize;
         let start = self.get_raw(idx).ok_or(ReadError::OutOfBounds)?;
         let end = self.get_raw(idx + 1).ok_or(ReadError::OutOfBounds)?;
+        if start == end {
+            return Ok(None);
+        }
         let data = glyf
             .offset_data()
             .slice(start as usize..end as usize)
             .ok_or(ReadError::OutOfBounds)?;
-        super::glyf::Glyph::read(data)
+        match super::glyf::Glyph::read(data) {
+            Ok(glyph) => Ok(Some(glyph)),
+            Err(e) => Err(e),
+        }
     }
 }
 
