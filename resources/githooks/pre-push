@@ -6,11 +6,16 @@
 set -o errexit
 set -o xtrace
 
+# ensure rustfmt has been run
 cargo fmt --all -- --check
+# ensure we don't have broken links in docs
+cargo doc --all-features --document-private-items
 
+# ensure we at least compile without default features
 cargo check --manifest-path=font-types/Cargo.toml --no-default-features
 cargo check --manifest-path=read-fonts/Cargo.toml --no-default-features
 
 cargo clippy --all-features --all-targets -- -D warnings
-cargo run --bin=codegen resources/codegen_plan.toml
-cargo test
+
+cargo test --all-features
+cargo test --no-default-features
