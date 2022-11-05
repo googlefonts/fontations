@@ -31,10 +31,88 @@ impl<'a> Glyph<'a> {
 // the interim?
 
 impl<'a> SimpleGlyph<'a> {
+    /// Returns the total number of points.
+    pub fn num_points(&self) -> usize {
+        self.end_pts_of_contours()
+            .last()
+            .map(|last| last.get() as usize + 1)
+            .unwrap_or(0)
+    }
+
+    /// Reads points and flags into the specified buffers. Drops all flag bits
+    /// except on-curve. The lengths of the buffers must be equal to the value
+    /// returned by [num_points](Self::num_points).
+    /// ## Performance
+    /// As the name implies, this is faster than using the iterator returned by
+    /// [points](Self::points) so should be used when it is possible to
+    /// preallocate buffers.
+    pub fn read_points_fast(
+        &self,
+        points: &mut [Point],
+        flags: &mut [u8],
+    ) -> Result<(), ReadError> {
+        let n_points = self.num_points();
+        if points.len() != n_points || flags.len() != n_points {
+            return Err(ReadError::InvalidArrayLen);
+        }
+        let mut cursor = FontData::new(self.glyph_data()).cursor();
+        let mut i = 0;
+        while i < n_points {
+            let flag = cursor.read::<SimpleGlyphFlags>()?;
+            let flag_bits = flag.bits();
+            if flag.contains(SimpleGlyphFlags::REPEAT_FLAG) {
+                let count = (cursor.read::<u8>()? as usize + 1).min(n_points - i);
+                for f in &mut flags[i..i + count] {
+                    *f = flag_bits;
+                }
+                i += count;
+            } else {
+                flags[i] = flag_bits;
+                i += 1;
+            }
+        }
+        let mut x = 0i32;
+        for (&flag_bits, point) in flags.iter().zip(points.as_mut()) {
+            let mut delta = 0i32;
+            let flag = SimpleGlyphFlags::from_bits_truncate(flag_bits);
+            if flag.contains(SimpleGlyphFlags::X_SHORT_VECTOR) {
+                delta = cursor.read::<u8>()? as i32;
+                if !flag.contains(SimpleGlyphFlags::X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR) {
+                    delta = -delta;
+                }
+            } else if !flag.contains(SimpleGlyphFlags::X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR) {
+                delta = cursor.read::<i16>()? as i32;
+            }
+            x = x.wrapping_add(delta);
+            point.x = x;
+        }
+        let mut y = 0i32;
+        for (flag_bits, point) in flags.iter_mut().zip(points.as_mut()) {
+            let mut delta = 0i32;
+            let flag = SimpleGlyphFlags::from_bits_truncate(*flag_bits);
+            if flag.contains(SimpleGlyphFlags::Y_SHORT_VECTOR) {
+                delta = cursor.read::<u8>()? as i32;
+                if !flag.contains(SimpleGlyphFlags::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR) {
+                    delta = -delta;
+                }
+            } else if !flag.contains(SimpleGlyphFlags::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR) {
+                delta = cursor.read::<i16>()? as i32;
+            }
+            y = y.wrapping_add(delta);
+            point.y = y;
+            // Only keep the on-curve bit
+            *flag_bits &= 1;
+        }
+        Ok(())
+    }
+
     /// Returns an iterator over the points in the glyph.
-    pub fn points(&self) -> impl Iterator<Item = Point> + 'a + Clone {
+    /// ## Performance
+    /// This is slower than [read_points_fast](Self::read_points_fast) but
+    /// provides access to the points without requiring a preallocated buffer.
+    pub fn points(&self) -> impl Iterator<Item = CurvePoint> + 'a + Clone {
         self.points_impl()
-            .unwrap_or_else(|| PointIter::new(&[], &[], &[], &[]))
+            .unwrap_or_else(|| PointIter::new(&[], &[], &[]))
     }
 
     fn points_impl(&self) -> Option<PointIter<'a>> {
@@ -50,25 +128,37 @@ impl<'a> SimpleGlyph<'a> {
         let (flags, data) = data.split_at(lens.flags as usize);
         let (x_coords, y_coords) = data.split_at(lens.x_coords as usize);
 
-        Some(PointIter::new(end_points, flags, x_coords, y_coords))
+        Some(PointIter::new(flags, x_coords, y_coords))
     }
 }
 
-/// Point for a simple glyph.
-#[derive(Clone, Copy, Debug)]
+/// Point in a simple glyph.
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub struct Point {
-    /// X component.
-    pub x: i16,
-    /// Y component.
-    pub y: i16,
+    /// X cooordinate.
+    pub x: i32,
+    /// Y coordinate.
+    pub y: i32,
+}
+
+impl Point {
+    /// Creates a new point with the specified x and y coordinates.
+    pub const fn new(x: i32, y: i32) -> Self {
+        Self { x, y }
+    }
+}
+
+/// Point with an associated on-curve flag in a simple glyph.
+#[derive(Clone, Copy, Debug)]
+pub struct CurvePoint {
+    /// The point.
+    pub point: Point,
     /// True if this is an on-curve point.
     pub on_curve: bool,
 }
 
 #[derive(Clone)]
 struct PointIter<'a> {
-    end_points: &'a [BigEndian<u16>],
-    cur_point: u16,
     flags: Cursor<'a>,
     x_coords: Cursor<'a>,
     y_coords: Cursor<'a>,
@@ -79,37 +169,26 @@ struct PointIter<'a> {
 }
 
 impl<'a> Iterator for PointIter<'a> {
-    type Item = Point;
+    type Item = CurvePoint;
     fn next(&mut self) -> Option<Self::Item> {
-        let next_end = self.end_points.first()?.get();
-        let is_end = next_end <= self.cur_point; // LE because points could be out of order?
-        if is_end {
-            self.end_points = &self.end_points[1..];
-        }
-        self.advance_flags();
+        self.advance_flags()?;
         self.advance_points();
-        self.cur_point = self.cur_point.saturating_add(1);
-        Some(Point {
-            x: self.cur_x,
-            y: self.cur_y,
+        Some(CurvePoint {
+            point: Point {
+                x: self.cur_x as i32,
+                y: self.cur_y as i32,
+            },
             on_curve: self.cur_flags.contains(SimpleGlyphFlags::ON_CURVE_POINT),
         })
     }
 }
 
 impl<'a> PointIter<'a> {
-    fn new(
-        end_points: &'a [BigEndian<u16>],
-        flags: &'a [u8],
-        x_coords: &'a [u8],
-        y_coords: &'a [u8],
-    ) -> Self {
+    fn new(flags: &'a [u8], x_coords: &'a [u8], y_coords: &'a [u8]) -> Self {
         Self {
-            end_points,
             flags: FontData::new(flags).cursor(),
             x_coords: FontData::new(x_coords).cursor(),
             y_coords: FontData::new(y_coords).cursor(),
-            cur_point: 0,
             flag_repeats: 0,
             cur_flags: SimpleGlyphFlags::empty(),
             cur_x: 0,
@@ -117,18 +196,19 @@ impl<'a> PointIter<'a> {
         }
     }
 
-    fn advance_flags(&mut self) {
+    fn advance_flags(&mut self) -> Option<()> {
         if self.flag_repeats == 0 {
-            self.cur_flags =
-                SimpleGlyphFlags::from_bits_truncate(self.flags.read().unwrap_or_default());
+            self.cur_flags = SimpleGlyphFlags::from_bits_truncate(self.flags.read().ok()?);
             self.flag_repeats = self
                 .cur_flags
                 .contains(SimpleGlyphFlags::REPEAT_FLAG)
                 .then(|| self.flags.read().ok())
                 .flatten()
-                .unwrap_or(1);
+                .unwrap_or(0)
+                + 1;
         }
         self.flag_repeats -= 1;
+        Some(())
     }
 
     fn advance_points(&mut self) {
@@ -210,10 +290,10 @@ fn resolve_coords_len(data: &[u8], points_total: u16) -> Result<FieldLengths, Re
         let y_long = SimpleGlyphFlags::Y_SHORT_VECTOR
             | SimpleGlyphFlags::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR;
         x_coords_len += ((flags & x_short).bits() != 0) as u32 * repeats;
-        x_coords_len += ((flags & x_long).bits() == 0) as u32 * repeats;
+        x_coords_len += ((flags & x_long).bits() == 0) as u32 * repeats * 2;
 
         y_coords_len += ((flags & y_short).bits() != 0) as u32 * repeats;
-        y_coords_len += ((flags & y_long).bits() == 0) as u32 * repeats;
+        y_coords_len += ((flags & y_long).bits() == 0) as u32 * repeats * 2;
 
         flags_left -= repeats;
     }
@@ -328,16 +408,16 @@ impl Iterator for ComponentIter<'_> {
         let flags: CompositeGlyphFlags = self.cursor.read().ok()?;
         self.cur_flags = flags;
         let glyph = self.cursor.read::<GlyphId>().ok()?;
-        let args_are_word = flags.contains(CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS);
-        let are_signed = flags.contains(CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS);
-        let anchor = match (are_signed, args_are_word) {
+        let args_are_words = flags.contains(CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS);
+        let args_are_xy_values = flags.contains(CompositeGlyphFlags::ARGS_ARE_XY_VALUES);
+        let anchor = match (args_are_xy_values, args_are_words) {
             (true, true) => Anchor::Offset {
                 x: self.cursor.read().ok()?,
                 y: self.cursor.read().ok()?,
             },
             (true, false) => Anchor::Offset {
-                x: self.cursor.read::<u8>().ok()? as _,
-                y: self.cursor.read::<u8>().ok()? as _,
+                x: self.cursor.read::<i8>().ok()? as _,
+                y: self.cursor.read::<i8>().ok()? as _,
             },
             (false, true) => Anchor::Point {
                 base: self.cursor.read().ok()?,
@@ -420,7 +500,7 @@ mod tests {
         let font = FontRef::new(test_data::test_fonts::COLR_GRADIENT_RECT).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
-        let glyph = loca.get_glyf(GlyphId::new(0), &glyf).unwrap();
+        let glyph = loca.get_glyf(GlyphId::new(0), &glyf).unwrap().unwrap();
         assert_eq!(glyph.number_of_contours(), 2);
         let simple_glyph = if let Glyph::Simple(simple) = glyph {
             simple
@@ -438,7 +518,7 @@ mod tests {
         assert_eq!(
             simple_glyph
                 .points()
-                .map(|pt| (pt.x, pt.y, pt.on_curve))
+                .map(|pt| (pt.point.x, pt.point.y, pt.on_curve))
                 .collect::<Vec<_>>(),
             &[
                 (5, 0, true),
