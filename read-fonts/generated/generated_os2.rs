@@ -5,10 +5,11 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [`os2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
+/// [`OS2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct Os2Marker {
+    panose_10_byte_len: usize,
     ul_code_page_range_1_byte_start: Option<usize>,
     ul_code_page_range_2_byte_start: Option<usize>,
     sx_height_byte_start: Option<usize>,
@@ -87,7 +88,7 @@ impl Os2Marker {
     }
     fn panose_10_byte_range(&self) -> Range<usize> {
         let start = self.s_family_class_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        start..start + self.panose_10_byte_len
     }
     fn ul_unicode_range_1_byte_range(&self) -> Range<usize> {
         let start = self.panose_10_byte_range().end;
@@ -198,7 +199,8 @@ impl<'a> FontRead<'a> for Os2<'a> {
         cursor.advance::<i16>();
         cursor.advance::<i16>();
         cursor.advance::<i16>();
-        cursor.advance::<u8>();
+        let panose_10_byte_len = 10 * u8::RAW_BYTE_LEN;
+        cursor.advance_by(panose_10_byte_len);
         cursor.advance::<u32>();
         cursor.advance::<u32>();
         cursor.advance::<u32>();
@@ -258,6 +260,7 @@ impl<'a> FontRead<'a> for Os2<'a> {
             .transpose()?;
         version.compatible(5).then(|| cursor.advance::<u16>());
         cursor.finish(Os2Marker {
+            panose_10_byte_len,
             ul_code_page_range_1_byte_start,
             ul_code_page_range_2_byte_start,
             sx_height_byte_start,
@@ -271,11 +274,10 @@ impl<'a> FontRead<'a> for Os2<'a> {
     }
 }
 
-/// [`os2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
+/// [`OS2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
 pub type Os2<'a> = TableRef<'a, Os2Marker>;
 
 impl<'a> Os2<'a> {
-    /// The version: 0x00005000 for version 0.5, 0x00010000 for version 1.0.
     pub fn version(&self) -> u16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -385,9 +387,9 @@ impl<'a> Os2<'a> {
 
     /// Additional specifications are required for PANOSE to classify non-Latin
     /// character sets.
-    pub fn panose_10(&self) -> u8 {
+    pub fn panose_10(&self) -> &'a [u8] {
         let range = self.shape.panose_10_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.data.read_array(range).unwrap()
     }
 
     /// Unicode Character Range (bits 0-31).
