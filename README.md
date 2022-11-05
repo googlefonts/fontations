@@ -34,6 +34,19 @@ overview of what we generate and how it works, see the [codegen-tour][]. For an
 overview of how to use the `font-codegen` crate, see the readme at
 [`font-codegen/README.md`][codegen-readme].
 
+## contributing
+
+We have included a few git hooks that you may choose to use to ensure that
+patches will pass CI; these are in `resources/githooks`.
+
+If you would like to have these run automatically when you commit or push
+changes, you can set this as your git hooksPath:
+
+```sh
+git config core.hooksPath "./git_hooks"
+```
+
+
 [codegen-readme]: ./font-codegen/README.md
 [`read-fonts`]: ./read-fonts
 [`font-types`]: ./font-types
