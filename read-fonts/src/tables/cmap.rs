@@ -10,7 +10,8 @@ include!("../../generated/generated_cmap.rs");
 impl<'a> Cmap<'a> {
     /// Maps a codepoint to a nominal glyph identifier using the first
     /// available subtable that provides a valid mapping.
-    pub fn map_codepoint(&self, codepoint: u32) -> Option<GlyphId> {
+    pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
+        let codepoint = codepoint.into();
         for record in self.encoding_records() {
             if let Ok(subtable) = record.subtable(self.offset_data()) {
                 if let Some(gid) = match subtable {
@@ -28,8 +29,9 @@ impl<'a> Cmap<'a> {
 
 impl<'a> Cmap4<'a> {
     /// Maps a codepoint to a nominal glyph identifier.
-    pub fn map_codepoint(&self, codepoint: u32) -> Option<GlyphId> {
-        if codepoint >= 65535 {
+    pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
+        let codepoint = codepoint.into();
+        if codepoint > 0xFFFF {
             return None;
         }
         let codepoint = codepoint as u16;
@@ -69,7 +71,8 @@ impl<'a> Cmap4<'a> {
 
 impl<'a> Cmap12<'a> {
     /// Maps a codepoint to a nominal glyph identifier.
-    pub fn map_codepoint(&self, codepoint: u32) -> Option<GlyphId> {
+    pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
+        let codepoint = codepoint.into();
         let groups = self.groups();
         let mut lo = 0;
         let mut hi = groups.len();
@@ -90,5 +93,27 @@ impl<'a> Cmap12<'a> {
             }
         }
         None
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::test_data;
+    use crate::{FontRef, GlyphId, TableProvider};
+
+    #[test]
+    fn map_codepoints() {
+        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let cmap = font.cmap().unwrap();
+        assert_eq!(cmap.map_codepoint('A'), Some(GlyphId::new(1)));
+        assert_eq!(cmap.map_codepoint('À'), Some(GlyphId::new(2)));
+        assert_eq!(cmap.map_codepoint('`'), Some(GlyphId::new(3)));
+        assert_eq!(cmap.map_codepoint('B'), None);
+
+        let font = FontRef::new(test_data::test_fonts::SIMPLE_GLYF).unwrap();
+        let cmap = font.cmap().unwrap();
+        assert_eq!(cmap.map_codepoint(' '), Some(GlyphId::new(1)));
+        assert_eq!(cmap.map_codepoint(0xE_u32), Some(GlyphId::new(2)));
+        assert_eq!(cmap.map_codepoint('B'), None);
     }
 }
