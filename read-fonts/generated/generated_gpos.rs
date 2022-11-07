@@ -215,6 +215,7 @@ impl<'a> SomeTable<'a> for PositionLookup<'a> {
 
 bitflags::bitflags! {
     /// See [ValueRecord]
+    #[derive(Default)]
     pub struct ValueFormat: u16 {
         /// Includes horizontal adjustment for placement
         const X_PLACEMENT = 0x0001;

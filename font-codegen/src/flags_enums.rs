@@ -22,6 +22,7 @@ pub(crate) fn generate_flags(raw: &BitFlags) -> proc_macro2::TokenStream {
     quote! {
         bitflags::bitflags! {
             #( #docs )*
+            #[derive(Default)]
             pub struct #name: #typ {
                 #( #variants )*
             }
