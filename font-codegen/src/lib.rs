@@ -1,5 +1,7 @@
 //! Generating types from the opentype spec
 
+use std::backtrace::Backtrace;
+
 use log::debug;
 use proc_macro2::TokenStream;
 use quote::quote;
@@ -30,7 +32,11 @@ pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
     // Generation is done in phases (https://github.com/googlefonts/fontations/issues/71):
     // 1. Parse
     debug!("Parse (mode {:?})", mode);
-    let mut items: Items = syn::parse_str(code_str)?;
+    // This is the one step where we can't readily intercept the error with logged_syn_error
+    let mut items: Items = syn::parse_str(code_str).map_err(|e| {
+        debug!("{}", Backtrace::capture());
+        e
+    })?;
     items.sanity_check(Phase::Parse)?;
 
     // 2. Contemplate (semantic analysis)

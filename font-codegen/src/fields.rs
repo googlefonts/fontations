@@ -6,7 +6,7 @@ use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
-use crate::parsing::{Attr, FieldValidation, OffsetTarget, Phase};
+use crate::parsing::{logged_syn_error, Attr, FieldValidation, OffsetTarget, Phase};
 
 use super::parsing::{
     Count, CustomCompile, Field, FieldReadArgs, FieldType, Fields, NeededWhen, Record,
@@ -39,7 +39,7 @@ impl Fields {
             if let Some(attr) = fld.attrs.offset_data.as_ref() {
                 if let Some(prev_field) = custom_offset_data_fld.replace(fld) {
                     if prev_field.attrs.offset_data.as_ref().unwrap().attr != attr.attr {
-                        return Err(syn::Error::new(fld.name.span(), format!("field has custom offset data, but previous field '{}' already specified different custom offset data", prev_field.name)));
+                        return Err(logged_syn_error(fld.name.span(), format!("field has custom offset data, but previous field '{}' already specified different custom offset data", prev_field.name)));
                     }
                 }
             } else if fld.is_offset_or_array_of_offsets() {
@@ -50,7 +50,7 @@ impl Fields {
                 || matches!(fld.attrs.count.as_deref(), Some(Count::All)))
                 && i != self.fields.len() - 1
             {
-                return Err(syn::Error::new(
+                return Err(logged_syn_error(
                     fld.name.span(),
                     "#[count(..)] or VarLenArray fields can only be last field in table.",
                 ));
@@ -59,7 +59,7 @@ impl Fields {
         }
 
         if let (Some(custom), Some(normal)) = (custom_offset_data_fld, normal_offset_data_fld) {
-            return Err(syn::Error::new(custom.name.span(), format!("Not implemented: field requires custom offset data, but sibling field '{}' expects default offset data", normal.name)));
+            return Err(logged_syn_error(custom.name.span(), format!("Not implemented: field requires custom offset data, but sibling field '{}' expects default offset data", normal.name)));
         }
         Ok(())
     }
@@ -384,7 +384,7 @@ fn check_resolution(phase: Phase, field_type: &FieldType) -> syn::Result<()> {
         return Ok(());
     }
     if let FieldType::PendingResolution { typ } = field_type {
-        return Err(syn::Error::new(
+        return Err(logged_syn_error(
             typ.span(),
             format!(
                 "{}: be ye struct or scalar? - we certainly don't know.",
@@ -469,7 +469,7 @@ impl Field {
                 inner_typ.as_ref(),
                 FieldType::Array { .. } | FieldType::ComputedArray(_)
             ) {
-                return Err(syn::Error::new(
+                return Err(logged_syn_error(
                     self.name.span(),
                     "nested arrays are not allowed",
                 ));
@@ -484,7 +484,7 @@ impl Field {
             check_resolution(phase, inner_typ)?;
         }
         if self.is_array() && self.attrs.count.is_none() {
-            return Err(syn::Error::new(
+            return Err(logged_syn_error(
                 self.name.span(),
                 "array requires #[count] attribute",
             ));
@@ -492,13 +492,13 @@ impl Field {
         if let Some(args) = &self.attrs.read_with_args {
             match &self.typ {
                 FieldType::ComputedArray(array) if self.attrs.count.is_none() => {
-                    return Err(syn::Error::new(array.span(), "missing count attribute"));
+                    return Err(logged_syn_error(array.span(), "missing count attribute"));
                 }
                 FieldType::Offset { .. } => (),
                 FieldType::Array { inner_typ, .. }
                     if matches!(inner_typ.as_ref(), FieldType::Offset { .. }) => {}
                 FieldType::Scalar { .. } | FieldType::Array { .. } => {
-                    return Err(syn::Error::new(
+                    return Err(logged_syn_error(
                         args.span(),
                         "attribute not valid on this type",
                     ))
@@ -1008,7 +1008,7 @@ impl Field {
         // aren't in compile mode then this isn't an error.
         if let Some(version) = &self.attrs.version {
             if self.attrs.compile.is_none() {
-                return Err(syn::Error::new(
+                return Err(logged_syn_error(
                     version.span(),
                     "version field needs explicit #[default(x)] or #[compile(x)] attribute.",
                 ));
