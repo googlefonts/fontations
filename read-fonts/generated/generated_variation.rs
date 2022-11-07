@@ -243,6 +243,7 @@ impl<'a> SomeTable<'a> for DeltaSetIndexMap<'a> {
 
 bitflags::bitflags! {
     /// Entry format for a [DeltaSetIndexMap].
+    #[derive(Default)]
     pub struct EntryFormat: u8 {
         /// Mask for the low 4 bits, which give the count of bits minus one that are used in each entry for the inner-level index.
         const INNER_INDEX_BIT_COUNT_MASK = 0x0F;
@@ -364,14 +365,14 @@ impl<'a> std::fmt::Debug for VariationRegionList<'a> {
 pub struct VariationRegion<'a> {
     /// Array of region axis coordinates records, in the order of axes
     /// given in the 'fvar' table.
-    pub region_axes: ComputedArray<'a, RegionAxisCoordinates>,
+    pub region_axes: &'a [RegionAxisCoordinates],
 }
 
 impl<'a> VariationRegion<'a> {
     /// Array of region axis coordinates records, in the order of axes
     /// given in the 'fvar' table.
-    pub fn region_axes(&self) -> &ComputedArray<'a, RegionAxisCoordinates> {
-        &self.region_axes
+    pub fn region_axes(&self) -> &'a [RegionAxisCoordinates] {
+        self.region_axes
     }
 }
 
@@ -382,7 +383,7 @@ impl ReadArgs for VariationRegion<'_> {
 impl ComputeSize for VariationRegion<'_> {
     fn compute_size(args: &u16) -> usize {
         let axis_count = *args;
-        axis_count as usize * <RegionAxisCoordinates as ComputeSize>::compute_size(&axis_count)
+        axis_count as usize * RegionAxisCoordinates::RAW_BYTE_LEN
     }
 }
 
@@ -391,7 +392,7 @@ impl<'a> FontReadWithArgs<'a> for VariationRegion<'a> {
         let mut cursor = data.cursor();
         let axis_count = *args;
         Ok(Self {
-            region_axes: cursor.read_computed_array(axis_count as usize, &axis_count)?,
+            region_axes: cursor.read_array(axis_count as usize)?,
         })
     }
 }
@@ -404,10 +405,10 @@ impl<'a> SomeRecord<'a> for VariationRegion<'a> {
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new(
                     "region_axes",
-                    traversal::FieldType::computed_array(
-                        "RegionAxisCoordinates",
-                        self.region_axes().clone(),
-                        FontData::new(&[]),
+                    traversal::FieldType::array_of_records(
+                        stringify!(RegionAxisCoordinates),
+                        self.region_axes(),
+                        _data,
                     ),
                 )),
                 _ => None,
@@ -419,6 +420,8 @@ impl<'a> SomeRecord<'a> for VariationRegion<'a> {
 
 /// The [RegionAxisCoordinates](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
 #[derive(Clone, Debug)]
+#[repr(C)]
+#[repr(packed)]
 pub struct RegionAxisCoordinates {
     /// The region start coordinate value for the current axis.
     pub start_coord: BigEndian<F2Dot14>,
@@ -445,27 +448,9 @@ impl RegionAxisCoordinates {
     }
 }
 
-impl ReadArgs for RegionAxisCoordinates {
-    type Args = u16;
-}
-
-impl ComputeSize for RegionAxisCoordinates {
-    fn compute_size(args: &u16) -> usize {
-        let _x = *args;
-        F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN
-    }
-}
-
-impl<'a> FontReadWithArgs<'a> for RegionAxisCoordinates {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let _x = *args;
-        Ok(Self {
-            start_coord: cursor.read()?,
-            peak_coord: cursor.read()?,
-            end_coord: cursor.read()?,
-        })
-    }
+impl FixedSize for RegionAxisCoordinates {
+    const RAW_BYTE_LEN: usize =
+        F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -529,7 +514,7 @@ impl<'a> FontRead<'a> for ItemVariationStore<'a> {
 pub type ItemVariationStore<'a> = TableRef<'a, ItemVariationStoreMarker>;
 
 impl<'a> ItemVariationStore<'a> {
-    /// Format ΓÇö set to 1
+    /// Format— set to 1
     pub fn format(&self) -> u16 {
         let range = self.shape.format_byte_range();
         self.data.read_at(range.start).unwrap()

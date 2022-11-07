@@ -64,12 +64,10 @@ record VariationRegion<'a> {
     /// Array of region axis coordinates records, in the order of axes 
     /// given in the 'fvar' table.
     #[count($axis_count)]
-    #[read_with($axis_count)]
-    region_axes: ComputedArray<RegionAxisCoordinates>,
+    region_axes: [RegionAxisCoordinates],
 }
 
 /// The [RegionAxisCoordinates](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
-#[read_args(_x: u16)]
 record RegionAxisCoordinates {
     /// The region start coordinate value for the current axis.
     start_coord: F2Dot14,
@@ -81,7 +79,7 @@ record RegionAxisCoordinates {
 
 /// The [ItemVariationStore](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#item-variation-store-header-and-item-variation-data-subtables) table
 table ItemVariationStore {
-    /// Format ΓÇö set to 1
+    /// Format— set to 1
     format: u16,
     /// Offset in bytes from the start of the item variation store to 
     /// the variation region list.
