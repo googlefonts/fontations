@@ -539,6 +539,7 @@ impl Parse for RawEnum {
 
 impl Parse for Extern {
     fn parse(input: ParseStream) -> syn::Result<Self> {
+        let _docs = get_optional_docs(input)?;
         let _kw = input.parse::<Token![extern]>()?;
         let lookahead = input.lookahead1();
         let typ = if lookahead.peek(kw::scalar) {
