@@ -8,6 +8,10 @@
 //!
 //! $ cargo run --bin=codegen resources/test_plan.toml && cargo test
 
+mod records {
+    include!("../generated/generated_test_records.rs");
+}
+
 mod offsets_arrays {
     include!("../generated/generated_test_offsets_arrays.rs");
 }
