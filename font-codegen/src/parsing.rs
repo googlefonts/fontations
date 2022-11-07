@@ -1,6 +1,6 @@
 //! raw parsing code
 
-use std::{collections::HashMap, ops::Deref, str::FromStr};
+use std::{backtrace::Backtrace, collections::HashMap, fmt::Display, ops::Deref, str::FromStr};
 
 use log::{debug, trace};
 use proc_macro2::{Span, TokenStream};
@@ -408,12 +408,12 @@ fn get_parse_module_path(input: ParseStream) -> syn::Result<syn::Path> {
     let attrs = input.call(Attribute::parse_inner)?;
     match attrs.as_slice() {
         [one] if one.path.is_ident("parse_module") => one.parse_args(),
-        [one] => Err(syn::Error::new(one.span(), "unexpected attribute")),
-        [_, two, ..] => Err(syn::Error::new(
+        [one] => Err(logged_syn_error(one.span(), "unexpected attribute")),
+        [_, two, ..] => Err(logged_syn_error(
             two.span(),
             "expected at most one top-level attribute",
         )),
-        [] => Err(syn::Error::new(
+        [] => Err(logged_syn_error(
             Span::call_site(),
             "expected #![parse_module(..)] attribute",
         )),
@@ -444,7 +444,7 @@ impl Parse for Item {
         } else if lookahead.peek(Token![extern]) {
             Ok(Self::Extern(input.parse()?))
         } else {
-            Err(syn::Error::new(
+            Err(logged_syn_error(
                 input.span(),
                 "expected one of 'table' 'record' 'flags' 'format' 'enum', 'extern', or 'group'.",
             ))
@@ -718,7 +718,7 @@ impl FieldType {
         if let syn::Type::Slice(slice) = type_ {
             let inner_type = FieldType::from_syn_type(&slice.elem)?;
             if matches!(inner_type, FieldType::Array { .. }) {
-                return Err(syn::Error::new(
+                return Err(logged_syn_error(
                     slice.elem.span(),
                     "nested arrays are invalid",
                 ));
@@ -730,7 +730,7 @@ impl FieldType {
 
         let path = match type_ {
             syn::Type::Path(path) => &path.path,
-            _ => return Err(syn::Error::new(type_.span(), "expected slice or path")),
+            _ => return Err(logged_syn_error(type_.span(), "expected slice or path")),
         };
 
         let last = get_single_path_segment(path)?;
@@ -767,7 +767,7 @@ impl FieldType {
 
         // We'll figure it out later, what could go wrong?
         if !last.arguments.is_empty() {
-            return Err(syn::Error::new(path.span(), "Not sure how to handle this"));
+            return Err(logged_syn_error(path.span(), "Not sure how to handle this"));
         }
         debug!("Pending {}", quote! { #last });
         Ok(FieldType::PendingResolution {
@@ -778,7 +778,7 @@ impl FieldType {
 
 fn get_single_path_segment(path: &syn::Path) -> syn::Result<&syn::PathSegment> {
     if path.segments.len() != 1 {
-        return Err(syn::Error::new(path.span(), "expect a single-item path"));
+        return Err(logged_syn_error(path.span(), "expect a single-item path"));
     }
     Ok(path.segments.last().unwrap())
 }
@@ -796,7 +796,7 @@ fn get_offset_target(input: &syn::PathArguments) -> syn::Result<Option<OffsetTar
             ) {
                 Ok(Some(OffsetTarget::Array(Box::new(inner))))
             } else {
-                Err(syn::Error::new(
+                Err(logged_syn_error(
                     t.elem.span(),
                     "offsets can only point to arrays of records or scalars",
                 ))
@@ -809,7 +809,7 @@ fn get_offset_target(input: &syn::PathArguments) -> syn::Result<Option<OffsetTar
                 t.path.get_ident().unwrap().clone(),
             )))
         }
-        Some(_) => Err(syn::Error::new(input.span(), "expected path or slice")),
+        Some(_) => Err(logged_syn_error(input.span(), "expected path or slice")),
         None => Ok(None),
     }
 }
@@ -866,7 +866,7 @@ impl Parse for VariantAttrs {
             } else if ident == MATCH_IF {
                 this.match_stmt = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else {
-                return Err(syn::Error::new(
+                return Err(logged_syn_error(
                     ident.span(),
                     format!("unknown variant attribute {ident}"),
                 ));
@@ -945,7 +945,7 @@ impl Parse for FieldAttrs {
             } else if ident == FORMAT {
                 this.format = Some(Attr::new(ident.clone(), parse_attr_eq_value(attr.tokens)?))
             } else {
-                return Err(syn::Error::new(
+                return Err(logged_syn_error(
                     ident.span(),
                     format!("unknown field attribute {ident}"),
                 ));
@@ -981,7 +981,7 @@ impl Parse for TableAttrs {
             } else if ident == GENERIC_OFFSET {
                 this.generic_offset = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else {
-                return Err(syn::Error::new(
+                return Err(logged_syn_error(
                     ident.span(),
                     format!("unknown table attribute {ident}"),
                 ));
@@ -1066,7 +1066,10 @@ fn resolve_ident<'a>(
         debug!("Resolve {}: {} to {:?}", field_name, field_type, item);
         Ok(item)
     } else {
-        Err(syn::Error::new(field_type.span(), "Error: undeclared type"))
+        Err(logged_syn_error(
+            field_type.span(),
+            "Error: undeclared type",
+        ))
     }
 }
 
@@ -1350,7 +1353,7 @@ fn parse_attr_eq_value<T: Parse>(tokens: TokenStream) -> syn::Result<T> {
 
 fn validate_ident(ident: &syn::Ident, expected: &[&str], error: &str) -> Result<(), syn::Error> {
     if !expected.iter().any(|exp| ident == exp) {
-        return Err(syn::Error::new(ident.span(), error));
+        return Err(logged_syn_error(ident.span(), error));
     }
     Ok(())
 }
@@ -1362,7 +1365,7 @@ fn get_optional_docs(input: ParseStream) -> Result<Vec<syn::Attribute>, syn::Err
     }
     for attr in &result {
         if !attr.path.is_ident("doc") {
-            return Err(syn::Error::new(attr.span(), "expected doc comment"));
+            return Err(logged_syn_error(attr.span(), "expected doc comment"));
         }
     }
     Ok(result)
@@ -1375,7 +1378,7 @@ fn get_single_generic_type_arg(input: &syn::PathArguments) -> syn::Result<syn::P
         {
             Ok(path.path.clone())
         }
-        _ => Err(syn::Error::new(input.span(), "expected type")),
+        _ => Err(logged_syn_error(input.span(), "expected type")),
     }
 }
 
@@ -1387,7 +1390,7 @@ fn get_single_generic_arg(
         syn::PathArguments::AngleBracketed(args) if args.args.len() == 1 => {
             Ok(Some(args.args.last().unwrap()))
         }
-        _ => Err(syn::Error::new(
+        _ => Err(logged_syn_error(
             input.span(),
             "expected single generic argument",
         )),
@@ -1398,8 +1401,13 @@ fn get_single_lifetime(input: &syn::PathArguments) -> syn::Result<Option<syn::Li
     match get_single_generic_arg(input)? {
         None => Ok(None),
         Some(syn::GenericArgument::Lifetime(arg)) => Ok(Some(arg.clone())),
-        _ => Err(syn::Error::new(input.span(), "expected single lifetime")),
+        _ => Err(logged_syn_error(input.span(), "expected single lifetime")),
     }
+}
+
+pub(crate) fn logged_syn_error<T: Display>(span: Span, message: T) -> syn::Error {
+    debug!("{}", Backtrace::capture());
+    syn::Error::new(span, message)
 }
 
 #[cfg(test)]
