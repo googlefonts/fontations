@@ -258,7 +258,9 @@ fn traversal_arm_for_field(
         } if matches!(inner.deref(), FieldType::Struct { .. }) => {
             let typ = inner.cooked_type_tokens();
             let getter = fld.offset_getter_name();
-            let offset_data = fld.offset_getter_data_src();
+            let offset_data = pass_data
+                .cloned()
+                .unwrap_or_else(|| fld.offset_getter_data_src());
             quote!(Field::new(
                     #name_str,
                     traversal::FieldType::offset_to_array_of_records(
@@ -291,8 +293,10 @@ fn traversal_arm_for_field(
             FieldType::Struct { typ } if typ == "u8" => {
                 quote!(Field::new( #name_str, self.#name()#maybe_unwrap))
             }
-            FieldType::Struct { typ } if !in_record => {
-                let offset_data = fld.offset_getter_data_src();
+            FieldType::Struct { typ } => {
+                let offset_data = pass_data
+                    .cloned()
+                    .unwrap_or_else(|| fld.offset_getter_data_src());
                 quote!(Field::new(
                         #name_str,
                         traversal::FieldType::array_of_records(
@@ -412,7 +416,7 @@ impl Field {
                     let be = big_endian(typ);
                     quote!(&'a [#be])
                 }
-                FieldType::Struct { typ } => quote!( &[#typ] ),
+                FieldType::Struct { typ } => quote!( &'a [#typ] ),
                 FieldType::PendingResolution { typ } => {
                     panic!("Should have resolved {}", quote! { #typ })
                 }
