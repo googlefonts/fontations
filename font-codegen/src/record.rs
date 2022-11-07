@@ -3,7 +3,7 @@
 use proc_macro2::TokenStream;
 use quote::quote;
 
-use crate::parsing::Phase;
+use crate::parsing::{logged_syn_error, Phase};
 
 use super::parsing::{CustomCompile, Field, Fields, Record, TableAttrs};
 
@@ -270,11 +270,11 @@ impl Record {
             .iter()
             .find(|fld| fld.is_computed_array() || fld.is_array());
         match (field_needs_lifetime, &self.lifetime) {
-            (Some(_), None) => Err(syn::Error::new(
+            (Some(_), None) => Err(logged_syn_error(
                 self.name.span(),
                 "This record contains an array, and so must have a lifetime",
             )),
-            (None, Some(_)) => Err(syn::Error::new(
+            (None, Some(_)) => Err(logged_syn_error(
                 self.name.span(),
                 "unexpected lifetime; record contains no array",
             )),
