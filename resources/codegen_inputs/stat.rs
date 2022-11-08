@@ -1,16 +1,19 @@
-#![parse_module(tables::layout::stat)]
+#![parse_module(read_fonts::tables::stat)]
 
 /// [STAT](https://docs.microsoft.com/en-us/typography/opentype/spec/stat) (Style Attributes Table)
 table Stat {
     /// Major/minor version number. Set to 1.2 for new fonts.
     #[version]
+    #[compile(MajorMinor::VERSION_1_2)]
     version: MajorMinor,
     /// The size in bytes of each axis record.
+    #[compile(8)]
     design_axis_size: u16,
     /// The number of axis records. In a font with an 'fvar' table,
     /// this value must be greater than or equal to the axisCount value
     /// in the 'fvar' table. In all fonts, must be greater than zero if
     /// axisValueCount is greater than zero.
+    #[compile(array_len($offset_to_axis_value_offsets))]
     design_axis_count: u16,
     /// Offset in bytes from the beginning of the STAT table to the
     /// start of the design axes array. If designAxisCount is zero, set
@@ -19,12 +22,15 @@ table Stat {
     #[read_offset_with($design_axis_count)]
     design_axes_offset: Offset32<[AxisRecord]>,
     /// The number of axis value tables.
+    #[compile(array_len($offset_to_axis_value_offsets))]
     axis_value_count: u16,
     /// Offset in bytes from the beginning of the STAT table to the
     /// start of the design axes value offsets array. If axisValueCount
     /// is zero, set to zero; if axisValueCount is greater than zero,
     /// must be greater than zero.
     #[read_offset_with($axis_value_count)]
+    #[compile_type(OffsetMarker<Vec<OffsetMarker<AxisValue>>, WIDTH_32>)]
+    #[to_owned(convert_axis_value_offsets(obj.offset_to_axis_values()))]
     offset_to_axis_value_offsets: Offset32<AxisValueArray>,
     /// Name ID used as fallback when projection of names into a
     /// particular font model produces a subfamily name containing only
@@ -134,6 +140,7 @@ table AxisValueFormat4 {
     format: u16,
     /// The total number of axes contributing to this axis-values
     /// combination.
+    #[compile(array_len($axis_values))]
     axis_count: u16,
     /// Flags — see below for details.
     flags: AxisValueTableFlags,
