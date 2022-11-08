@@ -191,6 +191,33 @@ pub enum AnchorTable {
     Format3(AnchorFormat3),
 }
 
+impl AnchorTable {
+    /// Construct a new `AnchorFormat1` subtable
+    pub fn format_1(x_coordinate: i16, y_coordinate: i16) -> Self {
+        Self::Format1(AnchorFormat1::new(x_coordinate, y_coordinate))
+    }
+
+    /// Construct a new `AnchorFormat2` subtable
+    pub fn format_2(x_coordinate: i16, y_coordinate: i16, anchor_point: u16) -> Self {
+        Self::Format2(AnchorFormat2::new(x_coordinate, y_coordinate, anchor_point))
+    }
+
+    /// Construct a new `AnchorFormat3` subtable
+    pub fn format_3(
+        x_coordinate: i16,
+        y_coordinate: i16,
+        x_device: Option<Device>,
+        y_device: Option<Device>,
+    ) -> Self {
+        Self::Format3(AnchorFormat3::new(
+            x_coordinate,
+            y_coordinate,
+            x_device,
+            y_device,
+        ))
+    }
+}
+
 impl Default for AnchorTable {
     fn default() -> Self {
         Self::Format1(Default::default())
@@ -526,6 +553,18 @@ pub enum SinglePos {
     Format2(SinglePosFormat2),
 }
 
+impl SinglePos {
+    /// Construct a new `SinglePosFormat1` subtable
+    pub fn format_1(coverage: CoverageTable, value_record: ValueRecord) -> Self {
+        Self::Format1(SinglePosFormat1::new(coverage, value_record))
+    }
+
+    /// Construct a new `SinglePosFormat2` subtable
+    pub fn format_2(coverage: CoverageTable, value_records: Vec<ValueRecord>) -> Self {
+        Self::Format2(SinglePosFormat2::new(coverage, value_records))
+    }
+}
+
 impl Default for SinglePos {
     fn default() -> Self {
         Self::Format1(Default::default())
@@ -701,6 +740,28 @@ impl<'a> FontRead<'a> for SinglePosFormat2 {
 pub enum PairPos {
     Format1(PairPosFormat1),
     Format2(PairPosFormat2),
+}
+
+impl PairPos {
+    /// Construct a new `PairPosFormat1` subtable
+    pub fn format_1(coverage: CoverageTable, pair_sets: Vec<PairSet>) -> Self {
+        Self::Format1(PairPosFormat1::new(coverage, pair_sets))
+    }
+
+    /// Construct a new `PairPosFormat2` subtable
+    pub fn format_2(
+        coverage: CoverageTable,
+        class_def1: ClassDef,
+        class_def2: ClassDef,
+        class1_records: Vec<Class1Record>,
+    ) -> Self {
+        Self::Format2(PairPosFormat2::new(
+            coverage,
+            class_def1,
+            class_def2,
+            class1_records,
+        ))
+    }
 }
 
 impl Default for PairPos {

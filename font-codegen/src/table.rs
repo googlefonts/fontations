@@ -1,9 +1,10 @@
 //! codegen for table objects
 
+use crate::{fields::FieldConstructorInfo, parsing::logged_syn_error};
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 
-use crate::parsing::{Attr, GenericGroup, Phase};
+use crate::parsing::{Attr, GenericGroup, Item, Items, Phase};
 
 use super::parsing::{Field, ReferencedFields, Table, TableFormat, TableReadArg, TableReadArgs};
 
@@ -408,10 +409,11 @@ pub(crate) fn generate_group_compile(
 
 pub(crate) fn generate_format_compile(
     item: &TableFormat,
-    parse_module: &syn::Path,
+    items: &Items,
 ) -> syn::Result<TokenStream> {
     let name = &item.name;
     let docs = &item.attrs.docs;
+    let parse_module = &items.parse_module_path;
     let variants = item.variants.iter().map(|variant| {
         let name = &variant.name;
         let typ = variant.type_name();
@@ -437,12 +439,16 @@ pub(crate) fn generate_format_compile(
         .is_none()
         .then(|| generate_format_from_obj(item, parse_module))
         .transpose()?;
+
+    let constructors = generate_format_constructors(item, items)?;
     Ok(quote! {
         #( #docs )*
         #[derive(Clone, Debug)]
         pub enum #name {
             #( #variants ),*
         }
+
+        #constructors
 
         impl Default for #name {
             fn default() -> Self {
@@ -468,6 +474,48 @@ pub(crate) fn generate_format_compile(
 
         #from_obj_impl
 
+    })
+}
+
+fn generate_format_constructors(item: &TableFormat, items: &Items) -> syn::Result<TokenStream> {
+    let mut constructors = Vec::new();
+    let name = &item.name;
+
+    for variant in &item.variants {
+        let var_name = &variant.name;
+        let var_type = variant.type_name();
+
+        let Some(Item::Table(table)) = items.get(var_type) else {
+            return Err(logged_syn_error(var_type.span(), "Unknown type; codegen currently expects types in format groups to be local to the file."));
+        };
+        if table.attrs.skip_constructor.is_some() {
+            continue;
+        }
+
+        let constructor_args_raw = table.fields.iter_constructor_info().collect::<Vec<_>>();
+        let constructor_args = constructor_args_raw.iter().map(
+            |FieldConstructorInfo {
+                 name, arg_tokens, ..
+             }| quote!(#name: #arg_tokens),
+        );
+        let constructor_arg_names = constructor_args_raw.iter().map(|info| &info.name);
+
+        let constructor_ident = make_snake_case_ident(var_name);
+
+        let docstring = format!(" Construct a new `{}` subtable", variant.type_name());
+        constructors.push(quote! {
+            #[doc = #docstring]
+            pub fn #constructor_ident ( #( #constructor_args,)*  ) -> Self {
+                Self::#var_name( #var_type::new( #( #constructor_arg_names, )* ))
+            }
+        });
+    }
+
+    Ok(quote! {
+        impl #name {
+
+            #( #constructors )*
+        }
     })
 }
 
@@ -737,4 +785,23 @@ impl TableReadArgs {
             })
         })
     }
+}
+
+// An overwrought and likely incorrect way of converting 'Format1' to 'format_1' -_-
+fn make_snake_case_ident(ident: &syn::Ident) -> syn::Ident {
+    let input = ident.to_string();
+    let mut output = String::with_capacity(input.len() + 2);
+    let mut prev_char = input.chars().next().unwrap();
+    output.extend(prev_char.to_lowercase());
+    for c in input.chars().skip(1) {
+        if (c.is_uppercase() && !prev_char.is_uppercase())
+            || (c.is_numeric() && !prev_char.is_numeric())
+        {
+            output.push('_');
+        }
+        output.extend(c.to_lowercase());
+        prev_char = c;
+    }
+
+    syn::Ident::new(&output, ident.span())
 }

@@ -358,6 +358,23 @@ pub enum CaretValue {
     Format3(CaretValueFormat3),
 }
 
+impl CaretValue {
+    /// Construct a new `CaretValueFormat1` subtable
+    pub fn format_1(coordinate: i16) -> Self {
+        Self::Format1(CaretValueFormat1::new(coordinate))
+    }
+
+    /// Construct a new `CaretValueFormat2` subtable
+    pub fn format_2(caret_value_point_index: u16) -> Self {
+        Self::Format2(CaretValueFormat2::new(caret_value_point_index))
+    }
+
+    /// Construct a new `CaretValueFormat3` subtable
+    pub fn format_3(coordinate: i16, device: Device) -> Self {
+        Self::Format3(CaretValueFormat3::new(coordinate, device))
+    }
+}
+
 impl Default for CaretValue {
     fn default() -> Self {
         Self::Format1(Default::default())
