@@ -7,19 +7,27 @@ use crate::codegen_prelude::*;
 
 #[derive(Clone, Debug, Default)]
 pub struct BasicTable {
-    pub simple_count: u16,
     pub simple_records: Vec<SimpleRecord>,
-    pub arrays_inner_count: u16,
-    pub array_records_count: u32,
     pub array_records: Vec<ContainsArrays>,
 }
 
+impl BasicTable {
+    /// Construct a new `BasicTable`
+    pub fn new(simple_records: Vec<SimpleRecord>, array_records: Vec<ContainsArrays>) -> Self {
+        Self {
+            simple_records: simple_records.into_iter().map(Into::into).collect(),
+            array_records,
+        }
+    }
+}
+
 impl FontWrite for BasicTable {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        self.simple_count.write_into(writer);
+        (array_len(&self.simple_records).unwrap() as u16).write_into(writer);
         self.simple_records.write_into(writer);
-        self.arrays_inner_count.write_into(writer);
-        self.array_records_count.write_into(writer);
+        (self.compute_arrays_inner_count() as u16).write_into(writer);
+        (array_len(&self.array_records).unwrap() as u32).write_into(writer);
         self.array_records.write_into(writer);
     }
 }
@@ -47,10 +55,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::records::BasicTable<'a>> for Basic
     fn from_obj_ref(obj: &read_fonts::codegen_test::records::BasicTable<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         BasicTable {
-            simple_count: obj.simple_count(),
             simple_records: obj.simple_records().to_owned_obj(offset_data),
-            arrays_inner_count: obj.arrays_inner_count(),
-            array_records_count: obj.array_records_count(),
             array_records: obj
                 .array_records()
                 .iter()
@@ -73,6 +78,13 @@ impl<'a> FontRead<'a> for BasicTable {
 pub struct SimpleRecord {
     pub val1: u16,
     pub va2: u32,
+}
+
+impl SimpleRecord {
+    /// Construct a new `SimpleRecord`
+    pub fn new(val1: u16, va2: u32) -> Self {
+        Self { val1, va2 }
+    }
 }
 
 impl FontWrite for SimpleRecord {
@@ -99,6 +111,16 @@ impl FromObjRef<read_fonts::codegen_test::records::SimpleRecord> for SimpleRecor
 pub struct ContainsArrays {
     pub scalars: Vec<u16>,
     pub records: Vec<SimpleRecord>,
+}
+
+impl ContainsArrays {
+    /// Construct a new `ContainsArrays`
+    pub fn new(scalars: Vec<u16>, records: Vec<SimpleRecord>) -> Self {
+        Self {
+            scalars: scalars.into_iter().map(Into::into).collect(),
+            records: records.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for ContainsArrays {
@@ -140,14 +162,24 @@ impl FromObjRef<read_fonts::codegen_test::records::ContainsArrays<'_>> for Conta
 
 #[derive(Clone, Debug, Default)]
 pub struct ContainsOffests {
-    pub off_array_count: u16,
     pub array: OffsetMarker<Vec<SimpleRecord>>,
     pub other: OffsetMarker<BasicTable, WIDTH_32>,
 }
 
+impl ContainsOffests {
+    /// Construct a new `ContainsOffests`
+    pub fn new(array: Vec<SimpleRecord>, other: BasicTable) -> Self {
+        Self {
+            array: array.into(),
+            other: other.into(),
+        }
+    }
+}
+
 impl FontWrite for ContainsOffests {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        self.off_array_count.write_into(writer);
+        (array_len(&self.array).unwrap() as u16).write_into(writer);
         self.array.write_into(writer);
         self.other.write_into(writer);
     }
@@ -172,7 +204,6 @@ impl FromObjRef<read_fonts::codegen_test::records::ContainsOffests> for Contains
         offset_data: FontData,
     ) -> Self {
         ContainsOffests {
-            off_array_count: obj.off_array_count(),
             array: obj.array(offset_data).to_owned_obj(offset_data),
             other: obj.other(offset_data).to_owned_table(),
         }

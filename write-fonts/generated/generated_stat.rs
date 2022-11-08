@@ -26,6 +26,21 @@ pub struct Stat {
     pub elided_fallback_name_id: Option<u16>,
 }
 
+impl Stat {
+    /// Construct a new `Stat`
+    #[allow(clippy::useless_conversion)]
+    pub fn new(
+        design_axes: Vec<AxisRecord>,
+        offset_to_axis_values: OffsetMarker<Vec<OffsetMarker<AxisValue>>, WIDTH_32>,
+    ) -> Self {
+        Self {
+            design_axes: design_axes.into(),
+            offset_to_axis_values: offset_to_axis_values.into(),
+            ..Default::default()
+        }
+    }
+}
+
 impl FontWrite for Stat {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -99,6 +114,17 @@ pub struct AxisRecord {
     pub axis_ordering: u16,
 }
 
+impl AxisRecord {
+    /// Construct a new `AxisRecord`
+    pub fn new(axis_tag: Tag, axis_name_id: u16, axis_ordering: u16) -> Self {
+        Self {
+            axis_tag,
+            axis_name_id,
+            axis_ordering,
+        }
+    }
+}
+
 impl FontWrite for AxisRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.axis_tag.write_into(writer);
@@ -127,6 +153,15 @@ pub struct AxisValueArray {
     /// Array of offsets to axis value tables, in bytes from the start
     /// of the axis value offsets array.
     pub axis_values: Vec<OffsetMarker<AxisValue>>,
+}
+
+impl AxisValueArray {
+    /// Construct a new `AxisValueArray`
+    pub fn new(axis_values: Vec<AxisValue>) -> Self {
+        Self {
+            axis_values: axis_values.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for AxisValueArray {
@@ -231,6 +266,23 @@ pub struct AxisValueFormat1 {
     pub value: Fixed,
 }
 
+impl AxisValueFormat1 {
+    /// Construct a new `AxisValueFormat1`
+    pub fn new(
+        axis_index: u16,
+        flags: AxisValueTableFlags,
+        value_name_id: u16,
+        value: Fixed,
+    ) -> Self {
+        Self {
+            axis_index,
+            flags,
+            value_name_id,
+            value,
+        }
+    }
+}
+
 impl FontWrite for AxisValueFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -286,6 +338,27 @@ pub struct AxisValueFormat2 {
     /// The maximum value for a range associated with the specified
     /// name ID.
     pub range_max_value: Fixed,
+}
+
+impl AxisValueFormat2 {
+    /// Construct a new `AxisValueFormat2`
+    pub fn new(
+        axis_index: u16,
+        flags: AxisValueTableFlags,
+        value_name_id: u16,
+        nominal_value: Fixed,
+        range_min_value: Fixed,
+        range_max_value: Fixed,
+    ) -> Self {
+        Self {
+            axis_index,
+            flags,
+            value_name_id,
+            nominal_value,
+            range_min_value,
+            range_max_value,
+        }
+    }
 }
 
 impl FontWrite for AxisValueFormat2 {
@@ -345,6 +418,25 @@ pub struct AxisValueFormat3 {
     pub linked_value: Fixed,
 }
 
+impl AxisValueFormat3 {
+    /// Construct a new `AxisValueFormat3`
+    pub fn new(
+        axis_index: u16,
+        flags: AxisValueTableFlags,
+        value_name_id: u16,
+        value: Fixed,
+        linked_value: Fixed,
+    ) -> Self {
+        Self {
+            axis_index,
+            flags,
+            value_name_id,
+            value,
+            linked_value,
+        }
+    }
+}
+
 impl FontWrite for AxisValueFormat3 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -393,6 +485,21 @@ pub struct AxisValueFormat4 {
     /// Array of AxisValue records that provide the combination of axis
     /// values, one for each contributing axis.
     pub axis_values: Vec<AxisValueRecord>,
+}
+
+impl AxisValueFormat4 {
+    /// Construct a new `AxisValueFormat4`
+    pub fn new(
+        flags: AxisValueTableFlags,
+        value_name_id: u16,
+        axis_values: Vec<AxisValueRecord>,
+    ) -> Self {
+        Self {
+            flags,
+            value_name_id,
+            axis_values: axis_values.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for AxisValueFormat4 {
@@ -447,6 +554,13 @@ pub struct AxisValueRecord {
     pub axis_index: u16,
     /// A numeric value for this attribute value.
     pub value: Fixed,
+}
+
+impl AxisValueRecord {
+    /// Construct a new `AxisValueRecord`
+    pub fn new(axis_index: u16, value: Fixed) -> Self {
+        Self { axis_index, value }
+    }
 }
 
 impl FontWrite for AxisValueRecord {

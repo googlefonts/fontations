@@ -459,13 +459,11 @@ mod tests {
     #[test]
     #[should_panic(expected = "larger than end_glyph_id")]
     fn validate_classdef_ranges() {
-        let classdef = ClassDefFormat2 {
-            class_range_records: vec![ClassRangeRecord {
-                start_glyph_id: GlyphId::new(12),
-                end_glyph_id: GlyphId::new(3),
-                class: 7,
-            }],
-        };
+        let classdef = ClassDefFormat2::new(vec![ClassRangeRecord::new(
+            GlyphId::new(12),
+            GlyphId::new(3),
+            7,
+        )]);
 
         classdef.validate().unwrap();
     }

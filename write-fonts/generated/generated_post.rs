@@ -70,6 +70,33 @@ impl Default for Post {
     }
 }
 
+impl Post {
+    /// Construct a new `Post`
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        italic_angle: Fixed,
+        underline_position: FWord,
+        underline_thickness: FWord,
+        is_fixed_pitch: u32,
+        min_mem_type42: u32,
+        max_mem_type42: u32,
+        min_mem_type1: u32,
+        max_mem_type1: u32,
+    ) -> Self {
+        Self {
+            italic_angle,
+            underline_position,
+            underline_thickness,
+            is_fixed_pitch,
+            min_mem_type42,
+            max_mem_type42,
+            min_mem_type1,
+            max_mem_type1,
+            ..Default::default()
+        }
+    }
+}
+
 impl FontWrite for Post {
     fn write_into(&self, writer: &mut TableWriter) {
         let version = self.version;

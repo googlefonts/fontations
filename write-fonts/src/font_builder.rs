@@ -36,22 +36,11 @@ impl<'a> FontBuilder<'a> {
                 position += length;
                 let (checksum, padding) = checksum_and_padding(data);
                 position += padding;
-                TableRecord {
-                    tag: *tag,
-                    checksum,
-                    offset,
-                    length,
-                }
+                TableRecord::new(*tag, checksum, offset, length)
             })
             .collect();
 
-        let directory = TableDirectory {
-            sfnt_version: font_types::TT_SFNT_VERSION,
-            search_range: 0,
-            entry_selector: 0,
-            range_shift: 0,
-            table_records,
-        };
+        let directory = TableDirectory::new(font_types::TT_SFNT_VERSION, 0, 0, 0, table_records);
 
         let mut writer = TableWriter::default();
         directory.write_into(&mut writer);
