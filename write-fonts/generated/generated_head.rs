@@ -45,6 +45,42 @@ pub struct Head {
     pub index_to_loc_format: i16,
 }
 
+impl Head {
+    /// Construct a new `Head`
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        font_revision: Fixed,
+        checksum_adjustment: u32,
+        flags: u16,
+        units_per_em: u16,
+        created: LongDateTime,
+        modified: LongDateTime,
+        x_min: i16,
+        y_min: i16,
+        x_max: i16,
+        y_max: i16,
+        mac_style: u16,
+        lowest_rec_ppem: u16,
+        index_to_loc_format: i16,
+    ) -> Self {
+        Self {
+            font_revision,
+            checksum_adjustment,
+            flags,
+            units_per_em,
+            created,
+            modified,
+            x_min,
+            y_min,
+            x_max,
+            y_max,
+            mac_style,
+            lowest_rec_ppem,
+            index_to_loc_format,
+        }
+    }
+}
+
 impl FontWrite for Head {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {

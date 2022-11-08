@@ -56,6 +56,7 @@ pub(crate) struct TableAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) skip_font_write: Option<syn::Path>,
     pub(crate) skip_from_obj: Option<syn::Path>,
+    pub(crate) skip_constructor: Option<syn::Path>,
     pub(crate) read_args: Option<Attr<TableReadArgs>>,
     pub(crate) generic_offset: Option<Attr<syn::Ident>>,
 }
@@ -958,6 +959,7 @@ impl Parse for FieldAttrs {
 
 static SKIP_FROM_OBJ: &str = "skip_from_obj";
 static SKIP_FONT_WRITE: &str = "skip_font_write";
+static SKIP_CONSTRUCTOR: &str = "skip_constructor";
 static READ_ARGS: &str = "read_args";
 static GENERIC_OFFSET: &str = "generic_offset";
 
@@ -977,6 +979,8 @@ impl Parse for TableAttrs {
                 this.skip_from_obj = Some(attr.path);
             } else if ident == SKIP_FONT_WRITE {
                 this.skip_font_write = Some(attr.path);
+            } else if ident == SKIP_CONSTRUCTOR {
+                this.skip_constructor = Some(attr.path);
             } else if ident == READ_ARGS {
                 this.read_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == GENERIC_OFFSET {

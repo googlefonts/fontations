@@ -1,11 +1,12 @@
 //! codegen for record objects
 
 use proc_macro2::TokenStream;
-use quote::quote;
+use quote::{quote, ToTokens};
 
-use crate::parsing::{logged_syn_error, Phase};
-
-use super::parsing::{CustomCompile, Field, Fields, Record, TableAttrs};
+use crate::{
+    fields::FieldConstructorInfo,
+    parsing::{logged_syn_error, CustomCompile, Field, Fields, Phase, Record, TableAttrs},
+};
 
 pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
     let name = &item.name;
@@ -211,9 +212,9 @@ pub(crate) fn generate_compile_impl(
 
     let can_derive_default = fields.can_derive_default()?;
     let maybe_derive_default = can_derive_default.then(|| quote!(, Default));
+    let default_impl_params = generic_param.map(|t| quote! { <#t: Default> });
     let maybe_custom_default = (!can_derive_default).then(|| {
         let default_field_inits = fields.iter_compile_default_inits();
-        let default_impl_params = generic_param.map(|t| quote! { <#t: Default> });
         quote! {
         impl #default_impl_params Default for #name <#generic_param> {
             fn default() -> Self {
@@ -225,6 +226,59 @@ pub(crate) fn generate_compile_impl(
         }
     });
 
+    let constructor_args_raw = fields.iter_constructor_info().collect::<Vec<_>>();
+    let constructor_args = constructor_args_raw.iter().map(
+        |FieldConstructorInfo {
+             name, arg_tokens, ..
+         }| quote!(#name: #arg_tokens),
+    );
+    let constructor_field_inits = constructor_args_raw.iter().map(
+        |FieldConstructorInfo {
+             name,
+             is_offset,
+             is_array,
+             ..
+         }| {
+            if *is_array {
+                quote!(#name: #name.into_iter().map(Into::into).collect())
+            } else if *is_offset {
+                quote!( #name: #name.into())
+            } else {
+                name.into_token_stream()
+            }
+        },
+    );
+
+    let maybe_constructor = attrs.skip_constructor.is_none().then(|| {
+        let docstring = format!(" Construct a new `{name}`");
+        let add_defaults = fields
+            .iter()
+            .any(Field::skipped_in_constructor)
+            .then(|| quote!(..Default::default()));
+        // judiciously allow this lint
+        let too_many_args =
+            (constructor_args_raw.len() > 7).then(|| quote!(#[allow(clippy::too_many_arguments)]));
+        // if this has a manual compile type we don't know much about it, and
+        // will often trigger this lint:
+        let useless_conversion = (constructor_args_raw
+            .iter()
+            .any(|info| info.manual_compile_type))
+        .then(|| quote!( #[allow(clippy::useless_conversion)] ));
+        quote! {
+            impl #default_impl_params #name <#generic_param> {
+                #[doc = #docstring]
+                #too_many_args
+                #useless_conversion
+                pub fn new( #( #constructor_args,)*  ) -> Self {
+                    Self {
+                        #( #constructor_field_inits, )*
+                        #add_defaults
+                    }
+                }
+            }
+        }
+    });
+
     Ok(quote! {
         #( #docs )*
         #[derive(Clone, Debug #maybe_derive_default)]
@@ -233,6 +287,8 @@ pub(crate) fn generate_compile_impl(
         }
 
         #maybe_custom_default
+
+        #maybe_constructor
 
         #font_write_impl
 

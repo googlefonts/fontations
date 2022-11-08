@@ -33,6 +33,7 @@ record TableRecord {
 /// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
 #[skip_from_obj]
 #[skip_font_write]
+#[skip_constructor]
 table TTCHeader {
     /// Font Collection ID string: "ttcf"
     ttc_tag: Tag,

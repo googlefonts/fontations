@@ -14,6 +14,17 @@ pub struct Name {
     pub lang_tag_record: Option<Vec<LangTagRecord>>,
 }
 
+impl Name {
+    /// Construct a new `Name`
+    #[allow(clippy::useless_conversion)]
+    pub fn new(name_record: BTreeSet<NameRecord>) -> Self {
+        Self {
+            name_record: name_record.into_iter().map(Into::into).collect(),
+            ..Default::default()
+        }
+    }
+}
+
 impl FontWrite for Name {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -89,6 +100,16 @@ pub struct LangTagRecord {
     pub lang_tag: OffsetMarker<String>,
 }
 
+impl LangTagRecord {
+    /// Construct a new `LangTagRecord`
+    #[allow(clippy::useless_conversion)]
+    pub fn new(lang_tag: OffsetMarker<String>) -> Self {
+        Self {
+            lang_tag: lang_tag.into(),
+        }
+    }
+}
+
 impl Validate for LangTagRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -114,6 +135,26 @@ pub struct NameRecord {
     pub name_id: u16,
     /// String offset from start of storage area (in bytes).
     pub string: OffsetMarker<String>,
+}
+
+impl NameRecord {
+    /// Construct a new `NameRecord`
+    #[allow(clippy::useless_conversion)]
+    pub fn new(
+        platform_id: u16,
+        encoding_id: u16,
+        language_id: u16,
+        name_id: u16,
+        string: OffsetMarker<String>,
+    ) -> Self {
+        Self {
+            platform_id,
+            encoding_id,
+            language_id,
+            name_id,
+            string: string.into(),
+        }
+    }
 }
 
 impl Validate for NameRecord {

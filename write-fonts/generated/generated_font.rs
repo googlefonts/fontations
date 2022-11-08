@@ -17,6 +17,25 @@ pub struct TableDirectory {
     pub table_records: Vec<TableRecord>,
 }
 
+impl TableDirectory {
+    /// Construct a new `TableDirectory`
+    pub fn new(
+        sfnt_version: u32,
+        search_range: u16,
+        entry_selector: u16,
+        range_shift: u16,
+        table_records: Vec<TableRecord>,
+    ) -> Self {
+        Self {
+            sfnt_version,
+            search_range,
+            entry_selector,
+            range_shift,
+            table_records: table_records.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for TableDirectory {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -53,6 +72,19 @@ pub struct TableRecord {
     pub offset: u32,
     /// Length of the table.
     pub length: u32,
+}
+
+impl TableRecord {
+    /// Construct a new `TableRecord`
+    #[allow(clippy::useless_conversion)]
+    pub fn new(tag: Tag, checksum: u32, offset: u32, length: u32) -> Self {
+        Self {
+            tag,
+            checksum,
+            offset: offset.into(),
+            length,
+        }
+    }
 }
 
 impl FontWrite for TableRecord {

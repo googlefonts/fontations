@@ -6,6 +6,7 @@
 
 #![parse_module(read_fonts::codegen_test::offsets_arrays)]
 
+#[skip_constructor]
 table KindsOfOffsets {
     /// The major/minor version of the GDEF table
     #[version]
@@ -17,6 +18,7 @@ table KindsOfOffsets {
     #[nullable]
     nullable_offset: Offset16<Dummy>,
     /// count of the array at array_offset
+    #[compile(array_len($array_offset))]
     array_offset_count: u16,
     /// An offset to an array:
     #[read_offset_with($array_offset_count)]
@@ -38,12 +40,14 @@ table KindsOfOffsets {
     versioned_nullable_offset: Offset32<Dummy>,
 }
 
+#[skip_constructor]
 table KindsOfArraysOfOffsets {
     /// The version
     #[version]
     #[compile(MajorMinor::VERSION_1_1)]
     version: MajorMinor,
     /// The number of items in each array
+    #[compile(array_len($nonnullable_offsets))]
     count: u16,
     /// A normal array offset
     #[count($count)]
@@ -63,11 +67,13 @@ table KindsOfArraysOfOffsets {
     versioned_nullable_offsets: [Offset16<Dummy>],
 }
 
+#[skip_constructor]
 table KindsOfArrays {
     #[version]
     #[default(1)]
     version: u16,
     /// the number of items in each array
+    #[compile(array_len($scalars))]
     count: u16,
     /// an array of scalars
     #[count($count)]
@@ -85,10 +91,12 @@ table KindsOfArrays {
     versioned_records: [Shmecord],
 }
 
+#[skip_constructor]
 table Dummy {
     value: u16,
 }
 
+#[skip_constructor]
 record Shmecord {
     length: u16,
     breadth: u32,

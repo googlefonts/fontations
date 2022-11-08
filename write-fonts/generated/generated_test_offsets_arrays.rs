@@ -13,8 +13,6 @@ pub struct KindsOfOffsets {
     pub nonnullable: OffsetMarker<Dummy>,
     /// An offset that is nullable, but always present
     pub nullable: NullableOffsetMarker<Dummy>,
-    /// count of the array at array_offset
-    pub array_offset_count: u16,
     /// An offset to an array:
     pub array: OffsetMarker<Vec<u16>>,
     /// An offset to an array of records
@@ -33,7 +31,6 @@ impl Default for KindsOfOffsets {
             version: MajorMinor::VERSION_1_1,
             nonnullable: Default::default(),
             nullable: Default::default(),
-            array_offset_count: Default::default(),
             array: Default::default(),
             record_array: Default::default(),
             versioned_nullable_record_array: Default::default(),
@@ -44,12 +41,13 @@ impl Default for KindsOfOffsets {
 }
 
 impl FontWrite for KindsOfOffsets {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         let version = self.version;
         version.write_into(writer);
         self.nonnullable.write_into(writer);
         self.nullable.write_into(writer);
-        self.array_offset_count.write_into(writer);
+        (array_len(&self.array).unwrap() as u16).write_into(writer);
         self.array.write_into(writer);
         self.record_array.write_into(writer);
         version
@@ -110,7 +108,6 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::KindsOfOffsets<'a>
             version: obj.version(),
             nonnullable: obj.nonnullable().to_owned_table(),
             nullable: obj.nullable().to_owned_table(),
-            array_offset_count: obj.array_offset_count(),
             array: obj.array().to_owned_obj(offset_data),
             record_array: obj.record_array().to_owned_obj(offset_data),
             versioned_nullable_record_array: obj
@@ -136,8 +133,6 @@ impl<'a> FontRead<'a> for KindsOfOffsets {
 
 #[derive(Clone, Debug, Default)]
 pub struct KindsOfArraysOfOffsets {
-    /// The number of items in each array
-    pub count: u16,
     /// A normal array offset
     pub nonnullables: Vec<OffsetMarker<Dummy>>,
     /// An offset that is nullable, but always present
@@ -153,7 +148,7 @@ impl FontWrite for KindsOfArraysOfOffsets {
     fn write_into(&self, writer: &mut TableWriter) {
         let version = MajorMinor::VERSION_1_1 as MajorMinor;
         version.write_into(writer);
-        self.count.write_into(writer);
+        (array_len(&self.nonnullables).unwrap() as u16).write_into(writer);
         self.nonnullables.write_into(writer);
         self.nullables.write_into(writer);
         version.compatible(MajorMinor::VERSION_1_1).then(|| {
@@ -224,7 +219,6 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::KindsOfArraysOfOff
         _: FontData,
     ) -> Self {
         KindsOfArraysOfOffsets {
-            count: obj.count(),
             nonnullables: obj.nonnullables().map(|x| x.to_owned_table()).collect(),
             nullables: obj.nullables().map(|x| x.to_owned_table()).collect(),
             versioned_nonnullables: obj
@@ -252,8 +246,6 @@ impl<'a> FontRead<'a> for KindsOfArraysOfOffsets {
 #[derive(Clone, Debug)]
 pub struct KindsOfArrays {
     pub version: u16,
-    /// the number of items in each array
-    pub count: u16,
     /// an array of scalars
     pub scalars: Vec<u16>,
     /// an array of records
@@ -268,7 +260,6 @@ impl Default for KindsOfArrays {
     fn default() -> Self {
         Self {
             version: 1,
-            count: Default::default(),
             scalars: Default::default(),
             records: Default::default(),
             versioned_scalars: Default::default(),
@@ -278,10 +269,11 @@ impl Default for KindsOfArrays {
 }
 
 impl FontWrite for KindsOfArrays {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         let version = self.version;
         version.write_into(writer);
-        self.count.write_into(writer);
+        (array_len(&self.scalars).unwrap() as u16).write_into(writer);
         self.scalars.write_into(writer);
         self.records.write_into(writer);
         version.compatible(1).then(|| {
@@ -347,7 +339,6 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::KindsOfArrays<'a>>
         let offset_data = obj.offset_data();
         KindsOfArrays {
             version: obj.version(),
-            count: obj.count(),
             scalars: obj.scalars().to_owned_obj(offset_data),
             records: obj.records().to_owned_obj(offset_data),
             versioned_scalars: obj.versioned_scalars().to_owned_obj(offset_data),

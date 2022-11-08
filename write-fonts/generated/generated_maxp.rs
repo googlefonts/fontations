@@ -42,6 +42,16 @@ pub struct Maxp {
     pub max_component_depth: Option<u16>,
 }
 
+impl Maxp {
+    /// Construct a new `Maxp`
+    pub fn new(num_glyphs: u16) -> Self {
+        Self {
+            num_glyphs,
+            ..Default::default()
+        }
+    }
+}
+
 impl FontWrite for Maxp {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
