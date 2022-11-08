@@ -2,6 +2,7 @@
 
 use std::{backtrace::Backtrace, collections::HashMap, fmt::Display, ops::Deref, str::FromStr};
 
+use indexmap::IndexMap;
 use log::{debug, trace};
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
@@ -17,7 +18,7 @@ use syn::{
 #[derive(Debug)]
 pub(crate) struct Items {
     pub(crate) parse_module_path: syn::Path,
-    pub(crate) items: Vec<Item>,
+    items: IndexMap<syn::Ident, Item>,
 }
 
 #[derive(Debug, Clone)]
@@ -394,10 +395,11 @@ mod kw {
 
 impl Parse for Items {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        let mut items = Vec::new();
+        let mut items = IndexMap::new();
         let parse_module_path = get_parse_module_path(input)?;
         while !input.is_empty() {
-            items.push(input.parse()?);
+            let item = input.parse::<Item>()?;
+            items.insert(item.name().clone(), item);
         }
         Ok(Self {
             items,
@@ -1014,60 +1016,12 @@ impl Parse for TableReadArg {
     }
 }
 
-fn build_type_map(items: &Items) -> HashMap<String, FieldType> {
-    return items
-        .items
-        .iter()
-        .filter(|item| !matches!(item, Item::Format(..) | Item::GenericGroup(..)))
-        // clone like crazy to avoid holding an immutable borrow of the items
-        .map(|item| match item {
-            // We're "forgetting" this is a record, could keep if we find a need
-            Item::Record(data) => (
-                data.name.to_string(),
-                FieldType::Struct {
-                    typ: data.name.clone(),
-                },
-            ),
-            // We're "forgetting" this is a table, could keep if we find a need
-            Item::Table(data) => (
-                data.raw_name().to_string(),
-                FieldType::Struct {
-                    typ: data.raw_name().clone(),
-                },
-            ),
-            // We're "forgetting" the underlying type, could keep if we find a need
-            Item::RawEnum(data) => (
-                data.name.to_string(),
-                FieldType::Scalar {
-                    typ: data.name.clone(),
-                },
-            ),
-            // We're "forgetting" the underlying type, could keep if we find a need
-            Item::Flags(data) => (
-                data.name.to_string(),
-                FieldType::Scalar {
-                    typ: data.name.clone(),
-                },
-            ),
-            Item::Extern(Extern {
-                name,
-                typ: ExternType::Scalar,
-            }) => (name.to_string(), FieldType::Scalar { typ: name.clone() }),
-            Item::Extern(Extern {
-                name,
-                typ: ExternType::Record,
-            }) => (name.to_string(), FieldType::Struct { typ: name.clone() }),
-            Item::Format(..) | Item::GenericGroup(..) => unreachable!("We filtered you out!!"),
-        })
-        .collect();
-}
-
 fn resolve_ident<'a>(
-    known: &'a HashMap<String, FieldType>,
+    known: &'a HashMap<syn::Ident, FieldType>,
     field_name: &syn::Ident,
     field_type: &syn::Ident,
 ) -> Result<&'a FieldType, syn::Error> {
-    if let Some(item) = known.get(&field_type.to_string()) {
+    if let Some(item) = known.get(field_type) {
         debug!("Resolve {}: {} to {:?}", field_name, field_type, item);
         Ok(item)
     } else {
@@ -1078,7 +1032,10 @@ fn resolve_ident<'a>(
     }
 }
 
-fn resolve_field(known: &HashMap<String, FieldType>, field: &mut Field) -> Result<(), syn::Error> {
+fn resolve_field(
+    known: &HashMap<syn::Ident, FieldType>,
+    field: &mut Field,
+) -> Result<(), syn::Error> {
     if let FieldType::PendingResolution { typ } = &field.typ {
         let resolved_typ = resolve_ident(known, &field.name, typ)?;
         *field = Field {
@@ -1120,22 +1077,29 @@ fn resolve_field(known: &HashMap<String, FieldType>, field: &mut Field) -> Resul
 
 impl Items {
     pub(crate) fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
-        for item in &self.items {
+        for item in self.iter() {
             item.sanity_check(phase)?;
         }
         Ok(())
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Item> + '_ {
+        self.items.values()
+    }
+
+    pub(crate) fn iter_mut(&mut self) -> impl Iterator<Item = &mut Item> + '_ {
+        self.items.values_mut()
     }
 
     pub(crate) fn resolve_pending(&mut self) -> Result<(), syn::Error> {
         // We should know what some stuff is now
         // In theory we could repeat resolution until we succeed or stop learning
         // but I don't think ever need that currently
-        let known = build_type_map(self);
-
+        let known = self.build_type_map();
         known.iter().for_each(|(k, v)| trace!("{} => {:?}", k, v));
 
         // Try to resolve everything pending against the known world
-        for item in &mut self.items {
+        for item in self.iter_mut() {
             let fields = match item {
                 Item::Record(item) => &mut item.fields.fields,
                 Item::Table(item) => &mut item.fields.fields,
@@ -1147,9 +1111,51 @@ impl Items {
         }
         Ok(())
     }
+
+    // we return a new structure instead of resolving against self because
+    // resolution involves mutable access to self.
+    fn build_type_map(&self) -> HashMap<syn::Ident, FieldType> {
+        self.items
+            .iter()
+            .filter_map(|(key, value)| {
+                let value = match value {
+                    Item::Table(_)
+                    | Item::Record(_)
+                    | Item::Extern(Extern {
+                        typ: ExternType::Record,
+                        ..
+                    }) => FieldType::Struct {
+                        typ: value.name().clone(),
+                    },
+                    Item::Flags(_)
+                    | Item::RawEnum(_)
+                    | Item::Extern(Extern {
+                        typ: ExternType::Scalar,
+                        ..
+                    }) => FieldType::Scalar {
+                        typ: value.name().clone(),
+                    },
+                    Item::Format(_) | Item::GenericGroup(_) => return None,
+                };
+                Some((key.clone(), value))
+            })
+            .collect()
+    }
 }
 
 impl Item {
+    fn name(&self) -> &syn::Ident {
+        match self {
+            Item::Table(table) => &table.name,
+            Item::Record(record) => &record.name,
+            Item::Format(group) => &group.name,
+            Item::GenericGroup(group) => &group.name,
+            Item::RawEnum(item) => &item.name,
+            Item::Flags(item) => &item.name,
+            Item::Extern(item) => &item.name,
+        }
+    }
+
     fn sanity_check(&self, phase: Phase) -> syn::Result<()> {
         match self {
             Item::Table(item) => item.sanity_check(phase),
