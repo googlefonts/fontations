@@ -5,8 +5,10 @@
 use std::path::{Path, PathBuf};
 
 use font_codegen::{ErrorReport, Mode};
+
 use log::{debug, error};
 use miette::miette;
+use rayon::prelude::*;
 use serde::Deserialize;
 
 fn main() -> miette::Result<()> {
@@ -51,7 +53,7 @@ fn run_plan(path: &Path) -> miette::Result<()> {
 
     let results = plan
         .generate
-        .iter()
+        .par_iter()
         .map(|op| run_for_path(&op.source, op.mode))
         .collect::<Result<Vec<_>, _>>()?;
 
