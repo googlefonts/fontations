@@ -705,6 +705,18 @@ pub enum CoverageTable {
     Format2(CoverageFormat2),
 }
 
+impl CoverageTable {
+    /// Construct a new `CoverageFormat1` subtable
+    pub fn format_1(glyph_array: Vec<GlyphId>) -> Self {
+        Self::Format1(CoverageFormat1::new(glyph_array))
+    }
+
+    /// Construct a new `CoverageFormat2` subtable
+    pub fn format_2(range_records: Vec<RangeRecord>) -> Self {
+        Self::Format2(CoverageFormat2::new(range_records))
+    }
+}
+
 impl Default for CoverageTable {
     fn default() -> Self {
         Self::Format1(Default::default())
@@ -916,6 +928,18 @@ impl FromObjRef<read_fonts::layout::ClassRangeRecord> for ClassRangeRecord {
 pub enum ClassDef {
     Format1(ClassDefFormat1),
     Format2(ClassDefFormat2),
+}
+
+impl ClassDef {
+    /// Construct a new `ClassDefFormat1` subtable
+    pub fn format_1(start_glyph_id: GlyphId, class_value_array: Vec<u16>) -> Self {
+        Self::Format1(ClassDefFormat1::new(start_glyph_id, class_value_array))
+    }
+
+    /// Construct a new `ClassDefFormat2` subtable
+    pub fn format_2(class_range_records: Vec<ClassRangeRecord>) -> Self {
+        Self::Format2(ClassDefFormat2::new(class_range_records))
+    }
 }
 
 impl Default for ClassDef {
@@ -1452,6 +1476,34 @@ pub enum SequenceContext {
     Format1(SequenceContextFormat1),
     Format2(SequenceContextFormat2),
     Format3(SequenceContextFormat3),
+}
+
+impl SequenceContext {
+    /// Construct a new `SequenceContextFormat1` subtable
+    pub fn format_1(coverage: CoverageTable, seq_rule_sets: Vec<Option<SequenceRuleSet>>) -> Self {
+        Self::Format1(SequenceContextFormat1::new(coverage, seq_rule_sets))
+    }
+
+    /// Construct a new `SequenceContextFormat2` subtable
+    pub fn format_2(
+        coverage: CoverageTable,
+        class_def: ClassDef,
+        class_seq_rule_sets: Vec<Option<ClassSequenceRuleSet>>,
+    ) -> Self {
+        Self::Format2(SequenceContextFormat2::new(
+            coverage,
+            class_def,
+            class_seq_rule_sets,
+        ))
+    }
+
+    /// Construct a new `SequenceContextFormat3` subtable
+    pub fn format_3(
+        coverages: Vec<CoverageTable>,
+        seq_lookup_records: Vec<SequenceLookupRecord>,
+    ) -> Self {
+        Self::Format3(SequenceContextFormat3::new(coverages, seq_lookup_records))
+    }
 }
 
 impl Default for SequenceContext {
@@ -2113,6 +2165,51 @@ pub enum ChainedSequenceContext {
     Format1(ChainedSequenceContextFormat1),
     Format2(ChainedSequenceContextFormat2),
     Format3(ChainedSequenceContextFormat3),
+}
+
+impl ChainedSequenceContext {
+    /// Construct a new `ChainedSequenceContextFormat1` subtable
+    pub fn format_1(
+        coverage: CoverageTable,
+        chained_seq_rule_sets: Vec<Option<ChainedSequenceRuleSet>>,
+    ) -> Self {
+        Self::Format1(ChainedSequenceContextFormat1::new(
+            coverage,
+            chained_seq_rule_sets,
+        ))
+    }
+
+    /// Construct a new `ChainedSequenceContextFormat2` subtable
+    pub fn format_2(
+        coverage: CoverageTable,
+        backtrack_class_def: ClassDef,
+        input_class_def: ClassDef,
+        lookahead_class_def: ClassDef,
+        chained_class_seq_rule_sets: Vec<Option<ChainedClassSequenceRuleSet>>,
+    ) -> Self {
+        Self::Format2(ChainedSequenceContextFormat2::new(
+            coverage,
+            backtrack_class_def,
+            input_class_def,
+            lookahead_class_def,
+            chained_class_seq_rule_sets,
+        ))
+    }
+
+    /// Construct a new `ChainedSequenceContextFormat3` subtable
+    pub fn format_3(
+        backtrack_coverages: Vec<CoverageTable>,
+        input_coverages: Vec<CoverageTable>,
+        lookahead_coverages: Vec<CoverageTable>,
+        seq_lookup_records: Vec<SequenceLookupRecord>,
+    ) -> Self {
+        Self::Format3(ChainedSequenceContextFormat3::new(
+            backtrack_coverages,
+            input_coverages,
+            lookahead_coverages,
+            seq_lookup_records,
+        ))
+    }
 }
 
 impl Default for ChainedSequenceContext {

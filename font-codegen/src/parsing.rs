@@ -1091,6 +1091,10 @@ impl Items {
         self.items.values_mut()
     }
 
+    pub(crate) fn get(&self, name: &syn::Ident) -> Option<&Item> {
+        self.items.get(name)
+    }
+
     pub(crate) fn resolve_pending(&mut self) -> Result<(), syn::Error> {
         // We should know what some stuff is now
         // In theory we could repeat resolution until we succeed or stop learning

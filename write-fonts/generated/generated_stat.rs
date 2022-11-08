@@ -202,6 +202,68 @@ pub enum AxisValue {
     Format4(AxisValueFormat4),
 }
 
+impl AxisValue {
+    /// Construct a new `AxisValueFormat1` subtable
+    pub fn format_1(
+        axis_index: u16,
+        flags: AxisValueTableFlags,
+        value_name_id: u16,
+        value: Fixed,
+    ) -> Self {
+        Self::Format1(AxisValueFormat1::new(
+            axis_index,
+            flags,
+            value_name_id,
+            value,
+        ))
+    }
+
+    /// Construct a new `AxisValueFormat2` subtable
+    pub fn format_2(
+        axis_index: u16,
+        flags: AxisValueTableFlags,
+        value_name_id: u16,
+        nominal_value: Fixed,
+        range_min_value: Fixed,
+        range_max_value: Fixed,
+    ) -> Self {
+        Self::Format2(AxisValueFormat2::new(
+            axis_index,
+            flags,
+            value_name_id,
+            nominal_value,
+            range_min_value,
+            range_max_value,
+        ))
+    }
+
+    /// Construct a new `AxisValueFormat3` subtable
+    pub fn format_3(
+        axis_index: u16,
+        flags: AxisValueTableFlags,
+        value_name_id: u16,
+        value: Fixed,
+        linked_value: Fixed,
+    ) -> Self {
+        Self::Format3(AxisValueFormat3::new(
+            axis_index,
+            flags,
+            value_name_id,
+            value,
+            linked_value,
+        ))
+    }
+
+    /// Construct a new `AxisValueFormat4` subtable
+    pub fn format_4(
+        flags: AxisValueTableFlags,
+        value_name_id: u16,
+        axis_values: Vec<AxisValueRecord>,
+    ) -> Self {
+        Self::Format4(AxisValueFormat4::new(flags, value_name_id, axis_values))
+    }
+}
+
 impl Default for AxisValue {
     fn default() -> Self {
         Self::Format1(Default::default())

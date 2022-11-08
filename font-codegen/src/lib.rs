@@ -97,7 +97,7 @@ pub(crate) fn generate_compile_module(
             Item::GenericGroup(item) => {
                 table::generate_group_compile(item, &items.parse_module_path)
             }
-            Item::Format(item) => table::generate_format_compile(item, &items.parse_module_path),
+            Item::Format(item) => table::generate_format_compile(item, items),
             Item::RawEnum(item) => Ok(flags_enums::generate_raw_enum_compile(item)),
             Item::Flags(item) => Ok(flags_enums::generate_flags_compile(item)),
             Item::Extern(..) => Ok(TokenStream::new()),

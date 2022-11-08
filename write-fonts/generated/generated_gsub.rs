@@ -179,6 +179,18 @@ pub enum SingleSubst {
     Format2(SingleSubstFormat2),
 }
 
+impl SingleSubst {
+    /// Construct a new `SingleSubstFormat1` subtable
+    pub fn format_1(coverage: CoverageTable, delta_glyph_id: i16) -> Self {
+        Self::Format1(SingleSubstFormat1::new(coverage, delta_glyph_id))
+    }
+
+    /// Construct a new `SingleSubstFormat2` subtable
+    pub fn format_2(coverage: CoverageTable, substitute_glyph_ids: Vec<GlyphId>) -> Self {
+        Self::Format2(SingleSubstFormat2::new(coverage, substitute_glyph_ids))
+    }
+}
+
 impl Default for SingleSubst {
     fn default() -> Self {
         Self::Format1(Default::default())
