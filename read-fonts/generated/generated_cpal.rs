@@ -216,7 +216,7 @@ impl<'a> SomeTable<'a> for Cpal<'a> {
             3usize => Some(Field::new("num_color_records", self.num_color_records())),
             4usize => Some(Field::new(
                 "color_records_array_offset",
-                traversal::FieldType::offset_to_array_of_records(
+                FieldType::offset_to_array_of_records(
                     self.color_records_array_offset(),
                     self.color_records_array(),
                     stringify!(ColorRecord),

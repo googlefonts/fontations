@@ -215,7 +215,7 @@ impl<'a> SomeTable<'a> for Colr<'a> {
             )),
             2usize => Some(Field::new(
                 "base_glyph_records_offset",
-                traversal::FieldType::offset_to_array_of_records(
+                FieldType::offset_to_array_of_records(
                     self.base_glyph_records_offset(),
                     self.base_glyph_records(),
                     stringify!(BaseGlyph),
@@ -224,7 +224,7 @@ impl<'a> SomeTable<'a> for Colr<'a> {
             )),
             3usize => Some(Field::new(
                 "layer_records_offset",
-                traversal::FieldType::offset_to_array_of_records(
+                FieldType::offset_to_array_of_records(
                     self.layer_records_offset(),
                     self.layer_records(),
                     stringify!(Layer),

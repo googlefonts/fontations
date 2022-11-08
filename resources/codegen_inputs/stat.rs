@@ -1,5 +1,6 @@
 #![parse_module(tables::layout::stat)]
 
+
 /// [STAT](https://docs.microsoft.com/en-us/typography/opentype/spec/stat) (Style Attributes Table)
 table Stat {
     /// Major/minor version number. Set to 1.2 for new fonts.
@@ -17,7 +18,7 @@ table Stat {
     /// to zero; if designAxisCount is greater than zero, must be
     /// greater than zero.
     #[read_offset_with($design_axis_count)]
-    design_axes_offset: Offset32<[AxisRecord]>,
+    design_axes_offset: Offset32<ComputedArray<AxisRecord>>,
     /// The number of axis value tables.
     axis_value_count: u16,
     /// Offset in bytes from the beginning of the STAT table to the
@@ -33,7 +34,10 @@ table Stat {
     elided_fallback_name_id: u16,
 }
 
+extern record PaddingCalculator;
+
 /// [Axis Records](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-records)
+#[read_args(size: u16)]
 record AxisRecord {
     /// A tag identifying the axis of design variation.
     axis_tag: Tag,
@@ -44,6 +48,10 @@ record AxisRecord {
     /// of face names, or for ordering of labels when composing family
     /// or face names.
     axis_ordering: u16,
+    #[skip_getter]
+    #[compile(skip)]
+    #[read_with($size)]
+    possible_padding: PaddingCalculator,
 }
 
 //NOTE: this is a shim table, because it would be annoying to support an offset

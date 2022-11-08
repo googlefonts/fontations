@@ -307,6 +307,7 @@ pub(crate) enum FieldType {
 pub(crate) enum OffsetTarget {
     Table(syn::Ident),
     Array(Box<FieldType>),
+    ComputedArray(CustomArray),
 }
 
 /// A representation shared between computed & varlen arrays
@@ -736,14 +737,7 @@ impl FieldType {
         let last = get_single_path_segment(path)?;
 
         if last.ident == "ComputedArray" || last.ident == "VarLenArray" {
-            let inner_typ = get_single_generic_type_arg(&last.arguments)?;
-            let inner = get_single_path_segment(&inner_typ)?;
-            let lifetime = get_single_lifetime(&inner.arguments)?;
-            let array = CustomArray {
-                span: inner.span(),
-                inner: inner.ident.clone(),
-                lifetime,
-            };
+            let array = parse_custom_array(last)?;
             if last.ident == "ComputedArray" {
                 return Ok(FieldType::ComputedArray(array));
             } else {
@@ -776,13 +770,6 @@ impl FieldType {
     }
 }
 
-fn get_single_path_segment(path: &syn::Path) -> syn::Result<&syn::PathSegment> {
-    if path.segments.len() != 1 {
-        return Err(logged_syn_error(path.span(), "expect a single-item path"));
-    }
-    Ok(path.segments.last().unwrap())
-}
-
 // either a single ident or an array
 fn get_offset_target(input: &syn::PathArguments) -> syn::Result<Option<OffsetTarget>> {
     match get_single_generic_arg(input)? {
@@ -802,12 +789,16 @@ fn get_offset_target(input: &syn::PathArguments) -> syn::Result<Option<OffsetTar
                 ))
             }
         }
-        Some(syn::GenericArgument::Type(syn::Type::Path(t)))
-            if t.path.segments.len() == 1 && t.path.get_ident().is_some() =>
-        {
-            Ok(Some(OffsetTarget::Table(
-                t.path.get_ident().unwrap().clone(),
-            )))
+        Some(syn::GenericArgument::Type(syn::Type::Path(t))) => {
+            let seg = get_single_path_segment(&t.path)?;
+            if seg.arguments.is_empty() {
+                Ok(Some(OffsetTarget::Table(seg.ident.clone())))
+            } else if seg.ident == "ComputedArray" {
+                let array = parse_custom_array(seg)?;
+                Ok(Some(OffsetTarget::ComputedArray(array)))
+            } else {
+                Err(syn::Error::new(t.span(), "expected ident or array type"))
+            }
         }
         Some(_) => Err(logged_syn_error(input.span(), "expected path or slice")),
         None => Ok(None),
@@ -1308,6 +1299,10 @@ impl OffsetTarget {
                 };
                 quote!(Result<&'a [#elem_type], ReadError>)
             }
+            OffsetTarget::ComputedArray(array) => {
+                let inner = array.type_with_lifetime();
+                quote!(Result<ComputedArray<'a, #inner>, ReadError>)
+            }
         }
     }
 
@@ -1317,6 +1312,9 @@ impl OffsetTarget {
             Self::Array(thing) => {
                 let cooked = thing.cooked_type_tokens();
                 quote!(Vec<#cooked>)
+            }
+            Self::ComputedArray(CustomArray { inner, .. }) => {
+                quote!(Vec<#inner>)
             }
         }
     }
@@ -1371,6 +1369,13 @@ fn get_optional_docs(input: ParseStream) -> Result<Vec<syn::Attribute>, syn::Err
     Ok(result)
 }
 
+fn get_single_path_segment(path: &syn::Path) -> syn::Result<&syn::PathSegment> {
+    if path.segments.len() != 1 {
+        return Err(logged_syn_error(path.span(), "expect a single-item path"));
+    }
+    Ok(path.segments.last().unwrap())
+}
+
 fn get_single_generic_type_arg(input: &syn::PathArguments) -> syn::Result<syn::Path> {
     match get_single_generic_arg(input)? {
         Some(syn::GenericArgument::Type(syn::Type::Path(path)))
@@ -1403,6 +1408,22 @@ fn get_single_lifetime(input: &syn::PathArguments) -> syn::Result<Option<syn::Li
         Some(syn::GenericArgument::Lifetime(arg)) => Ok(Some(arg.clone())),
         _ => Err(logged_syn_error(input.span(), "expected single lifetime")),
     }
+}
+
+fn parse_custom_array(input: &syn::PathSegment) -> syn::Result<CustomArray> {
+    assert!(
+        input.ident == "ComputedArray" || input.ident == "VarLenArray",
+        "this should have been checked before now"
+    );
+
+    let inner = get_single_generic_type_arg(&input.arguments)?;
+    let inner = get_single_path_segment(&inner)?;
+    let lifetime = get_single_lifetime(&inner.arguments)?;
+    Ok(CustomArray {
+        span: input.span(),
+        inner: inner.ident.clone(),
+        lifetime,
+    })
 }
 
 pub(crate) fn logged_syn_error<T: Display>(span: Span, message: T) -> syn::Error {

@@ -100,7 +100,7 @@ impl<'a> Stat<'a> {
     }
 
     /// Attempt to resolve [`design_axes_offset`][Self::design_axes_offset].
-    pub fn design_axes(&self) -> Result<&'a [AxisRecord], ReadError> {
+    pub fn design_axes(&self) -> Result<ComputedArray<'a, AxisRecord>, ReadError> {
         let data = self.data;
         let args = self.design_axis_count();
         self.design_axes_offset().resolve_with_args(data, &args)
@@ -151,7 +151,7 @@ impl<'a> SomeTable<'a> for Stat<'a> {
             2usize => Some(Field::new("design_axis_count", self.design_axis_count())),
             3usize => Some(Field::new(
                 "design_axes_offset",
-                traversal::FieldType::offset_to_array_of_records(
+                FieldType::offset_to_computed_array(
                     self.design_axes_offset(),
                     self.design_axes(),
                     stringify!(AxisRecord),
@@ -184,8 +184,6 @@ impl<'a> std::fmt::Debug for Stat<'a> {
 
 /// [Axis Records](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-records)
 #[derive(Clone, Debug)]
-#[repr(C)]
-#[repr(packed)]
 pub struct AxisRecord {
     /// A tag identifying the axis of design variation.
     pub axis_tag: BigEndian<Tag>,
@@ -196,6 +194,7 @@ pub struct AxisRecord {
     /// of face names, or for ordering of labels when composing family
     /// or face names.
     pub axis_ordering: BigEndian<u16>,
+    pub possible_padding: PaddingCalculator,
 }
 
 impl AxisRecord {
@@ -218,8 +217,31 @@ impl AxisRecord {
     }
 }
 
-impl FixedSize for AxisRecord {
-    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+impl ReadArgs for AxisRecord {
+    type Args = u16;
+}
+
+impl ComputeSize for AxisRecord {
+    fn compute_size(args: &u16) -> usize {
+        let size = *args;
+        Tag::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN
+            + <PaddingCalculator as ComputeSize>::compute_size(&size)
+    }
+}
+
+impl<'a> FontReadWithArgs<'a> for AxisRecord {
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let size = *args;
+        Ok(Self {
+            axis_tag: cursor.read()?,
+            axis_name_id: cursor.read()?,
+            axis_ordering: cursor.read()?,
+            possible_padding: cursor.read_with_args(&size)?,
+        })
+    }
 }
 
 #[cfg(feature = "traversal")]

@@ -3,7 +3,10 @@
 use std::collections::BTreeSet;
 
 use font_types::{BigEndian, Scalar};
-use read_fonts::{FontData, ReadError};
+use read_fonts::{
+    array::{ComputedArray, VarLenArray},
+    FontData, FontRead, FontReadWithArgs, ReadArgs, ReadError, VarSize,
+};
 
 use crate::{NullableOffsetMarker, OffsetMarker};
 
@@ -84,6 +87,31 @@ where
 {
     fn from_obj_ref(from: &&[U], data: FontData) -> Self {
         from.iter().map(|item| item.to_owned_obj(data)).collect()
+    }
+}
+
+impl<T, U> FromObjRef<ComputedArray<'_, U>> for Vec<T>
+where
+    T: FromObjRef<U>,
+    U: ReadArgs + for<'a> FontReadWithArgs<'a>,
+    <U as ReadArgs>::Args: 'static,
+{
+    fn from_obj_ref(from: &ComputedArray<U>, data: FontData) -> Self {
+        from.iter()
+            .map(|item| item.unwrap().to_owned_obj(data))
+            .collect()
+    }
+}
+
+impl<T, U> FromObjRef<VarLenArray<'_, U>> for Vec<T>
+where
+    T: FromObjRef<U>,
+    U: VarSize + for<'a> FontRead<'a>,
+{
+    fn from_obj_ref(from: &VarLenArray<U>, data: FontData) -> Self {
+        from.iter()
+            .map(|item| item.unwrap().to_owned_obj(data))
+            .collect()
     }
 }
 

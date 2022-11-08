@@ -7,6 +7,27 @@ pub const TAG: Tag = Tag::new(b"STAT");
 
 include!("../../generated/generated_stat.rs");
 
+const KNOWN_AXIS_RECORD_SIZE: usize = Tag::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+
+#[derive(Debug, Clone)]
+pub struct PaddingCalculator;
+
+impl ReadArgs for PaddingCalculator {
+    type Args = u16;
+}
+
+impl ComputeSize for PaddingCalculator {
+    fn compute_size(args: &Self::Args) -> usize {
+        dbg!(*args as usize) - KNOWN_AXIS_RECORD_SIZE
+    }
+}
+
+impl FontReadWithArgs<'_> for PaddingCalculator {
+    fn read_with_args(_: FontData, _: &Self::Args) -> Result<Self, ReadError> {
+        Ok(PaddingCalculator)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use font_types::Fixed;
@@ -18,7 +39,7 @@ mod tests {
     fn smoke_test() {
         let table = test_data::vazirmatn();
         assert_eq!(table.design_axis_count(), 1);
-        let axis_record = &table.design_axes().unwrap()[0];
+        let axis_record = &table.design_axes().unwrap().get(0).unwrap();
         assert_eq!(axis_record.axis_tag(), Tag::new(b"wght"));
         assert_eq!(axis_record.axis_name_id(), 257);
         assert_eq!(axis_record.axis_ordering(), 0);

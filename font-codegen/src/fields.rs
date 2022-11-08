@@ -253,34 +253,38 @@ fn traversal_arm_for_field(
     }
     match &fld.typ {
         FieldType::Offset {
-            target: Some(OffsetTarget::Array(inner)),
+            target: Some(target),
             ..
-        } if matches!(inner.deref(), FieldType::Struct { .. }) => {
-            let typ = inner.cooked_type_tokens();
+        } => {
             let getter = fld.offset_getter_name();
             let offset_data = pass_data
                 .cloned()
                 .unwrap_or_else(|| fld.offset_getter_data_src());
-            quote!(Field::new(
-                    #name_str,
-                    traversal::FieldType::offset_to_array_of_records(
-                        self.#name()#maybe_unwrap,
-                        self.#getter(#pass_data)#maybe_unwrap,
-                        stringify!(#typ),
-                        #offset_data,
+            let (constructor_name, xtra_args) = match target {
+                OffsetTarget::Table(_) => (quote!(offset), None),
+                OffsetTarget::Array(inner) if inner.is_scalar() => {
+                    (quote!(offset_to_array_of_scalars), None)
+                }
+                OffsetTarget::Array(inner) => {
+                    let inner_type = inner.cooked_type_tokens();
+                    (
+                        quote!(offset_to_array_of_records),
+                        Some(quote!(stringify!(#inner_type), #offset_data,)),
                     )
-            ))
-        }
-        FieldType::Offset {
-            target: Some(target),
-            ..
-        } => {
-            let constructor_name = match target {
-                OffsetTarget::Table(_) => quote!(offset),
-                OffsetTarget::Array(_) => quote!(offset_to_array_of_scalars),
+                }
+                OffsetTarget::ComputedArray(array) => {
+                    let inner_type = array.raw_inner_type();
+                    (
+                        quote!(offset_to_computed_array),
+                        Some(quote!(stringify!(#inner_type), #offset_data,)),
+                    )
+                }
             };
-            let getter = fld.offset_getter_name();
-            quote!(Field::new(#name_str, FieldType::#constructor_name(self.#name()#maybe_unwrap, self.#getter(#pass_data)#maybe_unwrap)))
+            quote!(Field::new(#name_str,
+            FieldType::#constructor_name(
+                self.#name()#maybe_unwrap, self.#getter(#pass_data)#maybe_unwrap,
+                #xtra_args
+            )))
         }
         FieldType::Offset { .. } => {
             quote!(Field::new(#name_str, FieldType::unknown_offset(self.#name()#maybe_unwrap)))
@@ -1120,7 +1124,7 @@ impl Field {
         match &self.typ {
             _ if self.attrs.to_owned.is_some() => false,
             FieldType::Offset {
-                target: Some(OffsetTarget::Array(_)),
+                target: Some(OffsetTarget::Array(_) | OffsetTarget::ComputedArray(_)),
                 ..
             } => true,
             FieldType::Offset { .. } => in_record,
@@ -1157,7 +1161,7 @@ impl Field {
                 match target {
                     // in this case it is possible that this is an array of
                     // records that could contain offsets
-                    OffsetTarget::Array(_) => {
+                    OffsetTarget::Array(_) | OffsetTarget::ComputedArray(_) => {
                         quote!(obj.#offset_getter(#pass_offset_data).to_owned_obj(offset_data))
                     }
                     OffsetTarget::Table(_) => {
@@ -1199,6 +1203,10 @@ impl Field {
 }
 
 impl FieldType {
+    fn is_scalar(&self) -> bool {
+        matches!(self, FieldType::Scalar { .. })
+    }
+
     /// 'cooked', as in now 'raw', i.e no 'BigEndian' wrapper
     pub(crate) fn cooked_type_tokens(&self) -> &syn::Ident {
         match &self {

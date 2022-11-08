@@ -208,6 +208,28 @@ where {
         }
     }
 
+    /// An offset to a ComputedArray.
+    pub fn offset_to_computed_array<T>(
+        offset: impl Into<OffsetType>,
+        result: Result<ComputedArray<'a, T>, ReadError>,
+        type_name: &'static str,
+        data: FontData<'a>,
+    ) -> FieldType<'a>
+    where
+        T: FontReadWithArgs<'a> + ComputeSize + SomeRecord<'a> + 'a,
+        T::Args: Copy + 'static,
+    {
+        let offset = offset.into();
+        let target = result.map(|array| {
+            Box::new(ComputedArrayOfRecords {
+                type_name,
+                data,
+                array,
+            }) as Box<dyn SomeArray>
+        });
+        FieldType::ArrayOffset(ArrayOffset { offset, target })
+    }
+
     //FIXME: I bet this is generating a *lot* of code
     /// Convenience method for creating a `FieldType` for a resolved offset.
     ///

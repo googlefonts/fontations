@@ -220,7 +220,7 @@ impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
             )),
             5usize => Some(Field::new(
                 "record_array_offset",
-                traversal::FieldType::offset_to_array_of_records(
+                FieldType::offset_to_array_of_records(
                     self.record_array_offset(),
                     self.record_array(),
                     stringify!(Shmecord),
@@ -229,7 +229,7 @@ impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
             )),
             6usize if version.compatible(MajorMinor::VERSION_1_1) => Some(Field::new(
                 "versioned_nullable_record_array_offset",
-                traversal::FieldType::offset_to_array_of_records(
+                FieldType::offset_to_array_of_records(
                     self.versioned_nullable_record_array_offset().unwrap(),
                     self.versioned_nullable_record_array().unwrap(),
                     stringify!(Shmecord),

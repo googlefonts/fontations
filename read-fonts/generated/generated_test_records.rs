@@ -269,7 +269,7 @@ impl<'a> SomeRecord<'a> for ContainsOffests {
                 0usize => Some(Field::new("off_array_count", self.off_array_count())),
                 1usize => Some(Field::new(
                     "array_offset",
-                    traversal::FieldType::offset_to_array_of_records(
+                    FieldType::offset_to_array_of_records(
                         self.array_offset(),
                         self.array(_data),
                         stringify!(SimpleRecord),
