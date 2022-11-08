@@ -66,7 +66,7 @@ pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
 
 pub(crate) fn generate_parse_module(items: &Items) -> Result<proc_macro2::TokenStream, syn::Error> {
     let mut code = Vec::new();
-    for item in &items.items {
+    for item in items.iter() {
         let item_code = match item {
             Item::Record(item) => record::generate(item)?,
             Item::Table(item) => table::generate(item)?,
@@ -90,7 +90,6 @@ pub(crate) fn generate_compile_module(
     items: &Items,
 ) -> Result<proc_macro2::TokenStream, syn::Error> {
     let code = items
-        .items
         .iter()
         .map(|item| match item {
             Item::Record(item) => record::generate_compile(item, &items.parse_module_path),
@@ -105,7 +104,7 @@ pub(crate) fn generate_compile_module(
         })
         .collect::<Result<Vec<_>, _>>()?;
 
-    let import_from_parse_mod = items.items.iter().filter_map(|item| match item {
+    let import_from_parse_mod = items.iter().filter_map(|item| match item {
         Item::Flags(item) => Some(&item.name),
         Item::RawEnum(item) => Some(&item.name),
         _ => None,
