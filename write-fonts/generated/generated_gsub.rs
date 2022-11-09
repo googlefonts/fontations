@@ -9,14 +9,14 @@ use crate::codegen_prelude::*;
 #[derive(Clone, Debug, Default)]
 pub struct Gsub {
     /// Offset to ScriptList table, from beginning of GSUB table
-    pub script_list_offset: OffsetMarker<ScriptList>,
+    pub script_list: OffsetMarker<ScriptList>,
     /// Offset to FeatureList table, from beginning of GSUB table
-    pub feature_list_offset: OffsetMarker<FeatureList>,
+    pub feature_list: OffsetMarker<FeatureList>,
     /// Offset to LookupList table, from beginning of GSUB table
-    pub lookup_list_offset: OffsetMarker<SubstitutionLookupList>,
+    pub lookup_list: OffsetMarker<SubstitutionLookupList>,
     /// Offset to FeatureVariations table, from beginning of the GSUB
     /// table (may be NULL)
-    pub feature_variations_offset: NullableOffsetMarker<FeatureVariations, WIDTH_32>,
+    pub feature_variations: NullableOffsetMarker<FeatureVariations, WIDTH_32>,
 }
 
 impl FontWrite for Gsub {
@@ -24,29 +24,29 @@ impl FontWrite for Gsub {
     fn write_into(&self, writer: &mut TableWriter) {
         let version = self.compute_version() as MajorMinor;
         version.write_into(writer);
-        self.script_list_offset.write_into(writer);
-        self.feature_list_offset.write_into(writer);
-        self.lookup_list_offset.write_into(writer);
+        self.script_list.write_into(writer);
+        self.feature_list.write_into(writer);
+        self.lookup_list.write_into(writer);
         version
             .compatible(MajorMinor::VERSION_1_1)
-            .then(|| self.feature_variations_offset.write_into(writer));
+            .then(|| self.feature_variations.write_into(writer));
     }
 }
 
 impl Validate for Gsub {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Gsub", |ctx| {
-            ctx.in_field("script_list_offset", |ctx| {
-                self.script_list_offset.validate_impl(ctx);
+            ctx.in_field("script_list", |ctx| {
+                self.script_list.validate_impl(ctx);
             });
-            ctx.in_field("feature_list_offset", |ctx| {
-                self.feature_list_offset.validate_impl(ctx);
+            ctx.in_field("feature_list", |ctx| {
+                self.feature_list.validate_impl(ctx);
             });
-            ctx.in_field("lookup_list_offset", |ctx| {
-                self.lookup_list_offset.validate_impl(ctx);
+            ctx.in_field("lookup_list", |ctx| {
+                self.lookup_list.validate_impl(ctx);
             });
-            ctx.in_field("feature_variations_offset", |ctx| {
-                self.feature_variations_offset.validate_impl(ctx);
+            ctx.in_field("feature_variations", |ctx| {
+                self.feature_variations.validate_impl(ctx);
             });
         })
     }
@@ -55,10 +55,10 @@ impl Validate for Gsub {
 impl<'a> FromObjRef<read_fonts::layout::gsub::Gsub<'a>> for Gsub {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::Gsub<'a>, _: FontData) -> Self {
         Gsub {
-            script_list_offset: obj.script_list().to_owned_table(),
-            feature_list_offset: obj.feature_list().to_owned_table(),
-            lookup_list_offset: obj.lookup_list().to_owned_table(),
-            feature_variations_offset: obj.feature_variations().to_owned_table(),
+            script_list: obj.script_list().to_owned_table(),
+            feature_list: obj.feature_list().to_owned_table(),
+            lookup_list: obj.lookup_list().to_owned_table(),
+            feature_variations: obj.feature_variations().to_owned_table(),
         }
     }
 }
@@ -210,7 +210,7 @@ impl<'a> FontRead<'a> for SingleSubst {
 pub struct SingleSubstFormat1 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Add to original glyph ID to get substitute glyph ID
     pub delta_glyph_id: i16,
 }
@@ -219,7 +219,7 @@ impl FontWrite for SingleSubstFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        self.coverage_offset.write_into(writer);
+        self.coverage.write_into(writer);
         self.delta_glyph_id.write_into(writer);
     }
 }
@@ -227,8 +227,8 @@ impl FontWrite for SingleSubstFormat1 {
 impl Validate for SingleSubstFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SingleSubstFormat1", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
         })
     }
@@ -237,7 +237,7 @@ impl Validate for SingleSubstFormat1 {
 impl<'a> FromObjRef<read_fonts::layout::gsub::SingleSubstFormat1<'a>> for SingleSubstFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::SingleSubstFormat1<'a>, _: FontData) -> Self {
         SingleSubstFormat1 {
-            coverage_offset: obj.coverage().to_owned_table(),
+            coverage: obj.coverage().to_owned_table(),
             delta_glyph_id: obj.delta_glyph_id(),
         }
     }
@@ -257,7 +257,7 @@ impl<'a> FontRead<'a> for SingleSubstFormat1 {
 pub struct SingleSubstFormat2 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Array of substitute glyph IDs — ordered by Coverage index
     pub substitute_glyph_ids: Vec<GlyphId>,
 }
@@ -266,7 +266,7 @@ impl FontWrite for SingleSubstFormat2 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
-        self.coverage_offset.write_into(writer);
+        self.coverage.write_into(writer);
         (array_len(&self.substitute_glyph_ids).unwrap() as u16).write_into(writer);
         self.substitute_glyph_ids.write_into(writer);
     }
@@ -275,8 +275,8 @@ impl FontWrite for SingleSubstFormat2 {
 impl Validate for SingleSubstFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SingleSubstFormat2", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
             ctx.in_field("substitute_glyph_ids", |ctx| {
                 if self.substitute_glyph_ids.len() > (u16::MAX as usize) {
@@ -291,7 +291,7 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::SingleSubstFormat2<'a>> for Single
     fn from_obj_ref(obj: &read_fonts::layout::gsub::SingleSubstFormat2<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         SingleSubstFormat2 {
-            coverage_offset: obj.coverage().to_owned_table(),
+            coverage: obj.coverage().to_owned_table(),
             substitute_glyph_ids: obj.substitute_glyph_ids().to_owned_obj(offset_data),
         }
     }
@@ -311,33 +311,33 @@ impl<'a> FontRead<'a> for SingleSubstFormat2 {
 pub struct MultipleSubstFormat1 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Array of offsets to Sequence tables. Offsets are from beginning
     /// of substitution subtable, ordered by Coverage index
-    pub sequence_offsets: Vec<OffsetMarker<Sequence>>,
+    pub sequences: Vec<OffsetMarker<Sequence>>,
 }
 
 impl FontWrite for MultipleSubstFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        self.coverage_offset.write_into(writer);
-        (array_len(&self.sequence_offsets).unwrap() as u16).write_into(writer);
-        self.sequence_offsets.write_into(writer);
+        self.coverage.write_into(writer);
+        (array_len(&self.sequences).unwrap() as u16).write_into(writer);
+        self.sequences.write_into(writer);
     }
 }
 
 impl Validate for MultipleSubstFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MultipleSubstFormat1", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
-            ctx.in_field("sequence_offsets", |ctx| {
-                if self.sequence_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("sequences", |ctx| {
+                if self.sequences.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.sequence_offsets.validate_impl(ctx);
+                self.sequences.validate_impl(ctx);
             });
         })
     }
@@ -346,8 +346,8 @@ impl Validate for MultipleSubstFormat1 {
 impl<'a> FromObjRef<read_fonts::layout::gsub::MultipleSubstFormat1<'a>> for MultipleSubstFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::MultipleSubstFormat1<'a>, _: FontData) -> Self {
         MultipleSubstFormat1 {
-            coverage_offset: obj.coverage().to_owned_table(),
-            sequence_offsets: obj.sequences().map(|x| x.to_owned_table()).collect(),
+            coverage: obj.coverage().to_owned_table(),
+            sequences: obj.sequences().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -410,33 +410,33 @@ impl<'a> FontRead<'a> for Sequence {
 pub struct AlternateSubstFormat1 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Array of offsets to AlternateSet tables. Offsets are from
     /// beginning of substitution subtable, ordered by Coverage index
-    pub alternate_set_offsets: Vec<OffsetMarker<AlternateSet>>,
+    pub alternate_sets: Vec<OffsetMarker<AlternateSet>>,
 }
 
 impl FontWrite for AlternateSubstFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        self.coverage_offset.write_into(writer);
-        (array_len(&self.alternate_set_offsets).unwrap() as u16).write_into(writer);
-        self.alternate_set_offsets.write_into(writer);
+        self.coverage.write_into(writer);
+        (array_len(&self.alternate_sets).unwrap() as u16).write_into(writer);
+        self.alternate_sets.write_into(writer);
     }
 }
 
 impl Validate for AlternateSubstFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AlternateSubstFormat1", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
-            ctx.in_field("alternate_set_offsets", |ctx| {
-                if self.alternate_set_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("alternate_sets", |ctx| {
+                if self.alternate_sets.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.alternate_set_offsets.validate_impl(ctx);
+                self.alternate_sets.validate_impl(ctx);
             });
         })
     }
@@ -448,8 +448,8 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::AlternateSubstFormat1<'a>> for Alt
         _: FontData,
     ) -> Self {
         AlternateSubstFormat1 {
-            coverage_offset: obj.coverage().to_owned_table(),
-            alternate_set_offsets: obj.alternate_sets().map(|x| x.to_owned_table()).collect(),
+            coverage: obj.coverage().to_owned_table(),
+            alternate_sets: obj.alternate_sets().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -515,33 +515,33 @@ impl<'a> FontRead<'a> for AlternateSet {
 pub struct LigatureSubstFormat1 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Array of offsets to LigatureSet tables. Offsets are from
     /// beginning of substitution subtable, ordered by Coverage index
-    pub ligature_set_offsets: Vec<OffsetMarker<LigatureSet>>,
+    pub ligature_sets: Vec<OffsetMarker<LigatureSet>>,
 }
 
 impl FontWrite for LigatureSubstFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        self.coverage_offset.write_into(writer);
-        (array_len(&self.ligature_set_offsets).unwrap() as u16).write_into(writer);
-        self.ligature_set_offsets.write_into(writer);
+        self.coverage.write_into(writer);
+        (array_len(&self.ligature_sets).unwrap() as u16).write_into(writer);
+        self.ligature_sets.write_into(writer);
     }
 }
 
 impl Validate for LigatureSubstFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigatureSubstFormat1", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
-            ctx.in_field("ligature_set_offsets", |ctx| {
-                if self.ligature_set_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("ligature_sets", |ctx| {
+                if self.ligature_sets.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.ligature_set_offsets.validate_impl(ctx);
+                self.ligature_sets.validate_impl(ctx);
             });
         })
     }
@@ -550,8 +550,8 @@ impl Validate for LigatureSubstFormat1 {
 impl<'a> FromObjRef<read_fonts::layout::gsub::LigatureSubstFormat1<'a>> for LigatureSubstFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::LigatureSubstFormat1<'a>, _: FontData) -> Self {
         LigatureSubstFormat1 {
-            coverage_offset: obj.coverage().to_owned_table(),
-            ligature_set_offsets: obj.ligature_sets().map(|x| x.to_owned_table()).collect(),
+            coverage: obj.coverage().to_owned_table(),
+            ligature_sets: obj.ligature_sets().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -570,25 +570,25 @@ impl<'a> FontRead<'a> for LigatureSubstFormat1 {
 pub struct LigatureSet {
     /// Array of offsets to Ligature tables. Offsets are from beginning
     /// of LigatureSet table, ordered by preference.
-    pub ligature_offsets: Vec<OffsetMarker<Ligature>>,
+    pub ligatures: Vec<OffsetMarker<Ligature>>,
 }
 
 impl FontWrite for LigatureSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.ligature_offsets).unwrap() as u16).write_into(writer);
-        self.ligature_offsets.write_into(writer);
+        (array_len(&self.ligatures).unwrap() as u16).write_into(writer);
+        self.ligatures.write_into(writer);
     }
 }
 
 impl Validate for LigatureSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigatureSet", |ctx| {
-            ctx.in_field("ligature_offsets", |ctx| {
-                if self.ligature_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("ligatures", |ctx| {
+                if self.ligatures.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.ligature_offsets.validate_impl(ctx);
+                self.ligatures.validate_impl(ctx);
             });
         })
     }
@@ -597,7 +597,7 @@ impl Validate for LigatureSet {
 impl<'a> FromObjRef<read_fonts::layout::gsub::LigatureSet<'a>> for LigatureSet {
     fn from_obj_ref(obj: &read_fonts::layout::gsub::LigatureSet<'a>, _: FontData) -> Self {
         LigatureSet {
-            ligature_offsets: obj.ligatures().map(|x| x.to_owned_table()).collect(),
+            ligatures: obj.ligatures().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -660,14 +660,14 @@ pub struct ExtensionSubstFormat1<T> {
     /// Offset to the extension subtable, of lookup type
     /// extensionLookupType, relative to the start of the
     /// ExtensionSubstFormat1 subtable.
-    pub extension_offset: OffsetMarker<T, WIDTH_32>,
+    pub extension: OffsetMarker<T, WIDTH_32>,
 }
 
 impl<T: Validate> Validate for ExtensionSubstFormat1<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ExtensionSubstFormat1", |ctx| {
-            ctx.in_field("extension_offset", |ctx| {
-                self.extension_offset.validate_impl(ctx);
+            ctx.in_field("extension", |ctx| {
+                self.extension.validate_impl(ctx);
             });
         })
     }
@@ -685,7 +685,7 @@ where
     ) -> Self {
         ExtensionSubstFormat1 {
             extension_lookup_type: obj.extension_lookup_type(),
-            extension_offset: obj.extension().to_owned_table(),
+            extension: obj.extension().to_owned_table(),
         }
     }
 }
@@ -782,13 +782,13 @@ impl FromTableRef<read_fonts::layout::gsub::ExtensionSubtable<'_>> for Extension
 pub struct ReverseChainSingleSubstFormat1 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable.
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Array of offsets to coverage tables in backtrack sequence, in
     /// glyph sequence order.
-    pub backtrack_coverage_offsets: Vec<OffsetMarker<CoverageTable>>,
+    pub backtrack_coverages: Vec<OffsetMarker<CoverageTable>>,
     /// Array of offsets to coverage tables in lookahead sequence, in
     /// glyph sequence order.
-    pub lookahead_coverage_offsets: Vec<OffsetMarker<CoverageTable>>,
+    pub lookahead_coverages: Vec<OffsetMarker<CoverageTable>>,
     /// Array of substitute glyph IDs — ordered by Coverage index.
     pub substitute_glyph_ids: Vec<GlyphId>,
 }
@@ -797,11 +797,11 @@ impl FontWrite for ReverseChainSingleSubstFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        self.coverage_offset.write_into(writer);
-        (array_len(&self.backtrack_coverage_offsets).unwrap() as u16).write_into(writer);
-        self.backtrack_coverage_offsets.write_into(writer);
-        (array_len(&self.lookahead_coverage_offsets).unwrap() as u16).write_into(writer);
-        self.lookahead_coverage_offsets.write_into(writer);
+        self.coverage.write_into(writer);
+        (array_len(&self.backtrack_coverages).unwrap() as u16).write_into(writer);
+        self.backtrack_coverages.write_into(writer);
+        (array_len(&self.lookahead_coverages).unwrap() as u16).write_into(writer);
+        self.lookahead_coverages.write_into(writer);
         (array_len(&self.substitute_glyph_ids).unwrap() as u16).write_into(writer);
         self.substitute_glyph_ids.write_into(writer);
     }
@@ -810,20 +810,20 @@ impl FontWrite for ReverseChainSingleSubstFormat1 {
 impl Validate for ReverseChainSingleSubstFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ReverseChainSingleSubstFormat1", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
-            ctx.in_field("backtrack_coverage_offsets", |ctx| {
-                if self.backtrack_coverage_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("backtrack_coverages", |ctx| {
+                if self.backtrack_coverages.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.backtrack_coverage_offsets.validate_impl(ctx);
+                self.backtrack_coverages.validate_impl(ctx);
             });
-            ctx.in_field("lookahead_coverage_offsets", |ctx| {
-                if self.lookahead_coverage_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("lookahead_coverages", |ctx| {
+                if self.lookahead_coverages.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.lookahead_coverage_offsets.validate_impl(ctx);
+                self.lookahead_coverages.validate_impl(ctx);
             });
             ctx.in_field("substitute_glyph_ids", |ctx| {
                 if self.substitute_glyph_ids.len() > (u16::MAX as usize) {
@@ -843,12 +843,12 @@ impl<'a> FromObjRef<read_fonts::layout::gsub::ReverseChainSingleSubstFormat1<'a>
     ) -> Self {
         let offset_data = obj.offset_data();
         ReverseChainSingleSubstFormat1 {
-            coverage_offset: obj.coverage().to_owned_table(),
-            backtrack_coverage_offsets: obj
+            coverage: obj.coverage().to_owned_table(),
+            backtrack_coverages: obj
                 .backtrack_coverages()
                 .map(|x| x.to_owned_table())
                 .collect(),
-            lookahead_coverage_offsets: obj
+            lookahead_coverages: obj
                 .lookahead_coverages()
                 .map(|x| x.to_owned_table())
                 .collect(),

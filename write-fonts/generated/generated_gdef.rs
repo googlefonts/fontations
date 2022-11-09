@@ -12,22 +12,22 @@ pub use read_fonts::layout::gdef::GlyphClassDef;
 pub struct Gdef {
     /// Offset to class definition table for glyph type, from beginning
     /// of GDEF header (may be NULL)
-    pub glyph_class_def_offset: NullableOffsetMarker<ClassDef>,
+    pub glyph_class_def: NullableOffsetMarker<ClassDef>,
     /// Offset to attachment point list table, from beginning of GDEF
     /// header (may be NULL)
-    pub attach_list_offset: NullableOffsetMarker<AttachList>,
+    pub attach_list: NullableOffsetMarker<AttachList>,
     /// Offset to ligature caret list table, from beginning of GDEF
     /// header (may be NULL)
-    pub lig_caret_list_offset: NullableOffsetMarker<LigCaretList>,
+    pub lig_caret_list: NullableOffsetMarker<LigCaretList>,
     /// Offset to class definition table for mark attachment type, from
     /// beginning of GDEF header (may be NULL)
-    pub mark_attach_class_def_offset: NullableOffsetMarker<ClassDef>,
+    pub mark_attach_class_def: NullableOffsetMarker<ClassDef>,
     /// Offset to the table of mark glyph set definitions, from
     /// beginning of GDEF header (may be NULL)
-    pub mark_glyph_sets_def_offset: NullableOffsetMarker<MarkGlyphSets>,
+    pub mark_glyph_sets_def: NullableOffsetMarker<MarkGlyphSets>,
     /// Offset to the Item Variation Store table, from beginning of
     /// GDEF header (may be NULL)
-    pub item_var_store_offset: NullableOffsetMarker<ClassDef, WIDTH_32>,
+    pub item_var_store: NullableOffsetMarker<ClassDef, WIDTH_32>,
 }
 
 impl FontWrite for Gdef {
@@ -35,39 +35,39 @@ impl FontWrite for Gdef {
     fn write_into(&self, writer: &mut TableWriter) {
         let version = self.compute_version() as MajorMinor;
         version.write_into(writer);
-        self.glyph_class_def_offset.write_into(writer);
-        self.attach_list_offset.write_into(writer);
-        self.lig_caret_list_offset.write_into(writer);
-        self.mark_attach_class_def_offset.write_into(writer);
+        self.glyph_class_def.write_into(writer);
+        self.attach_list.write_into(writer);
+        self.lig_caret_list.write_into(writer);
+        self.mark_attach_class_def.write_into(writer);
         version
             .compatible(MajorMinor::VERSION_1_2)
-            .then(|| self.mark_glyph_sets_def_offset.write_into(writer));
+            .then(|| self.mark_glyph_sets_def.write_into(writer));
         version
             .compatible(MajorMinor::VERSION_1_3)
-            .then(|| self.item_var_store_offset.write_into(writer));
+            .then(|| self.item_var_store.write_into(writer));
     }
 }
 
 impl Validate for Gdef {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Gdef", |ctx| {
-            ctx.in_field("glyph_class_def_offset", |ctx| {
-                self.glyph_class_def_offset.validate_impl(ctx);
+            ctx.in_field("glyph_class_def", |ctx| {
+                self.glyph_class_def.validate_impl(ctx);
             });
-            ctx.in_field("attach_list_offset", |ctx| {
-                self.attach_list_offset.validate_impl(ctx);
+            ctx.in_field("attach_list", |ctx| {
+                self.attach_list.validate_impl(ctx);
             });
-            ctx.in_field("lig_caret_list_offset", |ctx| {
-                self.lig_caret_list_offset.validate_impl(ctx);
+            ctx.in_field("lig_caret_list", |ctx| {
+                self.lig_caret_list.validate_impl(ctx);
             });
-            ctx.in_field("mark_attach_class_def_offset", |ctx| {
-                self.mark_attach_class_def_offset.validate_impl(ctx);
+            ctx.in_field("mark_attach_class_def", |ctx| {
+                self.mark_attach_class_def.validate_impl(ctx);
             });
-            ctx.in_field("mark_glyph_sets_def_offset", |ctx| {
-                self.mark_glyph_sets_def_offset.validate_impl(ctx);
+            ctx.in_field("mark_glyph_sets_def", |ctx| {
+                self.mark_glyph_sets_def.validate_impl(ctx);
             });
-            ctx.in_field("item_var_store_offset", |ctx| {
-                self.item_var_store_offset.validate_impl(ctx);
+            ctx.in_field("item_var_store", |ctx| {
+                self.item_var_store.validate_impl(ctx);
             });
         })
     }
@@ -76,12 +76,12 @@ impl Validate for Gdef {
 impl<'a> FromObjRef<read_fonts::layout::gdef::Gdef<'a>> for Gdef {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::Gdef<'a>, _: FontData) -> Self {
         Gdef {
-            glyph_class_def_offset: obj.glyph_class_def().to_owned_table(),
-            attach_list_offset: obj.attach_list().to_owned_table(),
-            lig_caret_list_offset: obj.lig_caret_list().to_owned_table(),
-            mark_attach_class_def_offset: obj.mark_attach_class_def().to_owned_table(),
-            mark_glyph_sets_def_offset: obj.mark_glyph_sets_def().to_owned_table(),
-            item_var_store_offset: obj.item_var_store().to_owned_table(),
+            glyph_class_def: obj.glyph_class_def().to_owned_table(),
+            attach_list: obj.attach_list().to_owned_table(),
+            lig_caret_list: obj.lig_caret_list().to_owned_table(),
+            mark_attach_class_def: obj.mark_attach_class_def().to_owned_table(),
+            mark_glyph_sets_def: obj.mark_glyph_sets_def().to_owned_table(),
+            item_var_store: obj.item_var_store().to_owned_table(),
         }
     }
 }
@@ -105,32 +105,32 @@ impl FontWrite for GlyphClassDef {
 #[derive(Clone, Debug, Default)]
 pub struct AttachList {
     /// Offset to Coverage table - from beginning of AttachList table
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Array of offsets to AttachPoint tables-from beginning of
     /// AttachList table-in Coverage Index order
-    pub attach_point_offsets: Vec<OffsetMarker<AttachPoint>>,
+    pub attach_points: Vec<OffsetMarker<AttachPoint>>,
 }
 
 impl FontWrite for AttachList {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        self.coverage_offset.write_into(writer);
-        (array_len(&self.attach_point_offsets).unwrap() as u16).write_into(writer);
-        self.attach_point_offsets.write_into(writer);
+        self.coverage.write_into(writer);
+        (array_len(&self.attach_points).unwrap() as u16).write_into(writer);
+        self.attach_points.write_into(writer);
     }
 }
 
 impl Validate for AttachList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AttachList", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
-            ctx.in_field("attach_point_offsets", |ctx| {
-                if self.attach_point_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("attach_points", |ctx| {
+                if self.attach_points.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.attach_point_offsets.validate_impl(ctx);
+                self.attach_points.validate_impl(ctx);
             });
         })
     }
@@ -139,8 +139,8 @@ impl Validate for AttachList {
 impl<'a> FromObjRef<read_fonts::layout::gdef::AttachList<'a>> for AttachList {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::AttachList<'a>, _: FontData) -> Self {
         AttachList {
-            coverage_offset: obj.coverage().to_owned_table(),
-            attach_point_offsets: obj.attach_points().map(|x| x.to_owned_table()).collect(),
+            coverage: obj.coverage().to_owned_table(),
+            attach_points: obj.attach_points().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -201,32 +201,32 @@ impl<'a> FontRead<'a> for AttachPoint {
 #[derive(Clone, Debug, Default)]
 pub struct LigCaretList {
     /// Offset to Coverage table - from beginning of LigCaretList table
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Array of offsets to LigGlyph tables, from beginning of
     /// LigCaretList table —in Coverage Index order
-    pub lig_glyph_offsets: Vec<OffsetMarker<LigGlyph>>,
+    pub lig_glyphs: Vec<OffsetMarker<LigGlyph>>,
 }
 
 impl FontWrite for LigCaretList {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        self.coverage_offset.write_into(writer);
-        (array_len(&self.lig_glyph_offsets).unwrap() as u16).write_into(writer);
-        self.lig_glyph_offsets.write_into(writer);
+        self.coverage.write_into(writer);
+        (array_len(&self.lig_glyphs).unwrap() as u16).write_into(writer);
+        self.lig_glyphs.write_into(writer);
     }
 }
 
 impl Validate for LigCaretList {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigCaretList", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
-            ctx.in_field("lig_glyph_offsets", |ctx| {
-                if self.lig_glyph_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("lig_glyphs", |ctx| {
+                if self.lig_glyphs.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.lig_glyph_offsets.validate_impl(ctx);
+                self.lig_glyphs.validate_impl(ctx);
             });
         })
     }
@@ -235,8 +235,8 @@ impl Validate for LigCaretList {
 impl<'a> FromObjRef<read_fonts::layout::gdef::LigCaretList<'a>> for LigCaretList {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::LigCaretList<'a>, _: FontData) -> Self {
         LigCaretList {
-            coverage_offset: obj.coverage().to_owned_table(),
-            lig_glyph_offsets: obj.lig_glyphs().map(|x| x.to_owned_table()).collect(),
+            coverage: obj.coverage().to_owned_table(),
+            lig_glyphs: obj.lig_glyphs().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -254,25 +254,25 @@ impl<'a> FontRead<'a> for LigCaretList {
 pub struct LigGlyph {
     /// Array of offsets to CaretValue tables, from beginning of
     /// LigGlyph table — in increasing coordinate order
-    pub caret_value_offsets: Vec<OffsetMarker<CaretValue>>,
+    pub caret_values: Vec<OffsetMarker<CaretValue>>,
 }
 
 impl FontWrite for LigGlyph {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.caret_value_offsets).unwrap() as u16).write_into(writer);
-        self.caret_value_offsets.write_into(writer);
+        (array_len(&self.caret_values).unwrap() as u16).write_into(writer);
+        self.caret_values.write_into(writer);
     }
 }
 
 impl Validate for LigGlyph {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigGlyph", |ctx| {
-            ctx.in_field("caret_value_offsets", |ctx| {
-                if self.caret_value_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("caret_values", |ctx| {
+                if self.caret_values.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.caret_value_offsets.validate_impl(ctx);
+                self.caret_values.validate_impl(ctx);
             });
         })
     }
@@ -281,7 +281,7 @@ impl Validate for LigGlyph {
 impl<'a> FromObjRef<read_fonts::layout::gdef::LigGlyph<'a>> for LigGlyph {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::LigGlyph<'a>, _: FontData) -> Self {
         LigGlyph {
-            caret_value_offsets: obj.caret_values().map(|x| x.to_owned_table()).collect(),
+            caret_values: obj.caret_values().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -427,7 +427,7 @@ pub struct CaretValueFormat3 {
     /// Offset to Device table (non-variable font) / Variation Index
     /// table (variable font) for X or Y value-from beginning of
     /// CaretValue table
-    pub device_offset: OffsetMarker<Device>,
+    pub device: OffsetMarker<Device>,
 }
 
 impl FontWrite for CaretValueFormat3 {
@@ -435,15 +435,15 @@ impl FontWrite for CaretValueFormat3 {
     fn write_into(&self, writer: &mut TableWriter) {
         (3 as u16).write_into(writer);
         self.coordinate.write_into(writer);
-        self.device_offset.write_into(writer);
+        self.device.write_into(writer);
     }
 }
 
 impl Validate for CaretValueFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("CaretValueFormat3", |ctx| {
-            ctx.in_field("device_offset", |ctx| {
-                self.device_offset.validate_impl(ctx);
+            ctx.in_field("device", |ctx| {
+                self.device.validate_impl(ctx);
             });
         })
     }
@@ -453,7 +453,7 @@ impl<'a> FromObjRef<read_fonts::layout::gdef::CaretValueFormat3<'a>> for CaretVa
     fn from_obj_ref(obj: &read_fonts::layout::gdef::CaretValueFormat3<'a>, _: FontData) -> Self {
         CaretValueFormat3 {
             coordinate: obj.coordinate(),
-            device_offset: obj.device().to_owned_table(),
+            device: obj.device().to_owned_table(),
         }
     }
 }
@@ -472,26 +472,26 @@ impl<'a> FontRead<'a> for CaretValueFormat3 {
 pub struct MarkGlyphSets {
     /// Array of offsets to mark glyph set coverage tables, from the
     /// start of the MarkGlyphSets table.
-    pub coverage_offsets: Vec<OffsetMarker<CoverageTable, WIDTH_32>>,
+    pub coverages: Vec<OffsetMarker<CoverageTable, WIDTH_32>>,
 }
 
 impl FontWrite for MarkGlyphSets {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        (array_len(&self.coverage_offsets).unwrap() as u16).write_into(writer);
-        self.coverage_offsets.write_into(writer);
+        (array_len(&self.coverages).unwrap() as u16).write_into(writer);
+        self.coverages.write_into(writer);
     }
 }
 
 impl Validate for MarkGlyphSets {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MarkGlyphSets", |ctx| {
-            ctx.in_field("coverage_offsets", |ctx| {
-                if self.coverage_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("coverages", |ctx| {
+                if self.coverages.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.coverage_offsets.validate_impl(ctx);
+                self.coverages.validate_impl(ctx);
             });
         })
     }
@@ -500,7 +500,7 @@ impl Validate for MarkGlyphSets {
 impl<'a> FromObjRef<read_fonts::layout::gdef::MarkGlyphSets<'a>> for MarkGlyphSets {
     fn from_obj_ref(obj: &read_fonts::layout::gdef::MarkGlyphSets<'a>, _: FontData) -> Self {
         MarkGlyphSets {
-            coverage_offsets: obj.coverages().map(|x| x.to_owned_table()).collect(),
+            coverages: obj.coverages().map(|x| x.to_owned_table()).collect(),
         }
     }
 }

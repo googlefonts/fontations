@@ -5,6 +5,7 @@ use std::{backtrace::Backtrace, collections::HashMap, fmt::Display, ops::Deref, 
 use log::{debug, trace};
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
+use regex::Captures;
 use syn::{
     braced, parenthesized,
     parse::{Parse, ParseStream},
@@ -1248,7 +1249,8 @@ impl Parse for InlineExpr {
 
             let compile_expr = (!idents.is_empty())
                 .then(|| {
-                    let new_source = find_dollar_idents.replace_all(&s, "&self.$2");
+                    let new_source =
+                        find_dollar_idents.replace_all(&s, replace_field_with_compile_field);
                     syn::parse_str::<syn::Expr>(&new_source)
                 })
                 .transpose()?
@@ -1267,6 +1269,12 @@ impl Parse for InlineExpr {
         let tokens: TokenStream = input.parse()?;
         parse_inline_expr(tokens)
     }
+}
+
+fn replace_field_with_compile_field(captures: &Captures) -> String {
+    let ident = captures.get(2).unwrap().as_str();
+    let ident = crate::fields::remove_offset_from_field_name(ident);
+    format!("&self.{ident}")
 }
 
 impl NeededWhen {

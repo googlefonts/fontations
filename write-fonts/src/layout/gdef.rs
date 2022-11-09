@@ -10,9 +10,9 @@ include!("../../generated/generated_gdef.rs");
 
 impl Gdef {
     fn compute_version(&self) -> MajorMinor {
-        if self.item_var_store_offset.is_some() {
+        if self.item_var_store.is_some() {
             MajorMinor::VERSION_1_3
-        } else if self.mark_glyph_sets_def_offset.is_some() {
+        } else if self.mark_glyph_sets_def.is_some() {
             MajorMinor::VERSION_1_2
         } else {
             MajorMinor::VERSION_1_0
@@ -28,7 +28,7 @@ mod tests {
     fn var_store_without_glyph_sets() {
         // this should compile, and version should be 1.3
         let gdef = Gdef {
-            item_var_store_offset: NullableOffsetMarker::new(Some(ClassDef::Format1(
+            item_var_store: NullableOffsetMarker::new(Some(ClassDef::Format1(
                 crate::layout::ClassDefFormat1 {
                     start_glyph_id: GlyphId::new(2),
                     class_value_array: vec![1, 2, 0],

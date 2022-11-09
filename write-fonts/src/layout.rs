@@ -76,10 +76,10 @@ impl<T: LookupType + FontWrite> FontWrite for Lookup<T> {
     fn write_into(&self, writer: &mut TableWriter) {
         T::TYPE.write_into(writer);
         self.lookup_flag.write_into(writer);
-        u16::try_from(self.subtable_offsets.len())
+        u16::try_from(self.subtables.len())
             .unwrap()
             .write_into(writer);
-        self.subtable_offsets.write_into(writer);
+        self.subtables.write_into(writer);
         self.mark_filtering_set.write_into(writer);
     }
 }
@@ -440,11 +440,11 @@ mod tests {
         let table = ScriptList {
             script_records: vec![ScriptRecord {
                 script_tag: Tag::new(b"hihi"),
-                script_offset: OffsetMarker::new(Script {
-                    default_lang_sys_offset: NullableOffsetMarker::new(None),
+                script: OffsetMarker::new(Script {
+                    default_lang_sys: NullableOffsetMarker::new(None),
                     lang_sys_records: vec![LangSysRecord {
                         lang_sys_tag: Tag::new(b"coco"),
-                        lang_sys_offset: OffsetMarker::new(LangSys {
+                        lang_sys: OffsetMarker::new(LangSys {
                             required_feature_index: 0xffff,
                             feature_indices: vec![69; (u16::MAX) as usize + 5],
                         }),

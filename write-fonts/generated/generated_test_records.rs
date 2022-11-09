@@ -141,26 +141,26 @@ impl FromObjRef<read_fonts::codegen_test::records::ContainsArrays<'_>> for Conta
 #[derive(Clone, Debug, Default)]
 pub struct ContainsOffests {
     pub off_array_count: u16,
-    pub array_offset: OffsetMarker<Vec<SimpleRecord>>,
-    pub other_offset: OffsetMarker<BasicTable, WIDTH_32>,
+    pub array: OffsetMarker<Vec<SimpleRecord>>,
+    pub other: OffsetMarker<BasicTable, WIDTH_32>,
 }
 
 impl FontWrite for ContainsOffests {
     fn write_into(&self, writer: &mut TableWriter) {
         self.off_array_count.write_into(writer);
-        self.array_offset.write_into(writer);
-        self.other_offset.write_into(writer);
+        self.array.write_into(writer);
+        self.other.write_into(writer);
     }
 }
 
 impl Validate for ContainsOffests {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ContainsOffests", |ctx| {
-            ctx.in_field("array_offset", |ctx| {
-                self.array_offset.validate_impl(ctx);
+            ctx.in_field("array", |ctx| {
+                self.array.validate_impl(ctx);
             });
-            ctx.in_field("other_offset", |ctx| {
-                self.other_offset.validate_impl(ctx);
+            ctx.in_field("other", |ctx| {
+                self.other.validate_impl(ctx);
             });
         })
     }
@@ -173,8 +173,8 @@ impl FromObjRef<read_fonts::codegen_test::records::ContainsOffests> for Contains
     ) -> Self {
         ContainsOffests {
             off_array_count: obj.off_array_count(),
-            array_offset: obj.array(offset_data).to_owned_obj(offset_data),
-            other_offset: obj.other(offset_data).to_owned_table(),
+            array: obj.array(offset_data).to_owned_obj(offset_data),
+            other: obj.other(offset_data).to_owned_table(),
         }
     }
 }
