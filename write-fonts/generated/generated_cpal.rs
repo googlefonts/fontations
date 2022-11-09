@@ -16,7 +16,7 @@ pub struct Cpal {
     pub num_color_records: u16,
     /// Offset from the beginning of CPAL table to the first
     /// ColorRecord.
-    pub color_records_array_offset: NullableOffsetMarker<Vec<ColorRecord>, WIDTH_32>,
+    pub color_records_array: NullableOffsetMarker<Vec<ColorRecord>, WIDTH_32>,
     /// Index of each palette’s first color record in the combined
     /// color record array.
     pub color_record_indices: Vec<u16>,
@@ -25,7 +25,7 @@ pub struct Cpal {
     /// This is an array of 32-bit flag fields that describe properties of each palette.
     ///
     /// [Palette Types Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array
-    pub palette_types_array_offset: NullableOffsetMarker<Vec<u32>, WIDTH_32>,
+    pub palette_types_array: NullableOffsetMarker<Vec<u32>, WIDTH_32>,
     /// Offset from the beginning of CPAL table to the [Palette Labels Array][].
     ///
     /// This is an array of 'name' table IDs (typically in the font-specific name
@@ -33,7 +33,7 @@ pub struct Cpal {
     /// Use 0xFFFF if no name ID is provided for a palette.
     ///
     /// [Palette Labels Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-labels-array
-    pub palette_labels_array_offset: NullableOffsetMarker<Vec<u16>, WIDTH_32>,
+    pub palette_labels_array: NullableOffsetMarker<Vec<u16>, WIDTH_32>,
     /// Offset from the beginning of CPAL table to the [Palette Entry Labels Array][].
     ///
     /// This is an array of 'name' table IDs (typically in the font-specific name
@@ -43,7 +43,7 @@ pub struct Cpal {
     /// palette entry.
     ///
     /// [Palette Entry Labels Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entry-label-array
-    pub palette_entry_labels_array_offset: NullableOffsetMarker<Vec<u16>, WIDTH_32>,
+    pub palette_entry_labels_array: NullableOffsetMarker<Vec<u16>, WIDTH_32>,
 }
 
 impl FontWrite for Cpal {
@@ -54,25 +54,25 @@ impl FontWrite for Cpal {
         self.num_palette_entries.write_into(writer);
         self.num_palettes.write_into(writer);
         self.num_color_records.write_into(writer);
-        self.color_records_array_offset.write_into(writer);
+        self.color_records_array.write_into(writer);
         self.color_record_indices.write_into(writer);
         version
             .compatible(1)
-            .then(|| self.palette_types_array_offset.write_into(writer));
+            .then(|| self.palette_types_array.write_into(writer));
         version
             .compatible(1)
-            .then(|| self.palette_labels_array_offset.write_into(writer));
+            .then(|| self.palette_labels_array.write_into(writer));
         version
             .compatible(1)
-            .then(|| self.palette_entry_labels_array_offset.write_into(writer));
+            .then(|| self.palette_entry_labels_array.write_into(writer));
     }
 }
 
 impl Validate for Cpal {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Cpal", |ctx| {
-            ctx.in_field("color_records_array_offset", |ctx| {
-                self.color_records_array_offset.validate_impl(ctx);
+            ctx.in_field("color_records_array", |ctx| {
+                self.color_records_array.validate_impl(ctx);
             });
             ctx.in_field("color_record_indices", |ctx| {
                 if self.color_record_indices.len() > (u16::MAX as usize) {
@@ -90,13 +90,11 @@ impl<'a> FromObjRef<read_fonts::tables::cpal::Cpal<'a>> for Cpal {
             num_palette_entries: obj.num_palette_entries(),
             num_palettes: obj.num_palettes(),
             num_color_records: obj.num_color_records(),
-            color_records_array_offset: obj.color_records_array().to_owned_obj(offset_data),
+            color_records_array: obj.color_records_array().to_owned_obj(offset_data),
             color_record_indices: obj.color_record_indices().to_owned_obj(offset_data),
-            palette_types_array_offset: obj.palette_types_array().to_owned_obj(offset_data),
-            palette_labels_array_offset: obj.palette_labels_array().to_owned_obj(offset_data),
-            palette_entry_labels_array_offset: obj
-                .palette_entry_labels_array()
-                .to_owned_obj(offset_data),
+            palette_types_array: obj.palette_types_array().to_owned_obj(offset_data),
+            palette_labels_array: obj.palette_labels_array().to_owned_obj(offset_data),
+            palette_entry_labels_array: obj.palette_entry_labels_array().to_owned_obj(offset_data),
         }
     }
 }

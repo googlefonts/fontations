@@ -86,7 +86,7 @@ impl<'a> FontRead<'a> for Name {
 pub struct LangTagRecord {
     /// Language-tag string offset from start of storage area (in
     /// bytes).
-    pub lang_tag_offset: OffsetMarker<String>,
+    pub lang_tag: OffsetMarker<String>,
 }
 
 impl Validate for LangTagRecord {
@@ -96,7 +96,7 @@ impl Validate for LangTagRecord {
 impl FromObjRef<read_fonts::tables::name::LangTagRecord> for LangTagRecord {
     fn from_obj_ref(obj: &read_fonts::tables::name::LangTagRecord, offset_data: FontData) -> Self {
         LangTagRecord {
-            lang_tag_offset: obj.lang_tag(offset_data).to_owned_table(),
+            lang_tag: obj.lang_tag(offset_data).to_owned_table(),
         }
     }
 }
@@ -113,13 +113,13 @@ pub struct NameRecord {
     /// Name ID.
     pub name_id: u16,
     /// String offset from start of storage area (in bytes).
-    pub string_offset: OffsetMarker<String>,
+    pub string: OffsetMarker<String>,
 }
 
 impl Validate for NameRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("NameRecord", |ctx| {
-            ctx.in_field("string_offset", |ctx| {
+            ctx.in_field("string", |ctx| {
                 self.validate_string_data(ctx);
             });
         })
@@ -133,7 +133,7 @@ impl FromObjRef<read_fonts::tables::name::NameRecord> for NameRecord {
             encoding_id: obj.encoding_id(),
             language_id: obj.language_id(),
             name_id: obj.name_id(),
-            string_offset: obj.string(offset_data).to_owned_table(),
+            string: obj.string(offset_data).to_owned_table(),
         }
     }
 }

@@ -23,7 +23,7 @@ impl Name {
 
 impl NameRecord {
     fn string(&self) -> &str {
-        self.string_offset.as_str()
+        self.string.as_str()
     }
 
     fn string_writer(&self) -> NameStringWriter {
@@ -69,7 +69,7 @@ impl FontWrite for NameRecord {
 
 impl LangTagRecord {
     fn lang_tag(&self) -> &str {
-        self.lang_tag_offset.as_str()
+        self.lang_tag.as_str()
     }
 
     fn string_writer(&self) -> NameStringWriter {
@@ -140,7 +140,7 @@ impl PartialEq for NameRecord {
             && self.encoding_id == other.encoding_id
             && self.language_id == other.language_id
             && self.name_id == other.name_id
-            && self.string_offset == other.string_offset
+            && self.string == other.string
     }
 }
 
@@ -198,21 +198,21 @@ mod tests {
             encoding_id: 1,
             language_id: 0,
             name_id: 1030,
-            string_offset: OffsetMarker::new("Ordinær".into()),
+            string: OffsetMarker::new("Ordinær".into()),
         });
         table.name_record.insert(NameRecord {
             platform_id: 0,
             encoding_id: 4,
             language_id: 0,
             name_id: 4,
-            string_offset: OffsetMarker::new("oh".into()),
+            string: OffsetMarker::new("oh".into()),
         });
         table.name_record.insert(NameRecord {
             platform_id: 3,
             encoding_id: 1,
             language_id: 0,
             name_id: 1029,
-            string_offset: OffsetMarker::new("Regular".into()),
+            string: OffsetMarker::new("Regular".into()),
         });
 
         let _dumped = crate::dump_table(&table).unwrap();

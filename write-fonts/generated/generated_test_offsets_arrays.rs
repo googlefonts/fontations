@@ -10,35 +10,35 @@ pub struct KindsOfOffsets {
     /// The major/minor version of the GDEF table
     pub version: MajorMinor,
     /// A normal offset
-    pub nonnullable_offset: OffsetMarker<Dummy>,
+    pub nonnullable: OffsetMarker<Dummy>,
     /// An offset that is nullable, but always present
-    pub nullable_offset: NullableOffsetMarker<Dummy>,
+    pub nullable: NullableOffsetMarker<Dummy>,
     /// count of the array at array_offset
     pub array_offset_count: u16,
     /// An offset to an array:
-    pub array_offset: OffsetMarker<Vec<u16>>,
+    pub array: OffsetMarker<Vec<u16>>,
     /// An offset to an array of records
-    pub record_array_offset: OffsetMarker<Vec<Shmecord>>,
+    pub record_array: OffsetMarker<Vec<Shmecord>>,
     /// A nullable, versioned offset to an array of records
-    pub versioned_nullable_record_array_offset: NullableOffsetMarker<Vec<Shmecord>>,
+    pub versioned_nullable_record_array: NullableOffsetMarker<Vec<Shmecord>>,
     /// A normal offset that is versioned
-    pub versioned_nonnullable_offset: Option<OffsetMarker<Dummy>>,
+    pub versioned_nonnullable: Option<OffsetMarker<Dummy>>,
     /// An offset that is nullable and versioned
-    pub versioned_nullable_offset: NullableOffsetMarker<Dummy, WIDTH_32>,
+    pub versioned_nullable: NullableOffsetMarker<Dummy, WIDTH_32>,
 }
 
 impl Default for KindsOfOffsets {
     fn default() -> Self {
         Self {
             version: MajorMinor::VERSION_1_1,
-            nonnullable_offset: Default::default(),
-            nullable_offset: Default::default(),
+            nonnullable: Default::default(),
+            nullable: Default::default(),
             array_offset_count: Default::default(),
-            array_offset: Default::default(),
-            record_array_offset: Default::default(),
-            versioned_nullable_record_array_offset: Default::default(),
-            versioned_nonnullable_offset: Default::default(),
-            versioned_nullable_offset: Default::default(),
+            array: Default::default(),
+            record_array: Default::default(),
+            versioned_nullable_record_array: Default::default(),
+            versioned_nonnullable: Default::default(),
+            versioned_nullable: Default::default(),
         }
     }
 }
@@ -47,24 +47,23 @@ impl FontWrite for KindsOfOffsets {
     fn write_into(&self, writer: &mut TableWriter) {
         let version = self.version;
         version.write_into(writer);
-        self.nonnullable_offset.write_into(writer);
-        self.nullable_offset.write_into(writer);
+        self.nonnullable.write_into(writer);
+        self.nullable.write_into(writer);
         self.array_offset_count.write_into(writer);
-        self.array_offset.write_into(writer);
-        self.record_array_offset.write_into(writer);
+        self.array.write_into(writer);
+        self.record_array.write_into(writer);
+        version
+            .compatible(MajorMinor::VERSION_1_1)
+            .then(|| self.versioned_nullable_record_array.write_into(writer));
         version.compatible(MajorMinor::VERSION_1_1).then(|| {
-            self.versioned_nullable_record_array_offset
-                .write_into(writer)
-        });
-        version.compatible(MajorMinor::VERSION_1_1).then(|| {
-            self.versioned_nonnullable_offset
+            self.versioned_nonnullable
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
         version
             .compatible(MajorMinor::VERSION_1_1)
-            .then(|| self.versioned_nullable_offset.write_into(writer));
+            .then(|| self.versioned_nullable.write_into(writer));
     }
 }
 
@@ -72,29 +71,28 @@ impl Validate for KindsOfOffsets {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("KindsOfOffsets", |ctx| {
             let version = self.version;
-            ctx.in_field("nonnullable_offset", |ctx| {
-                self.nonnullable_offset.validate_impl(ctx);
+            ctx.in_field("nonnullable", |ctx| {
+                self.nonnullable.validate_impl(ctx);
             });
-            ctx.in_field("nullable_offset", |ctx| {
-                self.nullable_offset.validate_impl(ctx);
+            ctx.in_field("nullable", |ctx| {
+                self.nullable.validate_impl(ctx);
             });
-            ctx.in_field("record_array_offset", |ctx| {
-                self.record_array_offset.validate_impl(ctx);
+            ctx.in_field("record_array", |ctx| {
+                self.record_array.validate_impl(ctx);
             });
-            ctx.in_field("versioned_nullable_record_array_offset", |ctx| {
-                self.versioned_nullable_record_array_offset
-                    .validate_impl(ctx);
+            ctx.in_field("versioned_nullable_record_array", |ctx| {
+                self.versioned_nullable_record_array.validate_impl(ctx);
             });
-            ctx.in_field("versioned_nonnullable_offset", |ctx| {
+            ctx.in_field("versioned_nonnullable", |ctx| {
                 if version.compatible(MajorMinor::VERSION_1_1)
-                    && self.versioned_nonnullable_offset.is_none()
+                    && self.versioned_nonnullable.is_none()
                 {
                     ctx.report(format!("field must be present for version {version}"));
                 }
-                self.versioned_nonnullable_offset.validate_impl(ctx);
+                self.versioned_nonnullable.validate_impl(ctx);
             });
-            ctx.in_field("versioned_nullable_offset", |ctx| {
-                self.versioned_nullable_offset.validate_impl(ctx);
+            ctx.in_field("versioned_nullable", |ctx| {
+                self.versioned_nullable.validate_impl(ctx);
             });
         })
     }
@@ -110,16 +108,16 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::KindsOfOffsets<'a>
         let offset_data = obj.offset_data();
         KindsOfOffsets {
             version: obj.version(),
-            nonnullable_offset: obj.nonnullable().to_owned_table(),
-            nullable_offset: obj.nullable().to_owned_table(),
+            nonnullable: obj.nonnullable().to_owned_table(),
+            nullable: obj.nullable().to_owned_table(),
             array_offset_count: obj.array_offset_count(),
-            array_offset: obj.array().to_owned_obj(offset_data),
-            record_array_offset: obj.record_array().to_owned_obj(offset_data),
-            versioned_nullable_record_array_offset: obj
+            array: obj.array().to_owned_obj(offset_data),
+            record_array: obj.record_array().to_owned_obj(offset_data),
+            versioned_nullable_record_array: obj
                 .versioned_nullable_record_array()
                 .to_owned_obj(offset_data),
-            versioned_nonnullable_offset: obj.versioned_nonnullable().to_owned_table(),
-            versioned_nullable_offset: obj.versioned_nullable().to_owned_table(),
+            versioned_nonnullable: obj.versioned_nonnullable().to_owned_table(),
+            versioned_nullable: obj.versioned_nullable().to_owned_table(),
         }
     }
 }
@@ -141,13 +139,13 @@ pub struct KindsOfArraysOfOffsets {
     /// The number of items in each array
     pub count: u16,
     /// A normal array offset
-    pub nonnullable_offsets: Vec<OffsetMarker<Dummy>>,
+    pub nonnullables: Vec<OffsetMarker<Dummy>>,
     /// An offset that is nullable, but always present
-    pub nullable_offsets: Vec<NullableOffsetMarker<Dummy>>,
+    pub nullables: Vec<NullableOffsetMarker<Dummy>>,
     /// A normal offset that is versioned
-    pub versioned_nonnullable_offsets: Option<Vec<OffsetMarker<Dummy>>>,
+    pub versioned_nonnullables: Option<Vec<OffsetMarker<Dummy>>>,
     /// An offset that is nullable and versioned
-    pub versioned_nullable_offsets: Option<Vec<NullableOffsetMarker<Dummy>>>,
+    pub versioned_nullables: Option<Vec<NullableOffsetMarker<Dummy>>>,
 }
 
 impl FontWrite for KindsOfArraysOfOffsets {
@@ -156,16 +154,16 @@ impl FontWrite for KindsOfArraysOfOffsets {
         let version = MajorMinor::VERSION_1_1 as MajorMinor;
         version.write_into(writer);
         self.count.write_into(writer);
-        self.nonnullable_offsets.write_into(writer);
-        self.nullable_offsets.write_into(writer);
+        self.nonnullables.write_into(writer);
+        self.nullables.write_into(writer);
         version.compatible(MajorMinor::VERSION_1_1).then(|| {
-            self.versioned_nonnullable_offsets
+            self.versioned_nonnullables
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
         version.compatible(MajorMinor::VERSION_1_1).then(|| {
-            self.versioned_nullable_offsets
+            self.versioned_nullables
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
@@ -177,44 +175,42 @@ impl Validate for KindsOfArraysOfOffsets {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("KindsOfArraysOfOffsets", |ctx| {
             let version: MajorMinor = MajorMinor::VERSION_1_1;
-            ctx.in_field("nonnullable_offsets", |ctx| {
-                if self.nonnullable_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("nonnullables", |ctx| {
+                if self.nonnullables.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.nonnullable_offsets.validate_impl(ctx);
+                self.nonnullables.validate_impl(ctx);
             });
-            ctx.in_field("nullable_offsets", |ctx| {
-                if self.nullable_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("nullables", |ctx| {
+                if self.nullables.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.nullable_offsets.validate_impl(ctx);
+                self.nullables.validate_impl(ctx);
             });
-            ctx.in_field("versioned_nonnullable_offsets", |ctx| {
+            ctx.in_field("versioned_nonnullables", |ctx| {
                 if version.compatible(MajorMinor::VERSION_1_1)
-                    && self.versioned_nonnullable_offsets.is_none()
+                    && self.versioned_nonnullables.is_none()
                 {
                     ctx.report(format!("field must be present for version {version}"));
                 }
-                if self.versioned_nonnullable_offsets.is_some()
-                    && self.versioned_nonnullable_offsets.as_ref().unwrap().len()
-                        > (u16::MAX as usize)
+                if self.versioned_nonnullables.is_some()
+                    && self.versioned_nonnullables.as_ref().unwrap().len() > (u16::MAX as usize)
                 {
                     ctx.report("array excedes max length");
                 }
-                self.versioned_nonnullable_offsets.validate_impl(ctx);
+                self.versioned_nonnullables.validate_impl(ctx);
             });
-            ctx.in_field("versioned_nullable_offsets", |ctx| {
-                if version.compatible(MajorMinor::VERSION_1_1)
-                    && self.versioned_nullable_offsets.is_none()
+            ctx.in_field("versioned_nullables", |ctx| {
+                if version.compatible(MajorMinor::VERSION_1_1) && self.versioned_nullables.is_none()
                 {
                     ctx.report(format!("field must be present for version {version}"));
                 }
-                if self.versioned_nullable_offsets.is_some()
-                    && self.versioned_nullable_offsets.as_ref().unwrap().len() > (u16::MAX as usize)
+                if self.versioned_nullables.is_some()
+                    && self.versioned_nullables.as_ref().unwrap().len() > (u16::MAX as usize)
                 {
                     ctx.report("array excedes max length");
                 }
-                self.versioned_nullable_offsets.validate_impl(ctx);
+                self.versioned_nullables.validate_impl(ctx);
             });
         })
     }
@@ -229,12 +225,12 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::KindsOfArraysOfOff
     ) -> Self {
         KindsOfArraysOfOffsets {
             count: obj.count(),
-            nonnullable_offsets: obj.nonnullables().map(|x| x.to_owned_table()).collect(),
-            nullable_offsets: obj.nullables().map(|x| x.to_owned_table()).collect(),
-            versioned_nonnullable_offsets: obj
+            nonnullables: obj.nonnullables().map(|x| x.to_owned_table()).collect(),
+            nullables: obj.nullables().map(|x| x.to_owned_table()).collect(),
+            versioned_nonnullables: obj
                 .versioned_nonnullables()
                 .map(|obj| obj.map(|x| x.to_owned_table()).collect()),
-            versioned_nullable_offsets: obj
+            versioned_nullables: obj
                 .versioned_nullables()
                 .map(|obj| obj.map(|x| x.to_owned_table()).collect()),
         }

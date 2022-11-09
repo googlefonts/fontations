@@ -12,12 +12,12 @@ pub use read_fonts::layout::gpos::ValueFormat;
 #[derive(Clone, Debug, Default)]
 pub struct Gpos {
     /// Offset to ScriptList table, from beginning of GPOS table
-    pub script_list_offset: OffsetMarker<ScriptList>,
+    pub script_list: OffsetMarker<ScriptList>,
     /// Offset to FeatureList table, from beginning of GPOS table
-    pub feature_list_offset: OffsetMarker<FeatureList>,
+    pub feature_list: OffsetMarker<FeatureList>,
     /// Offset to LookupList table, from beginning of GPOS table
-    pub lookup_list_offset: OffsetMarker<PositionLookupList>,
-    pub feature_variations_offset: NullableOffsetMarker<FeatureVariations, WIDTH_32>,
+    pub lookup_list: OffsetMarker<PositionLookupList>,
+    pub feature_variations: NullableOffsetMarker<FeatureVariations, WIDTH_32>,
 }
 
 impl FontWrite for Gpos {
@@ -25,29 +25,29 @@ impl FontWrite for Gpos {
     fn write_into(&self, writer: &mut TableWriter) {
         let version = self.compute_version() as MajorMinor;
         version.write_into(writer);
-        self.script_list_offset.write_into(writer);
-        self.feature_list_offset.write_into(writer);
-        self.lookup_list_offset.write_into(writer);
+        self.script_list.write_into(writer);
+        self.feature_list.write_into(writer);
+        self.lookup_list.write_into(writer);
         version
             .compatible(MajorMinor::VERSION_1_1)
-            .then(|| self.feature_variations_offset.write_into(writer));
+            .then(|| self.feature_variations.write_into(writer));
     }
 }
 
 impl Validate for Gpos {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Gpos", |ctx| {
-            ctx.in_field("script_list_offset", |ctx| {
-                self.script_list_offset.validate_impl(ctx);
+            ctx.in_field("script_list", |ctx| {
+                self.script_list.validate_impl(ctx);
             });
-            ctx.in_field("feature_list_offset", |ctx| {
-                self.feature_list_offset.validate_impl(ctx);
+            ctx.in_field("feature_list", |ctx| {
+                self.feature_list.validate_impl(ctx);
             });
-            ctx.in_field("lookup_list_offset", |ctx| {
-                self.lookup_list_offset.validate_impl(ctx);
+            ctx.in_field("lookup_list", |ctx| {
+                self.lookup_list.validate_impl(ctx);
             });
-            ctx.in_field("feature_variations_offset", |ctx| {
-                self.feature_variations_offset.validate_impl(ctx);
+            ctx.in_field("feature_variations", |ctx| {
+                self.feature_variations.validate_impl(ctx);
             });
         })
     }
@@ -56,10 +56,10 @@ impl Validate for Gpos {
 impl<'a> FromObjRef<read_fonts::layout::gpos::Gpos<'a>> for Gpos {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::Gpos<'a>, _: FontData) -> Self {
         Gpos {
-            script_list_offset: obj.script_list().to_owned_table(),
-            feature_list_offset: obj.feature_list().to_owned_table(),
-            lookup_list_offset: obj.lookup_list().to_owned_table(),
-            feature_variations_offset: obj.feature_variations().to_owned_table(),
+            script_list: obj.script_list().to_owned_table(),
+            feature_list: obj.feature_list().to_owned_table(),
+            lookup_list: obj.lookup_list().to_owned_table(),
+            feature_variations: obj.feature_variations().to_owned_table(),
         }
     }
 }
@@ -314,11 +314,11 @@ pub struct AnchorFormat3 {
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for X coordinate, from beginning of
     /// Anchor table (may be NULL)
-    pub x_device_offset: NullableOffsetMarker<Device>,
+    pub x_device: NullableOffsetMarker<Device>,
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for Y coordinate, from beginning of
     /// Anchor table (may be NULL)
-    pub y_device_offset: NullableOffsetMarker<Device>,
+    pub y_device: NullableOffsetMarker<Device>,
 }
 
 impl FontWrite for AnchorFormat3 {
@@ -327,19 +327,19 @@ impl FontWrite for AnchorFormat3 {
         (3 as u16).write_into(writer);
         self.x_coordinate.write_into(writer);
         self.y_coordinate.write_into(writer);
-        self.x_device_offset.write_into(writer);
-        self.y_device_offset.write_into(writer);
+        self.x_device.write_into(writer);
+        self.y_device.write_into(writer);
     }
 }
 
 impl Validate for AnchorFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AnchorFormat3", |ctx| {
-            ctx.in_field("x_device_offset", |ctx| {
-                self.x_device_offset.validate_impl(ctx);
+            ctx.in_field("x_device", |ctx| {
+                self.x_device.validate_impl(ctx);
             });
-            ctx.in_field("y_device_offset", |ctx| {
-                self.y_device_offset.validate_impl(ctx);
+            ctx.in_field("y_device", |ctx| {
+                self.y_device.validate_impl(ctx);
             });
         })
     }
@@ -350,8 +350,8 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::AnchorFormat3<'a>> for AnchorForma
         AnchorFormat3 {
             x_coordinate: obj.x_coordinate(),
             y_coordinate: obj.y_coordinate(),
-            x_device_offset: obj.x_device().to_owned_table(),
-            y_device_offset: obj.y_device().to_owned_table(),
+            x_device: obj.x_device().to_owned_table(),
+            y_device: obj.y_device().to_owned_table(),
         }
     }
 }
@@ -417,21 +417,21 @@ pub struct MarkRecord {
     /// Class defined for the associated mark.
     pub mark_class: u16,
     /// Offset to Anchor table, from beginning of MarkArray table.
-    pub mark_anchor_offset: OffsetMarker<AnchorTable>,
+    pub mark_anchor: OffsetMarker<AnchorTable>,
 }
 
 impl FontWrite for MarkRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.mark_class.write_into(writer);
-        self.mark_anchor_offset.write_into(writer);
+        self.mark_anchor.write_into(writer);
     }
 }
 
 impl Validate for MarkRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MarkRecord", |ctx| {
-            ctx.in_field("mark_anchor_offset", |ctx| {
-                self.mark_anchor_offset.validate_impl(ctx);
+            ctx.in_field("mark_anchor", |ctx| {
+                self.mark_anchor.validate_impl(ctx);
             });
         })
     }
@@ -441,7 +441,7 @@ impl FromObjRef<read_fonts::layout::gpos::MarkRecord> for MarkRecord {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkRecord, offset_data: FontData) -> Self {
         MarkRecord {
             mark_class: obj.mark_class(),
-            mark_anchor_offset: obj.mark_anchor(offset_data).to_owned_table(),
+            mark_anchor: obj.mark_anchor(offset_data).to_owned_table(),
         }
     }
 }
@@ -499,7 +499,7 @@ impl<'a> FontRead<'a> for SinglePos {
 #[derive(Clone, Debug, Default)]
 pub struct SinglePosFormat1 {
     /// Offset to Coverage table, from beginning of SinglePos subtable.
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Defines positioning value(s) — applied to all glyphs in the
     /// Coverage table.
     pub value_record: ValueRecord,
@@ -509,7 +509,7 @@ impl FontWrite for SinglePosFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        self.coverage_offset.write_into(writer);
+        self.coverage.write_into(writer);
         (self.compute_value_format() as ValueFormat).write_into(writer);
         self.value_record.write_into(writer);
     }
@@ -518,8 +518,8 @@ impl FontWrite for SinglePosFormat1 {
 impl Validate for SinglePosFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SinglePosFormat1", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
         })
     }
@@ -529,7 +529,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::SinglePosFormat1<'a>> for SinglePo
     fn from_obj_ref(obj: &read_fonts::layout::gpos::SinglePosFormat1<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         SinglePosFormat1 {
-            coverage_offset: obj.coverage().to_owned_table(),
+            coverage: obj.coverage().to_owned_table(),
             value_record: obj.value_record().to_owned_obj(offset_data),
         }
     }
@@ -548,7 +548,7 @@ impl<'a> FontRead<'a> for SinglePosFormat1 {
 #[derive(Clone, Debug, Default)]
 pub struct SinglePosFormat2 {
     /// Offset to Coverage table, from beginning of SinglePos subtable.
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Array of ValueRecords — positioning values applied to glyphs.
     pub value_records: Vec<ValueRecord>,
 }
@@ -557,7 +557,7 @@ impl FontWrite for SinglePosFormat2 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
-        self.coverage_offset.write_into(writer);
+        self.coverage.write_into(writer);
         (self.compute_value_format() as ValueFormat).write_into(writer);
         (array_len(&self.value_records).unwrap() as u16).write_into(writer);
         self.value_records.write_into(writer);
@@ -567,8 +567,8 @@ impl FontWrite for SinglePosFormat2 {
 impl Validate for SinglePosFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SinglePosFormat2", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
             ctx.in_field("value_records", |ctx| {
                 if self.value_records.len() > (u16::MAX as usize) {
@@ -584,7 +584,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::SinglePosFormat2<'a>> for SinglePo
     fn from_obj_ref(obj: &read_fonts::layout::gpos::SinglePosFormat2<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         SinglePosFormat2 {
-            coverage_offset: obj.coverage().to_owned_table(),
+            coverage: obj.coverage().to_owned_table(),
             value_records: obj
                 .value_records()
                 .iter()
@@ -656,35 +656,35 @@ impl<'a> FontRead<'a> for PairPos {
 #[derive(Clone, Debug, Default)]
 pub struct PairPosFormat1 {
     /// Offset to Coverage table, from beginning of PairPos subtable.
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Array of offsets to PairSet tables. Offsets are from beginning
     /// of PairPos subtable, ordered by Coverage Index.
-    pub pair_set_offsets: Vec<OffsetMarker<PairSet>>,
+    pub pair_sets: Vec<OffsetMarker<PairSet>>,
 }
 
 impl FontWrite for PairPosFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        self.coverage_offset.write_into(writer);
+        self.coverage.write_into(writer);
         (self.compute_value_format1() as ValueFormat).write_into(writer);
         (self.compute_value_format2() as ValueFormat).write_into(writer);
-        (array_len(&self.pair_set_offsets).unwrap() as u16).write_into(writer);
-        self.pair_set_offsets.write_into(writer);
+        (array_len(&self.pair_sets).unwrap() as u16).write_into(writer);
+        self.pair_sets.write_into(writer);
     }
 }
 
 impl Validate for PairPosFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PairPosFormat1", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
-            ctx.in_field("pair_set_offsets", |ctx| {
-                if self.pair_set_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("pair_sets", |ctx| {
+                if self.pair_sets.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.pair_set_offsets.validate_impl(ctx);
+                self.pair_sets.validate_impl(ctx);
             });
         })
     }
@@ -693,8 +693,8 @@ impl Validate for PairPosFormat1 {
 impl<'a> FromObjRef<read_fonts::layout::gpos::PairPosFormat1<'a>> for PairPosFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::PairPosFormat1<'a>, _: FontData) -> Self {
         PairPosFormat1 {
-            coverage_offset: obj.coverage().to_owned_table(),
-            pair_set_offsets: obj.pair_sets().map(|x| x.to_owned_table()).collect(),
+            coverage: obj.coverage().to_owned_table(),
+            pair_sets: obj.pair_sets().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -793,13 +793,13 @@ impl FromObjRef<read_fonts::layout::gpos::PairValueRecord> for PairValueRecord {
 #[derive(Clone, Debug, Default)]
 pub struct PairPosFormat2 {
     /// Offset to Coverage table, from beginning of PairPos subtable.
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the first glyph of the pair.
-    pub class_def1_offset: OffsetMarker<ClassDef>,
+    pub class_def1: OffsetMarker<ClassDef>,
     /// Offset to ClassDef table, from beginning of PairPos subtable
     /// — for the second glyph of the pair.
-    pub class_def2_offset: OffsetMarker<ClassDef>,
+    pub class_def2: OffsetMarker<ClassDef>,
     /// Array of Class1 records, ordered by classes in classDef1.
     pub class1_records: Vec<Class1Record>,
 }
@@ -808,11 +808,11 @@ impl FontWrite for PairPosFormat2 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
-        self.coverage_offset.write_into(writer);
+        self.coverage.write_into(writer);
         (self.compute_value_format1() as ValueFormat).write_into(writer);
         (self.compute_value_format2() as ValueFormat).write_into(writer);
-        self.class_def1_offset.write_into(writer);
-        self.class_def2_offset.write_into(writer);
+        self.class_def1.write_into(writer);
+        self.class_def2.write_into(writer);
         (self.compute_class1_count() as u16).write_into(writer);
         (self.compute_class2_count() as u16).write_into(writer);
         self.class1_records.write_into(writer);
@@ -822,14 +822,14 @@ impl FontWrite for PairPosFormat2 {
 impl Validate for PairPosFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("PairPosFormat2", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
-            ctx.in_field("class_def1_offset", |ctx| {
-                self.class_def1_offset.validate_impl(ctx);
+            ctx.in_field("class_def1", |ctx| {
+                self.class_def1.validate_impl(ctx);
             });
-            ctx.in_field("class_def2_offset", |ctx| {
-                self.class_def2_offset.validate_impl(ctx);
+            ctx.in_field("class_def2", |ctx| {
+                self.class_def2.validate_impl(ctx);
             });
             ctx.in_field("class1_records", |ctx| {
                 if self.class1_records.len() > (u16::MAX as usize) {
@@ -845,9 +845,9 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::PairPosFormat2<'a>> for PairPosFor
     fn from_obj_ref(obj: &read_fonts::layout::gpos::PairPosFormat2<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         PairPosFormat2 {
-            coverage_offset: obj.coverage().to_owned_table(),
-            class_def1_offset: obj.class_def1().to_owned_table(),
-            class_def2_offset: obj.class_def2().to_owned_table(),
+            coverage: obj.coverage().to_owned_table(),
+            class_def1: obj.class_def1().to_owned_table(),
+            class_def2: obj.class_def2().to_owned_table(),
             class1_records: obj
                 .class1_records()
                 .iter()
@@ -937,7 +937,7 @@ impl FromObjRef<read_fonts::layout::gpos::Class2Record> for Class2Record {
 #[derive(Clone, Debug, Default)]
 pub struct CursivePosFormat1 {
     /// Offset to Coverage table, from beginning of CursivePos subtable.
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Array of EntryExit records, in Coverage index order.
     pub entry_exit_record: Vec<EntryExitRecord>,
 }
@@ -946,7 +946,7 @@ impl FontWrite for CursivePosFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        self.coverage_offset.write_into(writer);
+        self.coverage.write_into(writer);
         (array_len(&self.entry_exit_record).unwrap() as u16).write_into(writer);
         self.entry_exit_record.write_into(writer);
     }
@@ -955,8 +955,8 @@ impl FontWrite for CursivePosFormat1 {
 impl Validate for CursivePosFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("CursivePosFormat1", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
             ctx.in_field("entry_exit_record", |ctx| {
                 if self.entry_exit_record.len() > (u16::MAX as usize) {
@@ -972,7 +972,7 @@ impl<'a> FromObjRef<read_fonts::layout::gpos::CursivePosFormat1<'a>> for Cursive
     fn from_obj_ref(obj: &read_fonts::layout::gpos::CursivePosFormat1<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         CursivePosFormat1 {
-            coverage_offset: obj.coverage().to_owned_table(),
+            coverage: obj.coverage().to_owned_table(),
             entry_exit_record: obj.entry_exit_record().to_owned_obj(offset_data),
         }
     }
@@ -992,27 +992,27 @@ impl<'a> FontRead<'a> for CursivePosFormat1 {
 pub struct EntryExitRecord {
     /// Offset to entryAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
-    pub entry_anchor_offset: NullableOffsetMarker<AnchorTable>,
+    pub entry_anchor: NullableOffsetMarker<AnchorTable>,
     /// Offset to exitAnchor table, from beginning of CursivePos
     /// subtable (may be NULL).
-    pub exit_anchor_offset: NullableOffsetMarker<AnchorTable>,
+    pub exit_anchor: NullableOffsetMarker<AnchorTable>,
 }
 
 impl FontWrite for EntryExitRecord {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.entry_anchor_offset.write_into(writer);
-        self.exit_anchor_offset.write_into(writer);
+        self.entry_anchor.write_into(writer);
+        self.exit_anchor.write_into(writer);
     }
 }
 
 impl Validate for EntryExitRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("EntryExitRecord", |ctx| {
-            ctx.in_field("entry_anchor_offset", |ctx| {
-                self.entry_anchor_offset.validate_impl(ctx);
+            ctx.in_field("entry_anchor", |ctx| {
+                self.entry_anchor.validate_impl(ctx);
             });
-            ctx.in_field("exit_anchor_offset", |ctx| {
-                self.exit_anchor_offset.validate_impl(ctx);
+            ctx.in_field("exit_anchor", |ctx| {
+                self.exit_anchor.validate_impl(ctx);
             });
         })
     }
@@ -1024,8 +1024,8 @@ impl FromObjRef<read_fonts::layout::gpos::EntryExitRecord> for EntryExitRecord {
         offset_data: FontData,
     ) -> Self {
         EntryExitRecord {
-            entry_anchor_offset: obj.entry_anchor(offset_data).to_owned_table(),
-            exit_anchor_offset: obj.exit_anchor(offset_data).to_owned_table(),
+            entry_anchor: obj.entry_anchor(offset_data).to_owned_table(),
+            exit_anchor: obj.exit_anchor(offset_data).to_owned_table(),
         }
     }
 }
@@ -1035,44 +1035,44 @@ impl FromObjRef<read_fonts::layout::gpos::EntryExitRecord> for EntryExitRecord {
 pub struct MarkBasePosFormat1 {
     /// Offset to markCoverage table, from beginning of MarkBasePos
     /// subtable.
-    pub mark_coverage_offset: OffsetMarker<CoverageTable>,
+    pub mark_coverage: OffsetMarker<CoverageTable>,
     /// Offset to baseCoverage table, from beginning of MarkBasePos
     /// subtable.
-    pub base_coverage_offset: OffsetMarker<CoverageTable>,
+    pub base_coverage: OffsetMarker<CoverageTable>,
     /// Offset to MarkArray table, from beginning of MarkBasePos
     /// subtable.
-    pub mark_array_offset: OffsetMarker<MarkArray>,
+    pub mark_array: OffsetMarker<MarkArray>,
     /// Offset to BaseArray table, from beginning of MarkBasePos
     /// subtable.
-    pub base_array_offset: OffsetMarker<BaseArray>,
+    pub base_array: OffsetMarker<BaseArray>,
 }
 
 impl FontWrite for MarkBasePosFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        self.mark_coverage_offset.write_into(writer);
-        self.base_coverage_offset.write_into(writer);
+        self.mark_coverage.write_into(writer);
+        self.base_coverage.write_into(writer);
         (self.compute_mark_class_count() as u16).write_into(writer);
-        self.mark_array_offset.write_into(writer);
-        self.base_array_offset.write_into(writer);
+        self.mark_array.write_into(writer);
+        self.base_array.write_into(writer);
     }
 }
 
 impl Validate for MarkBasePosFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MarkBasePosFormat1", |ctx| {
-            ctx.in_field("mark_coverage_offset", |ctx| {
-                self.mark_coverage_offset.validate_impl(ctx);
+            ctx.in_field("mark_coverage", |ctx| {
+                self.mark_coverage.validate_impl(ctx);
             });
-            ctx.in_field("base_coverage_offset", |ctx| {
-                self.base_coverage_offset.validate_impl(ctx);
+            ctx.in_field("base_coverage", |ctx| {
+                self.base_coverage.validate_impl(ctx);
             });
-            ctx.in_field("mark_array_offset", |ctx| {
-                self.mark_array_offset.validate_impl(ctx);
+            ctx.in_field("mark_array", |ctx| {
+                self.mark_array.validate_impl(ctx);
             });
-            ctx.in_field("base_array_offset", |ctx| {
-                self.base_array_offset.validate_impl(ctx);
+            ctx.in_field("base_array", |ctx| {
+                self.base_array.validate_impl(ctx);
             });
         })
     }
@@ -1081,10 +1081,10 @@ impl Validate for MarkBasePosFormat1 {
 impl<'a> FromObjRef<read_fonts::layout::gpos::MarkBasePosFormat1<'a>> for MarkBasePosFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkBasePosFormat1<'a>, _: FontData) -> Self {
         MarkBasePosFormat1 {
-            mark_coverage_offset: obj.mark_coverage().to_owned_table(),
-            base_coverage_offset: obj.base_coverage().to_owned_table(),
-            mark_array_offset: obj.mark_array().to_owned_table(),
-            base_array_offset: obj.base_array().to_owned_table(),
+            mark_coverage: obj.mark_coverage().to_owned_table(),
+            base_coverage: obj.base_coverage().to_owned_table(),
+            mark_array: obj.mark_array().to_owned_table(),
+            base_array: obj.base_array().to_owned_table(),
         }
     }
 }
@@ -1147,23 +1147,23 @@ pub struct BaseRecord {
     /// Array of offsets (one per mark class) to Anchor tables. Offsets
     /// are from beginning of BaseArray table, ordered by class
     /// (offsets may be NULL).
-    pub base_anchor_offsets: Vec<NullableOffsetMarker<AnchorTable>>,
+    pub base_anchors: Vec<NullableOffsetMarker<AnchorTable>>,
 }
 
 impl FontWrite for BaseRecord {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.base_anchor_offsets.write_into(writer);
+        self.base_anchors.write_into(writer);
     }
 }
 
 impl Validate for BaseRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BaseRecord", |ctx| {
-            ctx.in_field("base_anchor_offsets", |ctx| {
-                if self.base_anchor_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("base_anchors", |ctx| {
+                if self.base_anchors.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.base_anchor_offsets.validate_impl(ctx);
+                self.base_anchors.validate_impl(ctx);
             });
         })
     }
@@ -1172,7 +1172,7 @@ impl Validate for BaseRecord {
 impl FromObjRef<read_fonts::layout::gpos::BaseRecord<'_>> for BaseRecord {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::BaseRecord, offset_data: FontData) -> Self {
         BaseRecord {
-            base_anchor_offsets: obj
+            base_anchors: obj
                 .base_anchors(offset_data)
                 .map(|x| x.to_owned_table())
                 .collect(),
@@ -1185,44 +1185,44 @@ impl FromObjRef<read_fonts::layout::gpos::BaseRecord<'_>> for BaseRecord {
 pub struct MarkLigPosFormat1 {
     /// Offset to markCoverage table, from beginning of MarkLigPos
     /// subtable.
-    pub mark_coverage_offset: OffsetMarker<CoverageTable>,
+    pub mark_coverage: OffsetMarker<CoverageTable>,
     /// Offset to ligatureCoverage table, from beginning of MarkLigPos
     /// subtable.
-    pub ligature_coverage_offset: OffsetMarker<CoverageTable>,
+    pub ligature_coverage: OffsetMarker<CoverageTable>,
     /// Offset to MarkArray table, from beginning of MarkLigPos
     /// subtable.
-    pub mark_array_offset: OffsetMarker<MarkArray>,
+    pub mark_array: OffsetMarker<MarkArray>,
     /// Offset to LigatureArray table, from beginning of MarkLigPos
     /// subtable.
-    pub ligature_array_offset: OffsetMarker<LigatureArray>,
+    pub ligature_array: OffsetMarker<LigatureArray>,
 }
 
 impl FontWrite for MarkLigPosFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        self.mark_coverage_offset.write_into(writer);
-        self.ligature_coverage_offset.write_into(writer);
+        self.mark_coverage.write_into(writer);
+        self.ligature_coverage.write_into(writer);
         (self.compute_mark_class_count() as u16).write_into(writer);
-        self.mark_array_offset.write_into(writer);
-        self.ligature_array_offset.write_into(writer);
+        self.mark_array.write_into(writer);
+        self.ligature_array.write_into(writer);
     }
 }
 
 impl Validate for MarkLigPosFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MarkLigPosFormat1", |ctx| {
-            ctx.in_field("mark_coverage_offset", |ctx| {
-                self.mark_coverage_offset.validate_impl(ctx);
+            ctx.in_field("mark_coverage", |ctx| {
+                self.mark_coverage.validate_impl(ctx);
             });
-            ctx.in_field("ligature_coverage_offset", |ctx| {
-                self.ligature_coverage_offset.validate_impl(ctx);
+            ctx.in_field("ligature_coverage", |ctx| {
+                self.ligature_coverage.validate_impl(ctx);
             });
-            ctx.in_field("mark_array_offset", |ctx| {
-                self.mark_array_offset.validate_impl(ctx);
+            ctx.in_field("mark_array", |ctx| {
+                self.mark_array.validate_impl(ctx);
             });
-            ctx.in_field("ligature_array_offset", |ctx| {
-                self.ligature_array_offset.validate_impl(ctx);
+            ctx.in_field("ligature_array", |ctx| {
+                self.ligature_array.validate_impl(ctx);
             });
         })
     }
@@ -1231,10 +1231,10 @@ impl Validate for MarkLigPosFormat1 {
 impl<'a> FromObjRef<read_fonts::layout::gpos::MarkLigPosFormat1<'a>> for MarkLigPosFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkLigPosFormat1<'a>, _: FontData) -> Self {
         MarkLigPosFormat1 {
-            mark_coverage_offset: obj.mark_coverage().to_owned_table(),
-            ligature_coverage_offset: obj.ligature_coverage().to_owned_table(),
-            mark_array_offset: obj.mark_array().to_owned_table(),
-            ligature_array_offset: obj.ligature_array().to_owned_table(),
+            mark_coverage: obj.mark_coverage().to_owned_table(),
+            ligature_coverage: obj.ligature_coverage().to_owned_table(),
+            mark_array: obj.mark_array().to_owned_table(),
+            ligature_array: obj.ligature_array().to_owned_table(),
         }
     }
 }
@@ -1254,25 +1254,25 @@ pub struct LigatureArray {
     /// Array of offsets to LigatureAttach tables. Offsets are from
     /// beginning of LigatureArray table, ordered by ligatureCoverage
     /// index.
-    pub ligature_attach_offsets: Vec<OffsetMarker<LigatureAttach>>,
+    pub ligature_attaches: Vec<OffsetMarker<LigatureAttach>>,
 }
 
 impl FontWrite for LigatureArray {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.ligature_attach_offsets).unwrap() as u16).write_into(writer);
-        self.ligature_attach_offsets.write_into(writer);
+        (array_len(&self.ligature_attaches).unwrap() as u16).write_into(writer);
+        self.ligature_attaches.write_into(writer);
     }
 }
 
 impl Validate for LigatureArray {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LigatureArray", |ctx| {
-            ctx.in_field("ligature_attach_offsets", |ctx| {
-                if self.ligature_attach_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("ligature_attaches", |ctx| {
+                if self.ligature_attaches.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.ligature_attach_offsets.validate_impl(ctx);
+                self.ligature_attaches.validate_impl(ctx);
             });
         })
     }
@@ -1281,7 +1281,7 @@ impl Validate for LigatureArray {
 impl<'a> FromObjRef<read_fonts::layout::gpos::LigatureArray<'a>> for LigatureArray {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::LigatureArray<'a>, _: FontData) -> Self {
         LigatureArray {
-            ligature_attach_offsets: obj
+            ligature_attaches: obj
                 .ligature_attaches()
                 .map(|x| x.to_owned_table())
                 .collect(),
@@ -1340,23 +1340,23 @@ pub struct ComponentRecord {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of LigatureAttach table, ordered by class
     /// (offsets may be NULL).
-    pub ligature_anchor_offsets: Vec<NullableOffsetMarker<AnchorTable>>,
+    pub ligature_anchors: Vec<NullableOffsetMarker<AnchorTable>>,
 }
 
 impl FontWrite for ComponentRecord {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.ligature_anchor_offsets.write_into(writer);
+        self.ligature_anchors.write_into(writer);
     }
 }
 
 impl Validate for ComponentRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ComponentRecord", |ctx| {
-            ctx.in_field("ligature_anchor_offsets", |ctx| {
-                if self.ligature_anchor_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("ligature_anchors", |ctx| {
+                if self.ligature_anchors.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.ligature_anchor_offsets.validate_impl(ctx);
+                self.ligature_anchors.validate_impl(ctx);
             });
         })
     }
@@ -1368,7 +1368,7 @@ impl FromObjRef<read_fonts::layout::gpos::ComponentRecord<'_>> for ComponentReco
         offset_data: FontData,
     ) -> Self {
         ComponentRecord {
-            ligature_anchor_offsets: obj
+            ligature_anchors: obj
                 .ligature_anchors(offset_data)
                 .map(|x| x.to_owned_table())
                 .collect(),
@@ -1381,44 +1381,44 @@ impl FromObjRef<read_fonts::layout::gpos::ComponentRecord<'_>> for ComponentReco
 pub struct MarkMarkPosFormat1 {
     /// Offset to Combining Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
-    pub mark1_coverage_offset: OffsetMarker<CoverageTable>,
+    pub mark1_coverage: OffsetMarker<CoverageTable>,
     /// Offset to Base Mark Coverage table, from beginning of
     /// MarkMarkPos subtable.
-    pub mark2_coverage_offset: OffsetMarker<CoverageTable>,
+    pub mark2_coverage: OffsetMarker<CoverageTable>,
     /// Offset to MarkArray table for mark1, from beginning of
     /// MarkMarkPos subtable.
-    pub mark1_array_offset: OffsetMarker<MarkArray>,
+    pub mark1_array: OffsetMarker<MarkArray>,
     /// Offset to Mark2Array table for mark2, from beginning of
     /// MarkMarkPos subtable.
-    pub mark2_array_offset: OffsetMarker<Mark2Array>,
+    pub mark2_array: OffsetMarker<Mark2Array>,
 }
 
 impl FontWrite for MarkMarkPosFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        self.mark1_coverage_offset.write_into(writer);
-        self.mark2_coverage_offset.write_into(writer);
+        self.mark1_coverage.write_into(writer);
+        self.mark2_coverage.write_into(writer);
         (self.compute_mark_class_count() as u16).write_into(writer);
-        self.mark1_array_offset.write_into(writer);
-        self.mark2_array_offset.write_into(writer);
+        self.mark1_array.write_into(writer);
+        self.mark2_array.write_into(writer);
     }
 }
 
 impl Validate for MarkMarkPosFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("MarkMarkPosFormat1", |ctx| {
-            ctx.in_field("mark1_coverage_offset", |ctx| {
-                self.mark1_coverage_offset.validate_impl(ctx);
+            ctx.in_field("mark1_coverage", |ctx| {
+                self.mark1_coverage.validate_impl(ctx);
             });
-            ctx.in_field("mark2_coverage_offset", |ctx| {
-                self.mark2_coverage_offset.validate_impl(ctx);
+            ctx.in_field("mark2_coverage", |ctx| {
+                self.mark2_coverage.validate_impl(ctx);
             });
-            ctx.in_field("mark1_array_offset", |ctx| {
-                self.mark1_array_offset.validate_impl(ctx);
+            ctx.in_field("mark1_array", |ctx| {
+                self.mark1_array.validate_impl(ctx);
             });
-            ctx.in_field("mark2_array_offset", |ctx| {
-                self.mark2_array_offset.validate_impl(ctx);
+            ctx.in_field("mark2_array", |ctx| {
+                self.mark2_array.validate_impl(ctx);
             });
         })
     }
@@ -1427,10 +1427,10 @@ impl Validate for MarkMarkPosFormat1 {
 impl<'a> FromObjRef<read_fonts::layout::gpos::MarkMarkPosFormat1<'a>> for MarkMarkPosFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::MarkMarkPosFormat1<'a>, _: FontData) -> Self {
         MarkMarkPosFormat1 {
-            mark1_coverage_offset: obj.mark1_coverage().to_owned_table(),
-            mark2_coverage_offset: obj.mark2_coverage().to_owned_table(),
-            mark1_array_offset: obj.mark1_array().to_owned_table(),
-            mark2_array_offset: obj.mark2_array().to_owned_table(),
+            mark1_coverage: obj.mark1_coverage().to_owned_table(),
+            mark2_coverage: obj.mark2_coverage().to_owned_table(),
+            mark1_array: obj.mark1_array().to_owned_table(),
+            mark2_array: obj.mark2_array().to_owned_table(),
         }
     }
 }
@@ -1493,23 +1493,23 @@ pub struct Mark2Record {
     /// Array of offsets (one per class) to Anchor tables. Offsets are
     /// from beginning of Mark2Array table, in class order (offsets may
     /// be NULL).
-    pub mark2_anchor_offsets: Vec<NullableOffsetMarker<AnchorTable>>,
+    pub mark2_anchors: Vec<NullableOffsetMarker<AnchorTable>>,
 }
 
 impl FontWrite for Mark2Record {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.mark2_anchor_offsets.write_into(writer);
+        self.mark2_anchors.write_into(writer);
     }
 }
 
 impl Validate for Mark2Record {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Mark2Record", |ctx| {
-            ctx.in_field("mark2_anchor_offsets", |ctx| {
-                if self.mark2_anchor_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("mark2_anchors", |ctx| {
+                if self.mark2_anchors.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.mark2_anchor_offsets.validate_impl(ctx);
+                self.mark2_anchors.validate_impl(ctx);
             });
         })
     }
@@ -1518,7 +1518,7 @@ impl Validate for Mark2Record {
 impl FromObjRef<read_fonts::layout::gpos::Mark2Record<'_>> for Mark2Record {
     fn from_obj_ref(obj: &read_fonts::layout::gpos::Mark2Record, offset_data: FontData) -> Self {
         Mark2Record {
-            mark2_anchor_offsets: obj
+            mark2_anchors: obj
                 .mark2_anchors(offset_data)
                 .map(|x| x.to_owned_table())
                 .collect(),
@@ -1535,14 +1535,14 @@ pub struct ExtensionPosFormat1<T> {
     /// Offset to the extension subtable, of lookup type
     /// extensionLookupType, relative to the start of the
     /// ExtensionPosFormat1 subtable.
-    pub extension_offset: OffsetMarker<T, WIDTH_32>,
+    pub extension: OffsetMarker<T, WIDTH_32>,
 }
 
 impl<T: Validate> Validate for ExtensionPosFormat1<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ExtensionPosFormat1", |ctx| {
-            ctx.in_field("extension_offset", |ctx| {
-                self.extension_offset.validate_impl(ctx);
+            ctx.in_field("extension", |ctx| {
+                self.extension.validate_impl(ctx);
             });
         })
     }
@@ -1560,7 +1560,7 @@ where
     ) -> Self {
         ExtensionPosFormat1 {
             extension_lookup_type: obj.extension_lookup_type(),
-            extension_offset: obj.extension().to_owned_table(),
+            extension: obj.extension().to_owned_table(),
         }
     }
 }
