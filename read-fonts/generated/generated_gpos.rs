@@ -1458,13 +1458,12 @@ impl<'a> PairPosFormat1<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`pair_set_offsets`][Self::pair_set_offsets].
-    pub fn pair_sets(&self) -> impl Iterator<Item = Result<PairSet<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`pair_set_offsets`][Self::pair_set_offsets].
+    pub fn pair_sets(&self) -> ArrayOfOffsets<'a, PairSet, Offset16> {
         let data = self.data;
+        let offsets = self.pair_set_offsets();
         let args = (self.value_format1(), self.value_format2());
-        self.pair_set_offsets()
-            .iter()
-            .map(move |off| off.get().resolve_with_args(data, &args))
+        ArrayOfOffsets::new(offsets, data, args)
     }
 }
 
@@ -2540,14 +2539,13 @@ impl<'a> BaseRecord<'a> {
         self.base_anchor_offsets
     }
 
-    /// Attempt to resolve [`base_anchor_offsets`][Self::base_anchor_offsets].
+    /// A dynamically resolving wrapper for [`base_anchor_offsets`][Self::base_anchor_offsets].
     pub fn base_anchors(
         &self,
         data: FontData<'a>,
-    ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + 'a {
-        self.base_anchor_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+    ) -> ArrayOfNullableOffsets<'a, AnchorTable, Offset16> {
+        let offsets = self.base_anchor_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
     }
 }
 
@@ -2831,15 +2829,12 @@ impl<'a> LigatureArray<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`ligature_attach_offsets`][Self::ligature_attach_offsets].
-    pub fn ligature_attaches(
-        &self,
-    ) -> impl Iterator<Item = Result<LigatureAttach<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`ligature_attach_offsets`][Self::ligature_attach_offsets].
+    pub fn ligature_attaches(&self) -> ArrayOfOffsets<'a, LigatureAttach, Offset16> {
         let data = self.data;
+        let offsets = self.ligature_attach_offsets();
         let args = self.mark_class_count();
-        self.ligature_attach_offsets()
-            .iter()
-            .map(move |off| off.get().resolve_with_args(data, &args))
+        ArrayOfOffsets::new(offsets, data, args)
     }
 
     pub(crate) fn mark_class_count(&self) -> u16 {
@@ -2999,14 +2994,13 @@ impl<'a> ComponentRecord<'a> {
         self.ligature_anchor_offsets
     }
 
-    /// Attempt to resolve [`ligature_anchor_offsets`][Self::ligature_anchor_offsets].
+    /// A dynamically resolving wrapper for [`ligature_anchor_offsets`][Self::ligature_anchor_offsets].
     pub fn ligature_anchors(
         &self,
         data: FontData<'a>,
-    ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + 'a {
-        self.ligature_anchor_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+    ) -> ArrayOfNullableOffsets<'a, AnchorTable, Offset16> {
+        let offsets = self.ligature_anchor_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
     }
 }
 
@@ -3341,14 +3335,13 @@ impl<'a> Mark2Record<'a> {
         self.mark2_anchor_offsets
     }
 
-    /// Attempt to resolve [`mark2_anchor_offsets`][Self::mark2_anchor_offsets].
+    /// A dynamically resolving wrapper for [`mark2_anchor_offsets`][Self::mark2_anchor_offsets].
     pub fn mark2_anchors(
         &self,
         data: FontData<'a>,
-    ) -> impl Iterator<Item = Option<Result<AnchorTable<'a>, ReadError>>> + 'a {
-        self.mark2_anchor_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+    ) -> ArrayOfNullableOffsets<'a, AnchorTable, Offset16> {
+        let offsets = self.mark2_anchor_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
     }
 }
 

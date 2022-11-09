@@ -193,10 +193,10 @@ mod tests {
 
         assert_eq!(table.lookup_flag(), LookupFlag::empty());
         assert_eq!(table.sub_table_count(), 2);
-        let read_gpos::SinglePos::Format1(sub1) = table.subtables().next().unwrap().unwrap() else {
+        let read_gpos::SinglePos::Format1(sub1) = table.subtables().get(0).unwrap() else {
             panic!("wrong table type");
         };
-        let read_gpos::SinglePos::Format1(sub2) = table.subtables().nth(1).unwrap().unwrap() else {
+        let read_gpos::SinglePos::Format1(sub2) = table.subtables().get(1).unwrap() else {
             panic!("wrong table type");
         };
 

@@ -537,12 +537,11 @@ impl<'a> MultipleSubstFormat1<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`sequence_offsets`][Self::sequence_offsets].
-    pub fn sequences(&self) -> impl Iterator<Item = Result<Sequence<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`sequence_offsets`][Self::sequence_offsets].
+    pub fn sequences(&self) -> ArrayOfOffsets<'a, Sequence, Offset16> {
         let data = self.data;
-        self.sequence_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.sequence_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -737,12 +736,11 @@ impl<'a> AlternateSubstFormat1<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`alternate_set_offsets`][Self::alternate_set_offsets].
-    pub fn alternate_sets(&self) -> impl Iterator<Item = Result<AlternateSet<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`alternate_set_offsets`][Self::alternate_set_offsets].
+    pub fn alternate_sets(&self) -> ArrayOfOffsets<'a, AlternateSet, Offset16> {
         let data = self.data;
-        self.alternate_set_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.alternate_set_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -939,12 +937,11 @@ impl<'a> LigatureSubstFormat1<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`ligature_set_offsets`][Self::ligature_set_offsets].
-    pub fn ligature_sets(&self) -> impl Iterator<Item = Result<LigatureSet<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`ligature_set_offsets`][Self::ligature_set_offsets].
+    pub fn ligature_sets(&self) -> ArrayOfOffsets<'a, LigatureSet, Offset16> {
         let data = self.data;
-        self.ligature_set_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.ligature_set_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -1034,12 +1031,11 @@ impl<'a> LigatureSet<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`ligature_offsets`][Self::ligature_offsets].
-    pub fn ligatures(&self) -> impl Iterator<Item = Result<Ligature<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`ligature_offsets`][Self::ligature_offsets].
+    pub fn ligatures(&self) -> ArrayOfOffsets<'a, Ligature, Offset16> {
         let data = self.data;
-        self.ligature_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.ligature_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -1446,14 +1442,11 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
-    pub fn backtrack_coverages(
-        &self,
-    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
+    pub fn backtrack_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable, Offset16> {
         let data = self.data;
-        self.backtrack_coverage_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.backtrack_coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 
     /// Number of glyphs in lookahead sequence.
@@ -1469,14 +1462,11 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
-    pub fn lookahead_coverages(
-        &self,
-    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
+    pub fn lookahead_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable, Offset16> {
         let data = self.data;
-        self.lookahead_coverage_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.lookahead_coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 
     /// Number of glyph IDs in the substituteGlyphIDs array.

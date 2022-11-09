@@ -2,7 +2,9 @@
 
 use std::collections::BTreeSet;
 
-use read::{FontData, ReadError};
+use read::{
+    ArrayOfNullableOffsets, ArrayOfOffsets, FontData, FontReadWithArgs, Offset, ReadArgs, ReadError,
+};
 use types::{BigEndian, Scalar};
 
 use crate::{NullableOffsetMarker, OffsetMarker};
@@ -163,4 +165,53 @@ impl<T: FromTableRef<U>, U, const N: usize> FromTableRef<Option<Result<U, ReadEr
             _ => NullableOffsetMarker::new(None),
         }
     }
+}
+
+// impls for converting arrays:
+impl<'a, T, U, O, const N: usize> FromObjRef<ArrayOfOffsets<'a, U, O>> for Vec<OffsetMarker<T, N>>
+where
+    T: FromObjRef<U> + Default,
+    U: ReadArgs + FontReadWithArgs<'a>,
+    U::Args: 'static,
+    O: Scalar + Offset,
+{
+    fn from_obj_ref(from: &ArrayOfOffsets<'a, U, O>, data: FontData) -> Self {
+        from.iter()
+            .map(|x| OffsetMarker::from_obj_ref(&x, data))
+            .collect()
+    }
+}
+
+impl<'a, T, U, O, const N: usize> FromObjRef<ArrayOfNullableOffsets<'a, U, O>>
+    for Vec<NullableOffsetMarker<T, N>>
+where
+    T: FromObjRef<U> + Default,
+    U: ReadArgs + FontReadWithArgs<'a>,
+    U::Args: 'static,
+    O: Scalar + Offset,
+{
+    fn from_obj_ref(from: &ArrayOfNullableOffsets<'a, U, O>, data: FontData) -> Self {
+        from.iter()
+            .map(|x| NullableOffsetMarker::from_obj_ref(&x, data))
+            .collect()
+    }
+}
+
+impl<'a, T, U, O, const N: usize> FromTableRef<ArrayOfOffsets<'a, U, O>> for Vec<OffsetMarker<T, N>>
+where
+    T: FromTableRef<U> + Default,
+    U: ReadArgs + FontReadWithArgs<'a>,
+    U::Args: 'static,
+    O: Scalar + Offset,
+{
+}
+
+impl<'a, T, U, O, const N: usize> FromTableRef<ArrayOfNullableOffsets<'a, U, O>>
+    for Vec<NullableOffsetMarker<T, N>>
+where
+    T: FromObjRef<U> + Default,
+    U: ReadArgs + FontReadWithArgs<'a>,
+    U::Args: 'static,
+    O: Scalar + Offset,
+{
 }

@@ -572,10 +572,7 @@ impl<'a> FromObjRef<read_fonts::tables::variations::ItemVariationStore<'a>> for 
         ItemVariationStore {
             format: obj.format(),
             variation_region_list: obj.variation_region_list().to_owned_table(),
-            item_variation_datas: obj
-                .item_variation_datas()
-                .map(|x| x.to_owned_table())
-                .collect(),
+            item_variation_datas: obj.item_variation_datas().to_owned_table(),
         }
     }
 }

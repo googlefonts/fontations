@@ -331,12 +331,11 @@ impl<'a> AttachList<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`attach_point_offsets`][Self::attach_point_offsets].
-    pub fn attach_points(&self) -> impl Iterator<Item = Result<AttachPoint<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`attach_point_offsets`][Self::attach_point_offsets].
+    pub fn attach_points(&self) -> ArrayOfOffsets<'a, AttachPoint, Offset16> {
         let data = self.data;
-        self.attach_point_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.attach_point_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -510,12 +509,11 @@ impl<'a> LigCaretList<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`lig_glyph_offsets`][Self::lig_glyph_offsets].
-    pub fn lig_glyphs(&self) -> impl Iterator<Item = Result<LigGlyph<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`lig_glyph_offsets`][Self::lig_glyph_offsets].
+    pub fn lig_glyphs(&self) -> ArrayOfOffsets<'a, LigGlyph, Offset16> {
         let data = self.data;
-        self.lig_glyph_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.lig_glyph_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -604,12 +602,11 @@ impl<'a> LigGlyph<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`caret_value_offsets`][Self::caret_value_offsets].
-    pub fn caret_values(&self) -> impl Iterator<Item = Result<CaretValue<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`caret_value_offsets`][Self::caret_value_offsets].
+    pub fn caret_values(&self) -> ArrayOfOffsets<'a, CaretValue, Offset16> {
         let data = self.data;
-        self.caret_value_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.caret_value_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -983,12 +980,11 @@ impl<'a> MarkGlyphSets<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`coverage_offsets`][Self::coverage_offsets].
-    pub fn coverages(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].
+    pub fn coverages(&self) -> ArrayOfOffsets<'a, CoverageTable, Offset32> {
         let data = self.data;
-        self.coverage_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 

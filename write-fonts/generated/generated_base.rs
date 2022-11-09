@@ -489,7 +489,7 @@ impl<'a> FromObjRef<read_fonts::tables::base::BaseValues<'a>> for BaseValues {
     fn from_obj_ref(obj: &read_fonts::tables::base::BaseValues<'a>, _: FontData) -> Self {
         BaseValues {
             default_baseline_index: obj.default_baseline_index(),
-            base_coords: obj.base_coords().map(|x| x.to_owned_table()).collect(),
+            base_coords: obj.base_coords().to_owned_table(),
         }
     }
 }

@@ -439,7 +439,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::MultipleSubstFormat1<'a>> for Mult
     fn from_obj_ref(obj: &read_fonts::tables::gsub::MultipleSubstFormat1<'a>, _: FontData) -> Self {
         MultipleSubstFormat1 {
             coverage: obj.coverage().to_owned_table(),
-            sequences: obj.sequences().map(|x| x.to_owned_table()).collect(),
+            sequences: obj.sequences().to_owned_table(),
         }
     }
 }
@@ -566,7 +566,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::AlternateSubstFormat1<'a>> for Alt
     ) -> Self {
         AlternateSubstFormat1 {
             coverage: obj.coverage().to_owned_table(),
-            alternate_sets: obj.alternate_sets().map(|x| x.to_owned_table()).collect(),
+            alternate_sets: obj.alternate_sets().to_owned_table(),
         }
     }
 }
@@ -693,7 +693,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::LigatureSubstFormat1<'a>> for Liga
     fn from_obj_ref(obj: &read_fonts::tables::gsub::LigatureSubstFormat1<'a>, _: FontData) -> Self {
         LigatureSubstFormat1 {
             coverage: obj.coverage().to_owned_table(),
-            ligature_sets: obj.ligature_sets().map(|x| x.to_owned_table()).collect(),
+            ligature_sets: obj.ligature_sets().to_owned_table(),
         }
     }
 }
@@ -751,7 +751,7 @@ impl Validate for LigatureSet {
 impl<'a> FromObjRef<read_fonts::tables::gsub::LigatureSet<'a>> for LigatureSet {
     fn from_obj_ref(obj: &read_fonts::tables::gsub::LigatureSet<'a>, _: FontData) -> Self {
         LigatureSet {
-            ligatures: obj.ligatures().map(|x| x.to_owned_table()).collect(),
+            ligatures: obj.ligatures().to_owned_table(),
         }
     }
 }
@@ -1052,14 +1052,8 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::ReverseChainSingleSubstFormat1<'a>
         let offset_data = obj.offset_data();
         ReverseChainSingleSubstFormat1 {
             coverage: obj.coverage().to_owned_table(),
-            backtrack_coverages: obj
-                .backtrack_coverages()
-                .map(|x| x.to_owned_table())
-                .collect(),
-            lookahead_coverages: obj
-                .lookahead_coverages()
-                .map(|x| x.to_owned_table())
-                .collect(),
+            backtrack_coverages: obj.backtrack_coverages().to_owned_table(),
+            lookahead_coverages: obj.lookahead_coverages().to_owned_table(),
             substitute_glyph_ids: obj.substitute_glyph_ids().to_owned_obj(offset_data),
         }
     }
