@@ -25,7 +25,7 @@ fn attach_list_table() {
     let table = AttachList::read(test_data::ATTACHLIST_TABLE.into()).unwrap();
     assert_eq!(table.glyph_count(), 2);
     assert_eq!(table.attach_point_offsets().len(), 2);
-    let attach_point = table.attach_points().nth(1).unwrap().unwrap();
+    let attach_point = table.attach_points().get(1).unwrap();
     assert_eq!(attach_point.point_indices()[0].get(), 14);
     assert_eq!(attach_point.point_indices()[1].get(), 23);
 }
@@ -33,8 +33,8 @@ fn attach_list_table() {
 #[test]
 fn lig_caret_list() {
     let table = LigCaretList::read(test_data::LIGCARETLIST_TABLE.into()).unwrap();
-    let glyph1 = table.lig_glyphs().next().unwrap().unwrap();
-    let glyph2 = table.lig_glyphs().nth(1).unwrap().unwrap();
+    let glyph1 = table.lig_glyphs().get(0).unwrap();
+    let glyph2 = table.lig_glyphs().get(1).unwrap();
     assert_eq!(glyph1.caret_value_offsets().len(), 1);
     assert_eq!(glyph2.caret_value_offsets().len(), 2);
     let g1c0: CaretValueFormat1 = glyph1.caret_value_offsets()[0]

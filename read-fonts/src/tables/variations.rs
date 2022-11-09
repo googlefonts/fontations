@@ -546,11 +546,7 @@ impl<'a> ItemVariationStore<'a> {
         index: DeltaSetIndex,
         coords: &[F2Dot14],
     ) -> Result<i32, ReadError> {
-        let data = match self
-            .item_variation_datas()
-            .nth(index.outer as usize)
-            .flatten()
-        {
+        let data = match self.item_variation_datas().get(index.outer as usize) {
             Some(data) => data?,
             None => return Ok(0),
         };

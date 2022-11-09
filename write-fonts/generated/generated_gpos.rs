@@ -921,7 +921,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::PairPosFormat1<'a>> for PairPosFor
     fn from_obj_ref(obj: &read_fonts::tables::gpos::PairPosFormat1<'a>, _: FontData) -> Self {
         PairPosFormat1 {
             coverage: obj.coverage().to_owned_table(),
-            pair_sets: obj.pair_sets().map(|x| x.to_owned_table()).collect(),
+            pair_sets: obj.pair_sets().to_owned_table(),
         }
     }
 }
@@ -1538,10 +1538,7 @@ impl Validate for BaseRecord {
 impl FromObjRef<read_fonts::tables::gpos::BaseRecord<'_>> for BaseRecord {
     fn from_obj_ref(obj: &read_fonts::tables::gpos::BaseRecord, offset_data: FontData) -> Self {
         BaseRecord {
-            base_anchors: obj
-                .base_anchors(offset_data)
-                .map(|x| x.to_owned_table())
-                .collect(),
+            base_anchors: obj.base_anchors(offset_data).to_owned_table(),
         }
     }
 }
@@ -1679,10 +1676,7 @@ impl Validate for LigatureArray {
 impl<'a> FromObjRef<read_fonts::tables::gpos::LigatureArray<'a>> for LigatureArray {
     fn from_obj_ref(obj: &read_fonts::tables::gpos::LigatureArray<'a>, _: FontData) -> Self {
         LigatureArray {
-            ligature_attaches: obj
-                .ligature_attaches()
-                .map(|x| x.to_owned_table())
-                .collect(),
+            ligature_attaches: obj.ligature_attaches().to_owned_table(),
         }
     }
 }
@@ -1788,10 +1782,7 @@ impl FromObjRef<read_fonts::tables::gpos::ComponentRecord<'_>> for ComponentReco
         offset_data: FontData,
     ) -> Self {
         ComponentRecord {
-            ligature_anchors: obj
-                .ligature_anchors(offset_data)
-                .map(|x| x.to_owned_table())
-                .collect(),
+            ligature_anchors: obj.ligature_anchors(offset_data).to_owned_table(),
         }
     }
 }
@@ -1980,10 +1971,7 @@ impl Validate for Mark2Record {
 impl FromObjRef<read_fonts::tables::gpos::Mark2Record<'_>> for Mark2Record {
     fn from_obj_ref(obj: &read_fonts::tables::gpos::Mark2Record, offset_data: FontData) -> Self {
         Mark2Record {
-            mark2_anchors: obj
-                .mark2_anchors(offset_data)
-                .map(|x| x.to_owned_table())
-                .collect(),
+            mark2_anchors: obj.mark2_anchors(offset_data).to_owned_table(),
         }
     }
 }

@@ -220,14 +220,10 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::KindsOfArraysOfOff
         _: FontData,
     ) -> Self {
         KindsOfArraysOfOffsets {
-            nonnullables: obj.nonnullables().map(|x| x.to_owned_table()).collect(),
-            nullables: obj.nullables().map(|x| x.to_owned_table()).collect(),
-            versioned_nonnullables: obj
-                .versioned_nonnullables()
-                .map(|obj| obj.map(|x| x.to_owned_table()).collect()),
-            versioned_nullables: obj
-                .versioned_nullables()
-                .map(|obj| obj.map(|x| x.to_owned_table()).collect()),
+            nonnullables: obj.nonnullables().to_owned_table(),
+            nullables: obj.nullables().to_owned_table(),
+            versioned_nonnullables: obj.versioned_nonnullables().map(|obj| obj.to_owned_table()),
+            versioned_nullables: obj.versioned_nullables().map(|obj| obj.to_owned_table()),
         }
     }
 }

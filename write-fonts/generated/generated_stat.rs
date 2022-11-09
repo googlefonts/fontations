@@ -182,7 +182,7 @@ impl Validate for AxisValueArray {
 impl<'a> FromObjRef<read_fonts::tables::stat::AxisValueArray<'a>> for AxisValueArray {
     fn from_obj_ref(obj: &read_fonts::tables::stat::AxisValueArray<'a>, _: FontData) -> Self {
         AxisValueArray {
-            axis_values: obj.axis_values().map(|x| x.to_owned_table()).collect(),
+            axis_values: obj.axis_values().to_owned_table(),
         }
     }
 }

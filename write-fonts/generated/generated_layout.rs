@@ -517,7 +517,7 @@ where
 {
     fn from_obj_ref(obj: &read_fonts::tables::layout::LookupList<'a, U>, _: FontData) -> Self {
         LookupList {
-            lookups: obj.lookups().map(|x| x.to_owned_table()).collect(),
+            lookups: obj.lookups().to_owned_table(),
         }
     }
 }
@@ -575,7 +575,7 @@ where
     fn from_obj_ref(obj: &read_fonts::tables::layout::Lookup<'a, U>, _: FontData) -> Self {
         Lookup {
             lookup_flag: obj.lookup_flag(),
-            subtables: obj.subtables().map(|x| x.to_owned_table()).collect(),
+            subtables: obj.subtables().to_owned_table(),
             mark_filtering_set: obj.mark_filtering_set(),
         }
     }
@@ -1163,7 +1163,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::SequenceContextFormat1<'a>>
     ) -> Self {
         SequenceContextFormat1 {
             coverage: obj.coverage().to_owned_table(),
-            seq_rule_sets: obj.seq_rule_sets().map(|x| x.to_owned_table()).collect(),
+            seq_rule_sets: obj.seq_rule_sets().to_owned_table(),
         }
     }
 }
@@ -1224,7 +1224,7 @@ impl Validate for SequenceRuleSet {
 impl<'a> FromObjRef<read_fonts::tables::layout::SequenceRuleSet<'a>> for SequenceRuleSet {
     fn from_obj_ref(obj: &read_fonts::tables::layout::SequenceRuleSet<'a>, _: FontData) -> Self {
         SequenceRuleSet {
-            seq_rules: obj.seq_rules().map(|x| x.to_owned_table()).collect(),
+            seq_rules: obj.seq_rules().to_owned_table(),
         }
     }
 }
@@ -1377,10 +1377,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::SequenceContextFormat2<'a>>
         SequenceContextFormat2 {
             coverage: obj.coverage().to_owned_table(),
             class_def: obj.class_def().to_owned_table(),
-            class_seq_rule_sets: obj
-                .class_seq_rule_sets()
-                .map(|x| x.to_owned_table())
-                .collect(),
+            class_seq_rule_sets: obj.class_seq_rule_sets().to_owned_table(),
         }
     }
 }
@@ -1444,7 +1441,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ClassSequenceRuleSet<'a>> for Cl
         _: FontData,
     ) -> Self {
         ClassSequenceRuleSet {
-            class_seq_rules: obj.class_seq_rules().map(|x| x.to_owned_table()).collect(),
+            class_seq_rules: obj.class_seq_rules().to_owned_table(),
         }
     }
 }
@@ -1591,7 +1588,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::SequenceContextFormat3<'a>>
     ) -> Self {
         let offset_data = obj.offset_data();
         SequenceContextFormat3 {
-            coverages: obj.coverages().map(|x| x.to_owned_table()).collect(),
+            coverages: obj.coverages().to_owned_table(),
             seq_lookup_records: obj.seq_lookup_records().to_owned_obj(offset_data),
         }
     }
@@ -1759,10 +1756,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceContextFormat1<'a
     ) -> Self {
         ChainedSequenceContextFormat1 {
             coverage: obj.coverage().to_owned_table(),
-            chained_seq_rule_sets: obj
-                .chained_seq_rule_sets()
-                .map(|x| x.to_owned_table())
-                .collect(),
+            chained_seq_rule_sets: obj.chained_seq_rule_sets().to_owned_table(),
         }
     }
 }
@@ -1828,10 +1822,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceRuleSet<'a>>
         _: FontData,
     ) -> Self {
         ChainedSequenceRuleSet {
-            chained_seq_rules: obj
-                .chained_seq_rules()
-                .map(|x| x.to_owned_table())
-                .collect(),
+            chained_seq_rules: obj.chained_seq_rules().to_owned_table(),
         }
     }
 }
@@ -2037,10 +2028,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceContextFormat2<'a
             backtrack_class_def: obj.backtrack_class_def().to_owned_table(),
             input_class_def: obj.input_class_def().to_owned_table(),
             lookahead_class_def: obj.lookahead_class_def().to_owned_table(),
-            chained_class_seq_rule_sets: obj
-                .chained_class_seq_rule_sets()
-                .map(|x| x.to_owned_table())
-                .collect(),
+            chained_class_seq_rule_sets: obj.chained_class_seq_rule_sets().to_owned_table(),
         }
     }
 }
@@ -2109,10 +2097,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ChainedClassSequenceRuleSet<'a>>
         _: FontData,
     ) -> Self {
         ChainedClassSequenceRuleSet {
-            chained_class_seq_rules: obj
-                .chained_class_seq_rules()
-                .map(|x| x.to_owned_table())
-                .collect(),
+            chained_class_seq_rules: obj.chained_class_seq_rules().to_owned_table(),
         }
     }
 }
@@ -2317,15 +2302,9 @@ impl<'a> FromObjRef<read_fonts::tables::layout::ChainedSequenceContextFormat3<'a
     ) -> Self {
         let offset_data = obj.offset_data();
         ChainedSequenceContextFormat3 {
-            backtrack_coverages: obj
-                .backtrack_coverages()
-                .map(|x| x.to_owned_table())
-                .collect(),
-            input_coverages: obj.input_coverages().map(|x| x.to_owned_table()).collect(),
-            lookahead_coverages: obj
-                .lookahead_coverages()
-                .map(|x| x.to_owned_table())
-                .collect(),
+            backtrack_coverages: obj.backtrack_coverages().to_owned_table(),
+            input_coverages: obj.input_coverages().to_owned_table(),
+            lookahead_coverages: obj.lookahead_coverages().to_owned_table(),
             seq_lookup_records: obj.seq_lookup_records().to_owned_obj(offset_data),
         }
     }
@@ -2732,7 +2711,7 @@ impl Validate for ConditionSet {
 impl<'a> FromObjRef<read_fonts::tables::layout::ConditionSet<'a>> for ConditionSet {
     fn from_obj_ref(obj: &read_fonts::tables::layout::ConditionSet<'a>, _: FontData) -> Self {
         ConditionSet {
-            conditions: obj.conditions().map(|x| x.to_owned_table()).collect(),
+            conditions: obj.conditions().to_owned_table(),
         }
     }
 }

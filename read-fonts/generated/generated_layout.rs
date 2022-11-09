@@ -687,15 +687,14 @@ impl<'a, T> LookupList<'a, T> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`lookup_offsets`][Self::lookup_offsets].
-    pub fn lookups(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a
+    /// A dynamically resolving wrapper for [`lookup_offsets`][Self::lookup_offsets].
+    pub fn lookups(&self) -> ArrayOfOffsets<'a, T, Offset16>
     where
         T: FontRead<'a>,
     {
         let data = self.data;
-        self.lookup_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.lookup_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -834,15 +833,14 @@ impl<'a, T> Lookup<'a, T> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`subtable_offsets`][Self::subtable_offsets].
-    pub fn subtables(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a
+    /// A dynamically resolving wrapper for [`subtable_offsets`][Self::subtable_offsets].
+    pub fn subtables(&self) -> ArrayOfOffsets<'a, T, Offset16>
     where
         T: FontRead<'a>,
     {
         let data = self.data;
-        self.subtable_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.subtable_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 
     /// Index (base 0) into GDEF mark glyph sets structure. This field
@@ -1567,14 +1565,11 @@ impl<'a> SequenceContextFormat1<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`seq_rule_set_offsets`][Self::seq_rule_set_offsets].
-    pub fn seq_rule_sets(
-        &self,
-    ) -> impl Iterator<Item = Option<Result<SequenceRuleSet<'a>, ReadError>>> + 'a {
+    /// A dynamically resolving wrapper for [`seq_rule_set_offsets`][Self::seq_rule_set_offsets].
+    pub fn seq_rule_sets(&self) -> ArrayOfNullableOffsets<'a, SequenceRuleSet, Offset16> {
         let data = self.data;
-        self.seq_rule_set_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.seq_rule_set_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
     }
 }
 
@@ -1664,12 +1659,11 @@ impl<'a> SequenceRuleSet<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`seq_rule_offsets`][Self::seq_rule_offsets].
-    pub fn seq_rules(&self) -> impl Iterator<Item = Result<SequenceRule<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`seq_rule_offsets`][Self::seq_rule_offsets].
+    pub fn seq_rules(&self) -> ArrayOfOffsets<'a, SequenceRule, Offset16> {
         let data = self.data;
-        self.seq_rule_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.seq_rule_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -1910,14 +1904,13 @@ impl<'a> SequenceContextFormat2<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`class_seq_rule_set_offsets`][Self::class_seq_rule_set_offsets].
+    /// A dynamically resolving wrapper for [`class_seq_rule_set_offsets`][Self::class_seq_rule_set_offsets].
     pub fn class_seq_rule_sets(
         &self,
-    ) -> impl Iterator<Item = Option<Result<ClassSequenceRuleSet<'a>, ReadError>>> + 'a {
+    ) -> ArrayOfNullableOffsets<'a, ClassSequenceRuleSet, Offset16> {
         let data = self.data;
-        self.class_seq_rule_set_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.class_seq_rule_set_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
     }
 }
 
@@ -2015,14 +2008,11 @@ impl<'a> ClassSequenceRuleSet<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`class_seq_rule_offsets`][Self::class_seq_rule_offsets].
-    pub fn class_seq_rules(
-        &self,
-    ) -> impl Iterator<Item = Result<ClassSequenceRule<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`class_seq_rule_offsets`][Self::class_seq_rule_offsets].
+    pub fn class_seq_rules(&self) -> ArrayOfOffsets<'a, ClassSequenceRule, Offset16> {
         let data = self.data;
-        self.class_seq_rule_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.class_seq_rule_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -2250,12 +2240,11 @@ impl<'a> SequenceContextFormat3<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`coverage_offsets`][Self::coverage_offsets].
-    pub fn coverages(&self) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].
+    pub fn coverages(&self) -> ArrayOfOffsets<'a, CoverageTable, Offset16> {
         let data = self.data;
-        self.coverage_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 
     /// Array of SequenceLookupRecords
@@ -2436,14 +2425,13 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`chained_seq_rule_set_offsets`][Self::chained_seq_rule_set_offsets].
+    /// A dynamically resolving wrapper for [`chained_seq_rule_set_offsets`][Self::chained_seq_rule_set_offsets].
     pub fn chained_seq_rule_sets(
         &self,
-    ) -> impl Iterator<Item = Option<Result<ChainedSequenceRuleSet<'a>, ReadError>>> + 'a {
+    ) -> ArrayOfNullableOffsets<'a, ChainedSequenceRuleSet, Offset16> {
         let data = self.data;
-        self.chained_seq_rule_set_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.chained_seq_rule_set_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
     }
 }
 
@@ -2537,14 +2525,11 @@ impl<'a> ChainedSequenceRuleSet<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`chained_seq_rule_offsets`][Self::chained_seq_rule_offsets].
-    pub fn chained_seq_rules(
-        &self,
-    ) -> impl Iterator<Item = Result<ChainedSequenceRule<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`chained_seq_rule_offsets`][Self::chained_seq_rule_offsets].
+    pub fn chained_seq_rules(&self) -> ArrayOfOffsets<'a, ChainedSequenceRule, Offset16> {
         let data = self.data;
-        self.chained_seq_rule_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.chained_seq_rule_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -2884,14 +2869,13 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`chained_class_seq_rule_set_offsets`][Self::chained_class_seq_rule_set_offsets].
+    /// A dynamically resolving wrapper for [`chained_class_seq_rule_set_offsets`][Self::chained_class_seq_rule_set_offsets].
     pub fn chained_class_seq_rule_sets(
         &self,
-    ) -> impl Iterator<Item = Option<Result<ChainedClassSequenceRuleSet<'a>, ReadError>>> + 'a {
+    ) -> ArrayOfNullableOffsets<'a, ChainedClassSequenceRuleSet, Offset16> {
         let data = self.data;
-        self.chained_class_seq_rule_set_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.chained_class_seq_rule_set_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
     }
 }
 
@@ -3003,14 +2987,13 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`chained_class_seq_rule_offsets`][Self::chained_class_seq_rule_offsets].
+    /// A dynamically resolving wrapper for [`chained_class_seq_rule_offsets`][Self::chained_class_seq_rule_offsets].
     pub fn chained_class_seq_rules(
         &self,
-    ) -> impl Iterator<Item = Result<ChainedClassSequenceRule<'a>, ReadError>> + 'a {
+    ) -> ArrayOfOffsets<'a, ChainedClassSequenceRule, Offset16> {
         let data = self.data;
-        self.chained_class_seq_rule_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.chained_class_seq_rule_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -3319,14 +3302,11 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
-    pub fn backtrack_coverages(
-        &self,
-    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
+    pub fn backtrack_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable, Offset16> {
         let data = self.data;
-        self.backtrack_coverage_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.backtrack_coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 
     /// Number of glyphs in the input sequence
@@ -3341,14 +3321,11 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`input_coverage_offsets`][Self::input_coverage_offsets].
-    pub fn input_coverages(
-        &self,
-    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`input_coverage_offsets`][Self::input_coverage_offsets].
+    pub fn input_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable, Offset16> {
         let data = self.data;
-        self.input_coverage_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.input_coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 
     /// Number of glyphs in the lookahead sequence
@@ -3363,14 +3340,11 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
-    pub fn lookahead_coverages(
-        &self,
-    ) -> impl Iterator<Item = Result<CoverageTable<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
+    pub fn lookahead_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable, Offset16> {
         let data = self.data;
-        self.lookahead_coverage_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.lookahead_coverage_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 
     /// Number of SequenceLookupRecords
@@ -3944,12 +3918,11 @@ impl<'a> ConditionSet<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`condition_offsets`][Self::condition_offsets].
-    pub fn conditions(&self) -> impl Iterator<Item = Result<ConditionFormat1<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
+    pub fn conditions(&self) -> ArrayOfOffsets<'a, ConditionFormat1, Offset32> {
         let data = self.data;
-        self.condition_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.condition_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 

@@ -178,7 +178,7 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::AttachList<'a>> for AttachList {
     fn from_obj_ref(obj: &read_fonts::tables::gdef::AttachList<'a>, _: FontData) -> Self {
         AttachList {
             coverage: obj.coverage().to_owned_table(),
-            attach_points: obj.attach_points().map(|x| x.to_owned_table()).collect(),
+            attach_points: obj.attach_points().to_owned_table(),
         }
     }
 }
@@ -299,7 +299,7 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::LigCaretList<'a>> for LigCaretList
     fn from_obj_ref(obj: &read_fonts::tables::gdef::LigCaretList<'a>, _: FontData) -> Self {
         LigCaretList {
             coverage: obj.coverage().to_owned_table(),
-            lig_glyphs: obj.lig_glyphs().map(|x| x.to_owned_table()).collect(),
+            lig_glyphs: obj.lig_glyphs().to_owned_table(),
         }
     }
 }
@@ -356,7 +356,7 @@ impl Validate for LigGlyph {
 impl<'a> FromObjRef<read_fonts::tables::gdef::LigGlyph<'a>> for LigGlyph {
     fn from_obj_ref(obj: &read_fonts::tables::gdef::LigGlyph<'a>, _: FontData) -> Self {
         LigGlyph {
-            caret_values: obj.caret_values().map(|x| x.to_owned_table()).collect(),
+            caret_values: obj.caret_values().to_owned_table(),
         }
     }
 }
@@ -646,7 +646,7 @@ impl Validate for MarkGlyphSets {
 impl<'a> FromObjRef<read_fonts::tables::gdef::MarkGlyphSets<'a>> for MarkGlyphSets {
     fn from_obj_ref(obj: &read_fonts::tables::gdef::MarkGlyphSets<'a>, _: FontData) -> Self {
         MarkGlyphSets {
-            coverages: obj.coverages().map(|x| x.to_owned_table()).collect(),
+            coverages: obj.coverages().to_owned_table(),
         }
     }
 }

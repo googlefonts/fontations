@@ -558,12 +558,11 @@ impl<'a> LayerList<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`paint_offsets`][Self::paint_offsets].
-    pub fn paints(&self) -> impl Iterator<Item = Result<Paint<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`paint_offsets`][Self::paint_offsets].
+    pub fn paints(&self) -> ArrayOfOffsets<'a, Paint, Offset32> {
         let data = self.data;
-        self.paint_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.paint_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
