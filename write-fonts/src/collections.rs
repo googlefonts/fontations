@@ -47,12 +47,12 @@ impl<T: HasLen> HasLen for Option<T> {
 
 impl<T: HasLen, const N: usize> HasLen for OffsetMarker<T, N> {
     fn len(&self) -> usize {
-        self.get().map(HasLen::len).unwrap_or(0)
+        T::len(self)
     }
 }
 
 impl<T: HasLen, const N: usize> HasLen for NullableOffsetMarker<T, N> {
     fn len(&self) -> usize {
-        self.get().map(HasLen::len).unwrap_or(0)
+        self.as_ref().map(HasLen::len).unwrap_or(0)
     }
 }

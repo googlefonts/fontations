@@ -8,10 +8,13 @@ include!("../../generated/generated_stat.rs");
 fn convert_axis_value_offsets(
     from: Result<read_fonts::tables::stat::AxisValueArray, ReadError>,
 ) -> OffsetMarker<Vec<OffsetMarker<AxisValue>>, WIDTH_32> {
-    OffsetMarker::new_maybe_null(from.ok().map(|array| {
-        array
-            .axis_values()
-            .map(|val| val.to_owned_obj(array.offset_data()))
-            .collect()
-    }))
+    from.ok()
+        .map(|array| {
+            array
+                .axis_values()
+                .map(|val| val.to_owned_obj(array.offset_data()))
+                .collect::<Vec<_>>()
+        })
+        .unwrap_or_default()
+        .into()
 }
