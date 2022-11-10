@@ -1,6 +1,6 @@
 //! fixed-point numerical types
 
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 // shared between Fixed and F2Dot14
 macro_rules! fixed_impl {
@@ -156,6 +156,66 @@ float_conv!(F2Dot14, to_f32, from_f32, f32);
 float_conv!(Fixed, to_f64, from_f64, f64);
 crate::newtype_scalar!(F2Dot14, [u8; 2]);
 crate::newtype_scalar!(Fixed, [u8; 4]);
+
+impl F2Dot14 {
+    /// Converts a 2.14 to 16.16 fixed point value.
+    pub fn to_fixed(&self) -> Fixed {
+        Fixed(self.0 as i32 * 4)
+    }
+}
+
+impl Mul for Fixed {
+    type Output = Self;
+    #[inline(always)]
+    fn mul(self, other: Self) -> Self::Output {
+        let ab = self.0 as i64 * other.0 as i64;
+        Self(((ab + 0x8000 - if ab < 0 { 1 } else { 0 }) >> 16) as i32)
+    }
+}
+
+impl MulAssign for Fixed {
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = *self * rhs;
+    }
+}
+
+impl Div for Fixed {
+    type Output = Self;
+    #[inline(always)]
+    fn div(self, other: Self) -> Self::Output {
+        let mut sign = 1;
+        let mut a = self.0;
+        let mut b = other.0;
+        if a < 0 {
+            a = -a;
+            sign = -1;
+        }
+        if b < 0 {
+            b = -b;
+            sign = -sign;
+        }
+        let q = if b == 0 {
+            0x7FFFFFFF
+        } else {
+            ((((a as u64) << 16) + ((b as u64) >> 1)) / (b as u64)) as u32
+        };
+        Self(if sign < 0 { -(q as i32) } else { q as i32 })
+    }
+}
+
+impl DivAssign for Fixed {
+    fn div_assign(&mut self, rhs: Self) {
+        *self = *self / rhs;
+    }
+}
+
+impl Neg for Fixed {
+    type Output = Self;
+    #[inline(always)]
+    fn neg(self) -> Self {
+        Self(-self.0)
+    }
+}
 
 #[cfg(test)]
 mod tests {
