@@ -79,7 +79,7 @@ impl<'a> VariationRegion<'a> {
     /// normalized variation coordinates.
     pub fn compute_scalar(&self, coords: &[F2Dot14]) -> Fixed {
         const ZERO: Fixed = Fixed::ZERO;
-        let mut scalar = Fixed::from_f64(1.0);
+        let mut scalar = Fixed::ONE;
         for (i, axis_coords) in self.region_axes().iter().enumerate() {
             let coord = coords
                 .get(i)
