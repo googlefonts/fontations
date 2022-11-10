@@ -169,7 +169,7 @@ impl Mul for Fixed {
     #[inline(always)]
     fn mul(self, other: Self) -> Self::Output {
         let ab = self.0 as i64 * other.0 as i64;
-        Self(((ab + 0x8000 - if ab < 0 { 1 } else { 0 }) >> 16) as i32)
+        Self(((ab + 0x8000 - i64::from(ab < 0)) >> 16) as i32)
     }
 }
 
