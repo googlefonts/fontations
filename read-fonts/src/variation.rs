@@ -41,7 +41,9 @@ impl<'a> DeltaSetIndexMap<'a> {
 }
 
 impl<'a> ItemVariationStore<'a> {
-    fn delta(&self, index: DeltaSetIndex, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
+    /// Returns the delta value for the specified index and set of normalized
+    /// variation coordinates.
+    pub fn delta(&self, index: DeltaSetIndex, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
         let data = match self
             .item_variation_datas()
             .nth(index.outer as usize)
@@ -50,12 +52,21 @@ impl<'a> ItemVariationStore<'a> {
             Some(data) => data?,
             None => return Ok(Fixed::default()),
         };
-        let word_delta_count = data.word_delta_count();
-        let long_words = word_delta_count & 0x8000 != 0;
-        let (word_size, small_size) = if long_words { (4, 2) } else { (2, 1) };
-        let word_delta_count = word_delta_count & 0x7FFF;
-
-        Ok(Fixed::default())
+        let regions = self.variation_region_list()?.variation_regions();
+        let region_indices = data.region_indexes();
+        let mut delta = Fixed::ZERO;
+        for (i, region_delta) in data.deltas(index.inner).enumerate() {
+            let region_index = region_indices
+                .get(i)
+                .ok_or(ReadError::MalformedData(
+                    "invalid delta sets in ItemVariationStore",
+                ))?
+                .get() as usize;
+            let region = regions.get(region_index)?;
+            let scalar = region.compute_scalar(coords);
+            delta += region_delta * scalar;
+        }
+        Ok(delta)
     }
 }
 
@@ -63,32 +74,29 @@ impl<'a> VariationRegion<'a> {
     /// Computes a scalar value for this region and the specified
     /// normalized variation coordinates.
     pub fn compute_scalar(&self, coords: &[F2Dot14]) -> Fixed {
-        fn f2dot14_to_fixed(x: F2Dot14) -> Fixed {
-            Fixed::from_raw(
-                (i16::from_be_bytes(x.to_raw()) as i32 * 4).to_be_bytes()
-            )
-        }
+        const ZERO: Fixed = Fixed::ZERO;
         let mut scalar = Fixed::from_f64(1.0);
-        let zero = Fixed::from_f64(0.0);
         for (i, axis_coords) in self.region_axes().iter().enumerate() {
-            let coord = coords.get(i).copied().map(|coord| f2dot14_to_fixed(coord)).unwrap_or(zero);
-            let start = f2dot14_to_fixed(axis_coords.start_coord.get());
-            let end = f2dot14_to_fixed(axis_coords.end_coord.get());
-            let peak = f2dot14_to_fixed(axis_coords.peak_coord.get());
-            if start > peak || peak > end || peak == zero || start < zero && end > zero {
+            let coord = coords
+                .get(i)
+                .copied()
+                .map(|coord| coord.to_fixed())
+                .unwrap_or(ZERO);
+            let start = axis_coords.start_coord.get().to_fixed();
+            let end = axis_coords.end_coord.get().to_fixed();
+            let peak = axis_coords.peak_coord.get().to_fixed();
+            if start > peak || peak > end || peak == ZERO || start < ZERO && end > ZERO {
                 continue;
             } else if coord < start || coord > end {
-                return zero;
+                return ZERO;
             } else if coord == peak {
                 continue;
+            } else if coord < peak {
+                scalar = scalar * (coord - start) / (peak - start)
             } else {
-                if coord < peak {
-                    scalar = scalar * (coord - start) / (peak - start)
-                } else {
-                    scalar = scalar * (end - coord) / (end - peak)
-                }
+                scalar = scalar * (end - coord) / (end - peak)
             };
-        }    
+        }
         scalar
     }
 }
@@ -141,6 +149,6 @@ impl<'a> Iterator for ItemDeltas<'a> {
             (true, false) => self.cursor.read::<i8>().ok()? as i32,
             (false, true) => self.cursor.read::<i32>().ok()?,
         };
-        Some(Fixed::from_raw(value.to_be_bytes()))
+        Some(Fixed::from_raw((value << 16).to_be_bytes()))
     }
 }
