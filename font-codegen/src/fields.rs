@@ -639,8 +639,16 @@ impl Field {
         if let Some(typ) = &self.attrs.compile_type {
             return typ.into_token_stream();
         }
-        self.typ
-            .compile_type(self.is_nullable(), self.is_version_dependent(), false)
+        let type_tokens = self.typ.compile_type_tokens(self.is_nullable());
+
+        // if this is versioned, we wrap in `Option``
+        if self.is_version_dependent() {
+            // UNLESS this is a NullableOffsetMarker, where is already basically an Option
+            if !(self.is_nullable() && matches!(self.typ, FieldType::Offset { .. })) {
+                return quote!(Option<#type_tokens>);
+            }
+        }
+        type_tokens
     }
 
     pub(crate) fn table_getter(&self, generic: Option<&syn::Ident>) -> Option<TokenStream> {
@@ -1060,7 +1068,7 @@ impl Field {
             return Some(typ.into_token_stream());
         }
 
-        Some(self.typ.compile_type(self.is_nullable(), false, true))
+        Some(self.typ.compile_type_for_constructor(self.is_nullable()))
     }
 
     fn compile_write_stmt(&self) -> TokenStream {
@@ -1248,18 +1256,26 @@ impl FieldType {
         }
     }
 
-    /// The tokens used to represent this type in `write-fonts`.
+    /// The tokens used to represent this type in `write-fonts`
     ///
-    /// The `nullable` and `version_dependent` arguments are passed in, because
-    /// they live in the FieldAttrs that are not accessible from FieldType.
+    /// This does not include the `Option` that may be present if this is versioned.
+    fn compile_type_tokens(&self, nullable: bool) -> TokenStream {
+        self.compile_type_impl(nullable, false)
+    }
+
+    /// The type for a constructor argument for this field.
     ///
-    /// The `for_constructor` argument is `true` only we want the type of an
-    /// argument to a constructor method. Specifically, this does not wrap
-    /// offset-types in offset markers (these conversions occur in the constructor).
-    fn compile_type(
+    /// Specifically, this does not wrap offset-types in offset markers
+    /// (these conversions occur in the constructor).
+    fn compile_type_for_constructor(&self, nullable: bool) -> TokenStream {
+        self.compile_type_impl(nullable, true)
+    }
+
+    // impl code reused for the two calls above
+    fn compile_type_impl(
         &self,
         nullable: bool,
-        version_dependent: bool,
+        //version_dependent: bool,
         for_constructor: bool,
     ) -> TokenStream {
         let raw_type = match self {
@@ -1291,17 +1307,18 @@ impl FieldType {
                     panic!("nesting arrays is not supported");
                 }
 
-                let inner_tokens = inner_typ.compile_type(nullable, false, for_constructor);
+                let inner_tokens = inner_typ.compile_type_impl(nullable, for_constructor);
                 quote!( Vec<#inner_tokens> )
             }
             FieldType::ComputedArray(array) | FieldType::VarLenArray(array) => array.compile_type(),
             FieldType::PendingResolution { .. } => panic!("Should have resolved {:?}", self),
         };
-        if version_dependent {
-            quote!( Option<#raw_type> )
-        } else {
-            raw_type
-        }
+        raw_type
+        //if version_dependent {
+        //quote!( Option<#raw_type> )
+        //} else {
+        //raw_type
+        //}
     }
 }
 
