@@ -124,7 +124,7 @@ macro_rules! float_conv {
                 //what matters is that we are rounding *away from zero*.
                 #[cfg(all(not(feature = "std"), not(test)))]
                 Self(
-                    (x * Self::ONE as $ty + (0.5 * (-1.0 * x.is_sign_negative() as u8 as $ty)))
+                    (x * Self::ONE.0 as $ty + (0.5 * (-1.0 * x.is_sign_negative() as u8 as $ty)))
                         as _,
                 )
             }
