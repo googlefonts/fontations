@@ -64,7 +64,7 @@ impl Version16Dot16 {
 
     /// The representation of this version as a big-endian byte array.
     #[inline]
-    pub fn to_be_bytes(self) -> [u8; 4] {
+    pub const fn to_be_bytes(self) -> [u8; 4] {
         self.0.to_be_bytes()
     }
 }
@@ -91,7 +91,7 @@ impl MajorMinor {
 
     /// The representation of this version as a big-endian byte array.
     #[inline]
-    pub fn to_be_bytes(self) -> [u8; 4] {
+    pub const fn to_be_bytes(self) -> [u8; 4] {
         let [a, b] = self.major.to_be_bytes();
         let [c, d] = self.minor.to_be_bytes();
         [a, b, c, d]

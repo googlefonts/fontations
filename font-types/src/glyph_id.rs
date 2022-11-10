@@ -12,16 +12,16 @@ impl GlyphId {
     pub const NOTDEF: GlyphId = GlyphId(0);
 
     /// Construct a new `GlyphId`.
-    pub fn new(raw: u16) -> Self {
+    pub const fn new(raw: u16) -> Self {
         GlyphId(raw)
     }
 
     /// The identifier as a u16.
-    pub fn to_u16(self) -> u16 {
+    pub const fn to_u16(self) -> u16 {
         self.0
     }
 
-    pub fn to_be_bytes(self) -> [u8; 2] {
+    pub const fn to_be_bytes(self) -> [u8; 2] {
         self.0.to_be_bytes()
     }
 }

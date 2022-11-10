@@ -10,7 +10,7 @@ impl Uint24 {
     pub const MAX: Self = Uint24(0xffffff);
 
     /// Create from a u32. Saturates on overflow.
-    pub fn new(raw: u32) -> Uint24 {
+    pub const fn new(raw: u32) -> Uint24 {
         let overflow = raw > Self::MAX.0;
         let raw = raw * !overflow as u32 + Self::MAX.0 * overflow as u32;
         Uint24(raw)
@@ -25,12 +25,12 @@ impl Uint24 {
         }
     }
 
-    pub fn to_be_bytes(self) -> [u8; 3] {
+    pub const fn to_be_bytes(self) -> [u8; 3] {
         let bytes = self.0.to_be_bytes();
         [bytes[1], bytes[2], bytes[3]]
     }
 
-    pub fn from_be_bytes(bytes: [u8; 3]) -> Self {
+    pub const fn from_be_bytes(bytes: [u8; 3]) -> Self {
         Uint24::new((bytes[0] as u32) << 16 | (bytes[1] as u32) << 8 | bytes[2] as u32)
     }
 }

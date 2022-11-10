@@ -55,7 +55,7 @@ macro_rules! impl_offset {
         impl $name {
             /// Create a new offset.
             #[inline]
-            pub fn new(raw: $rawty) -> Self {
+            pub const fn new(raw: $rawty) -> Self {
                 Self(raw)
             }
 
