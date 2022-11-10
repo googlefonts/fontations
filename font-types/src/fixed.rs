@@ -30,22 +30,22 @@ macro_rules! fixed_impl {
 
             //TODO: is this actually useful?
             /// Returns the nearest integer value.
-            pub fn round(self) -> Self {
+            pub const fn round(self) -> Self {
                 Self(self.0.wrapping_add(Self::ROUND) & Self::INT_MASK)
             }
 
             /// Returns the absolute value of the number.
-            pub fn abs(self) -> Self {
+            pub const fn abs(self) -> Self {
                 Self(self.0.abs())
             }
 
             /// Returns the largest integer less than or equal to the number.
-            pub fn floor(self) -> Self {
+            pub const fn floor(self) -> Self {
                 Self(self.0 & Self::INT_MASK)
             }
 
             /// Returns the fractional part of the number.
-            pub fn fract(self) -> Self {
+            pub const fn fract(self) -> Self {
                 Self(self.0 - self.floor().0)
             }
 
@@ -55,22 +55,22 @@ macro_rules! fixed_impl {
             }
 
             /// Saturating addition.
-            pub fn saturating_add(self, other: Self) -> Self {
+            pub const fn saturating_add(self, other: Self) -> Self {
                 Self(self.0.saturating_add(other.0))
             }
 
             /// Wrapping substitution.
-            pub fn wrapping_sub(self, other: Self) -> Self {
+            pub const fn wrapping_sub(self, other: Self) -> Self {
                 Self(self.0.wrapping_sub(other.0))
             }
 
             /// Saturating substitution.
-            pub fn saturating_sub(self, other: Self) -> Self {
+            pub const fn saturating_sub(self, other: Self) -> Self {
                 Self(self.0.saturating_sub(other.0))
             }
 
             /// The representation of this number as a big-endian byte array.
-            pub fn to_be_bytes(self) -> [u8; $bits / 8] {
+            pub const fn to_be_bytes(self) -> [u8; $bits / 8] {
                 self.0.to_be_bytes()
             }
         }

@@ -8,7 +8,7 @@ pub struct LongDateTime(i64);
 
 impl LongDateTime {
     /// Create with a number of seconds relative to 1904-01-01 00:00.
-    pub fn new(secs: i64) -> Self {
+    pub const fn new(secs: i64) -> Self {
         Self(secs)
     }
 
@@ -16,12 +16,12 @@ impl LongDateTime {
     ///
     /// This can be a negative number, which presumably represents a date prior
     /// to the reference date.
-    pub fn as_secs(&self) -> i64 {
+    pub const fn as_secs(&self) -> i64 {
         self.0
     }
 
     /// The representation of this datetime as a big-endian byte array.
-    pub fn to_be_bytes(self) -> [u8; 8] {
+    pub const fn to_be_bytes(self) -> [u8; 8] {
         self.0.to_be_bytes()
     }
 }

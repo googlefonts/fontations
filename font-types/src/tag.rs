@@ -69,7 +69,7 @@ impl Tag {
 
     // for symmetry with integer types / other things we encode/decode
     /// Return the memory representation of this tag.
-    pub fn to_be_bytes(self) -> [u8; 4] {
+    pub const fn to_be_bytes(self) -> [u8; 4] {
         self.0
     }
 
@@ -80,7 +80,7 @@ impl Tag {
     ///
     /// This does not check the input, and is only intended to be used during
     /// parsing, where invalid inputs are accepted.
-    pub fn from_be_bytes(bytes: [u8; 4]) -> Self {
+    pub const fn from_be_bytes(bytes: [u8; 4]) -> Self {
         Self(bytes)
     }
 }
