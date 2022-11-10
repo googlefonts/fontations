@@ -18,6 +18,8 @@ use syn::{
 #[derive(Debug)]
 pub(crate) struct Items {
     pub(crate) parse_module_path: syn::Path,
+    // we use an IndexMap so that we generate code in the same order as items
+    // are declared in the input file.
     items: IndexMap<syn::Ident, Item>,
 }
 
