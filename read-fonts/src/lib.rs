@@ -38,6 +38,9 @@ pub use read::{ComputeSize, FontRead, FontReadWithArgs, ReadArgs, ReadError, Var
 pub use table_provider::TableProvider;
 pub use table_ref::TableRef;
 
+/// Public re-export of the font-types crate.
+pub use font_types as types;
+
 /// All the types that may be referenced in auto-generated code.
 #[doc(hidden)]
 pub(crate) mod codegen_prelude {

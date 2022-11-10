@@ -30,7 +30,7 @@ table_newtype!(
 
 impl Gsub {
     fn compute_version(&self) -> MajorMinor {
-        if self.feature_variations_offset.get().is_none() {
+        if self.feature_variations.is_none() {
             MajorMinor::VERSION_1_0
         } else {
             MajorMinor::VERSION_1_1
@@ -51,7 +51,7 @@ impl<T: LookupType + FontWrite> FontWrite for ExtensionSubstFormat1<T> {
     fn write_into(&self, writer: &mut TableWriter) {
         1u16.write_into(writer);
         T::TYPE.write_into(writer);
-        self.extension_offset.write_into(writer);
+        self.extension.write_into(writer);
     }
 }
 

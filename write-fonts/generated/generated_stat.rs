@@ -14,12 +14,12 @@ pub struct Stat {
     /// start of the design axes array. If designAxisCount is zero, set
     /// to zero; if designAxisCount is greater than zero, must be
     /// greater than zero.
-    pub design_axes_offset: OffsetMarker<Vec<AxisRecord>, WIDTH_32>,
+    pub design_axes: OffsetMarker<Vec<AxisRecord>, WIDTH_32>,
     /// Offset in bytes from the beginning of the STAT table to the
     /// start of the design axes value offsets array. If axisValueCount
     /// is zero, set to zero; if axisValueCount is greater than zero,
     /// must be greater than zero.
-    pub offset_to_axis_value_offsets: OffsetMarker<Vec<OffsetMarker<AxisValue>>, WIDTH_32>,
+    pub offset_to_axis_values: OffsetMarker<Vec<OffsetMarker<AxisValue>>, WIDTH_32>,
     /// Name ID used as fallback when projection of names into a
     /// particular font model produces a subfamily name containing only
     /// elidable elements.
@@ -32,10 +32,10 @@ impl FontWrite for Stat {
         let version = MajorMinor::VERSION_1_2 as MajorMinor;
         version.write_into(writer);
         (8 as u16).write_into(writer);
-        (array_len(&self.offset_to_axis_value_offsets).unwrap() as u16).write_into(writer);
-        self.design_axes_offset.write_into(writer);
-        (array_len(&self.offset_to_axis_value_offsets).unwrap() as u16).write_into(writer);
-        self.offset_to_axis_value_offsets.write_into(writer);
+        (array_len(&self.offset_to_axis_values).unwrap() as u16).write_into(writer);
+        self.design_axes.write_into(writer);
+        (array_len(&self.offset_to_axis_values).unwrap() as u16).write_into(writer);
+        self.offset_to_axis_values.write_into(writer);
         version.compatible(MajorMinor::VERSION_1_1).then(|| {
             self.elided_fallback_name_id
                 .as_ref()
@@ -49,11 +49,11 @@ impl Validate for Stat {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Stat", |ctx| {
             let version: MajorMinor = MajorMinor::VERSION_1_2;
-            ctx.in_field("design_axes_offset", |ctx| {
-                self.design_axes_offset.validate_impl(ctx);
+            ctx.in_field("design_axes", |ctx| {
+                self.design_axes.validate_impl(ctx);
             });
-            ctx.in_field("offset_to_axis_value_offsets", |ctx| {
-                self.offset_to_axis_value_offsets.validate_impl(ctx);
+            ctx.in_field("offset_to_axis_values", |ctx| {
+                self.offset_to_axis_values.validate_impl(ctx);
             });
             ctx.in_field("elided_fallback_name_id", |ctx| {
                 if version.compatible(MajorMinor::VERSION_1_1)
@@ -70,8 +70,8 @@ impl<'a> FromObjRef<read_fonts::tables::stat::Stat<'a>> for Stat {
     fn from_obj_ref(obj: &read_fonts::tables::stat::Stat<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Stat {
-            design_axes_offset: obj.design_axes().to_owned_obj(offset_data),
-            offset_to_axis_value_offsets: convert_axis_value_offsets(obj.offset_to_axis_values()),
+            design_axes: obj.design_axes().to_owned_obj(offset_data),
+            offset_to_axis_values: convert_axis_value_offsets(obj.offset_to_axis_values()),
             elided_fallback_name_id: obj.elided_fallback_name_id(),
         }
     }
@@ -126,23 +126,23 @@ impl FromObjRef<read_fonts::tables::stat::AxisRecord> for AxisRecord {
 pub struct AxisValueArray {
     /// Array of offsets to axis value tables, in bytes from the start
     /// of the axis value offsets array.
-    pub axis_value_offsets: Vec<OffsetMarker<AxisValue>>,
+    pub axis_values: Vec<OffsetMarker<AxisValue>>,
 }
 
 impl FontWrite for AxisValueArray {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.axis_value_offsets.write_into(writer);
+        self.axis_values.write_into(writer);
     }
 }
 
 impl Validate for AxisValueArray {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("AxisValueArray", |ctx| {
-            ctx.in_field("axis_value_offsets", |ctx| {
-                if self.axis_value_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("axis_values", |ctx| {
+                if self.axis_values.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.axis_value_offsets.validate_impl(ctx);
+                self.axis_values.validate_impl(ctx);
             });
         })
     }
@@ -151,7 +151,7 @@ impl Validate for AxisValueArray {
 impl<'a> FromObjRef<read_fonts::tables::stat::AxisValueArray<'a>> for AxisValueArray {
     fn from_obj_ref(obj: &read_fonts::tables::stat::AxisValueArray<'a>, _: FontData) -> Self {
         AxisValueArray {
-            axis_value_offsets: obj.axis_values().map(|x| x.to_owned_table()).collect(),
+            axis_values: obj.axis_values().map(|x| x.to_owned_table()).collect(),
         }
     }
 }

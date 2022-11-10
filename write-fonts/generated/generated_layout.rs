@@ -58,21 +58,21 @@ pub struct ScriptRecord {
     /// 4-byte script tag identifier
     pub script_tag: Tag,
     /// Offset to Script table, from beginning of ScriptList
-    pub script_offset: OffsetMarker<Script>,
+    pub script: OffsetMarker<Script>,
 }
 
 impl FontWrite for ScriptRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.script_tag.write_into(writer);
-        self.script_offset.write_into(writer);
+        self.script.write_into(writer);
     }
 }
 
 impl Validate for ScriptRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ScriptRecord", |ctx| {
-            ctx.in_field("script_offset", |ctx| {
-                self.script_offset.validate_impl(ctx);
+            ctx.in_field("script", |ctx| {
+                self.script.validate_impl(ctx);
             });
         })
     }
@@ -82,7 +82,7 @@ impl FromObjRef<read_fonts::layout::ScriptRecord> for ScriptRecord {
     fn from_obj_ref(obj: &read_fonts::layout::ScriptRecord, offset_data: FontData) -> Self {
         ScriptRecord {
             script_tag: obj.script_tag(),
-            script_offset: obj.script(offset_data).to_owned_table(),
+            script: obj.script(offset_data).to_owned_table(),
         }
     }
 }
@@ -92,7 +92,7 @@ impl FromObjRef<read_fonts::layout::ScriptRecord> for ScriptRecord {
 pub struct Script {
     /// Offset to default LangSys table, from beginning of Script table
     /// — may be NULL
-    pub default_lang_sys_offset: NullableOffsetMarker<LangSys>,
+    pub default_lang_sys: NullableOffsetMarker<LangSys>,
     /// Array of LangSysRecords, listed alphabetically by LangSys tag
     pub lang_sys_records: Vec<LangSysRecord>,
 }
@@ -100,7 +100,7 @@ pub struct Script {
 impl FontWrite for Script {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        self.default_lang_sys_offset.write_into(writer);
+        self.default_lang_sys.write_into(writer);
         (array_len(&self.lang_sys_records).unwrap() as u16).write_into(writer);
         self.lang_sys_records.write_into(writer);
     }
@@ -109,8 +109,8 @@ impl FontWrite for Script {
 impl Validate for Script {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Script", |ctx| {
-            ctx.in_field("default_lang_sys_offset", |ctx| {
-                self.default_lang_sys_offset.validate_impl(ctx);
+            ctx.in_field("default_lang_sys", |ctx| {
+                self.default_lang_sys.validate_impl(ctx);
             });
             ctx.in_field("lang_sys_records", |ctx| {
                 if self.lang_sys_records.len() > (u16::MAX as usize) {
@@ -126,7 +126,7 @@ impl<'a> FromObjRef<read_fonts::layout::Script<'a>> for Script {
     fn from_obj_ref(obj: &read_fonts::layout::Script<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Script {
-            default_lang_sys_offset: obj.default_lang_sys().to_owned_table(),
+            default_lang_sys: obj.default_lang_sys().to_owned_table(),
             lang_sys_records: obj.lang_sys_records().to_owned_obj(offset_data),
         }
     }
@@ -145,21 +145,21 @@ pub struct LangSysRecord {
     /// 4-byte LangSysTag identifier
     pub lang_sys_tag: Tag,
     /// Offset to LangSys table, from beginning of Script table
-    pub lang_sys_offset: OffsetMarker<LangSys>,
+    pub lang_sys: OffsetMarker<LangSys>,
 }
 
 impl FontWrite for LangSysRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.lang_sys_tag.write_into(writer);
-        self.lang_sys_offset.write_into(writer);
+        self.lang_sys.write_into(writer);
     }
 }
 
 impl Validate for LangSysRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LangSysRecord", |ctx| {
-            ctx.in_field("lang_sys_offset", |ctx| {
-                self.lang_sys_offset.validate_impl(ctx);
+            ctx.in_field("lang_sys", |ctx| {
+                self.lang_sys.validate_impl(ctx);
             });
         })
     }
@@ -169,7 +169,7 @@ impl FromObjRef<read_fonts::layout::LangSysRecord> for LangSysRecord {
     fn from_obj_ref(obj: &read_fonts::layout::LangSysRecord, offset_data: FontData) -> Self {
         LangSysRecord {
             lang_sys_tag: obj.lang_sys_tag(),
-            lang_sys_offset: obj.lang_sys(offset_data).to_owned_table(),
+            lang_sys: obj.lang_sys(offset_data).to_owned_table(),
         }
     }
 }
@@ -276,21 +276,21 @@ pub struct FeatureRecord {
     /// 4-byte feature identification tag
     pub feature_tag: Tag,
     /// Offset to Feature table, from beginning of FeatureList
-    pub feature_offset: OffsetMarker<Feature>,
+    pub feature: OffsetMarker<Feature>,
 }
 
 impl FontWrite for FeatureRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.feature_tag.write_into(writer);
-        self.feature_offset.write_into(writer);
+        self.feature.write_into(writer);
     }
 }
 
 impl Validate for FeatureRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FeatureRecord", |ctx| {
-            ctx.in_field("feature_offset", |ctx| {
-                self.feature_offset.validate_impl(ctx);
+            ctx.in_field("feature", |ctx| {
+                self.feature.validate_impl(ctx);
             });
         })
     }
@@ -300,7 +300,7 @@ impl FromObjRef<read_fonts::layout::FeatureRecord> for FeatureRecord {
     fn from_obj_ref(obj: &read_fonts::layout::FeatureRecord, offset_data: FontData) -> Self {
         FeatureRecord {
             feature_tag: obj.feature_tag(),
-            feature_offset: obj.feature(offset_data).to_owned_table(),
+            feature: obj.feature(offset_data).to_owned_table(),
         }
     }
 }
@@ -309,7 +309,7 @@ impl FromObjRef<read_fonts::layout::FeatureRecord> for FeatureRecord {
 #[derive(Clone, Debug, Default)]
 pub struct Feature {
     /// Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
-    pub feature_params_offset: NullableOffsetMarker<FeatureParams>,
+    pub feature_params: NullableOffsetMarker<FeatureParams>,
     /// Array of indices into the LookupList — zero-based (first
     /// lookup is LookupListIndex = 0)
     pub lookup_list_indices: Vec<u16>,
@@ -318,7 +318,7 @@ pub struct Feature {
 impl FontWrite for Feature {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        self.feature_params_offset.write_into(writer);
+        self.feature_params.write_into(writer);
         (array_len(&self.lookup_list_indices).unwrap() as u16).write_into(writer);
         self.lookup_list_indices.write_into(writer);
     }
@@ -327,8 +327,8 @@ impl FontWrite for Feature {
 impl Validate for Feature {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Feature", |ctx| {
-            ctx.in_field("feature_params_offset", |ctx| {
-                self.feature_params_offset.validate_impl(ctx);
+            ctx.in_field("feature_params", |ctx| {
+                self.feature_params.validate_impl(ctx);
             });
             ctx.in_field("lookup_list_indices", |ctx| {
                 if self.lookup_list_indices.len() > (u16::MAX as usize) {
@@ -343,7 +343,7 @@ impl<'a> FromObjRef<read_fonts::layout::Feature<'a>> for Feature {
     fn from_obj_ref(obj: &read_fonts::layout::Feature<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Feature {
-            feature_params_offset: obj.feature_params().to_owned_table(),
+            feature_params: obj.feature_params().to_owned_table(),
             lookup_list_indices: obj.lookup_list_indices().to_owned_obj(offset_data),
         }
     }
@@ -356,25 +356,25 @@ impl<'a> FromTableRef<read_fonts::layout::Feature<'a>> for Feature {}
 pub struct LookupList<T> {
     /// Array of offsets to Lookup tables, from beginning of LookupList
     /// — zero based (first lookup is Lookup index = 0)
-    pub lookup_offsets: Vec<OffsetMarker<T>>,
+    pub lookups: Vec<OffsetMarker<T>>,
 }
 
 impl<T: FontWrite> FontWrite for LookupList<T> {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.lookup_offsets).unwrap() as u16).write_into(writer);
-        self.lookup_offsets.write_into(writer);
+        (array_len(&self.lookups).unwrap() as u16).write_into(writer);
+        self.lookups.write_into(writer);
     }
 }
 
 impl<T: Validate> Validate for LookupList<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("LookupList", |ctx| {
-            ctx.in_field("lookup_offsets", |ctx| {
-                if self.lookup_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("lookups", |ctx| {
+                if self.lookups.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.lookup_offsets.validate_impl(ctx);
+                self.lookups.validate_impl(ctx);
             });
         })
     }
@@ -383,11 +383,11 @@ impl<T: Validate> Validate for LookupList<T> {
 impl<'a, T, U> FromObjRef<read_fonts::layout::LookupList<'a, U>> for LookupList<T>
 where
     U: FontRead<'a>,
-    T: FromTableRef<U> + 'static,
+    T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(obj: &read_fonts::layout::LookupList<'a, U>, _: FontData) -> Self {
         LookupList {
-            lookup_offsets: obj.lookups().map(|x| x.to_owned_table()).collect(),
+            lookups: obj.lookups().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -395,7 +395,7 @@ where
 impl<'a, T, U> FromTableRef<read_fonts::layout::LookupList<'a, U>> for LookupList<T>
 where
     U: FontRead<'a>,
-    T: FromTableRef<U> + 'static,
+    T: FromTableRef<U> + Default + 'static,
 {
 }
 
@@ -406,7 +406,7 @@ pub struct Lookup<T> {
     pub lookup_flag: u16,
     /// Array of offsets to lookup subtables, from beginning of Lookup
     /// table
-    pub subtable_offsets: Vec<OffsetMarker<T>>,
+    pub subtables: Vec<OffsetMarker<T>>,
     /// Index (base 0) into GDEF mark glyph sets structure. This field
     /// is only present if the USE_MARK_FILTERING_SET lookup flag is
     /// set.
@@ -416,11 +416,11 @@ pub struct Lookup<T> {
 impl<T: Validate> Validate for Lookup<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Lookup", |ctx| {
-            ctx.in_field("subtable_offsets", |ctx| {
-                if self.subtable_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("subtables", |ctx| {
+                if self.subtables.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.subtable_offsets.validate_impl(ctx);
+                self.subtables.validate_impl(ctx);
             });
         })
     }
@@ -429,12 +429,12 @@ impl<T: Validate> Validate for Lookup<T> {
 impl<'a, T, U> FromObjRef<read_fonts::layout::Lookup<'a, U>> for Lookup<T>
 where
     U: FontRead<'a>,
-    T: FromTableRef<U> + 'static,
+    T: FromTableRef<U> + Default + 'static,
 {
     fn from_obj_ref(obj: &read_fonts::layout::Lookup<'a, U>, _: FontData) -> Self {
         Lookup {
             lookup_flag: obj.lookup_flag(),
-            subtable_offsets: obj.subtables().map(|x| x.to_owned_table()).collect(),
+            subtables: obj.subtables().map(|x| x.to_owned_table()).collect(),
             mark_filtering_set: obj.mark_filtering_set(),
         }
     }
@@ -443,7 +443,7 @@ where
 impl<'a, T, U> FromTableRef<read_fonts::layout::Lookup<'a, U>> for Lookup<T>
 where
     U: FontRead<'a>,
-    T: FromTableRef<U> + 'static,
+    T: FromTableRef<U> + Default + 'static,
 {
 }
 
@@ -837,33 +837,33 @@ impl FromObjRef<read_fonts::layout::SequenceLookupRecord> for SequenceLookupReco
 pub struct SequenceContextFormat1 {
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat1 table
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Array of offsets to SequenceRuleSet tables, from beginning of
     /// SequenceContextFormat1 table (offsets may be NULL)
-    pub seq_rule_set_offsets: Vec<NullableOffsetMarker<SequenceRuleSet>>,
+    pub seq_rule_sets: Vec<NullableOffsetMarker<SequenceRuleSet>>,
 }
 
 impl FontWrite for SequenceContextFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        self.coverage_offset.write_into(writer);
-        (array_len(&self.seq_rule_set_offsets).unwrap() as u16).write_into(writer);
-        self.seq_rule_set_offsets.write_into(writer);
+        self.coverage.write_into(writer);
+        (array_len(&self.seq_rule_sets).unwrap() as u16).write_into(writer);
+        self.seq_rule_sets.write_into(writer);
     }
 }
 
 impl Validate for SequenceContextFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SequenceContextFormat1", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
-            ctx.in_field("seq_rule_set_offsets", |ctx| {
-                if self.seq_rule_set_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("seq_rule_sets", |ctx| {
+                if self.seq_rule_sets.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.seq_rule_set_offsets.validate_impl(ctx);
+                self.seq_rule_sets.validate_impl(ctx);
             });
         })
     }
@@ -872,8 +872,8 @@ impl Validate for SequenceContextFormat1 {
 impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat1<'a>> for SequenceContextFormat1 {
     fn from_obj_ref(obj: &read_fonts::layout::SequenceContextFormat1<'a>, _: FontData) -> Self {
         SequenceContextFormat1 {
-            coverage_offset: obj.coverage().to_owned_table(),
-            seq_rule_set_offsets: obj.seq_rule_sets().map(|x| x.to_owned_table()).collect(),
+            coverage: obj.coverage().to_owned_table(),
+            seq_rule_sets: obj.seq_rule_sets().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -892,25 +892,25 @@ impl<'a> FontRead<'a> for SequenceContextFormat1 {
 pub struct SequenceRuleSet {
     /// Array of offsets to SequenceRule tables, from beginning of the
     /// SequenceRuleSet table
-    pub seq_rule_offsets: Vec<OffsetMarker<SequenceRule>>,
+    pub seq_rules: Vec<OffsetMarker<SequenceRule>>,
 }
 
 impl FontWrite for SequenceRuleSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.seq_rule_offsets).unwrap() as u16).write_into(writer);
-        self.seq_rule_offsets.write_into(writer);
+        (array_len(&self.seq_rules).unwrap() as u16).write_into(writer);
+        self.seq_rules.write_into(writer);
     }
 }
 
 impl Validate for SequenceRuleSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SequenceRuleSet", |ctx| {
-            ctx.in_field("seq_rule_offsets", |ctx| {
-                if self.seq_rule_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("seq_rules", |ctx| {
+                if self.seq_rules.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.seq_rule_offsets.validate_impl(ctx);
+                self.seq_rules.validate_impl(ctx);
             });
         })
     }
@@ -919,7 +919,7 @@ impl Validate for SequenceRuleSet {
 impl<'a> FromObjRef<read_fonts::layout::SequenceRuleSet<'a>> for SequenceRuleSet {
     fn from_obj_ref(obj: &read_fonts::layout::SequenceRuleSet<'a>, _: FontData) -> Self {
         SequenceRuleSet {
-            seq_rule_offsets: obj.seq_rules().map(|x| x.to_owned_table()).collect(),
+            seq_rules: obj.seq_rules().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -987,40 +987,40 @@ impl<'a> FontRead<'a> for SequenceRule {
 pub struct SequenceContextFormat2 {
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat2 table
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Offset to ClassDef table, from beginning of
     /// SequenceContextFormat2 table
-    pub class_def_offset: OffsetMarker<ClassDef>,
+    pub class_def: OffsetMarker<ClassDef>,
     /// Array of offsets to ClassSequenceRuleSet tables, from beginning
     /// of SequenceContextFormat2 table (may be NULL)
-    pub class_seq_rule_set_offsets: Vec<NullableOffsetMarker<ClassSequenceRuleSet>>,
+    pub class_seq_rule_sets: Vec<NullableOffsetMarker<ClassSequenceRuleSet>>,
 }
 
 impl FontWrite for SequenceContextFormat2 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
-        self.coverage_offset.write_into(writer);
-        self.class_def_offset.write_into(writer);
-        (array_len(&self.class_seq_rule_set_offsets).unwrap() as u16).write_into(writer);
-        self.class_seq_rule_set_offsets.write_into(writer);
+        self.coverage.write_into(writer);
+        self.class_def.write_into(writer);
+        (array_len(&self.class_seq_rule_sets).unwrap() as u16).write_into(writer);
+        self.class_seq_rule_sets.write_into(writer);
     }
 }
 
 impl Validate for SequenceContextFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SequenceContextFormat2", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
-            ctx.in_field("class_def_offset", |ctx| {
-                self.class_def_offset.validate_impl(ctx);
+            ctx.in_field("class_def", |ctx| {
+                self.class_def.validate_impl(ctx);
             });
-            ctx.in_field("class_seq_rule_set_offsets", |ctx| {
-                if self.class_seq_rule_set_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("class_seq_rule_sets", |ctx| {
+                if self.class_seq_rule_sets.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.class_seq_rule_set_offsets.validate_impl(ctx);
+                self.class_seq_rule_sets.validate_impl(ctx);
             });
         })
     }
@@ -1029,9 +1029,9 @@ impl Validate for SequenceContextFormat2 {
 impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat2<'a>> for SequenceContextFormat2 {
     fn from_obj_ref(obj: &read_fonts::layout::SequenceContextFormat2<'a>, _: FontData) -> Self {
         SequenceContextFormat2 {
-            coverage_offset: obj.coverage().to_owned_table(),
-            class_def_offset: obj.class_def().to_owned_table(),
-            class_seq_rule_set_offsets: obj
+            coverage: obj.coverage().to_owned_table(),
+            class_def: obj.class_def().to_owned_table(),
+            class_seq_rule_sets: obj
                 .class_seq_rule_sets()
                 .map(|x| x.to_owned_table())
                 .collect(),
@@ -1053,25 +1053,25 @@ impl<'a> FontRead<'a> for SequenceContextFormat2 {
 pub struct ClassSequenceRuleSet {
     /// Array of offsets to ClassSequenceRule tables, from beginning of
     /// ClassSequenceRuleSet table
-    pub class_seq_rule_offsets: Vec<OffsetMarker<ClassSequenceRule>>,
+    pub class_seq_rules: Vec<OffsetMarker<ClassSequenceRule>>,
 }
 
 impl FontWrite for ClassSequenceRuleSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.class_seq_rule_offsets).unwrap() as u16).write_into(writer);
-        self.class_seq_rule_offsets.write_into(writer);
+        (array_len(&self.class_seq_rules).unwrap() as u16).write_into(writer);
+        self.class_seq_rules.write_into(writer);
     }
 }
 
 impl Validate for ClassSequenceRuleSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ClassSequenceRuleSet", |ctx| {
-            ctx.in_field("class_seq_rule_offsets", |ctx| {
-                if self.class_seq_rule_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("class_seq_rules", |ctx| {
+                if self.class_seq_rules.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.class_seq_rule_offsets.validate_impl(ctx);
+                self.class_seq_rules.validate_impl(ctx);
             });
         })
     }
@@ -1080,7 +1080,7 @@ impl Validate for ClassSequenceRuleSet {
 impl<'a> FromObjRef<read_fonts::layout::ClassSequenceRuleSet<'a>> for ClassSequenceRuleSet {
     fn from_obj_ref(obj: &read_fonts::layout::ClassSequenceRuleSet<'a>, _: FontData) -> Self {
         ClassSequenceRuleSet {
-            class_seq_rule_offsets: obj.class_seq_rules().map(|x| x.to_owned_table()).collect(),
+            class_seq_rules: obj.class_seq_rules().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -1150,7 +1150,7 @@ impl<'a> FontRead<'a> for ClassSequenceRule {
 pub struct SequenceContextFormat3 {
     /// Array of offsets to Coverage tables, from beginning of
     /// SequenceContextFormat3 subtable
-    pub coverage_offsets: Vec<OffsetMarker<CoverageTable>>,
+    pub coverages: Vec<OffsetMarker<CoverageTable>>,
     /// Array of SequenceLookupRecords
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
 }
@@ -1159,9 +1159,9 @@ impl FontWrite for SequenceContextFormat3 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (3 as u16).write_into(writer);
-        (array_len(&self.coverage_offsets).unwrap() as u16).write_into(writer);
+        (array_len(&self.coverages).unwrap() as u16).write_into(writer);
         (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
-        self.coverage_offsets.write_into(writer);
+        self.coverages.write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
 }
@@ -1169,11 +1169,11 @@ impl FontWrite for SequenceContextFormat3 {
 impl Validate for SequenceContextFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("SequenceContextFormat3", |ctx| {
-            ctx.in_field("coverage_offsets", |ctx| {
-                if self.coverage_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("coverages", |ctx| {
+                if self.coverages.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.coverage_offsets.validate_impl(ctx);
+                self.coverages.validate_impl(ctx);
             });
             ctx.in_field("seq_lookup_records", |ctx| {
                 if self.seq_lookup_records.len() > (u16::MAX as usize) {
@@ -1189,7 +1189,7 @@ impl<'a> FromObjRef<read_fonts::layout::SequenceContextFormat3<'a>> for Sequence
     fn from_obj_ref(obj: &read_fonts::layout::SequenceContextFormat3<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         SequenceContextFormat3 {
-            coverage_offsets: obj.coverages().map(|x| x.to_owned_table()).collect(),
+            coverages: obj.coverages().map(|x| x.to_owned_table()).collect(),
             seq_lookup_records: obj.seq_lookup_records().to_owned_obj(offset_data),
         }
     }
@@ -1261,33 +1261,33 @@ impl<'a> FontRead<'a> for SequenceContext {
 pub struct ChainedSequenceContextFormat1 {
     /// Offset to Coverage table, from beginning of
     /// ChainSequenceContextFormat1 table
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
     /// ChainedSequenceContextFormat1 table (may be NULL)
-    pub chained_seq_rule_set_offsets: Vec<NullableOffsetMarker<ChainedSequenceRuleSet>>,
+    pub chained_seq_rule_sets: Vec<NullableOffsetMarker<ChainedSequenceRuleSet>>,
 }
 
 impl FontWrite for ChainedSequenceContextFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
-        self.coverage_offset.write_into(writer);
-        (array_len(&self.chained_seq_rule_set_offsets).unwrap() as u16).write_into(writer);
-        self.chained_seq_rule_set_offsets.write_into(writer);
+        self.coverage.write_into(writer);
+        (array_len(&self.chained_seq_rule_sets).unwrap() as u16).write_into(writer);
+        self.chained_seq_rule_sets.write_into(writer);
     }
 }
 
 impl Validate for ChainedSequenceContextFormat1 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedSequenceContextFormat1", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
-            ctx.in_field("chained_seq_rule_set_offsets", |ctx| {
-                if self.chained_seq_rule_set_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("chained_seq_rule_sets", |ctx| {
+                if self.chained_seq_rule_sets.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.chained_seq_rule_set_offsets.validate_impl(ctx);
+                self.chained_seq_rule_sets.validate_impl(ctx);
             });
         })
     }
@@ -1301,8 +1301,8 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat1<'a>>
         _: FontData,
     ) -> Self {
         ChainedSequenceContextFormat1 {
-            coverage_offset: obj.coverage().to_owned_table(),
-            chained_seq_rule_set_offsets: obj
+            coverage: obj.coverage().to_owned_table(),
+            chained_seq_rule_sets: obj
                 .chained_seq_rule_sets()
                 .map(|x| x.to_owned_table())
                 .collect(),
@@ -1327,25 +1327,25 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat1 {
 pub struct ChainedSequenceRuleSet {
     /// Array of offsets to ChainedSequenceRule tables, from beginning
     /// of ChainedSequenceRuleSet table
-    pub chained_seq_rule_offsets: Vec<OffsetMarker<ChainedSequenceRule>>,
+    pub chained_seq_rules: Vec<OffsetMarker<ChainedSequenceRule>>,
 }
 
 impl FontWrite for ChainedSequenceRuleSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.chained_seq_rule_offsets).unwrap() as u16).write_into(writer);
-        self.chained_seq_rule_offsets.write_into(writer);
+        (array_len(&self.chained_seq_rules).unwrap() as u16).write_into(writer);
+        self.chained_seq_rules.write_into(writer);
     }
 }
 
 impl Validate for ChainedSequenceRuleSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedSequenceRuleSet", |ctx| {
-            ctx.in_field("chained_seq_rule_offsets", |ctx| {
-                if self.chained_seq_rule_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("chained_seq_rules", |ctx| {
+                if self.chained_seq_rules.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.chained_seq_rule_offsets.validate_impl(ctx);
+                self.chained_seq_rules.validate_impl(ctx);
             });
         })
     }
@@ -1354,7 +1354,7 @@ impl Validate for ChainedSequenceRuleSet {
 impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceRuleSet<'a>> for ChainedSequenceRuleSet {
     fn from_obj_ref(obj: &read_fonts::layout::ChainedSequenceRuleSet<'a>, _: FontData) -> Self {
         ChainedSequenceRuleSet {
-            chained_seq_rule_offsets: obj
+            chained_seq_rules: obj
                 .chained_seq_rules()
                 .map(|x| x.to_owned_table())
                 .collect(),
@@ -1447,54 +1447,54 @@ impl<'a> FontRead<'a> for ChainedSequenceRule {
 pub struct ChainedSequenceContextFormat2 {
     /// Offset to Coverage table, from beginning of
     /// ChainedSequenceContextFormat2 table
-    pub coverage_offset: OffsetMarker<CoverageTable>,
+    pub coverage: OffsetMarker<CoverageTable>,
     /// Offset to ClassDef table containing backtrack sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
-    pub backtrack_class_def_offset: OffsetMarker<ClassDef>,
+    pub backtrack_class_def: OffsetMarker<ClassDef>,
     /// Offset to ClassDef table containing input sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
-    pub input_class_def_offset: OffsetMarker<ClassDef>,
+    pub input_class_def: OffsetMarker<ClassDef>,
     /// Offset to ClassDef table containing lookahead sequence context,
     /// from beginning of ChainedSequenceContextFormat2 table
-    pub lookahead_class_def_offset: OffsetMarker<ClassDef>,
+    pub lookahead_class_def: OffsetMarker<ClassDef>,
     /// Array of offsets to ChainedClassSequenceRuleSet tables, from
     /// beginning of ChainedSequenceContextFormat2 table (may be NULL)
-    pub chained_class_seq_rule_set_offsets: Vec<NullableOffsetMarker<ChainedClassSequenceRuleSet>>,
+    pub chained_class_seq_rule_sets: Vec<NullableOffsetMarker<ChainedClassSequenceRuleSet>>,
 }
 
 impl FontWrite for ChainedSequenceContextFormat2 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
-        self.coverage_offset.write_into(writer);
-        self.backtrack_class_def_offset.write_into(writer);
-        self.input_class_def_offset.write_into(writer);
-        self.lookahead_class_def_offset.write_into(writer);
-        (array_len(&self.chained_class_seq_rule_set_offsets).unwrap() as u16).write_into(writer);
-        self.chained_class_seq_rule_set_offsets.write_into(writer);
+        self.coverage.write_into(writer);
+        self.backtrack_class_def.write_into(writer);
+        self.input_class_def.write_into(writer);
+        self.lookahead_class_def.write_into(writer);
+        (array_len(&self.chained_class_seq_rule_sets).unwrap() as u16).write_into(writer);
+        self.chained_class_seq_rule_sets.write_into(writer);
     }
 }
 
 impl Validate for ChainedSequenceContextFormat2 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedSequenceContextFormat2", |ctx| {
-            ctx.in_field("coverage_offset", |ctx| {
-                self.coverage_offset.validate_impl(ctx);
+            ctx.in_field("coverage", |ctx| {
+                self.coverage.validate_impl(ctx);
             });
-            ctx.in_field("backtrack_class_def_offset", |ctx| {
-                self.backtrack_class_def_offset.validate_impl(ctx);
+            ctx.in_field("backtrack_class_def", |ctx| {
+                self.backtrack_class_def.validate_impl(ctx);
             });
-            ctx.in_field("input_class_def_offset", |ctx| {
-                self.input_class_def_offset.validate_impl(ctx);
+            ctx.in_field("input_class_def", |ctx| {
+                self.input_class_def.validate_impl(ctx);
             });
-            ctx.in_field("lookahead_class_def_offset", |ctx| {
-                self.lookahead_class_def_offset.validate_impl(ctx);
+            ctx.in_field("lookahead_class_def", |ctx| {
+                self.lookahead_class_def.validate_impl(ctx);
             });
-            ctx.in_field("chained_class_seq_rule_set_offsets", |ctx| {
-                if self.chained_class_seq_rule_set_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("chained_class_seq_rule_sets", |ctx| {
+                if self.chained_class_seq_rule_sets.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.chained_class_seq_rule_set_offsets.validate_impl(ctx);
+                self.chained_class_seq_rule_sets.validate_impl(ctx);
             });
         })
     }
@@ -1508,11 +1508,11 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat2<'a>>
         _: FontData,
     ) -> Self {
         ChainedSequenceContextFormat2 {
-            coverage_offset: obj.coverage().to_owned_table(),
-            backtrack_class_def_offset: obj.backtrack_class_def().to_owned_table(),
-            input_class_def_offset: obj.input_class_def().to_owned_table(),
-            lookahead_class_def_offset: obj.lookahead_class_def().to_owned_table(),
-            chained_class_seq_rule_set_offsets: obj
+            coverage: obj.coverage().to_owned_table(),
+            backtrack_class_def: obj.backtrack_class_def().to_owned_table(),
+            input_class_def: obj.input_class_def().to_owned_table(),
+            lookahead_class_def: obj.lookahead_class_def().to_owned_table(),
+            chained_class_seq_rule_sets: obj
                 .chained_class_seq_rule_sets()
                 .map(|x| x.to_owned_table())
                 .collect(),
@@ -1537,25 +1537,25 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat2 {
 pub struct ChainedClassSequenceRuleSet {
     /// Array of offsets to ChainedClassSequenceRule tables, from
     /// beginning of ChainedClassSequenceRuleSet
-    pub chained_class_seq_rule_offsets: Vec<OffsetMarker<ChainedClassSequenceRule>>,
+    pub chained_class_seq_rules: Vec<OffsetMarker<ChainedClassSequenceRule>>,
 }
 
 impl FontWrite for ChainedClassSequenceRuleSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.chained_class_seq_rule_offsets).unwrap() as u16).write_into(writer);
-        self.chained_class_seq_rule_offsets.write_into(writer);
+        (array_len(&self.chained_class_seq_rules).unwrap() as u16).write_into(writer);
+        self.chained_class_seq_rules.write_into(writer);
     }
 }
 
 impl Validate for ChainedClassSequenceRuleSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedClassSequenceRuleSet", |ctx| {
-            ctx.in_field("chained_class_seq_rule_offsets", |ctx| {
-                if self.chained_class_seq_rule_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("chained_class_seq_rules", |ctx| {
+                if self.chained_class_seq_rules.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.chained_class_seq_rule_offsets.validate_impl(ctx);
+                self.chained_class_seq_rules.validate_impl(ctx);
             });
         })
     }
@@ -1569,7 +1569,7 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedClassSequenceRuleSet<'a>>
         _: FontData,
     ) -> Self {
         ChainedClassSequenceRuleSet {
-            chained_class_seq_rule_offsets: obj
+            chained_class_seq_rules: obj
                 .chained_class_seq_rules()
                 .map(|x| x.to_owned_table())
                 .collect(),
@@ -1668,11 +1668,11 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRule {
 #[derive(Clone, Debug, Default)]
 pub struct ChainedSequenceContextFormat3 {
     /// Array of offsets to coverage tables for the backtrack sequence
-    pub backtrack_coverage_offsets: Vec<OffsetMarker<CoverageTable>>,
+    pub backtrack_coverages: Vec<OffsetMarker<CoverageTable>>,
     /// Array of offsets to coverage tables for the input sequence
-    pub input_coverage_offsets: Vec<OffsetMarker<CoverageTable>>,
+    pub input_coverages: Vec<OffsetMarker<CoverageTable>>,
     /// Array of offsets to coverage tables for the lookahead sequence
-    pub lookahead_coverage_offsets: Vec<OffsetMarker<CoverageTable>>,
+    pub lookahead_coverages: Vec<OffsetMarker<CoverageTable>>,
     /// Array of SequenceLookupRecords
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
 }
@@ -1681,12 +1681,12 @@ impl FontWrite for ChainedSequenceContextFormat3 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (3 as u16).write_into(writer);
-        (array_len(&self.backtrack_coverage_offsets).unwrap() as u16).write_into(writer);
-        self.backtrack_coverage_offsets.write_into(writer);
-        (array_len(&self.input_coverage_offsets).unwrap() as u16).write_into(writer);
-        self.input_coverage_offsets.write_into(writer);
-        (array_len(&self.lookahead_coverage_offsets).unwrap() as u16).write_into(writer);
-        self.lookahead_coverage_offsets.write_into(writer);
+        (array_len(&self.backtrack_coverages).unwrap() as u16).write_into(writer);
+        self.backtrack_coverages.write_into(writer);
+        (array_len(&self.input_coverages).unwrap() as u16).write_into(writer);
+        self.input_coverages.write_into(writer);
+        (array_len(&self.lookahead_coverages).unwrap() as u16).write_into(writer);
+        self.lookahead_coverages.write_into(writer);
         (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
@@ -1695,23 +1695,23 @@ impl FontWrite for ChainedSequenceContextFormat3 {
 impl Validate for ChainedSequenceContextFormat3 {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ChainedSequenceContextFormat3", |ctx| {
-            ctx.in_field("backtrack_coverage_offsets", |ctx| {
-                if self.backtrack_coverage_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("backtrack_coverages", |ctx| {
+                if self.backtrack_coverages.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.backtrack_coverage_offsets.validate_impl(ctx);
+                self.backtrack_coverages.validate_impl(ctx);
             });
-            ctx.in_field("input_coverage_offsets", |ctx| {
-                if self.input_coverage_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("input_coverages", |ctx| {
+                if self.input_coverages.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.input_coverage_offsets.validate_impl(ctx);
+                self.input_coverages.validate_impl(ctx);
             });
-            ctx.in_field("lookahead_coverage_offsets", |ctx| {
-                if self.lookahead_coverage_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("lookahead_coverages", |ctx| {
+                if self.lookahead_coverages.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.lookahead_coverage_offsets.validate_impl(ctx);
+                self.lookahead_coverages.validate_impl(ctx);
             });
             ctx.in_field("seq_lookup_records", |ctx| {
                 if self.seq_lookup_records.len() > (u16::MAX as usize) {
@@ -1732,12 +1732,12 @@ impl<'a> FromObjRef<read_fonts::layout::ChainedSequenceContextFormat3<'a>>
     ) -> Self {
         let offset_data = obj.offset_data();
         ChainedSequenceContextFormat3 {
-            backtrack_coverage_offsets: obj
+            backtrack_coverages: obj
                 .backtrack_coverages()
                 .map(|x| x.to_owned_table())
                 .collect(),
-            input_coverage_offsets: obj.input_coverages().map(|x| x.to_owned_table()).collect(),
-            lookahead_coverage_offsets: obj
+            input_coverages: obj.input_coverages().map(|x| x.to_owned_table()).collect(),
+            lookahead_coverages: obj
                 .lookahead_coverages()
                 .map(|x| x.to_owned_table())
                 .collect(),
@@ -1958,27 +1958,27 @@ impl<'a> FontRead<'a> for FeatureVariations {
 pub struct FeatureVariationRecord {
     /// Offset to a condition set table, from beginning of
     /// FeatureVariations table.
-    pub condition_set_offset: OffsetMarker<ConditionSet, WIDTH_32>,
+    pub condition_set: OffsetMarker<ConditionSet, WIDTH_32>,
     /// Offset to a feature table substitution table, from beginning of
     /// the FeatureVariations table.
-    pub feature_table_substitution_offset: OffsetMarker<FeatureTableSubstitution, WIDTH_32>,
+    pub feature_table_substitution: OffsetMarker<FeatureTableSubstitution, WIDTH_32>,
 }
 
 impl FontWrite for FeatureVariationRecord {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.condition_set_offset.write_into(writer);
-        self.feature_table_substitution_offset.write_into(writer);
+        self.condition_set.write_into(writer);
+        self.feature_table_substitution.write_into(writer);
     }
 }
 
 impl Validate for FeatureVariationRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FeatureVariationRecord", |ctx| {
-            ctx.in_field("condition_set_offset", |ctx| {
-                self.condition_set_offset.validate_impl(ctx);
+            ctx.in_field("condition_set", |ctx| {
+                self.condition_set.validate_impl(ctx);
             });
-            ctx.in_field("feature_table_substitution_offset", |ctx| {
-                self.feature_table_substitution_offset.validate_impl(ctx);
+            ctx.in_field("feature_table_substitution", |ctx| {
+                self.feature_table_substitution.validate_impl(ctx);
             });
         })
     }
@@ -1990,8 +1990,8 @@ impl FromObjRef<read_fonts::layout::FeatureVariationRecord> for FeatureVariation
         offset_data: FontData,
     ) -> Self {
         FeatureVariationRecord {
-            condition_set_offset: obj.condition_set(offset_data).to_owned_table(),
-            feature_table_substitution_offset: obj
+            condition_set: obj.condition_set(offset_data).to_owned_table(),
+            feature_table_substitution: obj
                 .feature_table_substitution(offset_data)
                 .to_owned_table(),
         }
@@ -2003,25 +2003,25 @@ impl FromObjRef<read_fonts::layout::FeatureVariationRecord> for FeatureVariation
 pub struct ConditionSet {
     /// Array of offsets to condition tables, from beginning of the
     /// ConditionSet table.
-    pub condition_offsets: Vec<OffsetMarker<ConditionFormat1, WIDTH_32>>,
+    pub conditions: Vec<OffsetMarker<ConditionFormat1, WIDTH_32>>,
 }
 
 impl FontWrite for ConditionSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (array_len(&self.condition_offsets).unwrap() as u16).write_into(writer);
-        self.condition_offsets.write_into(writer);
+        (array_len(&self.conditions).unwrap() as u16).write_into(writer);
+        self.conditions.write_into(writer);
     }
 }
 
 impl Validate for ConditionSet {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("ConditionSet", |ctx| {
-            ctx.in_field("condition_offsets", |ctx| {
-                if self.condition_offsets.len() > (u16::MAX as usize) {
+            ctx.in_field("conditions", |ctx| {
+                if self.conditions.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.condition_offsets.validate_impl(ctx);
+                self.conditions.validate_impl(ctx);
             });
         })
     }
@@ -2030,7 +2030,7 @@ impl Validate for ConditionSet {
 impl<'a> FromObjRef<read_fonts::layout::ConditionSet<'a>> for ConditionSet {
     fn from_obj_ref(obj: &read_fonts::layout::ConditionSet<'a>, _: FontData) -> Self {
         ConditionSet {
-            condition_offsets: obj.conditions().map(|x| x.to_owned_table()).collect(),
+            conditions: obj.conditions().map(|x| x.to_owned_table()).collect(),
         }
     }
 }
@@ -2146,21 +2146,21 @@ pub struct FeatureTableSubstitutionRecord {
     pub feature_index: u16,
     /// Offset to an alternate feature table, from start of the
     /// FeatureTableSubstitution table.
-    pub alternate_feature_offset: OffsetMarker<Feature, WIDTH_32>,
+    pub alternate_feature: OffsetMarker<Feature, WIDTH_32>,
 }
 
 impl FontWrite for FeatureTableSubstitutionRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.feature_index.write_into(writer);
-        self.alternate_feature_offset.write_into(writer);
+        self.alternate_feature.write_into(writer);
     }
 }
 
 impl Validate for FeatureTableSubstitutionRecord {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("FeatureTableSubstitutionRecord", |ctx| {
-            ctx.in_field("alternate_feature_offset", |ctx| {
-                self.alternate_feature_offset.validate_impl(ctx);
+            ctx.in_field("alternate_feature", |ctx| {
+                self.alternate_feature.validate_impl(ctx);
             });
         })
     }
@@ -2175,7 +2175,7 @@ impl FromObjRef<read_fonts::layout::FeatureTableSubstitutionRecord>
     ) -> Self {
         FeatureTableSubstitutionRecord {
             feature_index: obj.feature_index(),
-            alternate_feature_offset: obj.alternate_feature(offset_data).to_owned_table(),
+            alternate_feature: obj.alternate_feature(offset_data).to_owned_table(),
         }
     }
 }

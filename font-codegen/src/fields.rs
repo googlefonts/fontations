@@ -1,6 +1,6 @@
 //! methods on fields
 
-use std::ops::Deref;
+use std::{borrow::Cow, ops::Deref};
 
 use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
@@ -133,8 +133,8 @@ impl Fields {
             if field.is_computed() {
                 continue;
             }
-            let name = &field.name;
-            let name_str = field.name.to_string();
+            let name = field.name_for_compile();
+            let name_str = name.to_string();
             let validation_call = match field.attrs.validation.as_deref() {
                 Some(FieldValidation::Skip) => continue,
                 Some(FieldValidation::Custom(ident)) => Some(quote!( self.#ident(ctx); )),
@@ -820,23 +820,8 @@ impl Field {
         }
 
         let name_string = self.name.to_string();
-        if name_string.ends_with('s') {
-            // if this is an array of offsets (is pluralized) we also pluralize the getter name
-            let temp = name_string.trim_end_matches("_offsets");
-            // hacky attempt to respect pluralization rules. we can update this
-            // as we encounter actual tables, instead of trying to be systematic
-            let plural_es = temp.ends_with("attach");
-            let suffix = if plural_es { "es" } else { "s" };
-            Some(syn::Ident::new(
-                &format!("{temp}{suffix}"),
-                self.name.span(),
-            ))
-        } else {
-            Some(syn::Ident::new(
-                name_string.trim_end_matches("_offset"),
-                self.name.span(),
-            ))
-        }
+        let name_string = remove_offset_from_field_name(&name_string);
+        Some(syn::Ident::new(&name_string, self.name.span()))
     }
 
     /// if the `#[offset_data_method]` attribute is specified, self.#method(),
@@ -987,13 +972,19 @@ impl Field {
         quote!( #name : #rhs )
     }
 
+    fn name_for_compile(&self) -> Cow<syn::Ident> {
+        self.offset_getter_name()
+            .map(Cow::Owned)
+            .unwrap_or(Cow::Borrowed(&self.name))
+    }
+
     /// 'None' if this field's value is computed at compile time
     fn compile_field_decl(&self) -> Option<TokenStream> {
         if self.is_computed() {
             return None;
         }
 
-        let name = &self.name;
+        let name = self.name_for_compile();
         let docs = &self.attrs.docs;
         let typ = self.owned_type();
         Some(quote!( #( #docs)* pub #name: #typ ))
@@ -1023,7 +1014,7 @@ impl Field {
             return None;
         }
 
-        let name = &self.name;
+        let name = self.name_for_compile();
         if let Some(expr) = self.attrs.default.as_deref() {
             Some(quote!( #name: #expr ))
         } else {
@@ -1052,7 +1043,7 @@ impl Field {
             }
         } else {
             computed = false;
-            let name = &self.name;
+            let name = self.name_for_compile();
             quote!( self.#name )
         };
 
@@ -1142,7 +1133,7 @@ impl Field {
         }
 
         let pass_offset_data = in_record.then(|| quote!(offset_data));
-        let name = &self.name;
+        let name = self.name_for_compile();
         let init_stmt = match &self.typ {
             _ if self.attrs.to_owned.is_some() => {
                 self.attrs.to_owned.as_ref().unwrap().expr.to_token_stream()
@@ -1250,6 +1241,24 @@ impl FieldType {
         } else {
             raw_type
         }
+    }
+}
+
+// convert thing_offset -> thing, and thing_offsets -> things
+pub(crate) fn remove_offset_from_field_name(name: &str) -> Cow<str> {
+    if !(name.ends_with("_offset") || name.ends_with("_offsets")) {
+        return Cow::Borrowed(name);
+    }
+    if name.ends_with('s') {
+        // if this is an array of offsets (is pluralized) we also pluralize the getter name
+        let temp = name.trim_end_matches("_offsets");
+        // hacky attempt to respect pluralization rules. we can update this
+        // as we encounter actual tables, instead of trying to be systematic
+        let plural_es = temp.ends_with("attach");
+        let suffix = if plural_es { "es" } else { "s" };
+        Cow::Owned(format!("{temp}{suffix}"))
+    } else {
+        Cow::Borrowed(name.trim_end_matches("_offset"))
     }
 }
 

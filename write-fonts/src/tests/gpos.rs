@@ -58,8 +58,7 @@ fn markbaseposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-7-markbaseposformat1-subtable
 
     let table = MarkBasePosFormat1::read(test_data::MARKBASEPOSFORMAT1).unwrap();
-    let marks = table.mark_array_offset.get().unwrap();
-    assert_eq!(marks.mark_records.len(), 2);
+    assert_eq!(table.mark_array.mark_records.len(), 2);
     let dumped = crate::write::dump_table(&table).unwrap();
 
     assert_hex_eq!(test_data::MARKBASEPOSFORMAT1.as_ref(), &dumped);
@@ -70,8 +69,7 @@ fn markligposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-8-markligposformat1-subtable
 
     let table = MarkLigPosFormat1::read(test_data::MARKLIGPOSFORMAT1).unwrap();
-    let marks = table.mark_array_offset.get().unwrap();
-    assert_eq!(marks.mark_records.len(), 2);
+    assert_eq!(table.mark_array.mark_records.len(), 2);
     let dumped = crate::write::dump_table(&table).unwrap();
 
     assert_hex_eq!(test_data::MARKLIGPOSFORMAT1.as_ref(), &dumped);
@@ -82,11 +80,10 @@ fn markmarkposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-9-markmarkposformat1-subtable
 
     let table = MarkMarkPosFormat1::read(test_data::MARKMARKPOSFORMAT1).unwrap();
-    let mark2array = table.mark2_array_offset.get().unwrap();
-    assert_eq!(mark2array.mark2_records.len(), 1);
-    let record = mark2array.mark2_records.get(0).unwrap();
-    assert_eq!(record.mark2_anchor_offsets.len(), 1);
-    let anchor = record.mark2_anchor_offsets[0].get().unwrap();
+    assert_eq!(table.mark2_array.mark2_records.len(), 1);
+    let record = &table.mark2_array.mark2_records[0];
+    assert_eq!(record.mark2_anchors.len(), 1);
+    let anchor = &record.mark2_anchors[0].as_ref().unwrap();
     let anchor = match anchor {
         AnchorTable::Format1(table) => table,
         _ => panic!("wrong table format"),
@@ -200,9 +197,7 @@ fn no_write_versioned_fields() {
     let dumped = crate::write::dump_table(&gpos).unwrap();
     assert_eq!(dumped.len(), 12);
 
-    gpos.feature_variations_offset.set(FeatureVariations {
-        feature_variation_records: Vec::new(),
-    });
+    gpos.feature_variations.set(FeatureVariations::default());
 
     let dumped = crate::write::dump_table(&gpos).unwrap();
     assert_eq!(dumped.len(), 12 + 12); // 4byte offset, 4byte version, 4byte record count
