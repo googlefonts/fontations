@@ -41,9 +41,13 @@ impl<'a> DeltaSetIndexMap<'a> {
 }
 
 impl<'a> ItemVariationStore<'a> {
-    /// Returns the delta value for the specified index and set of normalized
+    /// Computes the delta value for the specified index and set of normalized
     /// variation coordinates.
-    pub fn delta(&self, index: DeltaSetIndex, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
+    pub fn compute_delta(
+        &self,
+        index: DeltaSetIndex,
+        coords: &[F2Dot14],
+    ) -> Result<Fixed, ReadError> {
         let data = match self
             .item_variation_datas()
             .nth(index.outer as usize)
@@ -55,7 +59,7 @@ impl<'a> ItemVariationStore<'a> {
         let regions = self.variation_region_list()?.variation_regions();
         let region_indices = data.region_indexes();
         let mut delta = Fixed::ZERO;
-        for (i, region_delta) in data.deltas(index.inner).enumerate() {
+        for (i, region_delta) in data.delta_set(index.inner).enumerate() {
             let region_index = region_indices
                 .get(i)
                 .ok_or(ReadError::MalformedData(
@@ -104,7 +108,7 @@ impl<'a> VariationRegion<'a> {
 impl<'a> ItemVariationData<'a> {
     /// Returns an iterator over the per-region delta values for the specified
     /// inner index.
-    pub fn deltas(&self, inner_index: u16) -> impl Iterator<Item = Fixed> + 'a + Clone {
+    pub fn delta_set(&self, inner_index: u16) -> impl Iterator<Item = Fixed> + 'a + Clone {
         let word_delta_count = self.word_delta_count();
         let long_words = word_delta_count & 0x8000 != 0;
         let (word_size, small_size) = if long_words { (4, 2) } else { (2, 1) };

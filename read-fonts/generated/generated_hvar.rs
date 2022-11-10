@@ -36,7 +36,7 @@ impl HvarMarker {
 impl<'a> FontRead<'a> for Hvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let version: MajorMinor = cursor.read()?;
+        cursor.advance::<MajorMinor>();
         cursor.advance::<Offset32>();
         cursor.advance::<Offset32>();
         cursor.advance::<Offset32>();
@@ -111,7 +111,6 @@ impl<'a> SomeTable<'a> for Hvar<'a> {
         "Hvar"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        let version = self.version();
         match idx {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new(
