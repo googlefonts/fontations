@@ -1,6 +1,6 @@
 //! fixed-point numerical types
 
-use core::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 // shared between Fixed and F2Dot14
 macro_rules! fixed_impl {
@@ -281,5 +281,17 @@ mod tests {
             Fixed::from_f64(-0.000015259)
         );
         assert_eq!(Fixed(0x7fff_ffff), Fixed::from_f64(32768.0));
+    }
+
+    #[test]
+    fn fixed_muldiv() {
+        assert_eq!(
+            Fixed::from_f64(0.5) * Fixed::from_f64(2.0),
+            Fixed::from_f64(1.0)
+        );
+        assert_eq!(
+            Fixed::from_f64(0.5) / Fixed::from_f64(2.0),
+            Fixed::from_f64(0.25)
+        );
     }
 }
