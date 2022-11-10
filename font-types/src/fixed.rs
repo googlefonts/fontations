@@ -18,9 +18,14 @@ macro_rules! fixed_impl {
             /// This type's smallest representable value
             pub const EPSILON: Self = Self(1);
 
+            /// Representation of 0.0.
+            pub const ZERO: Self = Self(0);
+
+            /// Representation of 1.0.
+            pub const ONE: Self = Self(1 << $fract_bits);
+
             const INT_MASK: $ty = !0 << $fract_bits;
             const ROUND: $ty = 1 << ($fract_bits - 1);
-            const ONE: $ty = 1 << $fract_bits;
             const FRACT_BITS: usize = $fract_bits;
 
             //TODO: is this actually useful?
@@ -114,7 +119,7 @@ macro_rules! float_conv {
             /// representable value.
             pub fn $from(x: $ty) -> Self {
                 #[cfg(any(feature = "std", test))]
-                return Self((x * Self::ONE as $ty).round() as _);
+                return Self((x * Self::ONE.0 as $ty).round() as _);
                 //NOTE: this behaviour is not exactly equivalent, but should be okay?
                 //what matters is that we are rounding *away from zero*.
                 #[cfg(all(not(feature = "std"), not(test)))]
@@ -130,7 +135,7 @@ macro_rules! float_conv {
             /// round-tripped.
             pub fn $to(self) -> $ty {
                 let int = ((self.0 & Self::INT_MASK) >> Self::FRACT_BITS) as $ty;
-                let fract = (self.0 & !Self::INT_MASK) as $ty / Self::ONE as $ty;
+                let fract = (self.0 & !Self::INT_MASK) as $ty / Self::ONE.0 as $ty;
                 int + fract
             }
         }
