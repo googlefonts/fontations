@@ -541,7 +541,7 @@ impl<'a> ItemVariationStore<'a> {
 
     /// Offsets in bytes from the start of the item variation store to
     /// each item variation data subtable.
-    pub fn item_variation_data_offsets(&self) -> &'a [BigEndian<Offset32>] {
+    pub fn item_variation_data_offsets(&self) -> &'a [BigEndian<Nullable<Offset32>>] {
         let range = self.shape.item_variation_data_offsets_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -549,7 +549,7 @@ impl<'a> ItemVariationStore<'a> {
     /// Attempt to resolve [`item_variation_data_offsets`][Self::item_variation_data_offsets].
     pub fn item_variation_datas(
         &self,
-    ) -> impl Iterator<Item = Result<ItemVariationData<'a>, ReadError>> + 'a {
+    ) -> impl Iterator<Item = Option<Result<ItemVariationData<'a>, ReadError>>> + 'a {
         let data = self.data;
         self.item_variation_data_offsets()
             .iter()
@@ -636,12 +636,12 @@ impl ItemVariationDataMarker {
 impl<'a> FontRead<'a> for ItemVariationData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let item_count: u16 = cursor.read()?;
+        cursor.advance::<u16>();
         cursor.advance::<u16>();
         let region_index_count: u16 = cursor.read()?;
         let region_indexes_byte_len = region_index_count as usize * u16::RAW_BYTE_LEN;
         cursor.advance_by(region_indexes_byte_len);
-        let delta_sets_byte_len = item_count as usize * DeltaSet::RAW_BYTE_LEN;
+        let delta_sets_byte_len = cursor.remaining_bytes();
         cursor.advance_by(delta_sets_byte_len);
         cursor.finish(ItemVariationDataMarker {
             region_indexes_byte_len,
@@ -680,7 +680,7 @@ impl<'a> ItemVariationData<'a> {
     }
 
     /// Delta-set rows.
-    pub fn delta_sets(&self) -> &'a [DeltaSet] {
+    pub fn delta_sets(&self) -> &'a [u8] {
         let range = self.shape.delta_sets_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -697,14 +697,7 @@ impl<'a> SomeTable<'a> for ItemVariationData<'a> {
             1usize => Some(Field::new("word_delta_count", self.word_delta_count())),
             2usize => Some(Field::new("region_index_count", self.region_index_count())),
             3usize => Some(Field::new("region_indexes", self.region_indexes())),
-            4usize => Some(Field::new(
-                "delta_sets",
-                traversal::FieldType::array_of_records(
-                    stringify!(DeltaSet),
-                    self.delta_sets(),
-                    self.offset_data(),
-                ),
-            )),
+            4usize => Some(Field::new("delta_sets", self.delta_sets())),
             _ => None,
         }
     }
@@ -714,36 +707,5 @@ impl<'a> SomeTable<'a> for ItemVariationData<'a> {
 impl<'a> std::fmt::Debug for ItemVariationData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
-#[derive(Clone, Debug)]
-#[repr(C)]
-#[repr(packed)]
-pub struct DeltaSet {
-    pub pad: u8,
-}
-
-impl DeltaSet {
-    pub fn pad(&self) -> u8 {
-        self.pad
-    }
-}
-
-impl FixedSize for DeltaSet {
-    const RAW_BYTE_LEN: usize = u8::RAW_BYTE_LEN;
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> SomeRecord<'a> for DeltaSet {
-    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
-        RecordResolver {
-            name: "DeltaSet",
-            get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("pad", self.pad())),
-                _ => None,
-            }),
-            data,
-        }
     }
 }

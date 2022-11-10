@@ -88,6 +88,7 @@ table ItemVariationStore {
     item_variation_data_count: u16,
     /// Offsets in bytes from the start of the item variation store to 
     /// each item variation data subtable.
+    #[nullable]
     #[count($item_variation_data_count)]
     item_variation_data_offsets: [Offset32<ItemVariationData>],
 }
@@ -105,11 +106,7 @@ table ItemVariationData {
     #[count($region_index_count)]
     region_indexes: [u16],
     /// Delta-set rows.
-    #[count($item_count)]
-    delta_sets: [DeltaSet],
-}
-
-record DeltaSet {
-    pad: u8,
+    #[count(..)]
+    delta_sets: [u8],
 }
 

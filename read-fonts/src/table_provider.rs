@@ -37,6 +37,11 @@ pub trait TableProvider<'a> {
             })
     }
 
+    fn hvar(&self) -> Result<tables::hvar::Hvar<'a>, ReadError> {
+        self.expect_data_for_tag(tables::hvar::TAG)
+            .and_then(FontRead::read)
+    }
+
     fn maxp(&self) -> Result<tables::maxp::Maxp<'a>, ReadError> {
         self.expect_data_for_tag(tables::maxp::TAG)
             .and_then(FontRead::read)
