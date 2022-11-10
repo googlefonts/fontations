@@ -14,6 +14,15 @@ pub struct ScriptList {
     pub script_records: Vec<ScriptRecord>,
 }
 
+impl ScriptList {
+    /// Construct a new `ScriptList`
+    pub fn new(script_records: Vec<ScriptRecord>) -> Self {
+        Self {
+            script_records: script_records.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for ScriptList {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -61,6 +70,16 @@ pub struct ScriptRecord {
     pub script: OffsetMarker<Script>,
 }
 
+impl ScriptRecord {
+    /// Construct a new `ScriptRecord`
+    pub fn new(script_tag: Tag, script: Script) -> Self {
+        Self {
+            script_tag,
+            script: script.into(),
+        }
+    }
+}
+
 impl FontWrite for ScriptRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.script_tag.write_into(writer);
@@ -95,6 +114,16 @@ pub struct Script {
     pub default_lang_sys: NullableOffsetMarker<LangSys>,
     /// Array of LangSysRecords, listed alphabetically by LangSys tag
     pub lang_sys_records: Vec<LangSysRecord>,
+}
+
+impl Script {
+    /// Construct a new `Script`
+    pub fn new(default_lang_sys: Option<LangSys>, lang_sys_records: Vec<LangSysRecord>) -> Self {
+        Self {
+            default_lang_sys: default_lang_sys.into(),
+            lang_sys_records: lang_sys_records.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for Script {
@@ -148,6 +177,16 @@ pub struct LangSysRecord {
     pub lang_sys: OffsetMarker<LangSys>,
 }
 
+impl LangSysRecord {
+    /// Construct a new `LangSysRecord`
+    pub fn new(lang_sys_tag: Tag, lang_sys: LangSys) -> Self {
+        Self {
+            lang_sys_tag,
+            lang_sys: lang_sys.into(),
+        }
+    }
+}
+
 impl FontWrite for LangSysRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.lang_sys_tag.write_into(writer);
@@ -182,6 +221,16 @@ pub struct LangSys {
     pub required_feature_index: u16,
     /// Array of indices into the FeatureList, in arbitrary order
     pub feature_indices: Vec<u16>,
+}
+
+impl LangSys {
+    /// Construct a new `LangSys`
+    pub fn new(required_feature_index: u16, feature_indices: Vec<u16>) -> Self {
+        Self {
+            required_feature_index,
+            feature_indices: feature_indices.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for LangSys {
@@ -232,6 +281,15 @@ pub struct FeatureList {
     pub feature_records: Vec<FeatureRecord>,
 }
 
+impl FeatureList {
+    /// Construct a new `FeatureList`
+    pub fn new(feature_records: Vec<FeatureRecord>) -> Self {
+        Self {
+            feature_records: feature_records.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for FeatureList {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -279,6 +337,16 @@ pub struct FeatureRecord {
     pub feature: OffsetMarker<Feature>,
 }
 
+impl FeatureRecord {
+    /// Construct a new `FeatureRecord`
+    pub fn new(feature_tag: Tag, feature: Feature) -> Self {
+        Self {
+            feature_tag,
+            feature: feature.into(),
+        }
+    }
+}
+
 impl FontWrite for FeatureRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.feature_tag.write_into(writer);
@@ -313,6 +381,16 @@ pub struct Feature {
     /// Array of indices into the LookupList — zero-based (first
     /// lookup is LookupListIndex = 0)
     pub lookup_list_indices: Vec<u16>,
+}
+
+impl Feature {
+    /// Construct a new `Feature`
+    pub fn new(feature_params: Option<FeatureParams>, lookup_list_indices: Vec<u16>) -> Self {
+        Self {
+            feature_params: feature_params.into(),
+            lookup_list_indices: lookup_list_indices.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for Feature {
@@ -357,6 +435,15 @@ pub struct LookupList<T> {
     /// Array of offsets to Lookup tables, from beginning of LookupList
     /// — zero based (first lookup is Lookup index = 0)
     pub lookups: Vec<OffsetMarker<T>>,
+}
+
+impl<T: Default> LookupList<T> {
+    /// Construct a new `LookupList`
+    pub fn new(lookups: Vec<T>) -> Self {
+        Self {
+            lookups: lookups.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl<T: FontWrite> FontWrite for LookupList<T> {
@@ -413,6 +500,17 @@ pub struct Lookup<T> {
     pub mark_filtering_set: u16,
 }
 
+impl<T: Default> Lookup<T> {
+    /// Construct a new `Lookup`
+    pub fn new(lookup_flag: u16, subtables: Vec<T>, mark_filtering_set: u16) -> Self {
+        Self {
+            lookup_flag,
+            subtables: subtables.into_iter().map(Into::into).collect(),
+            mark_filtering_set,
+        }
+    }
+}
+
 impl<T: Validate> Validate for Lookup<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Lookup", |ctx| {
@@ -452,6 +550,15 @@ where
 pub struct CoverageFormat1 {
     /// Array of glyph IDs — in numerical order
     pub glyph_array: Vec<GlyphId>,
+}
+
+impl CoverageFormat1 {
+    /// Construct a new `CoverageFormat1`
+    pub fn new(glyph_array: Vec<GlyphId>) -> Self {
+        Self {
+            glyph_array: glyph_array.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for CoverageFormat1 {
@@ -497,6 +604,15 @@ impl<'a> FontRead<'a> for CoverageFormat1 {
 pub struct CoverageFormat2 {
     /// Array of glyph ranges — ordered by startGlyphID.
     pub range_records: Vec<RangeRecord>,
+}
+
+impl CoverageFormat2 {
+    /// Construct a new `CoverageFormat2`
+    pub fn new(range_records: Vec<RangeRecord>) -> Self {
+        Self {
+            range_records: range_records.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for CoverageFormat2 {
@@ -549,6 +665,17 @@ pub struct RangeRecord {
     pub start_coverage_index: u16,
 }
 
+impl RangeRecord {
+    /// Construct a new `RangeRecord`
+    pub fn new(start_glyph_id: GlyphId, end_glyph_id: GlyphId, start_coverage_index: u16) -> Self {
+        Self {
+            start_glyph_id,
+            end_glyph_id,
+            start_coverage_index,
+        }
+    }
+}
+
 impl FontWrite for RangeRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.start_glyph_id.write_into(writer);
@@ -576,6 +703,18 @@ impl FromObjRef<read_fonts::layout::RangeRecord> for RangeRecord {
 pub enum CoverageTable {
     Format1(CoverageFormat1),
     Format2(CoverageFormat2),
+}
+
+impl CoverageTable {
+    /// Construct a new `CoverageFormat1` subtable
+    pub fn format_1(glyph_array: Vec<GlyphId>) -> Self {
+        Self::Format1(CoverageFormat1::new(glyph_array))
+    }
+
+    /// Construct a new `CoverageFormat2` subtable
+    pub fn format_2(range_records: Vec<RangeRecord>) -> Self {
+        Self::Format2(CoverageFormat2::new(range_records))
+    }
 }
 
 impl Default for CoverageTable {
@@ -629,6 +768,16 @@ pub struct ClassDefFormat1 {
     pub class_value_array: Vec<u16>,
 }
 
+impl ClassDefFormat1 {
+    /// Construct a new `ClassDefFormat1`
+    pub fn new(start_glyph_id: GlyphId, class_value_array: Vec<u16>) -> Self {
+        Self {
+            start_glyph_id,
+            class_value_array: class_value_array.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for ClassDefFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -674,6 +823,15 @@ impl<'a> FontRead<'a> for ClassDefFormat1 {
 pub struct ClassDefFormat2 {
     /// Array of ClassRangeRecords — ordered by startGlyphID
     pub class_range_records: Vec<ClassRangeRecord>,
+}
+
+impl ClassDefFormat2 {
+    /// Construct a new `ClassDefFormat2`
+    pub fn new(class_range_records: Vec<ClassRangeRecord>) -> Self {
+        Self {
+            class_range_records: class_range_records.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for ClassDefFormat2 {
@@ -726,6 +884,17 @@ pub struct ClassRangeRecord {
     pub class: u16,
 }
 
+impl ClassRangeRecord {
+    /// Construct a new `ClassRangeRecord`
+    pub fn new(start_glyph_id: GlyphId, end_glyph_id: GlyphId, class: u16) -> Self {
+        Self {
+            start_glyph_id,
+            end_glyph_id,
+            class,
+        }
+    }
+}
+
 impl FontWrite for ClassRangeRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.start_glyph_id.write_into(writer);
@@ -759,6 +928,18 @@ impl FromObjRef<read_fonts::layout::ClassRangeRecord> for ClassRangeRecord {
 pub enum ClassDef {
     Format1(ClassDefFormat1),
     Format2(ClassDefFormat2),
+}
+
+impl ClassDef {
+    /// Construct a new `ClassDefFormat1` subtable
+    pub fn format_1(start_glyph_id: GlyphId, class_value_array: Vec<u16>) -> Self {
+        Self::Format1(ClassDefFormat1::new(start_glyph_id, class_value_array))
+    }
+
+    /// Construct a new `ClassDefFormat2` subtable
+    pub fn format_2(class_range_records: Vec<ClassRangeRecord>) -> Self {
+        Self::Format2(ClassDefFormat2::new(class_range_records))
+    }
 }
 
 impl Default for ClassDef {
@@ -812,6 +993,16 @@ pub struct SequenceLookupRecord {
     pub lookup_list_index: u16,
 }
 
+impl SequenceLookupRecord {
+    /// Construct a new `SequenceLookupRecord`
+    pub fn new(sequence_index: u16, lookup_list_index: u16) -> Self {
+        Self {
+            sequence_index,
+            lookup_list_index,
+        }
+    }
+}
+
 impl FontWrite for SequenceLookupRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.sequence_index.write_into(writer);
@@ -841,6 +1032,16 @@ pub struct SequenceContextFormat1 {
     /// Array of offsets to SequenceRuleSet tables, from beginning of
     /// SequenceContextFormat1 table (offsets may be NULL)
     pub seq_rule_sets: Vec<NullableOffsetMarker<SequenceRuleSet>>,
+}
+
+impl SequenceContextFormat1 {
+    /// Construct a new `SequenceContextFormat1`
+    pub fn new(coverage: CoverageTable, seq_rule_sets: Vec<Option<SequenceRuleSet>>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            seq_rule_sets: seq_rule_sets.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for SequenceContextFormat1 {
@@ -895,6 +1096,15 @@ pub struct SequenceRuleSet {
     pub seq_rules: Vec<OffsetMarker<SequenceRule>>,
 }
 
+impl SequenceRuleSet {
+    /// Construct a new `SequenceRuleSet`
+    pub fn new(seq_rules: Vec<SequenceRule>) -> Self {
+        Self {
+            seq_rules: seq_rules.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for SequenceRuleSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -939,6 +1149,16 @@ pub struct SequenceRule {
     pub input_sequence: Vec<u16>,
     /// Array of Sequence lookup records
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
+}
+
+impl SequenceRule {
+    /// Construct a new `SequenceRule`
+    pub fn new(input_sequence: Vec<u16>, seq_lookup_records: Vec<SequenceLookupRecord>) -> Self {
+        Self {
+            input_sequence: input_sequence.into_iter().map(Into::into).collect(),
+            seq_lookup_records: seq_lookup_records.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for SequenceRule {
@@ -994,6 +1214,21 @@ pub struct SequenceContextFormat2 {
     /// Array of offsets to ClassSequenceRuleSet tables, from beginning
     /// of SequenceContextFormat2 table (may be NULL)
     pub class_seq_rule_sets: Vec<NullableOffsetMarker<ClassSequenceRuleSet>>,
+}
+
+impl SequenceContextFormat2 {
+    /// Construct a new `SequenceContextFormat2`
+    pub fn new(
+        coverage: CoverageTable,
+        class_def: ClassDef,
+        class_seq_rule_sets: Vec<Option<ClassSequenceRuleSet>>,
+    ) -> Self {
+        Self {
+            coverage: coverage.into(),
+            class_def: class_def.into(),
+            class_seq_rule_sets: class_seq_rule_sets.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for SequenceContextFormat2 {
@@ -1056,6 +1291,15 @@ pub struct ClassSequenceRuleSet {
     pub class_seq_rules: Vec<OffsetMarker<ClassSequenceRule>>,
 }
 
+impl ClassSequenceRuleSet {
+    /// Construct a new `ClassSequenceRuleSet`
+    pub fn new(class_seq_rules: Vec<ClassSequenceRule>) -> Self {
+        Self {
+            class_seq_rules: class_seq_rules.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for ClassSequenceRuleSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -1102,6 +1346,16 @@ pub struct ClassSequenceRule {
     pub input_sequence: Vec<u16>,
     /// Array of SequenceLookupRecords
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
+}
+
+impl ClassSequenceRule {
+    /// Construct a new `ClassSequenceRule`
+    pub fn new(input_sequence: Vec<u16>, seq_lookup_records: Vec<SequenceLookupRecord>) -> Self {
+        Self {
+            input_sequence: input_sequence.into_iter().map(Into::into).collect(),
+            seq_lookup_records: seq_lookup_records.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for ClassSequenceRule {
@@ -1153,6 +1407,19 @@ pub struct SequenceContextFormat3 {
     pub coverages: Vec<OffsetMarker<CoverageTable>>,
     /// Array of SequenceLookupRecords
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
+}
+
+impl SequenceContextFormat3 {
+    /// Construct a new `SequenceContextFormat3`
+    pub fn new(
+        coverages: Vec<CoverageTable>,
+        seq_lookup_records: Vec<SequenceLookupRecord>,
+    ) -> Self {
+        Self {
+            coverages: coverages.into_iter().map(Into::into).collect(),
+            seq_lookup_records: seq_lookup_records.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for SequenceContextFormat3 {
@@ -1211,6 +1478,34 @@ pub enum SequenceContext {
     Format3(SequenceContextFormat3),
 }
 
+impl SequenceContext {
+    /// Construct a new `SequenceContextFormat1` subtable
+    pub fn format_1(coverage: CoverageTable, seq_rule_sets: Vec<Option<SequenceRuleSet>>) -> Self {
+        Self::Format1(SequenceContextFormat1::new(coverage, seq_rule_sets))
+    }
+
+    /// Construct a new `SequenceContextFormat2` subtable
+    pub fn format_2(
+        coverage: CoverageTable,
+        class_def: ClassDef,
+        class_seq_rule_sets: Vec<Option<ClassSequenceRuleSet>>,
+    ) -> Self {
+        Self::Format2(SequenceContextFormat2::new(
+            coverage,
+            class_def,
+            class_seq_rule_sets,
+        ))
+    }
+
+    /// Construct a new `SequenceContextFormat3` subtable
+    pub fn format_3(
+        coverages: Vec<CoverageTable>,
+        seq_lookup_records: Vec<SequenceLookupRecord>,
+    ) -> Self {
+        Self::Format3(SequenceContextFormat3::new(coverages, seq_lookup_records))
+    }
+}
+
 impl Default for SequenceContext {
     fn default() -> Self {
         Self::Format1(Default::default())
@@ -1265,6 +1560,19 @@ pub struct ChainedSequenceContextFormat1 {
     /// Array of offsets to ChainedSeqRuleSet tables, from beginning of
     /// ChainedSequenceContextFormat1 table (may be NULL)
     pub chained_seq_rule_sets: Vec<NullableOffsetMarker<ChainedSequenceRuleSet>>,
+}
+
+impl ChainedSequenceContextFormat1 {
+    /// Construct a new `ChainedSequenceContextFormat1`
+    pub fn new(
+        coverage: CoverageTable,
+        chained_seq_rule_sets: Vec<Option<ChainedSequenceRuleSet>>,
+    ) -> Self {
+        Self {
+            coverage: coverage.into(),
+            chained_seq_rule_sets: chained_seq_rule_sets.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for ChainedSequenceContextFormat1 {
@@ -1330,6 +1638,15 @@ pub struct ChainedSequenceRuleSet {
     pub chained_seq_rules: Vec<OffsetMarker<ChainedSequenceRule>>,
 }
 
+impl ChainedSequenceRuleSet {
+    /// Construct a new `ChainedSequenceRuleSet`
+    pub fn new(chained_seq_rules: Vec<ChainedSequenceRule>) -> Self {
+        Self {
+            chained_seq_rules: chained_seq_rules.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for ChainedSequenceRuleSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -1382,6 +1699,23 @@ pub struct ChainedSequenceRule {
     pub lookahead_sequence: Vec<u16>,
     /// Array of SequenceLookupRecords
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
+}
+
+impl ChainedSequenceRule {
+    /// Construct a new `ChainedSequenceRule`
+    pub fn new(
+        backtrack_sequence: Vec<u16>,
+        input_sequence: Vec<u16>,
+        lookahead_sequence: Vec<u16>,
+        seq_lookup_records: Vec<SequenceLookupRecord>,
+    ) -> Self {
+        Self {
+            backtrack_sequence: backtrack_sequence.into_iter().map(Into::into).collect(),
+            input_sequence: input_sequence.into_iter().map(Into::into).collect(),
+            lookahead_sequence: lookahead_sequence.into_iter().map(Into::into).collect(),
+            seq_lookup_records: seq_lookup_records.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for ChainedSequenceRule {
@@ -1462,6 +1796,28 @@ pub struct ChainedSequenceContextFormat2 {
     pub chained_class_seq_rule_sets: Vec<NullableOffsetMarker<ChainedClassSequenceRuleSet>>,
 }
 
+impl ChainedSequenceContextFormat2 {
+    /// Construct a new `ChainedSequenceContextFormat2`
+    pub fn new(
+        coverage: CoverageTable,
+        backtrack_class_def: ClassDef,
+        input_class_def: ClassDef,
+        lookahead_class_def: ClassDef,
+        chained_class_seq_rule_sets: Vec<Option<ChainedClassSequenceRuleSet>>,
+    ) -> Self {
+        Self {
+            coverage: coverage.into(),
+            backtrack_class_def: backtrack_class_def.into(),
+            input_class_def: input_class_def.into(),
+            lookahead_class_def: lookahead_class_def.into(),
+            chained_class_seq_rule_sets: chained_class_seq_rule_sets
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+        }
+    }
+}
+
 impl FontWrite for ChainedSequenceContextFormat2 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -1540,6 +1896,18 @@ pub struct ChainedClassSequenceRuleSet {
     pub chained_class_seq_rules: Vec<OffsetMarker<ChainedClassSequenceRule>>,
 }
 
+impl ChainedClassSequenceRuleSet {
+    /// Construct a new `ChainedClassSequenceRuleSet`
+    pub fn new(chained_class_seq_rules: Vec<ChainedClassSequenceRule>) -> Self {
+        Self {
+            chained_class_seq_rules: chained_class_seq_rules
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+        }
+    }
+}
+
 impl FontWrite for ChainedClassSequenceRuleSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -1601,6 +1969,23 @@ pub struct ChainedClassSequenceRule {
     pub lookahead_sequence: Vec<u16>,
     /// Array of SequenceLookupRecords
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
+}
+
+impl ChainedClassSequenceRule {
+    /// Construct a new `ChainedClassSequenceRule`
+    pub fn new(
+        backtrack_sequence: Vec<u16>,
+        input_sequence: Vec<u16>,
+        lookahead_sequence: Vec<u16>,
+        seq_lookup_records: Vec<SequenceLookupRecord>,
+    ) -> Self {
+        Self {
+            backtrack_sequence: backtrack_sequence.into_iter().map(Into::into).collect(),
+            input_sequence: input_sequence.into_iter().map(Into::into).collect(),
+            lookahead_sequence: lookahead_sequence.into_iter().map(Into::into).collect(),
+            seq_lookup_records: seq_lookup_records.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for ChainedClassSequenceRule {
@@ -1675,6 +2060,23 @@ pub struct ChainedSequenceContextFormat3 {
     pub lookahead_coverages: Vec<OffsetMarker<CoverageTable>>,
     /// Array of SequenceLookupRecords
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
+}
+
+impl ChainedSequenceContextFormat3 {
+    /// Construct a new `ChainedSequenceContextFormat3`
+    pub fn new(
+        backtrack_coverages: Vec<CoverageTable>,
+        input_coverages: Vec<CoverageTable>,
+        lookahead_coverages: Vec<CoverageTable>,
+        seq_lookup_records: Vec<SequenceLookupRecord>,
+    ) -> Self {
+        Self {
+            backtrack_coverages: backtrack_coverages.into_iter().map(Into::into).collect(),
+            input_coverages: input_coverages.into_iter().map(Into::into).collect(),
+            lookahead_coverages: lookahead_coverages.into_iter().map(Into::into).collect(),
+            seq_lookup_records: seq_lookup_records.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for ChainedSequenceContextFormat3 {
@@ -1765,6 +2167,51 @@ pub enum ChainedSequenceContext {
     Format3(ChainedSequenceContextFormat3),
 }
 
+impl ChainedSequenceContext {
+    /// Construct a new `ChainedSequenceContextFormat1` subtable
+    pub fn format_1(
+        coverage: CoverageTable,
+        chained_seq_rule_sets: Vec<Option<ChainedSequenceRuleSet>>,
+    ) -> Self {
+        Self::Format1(ChainedSequenceContextFormat1::new(
+            coverage,
+            chained_seq_rule_sets,
+        ))
+    }
+
+    /// Construct a new `ChainedSequenceContextFormat2` subtable
+    pub fn format_2(
+        coverage: CoverageTable,
+        backtrack_class_def: ClassDef,
+        input_class_def: ClassDef,
+        lookahead_class_def: ClassDef,
+        chained_class_seq_rule_sets: Vec<Option<ChainedClassSequenceRuleSet>>,
+    ) -> Self {
+        Self::Format2(ChainedSequenceContextFormat2::new(
+            coverage,
+            backtrack_class_def,
+            input_class_def,
+            lookahead_class_def,
+            chained_class_seq_rule_sets,
+        ))
+    }
+
+    /// Construct a new `ChainedSequenceContextFormat3` subtable
+    pub fn format_3(
+        backtrack_coverages: Vec<CoverageTable>,
+        input_coverages: Vec<CoverageTable>,
+        lookahead_coverages: Vec<CoverageTable>,
+        seq_lookup_records: Vec<SequenceLookupRecord>,
+    ) -> Self {
+        Self::Format3(ChainedSequenceContextFormat3::new(
+            backtrack_coverages,
+            input_coverages,
+            lookahead_coverages,
+            seq_lookup_records,
+        ))
+    }
+}
+
 impl Default for ChainedSequenceContext {
     fn default() -> Self {
         Self::Format1(Default::default())
@@ -1831,6 +2278,23 @@ pub struct Device {
     pub delta_value: Vec<u16>,
 }
 
+impl Device {
+    /// Construct a new `Device`
+    pub fn new(
+        start_size: u16,
+        end_size: u16,
+        delta_format: DeltaFormat,
+        delta_value: Vec<u16>,
+    ) -> Self {
+        Self {
+            start_size,
+            end_size,
+            delta_format,
+            delta_value: delta_value.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for Device {
     fn write_into(&self, writer: &mut TableWriter) {
         self.start_size.write_into(writer);
@@ -1877,6 +2341,17 @@ pub struct VariationIndex {
     pub delta_format: u16,
 }
 
+impl VariationIndex {
+    /// Construct a new `VariationIndex`
+    pub fn new(delta_set_outer_index: u16, delta_set_inner_index: u16, delta_format: u16) -> Self {
+        Self {
+            delta_set_outer_index,
+            delta_set_inner_index,
+            delta_format,
+        }
+    }
+}
+
 impl FontWrite for VariationIndex {
     fn write_into(&self, writer: &mut TableWriter) {
         self.delta_set_outer_index.write_into(writer);
@@ -1912,6 +2387,18 @@ impl<'a> FontRead<'a> for VariationIndex {
 pub struct FeatureVariations {
     /// Array of feature variation records.
     pub feature_variation_records: Vec<FeatureVariationRecord>,
+}
+
+impl FeatureVariations {
+    /// Construct a new `FeatureVariations`
+    pub fn new(feature_variation_records: Vec<FeatureVariationRecord>) -> Self {
+        Self {
+            feature_variation_records: feature_variation_records
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+        }
+    }
 }
 
 impl FontWrite for FeatureVariations {
@@ -1964,6 +2451,19 @@ pub struct FeatureVariationRecord {
     pub feature_table_substitution: OffsetMarker<FeatureTableSubstitution, WIDTH_32>,
 }
 
+impl FeatureVariationRecord {
+    /// Construct a new `FeatureVariationRecord`
+    pub fn new(
+        condition_set: ConditionSet,
+        feature_table_substitution: FeatureTableSubstitution,
+    ) -> Self {
+        Self {
+            condition_set: condition_set.into(),
+            feature_table_substitution: feature_table_substitution.into(),
+        }
+    }
+}
+
 impl FontWrite for FeatureVariationRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.condition_set.write_into(writer);
@@ -2004,6 +2504,15 @@ pub struct ConditionSet {
     /// Array of offsets to condition tables, from beginning of the
     /// ConditionSet table.
     pub conditions: Vec<OffsetMarker<ConditionFormat1, WIDTH_32>>,
+}
+
+impl ConditionSet {
+    /// Construct a new `ConditionSet`
+    pub fn new(conditions: Vec<ConditionFormat1>) -> Self {
+        Self {
+            conditions: conditions.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for ConditionSet {
@@ -2057,6 +2566,21 @@ pub struct ConditionFormat1 {
     pub filter_range_max_value: F2Dot14,
 }
 
+impl ConditionFormat1 {
+    /// Construct a new `ConditionFormat1`
+    pub fn new(
+        axis_index: u16,
+        filter_range_min_value: F2Dot14,
+        filter_range_max_value: F2Dot14,
+    ) -> Self {
+        Self {
+            axis_index,
+            filter_range_min_value,
+            filter_range_max_value,
+        }
+    }
+}
+
 impl FontWrite for ConditionFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -2094,6 +2618,15 @@ impl<'a> FontRead<'a> for ConditionFormat1 {
 pub struct FeatureTableSubstitution {
     /// Array of feature table substitution records.
     pub substitutions: Vec<FeatureTableSubstitutionRecord>,
+}
+
+impl FeatureTableSubstitution {
+    /// Construct a new `FeatureTableSubstitution`
+    pub fn new(substitutions: Vec<FeatureTableSubstitutionRecord>) -> Self {
+        Self {
+            substitutions: substitutions.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for FeatureTableSubstitution {
@@ -2147,6 +2680,16 @@ pub struct FeatureTableSubstitutionRecord {
     /// Offset to an alternate feature table, from start of the
     /// FeatureTableSubstitution table.
     pub alternate_feature: OffsetMarker<Feature, WIDTH_32>,
+}
+
+impl FeatureTableSubstitutionRecord {
+    /// Construct a new `FeatureTableSubstitutionRecord`
+    pub fn new(feature_index: u16, alternate_feature: Feature) -> Self {
+        Self {
+            feature_index,
+            alternate_feature: alternate_feature.into(),
+        }
+    }
 }
 
 impl FontWrite for FeatureTableSubstitutionRecord {
@@ -2214,6 +2757,25 @@ pub struct SizeParams {
     pub range_end: u16,
 }
 
+impl SizeParams {
+    /// Construct a new `SizeParams`
+    pub fn new(
+        design_size: u16,
+        identifier: u16,
+        name_entry: u16,
+        range_start: u16,
+        range_end: u16,
+    ) -> Self {
+        Self {
+            design_size,
+            identifier,
+            name_entry,
+            range_start,
+            range_end,
+        }
+    }
+}
+
 impl FontWrite for SizeParams {
     fn write_into(&self, writer: &mut TableWriter) {
         self.design_size.write_into(writer);
@@ -2260,6 +2822,13 @@ pub struct StylisticSetParams {
     /// as a fallback. The string should be kept to a minimal length to fit
     /// comfortably with different application interfaces.
     pub ui_name_id: u16,
+}
+
+impl StylisticSetParams {
+    /// Construct a new `StylisticSetParams`
+    pub fn new(ui_name_id: u16) -> Self {
+        Self { ui_name_id }
+    }
 }
 
 impl FontWrite for StylisticSetParams {
@@ -2313,6 +2882,27 @@ pub struct CharacterVariantParams {
     /// The Unicode Scalar Value of the characters for which this
     /// feature provides glyph variants.
     pub character: Vec<Uint24>,
+}
+
+impl CharacterVariantParams {
+    /// Construct a new `CharacterVariantParams`
+    pub fn new(
+        feat_ui_label_name_id: u16,
+        feat_ui_tooltip_text_name_id: u16,
+        sample_text_name_id: u16,
+        num_named_parameters: u16,
+        first_param_ui_label_name_id: u16,
+        character: Vec<Uint24>,
+    ) -> Self {
+        Self {
+            feat_ui_label_name_id,
+            feat_ui_tooltip_text_name_id,
+            sample_text_name_id,
+            num_named_parameters,
+            first_param_ui_label_name_id,
+            character: character.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for CharacterVariantParams {

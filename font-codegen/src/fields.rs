@@ -80,6 +80,19 @@ impl Fields {
         self.fields.iter().filter_map(Field::compile_default_init)
     }
 
+    pub(crate) fn iter_constructor_info(&self) -> impl Iterator<Item = FieldConstructorInfo> + '_ {
+        self.fields.iter().filter_map(|fld| {
+            fld.compile_constructor_arg_type()
+                .map(|arg| FieldConstructorInfo {
+                    name: fld.name_for_compile().into_owned(),
+                    arg_tokens: arg,
+                    is_offset: fld.is_offset_or_array_of_offsets(),
+                    is_array: fld.is_array(),
+                    manual_compile_type: fld.attrs.compile_type.is_some(),
+                })
+        })
+    }
+
     /// `Ok(true)` if no fields have custom default values, `Ok(false)` otherwise.
     ///
     /// This serves double duty as a validation method: if we know that default
@@ -230,6 +243,16 @@ impl Fields {
                 quote!( #i #condition => Some(#rhs) )
             })
     }
+}
+
+/// All the state required to generate a constructor for a table/record
+/// that includes this field.
+pub(crate) struct FieldConstructorInfo {
+    pub(crate) name: syn::Ident,
+    pub(crate) arg_tokens: TokenStream,
+    pub(crate) is_offset: bool,
+    pub(crate) is_array: bool,
+    pub(crate) manual_compile_type: bool,
 }
 
 fn big_endian(typ: &syn::Ident) -> TokenStream {
@@ -616,8 +639,16 @@ impl Field {
         if let Some(typ) = &self.attrs.compile_type {
             return typ.into_token_stream();
         }
-        self.typ
-            .compile_type(self.is_nullable(), self.is_version_dependent())
+        let type_tokens = self.typ.compile_type_tokens(self.is_nullable());
+
+        // if this is versioned, we wrap in `Option``
+        if self.is_version_dependent() {
+            // UNLESS this is a NullableOffsetMarker, where is already basically an Option
+            if !(self.is_nullable() && matches!(self.typ, FieldType::Offset { .. })) {
+                return quote!(Option<#type_tokens>);
+            }
+        }
+        type_tokens
     }
 
     pub(crate) fn table_getter(&self, generic: Option<&syn::Ident>) -> Option<TokenStream> {
@@ -1022,6 +1053,24 @@ impl Field {
         }
     }
 
+    pub(crate) fn skipped_in_constructor(&self) -> bool {
+        self.attrs.default.is_some() || self.is_version_dependent()
+    }
+    /// If this field should be part of a generated constructor, returns the type to use.
+    ///
+    /// We do not include arguments for types that are computed, or types that
+    /// are only available in a specific version.
+    fn compile_constructor_arg_type(&self) -> Option<TokenStream> {
+        if self.skipped_in_constructor() || self.is_computed() {
+            return None;
+        }
+        if let Some(typ) = self.attrs.compile_type.as_ref() {
+            return Some(typ.into_token_stream());
+        }
+
+        Some(self.typ.compile_type_for_constructor(self.is_nullable()))
+    }
+
     fn compile_write_stmt(&self) -> TokenStream {
         let mut computed = true;
         let value_expr = if let Some(format) = &self.attrs.format {
@@ -1207,7 +1256,28 @@ impl FieldType {
         }
     }
 
-    fn compile_type(&self, nullable: bool, version_dependent: bool) -> TokenStream {
+    /// The tokens used to represent this type in `write-fonts`
+    ///
+    /// This does not include the `Option` that may be present if this is versioned.
+    fn compile_type_tokens(&self, nullable: bool) -> TokenStream {
+        self.compile_type_impl(nullable, false)
+    }
+
+    /// The type for a constructor argument for this field.
+    ///
+    /// Specifically, this does not wrap offset-types in offset markers
+    /// (these conversions occur in the constructor).
+    fn compile_type_for_constructor(&self, nullable: bool) -> TokenStream {
+        self.compile_type_impl(nullable, true)
+    }
+
+    // impl code reused for the two calls above
+    fn compile_type_impl(
+        &self,
+        nullable: bool,
+        //version_dependent: bool,
+        for_constructor: bool,
+    ) -> TokenStream {
         let raw_type = match self {
             FieldType::Scalar { typ } => typ.into_token_stream(),
             FieldType::Struct { typ } => typ.into_token_stream(),
@@ -1216,6 +1286,13 @@ impl FieldType {
                     .as_ref()
                     .map(OffsetTarget::compile_type)
                     .unwrap_or_else(|| quote!(Box<dyn FontWrite>));
+                if for_constructor {
+                    if nullable {
+                        return quote!(Option<#target>);
+                    } else {
+                        return target;
+                    }
+                }
                 let width = width_for_offset(typ);
                 if nullable {
                     // we don't bother wrapping this in an Option if versioned,
@@ -1230,17 +1307,18 @@ impl FieldType {
                     panic!("nesting arrays is not supported");
                 }
 
-                let inner_tokens = inner_typ.compile_type(nullable, false);
+                let inner_tokens = inner_typ.compile_type_impl(nullable, for_constructor);
                 quote!( Vec<#inner_tokens> )
             }
             FieldType::ComputedArray(array) | FieldType::VarLenArray(array) => array.compile_type(),
             FieldType::PendingResolution { .. } => panic!("Should have resolved {:?}", self),
         };
-        if version_dependent {
-            quote!( Option<#raw_type> )
-        } else {
-            raw_type
-        }
+        raw_type
+        //if version_dependent {
+        //quote!( Option<#raw_type> )
+        //} else {
+        //raw_type
+        //}
     }
 }
 

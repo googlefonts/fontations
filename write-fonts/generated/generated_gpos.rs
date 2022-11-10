@@ -20,6 +20,22 @@ pub struct Gpos {
     pub feature_variations: NullableOffsetMarker<FeatureVariations, WIDTH_32>,
 }
 
+impl Gpos {
+    /// Construct a new `Gpos`
+    pub fn new(
+        script_list: ScriptList,
+        feature_list: FeatureList,
+        lookup_list: PositionLookupList,
+    ) -> Self {
+        Self {
+            script_list: script_list.into(),
+            feature_list: feature_list.into(),
+            lookup_list: lookup_list.into(),
+            ..Default::default()
+        }
+    }
+}
+
 impl FontWrite for Gpos {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -175,6 +191,33 @@ pub enum AnchorTable {
     Format3(AnchorFormat3),
 }
 
+impl AnchorTable {
+    /// Construct a new `AnchorFormat1` subtable
+    pub fn format_1(x_coordinate: i16, y_coordinate: i16) -> Self {
+        Self::Format1(AnchorFormat1::new(x_coordinate, y_coordinate))
+    }
+
+    /// Construct a new `AnchorFormat2` subtable
+    pub fn format_2(x_coordinate: i16, y_coordinate: i16, anchor_point: u16) -> Self {
+        Self::Format2(AnchorFormat2::new(x_coordinate, y_coordinate, anchor_point))
+    }
+
+    /// Construct a new `AnchorFormat3` subtable
+    pub fn format_3(
+        x_coordinate: i16,
+        y_coordinate: i16,
+        x_device: Option<Device>,
+        y_device: Option<Device>,
+    ) -> Self {
+        Self::Format3(AnchorFormat3::new(
+            x_coordinate,
+            y_coordinate,
+            x_device,
+            y_device,
+        ))
+    }
+}
+
 impl Default for AnchorTable {
     fn default() -> Self {
         Self::Format1(Default::default())
@@ -229,6 +272,16 @@ pub struct AnchorFormat1 {
     pub y_coordinate: i16,
 }
 
+impl AnchorFormat1 {
+    /// Construct a new `AnchorFormat1`
+    pub fn new(x_coordinate: i16, y_coordinate: i16) -> Self {
+        Self {
+            x_coordinate,
+            y_coordinate,
+        }
+    }
+}
+
 impl FontWrite for AnchorFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -269,6 +322,17 @@ pub struct AnchorFormat2 {
     pub y_coordinate: i16,
     /// Index to glyph contour point
     pub anchor_point: u16,
+}
+
+impl AnchorFormat2 {
+    /// Construct a new `AnchorFormat2`
+    pub fn new(x_coordinate: i16, y_coordinate: i16, anchor_point: u16) -> Self {
+        Self {
+            x_coordinate,
+            y_coordinate,
+            anchor_point,
+        }
+    }
 }
 
 impl FontWrite for AnchorFormat2 {
@@ -319,6 +383,23 @@ pub struct AnchorFormat3 {
     /// table (variable font) for Y coordinate, from beginning of
     /// Anchor table (may be NULL)
     pub y_device: NullableOffsetMarker<Device>,
+}
+
+impl AnchorFormat3 {
+    /// Construct a new `AnchorFormat3`
+    pub fn new(
+        x_coordinate: i16,
+        y_coordinate: i16,
+        x_device: Option<Device>,
+        y_device: Option<Device>,
+    ) -> Self {
+        Self {
+            x_coordinate,
+            y_coordinate,
+            x_device: x_device.into(),
+            y_device: y_device.into(),
+        }
+    }
 }
 
 impl FontWrite for AnchorFormat3 {
@@ -373,6 +454,15 @@ pub struct MarkArray {
     pub mark_records: Vec<MarkRecord>,
 }
 
+impl MarkArray {
+    /// Construct a new `MarkArray`
+    pub fn new(mark_records: Vec<MarkRecord>) -> Self {
+        Self {
+            mark_records: mark_records.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for MarkArray {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -420,6 +510,16 @@ pub struct MarkRecord {
     pub mark_anchor: OffsetMarker<AnchorTable>,
 }
 
+impl MarkRecord {
+    /// Construct a new `MarkRecord`
+    pub fn new(mark_class: u16, mark_anchor: AnchorTable) -> Self {
+        Self {
+            mark_class,
+            mark_anchor: mark_anchor.into(),
+        }
+    }
+}
+
 impl FontWrite for MarkRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.mark_class.write_into(writer);
@@ -451,6 +551,18 @@ impl FromObjRef<read_fonts::layout::gpos::MarkRecord> for MarkRecord {
 pub enum SinglePos {
     Format1(SinglePosFormat1),
     Format2(SinglePosFormat2),
+}
+
+impl SinglePos {
+    /// Construct a new `SinglePosFormat1` subtable
+    pub fn format_1(coverage: CoverageTable, value_record: ValueRecord) -> Self {
+        Self::Format1(SinglePosFormat1::new(coverage, value_record))
+    }
+
+    /// Construct a new `SinglePosFormat2` subtable
+    pub fn format_2(coverage: CoverageTable, value_records: Vec<ValueRecord>) -> Self {
+        Self::Format2(SinglePosFormat2::new(coverage, value_records))
+    }
 }
 
 impl Default for SinglePos {
@@ -505,6 +617,16 @@ pub struct SinglePosFormat1 {
     pub value_record: ValueRecord,
 }
 
+impl SinglePosFormat1 {
+    /// Construct a new `SinglePosFormat1`
+    pub fn new(coverage: CoverageTable, value_record: ValueRecord) -> Self {
+        Self {
+            coverage: coverage.into(),
+            value_record,
+        }
+    }
+}
+
 impl FontWrite for SinglePosFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -551,6 +673,16 @@ pub struct SinglePosFormat2 {
     pub coverage: OffsetMarker<CoverageTable>,
     /// Array of ValueRecords — positioning values applied to glyphs.
     pub value_records: Vec<ValueRecord>,
+}
+
+impl SinglePosFormat2 {
+    /// Construct a new `SinglePosFormat2`
+    pub fn new(coverage: CoverageTable, value_records: Vec<ValueRecord>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            value_records,
+        }
+    }
 }
 
 impl FontWrite for SinglePosFormat2 {
@@ -610,6 +742,28 @@ pub enum PairPos {
     Format2(PairPosFormat2),
 }
 
+impl PairPos {
+    /// Construct a new `PairPosFormat1` subtable
+    pub fn format_1(coverage: CoverageTable, pair_sets: Vec<PairSet>) -> Self {
+        Self::Format1(PairPosFormat1::new(coverage, pair_sets))
+    }
+
+    /// Construct a new `PairPosFormat2` subtable
+    pub fn format_2(
+        coverage: CoverageTable,
+        class_def1: ClassDef,
+        class_def2: ClassDef,
+        class1_records: Vec<Class1Record>,
+    ) -> Self {
+        Self::Format2(PairPosFormat2::new(
+            coverage,
+            class_def1,
+            class_def2,
+            class1_records,
+        ))
+    }
+}
+
 impl Default for PairPos {
     fn default() -> Self {
         Self::Format1(Default::default())
@@ -660,6 +814,16 @@ pub struct PairPosFormat1 {
     /// Array of offsets to PairSet tables. Offsets are from beginning
     /// of PairPos subtable, ordered by Coverage Index.
     pub pair_sets: Vec<OffsetMarker<PairSet>>,
+}
+
+impl PairPosFormat1 {
+    /// Construct a new `PairPosFormat1`
+    pub fn new(coverage: CoverageTable, pair_sets: Vec<PairSet>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            pair_sets: pair_sets.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for PairPosFormat1 {
@@ -716,6 +880,13 @@ pub struct PairSet {
     pub pair_value_records: Vec<PairValueRecord>,
 }
 
+impl PairSet {
+    /// Construct a new `PairSet`
+    pub fn new(pair_value_records: Vec<PairValueRecord>) -> Self {
+        Self { pair_value_records }
+    }
+}
+
 impl FontWrite for PairSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -764,6 +935,21 @@ pub struct PairValueRecord {
     pub value_record2: ValueRecord,
 }
 
+impl PairValueRecord {
+    /// Construct a new `PairValueRecord`
+    pub fn new(
+        second_glyph: GlyphId,
+        value_record1: ValueRecord,
+        value_record2: ValueRecord,
+    ) -> Self {
+        Self {
+            second_glyph,
+            value_record1,
+            value_record2,
+        }
+    }
+}
+
 impl FontWrite for PairValueRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.second_glyph.write_into(writer);
@@ -802,6 +988,23 @@ pub struct PairPosFormat2 {
     pub class_def2: OffsetMarker<ClassDef>,
     /// Array of Class1 records, ordered by classes in classDef1.
     pub class1_records: Vec<Class1Record>,
+}
+
+impl PairPosFormat2 {
+    /// Construct a new `PairPosFormat2`
+    pub fn new(
+        coverage: CoverageTable,
+        class_def1: ClassDef,
+        class_def2: ClassDef,
+        class1_records: Vec<Class1Record>,
+    ) -> Self {
+        Self {
+            coverage: coverage.into(),
+            class_def1: class_def1.into(),
+            class_def2: class_def2.into(),
+            class1_records,
+        }
+    }
 }
 
 impl FontWrite for PairPosFormat2 {
@@ -873,6 +1076,13 @@ pub struct Class1Record {
     pub class2_records: Vec<Class2Record>,
 }
 
+impl Class1Record {
+    /// Construct a new `Class1Record`
+    pub fn new(class2_records: Vec<Class2Record>) -> Self {
+        Self { class2_records }
+    }
+}
+
 impl FontWrite for Class1Record {
     fn write_into(&self, writer: &mut TableWriter) {
         self.class2_records.write_into(writer);
@@ -913,6 +1123,16 @@ pub struct Class2Record {
     pub value_record2: ValueRecord,
 }
 
+impl Class2Record {
+    /// Construct a new `Class2Record`
+    pub fn new(value_record1: ValueRecord, value_record2: ValueRecord) -> Self {
+        Self {
+            value_record1,
+            value_record2,
+        }
+    }
+}
+
 impl FontWrite for Class2Record {
     fn write_into(&self, writer: &mut TableWriter) {
         self.value_record1.write_into(writer);
@@ -940,6 +1160,16 @@ pub struct CursivePosFormat1 {
     pub coverage: OffsetMarker<CoverageTable>,
     /// Array of EntryExit records, in Coverage index order.
     pub entry_exit_record: Vec<EntryExitRecord>,
+}
+
+impl CursivePosFormat1 {
+    /// Construct a new `CursivePosFormat1`
+    pub fn new(coverage: CoverageTable, entry_exit_record: Vec<EntryExitRecord>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            entry_exit_record: entry_exit_record.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for CursivePosFormat1 {
@@ -998,6 +1228,16 @@ pub struct EntryExitRecord {
     pub exit_anchor: NullableOffsetMarker<AnchorTable>,
 }
 
+impl EntryExitRecord {
+    /// Construct a new `EntryExitRecord`
+    pub fn new(entry_anchor: Option<AnchorTable>, exit_anchor: Option<AnchorTable>) -> Self {
+        Self {
+            entry_anchor: entry_anchor.into(),
+            exit_anchor: exit_anchor.into(),
+        }
+    }
+}
+
 impl FontWrite for EntryExitRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.entry_anchor.write_into(writer);
@@ -1045,6 +1285,23 @@ pub struct MarkBasePosFormat1 {
     /// Offset to BaseArray table, from beginning of MarkBasePos
     /// subtable.
     pub base_array: OffsetMarker<BaseArray>,
+}
+
+impl MarkBasePosFormat1 {
+    /// Construct a new `MarkBasePosFormat1`
+    pub fn new(
+        mark_coverage: CoverageTable,
+        base_coverage: CoverageTable,
+        mark_array: MarkArray,
+        base_array: BaseArray,
+    ) -> Self {
+        Self {
+            mark_coverage: mark_coverage.into(),
+            base_coverage: base_coverage.into(),
+            mark_array: mark_array.into(),
+            base_array: base_array.into(),
+        }
+    }
 }
 
 impl FontWrite for MarkBasePosFormat1 {
@@ -1105,6 +1362,13 @@ pub struct BaseArray {
     pub base_records: Vec<BaseRecord>,
 }
 
+impl BaseArray {
+    /// Construct a new `BaseArray`
+    pub fn new(base_records: Vec<BaseRecord>) -> Self {
+        Self { base_records }
+    }
+}
+
 impl FontWrite for BaseArray {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -1148,6 +1412,15 @@ pub struct BaseRecord {
     /// are from beginning of BaseArray table, ordered by class
     /// (offsets may be NULL).
     pub base_anchors: Vec<NullableOffsetMarker<AnchorTable>>,
+}
+
+impl BaseRecord {
+    /// Construct a new `BaseRecord`
+    pub fn new(base_anchors: Vec<Option<AnchorTable>>) -> Self {
+        Self {
+            base_anchors: base_anchors.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for BaseRecord {
@@ -1195,6 +1468,23 @@ pub struct MarkLigPosFormat1 {
     /// Offset to LigatureArray table, from beginning of MarkLigPos
     /// subtable.
     pub ligature_array: OffsetMarker<LigatureArray>,
+}
+
+impl MarkLigPosFormat1 {
+    /// Construct a new `MarkLigPosFormat1`
+    pub fn new(
+        mark_coverage: CoverageTable,
+        ligature_coverage: CoverageTable,
+        mark_array: MarkArray,
+        ligature_array: LigatureArray,
+    ) -> Self {
+        Self {
+            mark_coverage: mark_coverage.into(),
+            ligature_coverage: ligature_coverage.into(),
+            mark_array: mark_array.into(),
+            ligature_array: ligature_array.into(),
+        }
+    }
 }
 
 impl FontWrite for MarkLigPosFormat1 {
@@ -1257,6 +1547,15 @@ pub struct LigatureArray {
     pub ligature_attaches: Vec<OffsetMarker<LigatureAttach>>,
 }
 
+impl LigatureArray {
+    /// Construct a new `LigatureArray`
+    pub fn new(ligature_attaches: Vec<LigatureAttach>) -> Self {
+        Self {
+            ligature_attaches: ligature_attaches.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for LigatureArray {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -1296,6 +1595,13 @@ impl<'a> FromTableRef<read_fonts::layout::gpos::LigatureArray<'a>> for LigatureA
 pub struct LigatureAttach {
     /// Array of Component records, ordered in writing direction.
     pub component_records: Vec<ComponentRecord>,
+}
+
+impl LigatureAttach {
+    /// Construct a new `LigatureAttach`
+    pub fn new(component_records: Vec<ComponentRecord>) -> Self {
+        Self { component_records }
+    }
 }
 
 impl FontWrite for LigatureAttach {
@@ -1341,6 +1647,15 @@ pub struct ComponentRecord {
     /// from beginning of LigatureAttach table, ordered by class
     /// (offsets may be NULL).
     pub ligature_anchors: Vec<NullableOffsetMarker<AnchorTable>>,
+}
+
+impl ComponentRecord {
+    /// Construct a new `ComponentRecord`
+    pub fn new(ligature_anchors: Vec<Option<AnchorTable>>) -> Self {
+        Self {
+            ligature_anchors: ligature_anchors.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for ComponentRecord {
@@ -1391,6 +1706,23 @@ pub struct MarkMarkPosFormat1 {
     /// Offset to Mark2Array table for mark2, from beginning of
     /// MarkMarkPos subtable.
     pub mark2_array: OffsetMarker<Mark2Array>,
+}
+
+impl MarkMarkPosFormat1 {
+    /// Construct a new `MarkMarkPosFormat1`
+    pub fn new(
+        mark1_coverage: CoverageTable,
+        mark2_coverage: CoverageTable,
+        mark1_array: MarkArray,
+        mark2_array: Mark2Array,
+    ) -> Self {
+        Self {
+            mark1_coverage: mark1_coverage.into(),
+            mark2_coverage: mark2_coverage.into(),
+            mark1_array: mark1_array.into(),
+            mark2_array: mark2_array.into(),
+        }
+    }
 }
 
 impl FontWrite for MarkMarkPosFormat1 {
@@ -1451,6 +1783,13 @@ pub struct Mark2Array {
     pub mark2_records: Vec<Mark2Record>,
 }
 
+impl Mark2Array {
+    /// Construct a new `Mark2Array`
+    pub fn new(mark2_records: Vec<Mark2Record>) -> Self {
+        Self { mark2_records }
+    }
+}
+
 impl FontWrite for Mark2Array {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -1496,6 +1835,15 @@ pub struct Mark2Record {
     pub mark2_anchors: Vec<NullableOffsetMarker<AnchorTable>>,
 }
 
+impl Mark2Record {
+    /// Construct a new `Mark2Record`
+    pub fn new(mark2_anchors: Vec<Option<AnchorTable>>) -> Self {
+        Self {
+            mark2_anchors: mark2_anchors.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for Mark2Record {
     fn write_into(&self, writer: &mut TableWriter) {
         self.mark2_anchors.write_into(writer);
@@ -1536,6 +1884,16 @@ pub struct ExtensionPosFormat1<T> {
     /// extensionLookupType, relative to the start of the
     /// ExtensionPosFormat1 subtable.
     pub extension: OffsetMarker<T, WIDTH_32>,
+}
+
+impl<T: Default> ExtensionPosFormat1<T> {
+    /// Construct a new `ExtensionPosFormat1`
+    pub fn new(extension_lookup_type: u16, extension: T) -> Self {
+        Self {
+            extension_lookup_type,
+            extension: extension.into(),
+        }
+    }
 }
 
 impl<T: Validate> Validate for ExtensionPosFormat1<T> {

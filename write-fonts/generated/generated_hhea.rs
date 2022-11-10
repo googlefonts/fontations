@@ -39,6 +39,38 @@ pub struct Hhea {
     pub number_of_h_metrics: u16,
 }
 
+impl Hhea {
+    /// Construct a new `Hhea`
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        ascender: FWord,
+        descender: FWord,
+        line_gap: FWord,
+        advance_width_max: UfWord,
+        min_left_side_bearing: FWord,
+        min_right_side_bearing: FWord,
+        x_max_extent: FWord,
+        caret_slope_rise: i16,
+        caret_slope_run: i16,
+        caret_offset: i16,
+        number_of_h_metrics: u16,
+    ) -> Self {
+        Self {
+            ascender,
+            descender,
+            line_gap,
+            advance_width_max,
+            min_left_side_bearing,
+            min_right_side_bearing,
+            x_max_extent,
+            caret_slope_rise,
+            caret_slope_run,
+            caret_offset,
+            number_of_h_metrics,
+        }
+    }
+}
+
 impl FontWrite for Hhea {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {

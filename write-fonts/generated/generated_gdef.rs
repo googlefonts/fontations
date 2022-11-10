@@ -30,6 +30,24 @@ pub struct Gdef {
     pub item_var_store: NullableOffsetMarker<ClassDef, WIDTH_32>,
 }
 
+impl Gdef {
+    /// Construct a new `Gdef`
+    pub fn new(
+        glyph_class_def: Option<ClassDef>,
+        attach_list: Option<AttachList>,
+        lig_caret_list: Option<LigCaretList>,
+        mark_attach_class_def: Option<ClassDef>,
+    ) -> Self {
+        Self {
+            glyph_class_def: glyph_class_def.into(),
+            attach_list: attach_list.into(),
+            lig_caret_list: lig_caret_list.into(),
+            mark_attach_class_def: mark_attach_class_def.into(),
+            ..Default::default()
+        }
+    }
+}
+
 impl FontWrite for Gdef {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -111,6 +129,16 @@ pub struct AttachList {
     pub attach_points: Vec<OffsetMarker<AttachPoint>>,
 }
 
+impl AttachList {
+    /// Construct a new `AttachList`
+    pub fn new(coverage: CoverageTable, attach_points: Vec<AttachPoint>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            attach_points: attach_points.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for AttachList {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -160,6 +188,15 @@ pub struct AttachPoint {
     pub point_indices: Vec<u16>,
 }
 
+impl AttachPoint {
+    /// Construct a new `AttachPoint`
+    pub fn new(point_indices: Vec<u16>) -> Self {
+        Self {
+            point_indices: point_indices.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for AttachPoint {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -205,6 +242,16 @@ pub struct LigCaretList {
     /// Array of offsets to LigGlyph tables, from beginning of
     /// LigCaretList table —in Coverage Index order
     pub lig_glyphs: Vec<OffsetMarker<LigGlyph>>,
+}
+
+impl LigCaretList {
+    /// Construct a new `LigCaretList`
+    pub fn new(coverage: CoverageTable, lig_glyphs: Vec<LigGlyph>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            lig_glyphs: lig_glyphs.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for LigCaretList {
@@ -257,6 +304,15 @@ pub struct LigGlyph {
     pub caret_values: Vec<OffsetMarker<CaretValue>>,
 }
 
+impl LigGlyph {
+    /// Construct a new `LigGlyph`
+    pub fn new(caret_values: Vec<CaretValue>) -> Self {
+        Self {
+            caret_values: caret_values.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for LigGlyph {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -300,6 +356,23 @@ pub enum CaretValue {
     Format1(CaretValueFormat1),
     Format2(CaretValueFormat2),
     Format3(CaretValueFormat3),
+}
+
+impl CaretValue {
+    /// Construct a new `CaretValueFormat1` subtable
+    pub fn format_1(coordinate: i16) -> Self {
+        Self::Format1(CaretValueFormat1::new(coordinate))
+    }
+
+    /// Construct a new `CaretValueFormat2` subtable
+    pub fn format_2(caret_value_point_index: u16) -> Self {
+        Self::Format2(CaretValueFormat2::new(caret_value_point_index))
+    }
+
+    /// Construct a new `CaretValueFormat3` subtable
+    pub fn format_3(coordinate: i16, device: Device) -> Self {
+        Self::Format3(CaretValueFormat3::new(coordinate, device))
+    }
 }
 
 impl Default for CaretValue {
@@ -354,6 +427,13 @@ pub struct CaretValueFormat1 {
     pub coordinate: i16,
 }
 
+impl CaretValueFormat1 {
+    /// Construct a new `CaretValueFormat1`
+    pub fn new(coordinate: i16) -> Self {
+        Self { coordinate }
+    }
+}
+
 impl FontWrite for CaretValueFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -388,6 +468,15 @@ impl<'a> FontRead<'a> for CaretValueFormat1 {
 pub struct CaretValueFormat2 {
     /// Contour point index on glyph
     pub caret_value_point_index: u16,
+}
+
+impl CaretValueFormat2 {
+    /// Construct a new `CaretValueFormat2`
+    pub fn new(caret_value_point_index: u16) -> Self {
+        Self {
+            caret_value_point_index,
+        }
+    }
 }
 
 impl FontWrite for CaretValueFormat2 {
@@ -428,6 +517,16 @@ pub struct CaretValueFormat3 {
     /// table (variable font) for X or Y value-from beginning of
     /// CaretValue table
     pub device: OffsetMarker<Device>,
+}
+
+impl CaretValueFormat3 {
+    /// Construct a new `CaretValueFormat3`
+    pub fn new(coordinate: i16, device: Device) -> Self {
+        Self {
+            coordinate,
+            device: device.into(),
+        }
+    }
 }
 
 impl FontWrite for CaretValueFormat3 {
@@ -473,6 +572,15 @@ pub struct MarkGlyphSets {
     /// Array of offsets to mark glyph set coverage tables, from the
     /// start of the MarkGlyphSets table.
     pub coverages: Vec<OffsetMarker<CoverageTable, WIDTH_32>>,
+}
+
+impl MarkGlyphSets {
+    /// Construct a new `MarkGlyphSets`
+    pub fn new(coverages: Vec<CoverageTable>) -> Self {
+        Self {
+            coverages: coverages.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for MarkGlyphSets {

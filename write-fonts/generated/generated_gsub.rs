@@ -19,6 +19,22 @@ pub struct Gsub {
     pub feature_variations: NullableOffsetMarker<FeatureVariations, WIDTH_32>,
 }
 
+impl Gsub {
+    /// Construct a new `Gsub`
+    pub fn new(
+        script_list: ScriptList,
+        feature_list: FeatureList,
+        lookup_list: SubstitutionLookupList,
+    ) -> Self {
+        Self {
+            script_list: script_list.into(),
+            feature_list: feature_list.into(),
+            lookup_list: lookup_list.into(),
+            ..Default::default()
+        }
+    }
+}
+
 impl FontWrite for Gsub {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -163,6 +179,18 @@ pub enum SingleSubst {
     Format2(SingleSubstFormat2),
 }
 
+impl SingleSubst {
+    /// Construct a new `SingleSubstFormat1` subtable
+    pub fn format_1(coverage: CoverageTable, delta_glyph_id: i16) -> Self {
+        Self::Format1(SingleSubstFormat1::new(coverage, delta_glyph_id))
+    }
+
+    /// Construct a new `SingleSubstFormat2` subtable
+    pub fn format_2(coverage: CoverageTable, substitute_glyph_ids: Vec<GlyphId>) -> Self {
+        Self::Format2(SingleSubstFormat2::new(coverage, substitute_glyph_ids))
+    }
+}
+
 impl Default for SingleSubst {
     fn default() -> Self {
         Self::Format1(Default::default())
@@ -215,6 +243,16 @@ pub struct SingleSubstFormat1 {
     pub delta_glyph_id: i16,
 }
 
+impl SingleSubstFormat1 {
+    /// Construct a new `SingleSubstFormat1`
+    pub fn new(coverage: CoverageTable, delta_glyph_id: i16) -> Self {
+        Self {
+            coverage: coverage.into(),
+            delta_glyph_id,
+        }
+    }
+}
+
 impl FontWrite for SingleSubstFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -260,6 +298,16 @@ pub struct SingleSubstFormat2 {
     pub coverage: OffsetMarker<CoverageTable>,
     /// Array of substitute glyph IDs — ordered by Coverage index
     pub substitute_glyph_ids: Vec<GlyphId>,
+}
+
+impl SingleSubstFormat2 {
+    /// Construct a new `SingleSubstFormat2`
+    pub fn new(coverage: CoverageTable, substitute_glyph_ids: Vec<GlyphId>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            substitute_glyph_ids: substitute_glyph_ids.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for SingleSubstFormat2 {
@@ -317,6 +365,16 @@ pub struct MultipleSubstFormat1 {
     pub sequences: Vec<OffsetMarker<Sequence>>,
 }
 
+impl MultipleSubstFormat1 {
+    /// Construct a new `MultipleSubstFormat1`
+    pub fn new(coverage: CoverageTable, sequences: Vec<Sequence>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            sequences: sequences.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for MultipleSubstFormat1 {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -368,6 +426,15 @@ pub struct Sequence {
     pub substitute_glyph_ids: Vec<GlyphId>,
 }
 
+impl Sequence {
+    /// Construct a new `Sequence`
+    pub fn new(substitute_glyph_ids: Vec<GlyphId>) -> Self {
+        Self {
+            substitute_glyph_ids: substitute_glyph_ids.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for Sequence {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -414,6 +481,16 @@ pub struct AlternateSubstFormat1 {
     /// Array of offsets to AlternateSet tables. Offsets are from
     /// beginning of substitution subtable, ordered by Coverage index
     pub alternate_sets: Vec<OffsetMarker<AlternateSet>>,
+}
+
+impl AlternateSubstFormat1 {
+    /// Construct a new `AlternateSubstFormat1`
+    pub fn new(coverage: CoverageTable, alternate_sets: Vec<AlternateSet>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            alternate_sets: alternate_sets.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for AlternateSubstFormat1 {
@@ -473,6 +550,15 @@ pub struct AlternateSet {
     pub alternate_glyph_ids: Vec<GlyphId>,
 }
 
+impl AlternateSet {
+    /// Construct a new `AlternateSet`
+    pub fn new(alternate_glyph_ids: Vec<GlyphId>) -> Self {
+        Self {
+            alternate_glyph_ids: alternate_glyph_ids.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for AlternateSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -519,6 +605,16 @@ pub struct LigatureSubstFormat1 {
     /// Array of offsets to LigatureSet tables. Offsets are from
     /// beginning of substitution subtable, ordered by Coverage index
     pub ligature_sets: Vec<OffsetMarker<LigatureSet>>,
+}
+
+impl LigatureSubstFormat1 {
+    /// Construct a new `LigatureSubstFormat1`
+    pub fn new(coverage: CoverageTable, ligature_sets: Vec<LigatureSet>) -> Self {
+        Self {
+            coverage: coverage.into(),
+            ligature_sets: ligature_sets.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for LigatureSubstFormat1 {
@@ -573,6 +669,15 @@ pub struct LigatureSet {
     pub ligatures: Vec<OffsetMarker<Ligature>>,
 }
 
+impl LigatureSet {
+    /// Construct a new `LigatureSet`
+    pub fn new(ligatures: Vec<Ligature>) -> Self {
+        Self {
+            ligatures: ligatures.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for LigatureSet {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -620,6 +725,16 @@ pub struct Ligature {
     pub component_glyph_ids: Vec<GlyphId>,
 }
 
+impl Ligature {
+    /// Construct a new `Ligature`
+    pub fn new(ligature_glyph: GlyphId, component_glyph_ids: Vec<GlyphId>) -> Self {
+        Self {
+            ligature_glyph,
+            component_glyph_ids: component_glyph_ids.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for Ligature {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -661,6 +776,16 @@ pub struct ExtensionSubstFormat1<T> {
     /// extensionLookupType, relative to the start of the
     /// ExtensionSubstFormat1 subtable.
     pub extension: OffsetMarker<T, WIDTH_32>,
+}
+
+impl<T: Default> ExtensionSubstFormat1<T> {
+    /// Construct a new `ExtensionSubstFormat1`
+    pub fn new(extension_lookup_type: u16, extension: T) -> Self {
+        Self {
+            extension_lookup_type,
+            extension: extension.into(),
+        }
+    }
 }
 
 impl<T: Validate> Validate for ExtensionSubstFormat1<T> {
@@ -791,6 +916,23 @@ pub struct ReverseChainSingleSubstFormat1 {
     pub lookahead_coverages: Vec<OffsetMarker<CoverageTable>>,
     /// Array of substitute glyph IDs — ordered by Coverage index.
     pub substitute_glyph_ids: Vec<GlyphId>,
+}
+
+impl ReverseChainSingleSubstFormat1 {
+    /// Construct a new `ReverseChainSingleSubstFormat1`
+    pub fn new(
+        coverage: CoverageTable,
+        backtrack_coverages: Vec<CoverageTable>,
+        lookahead_coverages: Vec<CoverageTable>,
+        substitute_glyph_ids: Vec<GlyphId>,
+    ) -> Self {
+        Self {
+            coverage: coverage.into(),
+            backtrack_coverages: backtrack_coverages.into_iter().map(Into::into).collect(),
+            lookahead_coverages: lookahead_coverages.into_iter().map(Into::into).collect(),
+            substitute_glyph_ids: substitute_glyph_ids.into_iter().map(Into::into).collect(),
+        }
+    }
 }
 
 impl FontWrite for ReverseChainSingleSubstFormat1 {

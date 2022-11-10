@@ -16,6 +16,16 @@ pub struct Hmtx {
     pub left_side_bearings: Vec<i16>,
 }
 
+impl Hmtx {
+    /// Construct a new `Hmtx`
+    pub fn new(h_metrics: Vec<LongHorMetric>, left_side_bearings: Vec<i16>) -> Self {
+        Self {
+            h_metrics: h_metrics.into_iter().map(Into::into).collect(),
+            left_side_bearings: left_side_bearings.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
 impl FontWrite for Hmtx {
     fn write_into(&self, writer: &mut TableWriter) {
         self.h_metrics.write_into(writer);
@@ -54,6 +64,13 @@ pub struct LongHorMetric {
     pub advance_width: u16,
     /// Glyph left side bearing, in font design units.
     pub lsb: i16,
+}
+
+impl LongHorMetric {
+    /// Construct a new `LongHorMetric`
+    pub fn new(advance_width: u16, lsb: i16) -> Self {
+        Self { advance_width, lsb }
+    }
 }
 
 impl FontWrite for LongHorMetric {

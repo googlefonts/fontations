@@ -46,6 +46,26 @@ pub struct Cpal {
     pub palette_entry_labels_array: NullableOffsetMarker<Vec<u16>, WIDTH_32>,
 }
 
+impl Cpal {
+    /// Construct a new `Cpal`
+    pub fn new(
+        num_palette_entries: u16,
+        num_palettes: u16,
+        num_color_records: u16,
+        color_records_array: Option<Vec<ColorRecord>>,
+        color_record_indices: Vec<u16>,
+    ) -> Self {
+        Self {
+            num_palette_entries,
+            num_palettes,
+            num_color_records,
+            color_records_array: color_records_array.into(),
+            color_record_indices: color_record_indices.into_iter().map(Into::into).collect(),
+            ..Default::default()
+        }
+    }
+}
+
 impl FontWrite for Cpal {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
@@ -118,6 +138,18 @@ pub struct ColorRecord {
     pub red: u8,
     /// Alpha value (B3).
     pub alpha: u8,
+}
+
+impl ColorRecord {
+    /// Construct a new `ColorRecord`
+    pub fn new(blue: u8, green: u8, red: u8, alpha: u8) -> Self {
+        Self {
+            blue,
+            green,
+            red,
+            alpha,
+        }
+    }
 }
 
 impl FontWrite for ColorRecord {

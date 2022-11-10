@@ -7,10 +7,13 @@
 #![parse_module(read_fonts::codegen_test::records)]
 
 table BasicTable {
+    #[compile(array_len($simple_records))]
     simple_count: u16,
     #[count($simple_count)]
     simple_records: [SimpleRecord],
+    #[compile(self.compute_arrays_inner_count())]
     arrays_inner_count: u16,
+    #[compile(array_len($array_records))]
     array_records_count: u32,
     #[count($array_records_count)]
     #[read_with($arrays_inner_count)]
@@ -31,6 +34,7 @@ record ContainsArrays<'a> {
 }
 
 record ContainsOffests {
+    #[compile(array_len($array_offset))]
     off_array_count: u16,
     #[read_offset_with($off_array_count)]
     array_offset: Offset16<[SimpleRecord]>,

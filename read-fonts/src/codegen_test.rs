@@ -12,6 +12,10 @@ pub mod records {
     include!("../generated/generated_test_records.rs");
 }
 
+pub mod formats {
+    include!("../generated/generated_test_formats.rs");
+}
+
 pub mod offsets_arrays {
     include!("../generated/generated_test_offsets_arrays.rs");
 
