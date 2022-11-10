@@ -1,6 +1,6 @@
 //! fixed-point numerical types
 
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
 // shared between Fixed and F2Dot14
 macro_rules! fixed_impl {
@@ -18,9 +18,14 @@ macro_rules! fixed_impl {
             /// This type's smallest representable value
             pub const EPSILON: Self = Self(1);
 
+            /// Representation of 0.0.
+            pub const ZERO: Self = Self(0);
+
+            /// Representation of 1.0.
+            pub const ONE: Self = Self(1 << $fract_bits);
+
             const INT_MASK: $ty = !0 << $fract_bits;
             const ROUND: $ty = 1 << ($fract_bits - 1);
-            const ONE: $ty = 1 << $fract_bits;
             const FRACT_BITS: usize = $fract_bits;
 
             //TODO: is this actually useful?
@@ -114,12 +119,12 @@ macro_rules! float_conv {
             /// representable value.
             pub fn $from(x: $ty) -> Self {
                 #[cfg(any(feature = "std", test))]
-                return Self((x * Self::ONE as $ty).round() as _);
+                return Self((x * Self::ONE.0 as $ty).round() as _);
                 //NOTE: this behaviour is not exactly equivalent, but should be okay?
                 //what matters is that we are rounding *away from zero*.
                 #[cfg(all(not(feature = "std"), not(test)))]
                 Self(
-                    (x * Self::ONE as $ty + (0.5 * (-1.0 * x.is_sign_negative() as u8 as $ty)))
+                    (x * Self::ONE.0 as $ty + (0.5 * (-1.0 * x.is_sign_negative() as u8 as $ty)))
                         as _,
                 )
             }
@@ -130,7 +135,7 @@ macro_rules! float_conv {
             /// round-tripped.
             pub fn $to(self) -> $ty {
                 let int = ((self.0 & Self::INT_MASK) >> Self::FRACT_BITS) as $ty;
-                let fract = (self.0 & !Self::INT_MASK) as $ty / Self::ONE as $ty;
+                let fract = (self.0 & !Self::INT_MASK) as $ty / Self::ONE.0 as $ty;
                 int + fract
             }
         }
@@ -156,6 +161,66 @@ float_conv!(F2Dot14, to_f32, from_f32, f32);
 float_conv!(Fixed, to_f64, from_f64, f64);
 crate::newtype_scalar!(F2Dot14, [u8; 2]);
 crate::newtype_scalar!(Fixed, [u8; 4]);
+
+impl F2Dot14 {
+    /// Converts a 2.14 to 16.16 fixed point value.
+    pub fn to_fixed(&self) -> Fixed {
+        Fixed(self.0 as i32 * 4)
+    }
+}
+
+impl Mul for Fixed {
+    type Output = Self;
+    #[inline(always)]
+    fn mul(self, other: Self) -> Self::Output {
+        let ab = self.0 as i64 * other.0 as i64;
+        Self(((ab + 0x8000 - i64::from(ab < 0)) >> 16) as i32)
+    }
+}
+
+impl MulAssign for Fixed {
+    fn mul_assign(&mut self, rhs: Self) {
+        *self = *self * rhs;
+    }
+}
+
+impl Div for Fixed {
+    type Output = Self;
+    #[inline(always)]
+    fn div(self, other: Self) -> Self::Output {
+        let mut sign = 1;
+        let mut a = self.0;
+        let mut b = other.0;
+        if a < 0 {
+            a = -a;
+            sign = -1;
+        }
+        if b < 0 {
+            b = -b;
+            sign = -sign;
+        }
+        let q = if b == 0 {
+            0x7FFFFFFF
+        } else {
+            ((((a as u64) << 16) + ((b as u64) >> 1)) / (b as u64)) as u32
+        };
+        Self(if sign < 0 { -(q as i32) } else { q as i32 })
+    }
+}
+
+impl DivAssign for Fixed {
+    fn div_assign(&mut self, rhs: Self) {
+        *self = *self / rhs;
+    }
+}
+
+impl Neg for Fixed {
+    type Output = Self;
+    #[inline(always)]
+    fn neg(self) -> Self {
+        Self(-self.0)
+    }
+}
 
 #[cfg(test)]
 mod tests {
@@ -216,5 +281,17 @@ mod tests {
             Fixed::from_f64(-0.000015259)
         );
         assert_eq!(Fixed(0x7fff_ffff), Fixed::from_f64(32768.0));
+    }
+
+    #[test]
+    fn fixed_muldiv() {
+        assert_eq!(
+            Fixed::from_f64(0.5) * Fixed::from_f64(2.0),
+            Fixed::from_f64(1.0)
+        );
+        assert_eq!(
+            Fixed::from_f64(0.5) / Fixed::from_f64(2.0),
+            Fixed::from_f64(0.25)
+        );
     }
 }
