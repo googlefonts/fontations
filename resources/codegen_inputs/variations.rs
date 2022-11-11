@@ -11,7 +11,7 @@ table DeltaSetIndexMapFormat0 {
     /// The number of mapping entries.
     map_count: u16,
     /// The delta-set index mapping data. See details below.
-    #[count(((($entry_format & 0x30) >> 4) + 1) as usize * $map_count as usize)]
+    #[count(map_data_size($entry_format, $map_count as u32))]
     map_data: [u8],
 }
 
@@ -26,7 +26,7 @@ table DeltaSetIndexMapFormat1 {
     /// The number of mapping entries.
     map_count: u32,
     /// The delta-set index mapping data. See details below.
-    #[count(((($entry_format & 0x30) >> 4) + 1) as usize * $map_count as usize)]
+    #[count(map_data_size($entry_format, $map_count))]
     map_data: [u8],
 }
 

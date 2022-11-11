@@ -40,6 +40,10 @@ impl<'a> DeltaSetIndexMap<'a> {
     }
 }
 
+fn map_data_size(entry_format: u8, map_count: u32) -> usize {
+    (((entry_format & 0x30) >> 4) + 1) as usize * map_count as usize
+}
+
 impl<'a> ItemVariationStore<'a> {
     /// Computes the delta value for the specified index and set of normalized
     /// variation coordinates.
