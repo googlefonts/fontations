@@ -1,6 +1,6 @@
 //! OpenType font variations common tables.
 
-include!("../generated/generated_variation.rs");
+include!("../generated/generated_variations.rs");
 
 /// Outer and inner indices for reading from an [ItemVariationStore].
 #[derive(Copy, Clone, Debug)]

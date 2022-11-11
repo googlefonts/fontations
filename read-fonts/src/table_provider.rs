@@ -42,6 +42,16 @@ pub trait TableProvider<'a> {
             .and_then(FontRead::read)
     }
 
+    fn vvar(&self) -> Result<tables::vvar::Vvar<'a>, ReadError> {
+        self.expect_data_for_tag(tables::vvar::TAG)
+            .and_then(FontRead::read)
+    }
+
+    fn mvar(&self) -> Result<tables::mvar::Mvar<'a>, ReadError> {
+        self.expect_data_for_tag(tables::mvar::TAG)
+            .and_then(FontRead::read)
+    }
+
     fn maxp(&self) -> Result<tables::maxp::Maxp<'a>, ReadError> {
         self.expect_data_for_tag(tables::maxp::TAG)
             .and_then(FontRead::read)
