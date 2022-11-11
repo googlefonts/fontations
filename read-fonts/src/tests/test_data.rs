@@ -367,6 +367,10 @@ pub mod test_fonts {
         "../../../resources/test_fonts/ttf/linear_gradient_rect_colr_1.ttf"
     ));
 
+    pub static MASTER_IUP: FontData<'static> = FontData::new(include_bytes!(
+        "../../../resources/test_fonts/ttf/master_iup.ttf"
+    ));
+
     pub static VAZIRMATN_VAR: FontData<'static> = FontData::new(include_bytes!(
         "../../../resources/test_fonts/ttf/vazirmatn_var_trimmed.ttf"
     ));

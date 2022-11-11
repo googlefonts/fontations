@@ -81,11 +81,7 @@ impl<'a> VariationRegion<'a> {
         const ZERO: Fixed = Fixed::ZERO;
         let mut scalar = Fixed::ONE;
         for (i, axis_coords) in self.region_axes().iter().enumerate() {
-            let coord = coords
-                .get(i)
-                .copied()
-                .map(|coord| coord.to_fixed())
-                .unwrap_or(ZERO);
+            let coord = coords.get(i).map(|coord| coord.to_fixed()).unwrap_or(ZERO);
             let start = axis_coords.start_coord.get().to_fixed();
             let end = axis_coords.end_coord.get().to_fixed();
             let peak = axis_coords.peak_coord.get().to_fixed();
@@ -154,5 +150,47 @@ impl<'a> Iterator for ItemDeltas<'a> {
             (false, true) => self.cursor.read::<i32>().ok()?,
         };
         Some(Fixed::from_raw((value << 16).to_be_bytes()))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{test_data, FontRef, TableProvider};
+
+    #[test]
+    fn ivs_regions() {
+        let font = FontRef::new(test_data::test_fonts::MASTER_IUP).unwrap();
+        let hvar = font.hvar().expect("missing HVAR table");
+        let ivs = hvar
+            .item_variation_store()
+            .expect("missing item variation store in HVAR");
+        let region_list = ivs.variation_region_list().expect("missing region list!");
+        let regions = region_list.variation_regions();
+        let expected = &[
+            vec![
+                // start_coord, peak_coord, end_coord
+                [0.0f32, 0.0, 0.0],
+                [0.0, 1.0, 1.0],
+            ],
+            vec![[-1.0, -1.0, 0.0], [0.0, 0.0, 0.0]],
+        ][..];
+        let region_coords = regions
+            .iter()
+            .map(|region| {
+                region
+                    .unwrap()
+                    .region_axes()
+                    .iter()
+                    .map(|coords| {
+                        [
+                            coords.start_coord().to_f32(),
+                            coords.peak_coord().to_f32(),
+                            coords.end_coord().to_f32(),
+                        ]
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+        assert_eq!(expected, &region_coords);
     }
 }

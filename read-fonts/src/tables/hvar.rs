@@ -52,3 +52,47 @@ impl<'a> Hvar<'a> {
         ivs.compute_delta(ix, coords)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::{test_data, FontRef, TableProvider};
+    use font_types::{F2Dot14, Fixed, GlyphId};
+
+    #[test]
+    fn advance_deltas() {
+        let font = FontRef::new(test_data::test_fonts::MASTER_IUP).unwrap();
+        let hvar = font.hvar().unwrap();
+        let gid_b = GlyphId::new(4);
+        let gid_space = GlyphId::new(3);
+        assert_eq!(
+            hvar.advance_width_delta(gid_b, &[F2Dot14::from_f32(-0.5)])
+                .unwrap(),
+            Fixed::from_f64(-30.0)
+        );
+        assert_eq!(
+            hvar.advance_width_delta(gid_b, &[F2Dot14::from_f32(-0.75)])
+                .unwrap(),
+            Fixed::from_f64(-45.0)
+        );
+        assert_eq!(
+            hvar.advance_width_delta(gid_b, &[F2Dot14::from_f32(-1.0)])
+                .unwrap(),
+            Fixed::from_f64(-60.0)
+        );
+        assert_eq!(
+            hvar.advance_width_delta(gid_b, &[F2Dot14::from_f32(0.5)])
+                .unwrap(),
+            Fixed::from_f64(0.0)
+        );
+        assert_eq!(
+            hvar.advance_width_delta(gid_b, &[F2Dot14::from_f32(1.0)])
+                .unwrap(),
+            Fixed::from_f64(0.0)
+        );
+        assert_eq!(
+            hvar.advance_width_delta(gid_space, &[F2Dot14::from_f32(-1.0)])
+                .unwrap(),
+            Fixed::from_f64(0.0)
+        );
+    }
+}

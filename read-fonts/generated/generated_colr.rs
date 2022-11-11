@@ -193,10 +193,23 @@ impl<'a> Colr<'a> {
         Some(self.data.read_at(range.start).unwrap())
     }
 
+    /// Attempt to resolve [`var_index_map_offset`][Self::var_index_map_offset].
+    pub fn var_index_map(&self) -> Option<Result<DeltaSetIndexMap<'a>, ReadError>> {
+        let data = self.data;
+        self.var_index_map_offset().map(|x| x.resolve(data))?
+    }
+
     /// Offset to ItemVariationStore (may be NULL).
     pub fn item_variation_store_offset(&self) -> Option<Nullable<Offset32>> {
         let range = self.shape.item_variation_store_offset_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
+    }
+
+    /// Attempt to resolve [`item_variation_store_offset`][Self::item_variation_store_offset].
+    pub fn item_variation_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
+        let data = self.data;
+        self.item_variation_store_offset()
+            .map(|x| x.resolve(data))?
     }
 }
 
@@ -252,11 +265,17 @@ impl<'a> SomeTable<'a> for Colr<'a> {
             )),
             8usize if version.compatible(1) => Some(Field::new(
                 "var_index_map_offset",
-                FieldType::unknown_offset(self.var_index_map_offset().unwrap()),
+                FieldType::offset(
+                    self.var_index_map_offset().unwrap(),
+                    self.var_index_map().unwrap(),
+                ),
             )),
             9usize if version.compatible(1) => Some(Field::new(
                 "item_variation_store_offset",
-                FieldType::unknown_offset(self.item_variation_store_offset().unwrap()),
+                FieldType::offset(
+                    self.item_variation_store_offset().unwrap(),
+                    self.item_variation_store().unwrap(),
+                ),
             )),
             _ => None,
         }
