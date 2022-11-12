@@ -1,6 +1,6 @@
 //! OpenType font variations common tables.
 
-include!("../generated/generated_variations.rs");
+include!("../../generated/generated_variations.rs");
 
 /// Outer and inner indices for reading from an [ItemVariationStore].
 #[derive(Copy, Clone, Debug)]
@@ -157,13 +157,44 @@ impl<'a> Iterator for ItemDeltas<'a> {
     }
 }
 
+pub(crate) fn advance_delta(
+    dsim: Option<Result<DeltaSetIndexMap, ReadError>>,
+    ivs: Result<ItemVariationStore, ReadError>,
+    glyph_id: GlyphId,
+    coords: &[F2Dot14],
+) -> Result<Fixed, ReadError> {
+    let gid = glyph_id.to_u16();
+    let ix = match dsim {
+        Some(Ok(dsim)) => dsim.get(gid as u32)?,
+        _ => DeltaSetIndex {
+            outer: 0,
+            inner: gid,
+        },
+    };
+    ivs?.compute_delta(ix, coords)
+}
+
+pub(crate) fn item_delta(
+    dsim: Option<Result<DeltaSetIndexMap, ReadError>>,
+    ivs: Result<ItemVariationStore, ReadError>,
+    glyph_id: GlyphId,
+    coords: &[F2Dot14],
+) -> Result<Fixed, ReadError> {
+    let gid = glyph_id.to_u16();
+    let ix = match dsim {
+        Some(Ok(dsim)) => dsim.get(gid as u32)?,
+        _ => return Err(ReadError::NullOffset),
+    };
+    ivs?.compute_delta(ix, coords)
+}
+
 #[cfg(test)]
 mod tests {
     use crate::{test_data, FontRef, TableProvider};
 
     #[test]
     fn ivs_regions() {
-        let font = FontRef::new(test_data::test_fonts::MASTER_IUP).unwrap();
+        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
         let hvar = font.hvar().expect("missing HVAR table");
         let ivs = hvar
             .item_variation_store()
@@ -171,12 +202,9 @@ mod tests {
         let region_list = ivs.variation_region_list().expect("missing region list!");
         let regions = region_list.variation_regions();
         let expected = &[
-            vec![
-                // start_coord, peak_coord, end_coord
-                [0.0f32, 0.0, 0.0],
-                [0.0, 1.0, 1.0],
-            ],
-            vec![[-1.0, -1.0, 0.0], [0.0, 0.0, 0.0]],
+            // start_coord, peak_coord, end_coord
+            vec![[-1.0f32, -1.0, 0.0]],
+            vec![[0.0, 1.0, 1.0]],
         ][..];
         let region_coords = regions
             .iter()

@@ -1,4 +1,4 @@
-#![parse_module(read_fonts::variation)]
+#![parse_module(read_fonts::tables::variations)]
 
 /// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table format 0
 table DeltaSetIndexMapFormat0 {

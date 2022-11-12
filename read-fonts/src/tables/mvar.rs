@@ -1,6 +1,6 @@
 //! The [MVAR (Metrics Variation)](https://docs.microsoft.com/en-us/typography/opentype/spec/mvar) table
 
-use crate::variations::{DeltaSetIndex, ItemVariationStore};
+use super::variations::{DeltaSetIndex, ItemVariationStore};
 use font_types::Tag;
 
 /// 'MVAR'

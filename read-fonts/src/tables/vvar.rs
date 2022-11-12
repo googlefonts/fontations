@@ -1,6 +1,6 @@
 //! The [VVAR (Vertical Metrics Variation)](https://docs.microsoft.com/en-us/typography/opentype/spec/vvar) table
 
-use crate::variations::{DeltaSetIndex, DeltaSetIndexMap, ItemVariationStore};
+use super::variations::{self, DeltaSetIndexMap, ItemVariationStore};
 use font_types::Tag;
 
 /// 'VVAR'
@@ -16,51 +16,44 @@ impl<'a> Vvar<'a> {
         glyph_id: GlyphId,
         coords: &[F2Dot14],
     ) -> Result<Fixed, ReadError> {
-        let gid = glyph_id.to_u16();
-        let ix = match self.advance_height_mapping() {
-            Some(Ok(dsim)) => dsim.get(gid as u32)?,
-            _ => DeltaSetIndex {
-                outer: 0,
-                inner: gid,
-            },
-        };
-        let ivs = self.item_variation_store()?;
-        ivs.compute_delta(ix, coords)
+        variations::advance_delta(
+            self.advance_height_mapping(),
+            self.item_variation_store(),
+            glyph_id,
+            coords,
+        )
     }
 
     /// Returns the top side bearing delta for the specified glyph identifier and
     /// normalized variation coordinates.
     pub fn tsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
-        let gid = glyph_id.to_u16();
-        let ix = match self.tsb_mapping() {
-            Some(Ok(dsim)) => dsim.get(gid as u32)?,
-            _ => return Err(ReadError::NullOffset),
-        };
-        let ivs = self.item_variation_store()?;
-        ivs.compute_delta(ix, coords)
+        variations::item_delta(
+            self.tsb_mapping(),
+            self.item_variation_store(),
+            glyph_id,
+            coords,
+        )
     }
 
     /// Returns the bottom side bearing delta for the specified glyph identifier and
     /// normalized variation coordinates.
     pub fn bsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
-        let gid = glyph_id.to_u16();
-        let ix = match self.bsb_mapping() {
-            Some(Ok(dsim)) => dsim.get(gid as u32)?,
-            _ => return Err(ReadError::NullOffset),
-        };
-        let ivs = self.item_variation_store()?;
-        ivs.compute_delta(ix, coords)
+        variations::item_delta(
+            self.bsb_mapping(),
+            self.item_variation_store(),
+            glyph_id,
+            coords,
+        )
     }
 
     /// Returns the vertical origin delta for the specified glyph identifier and
     /// normalized variation coordinates.
     pub fn v_org_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
-        let gid = glyph_id.to_u16();
-        let ix = match self.v_org_mapping() {
-            Some(Ok(dsim)) => dsim.get(gid as u32)?,
-            _ => return Err(ReadError::NullOffset),
-        };
-        let ivs = self.item_variation_store()?;
-        ivs.compute_delta(ix, coords)
+        variations::item_delta(
+            self.v_org_mapping(),
+            self.item_variation_store(),
+            glyph_id,
+            coords,
+        )
     }
 }

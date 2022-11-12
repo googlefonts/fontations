@@ -1,6 +1,6 @@
 //! The [HVAR (Horizontal Metrics Variation)](https://docs.microsoft.com/en-us/typography/opentype/spec/hvar) table
 
-use crate::variations::{DeltaSetIndex, DeltaSetIndexMap, ItemVariationStore};
+use super::variations::{self, DeltaSetIndexMap, ItemVariationStore};
 use font_types::Tag;
 
 /// 'HVAR'
@@ -16,40 +16,34 @@ impl<'a> Hvar<'a> {
         glyph_id: GlyphId,
         coords: &[F2Dot14],
     ) -> Result<Fixed, ReadError> {
-        let gid = glyph_id.to_u16();
-        let ix = match self.advance_width_mapping() {
-            Some(Ok(dsim)) => dsim.get(gid as u32)?,
-            _ => DeltaSetIndex {
-                outer: 0,
-                inner: gid,
-            },
-        };
-        let ivs = self.item_variation_store()?;
-        ivs.compute_delta(ix, coords)
+        variations::advance_delta(
+            self.advance_width_mapping(),
+            self.item_variation_store(),
+            glyph_id,
+            coords,
+        )
     }
 
     /// Returns the left side bearing delta for the specified glyph identifier and
     /// normalized variation coordinates.
     pub fn lsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
-        let gid = glyph_id.to_u16();
-        let ix = match self.lsb_mapping() {
-            Some(Ok(dsim)) => dsim.get(gid as u32)?,
-            _ => return Err(ReadError::NullOffset),
-        };
-        let ivs = self.item_variation_store()?;
-        ivs.compute_delta(ix, coords)
+        variations::item_delta(
+            self.lsb_mapping(),
+            self.item_variation_store(),
+            glyph_id,
+            coords,
+        )
     }
 
     /// Returns the left side bearing delta for the specified glyph identifier and
     /// normalized variation coordinates.
     pub fn rsb_delta(&self, glyph_id: GlyphId, coords: &[F2Dot14]) -> Result<Fixed, ReadError> {
-        let gid = glyph_id.to_u16();
-        let ix = match self.rsb_mapping() {
-            Some(Ok(dsim)) => dsim.get(gid as u32)?,
-            _ => return Err(ReadError::NullOffset),
-        };
-        let ivs = self.item_variation_store()?;
-        ivs.compute_delta(ix, coords)
+        variations::item_delta(
+            self.rsb_mapping(),
+            self.item_variation_store(),
+            glyph_id,
+            coords,
+        )
     }
 }
 
@@ -60,39 +54,38 @@ mod tests {
 
     #[test]
     fn advance_deltas() {
-        let font = FontRef::new(test_data::test_fonts::MASTER_IUP).unwrap();
+        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
         let hvar = font.hvar().unwrap();
-        let gid_b = GlyphId::new(4);
-        let gid_space = GlyphId::new(3);
+        let gid_a = GlyphId::new(1);
         assert_eq!(
-            hvar.advance_width_delta(gid_b, &[F2Dot14::from_f32(-0.5)])
+            hvar.advance_width_delta(gid_a, &[F2Dot14::from_f32(-1.0)])
                 .unwrap(),
-            Fixed::from_f64(-30.0)
+            Fixed::from_f64(-113.0)
         );
         assert_eq!(
-            hvar.advance_width_delta(gid_b, &[F2Dot14::from_f32(-0.75)])
+            hvar.advance_width_delta(gid_a, &[F2Dot14::from_f32(-0.75)])
                 .unwrap(),
-            Fixed::from_f64(-45.0)
+            Fixed::from_f64(-84.75)
         );
         assert_eq!(
-            hvar.advance_width_delta(gid_b, &[F2Dot14::from_f32(-1.0)])
+            hvar.advance_width_delta(gid_a, &[F2Dot14::from_f32(-0.5)])
                 .unwrap(),
-            Fixed::from_f64(-60.0)
+            Fixed::from_f64(-56.5)
         );
         assert_eq!(
-            hvar.advance_width_delta(gid_b, &[F2Dot14::from_f32(0.5)])
+            hvar.advance_width_delta(gid_a, &[F2Dot14::from_f32(0.0)])
                 .unwrap(),
             Fixed::from_f64(0.0)
         );
         assert_eq!(
-            hvar.advance_width_delta(gid_b, &[F2Dot14::from_f32(1.0)])
+            hvar.advance_width_delta(gid_a, &[F2Dot14::from_f32(0.5)])
                 .unwrap(),
-            Fixed::from_f64(0.0)
+            Fixed::from_f64(29.5)
         );
         assert_eq!(
-            hvar.advance_width_delta(gid_space, &[F2Dot14::from_f32(-1.0)])
+            hvar.advance_width_delta(gid_a, &[F2Dot14::from_f32(1.0)])
                 .unwrap(),
-            Fixed::from_f64(0.0)
+            Fixed::from_f64(59.0)
         );
     }
 }
