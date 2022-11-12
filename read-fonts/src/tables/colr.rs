@@ -1,5 +1,6 @@
 //! The [COLR](https://docs.microsoft.com/en-us/typography/opentype/spec/colr) table
 
+use super::variations::{DeltaSetIndexMap, ItemVariationStore};
 use font_types::Tag;
 
 /// 'COLR'

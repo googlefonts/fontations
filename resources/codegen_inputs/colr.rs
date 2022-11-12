@@ -33,11 +33,11 @@ table Colr {
     /// Offset to DeltaSetIndexMap table (may be NULL).
     #[available(1)]
     #[nullable]
-    var_index_map_offset: Offset32,
+    var_index_map_offset: Offset32<DeltaSetIndexMap>,
     /// Offset to ItemVariationStore (may be NULL).
     #[available(1)]
     #[nullable]
-    item_variation_store_offset: Offset32,
+    item_variation_store_offset: Offset32<ItemVariationStore>,
 }
 
 /// [BaseGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record

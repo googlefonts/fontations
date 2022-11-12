@@ -1,0 +1,44 @@
+/// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table format 0
+@table DeltaSetIndexMapFormat0 
+uint8	format	DeltaSetIndexMap format: set to 0.
+uint8	entryFormat	A packed field that describes the compressed representation of delta-set indices. See details below.
+uint16	mapCount	The number of mapping entries.
+uint8	mapData[variable]	The delta-set index mapping data. See details below.
+
+/// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table format 1
+@table DeltaSetIndexMapFormat1
+uint8	format	DeltaSetIndexMap format: set to 1.
+uint8	entryFormat	A packed field that describes the compressed representation of delta-set indices. See details below.
+uint32	mapCount	The number of mapping entries.
+uint8	mapData[variable]	The delta-set index mapping data. See details below.
+
+/// The [VariationRegionList](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) table
+@table VariationRegionList
+uint16	axisCount	The number of variation axes for this font. This must be the same number as axisCount in the 'fvar' table.
+uint16	regionCount	The number of variation region tables in the variation region list. Must be less than 32,768.
+VariationRegion	variationRegions[regionCount]	Array of variation regions.
+
+/// The [VariationRegion](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
+@record VariationRegion
+RegionAxisCoordinates	regionAxes[axisCount]	Array of region axis coordinates records, in the order of axes given in the 'fvar' table.
+
+/// The [RegionAxisCoordinates](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
+@record RegionAxisCoordinates
+F2DOT14	startCoord	The region start coordinate value for the current axis.
+F2DOT14	peakCoord	The region peak coordinate value for the current axis.
+F2DOT14	endCoord	The region end coordinate value for the current axis.
+
+/// The [ItemVariationStore](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#item-variation-store-header-and-item-variation-data-subtables) table
+@table ItemVariationStore
+uint16	format	Format — set to 1
+Offset32	variationRegionListOffset	Offset in bytes from the start of the item variation store to the variation region list.
+uint16	itemVariationDataCount	The number of item variation data subtables.
+Offset32	itemVariationDataOffsets[itemVariationDataCount]	Offsets in bytes from the start of the item variation store to each item variation data subtable.
+
+/// The [ItemVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#item-variation-store-header-and-item-variation-data-subtables) subtable
+@table ItemVariationData
+uint16	itemCount	The number of delta sets for distinct items.
+uint16	wordDeltaCount	A packed field: the high bit is a flag—see details below.
+uint16	regionIndexCount	The number of variation regions referenced.
+uint16	regionIndexes[regionIndexCount]	Array of indices into the variation region list for the regions referenced by this item variation data table.
+DeltaSet	deltaSets[itemCount]	Delta-set rows.
