@@ -7,14 +7,6 @@ pub const TAG: Tag = Tag::new(b"avar");
 
 include!("../../generated/generated_avar.rs");
 
-impl<'a> Avar<'a> {
-    // TODO: see comment in Post::traverse_string_data
-    #[cfg(feature = "traversal")]
-    fn traverse_segment_maps(&self) -> FieldType<'a> {
-        FieldType::I8(-42) // meaningless value
-    }
-}
-
 impl<'a> SegmentMaps<'a> {
     /// Applies the piecewise linear mapping to the specified coordinate.
     pub fn apply(&self, coord: Fixed) -> Fixed {
@@ -49,6 +41,18 @@ impl<'a> VarSize for SegmentMaps<'a> {
 
     fn read_len_at(data: FontData, pos: usize) -> Option<usize> {
         Some(data.read_at::<u16>(pos).ok()? as usize * AxisValueMap::RAW_BYTE_LEN)
+    }
+}
+
+impl<'a> FontRead<'a> for SegmentMaps<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let position_map_count: BigEndian<u16> = cursor.read()?;
+        let axis_value_maps = cursor.read_array(position_map_count.get() as _)?;
+        Ok(SegmentMaps {
+            position_map_count,
+            axis_value_maps,
+        })
     }
 }
 

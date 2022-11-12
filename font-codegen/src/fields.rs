@@ -387,8 +387,10 @@ fn traversal_arm_for_field(
                     )
             ))
         }
-        FieldType::VarLenArray(_) => {
-            quote!(Field::new(#name_str, traversal::FieldType::var_array(self.#name()#maybe_unwrap)))
+        FieldType::VarLenArray(arr) => {
+            let typ_str = arr.raw_inner_type().to_string();
+            let data = fld.offset_getter_data_src();
+            quote!(Field::new(#name_str, traversal::FieldType::var_array(#typ_str, self.#name()#maybe_unwrap, #data)))
         }
         // HACK: who wouldn't want to hard-code ValueRecord handling
         FieldType::Struct { typ } if typ == "ValueRecord" => {
@@ -462,6 +464,13 @@ impl Field {
     pub(crate) fn shape_byte_start_field_name(&self) -> syn::Ident {
         // used when fields are optional
         quote::format_ident!("{}_byte_start", &self.name)
+    }
+
+    pub(crate) fn is_zerocopy_compatible(&self) -> bool {
+        matches!(
+            self.typ,
+            FieldType::Scalar { .. } | FieldType::Offset { .. }
+        )
     }
 
     pub(crate) fn is_array(&self) -> bool {

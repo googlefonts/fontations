@@ -204,8 +204,8 @@ impl<'a> Cursor<'a> {
         temp
     }
 
-    pub(crate) fn read_array<T: FixedSize>(&mut self, len: usize) -> Result<&'a [T], ReadError> {
-        let len = len * T::RAW_BYTE_LEN;
+    pub(crate) fn read_array<T: FixedSize>(&mut self, n_elem: usize) -> Result<&'a [T], ReadError> {
+        let len = n_elem * T::RAW_BYTE_LEN;
         let temp = self.data.read_array(self.pos..self.pos + len);
         self.pos += len;
         temp

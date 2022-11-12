@@ -12,12 +12,11 @@ table Avar {
     axis_count: u16,
     /// The segment maps array — one segment map for each axis, in the order of axes specified in the 'fvar' table.
     #[count(..)]
-    #[traverse_with(traverse_segment_maps)]
     axis_segment_maps: VarLenArray<SegmentMaps<'a>>,
 }
 
 /// [SegmentMaps](https://learn.microsoft.com/en-us/typography/opentype/spec/avar#table-formats) record
-table SegmentMaps {
+record SegmentMaps<'a> {
     /// The number of correspondence pairs for this axis.
     position_map_count: u16,
     /// The array of axis value map records for this axis.

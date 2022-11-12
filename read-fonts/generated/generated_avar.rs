@@ -80,7 +80,11 @@ impl<'a> SomeTable<'a> for Avar<'a> {
             1usize => Some(Field::new("axis_count", self.axis_count())),
             2usize => Some(Field::new(
                 "axis_segment_maps",
-                self.traverse_segment_maps(),
+                traversal::FieldType::var_array(
+                    "SegmentMaps",
+                    self.axis_segment_maps(),
+                    self.offset_data(),
+                ),
             )),
             _ => None,
         }
@@ -95,77 +99,45 @@ impl<'a> std::fmt::Debug for Avar<'a> {
 }
 
 /// [SegmentMaps](https://learn.microsoft.com/en-us/typography/opentype/spec/avar#table-formats) record
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SegmentMapsMarker {
-    axis_value_maps_byte_len: usize,
+#[derive(Clone, Debug)]
+pub struct SegmentMaps<'a> {
+    /// The number of correspondence pairs for this axis.
+    pub position_map_count: BigEndian<u16>,
+    /// The array of axis value map records for this axis.
+    pub axis_value_maps: &'a [AxisValueMap],
 }
-
-impl SegmentMapsMarker {
-    fn position_map_count_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-    fn axis_value_maps_byte_range(&self) -> Range<usize> {
-        let start = self.position_map_count_byte_range().end;
-        start..start + self.axis_value_maps_byte_len
-    }
-}
-
-impl<'a> FontRead<'a> for SegmentMaps<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        let position_map_count: u16 = cursor.read()?;
-        let axis_value_maps_byte_len = position_map_count as usize * AxisValueMap::RAW_BYTE_LEN;
-        cursor.advance_by(axis_value_maps_byte_len);
-        cursor.finish(SegmentMapsMarker {
-            axis_value_maps_byte_len,
-        })
-    }
-}
-
-/// [SegmentMaps](https://learn.microsoft.com/en-us/typography/opentype/spec/avar#table-formats) record
-pub type SegmentMaps<'a> = TableRef<'a, SegmentMapsMarker>;
 
 impl<'a> SegmentMaps<'a> {
     /// The number of correspondence pairs for this axis.
     pub fn position_map_count(&self) -> u16 {
-        let range = self.shape.position_map_count_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.position_map_count.get()
     }
 
     /// The array of axis value map records for this axis.
     pub fn axis_value_maps(&self) -> &'a [AxisValueMap] {
-        let range = self.shape.axis_value_maps_byte_range();
-        self.data.read_array(range).unwrap()
+        self.axis_value_maps
     }
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for SegmentMaps<'a> {
-    fn type_name(&self) -> &str {
-        "SegmentMaps"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("position_map_count", self.position_map_count())),
-            1usize => Some(Field::new(
-                "axis_value_maps",
-                traversal::FieldType::array_of_records(
-                    stringify!(AxisValueMap),
-                    self.axis_value_maps(),
-                    self.offset_data(),
-                ),
-            )),
-            _ => None,
+impl<'a> SomeRecord<'a> for SegmentMaps<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "SegmentMaps",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("position_map_count", self.position_map_count())),
+                1usize => Some(Field::new(
+                    "axis_value_maps",
+                    traversal::FieldType::array_of_records(
+                        stringify!(AxisValueMap),
+                        self.axis_value_maps(),
+                        _data,
+                    ),
+                )),
+                _ => None,
+            }),
+            data,
         }
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for SegmentMaps<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 
