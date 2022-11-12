@@ -48,7 +48,7 @@ impl<'a> VarSize for SegmentMaps<'a> {
     type Size = u16;
 
     fn read_len_at(data: FontData, pos: usize) -> Option<usize> {
-        Some(data.read_at::<u16>(pos).ok()? as usize * 4)
+        Some(data.read_at::<u16>(pos).ok()? as usize * AxisValueMap::RAW_BYTE_LEN)
     }
 }
 
