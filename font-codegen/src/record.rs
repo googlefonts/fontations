@@ -25,7 +25,8 @@ pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
     let traversal_impl = generate_traversal(item)?;
 
     let lifetime = &item.lifetime;
-    let is_zerocopy = item.attrs.read_args.is_none();
+    let is_zerocopy = item.is_zerocopy();
+    let has_read_args = item.attrs.read_args.is_some();
     let repr_packed = is_zerocopy.then(|| {
         quote! {
             #[repr(C)]
@@ -41,7 +42,7 @@ pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
             }
         }
     });
-    let maybe_impl_read_with_args = (!is_zerocopy).then(|| generate_read_with_args(item));
+    let maybe_impl_read_with_args = (has_read_args).then(|| generate_read_with_args(item));
 
     Ok(quote! {
     #( #docs )*
@@ -336,5 +337,9 @@ impl Record {
             )),
             _ => Ok(()),
         }
+    }
+
+    fn is_zerocopy(&self) -> bool {
+        self.fields.iter().all(Field::is_zerocopy_compatible)
     }
 }

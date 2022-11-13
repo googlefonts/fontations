@@ -16,10 +16,10 @@ use font_types::{
 };
 
 use crate::{
-    array::ComputedArray,
+    array::{ComputedArray, VarLenArray},
     layout::gpos::ValueRecord,
     read::{ComputeSize, ReadArgs},
-    FontData, FontReadWithArgs, ReadError,
+    FontData, FontRead, FontReadWithArgs, ReadError, VarSize,
 };
 
 /// Types of fields in font tables.
@@ -146,6 +146,23 @@ impl<'a> FieldType<'a> {
         T::Args: Copy + 'static,
     {
         ComputedArrayOfRecords {
+            type_name,
+            data,
+            array,
+        }
+        .into()
+    }
+
+    // Convenience method for handling VarLenArrays
+    pub fn var_array<T>(
+        type_name: &'static str,
+        array: VarLenArray<'a, T>,
+        data: FontData<'a>,
+    ) -> FieldType<'a>
+    where
+        T: FontRead<'a> + VarSize + SomeRecord<'a> + 'a,
+    {
+        VarLenArrayOfRecords {
             type_name,
             data,
             array,
@@ -400,10 +417,23 @@ impl<'a> SomeString<'a> for Box<dyn SomeString<'a> + 'a> {
 }
 
 // only used as Box<dyn SomeArray<'a>>
+struct ArrayOfRecords<'a, T> {
+    pub(crate) type_name: &'static str,
+    pub(crate) data: FontData<'a>,
+    pub(crate) records: &'a [T],
+}
+
+// only used as Box<dyn SomeArray<'a>>
 struct ComputedArrayOfRecords<'a, T: ReadArgs> {
     pub(crate) type_name: &'static str,
     pub(crate) data: FontData<'a>,
     pub(crate) array: ComputedArray<'a, T>,
+}
+
+struct VarLenArrayOfRecords<'a, T> {
+    pub(crate) type_name: &'static str,
+    pub(crate) data: FontData<'a>,
+    pub(crate) array: VarLenArray<'a, T>,
 }
 
 impl<'a, T> SomeArray<'a> for ComputedArrayOfRecords<'a, T>
@@ -428,13 +458,6 @@ where
     }
 }
 
-// only used as Box<dyn SomeArray<'a>>
-struct ArrayOfRecords<'a, T> {
-    pub(crate) type_name: &'static str,
-    pub(crate) data: FontData<'a>,
-    pub(crate) records: &'a [T],
-}
-
 impl<'a, T: SomeRecord<'a> + Clone> SomeArray<'a> for ArrayOfRecords<'a, T> {
     fn type_name(&self) -> &str {
         self.type_name
@@ -448,6 +471,27 @@ impl<'a, T: SomeRecord<'a> + Clone> SomeArray<'a> for ArrayOfRecords<'a, T> {
         self.records
             .get(idx)
             .map(|record| record.clone().traverse(self.data).into())
+    }
+}
+
+impl<'a, T> SomeArray<'a> for VarLenArrayOfRecords<'a, T>
+where
+    T: FontRead<'a> + VarSize + SomeRecord<'a> + 'a,
+    Self: 'a,
+{
+    fn len(&self) -> usize {
+        self.array.iter().count()
+    }
+
+    fn get(&self, idx: usize) -> Option<FieldType<'a>> {
+        self.array
+            .get(idx)?
+            .ok()
+            .map(|record| record.traverse(self.data).into())
+    }
+
+    fn type_name(&self) -> &str {
+        self.type_name
     }
 }
 

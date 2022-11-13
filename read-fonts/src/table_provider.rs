@@ -37,6 +37,11 @@ pub trait TableProvider<'a> {
             })
     }
 
+    fn avar(&self) -> Result<tables::avar::Avar<'a>, ReadError> {
+        self.expect_data_for_tag(tables::avar::TAG)
+            .and_then(FontRead::read)
+    }
+
     fn hvar(&self) -> Result<tables::hvar::Hvar<'a>, ReadError> {
         self.expect_data_for_tag(tables::hvar::TAG)
             .and_then(FontRead::read)

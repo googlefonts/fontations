@@ -169,6 +169,38 @@ impl F2Dot14 {
     }
 }
 
+impl Fixed {
+    /// Multiplies `self` by `a` and divides the product by `b`.
+    pub const fn mul_div(&self, a: Fixed, b: Fixed) -> Fixed {
+        let mut sign = 1;
+        let mut su = self.0 as u64;
+        let mut au = a.0 as u64;
+        let mut bu = b.0 as u64;
+        if self.0 < 0 {
+            su = 0u64.wrapping_sub(su);
+            sign = -1;
+        }
+        if a.0 < 0 {
+            au = 0u64.wrapping_sub(au);
+            sign = -sign;
+        }
+        if b.0 < 0 {
+            bu = 0u64.wrapping_sub(bu);
+            sign = -sign;
+        }
+        let result = if bu > 0 {
+            su.wrapping_mul(au).wrapping_add(bu >> 1) / bu
+        } else {
+            0x7FFFFFFF
+        };
+        Fixed(if sign < 0 {
+            -(result as i32)
+        } else {
+            result as i32
+        })
+    }
+}
+
 impl Mul for Fixed {
     type Output = Self;
     #[inline(always)]
