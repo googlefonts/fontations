@@ -90,8 +90,9 @@ impl VarSize for PString<'_> {
     type Size = u8;
 }
 
+/// The 258 glyph names defined for Macintosh TrueType fonts
 #[rustfmt::skip]
-const DEFAULT_GLYPH_NAMES: [&str; 258] = [
+pub static DEFAULT_GLYPH_NAMES: [&str; 258] = [
     ".notdef", ".null", "nonmarkingreturn", "space", "exclam", "quotedbl", "numbersign", "dollar",
     "percent", "ampersand", "quotesingle", "parenleft", "parenright", "asterisk", "plus", "comma",
     "hyphen", "period", "slash", "zero", "one", "two", "three", "four", "five", "six", "seven",
