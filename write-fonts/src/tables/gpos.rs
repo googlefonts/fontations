@@ -13,8 +13,8 @@ use super::layout::{
 };
 
 #[cfg(test)]
-#[path = "../tests/gpos.rs"]
-mod tests;
+#[path = "../tests/test_gpos.rs"]
+mod spec_tests;
 
 #[path = "./value_record.rs"]
 mod value_record;
@@ -160,5 +160,56 @@ impl MarkArray {
             .map(|rec| rec.mark_class)
             .collect::<HashSet<_>>()
             .len() as u16
+    }
+}
+
+#[cfg(test)]
+mod tests {
+
+    use read_fonts::tables::{gpos as read_gpos, layout::LookupFlag};
+
+    use super::*;
+
+    // adapted from/motivated by https://github.com/fonttools/fonttools/issues/471
+    #[test]
+    fn gpos_1_zero() {
+        let cov_one = CoverageTable::format_1(vec![GlyphId::new(2)]);
+        let cov_two = CoverageTable::format_1(vec![GlyphId::new(4)]);
+        let sub1 = SinglePos::format_1(cov_one, ValueRecord::default());
+        let sub2 = SinglePos::format_1(
+            cov_two,
+            ValueRecord {
+                x_advance: Some(500),
+                ..Default::default()
+            },
+        );
+        let lookup = Lookup::new(LookupFlag::default(), vec![sub1, sub2], 0);
+        let bytes = crate::dump_table(&lookup).unwrap();
+
+        let parsed = read_gpos::PositionLookup::read(FontData::new(&bytes)).unwrap();
+        let read_gpos::PositionLookup::Single(table) = parsed else {
+            panic!("something has gone seriously wrong");
+        };
+
+        assert_eq!(table.lookup_flag(), LookupFlag::empty());
+        assert_eq!(table.sub_table_count(), 2);
+        let read_gpos::SinglePos::Format1(sub1) = table.subtables().next().unwrap().unwrap() else {
+            panic!("wrong table type");
+        };
+        let read_gpos::SinglePos::Format1(sub2) = table.subtables().nth(1).unwrap().unwrap() else {
+            panic!("wrong table type");
+        };
+
+        assert_eq!(sub1.value_format(), ValueFormat::empty());
+        assert_eq!(sub1.value_record(), read_gpos::ValueRecord::default());
+
+        assert_eq!(sub2.value_format(), ValueFormat::X_ADVANCE);
+        assert_eq!(
+            sub2.value_record(),
+            read_gpos::ValueRecord {
+                x_advance: Some(500.into()),
+                ..Default::default()
+            }
+        );
     }
 }
