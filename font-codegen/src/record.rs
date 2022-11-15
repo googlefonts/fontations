@@ -266,7 +266,7 @@ pub(crate) fn generate_compile_impl(
             .any(|info| info.manual_compile_type))
         .then(|| quote!( #[allow(clippy::useless_conversion)] ));
         quote! {
-            impl #default_impl_params #name <#generic_param> {
+            impl <#generic_param> #name <#generic_param> {
                 #[doc = #docstring]
                 #too_many_args
                 #useless_conversion

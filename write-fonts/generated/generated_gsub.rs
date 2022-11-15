@@ -778,7 +778,7 @@ pub struct ExtensionSubstFormat1<T> {
     pub extension: OffsetMarker<T, WIDTH_32>,
 }
 
-impl<T: Default> ExtensionSubstFormat1<T> {
+impl<T> ExtensionSubstFormat1<T> {
     /// Construct a new `ExtensionSubstFormat1`
     pub fn new(extension_lookup_type: u16, extension: T) -> Self {
         Self {
