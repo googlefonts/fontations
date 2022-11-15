@@ -444,7 +444,7 @@ pub struct LookupList<T> {
     pub lookups: Vec<OffsetMarker<T>>,
 }
 
-impl<T: Default> LookupList<T> {
+impl<T> LookupList<T> {
     /// Construct a new `LookupList`
     pub fn new(lookups: Vec<T>) -> Self {
         Self {
@@ -507,7 +507,7 @@ pub struct Lookup<T> {
     pub mark_filtering_set: u16,
 }
 
-impl<T: Default> Lookup<T> {
+impl<T> Lookup<T> {
     /// Construct a new `Lookup`
     pub fn new(lookup_flag: LookupFlag, subtables: Vec<T>, mark_filtering_set: u16) -> Self {
         Self {
