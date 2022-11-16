@@ -1,10 +1,12 @@
 //! The ValueRecord type used in the GPOS table
 
-use crate::from_obj::FromObjRef;
 use read_fonts::FontData;
 
 use super::ValueFormat;
 use crate::{
+    from_obj::{FromObjRef, ToOwnedObj},
+    offsets::NullableOffsetMarker,
+    tables::layout::Device,
     validate::Validate,
     write::{FontWrite, TableWriter},
 };
@@ -15,10 +17,10 @@ pub struct ValueRecord {
     pub y_placement: Option<i16>,
     pub x_advance: Option<i16>,
     pub y_advance: Option<i16>,
-    pub x_placement_device: Option<i16>,
-    pub y_placement_device: Option<i16>,
-    pub x_advance_device: Option<i16>,
-    pub y_advance_device: Option<i16>,
+    pub x_placement_device: NullableOffsetMarker<Device>,
+    pub y_placement_device: NullableOffsetMarker<Device>,
+    pub x_advance_device: NullableOffsetMarker<Device>,
+    pub y_advance_device: NullableOffsetMarker<Device>,
 }
 
 impl ValueRecord {
@@ -52,16 +54,21 @@ impl FontWrite for ValueRecord {
                     v.write_into(writer);
                 }
             };
+            ($field:expr, off) => {
+                if let Some(v) = $field.as_ref() {
+                    writer.write_offset(v, 2);
+                }
+            };
         }
 
         write_field!(self.x_placement);
         write_field!(self.y_placement);
         write_field!(self.x_advance);
         write_field!(self.y_advance);
-        write_field!(self.x_placement_device);
-        write_field!(self.y_placement_device);
-        write_field!(self.x_advance_device);
-        write_field!(self.y_advance_device);
+        write_field!(self.x_placement_device, off);
+        write_field!(self.y_placement_device, off);
+        write_field!(self.x_advance_device, off);
+        write_field!(self.y_advance_device, off);
     }
 }
 
@@ -73,12 +80,16 @@ impl std::fmt::Debug for ValueRecord {
         self.x_advance.map(|x| f.field("x_advance", &x));
         self.y_advance.map(|y| f.field("y_advance", &y));
         self.x_placement_device
+            .as_ref()
             .map(|x| f.field("x_placement_device", &x));
         self.y_placement_device
+            .as_ref()
             .map(|y| f.field("y_placement_device", &y));
         self.x_advance_device
+            .as_ref()
             .map(|x| f.field("x_advance_device", &x));
         self.y_advance_device
+            .as_ref()
             .map(|y| f.field("y_advance_device", &y));
         f.finish()
     }
@@ -89,16 +100,16 @@ impl Validate for ValueRecord {
 }
 
 impl FromObjRef<read_fonts::tables::gpos::ValueRecord> for ValueRecord {
-    fn from_obj_ref(from: &read_fonts::tables::gpos::ValueRecord, _data: FontData) -> Self {
+    fn from_obj_ref(from: &read_fonts::tables::gpos::ValueRecord, data: FontData) -> Self {
         ValueRecord {
-            x_placement: from.x_placement.map(|val| val.get()),
-            y_placement: from.y_placement.map(|val| val.get()),
-            x_advance: from.x_advance.map(|val| val.get()),
-            y_advance: from.y_advance.map(|val| val.get()),
-            x_placement_device: from.x_placement_device.map(|val| val.get()),
-            y_placement_device: from.y_placement_device.map(|val| val.get()),
-            x_advance_device: from.x_advance_device.map(|val| val.get()),
-            y_advance_device: from.y_advance_device.map(|val| val.get()),
+            x_placement: from.x_placement(),
+            y_placement: from.y_placement(),
+            x_advance: from.x_advance(),
+            y_advance: from.y_advance(),
+            x_placement_device: from.x_placement_device(data).to_owned_obj(data),
+            y_placement_device: from.y_placement_device(data).to_owned_obj(data),
+            x_advance_device: from.x_advance_device(data).to_owned_obj(data),
+            y_advance_device: from.y_advance_device(data).to_owned_obj(data),
         }
     }
 }
