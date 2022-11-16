@@ -478,6 +478,18 @@ fn are_sequential(gid1: GlyphId, gid2: GlyphId) -> bool {
     gid2.to_u16().saturating_sub(gid1.to_u16()) == 1
 }
 
+//FIXME: we should derive this in codegen
+impl PartialEq for Device {
+    fn eq(&self, other: &Self) -> bool {
+        self.start_size == other.start_size
+            && self.end_size == other.end_size
+            && self.delta_format == other.delta_format
+            && self.delta_value == other.delta_value
+    }
+}
+
+impl Eq for Device {}
+
 #[cfg(test)]
 mod tests {
     use super::*;

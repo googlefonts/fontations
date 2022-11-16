@@ -1,8 +1,9 @@
 //! A GPOS ValueRecord
 
-use types::{BigEndian, FixedSize};
+use types::{BigEndian, FixedSize, Offset16};
 
 use super::ValueFormat;
+use crate::{tables::layout::Device, ResolveOffset};
 
 #[cfg(feature = "traversal")]
 use crate::traversal::{Field, FieldType, RecordResolver, SomeRecord, SomeTable};
@@ -27,10 +28,10 @@ pub struct ValueRecord {
     pub y_placement: Option<BigEndian<i16>>,
     pub x_advance: Option<BigEndian<i16>>,
     pub y_advance: Option<BigEndian<i16>>,
-    pub x_placement_device: Option<BigEndian<i16>>,
-    pub y_placement_device: Option<BigEndian<i16>>,
-    pub x_advance_device: Option<BigEndian<i16>>,
-    pub y_advance_device: Option<BigEndian<i16>>,
+    pub x_placement_device: Option<BigEndian<Offset16>>,
+    pub y_placement_device: Option<BigEndian<Offset16>>,
+    pub x_advance_device: Option<BigEndian<Offset16>>,
+    pub y_advance_device: Option<BigEndian<Offset16>>,
 }
 
 impl ValueRecord {
@@ -86,20 +87,32 @@ impl ValueRecord {
         self.y_advance.map(|val| val.get())
     }
 
-    pub fn x_placement_device(&self) -> Option<i16> {
-        self.x_placement_device.map(|val| val.get())
+    pub fn x_placement_device<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Option<Result<Device<'a>, ReadError>> {
+        self.x_placement_device.map(|val| val.get().resolve(data))
     }
 
-    pub fn y_placement_device(&self) -> Option<i16> {
-        self.y_placement_device.map(|val| val.get())
+    pub fn y_placement_device<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Option<Result<Device<'a>, ReadError>> {
+        self.y_placement_device.map(|val| val.get().resolve(data))
     }
 
-    pub fn x_advance_device(&self) -> Option<i16> {
-        self.x_advance_device.map(|val| val.get())
+    pub fn x_advance_device<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Option<Result<Device<'a>, ReadError>> {
+        self.x_advance_device.map(|val| val.get().resolve(data))
     }
 
-    pub fn y_advance_device(&self) -> Option<i16> {
-        self.y_advance_device.map(|val| val.get())
+    pub fn y_advance_device<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Option<Result<Device<'a>, ReadError>> {
+        self.y_advance_device.map(|val| val.get().resolve(data))
     }
 }
 
@@ -172,10 +185,14 @@ impl<'a> SomeTable<'a> for ValueRecord {
             "y_placement" => self.y_placement().unwrap().into(),
             "x_advance" => self.x_advance().unwrap().into(),
             "y_advance" => self.y_advance().unwrap().into(),
-            "x_placement_device" => self.x_placement_device().unwrap().into(),
-            "y_placement_device" => self.y_placement_device().unwrap().into(),
-            "x_advance_device" => self.x_advance_device().unwrap().into(),
-            "y_advance_device" => self.y_advance_device().unwrap().into(),
+            "x_placement_device" => {
+                FieldType::unknown_offset(self.x_placement_device.unwrap().get())
+            }
+            "y_placement_device" => {
+                FieldType::unknown_offset(self.y_placement_device.unwrap().get())
+            }
+            "x_advance_device" => FieldType::unknown_offset(self.x_advance_device.unwrap().get()),
+            "y_advance_device" => FieldType::unknown_offset(self.y_advance_device.unwrap().get()),
             _ => panic!("hmm"),
         };
 
