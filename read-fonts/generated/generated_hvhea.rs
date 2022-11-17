@@ -6,11 +6,12 @@
 use crate::codegen_prelude::*;
 
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
+/// [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct HheaMarker {}
+pub struct HVheaMarker {}
 
-impl HheaMarker {
+impl HVheaMarker {
     fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + MajorMinor::RAW_BYTE_LEN
@@ -27,24 +28,24 @@ impl HheaMarker {
         let start = self.descender_byte_range().end;
         start..start + FWord::RAW_BYTE_LEN
     }
-    fn advance_width_max_byte_range(&self) -> Range<usize> {
+    fn advance_max_byte_range(&self) -> Range<usize> {
         let start = self.line_gap_byte_range().end;
         start..start + UfWord::RAW_BYTE_LEN
     }
-    fn min_left_side_bearing_byte_range(&self) -> Range<usize> {
-        let start = self.advance_width_max_byte_range().end;
+    fn min_leading_bearing_byte_range(&self) -> Range<usize> {
+        let start = self.advance_max_byte_range().end;
         start..start + FWord::RAW_BYTE_LEN
     }
-    fn min_right_side_bearing_byte_range(&self) -> Range<usize> {
-        let start = self.min_left_side_bearing_byte_range().end;
+    fn min_trailing_bearing_byte_range(&self) -> Range<usize> {
+        let start = self.min_leading_bearing_byte_range().end;
         start..start + FWord::RAW_BYTE_LEN
     }
-    fn x_max_extent_byte_range(&self) -> Range<usize> {
-        let start = self.min_right_side_bearing_byte_range().end;
+    fn max_extent_byte_range(&self) -> Range<usize> {
+        let start = self.min_trailing_bearing_byte_range().end;
         start..start + FWord::RAW_BYTE_LEN
     }
     fn caret_slope_rise_byte_range(&self) -> Range<usize> {
-        let start = self.x_max_extent_byte_range().end;
+        let start = self.max_extent_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
     fn caret_slope_run_byte_range(&self) -> Range<usize> {
@@ -75,13 +76,13 @@ impl HheaMarker {
         let start = self.reserved4_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn number_of_h_metrics_byte_range(&self) -> Range<usize> {
+    fn number_of_long_metrics_byte_range(&self) -> Range<usize> {
         let start = self.metric_data_format_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
 }
 
-impl<'a> FontRead<'a> for Hhea<'a> {
+impl<'a> FontRead<'a> for HVhea<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
@@ -101,27 +102,28 @@ impl<'a> FontRead<'a> for Hhea<'a> {
         cursor.advance::<i16>();
         cursor.advance::<i16>();
         cursor.advance::<u16>();
-        cursor.finish(HheaMarker {})
+        cursor.finish(HVheaMarker {})
     }
 }
 
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
-pub type Hhea<'a> = TableRef<'a, HheaMarker>;
+/// [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
+pub type HVhea<'a> = TableRef<'a, HVheaMarker>;
 
-impl<'a> Hhea<'a> {
+impl<'a> HVhea<'a> {
     /// The major/minor version (1, 0)
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
-    /// Typographic ascent—see note below.
+    /// Typographic ascent.
     pub fn ascender(&self) -> FWord {
         let range = self.shape.ascender_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
-    /// Typographic descent—see note below.
+    /// Typographic descent.
     pub fn descender(&self) -> FWord {
         let range = self.shape.descender_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -134,41 +136,40 @@ impl<'a> Hhea<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    /// Maximum advance width value in 'hmtx' table.
-    pub fn advance_width_max(&self) -> UfWord {
-        let range = self.shape.advance_width_max_byte_range();
+    /// Maximum advance width/height value in 'hmtx'/'vmtx' table.
+    pub fn advance_max(&self) -> UfWord {
+        let range = self.shape.advance_max_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
-    /// Minimum left sidebearing value in 'hmtx' table for glyphs with
+    /// Minimum left/top sidebearing value in 'hmtx'/'vmtx' table for glyphs with
     /// contours (empty glyphs should be ignored).
-    pub fn min_left_side_bearing(&self) -> FWord {
-        let range = self.shape.min_left_side_bearing_byte_range();
+    pub fn min_leading_bearing(&self) -> FWord {
+        let range = self.shape.min_leading_bearing_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
-    /// Minimum right sidebearing value; calculated as min(aw - (lsb +
-    /// xMax - xMin)) for glyphs with contours (empty glyphs should be
-    /// ignored).
-    pub fn min_right_side_bearing(&self) -> FWord {
-        let range = self.shape.min_right_side_bearing_byte_range();
+    /// Minimum right/bottom sidebearing value; calculated as min(aw - (lsb +
+    /// xMax - xMin)) for horizontal (empty glyphs should be ignored).
+    pub fn min_trailing_bearing(&self) -> FWord {
+        let range = self.shape.min_trailing_bearing_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
-    /// Max(lsb + (xMax - xMin)).
-    pub fn x_max_extent(&self) -> FWord {
-        let range = self.shape.x_max_extent_byte_range();
+    /// Horizontal: max(lsb + (xMax-xMin)); vertical: tsb + (yMax-yMin).
+    pub fn max_extent(&self) -> FWord {
+        let range = self.shape.max_extent_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Used to calculate the slope of the cursor (rise/run); 1 for
-    /// vertical.
+    /// vertical caret, 0 for horizontal.
     pub fn caret_slope_rise(&self) -> i16 {
         let range = self.shape.caret_slope_rise_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
-    /// 0 for vertical.
+    /// 0 for vertical caret, 1 for horizontal.
     pub fn caret_slope_run(&self) -> i16 {
         let range = self.shape.caret_slope_run_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -188,17 +189,17 @@ impl<'a> Hhea<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    /// Number of hMetric entries in 'hmtx' table
-    pub fn number_of_h_metrics(&self) -> u16 {
-        let range = self.shape.number_of_h_metrics_byte_range();
+    /// Number of LongMetric entries in 'hmtx'/'vmtx' table
+    pub fn number_of_long_metrics(&self) -> u16 {
+        let range = self.shape.number_of_long_metrics_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for Hhea<'a> {
+impl<'a> SomeTable<'a> for HVhea<'a> {
     fn type_name(&self) -> &str {
-        "Hhea"
+        "HVhea"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
@@ -206,23 +207,23 @@ impl<'a> SomeTable<'a> for Hhea<'a> {
             1usize => Some(Field::new("ascender", self.ascender())),
             2usize => Some(Field::new("descender", self.descender())),
             3usize => Some(Field::new("line_gap", self.line_gap())),
-            4usize => Some(Field::new("advance_width_max", self.advance_width_max())),
+            4usize => Some(Field::new("advance_max", self.advance_max())),
             5usize => Some(Field::new(
-                "min_left_side_bearing",
-                self.min_left_side_bearing(),
+                "min_leading_bearing",
+                self.min_leading_bearing(),
             )),
             6usize => Some(Field::new(
-                "min_right_side_bearing",
-                self.min_right_side_bearing(),
+                "min_trailing_bearing",
+                self.min_trailing_bearing(),
             )),
-            7usize => Some(Field::new("x_max_extent", self.x_max_extent())),
+            7usize => Some(Field::new("max_extent", self.max_extent())),
             8usize => Some(Field::new("caret_slope_rise", self.caret_slope_rise())),
             9usize => Some(Field::new("caret_slope_run", self.caret_slope_run())),
             10usize => Some(Field::new("caret_offset", self.caret_offset())),
             11usize => Some(Field::new("metric_data_format", self.metric_data_format())),
             12usize => Some(Field::new(
-                "number_of_h_metrics",
-                self.number_of_h_metrics(),
+                "number_of_long_metrics",
+                self.number_of_long_metrics(),
             )),
             _ => None,
         }
@@ -230,7 +231,7 @@ impl<'a> SomeTable<'a> for Hhea<'a> {
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for Hhea<'a> {
+impl<'a> std::fmt::Debug for HVhea<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }

@@ -4,5 +4,3 @@ use font_types::Tag;
 
 /// 'hhea'
 pub const TAG: Tag = Tag::new(b"hhea");
-
-include!("../../generated/generated_hhea.rs");
