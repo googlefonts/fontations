@@ -1728,7 +1728,7 @@ impl<'a> FontRead<'a> for SequenceRule<'a> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
         let seq_lookup_count: u16 = cursor.read()?;
-        let input_sequence_byte_len = minus_one(glyph_count) * u16::RAW_BYTE_LEN;
+        let input_sequence_byte_len = minus_one(glyph_count) * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let seq_lookup_records_byte_len =
             seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
@@ -1757,7 +1757,7 @@ impl<'a> SequenceRule<'a> {
     }
 
     /// Array of input glyph IDs—starting with the second glyph
-    pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
+    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -2083,7 +2083,7 @@ impl<'a> FontRead<'a> for ClassSequenceRule<'a> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
         let seq_lookup_count: u16 = cursor.read()?;
-        let input_sequence_byte_len = minus_one(glyph_count) * u16::RAW_BYTE_LEN;
+        let input_sequence_byte_len = minus_one(glyph_count) * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let seq_lookup_records_byte_len =
             seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
@@ -2113,7 +2113,7 @@ impl<'a> ClassSequenceRule<'a> {
 
     /// Sequence of classes to be matched to the input glyph sequence,
     /// beginning with the second glyph position
-    pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
+    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -2621,13 +2621,13 @@ impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let backtrack_glyph_count: u16 = cursor.read()?;
-        let backtrack_sequence_byte_len = backtrack_glyph_count as usize * u16::RAW_BYTE_LEN;
+        let backtrack_sequence_byte_len = backtrack_glyph_count as usize * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(backtrack_sequence_byte_len);
         let input_glyph_count: u16 = cursor.read()?;
-        let input_sequence_byte_len = minus_one(input_glyph_count) * u16::RAW_BYTE_LEN;
+        let input_sequence_byte_len = minus_one(input_glyph_count) * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let lookahead_glyph_count: u16 = cursor.read()?;
-        let lookahead_sequence_byte_len = lookahead_glyph_count as usize * u16::RAW_BYTE_LEN;
+        let lookahead_sequence_byte_len = lookahead_glyph_count as usize * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(lookahead_sequence_byte_len);
         let seq_lookup_count: u16 = cursor.read()?;
         let seq_lookup_records_byte_len =
@@ -2653,7 +2653,7 @@ impl<'a> ChainedSequenceRule<'a> {
     }
 
     /// Array of backtrack glyph IDs
-    pub fn backtrack_sequence(&self) -> &'a [BigEndian<u16>] {
+    pub fn backtrack_sequence(&self) -> &'a [BigEndian<GlyphId>] {
         let range = self.shape.backtrack_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -2665,7 +2665,7 @@ impl<'a> ChainedSequenceRule<'a> {
     }
 
     /// Array of input glyph IDs—start with second glyph
-    pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
+    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -2677,7 +2677,7 @@ impl<'a> ChainedSequenceRule<'a> {
     }
 
     /// Array of lookahead glyph IDs
-    pub fn lookahead_sequence(&self) -> &'a [BigEndian<u16>] {
+    pub fn lookahead_sequence(&self) -> &'a [BigEndian<GlyphId>] {
         let range = self.shape.lookahead_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -3086,13 +3086,13 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRule<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let backtrack_glyph_count: u16 = cursor.read()?;
-        let backtrack_sequence_byte_len = backtrack_glyph_count as usize * u16::RAW_BYTE_LEN;
+        let backtrack_sequence_byte_len = backtrack_glyph_count as usize * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(backtrack_sequence_byte_len);
         let input_glyph_count: u16 = cursor.read()?;
-        let input_sequence_byte_len = minus_one(input_glyph_count) * u16::RAW_BYTE_LEN;
+        let input_sequence_byte_len = minus_one(input_glyph_count) * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let lookahead_glyph_count: u16 = cursor.read()?;
-        let lookahead_sequence_byte_len = lookahead_glyph_count as usize * u16::RAW_BYTE_LEN;
+        let lookahead_sequence_byte_len = lookahead_glyph_count as usize * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(lookahead_sequence_byte_len);
         let seq_lookup_count: u16 = cursor.read()?;
         let seq_lookup_records_byte_len =
@@ -3118,7 +3118,7 @@ impl<'a> ChainedClassSequenceRule<'a> {
     }
 
     /// Array of backtrack-sequence classes
-    pub fn backtrack_sequence(&self) -> &'a [BigEndian<u16>] {
+    pub fn backtrack_sequence(&self) -> &'a [BigEndian<GlyphId>] {
         let range = self.shape.backtrack_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -3131,7 +3131,7 @@ impl<'a> ChainedClassSequenceRule<'a> {
 
     /// Array of input sequence classes, beginning with the second
     /// glyph position
-    pub fn input_sequence(&self) -> &'a [BigEndian<u16>] {
+    pub fn input_sequence(&self) -> &'a [BigEndian<GlyphId>] {
         let range = self.shape.input_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
@@ -3143,7 +3143,7 @@ impl<'a> ChainedClassSequenceRule<'a> {
     }
 
     /// Array of lookahead-sequence classes
-    pub fn lookahead_sequence(&self) -> &'a [BigEndian<u16>] {
+    pub fn lookahead_sequence(&self) -> &'a [BigEndian<GlyphId>] {
         let range = self.shape.lookahead_sequence_byte_range();
         self.data.read_array(range).unwrap()
     }
