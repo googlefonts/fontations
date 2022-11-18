@@ -79,6 +79,11 @@ impl<const N: usize, T> OffsetMarker<T, N> {
     pub fn set(&mut self, obj: T) {
         self.obj = obj;
     }
+
+    /// Convert into the inner type
+    pub fn into_inner(self) -> T {
+        self.obj
+    }
 }
 
 impl<const N: usize, T> NullableOffsetMarker<T, N> {
@@ -90,6 +95,11 @@ impl<const N: usize, T> NullableOffsetMarker<T, N> {
     /// Set the contents of the marker, replacing any existing contents.
     pub fn set(&mut self, obj: impl Into<Option<T>>) {
         self.obj = obj.into()
+    }
+
+    /// Convert into the inner type
+    pub fn into_inner(self) -> Option<T> {
+        self.obj
     }
 }
 

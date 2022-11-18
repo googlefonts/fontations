@@ -62,6 +62,12 @@ macro_rules! table_newtype {
         }
 
         impl<'a> FromTableRef<$read_type> for $name {}
+
+        impl From<$inner> for $name {
+            fn from(src: $inner) -> $name {
+                $name(src)
+            }
+        }
     };
 }
 
@@ -83,6 +89,46 @@ impl<T: LookupType + FontWrite> FontWrite for Lookup<T> {
             .write_into(writer);
         self.subtables.write_into(writer);
         self.mark_filtering_set.write_into(writer);
+    }
+}
+
+impl Lookup<SequenceContext> {
+    /// Convert this untyped SequenceContext into its GSUB or GPOS specific version
+    pub fn into_concrete<T: From<SequenceContext>>(self) -> Lookup<T> {
+        let Lookup {
+            lookup_flag,
+            subtables,
+            mark_filtering_set,
+        } = self;
+        let subtables = subtables
+            .into_iter()
+            .map(|offset| OffsetMarker::new(offset.into_inner().into()))
+            .collect();
+        Lookup {
+            lookup_flag,
+            subtables,
+            mark_filtering_set,
+        }
+    }
+}
+
+impl Lookup<ChainedSequenceContext> {
+    /// Convert this untyped SequenceContext into its GSUB or GPOS specific version
+    pub fn into_concrete<T: From<ChainedSequenceContext>>(self) -> Lookup<T> {
+        let Lookup {
+            lookup_flag,
+            subtables,
+            mark_filtering_set,
+        } = self;
+        let subtables = subtables
+            .into_iter()
+            .map(|offset| OffsetMarker::new(offset.into_inner().into()))
+            .collect();
+        Lookup {
+            lookup_flag,
+            subtables,
+            mark_filtering_set,
+        }
     }
 }
 
