@@ -1167,14 +1167,17 @@ impl<'a> FontRead<'a> for SequenceRuleSet {
 #[derive(Clone, Debug, Default)]
 pub struct SequenceRule {
     /// Array of input glyph IDs—starting with the second glyph
-    pub input_sequence: Vec<u16>,
+    pub input_sequence: Vec<GlyphId>,
     /// Array of Sequence lookup records
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
 }
 
 impl SequenceRule {
     /// Construct a new `SequenceRule`
-    pub fn new(input_sequence: Vec<u16>, seq_lookup_records: Vec<SequenceLookupRecord>) -> Self {
+    pub fn new(
+        input_sequence: Vec<GlyphId>,
+        seq_lookup_records: Vec<SequenceLookupRecord>,
+    ) -> Self {
         Self {
             input_sequence: input_sequence.into_iter().map(Into::into).collect(),
             seq_lookup_records: seq_lookup_records.into_iter().map(Into::into).collect(),
@@ -1379,14 +1382,17 @@ impl<'a> FontRead<'a> for ClassSequenceRuleSet {
 pub struct ClassSequenceRule {
     /// Sequence of classes to be matched to the input glyph sequence,
     /// beginning with the second glyph position
-    pub input_sequence: Vec<u16>,
+    pub input_sequence: Vec<GlyphId>,
     /// Array of SequenceLookupRecords
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
 }
 
 impl ClassSequenceRule {
     /// Construct a new `ClassSequenceRule`
-    pub fn new(input_sequence: Vec<u16>, seq_lookup_records: Vec<SequenceLookupRecord>) -> Self {
+    pub fn new(
+        input_sequence: Vec<GlyphId>,
+        seq_lookup_records: Vec<SequenceLookupRecord>,
+    ) -> Self {
         Self {
             input_sequence: input_sequence.into_iter().map(Into::into).collect(),
             seq_lookup_records: seq_lookup_records.into_iter().map(Into::into).collect(),
@@ -1746,11 +1752,11 @@ impl<'a> FontRead<'a> for ChainedSequenceRuleSet {
 #[derive(Clone, Debug, Default)]
 pub struct ChainedSequenceRule {
     /// Array of backtrack glyph IDs
-    pub backtrack_sequence: Vec<u16>,
+    pub backtrack_sequence: Vec<GlyphId>,
     /// Array of input glyph IDs—start with second glyph
-    pub input_sequence: Vec<u16>,
+    pub input_sequence: Vec<GlyphId>,
     /// Array of lookahead glyph IDs
-    pub lookahead_sequence: Vec<u16>,
+    pub lookahead_sequence: Vec<GlyphId>,
     /// Array of SequenceLookupRecords
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
 }
@@ -1758,9 +1764,9 @@ pub struct ChainedSequenceRule {
 impl ChainedSequenceRule {
     /// Construct a new `ChainedSequenceRule`
     pub fn new(
-        backtrack_sequence: Vec<u16>,
-        input_sequence: Vec<u16>,
-        lookahead_sequence: Vec<u16>,
+        backtrack_sequence: Vec<GlyphId>,
+        input_sequence: Vec<GlyphId>,
+        lookahead_sequence: Vec<GlyphId>,
         seq_lookup_records: Vec<SequenceLookupRecord>,
     ) -> Self {
         Self {
@@ -2018,12 +2024,12 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet {
 #[derive(Clone, Debug, Default)]
 pub struct ChainedClassSequenceRule {
     /// Array of backtrack-sequence classes
-    pub backtrack_sequence: Vec<u16>,
+    pub backtrack_sequence: Vec<GlyphId>,
     /// Array of input sequence classes, beginning with the second
     /// glyph position
-    pub input_sequence: Vec<u16>,
+    pub input_sequence: Vec<GlyphId>,
     /// Array of lookahead-sequence classes
-    pub lookahead_sequence: Vec<u16>,
+    pub lookahead_sequence: Vec<GlyphId>,
     /// Array of SequenceLookupRecords
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
 }
@@ -2031,9 +2037,9 @@ pub struct ChainedClassSequenceRule {
 impl ChainedClassSequenceRule {
     /// Construct a new `ChainedClassSequenceRule`
     pub fn new(
-        backtrack_sequence: Vec<u16>,
-        input_sequence: Vec<u16>,
-        lookahead_sequence: Vec<u16>,
+        backtrack_sequence: Vec<GlyphId>,
+        input_sequence: Vec<GlyphId>,
+        lookahead_sequence: Vec<GlyphId>,
         seq_lookup_records: Vec<SequenceLookupRecord>,
     ) -> Self {
         Self {

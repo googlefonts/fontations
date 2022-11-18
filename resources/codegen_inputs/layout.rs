@@ -266,7 +266,7 @@ table SequenceRule {
     seq_lookup_count: u16,
     /// Array of input glyph IDs—starting with the second glyph
     #[count(minus_one($glyph_count))]
-    input_sequence: [u16],
+    input_sequence: [GlyphId],
     /// Array of Sequence lookup records
     #[count($seq_lookup_count)]
     seq_lookup_records: [SequenceLookupRecord],
@@ -315,7 +315,7 @@ table ClassSequenceRule {
     /// Sequence of classes to be matched to the input glyph sequence,
     /// beginning with the second glyph position
     #[count(minus_one($glyph_count))]
-    input_sequence: [u16],
+    input_sequence: [GlyphId],
     /// Array of SequenceLookupRecords
     #[count($seq_lookup_count)]
     seq_lookup_records: [SequenceLookupRecord],
@@ -383,19 +383,19 @@ table ChainedSequenceRule {
     backtrack_glyph_count: u16,
     /// Array of backtrack glyph IDs
     #[count($backtrack_glyph_count)]
-    backtrack_sequence: [u16],
+    backtrack_sequence: [GlyphId],
     /// Number of glyphs in the input sequence
     #[compile(plus_one($input_sequence.len()))]
     input_glyph_count: u16,
     /// Array of input glyph IDs—start with second glyph
     #[count(minus_one($input_glyph_count))]
-    input_sequence: [u16],
+    input_sequence: [GlyphId],
     /// Number of glyphs in the lookahead sequence
     #[compile(array_len($lookahead_sequence))]
     lookahead_glyph_count: u16,
     /// Array of lookahead glyph IDs
     #[count($lookahead_glyph_count)]
-    lookahead_sequence: [u16],
+    lookahead_sequence: [GlyphId],
     /// Number of SequenceLookupRecords
     #[compile(array_len($seq_lookup_records))]
     seq_lookup_count: u16,
@@ -449,20 +449,20 @@ table ChainedClassSequenceRule {
     backtrack_glyph_count: u16,
     /// Array of backtrack-sequence classes
     #[count($backtrack_glyph_count)]
-    backtrack_sequence: [u16],
+    backtrack_sequence: [GlyphId],
     /// Total number of glyphs in the input sequence
     #[compile(plus_one($input_sequence.len()))]
     input_glyph_count: u16,
     /// Array of input sequence classes, beginning with the second
     /// glyph position
     #[count(minus_one($input_glyph_count))]
-    input_sequence: [u16],
+    input_sequence: [GlyphId],
     /// Number of glyphs in the lookahead sequence
     #[compile(array_len($lookahead_sequence))]
     lookahead_glyph_count: u16,
     /// Array of lookahead-sequence classes
     #[count($lookahead_glyph_count)]
-    lookahead_sequence: [u16],
+    lookahead_sequence: [GlyphId],
     /// Number of SequenceLookupRecords
     #[compile(array_len($seq_lookup_records))]
     seq_lookup_count: u16,
