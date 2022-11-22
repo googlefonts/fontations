@@ -14,7 +14,7 @@ table Head {
     /// directory, and must be ignored.
     checksum_adjustment: u32,
     /// Set to 0x5F0F3CF5.
-    #[compile(0x5F0F3CF5)]
+    #[default(0x5F0F3CF5)]
     magic_number: u32,
     /// See the flags enum
     flags: u16,
@@ -42,7 +42,7 @@ table Head {
     /// Smallest readable size in pixels.
     lowest_rec_ppem: u16,
     /// Deprecated (Set to 2).
-    #[compile(2)]
+    #[default(2)]
     font_direction_hint: i16,
     /// 0 for short offsets (Offset16), 1 for long (Offset32).
     index_to_loc_format: i16,
