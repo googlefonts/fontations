@@ -2,8 +2,8 @@
 
 use std::collections::BTreeSet;
 
-use font_types::{BigEndian, Scalar};
-use read_fonts::{FontData, ReadError};
+use read::{FontData, ReadError};
+use types::{BigEndian, Scalar};
 
 use crate::{NullableOffsetMarker, OffsetMarker};
 

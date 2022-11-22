@@ -2,7 +2,7 @@
 //!
 //! [GDEF]: https://docs.microsoft.com/en-us/typography/opentype/spec/gdef
 
-use font_types::MajorMinor;
+use types::MajorMinor;
 
 use super::layout::{ClassDef, CoverageTable, Device};
 

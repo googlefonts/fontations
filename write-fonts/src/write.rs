@@ -2,7 +2,7 @@ use std::collections::{BTreeSet, HashMap};
 
 use crate::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
 use crate::validate::{Validate, ValidationReport};
-use font_types::Uint24;
+use types::Uint24;
 
 /// A type that that can be written out as part of a font file.
 ///
@@ -249,16 +249,16 @@ write_be_bytes!(i16);
 write_be_bytes!(u32);
 write_be_bytes!(i32);
 write_be_bytes!(i64);
-write_be_bytes!(font_types::Uint24);
-write_be_bytes!(font_types::F2Dot14);
-write_be_bytes!(font_types::Fixed);
-write_be_bytes!(font_types::FWord);
-write_be_bytes!(font_types::UfWord);
-write_be_bytes!(font_types::LongDateTime);
-write_be_bytes!(font_types::Tag);
-write_be_bytes!(font_types::Version16Dot16);
-write_be_bytes!(font_types::MajorMinor);
-write_be_bytes!(font_types::GlyphId);
+write_be_bytes!(types::Uint24);
+write_be_bytes!(types::F2Dot14);
+write_be_bytes!(types::Fixed);
+write_be_bytes!(types::FWord);
+write_be_bytes!(types::UfWord);
+write_be_bytes!(types::LongDateTime);
+write_be_bytes!(types::Tag);
+write_be_bytes!(types::Version16Dot16);
+write_be_bytes!(types::MajorMinor);
+write_be_bytes!(types::GlyphId);
 
 impl<T: FontWrite> FontWrite for [T] {
     fn write_into(&self, writer: &mut TableWriter) {
