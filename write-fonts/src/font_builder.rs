@@ -21,6 +21,11 @@ impl<'a> FontBuilder<'a> {
         self
     }
 
+    /// Returns `true` if the builder contains a table with this tag.
+    pub fn contains(&self, tag: Tag) -> bool {
+        self.tables.contains_key(&tag)
+    }
+
     pub fn build(&mut self) -> Vec<u8> {
         let header_len = std::mem::size_of::<u32>() // sfnt
             + std::mem::size_of::<u16>() * 4 // num_tables to range_shift
