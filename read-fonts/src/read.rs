@@ -1,6 +1,6 @@
 //! Traits for interpreting font data
 
-use font_types::{FixedSize, ReadScalar, Tag};
+use types::{FixedSize, ReadScalar, Tag};
 
 use crate::font_data::FontData;
 
@@ -51,7 +51,7 @@ pub trait Format<T> {
 
 /// A type that can compute its size at runtime, based on some input.
 ///
-/// For types with a constant size, see [`FixedSize`](font_types::FixedSize) and
+/// For types with a constant size, see [`FixedSize`](types::FixedSize) and
 /// for types which store their size inline, see [`VarSize`].
 pub trait ComputeSize: ReadArgs {
     /// Compute the number of bytes required to represent this type.
@@ -62,7 +62,7 @@ pub trait ComputeSize: ReadArgs {
 ///
 /// As a rule, these types have an initial length field.
 ///
-/// For types with a constant size, see [`FixedSize`](font_types::FixedSize) and
+/// For types with a constant size, see [`FixedSize`](types::FixedSize) and
 /// for types which can pre-compute their size, see [`ComputeSize`].
 pub trait VarSize {
     /// The type of the first (length) field of the item.

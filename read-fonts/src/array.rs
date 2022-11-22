@@ -1,6 +1,6 @@
 //! Custom array types
 
-use font_types::FixedSize;
+use types::FixedSize;
 
 use crate::read::{ComputeSize, FontReadWithArgs, ReadArgs, VarSize};
 use crate::{FontData, FontRead, ReadError};

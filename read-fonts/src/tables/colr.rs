@@ -1,7 +1,7 @@
 //! The [COLR](https://docs.microsoft.com/en-us/typography/opentype/spec/colr) table
 
 use super::variations::{DeltaSetIndexMap, ItemVariationStore};
-use font_types::Tag;
+use types::Tag;
 
 /// 'COLR'
 pub const TAG: Tag = Tag::new(b"COLR");

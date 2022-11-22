@@ -10,7 +10,7 @@
 
 use std::{fmt::Debug, ops::Deref};
 
-use font_types::{
+use types::{
     BigEndian, F2Dot14, FWord, Fixed, GlyphId, LongDateTime, MajorMinor, Nullable, Offset16,
     Offset24, Offset32, Scalar, Tag, UfWord, Uint24, Version16Dot16,
 };

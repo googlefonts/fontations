@@ -1,4 +1,4 @@
-use font_types::{GlyphId, MajorMinor};
+use types::{GlyphId, MajorMinor};
 
 use super::*;
 use crate::tables::layout::{ClassDefFormat2, DeltaFormat};

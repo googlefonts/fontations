@@ -1,6 +1,6 @@
 //! The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head) table
 
-use font_types::Tag;
+use types::Tag;
 
 /// 'head'
 pub const TAG: Tag = Tag::new(b"head");
