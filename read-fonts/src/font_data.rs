@@ -261,6 +261,7 @@ impl AsRef<[u8]> for FontData<'_> {
 
 //kind of ugly, but makes FontData work with FontBuilder. If FontBuilder stops using
 //Cow in its API, we can probably get rid of this?
+#[cfg(feature = "std")]
 impl<'a> From<FontData<'a>> for std::borrow::Cow<'a, [u8]> {
     fn from(src: FontData<'a>) -> Self {
         src.bytes.into()

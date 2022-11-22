@@ -6,7 +6,7 @@
 use crate::codegen_prelude::*;
 
 /// <https://docs.microsoft.com/en-us/typography/opentype/spec/head>
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct Head {
     /// Set by font manufacturer.
     pub font_revision: Fixed,
@@ -16,6 +16,8 @@ pub struct Head {
     /// invalidated by changes to the file structure and font table
     /// directory, and must be ignored.
     pub checksum_adjustment: u32,
+    /// Set to 0x5F0F3CF5.
+    pub magic_number: u32,
     /// See the flags enum
     pub flags: u16,
     /// Set to a value from 16 to 16384. Any value in this range is
@@ -41,8 +43,32 @@ pub struct Head {
     pub mac_style: u16,
     /// Smallest readable size in pixels.
     pub lowest_rec_ppem: u16,
+    /// Deprecated (Set to 2).
+    pub font_direction_hint: i16,
     /// 0 for short offsets (Offset16), 1 for long (Offset32).
     pub index_to_loc_format: i16,
+}
+
+impl Default for Head {
+    fn default() -> Self {
+        Self {
+            font_revision: Default::default(),
+            checksum_adjustment: Default::default(),
+            magic_number: 0x5F0F3CF5,
+            flags: Default::default(),
+            units_per_em: Default::default(),
+            created: Default::default(),
+            modified: Default::default(),
+            x_min: Default::default(),
+            y_min: Default::default(),
+            x_max: Default::default(),
+            y_max: Default::default(),
+            mac_style: Default::default(),
+            lowest_rec_ppem: Default::default(),
+            font_direction_hint: 2,
+            index_to_loc_format: Default::default(),
+        }
+    }
 }
 
 impl Head {
@@ -77,6 +103,7 @@ impl Head {
             mac_style,
             lowest_rec_ppem,
             index_to_loc_format,
+            ..Default::default()
         }
     }
 }
@@ -87,7 +114,7 @@ impl FontWrite for Head {
         (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
         self.font_revision.write_into(writer);
         self.checksum_adjustment.write_into(writer);
-        (0x5F0F3CF5 as u32).write_into(writer);
+        self.magic_number.write_into(writer);
         self.flags.write_into(writer);
         self.units_per_em.write_into(writer);
         self.created.write_into(writer);
@@ -98,7 +125,7 @@ impl FontWrite for Head {
         self.y_max.write_into(writer);
         self.mac_style.write_into(writer);
         self.lowest_rec_ppem.write_into(writer);
-        (2 as i16).write_into(writer);
+        self.font_direction_hint.write_into(writer);
         self.index_to_loc_format.write_into(writer);
         (0 as i16).write_into(writer);
     }
@@ -113,6 +140,7 @@ impl<'a> FromObjRef<read_fonts::tables::head::Head<'a>> for Head {
         Head {
             font_revision: obj.font_revision(),
             checksum_adjustment: obj.checksum_adjustment(),
+            magic_number: obj.magic_number(),
             flags: obj.flags(),
             units_per_em: obj.units_per_em(),
             created: obj.created(),
@@ -123,6 +151,7 @@ impl<'a> FromObjRef<read_fonts::tables::head::Head<'a>> for Head {
             y_max: obj.y_max(),
             mac_style: obj.mac_style(),
             lowest_rec_ppem: obj.lowest_rec_ppem(),
+            font_direction_hint: obj.font_direction_hint(),
             index_to_loc_format: obj.index_to_loc_format(),
         }
     }
