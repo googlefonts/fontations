@@ -2,7 +2,7 @@
 
 use super::read::{FontRead, ReadError};
 use crate::{font_data::FontData, read::FontReadWithArgs};
-use font_types::{Nullable, Offset16, Offset24, Offset32};
+use types::{Nullable, Offset16, Offset24, Offset32};
 
 /// Any offset type.
 pub trait Offset: Copy {
@@ -31,7 +31,7 @@ impl_offset!(Offset16, 2);
 impl_offset!(Offset24, 3);
 impl_offset!(Offset32, 4);
 
-/// a (temporary?) helper trait to blanket impl a resolve method for font_types::Offset
+/// a (temporary?) helper trait to blanket impl a resolve method for types::Offset
 pub trait ResolveOffset {
     fn resolve<'a, T: FontRead<'a>>(&self, data: FontData<'a>) -> Result<T, ReadError>;
 

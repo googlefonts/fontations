@@ -1,6 +1,6 @@
 //! a trait for things that can serve font tables
 
-use font_types::Tag;
+use types::Tag;
 
 use crate::{tables, FontData, FontRead, FontReadWithArgs, ReadError};
 

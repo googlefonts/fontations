@@ -127,8 +127,8 @@ impl LookupFlag {
     }
 }
 
-impl font_types::Scalar for LookupFlag {
-    type Raw = <u16 as font_types::Scalar>::Raw;
+impl types::Scalar for LookupFlag {
+    type Raw = <u16 as types::Scalar>::Raw;
     fn to_raw(self) -> Self::Raw {
         self.0.to_raw()
     }

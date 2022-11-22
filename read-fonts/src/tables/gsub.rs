@@ -2,7 +2,7 @@
 //!
 //! [GSUB]: https://docs.microsoft.com/en-us/typography/opentype/spec/gsub
 
-use font_types::Tag;
+use types::Tag;
 
 pub use super::layout::{
     ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,

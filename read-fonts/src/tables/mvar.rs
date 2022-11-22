@@ -1,7 +1,7 @@
 //! The [MVAR (Metrics Variation)](https://docs.microsoft.com/en-us/typography/opentype/spec/mvar) table
 
 use super::variations::{DeltaSetIndex, ItemVariationStore};
-use font_types::Tag;
+use types::Tag;
 
 /// 'MVAR'
 pub const TAG: Tag = Tag::new(b"MVAR");

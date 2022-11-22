@@ -1,7 +1,7 @@
 //! The [VVAR (Vertical Metrics Variation)](https://docs.microsoft.com/en-us/typography/opentype/spec/vvar) table
 
 use super::variations::{self, DeltaSetIndexMap, ItemVariationStore};
-use font_types::Tag;
+use types::Tag;
 
 /// 'VVAR'
 pub const TAG: Tag = Tag::new(b"VVAR");

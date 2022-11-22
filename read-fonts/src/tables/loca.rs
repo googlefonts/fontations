@@ -3,7 +3,7 @@
 //! [loca]: https://docs.microsoft.com/en-us/typography/opentype/spec/loca
 
 use crate::read::{FontRead, FontReadWithArgs, ReadArgs, ReadError};
-use font_types::{BigEndian, GlyphId, Tag};
+use types::{BigEndian, GlyphId, Tag};
 
 #[cfg(feature = "traversal")]
 use crate::traversal;

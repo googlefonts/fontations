@@ -13,7 +13,6 @@ extern crate core as std;
 
 pub mod array;
 mod font_data;
-//pub mod layout;
 mod offset;
 mod read;
 mod table_provider;
@@ -38,7 +37,7 @@ pub use table_provider::TableProvider;
 pub use table_ref::TableRef;
 
 /// Public re-export of the font-types crate.
-pub use font_types as types;
+pub extern crate font_types as types;
 
 /// All the types that may be referenced in auto-generated code.
 #[doc(hidden)]
@@ -50,8 +49,8 @@ pub(crate) mod codegen_prelude {
         ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError, VarSize,
     };
     pub use crate::table_ref::TableRef;
-    pub use font_types::*;
     pub use std::ops::Range;
+    pub use types::*;
 
     #[cfg(feature = "traversal")]
     pub use crate::traversal::{self, Field, FieldType, RecordResolver, SomeRecord, SomeTable};

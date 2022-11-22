@@ -2,7 +2,7 @@
 
 use std::ops::{Range, RangeBounds};
 
-use font_types::{FixedSize, ReadScalar};
+use types::{FixedSize, ReadScalar};
 
 use crate::array::ComputedArray;
 use crate::read::{ComputeSize, FontReadWithArgs, ReadError};

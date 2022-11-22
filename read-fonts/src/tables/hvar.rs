@@ -1,7 +1,7 @@
 //! The [HVAR (Horizontal Metrics Variation)](https://docs.microsoft.com/en-us/typography/opentype/spec/hvar) table
 
 use super::variations::{self, DeltaSetIndexMap, ItemVariationStore};
-use font_types::Tag;
+use types::Tag;
 
 /// 'HVAR'
 pub const TAG: Tag = Tag::new(b"HVAR");
@@ -50,7 +50,7 @@ impl<'a> Hvar<'a> {
 #[cfg(test)]
 mod tests {
     use crate::{test_data, FontRef, TableProvider};
-    use font_types::{F2Dot14, Fixed, GlyphId};
+    use types::{F2Dot14, Fixed, GlyphId};
 
     #[test]
     fn advance_deltas() {

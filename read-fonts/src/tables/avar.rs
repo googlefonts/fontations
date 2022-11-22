@@ -1,6 +1,6 @@
 //! The [Axis Variations](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
 
-use font_types::Tag;
+use types::Tag;
 
 /// 'avar'
 pub const TAG: Tag = Tag::new(b"avar");
@@ -59,7 +59,7 @@ impl<'a> FontRead<'a> for SegmentMaps<'a> {
 #[cfg(test)]
 mod tests {
     use crate::{test_data, FontRef, TableProvider};
-    use font_types::{F2Dot14, Fixed};
+    use types::{F2Dot14, Fixed};
 
     #[test]
     fn segment_maps() {

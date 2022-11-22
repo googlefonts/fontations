@@ -1,6 +1,6 @@
 //! The [STAT](https://learn.microsoft.com/en-us/typography/opentype/spec/stat) table
 
-use font_types::Tag;
+use types::Tag;
 
 /// 'STAT'
 pub const TAG: Tag = Tag::new(b"STAT");
@@ -9,7 +9,7 @@ include!("../../generated/generated_stat.rs");
 
 #[cfg(test)]
 mod tests {
-    use font_types::Fixed;
+    use types::Fixed;
 
     use super::*;
     use crate::test_data::stat as test_data;

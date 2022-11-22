@@ -6,7 +6,7 @@ pub use super::layout::{
     ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
     Lookup, LookupList, ScriptList, SequenceContext,
 };
-use font_types::Tag;
+use types::Tag;
 
 #[cfg(test)]
 #[path = "../tests/test_gdef.rs"]
@@ -21,7 +21,7 @@ include!("../../generated/generated_gdef.rs");
 
 //#[cfg(feature = "compile")]
 //pub mod compile {
-//use font_types::{Offset, Offset16, OffsetHost};
+//use types::{Offset, Offset16, OffsetHost};
 
 //use crate::{
 //compile::{FontWrite, TableWriter, ToOwnedObj},
