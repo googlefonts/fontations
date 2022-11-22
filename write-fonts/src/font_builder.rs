@@ -3,7 +3,7 @@
 use std::borrow::Cow;
 use std::collections::BTreeMap;
 
-use font_types::Tag;
+use types::{Tag, TT_SFNT_VERSION};
 
 include!("../generated/generated_font.rs");
 
@@ -40,7 +40,7 @@ impl<'a> FontBuilder<'a> {
             })
             .collect();
 
-        let directory = TableDirectory::new(font_types::TT_SFNT_VERSION, 0, 0, 0, table_records);
+        let directory = TableDirectory::new(TT_SFNT_VERSION, 0, 0, 0, table_records);
 
         let mut writer = TableWriter::default();
         directory.write_into(&mut writer);
