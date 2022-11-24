@@ -866,7 +866,10 @@ impl<'a> SomeTable<'a> for SinglePosFormat1<'a> {
                 FieldType::offset(self.coverage_offset(), self.coverage()),
             )),
             2usize => Some(Field::new("value_format", self.value_format())),
-            3usize => Some(Field::new("value_record", self.value_record())),
+            3usize => Some(Field::new(
+                "value_record",
+                self.value_record().traversal_type(self.offset_data()),
+            )),
             _ => None,
         }
     }
@@ -1370,8 +1373,14 @@ impl<'a> SomeRecord<'a> for PairValueRecord {
             name: "PairValueRecord",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("second_glyph", self.second_glyph())),
-                1usize => Some(Field::new("value_record1", self.value_record1().clone())),
-                2usize => Some(Field::new("value_record2", self.value_record2().clone())),
+                1usize => Some(Field::new(
+                    "value_record1",
+                    self.value_record1().traversal_type(_data),
+                )),
+                2usize => Some(Field::new(
+                    "value_record2",
+                    self.value_record2().traversal_type(_data),
+                )),
                 _ => None,
             }),
             data,
@@ -1701,8 +1710,14 @@ impl<'a> SomeRecord<'a> for Class2Record {
         RecordResolver {
             name: "Class2Record",
             get_field: Box::new(move |idx, _data| match idx {
-                0usize => Some(Field::new("value_record1", self.value_record1().clone())),
-                1usize => Some(Field::new("value_record2", self.value_record2().clone())),
+                0usize => Some(Field::new(
+                    "value_record1",
+                    self.value_record1().traversal_type(_data),
+                )),
+                1usize => Some(Field::new(
+                    "value_record2",
+                    self.value_record2().traversal_type(_data),
+                )),
                 _ => None,
             }),
             data,

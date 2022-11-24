@@ -224,15 +224,6 @@ impl<'a> PrettyPrinter<'a> {
                 })?;
             }
             FieldType::Record(record) => self.print_fields(record)?,
-            FieldType::ValueRecord(record) if record.get_field(0).is_none() => {
-                self.write_all(b"Null")?;
-                self.print_hex(&[])?
-            }
-            FieldType::ValueRecord(record) => self.indented(|this| {
-                this.print_hex(&[])?;
-                this.print_newline()?;
-                this.print_fields(record)
-            })?,
             FieldType::Array(array) => self.print_array(array)?,
         }
 
