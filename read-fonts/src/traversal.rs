@@ -18,7 +18,6 @@ use types::{
 use crate::{
     array::{ComputedArray, VarLenArray},
     read::{ComputeSize, ReadArgs},
-    tables::gpos::ValueRecord,
     FontData, FontRead, FontReadWithArgs, ReadError, VarSize,
 };
 
@@ -49,7 +48,6 @@ pub enum FieldType<'a> {
     /// Used in COLR/CPAL
     ArrayOffset(ArrayOffset<'a>),
     Record(RecordResolver<'a>),
-    ValueRecord(ValueRecord),
     Array(Box<dyn SomeArray<'a> + 'a>),
 }
 
@@ -547,8 +545,6 @@ impl<'a> Debug for FieldType<'a> {
             }) => arg0.fmt(f),
             Self::ResolvedOffset(arg0) => arg0.target.fmt(f),
             Self::Record(arg0) => (arg0 as &(dyn SomeTable<'a> + 'a)).fmt(f),
-            Self::ValueRecord(arg0) if arg0.get_field(0).is_none() => write!(f, "NullValueRecord"),
-            Self::ValueRecord(arg0) => (arg0 as &(dyn SomeTable<'a> + 'a)).fmt(f),
             Self::Array(arg0) => arg0.fmt(f),
         }
     }
@@ -708,12 +704,6 @@ impl<'a> From<Version16Dot16> for FieldType<'a> {
 impl<'a> From<GlyphId> for FieldType<'a> {
     fn from(src: GlyphId) -> FieldType<'a> {
         FieldType::GlyphId(src)
-    }
-}
-
-impl<'a> From<ValueRecord> for FieldType<'a> {
-    fn from(src: ValueRecord) -> Self {
-        Self::ValueRecord(src)
     }
 }
 

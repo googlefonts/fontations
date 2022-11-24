@@ -6,7 +6,7 @@ use super::ValueFormat;
 use crate::{tables::layout::Device, ResolveOffset};
 
 #[cfg(feature = "traversal")]
-use crate::traversal::{Field, FieldType, RecordResolver, SomeRecord, SomeTable};
+use crate::traversal::{Field, FieldType, RecordResolver, SomeRecord};
 use crate::{ComputeSize, FontData, FontReadWithArgs, ReadArgs, ReadError};
 
 impl ValueFormat {
@@ -153,13 +153,12 @@ impl ComputeSize for ValueRecord {
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for ValueRecord {
-    fn type_name(&self) -> &str {
-        "ValueRecord"
+impl<'a> ValueRecord {
+    pub(crate) fn traversal_type(&self, data: FontData<'a>) -> FieldType<'a> {
+        FieldType::Record(self.clone().traverse(data))
     }
 
-    // a total hack
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+    pub(crate) fn get_field(&self, idx: usize, data: FontData<'a>) -> Option<Field<'a>> {
         let fields = [
             self.x_placement.is_some().then_some("x_placement"),
             self.y_placement.is_some().then_some("y_placement"),
@@ -185,14 +184,22 @@ impl<'a> SomeTable<'a> for ValueRecord {
             "y_placement" => self.y_placement().unwrap().into(),
             "x_advance" => self.x_advance().unwrap().into(),
             "y_advance" => self.y_advance().unwrap().into(),
-            "x_placement_device" => {
-                FieldType::unknown_offset(self.x_placement_device.unwrap().get())
-            }
-            "y_placement_device" => {
-                FieldType::unknown_offset(self.y_placement_device.unwrap().get())
-            }
-            "x_advance_device" => FieldType::unknown_offset(self.x_advance_device.unwrap().get()),
-            "y_advance_device" => FieldType::unknown_offset(self.y_advance_device.unwrap().get()),
+            "x_placement_device" => FieldType::offset(
+                self.x_placement_device.unwrap().get(),
+                self.x_placement_device(data),
+            ),
+            "y_placement_device" => FieldType::offset(
+                self.y_placement_device.unwrap().get(),
+                self.y_placement_device(data),
+            ),
+            "x_advance_device" => FieldType::offset(
+                self.x_advance_device.unwrap().get(),
+                self.x_advance_device(data),
+            ),
+            "y_advance_device" => FieldType::offset(
+                self.y_advance_device.unwrap().get(),
+                self.y_advance_device(data),
+            ),
             _ => panic!("hmm"),
         };
 
@@ -206,7 +213,7 @@ impl<'a> SomeRecord<'a> for ValueRecord {
         RecordResolver {
             name: "ValueRecord",
             data,
-            get_field: Box::new(move |idx, _| self.get_field(idx)),
+            get_field: Box::new(move |idx, data| self.get_field(idx, data)),
         }
     }
 }

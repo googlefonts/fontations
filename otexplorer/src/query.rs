@@ -173,7 +173,6 @@ fn field_type_name(field_type: &FieldType) -> Cow<'static, str> {
         FieldType::GlyphId(_) => "GlyphId".into(),
         FieldType::Array(arr) => format!("[{}]", arr.type_name()).into(),
         FieldType::Record(record) => record.type_name().to_string().into(),
-        FieldType::ValueRecord(_) => "ValueRecord".into(),
         FieldType::ResolvedOffset(ResolvedOffset {
             target: Ok(table), ..
         }) => table.type_name().to_string().into(),

@@ -394,8 +394,10 @@ fn traversal_arm_for_field(
         }
         // HACK: who wouldn't want to hard-code ValueRecord handling
         FieldType::Struct { typ } if typ == "ValueRecord" => {
-            let clone = in_record.then(|| quote!(.clone()));
-            quote!(Field::new(#name_str, self.#name() #clone #maybe_unwrap))
+            let offset_data = pass_data
+                .cloned()
+                .unwrap_or_else(|| fld.offset_getter_data_src());
+            quote!(Field::new(#name_str, self.#name() #maybe_unwrap .traversal_type(#offset_data)))
         }
         FieldType::Struct { .. } => {
             quote!(compile_error!(concat!("another weird type: ", #name_str)))
