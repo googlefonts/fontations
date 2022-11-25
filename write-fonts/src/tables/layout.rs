@@ -478,6 +478,54 @@ fn are_sequential(gid1: GlyphId, gid2: GlyphId) -> bool {
     gid2.to_u16().saturating_sub(gid1.to_u16()) == 1
 }
 
+impl Device {
+    pub fn new(start_size: u16, end_size: u16, values: &[i8]) -> Self {
+        debug_assert_eq!(
+            (start_size..=end_size).count(),
+            values.len(),
+            "device range and values must match"
+        );
+        let delta_format: DeltaFormat = values
+            .iter()
+            .map(|val| match val {
+                -2..=1 => DeltaFormat::Local2BitDeltas,
+                -8..=7 => DeltaFormat::Local4BitDeltas,
+                _ => DeltaFormat::Local8BitDeltas,
+            })
+            .max()
+            .unwrap_or_default();
+        let delta_value = encode_delta(delta_format, values);
+
+        Device {
+            start_size,
+            end_size,
+            delta_format,
+            delta_value,
+        }
+    }
+}
+
+fn encode_delta(format: DeltaFormat, values: &[i8]) -> Vec<u16> {
+    let (chunk_size, mask, bits) = match format {
+        DeltaFormat::Local2BitDeltas => (8, 0b11, 2),
+        DeltaFormat::Local4BitDeltas => (4, 0b1111, 4),
+        DeltaFormat::Local8BitDeltas => (2, 0b11111111, 8),
+        _ => panic!("invalid format"),
+    };
+    values
+        .chunks(chunk_size)
+        .map(|chunk| encode_chunk(chunk, mask, bits))
+        .collect()
+}
+
+fn encode_chunk(chunk: &[i8], mask: u8, bits: usize) -> u16 {
+    let mut out = 0u16;
+    for (i, val) in chunk.iter().enumerate() {
+        out |= ((val.to_be_bytes()[0] & mask) as u16) << ((16 - bits) - i * bits);
+    }
+    out
+}
+
 //FIXME: we should derive this in codegen
 impl PartialEq for Device {
     fn eq(&self, other: &Self) -> bool {
@@ -549,5 +597,18 @@ mod tests {
     fn delta_format_dflt() {
         let some: DeltaFormat = Default::default();
         assert_eq!(some, DeltaFormat::Local2BitDeltas);
+    }
+
+    #[test]
+    fn delta_encode() {
+        let inp = [1i8, 2, 3, -1];
+        let result = encode_delta(DeltaFormat::Local4BitDeltas, &inp);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], 0x123f_u16);
+
+        let inp = [1i8, 1, 1, 1, 1];
+        let result = encode_delta(DeltaFormat::Local2BitDeltas, &inp);
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0], 0x5540_u16);
     }
 }

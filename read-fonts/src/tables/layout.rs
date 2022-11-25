@@ -107,6 +107,18 @@ impl Default for DeltaFormat {
     }
 }
 
+impl Ord for DeltaFormat {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        (*self as u16).cmp(&(*other as u16))
+    }
+}
+
+impl PartialOrd for DeltaFormat {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        Some(Ord::cmp(self, other))
+    }
+}
+
 fn delta_value_count(start_size: u16, end_size: u16, delta_format: DeltaFormat) -> usize {
     let range_len = end_size.saturating_add(1).saturating_sub(start_size) as usize;
     let val_per_word = match delta_format {

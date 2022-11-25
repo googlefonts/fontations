@@ -2349,23 +2349,6 @@ pub struct Device {
     pub delta_value: Vec<u16>,
 }
 
-impl Device {
-    /// Construct a new `Device`
-    pub fn new(
-        start_size: u16,
-        end_size: u16,
-        delta_format: DeltaFormat,
-        delta_value: Vec<u16>,
-    ) -> Self {
-        Self {
-            start_size,
-            end_size,
-            delta_format,
-            delta_value: delta_value.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
 impl FontWrite for Device {
     fn write_into(&self, writer: &mut TableWriter) {
         self.start_size.write_into(writer);
