@@ -84,7 +84,7 @@ pub enum FileRef<'a> {
 
 impl<'a> FileRef<'a> {
     /// Creates a new reference to a file representing a font or font collection.
-    pub fn new(data: FontData<'a>) -> Result<Self, ReadError> {
+    pub fn new(data: &'a [u8]) -> Result<Self, ReadError> {
         Ok(if let Ok(collection) = CollectionRef::new(data) {
             Self::Collection(collection)
         } else {
@@ -111,7 +111,8 @@ pub struct CollectionRef<'a> {
 
 impl<'a> CollectionRef<'a> {
     /// Creates a new reference to a font collection.
-    pub fn new(data: FontData<'a>) -> Result<Self, ReadError> {
+    pub fn new(data: &'a [u8]) -> Result<Self, ReadError> {
+        let data = FontData::new(data);
         let header = TTCHeader::read(data)?;
         if header.ttc_tag() != TTC_HEADER_TAG {
             Err(ReadError::InvalidTtc(header.ttc_tag()))
@@ -158,7 +159,8 @@ pub struct FontRef<'a> {
 
 impl<'a> FontRef<'a> {
     /// Creates a new reference to a font.
-    pub fn new(data: FontData<'a>) -> Result<Self, ReadError> {
+    pub fn new(data: &'a [u8]) -> Result<Self, ReadError> {
+        let data = FontData::new(data);
         Self::with_table_directory(data, TableDirectory::read(data)?)
     }
 
