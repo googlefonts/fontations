@@ -361,17 +361,12 @@ pub mod stat {
 }
 
 pub mod test_fonts {
-    use crate::FontData;
+    pub static COLR_GRADIENT_RECT: &[u8] =
+        include_bytes!("../../../resources/test_fonts/ttf/linear_gradient_rect_colr_1.ttf");
 
-    pub static COLR_GRADIENT_RECT: FontData<'static> = FontData::new(include_bytes!(
-        "../../../resources/test_fonts/ttf/linear_gradient_rect_colr_1.ttf"
-    ));
+    pub static VAZIRMATN_VAR: &[u8] =
+        include_bytes!("../../../resources/test_fonts/ttf/vazirmatn_var_trimmed.ttf");
 
-    pub static VAZIRMATN_VAR: FontData<'static> = FontData::new(include_bytes!(
-        "../../../resources/test_fonts/ttf/vazirmatn_var_trimmed.ttf"
-    ));
-
-    pub static SIMPLE_GLYF: FontData<'static> = FontData::new(include_bytes!(
-        "../../../resources/test_fonts/ttf/simple_glyf.ttf"
-    ));
+    pub static SIMPLE_GLYF: &[u8] =
+        include_bytes!("../../../resources/test_fonts/ttf/simple_glyf.ttf");
 }
