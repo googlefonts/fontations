@@ -361,12 +361,19 @@ pub mod stat {
 }
 
 pub mod test_fonts {
+    //! statically bundled test fonts.
+    //!
+    //! These files are only present if this crate is built from the repo root,
+    //! and not when the crate is packaged.
+    //!
+    //! To add new files, you will need to add the file in resources/test_fonts,
+    //! and then update read-fonts/build.rs.
+
     pub static COLR_GRADIENT_RECT: &[u8] =
-        include_bytes!("../../../resources/test_fonts/ttf/linear_gradient_rect_colr_1.ttf");
+        include_bytes!(concat!(env!("OUT_DIR"), "/linear_gradient_rect_colr_1.ttf"));
 
     pub static VAZIRMATN_VAR: &[u8] =
-        include_bytes!("../../../resources/test_fonts/ttf/vazirmatn_var_trimmed.ttf");
+        include_bytes!(concat!(env!("OUT_DIR"), "/vazirmatn_var_trimmed.ttf"));
 
-    pub static SIMPLE_GLYF: &[u8] =
-        include_bytes!("../../../resources/test_fonts/ttf/simple_glyf.ttf");
+    pub static SIMPLE_GLYF: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/simple_glyf.ttf"));
 }
