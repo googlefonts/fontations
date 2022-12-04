@@ -26,28 +26,13 @@ pub struct Stat {
     pub elided_fallback_name_id: Option<u16>,
 }
 
-impl Stat {
-    /// Construct a new `Stat`
-    #[allow(clippy::useless_conversion)]
-    pub fn new(
-        design_axes: Vec<AxisRecord>,
-        offset_to_axis_values: OffsetMarker<Vec<OffsetMarker<AxisValue>>, WIDTH_32>,
-    ) -> Self {
-        Self {
-            design_axes: design_axes.into(),
-            offset_to_axis_values: offset_to_axis_values.into(),
-            ..Default::default()
-        }
-    }
-}
-
 impl FontWrite for Stat {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         let version = MajorMinor::VERSION_1_2 as MajorMinor;
         version.write_into(writer);
         (8 as u16).write_into(writer);
-        (array_len(&self.offset_to_axis_values).unwrap() as u16).write_into(writer);
+        (array_len(&self.design_axes).unwrap() as u16).write_into(writer);
         self.design_axes.write_into(writer);
         (array_len(&self.offset_to_axis_values).unwrap() as u16).write_into(writer);
         self.offset_to_axis_values.write_into(writer);
