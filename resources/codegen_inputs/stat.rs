@@ -1,6 +1,7 @@
 #![parse_module(read_fonts::tables::stat)]
 
 /// [STAT](https://docs.microsoft.com/en-us/typography/opentype/spec/stat) (Style Attributes Table)
+#[skip_constructor]
 table Stat {
     /// Major/minor version number. Set to 1.2 for new fonts.
     #[version]
@@ -13,7 +14,7 @@ table Stat {
     /// this value must be greater than or equal to the axisCount value
     /// in the 'fvar' table. In all fonts, must be greater than zero if
     /// axisValueCount is greater than zero.
-    #[compile(array_len($offset_to_axis_value_offsets))]
+    #[compile(array_len($design_axes_offset))]
     design_axis_count: u16,
     /// Offset in bytes from the beginning of the STAT table to the
     /// start of the design axes array. If designAxisCount is zero, set

@@ -2,6 +2,23 @@
 
 include!("../../generated/generated_stat.rs");
 
+impl Stat {
+    /// Create a new STAT 1.2 table
+    pub fn new(
+        design_axes: Vec<AxisRecord>,
+        axis_values: Vec<AxisValue>,
+        elided_fallback_name_id: u16,
+    ) -> Self {
+        Stat {
+            design_axes: design_axes.into(),
+            offset_to_axis_values: OffsetMarker::new(
+                axis_values.into_iter().map(Into::into).collect(),
+            ),
+            elided_fallback_name_id: Some(elided_fallback_name_id),
+        }
+    }
+}
+
 // we use a custom conversion here because we use a shim table in read-fonts
 // (required because it is an offset to an array of offsets, which is too recursive for us)
 // but in write-fonts we want to skip the shim table and just use a vec.
@@ -17,4 +34,35 @@ fn convert_axis_value_offsets(
         })
         .unwrap_or_default()
         .into()
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::dump_table;
+    use crate::read::tables::stat as read_stat;
+
+    use super::*;
+
+    #[test]
+    fn smoke_test() {
+        let table = Stat::new(
+            vec![AxisRecord::new(Tag::new(b"wght"), 257, 1)],
+            vec![
+                AxisValue::format_1(0, AxisValueTableFlags::empty(), 258, Fixed::from_f64(100.)),
+                AxisValue::format_1(0, AxisValueTableFlags::empty(), 261, Fixed::from_f64(400.)),
+            ],
+            0,
+        );
+
+        let bytes = dump_table(&table).unwrap();
+        let read = read_stat::Stat::read(FontData::new(&bytes)).unwrap();
+
+        assert_eq!(read.design_axes().unwrap().len(), 1);
+        assert_eq!(read.axis_value_count(), 2);
+        let axis_values = read.offset_to_axis_values().unwrap();
+        assert_eq!(axis_values.axis_value_offsets().len(), 2);
+        let value2 = axis_values.axis_values().nth(1).unwrap().unwrap();
+        let read_stat::AxisValue::Format1(value2) = value2 else { panic!("wrong format"); };
+        assert_eq!(value2.value_name_id(), 261);
+    }
 }
