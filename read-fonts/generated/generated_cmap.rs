@@ -27,6 +27,11 @@ impl CmapMarker {
     }
 }
 
+impl TopLevelTable for Cmap<'_> {
+    /// `cmap`
+    const TAG: Tag = Tag::new(b"cmap");
+}
+
 impl<'a> FontRead<'a> for Cmap<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();

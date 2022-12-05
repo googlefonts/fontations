@@ -1,6 +1,7 @@
 #![parse_module(read_fonts::tables::vhea)]
 
 /// The [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
+#[tag = "vhea"]
 table Vhea {
     /// The major/minor version (1, 0)
     #[compile(MajorMinor::VERSION_1_1)]

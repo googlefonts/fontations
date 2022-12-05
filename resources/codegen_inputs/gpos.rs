@@ -5,6 +5,7 @@ extern record ValueRecord;
 
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 /// [GPOS Version 1.0](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#gpos-header)
+#[tag = "GPOS"]
 table Gpos {
     /// The major and minor version of the GPOS table, as a tuple (u16, u16)
     #[version]

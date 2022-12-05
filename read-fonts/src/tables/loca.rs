@@ -2,7 +2,10 @@
 //!
 //! [loca]: https://docs.microsoft.com/en-us/typography/opentype/spec/loca
 
-use crate::read::{FontRead, FontReadWithArgs, ReadArgs, ReadError};
+use crate::{
+    read::{FontRead, FontReadWithArgs, ReadArgs, ReadError},
+    table_provider::TopLevelTable,
+};
 use types::{BigEndian, GlyphId, Tag};
 
 #[cfg(feature = "traversal")]
@@ -18,6 +21,10 @@ pub const TAG: Tag = Tag::new(b"loca");
 pub enum Loca<'a> {
     Short(&'a [BigEndian<u16>]),
     Long(&'a [BigEndian<u32>]),
+}
+
+impl TopLevelTable for Loca<'_> {
+    const TAG: Tag = Tag::new(b"loca");
 }
 
 impl<'a> Loca<'a> {

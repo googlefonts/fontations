@@ -71,6 +71,17 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     let optional_format_trait_impl = item.impl_format_trait();
     let font_read = generate_font_read(item)?;
     let debug = generate_debug(item)?;
+    let top_level = item.attrs.tag.as_ref().map(|tag| {
+        let tag_str = tag.value();
+        let doc = format!(" `{tag_str}`");
+        let byte_tag = syn::LitByteStr::new(tag_str.as_bytes(), tag.span());
+        quote! {
+            impl TopLevelTable for #raw_name<'_> {
+                #[doc = #doc]
+                const TAG: Tag = Tag::new(#byte_tag);
+            }
+        }
+    });
 
     Ok(quote! {
         #optional_format_trait_impl
@@ -86,6 +97,8 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         impl <#generic> #marker_name <#generic> {
             #( #shape_byte_range_fns )*
         }
+
+        #top_level
 
         #impl_clone_copy
 
@@ -275,8 +288,18 @@ pub(crate) fn generate_compile(item: &Table, parse_module: &syn::Path) -> syn::R
         .is_none()
         .then(|| generate_to_owned_impl(item, parse_module))
         .transpose()?;
+    let top_level = item.attrs.tag.as_ref().map(|tag| {
+        let name = item.raw_name();
+        let byte_tag = syn::LitByteStr::new(tag.value().as_bytes(), tag.span());
+        quote! {
+            impl TopLevelTable for #name {
+                const TAG: Tag = Tag::new(#byte_tag);
+            }
+        }
+    });
     Ok(quote! {
         #decl
+        #top_level
         #to_owned_impl
     })
 }

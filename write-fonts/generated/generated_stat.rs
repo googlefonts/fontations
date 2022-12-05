@@ -66,6 +66,10 @@ impl Validate for Stat {
     }
 }
 
+impl TopLevelTable for Stat {
+    const TAG: Tag = Tag::new(b"STAT");
+}
+
 impl<'a> FromObjRef<read_fonts::tables::stat::Stat<'a>> for Stat {
     fn from_obj_ref(obj: &read_fonts::tables::stat::Stat<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();

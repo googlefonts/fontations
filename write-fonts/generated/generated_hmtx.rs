@@ -46,6 +46,10 @@ impl Validate for Hmtx {
     }
 }
 
+impl TopLevelTable for Hmtx {
+    const TAG: Tag = Tag::new(b"hmtx");
+}
+
 impl<'a> FromObjRef<read_fonts::tables::hmtx::Hmtx<'a>> for Hmtx {
     fn from_obj_ref(obj: &read_fonts::tables::hmtx::Hmtx<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();

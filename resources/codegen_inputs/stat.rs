@@ -2,6 +2,7 @@
 
 /// [STAT](https://docs.microsoft.com/en-us/typography/opentype/spec/stat) (Style Attributes Table)
 #[skip_constructor]
+#[tag = "STAT"]
 table Stat {
     /// Major/minor version number. Set to 1.2 for new fonts.
     #[version]

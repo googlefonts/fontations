@@ -44,6 +44,11 @@ impl GdefMarker {
     }
 }
 
+impl TopLevelTable for Gdef<'_> {
+    /// `GDEF`
+    const TAG: Tag = Tag::new(b"GDEF");
+}
+
 impl<'a> FontRead<'a> for Gdef<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();

@@ -33,7 +33,7 @@ pub mod test_helpers;
 pub use font_data::FontData;
 pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
 pub use read::{ComputeSize, FontRead, FontReadWithArgs, ReadArgs, ReadError, VarSize};
-pub use table_provider::TableProvider;
+pub use table_provider::{TableProvider, TopLevelTable};
 pub use table_ref::TableRef;
 
 /// Public re-export of the font-types crate.
@@ -48,8 +48,10 @@ pub(crate) mod codegen_prelude {
     pub use crate::read::{
         ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError, VarSize,
     };
+    pub use crate::table_provider::TopLevelTable;
     pub use crate::table_ref::TableRef;
     pub use std::ops::Range;
+
     pub use types::*;
 
     #[cfg(feature = "traversal")]

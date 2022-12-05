@@ -96,6 +96,10 @@ impl Validate for Vhea {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
+impl TopLevelTable for Vhea {
+    const TAG: Tag = Tag::new(b"vhea");
+}
+
 impl<'a> FromObjRef<read_fonts::tables::vhea::Vhea<'a>> for Vhea {
     fn from_obj_ref(obj: &read_fonts::tables::vhea::Vhea<'a>, _: FontData) -> Self {
         Vhea {

@@ -74,6 +74,10 @@ impl Validate for Name {
     }
 }
 
+impl TopLevelTable for Name {
+    const TAG: Tag = Tag::new(b"name");
+}
+
 impl<'a> FromObjRef<read_fonts::tables::name::Name<'a>> for Name {
     fn from_obj_ref(obj: &read_fonts::tables::name::Name<'a>, _: FontData) -> Self {
         let offset_data = obj.string_data();

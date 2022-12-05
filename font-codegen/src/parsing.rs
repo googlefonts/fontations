@@ -2,6 +2,7 @@
 
 use std::{backtrace::Backtrace, collections::HashMap, fmt::Display, ops::Deref, str::FromStr};
 
+use font_types::Tag;
 use indexmap::IndexMap;
 use log::{debug, trace};
 use proc_macro2::{Span, TokenStream};
@@ -62,6 +63,7 @@ pub(crate) struct TableAttrs {
     pub(crate) skip_constructor: Option<syn::Path>,
     pub(crate) read_args: Option<Attr<TableReadArgs>>,
     pub(crate) generic_offset: Option<Attr<syn::Ident>>,
+    pub(crate) tag: Option<Attr<syn::LitStr>>,
 }
 
 #[derive(Debug, Clone)]
@@ -966,6 +968,7 @@ static SKIP_FONT_WRITE: &str = "skip_font_write";
 static SKIP_CONSTRUCTOR: &str = "skip_constructor";
 static READ_ARGS: &str = "read_args";
 static GENERIC_OFFSET: &str = "generic_offset";
+static TAG: &str = "tag";
 
 impl Parse for TableAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -989,6 +992,12 @@ impl Parse for TableAttrs {
                 this.read_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == GENERIC_OFFSET {
                 this.generic_offset = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == TAG {
+                let tag: syn::LitStr = parse_attr_eq_value(attr.tokens)?;
+                if let Err(e) = Tag::new_checked(tag.value().as_bytes()) {
+                    return Err(logged_syn_error(tag.span(), format!("invalid tag: '{e}'")));
+                }
+                this.tag = Some(Attr::new(ident.clone(), tag))
             } else {
                 return Err(logged_syn_error(
                     ident.span(),

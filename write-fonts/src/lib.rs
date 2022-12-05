@@ -34,7 +34,9 @@ pub(crate) mod codegen_prelude {
     pub use std::collections::BTreeSet;
     pub use types::*;
 
-    pub use read::{FontData, FontRead, FontReadWithArgs, ReadArgs, ReadError, ResolveOffset};
+    pub use read::{
+        FontData, FontRead, FontReadWithArgs, ReadArgs, ReadError, ResolveOffset, TopLevelTable,
+    };
 
     /// checked conversion to u16
     pub fn array_len<T: super::collections::HasLen>(s: &T) -> Result<u16, TryFromIntError> {

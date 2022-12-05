@@ -2,6 +2,7 @@
 #![parse_module(read_fonts::tables::gsub)]
 
 /// [GSUB](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsub-header)
+#[tag = "GSUB"]
 table Gsub {
     /// The major and minor version of the GSUB table, as a tuple (u16, u16)
     #[version]

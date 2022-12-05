@@ -69,6 +69,10 @@ impl Validate for Gpos {
     }
 }
 
+impl TopLevelTable for Gpos {
+    const TAG: Tag = Tag::new(b"GPOS");
+}
+
 impl<'a> FromObjRef<read_fonts::tables::gpos::Gpos<'a>> for Gpos {
     fn from_obj_ref(obj: &read_fonts::tables::gpos::Gpos<'a>, _: FontData) -> Self {
         Gpos {

@@ -1,6 +1,7 @@
 #![parse_module(read_fonts::tables::gdef)]
 
 /// [GDEF](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#gdef-header) 1.0
+#[tag = "GDEF"]
 table Gdef {
     /// The major/minor version of the GDEF table
     #[version]

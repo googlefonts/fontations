@@ -67,6 +67,11 @@ impl PostMarker {
     }
 }
 
+impl TopLevelTable for Post<'_> {
+    /// `post`
+    const TAG: Tag = Tag::new(b"post");
+}
+
 impl<'a> FontRead<'a> for Post<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();

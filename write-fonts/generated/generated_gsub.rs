@@ -68,6 +68,10 @@ impl Validate for Gsub {
     }
 }
 
+impl TopLevelTable for Gsub {
+    const TAG: Tag = Tag::new(b"GSUB");
+}
+
 impl<'a> FromObjRef<read_fonts::tables::gsub::Gsub<'a>> for Gsub {
     fn from_obj_ref(obj: &read_fonts::tables::gsub::Gsub<'a>, _: FontData) -> Self {
         Gsub {

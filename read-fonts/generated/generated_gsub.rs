@@ -35,6 +35,11 @@ impl GsubMarker {
     }
 }
 
+impl TopLevelTable for Gsub<'_> {
+    /// `GSUB`
+    const TAG: Tag = Tag::new(b"GSUB");
+}
+
 impl<'a> FontRead<'a> for Gsub<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();

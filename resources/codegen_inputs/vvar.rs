@@ -1,6 +1,7 @@
 #![parse_module(read_fonts::tables::vvar)]
 
 /// The [VVAR (Vertical Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/vvar) table
+#[tag = "VVAR"]
 table Vvar {
     /// Major version number of the horizontal metrics variations table — set to 1.
     /// Minor version number of the horizontal metrics variations table — set to 0.

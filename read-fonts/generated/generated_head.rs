@@ -81,6 +81,11 @@ impl HeadMarker {
     }
 }
 
+impl TopLevelTable for Head<'_> {
+    /// `head`
+    const TAG: Tag = Tag::new(b"head");
+}
+
 impl<'a> FontRead<'a> for Head<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();

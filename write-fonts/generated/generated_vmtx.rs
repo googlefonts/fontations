@@ -45,6 +45,10 @@ impl Validate for Vmtx {
     }
 }
 
+impl TopLevelTable for Vmtx {
+    const TAG: Tag = Tag::new(b"vmtx");
+}
+
 impl<'a> FromObjRef<read_fonts::tables::vmtx::Vmtx<'a>> for Vmtx {
     fn from_obj_ref(obj: &read_fonts::tables::vmtx::Vmtx<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();

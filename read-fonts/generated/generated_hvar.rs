@@ -33,6 +33,11 @@ impl HvarMarker {
     }
 }
 
+impl TopLevelTable for Hvar<'_> {
+    /// `HVAR`
+    const TAG: Tag = Tag::new(b"HVAR");
+}
+
 impl<'a> FontRead<'a> for Hvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();

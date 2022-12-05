@@ -4,6 +4,7 @@ extern record LongMetric;
 
 /// The [vmtx (Vertical Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/vmtx) table
 #[read_args(number_of_long_ver_metrics: u16, num_glyphs: u16)]
+#[tag = "vmtx"]
 table Vmtx {
     /// Paired advance height and top side bearing values for each
     /// glyph. Records are indexed by glyph ID.

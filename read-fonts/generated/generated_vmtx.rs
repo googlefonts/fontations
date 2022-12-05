@@ -24,6 +24,11 @@ impl VmtxMarker {
     }
 }
 
+impl TopLevelTable for Vmtx<'_> {
+    /// `vmtx`
+    const TAG: Tag = Tag::new(b"vmtx");
+}
+
 impl ReadArgs for Vmtx<'_> {
     type Args = (u16, u16);
 }

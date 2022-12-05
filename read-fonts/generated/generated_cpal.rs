@@ -54,6 +54,11 @@ impl CpalMarker {
     }
 }
 
+impl TopLevelTable for Cpal<'_> {
+    /// `CPAL`
+    const TAG: Tag = Tag::new(b"CPAL");
+}
+
 impl<'a> FontRead<'a> for Cpal<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();

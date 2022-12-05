@@ -59,6 +59,11 @@ impl ColrMarker {
     }
 }
 
+impl TopLevelTable for Colr<'_> {
+    /// `COLR`
+    const TAG: Tag = Tag::new(b"COLR");
+}
+
 impl<'a> FontRead<'a> for Colr<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
