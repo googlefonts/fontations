@@ -1,6 +1,7 @@
 #![parse_module(read_fonts::tables::cmap)]
 
 /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
+#[tag = "cmap"]
 table Cmap {
     /// Table version number (0).
     version: u16,

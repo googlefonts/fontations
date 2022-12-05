@@ -91,6 +91,10 @@ impl Validate for Gdef {
     }
 }
 
+impl TopLevelTable for Gdef {
+    const TAG: Tag = Tag::new(b"GDEF");
+}
+
 impl<'a> FromObjRef<read_fonts::tables::gdef::Gdef<'a>> for Gdef {
     fn from_obj_ref(obj: &read_fonts::tables::gdef::Gdef<'a>, _: FontData) -> Self {
         Gdef {

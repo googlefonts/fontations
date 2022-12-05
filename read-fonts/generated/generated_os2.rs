@@ -5,7 +5,7 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [`OS2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
+/// [`OS/2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct Os2Marker {
@@ -180,6 +180,11 @@ impl Os2Marker {
     }
 }
 
+impl TopLevelTable for Os2<'_> {
+    /// `OS/2`
+    const TAG: Tag = Tag::new(b"OS/2");
+}
+
 impl<'a> FontRead<'a> for Os2<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -274,7 +279,7 @@ impl<'a> FontRead<'a> for Os2<'a> {
     }
 }
 
-/// [`OS2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
+/// [`OS/2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
 pub type Os2<'a> = TableRef<'a, Os2Marker>;
 
 impl<'a> Os2<'a> {

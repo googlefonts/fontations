@@ -36,6 +36,11 @@ impl GposMarker {
     }
 }
 
+impl TopLevelTable for Gpos<'_> {
+    /// `GPOS`
+    const TAG: Tag = Tag::new(b"GPOS");
+}
+
 impl<'a> FontRead<'a> for Gpos<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();

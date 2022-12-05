@@ -1,6 +1,7 @@
 #![parse_module(read_fonts::tables::name)]
 
 /// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
+#[tag = "name"]
 table Name {
     /// Table version number (0 or 1)
     #[version]

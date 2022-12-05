@@ -2,6 +2,7 @@
 #![parse_module(read_fonts::tables::colr)]
 
 /// [COLR (Color)](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#colr-header) table
+#[tag = "COLR"]
 table Colr {
     /// Table version number - set to 0 or 1.
     #[version]

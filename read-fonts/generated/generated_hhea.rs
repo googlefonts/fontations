@@ -6,7 +6,6 @@
 use crate::codegen_prelude::*;
 
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
-/// [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct HheaMarker {}
@@ -82,6 +81,11 @@ impl HheaMarker {
     }
 }
 
+impl TopLevelTable for Hhea<'_> {
+    /// `hhea`
+    const TAG: Tag = Tag::new(b"hhea");
+}
+
 impl<'a> FontRead<'a> for Hhea<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
@@ -107,7 +111,6 @@ impl<'a> FontRead<'a> for Hhea<'a> {
 }
 
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
-/// [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
 pub type Hhea<'a> = TableRef<'a, HheaMarker>;
 
 impl<'a> Hhea<'a> {

@@ -24,6 +24,11 @@ impl HmtxMarker {
     }
 }
 
+impl TopLevelTable for Hmtx<'_> {
+    /// `hmtx`
+    const TAG: Tag = Tag::new(b"hmtx");
+}
+
 impl ReadArgs for Hmtx<'_> {
     type Args = (u16, u16);
 }

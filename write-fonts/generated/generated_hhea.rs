@@ -6,7 +6,6 @@
 use crate::codegen_prelude::*;
 
 /// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
-/// [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
 #[derive(Clone, Debug, Default)]
 pub struct Hhea {
     /// Typographic ascent.
@@ -96,6 +95,10 @@ impl FontWrite for Hhea {
 
 impl Validate for Hhea {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl TopLevelTable for Hhea {
+    const TAG: Tag = Tag::new(b"hhea");
 }
 
 impl<'a> FromObjRef<read_fonts::tables::hhea::Hhea<'a>> for Hhea {

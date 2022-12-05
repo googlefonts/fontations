@@ -1,6 +1,7 @@
 #![parse_module(read_fonts::tables::os2)]
 
-/// [`OS2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
+/// [`OS/2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
+#[tag = "OS/2"]
 table Os2 {
     #[version]
     #[compile(self.compute_version())]

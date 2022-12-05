@@ -103,6 +103,10 @@ impl Validate for Cpal {
     }
 }
 
+impl TopLevelTable for Cpal {
+    const TAG: Tag = Tag::new(b"CPAL");
+}
+
 impl<'a> FromObjRef<read_fonts::tables::cpal::Cpal<'a>> for Cpal {
     fn from_obj_ref(obj: &read_fonts::tables::cpal::Cpal<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();

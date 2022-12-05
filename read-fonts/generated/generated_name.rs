@@ -42,6 +42,11 @@ impl NameMarker {
     }
 }
 
+impl TopLevelTable for Name<'_> {
+    /// `name`
+    const TAG: Tag = Tag::new(b"name");
+}
+
 impl<'a> FontRead<'a> for Name<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();

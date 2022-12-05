@@ -4,6 +4,14 @@ use types::Tag;
 
 use crate::{tables, FontData, FontRead, FontReadWithArgs, ReadError};
 
+/// A table that has an associated tag.
+///
+/// This is true of top-level tables, but not their various subtables.
+pub trait TopLevelTable {
+    /// The table's tag.
+    const TAG: Tag;
+}
+
 /// An interface for accessing tables from a font (or font-like object)
 pub trait TableProvider<'a> {
     fn data_for_tag(&self, tag: Tag) -> Option<FontData<'a>>;
@@ -12,84 +20,75 @@ pub trait TableProvider<'a> {
         self.data_for_tag(tag).ok_or(ReadError::TableIsMissing(tag))
     }
 
+    fn expect_table<T: TopLevelTable + FontRead<'a>>(&self) -> Result<T, ReadError> {
+        self.expect_data_for_tag(T::TAG).and_then(FontRead::read)
+    }
+
+    fn expect_table_args<T: TopLevelTable + FontReadWithArgs<'a>>(
+        &self,
+        args: &T::Args,
+    ) -> Result<T, ReadError> {
+        self.expect_data_for_tag(T::TAG)
+            .and_then(|data| T::read_with_args(data, args))
+    }
+
     fn head(&self) -> Result<tables::head::Head<'a>, ReadError> {
-        self.expect_data_for_tag(tables::head::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn name(&self) -> Result<tables::name::Name<'a>, ReadError> {
-        self.expect_data_for_tag(tables::name::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn hhea(&self) -> Result<tables::hhea::Hhea<'a>, ReadError> {
-        self.expect_data_for_tag(tables::hhea::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn vhea(&self) -> Result<tables::vhea::Vhea<'a>, ReadError> {
-        self.expect_data_for_tag(tables::vhea::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn hmtx(&self) -> Result<tables::hmtx::Hmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
         let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_long_metrics())?;
-        self.expect_data_for_tag(tables::hmtx::TAG)
-            .and_then(|data| {
-                FontReadWithArgs::read_with_args(data, &(number_of_h_metrics, num_glyphs))
-            })
+        self.expect_table_args(&(number_of_h_metrics, num_glyphs))
     }
 
     fn vmtx(&self) -> Result<tables::vmtx::Vmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
         let number_of_v_metrics = self.vhea().map(|vhea| vhea.number_of_long_ver_metrics())?;
-        self.expect_data_for_tag(tables::vmtx::TAG)
-            .and_then(|data| {
-                FontReadWithArgs::read_with_args(data, &(number_of_v_metrics, num_glyphs))
-            })
+        self.expect_table_args(&(number_of_v_metrics, num_glyphs))
     }
 
     fn avar(&self) -> Result<tables::avar::Avar<'a>, ReadError> {
-        self.expect_data_for_tag(tables::avar::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn hvar(&self) -> Result<tables::hvar::Hvar<'a>, ReadError> {
-        self.expect_data_for_tag(tables::hvar::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn vvar(&self) -> Result<tables::vvar::Vvar<'a>, ReadError> {
-        self.expect_data_for_tag(tables::vvar::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn mvar(&self) -> Result<tables::mvar::Mvar<'a>, ReadError> {
-        self.expect_data_for_tag(tables::mvar::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn maxp(&self) -> Result<tables::maxp::Maxp<'a>, ReadError> {
-        self.expect_data_for_tag(tables::maxp::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn os2(&self) -> Result<tables::os2::Os2<'a>, ReadError> {
-        self.expect_data_for_tag(tables::os2::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn post(&self) -> Result<tables::post::Post<'a>, ReadError> {
-        self.expect_data_for_tag(tables::post::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
-
-    //fn stat(&self) -> Option<stat::Stat> {
-    //self.data_for_tag(stat::TAG).and_then(stat::Stat::read)
-    //}
 
     /// is_long can be optionally provided, if known, otherwise we look it up in head.
     fn loca(&self, is_long: impl Into<Option<bool>>) -> Result<tables::loca::Loca<'a>, ReadError> {
@@ -97,48 +96,39 @@ pub trait TableProvider<'a> {
             Some(val) => val,
             None => self.head()?.index_to_loc_format() == 1,
         };
-        self.expect_data_for_tag(tables::loca::TAG)
-            .and_then(|data| FontReadWithArgs::read_with_args(data, &is_long))
+        self.expect_table_args(&is_long)
     }
 
     fn glyf(&self) -> Result<tables::glyf::Glyf<'a>, ReadError> {
-        self.expect_data_for_tag(tables::glyf::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn cmap(&self) -> Result<tables::cmap::Cmap<'a>, ReadError> {
-        self.expect_data_for_tag(tables::cmap::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn gdef(&self) -> Result<tables::gdef::Gdef<'a>, ReadError> {
-        self.expect_data_for_tag(tables::gdef::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn gpos(&self) -> Result<tables::gpos::Gpos<'a>, ReadError> {
-        self.expect_data_for_tag(tables::gpos::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn gsub(&self) -> Result<tables::gsub::Gsub<'a>, ReadError> {
-        self.expect_data_for_tag(tables::gsub::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn colr(&self) -> Result<tables::colr::Colr<'a>, ReadError> {
-        self.expect_data_for_tag(tables::colr::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn cpal(&self) -> Result<tables::cpal::Cpal<'a>, ReadError> {
-        self.expect_data_for_tag(tables::cpal::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 
     fn stat(&self) -> Result<tables::stat::Stat<'a>, ReadError> {
-        self.expect_data_for_tag(tables::stat::TAG)
-            .and_then(FontRead::read)
+        self.expect_table()
     }
 }
 

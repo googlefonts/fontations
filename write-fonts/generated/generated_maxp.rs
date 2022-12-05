@@ -230,6 +230,10 @@ impl Validate for Maxp {
     }
 }
 
+impl TopLevelTable for Maxp {
+    const TAG: Tag = Tag::new(b"maxp");
+}
+
 impl<'a> FromObjRef<read_fonts::tables::maxp::Maxp<'a>> for Maxp {
     fn from_obj_ref(obj: &read_fonts::tables::maxp::Maxp<'a>, _: FontData) -> Self {
         Maxp {

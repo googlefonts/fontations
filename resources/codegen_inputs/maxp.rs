@@ -1,6 +1,7 @@
 #![parse_module(read_fonts::tables::maxp)]
 
 /// [`maxp`](https://docs.microsoft.com/en-us/typography/opentype/spec/maxp)
+#[tag = "maxp"]
 table Maxp {
     /// The version: 0x00005000 for version 0.5, 0x00010000 for version 1.0.
     #[version]

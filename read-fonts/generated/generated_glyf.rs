@@ -12,6 +12,11 @@ pub struct GlyfMarker {}
 
 impl GlyfMarker {}
 
+impl TopLevelTable for Glyf<'_> {
+    /// `glyf`
+    const TAG: Tag = Tag::new(b"glyf");
+}
+
 impl<'a> FontRead<'a> for Glyf<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let cursor = data.cursor();

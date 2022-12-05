@@ -155,6 +155,10 @@ impl Validate for Post {
     }
 }
 
+impl TopLevelTable for Post {
+    const TAG: Tag = Tag::new(b"post");
+}
+
 impl<'a> FromObjRef<read_fonts::tables::post::Post<'a>> for Post {
     fn from_obj_ref(obj: &read_fonts::tables::post::Post<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();

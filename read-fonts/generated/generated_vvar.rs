@@ -37,6 +37,11 @@ impl VvarMarker {
     }
 }
 
+impl TopLevelTable for Vvar<'_> {
+    /// `VVAR`
+    const TAG: Tag = Tag::new(b"VVAR");
+}
+
 impl<'a> FontRead<'a> for Vvar<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();

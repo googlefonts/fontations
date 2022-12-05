@@ -1,5 +1,6 @@
 #![parse_module(read_fonts::tables::glyf)]
 /// The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
+#[tag = "glyf"]
 table Glyf {}
 
 ///// The [Glyph Header](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)

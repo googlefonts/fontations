@@ -81,6 +81,11 @@ impl VheaMarker {
     }
 }
 
+impl TopLevelTable for Vhea<'_> {
+    /// `vhea`
+    const TAG: Tag = Tag::new(b"vhea");
+}
+
 impl<'a> FontRead<'a> for Vhea<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();

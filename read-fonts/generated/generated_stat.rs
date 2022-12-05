@@ -43,6 +43,11 @@ impl StatMarker {
     }
 }
 
+impl TopLevelTable for Stat<'_> {
+    /// `STAT`
+    const TAG: Tag = Tag::new(b"STAT");
+}
+
 impl<'a> FontRead<'a> for Stat<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();

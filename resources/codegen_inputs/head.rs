@@ -1,6 +1,7 @@
 #![parse_module(read_fonts::tables::head)]
 
 /// <https://docs.microsoft.com/en-us/typography/opentype/spec/head>
+#[tag = "head"]
 table Head {
     /// Version number of the font header table, set to (1, 0)
     #[compile(MajorMinor::VERSION_1_0)]

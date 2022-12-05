@@ -135,6 +135,10 @@ impl Validate for Head {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
+impl TopLevelTable for Head {
+    const TAG: Tag = Tag::new(b"head");
+}
+
 impl<'a> FromObjRef<read_fonts::tables::head::Head<'a>> for Head {
     fn from_obj_ref(obj: &read_fonts::tables::head::Head<'a>, _: FontData) -> Self {
         Head {

@@ -1,6 +1,7 @@
 #![parse_module(read_fonts::tables::cpal)]
 
 /// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
+#[tag = "CPAL"]
 table Cpal {
     /// Table version number (=0).
     #[version]

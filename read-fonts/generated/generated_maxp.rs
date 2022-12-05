@@ -87,6 +87,11 @@ impl MaxpMarker {
     }
 }
 
+impl TopLevelTable for Maxp<'_> {
+    /// `maxp`
+    const TAG: Tag = Tag::new(b"maxp");
+}
+
 impl<'a> FontRead<'a> for Maxp<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
