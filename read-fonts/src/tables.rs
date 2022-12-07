@@ -1,7 +1,7 @@
 //! The various font tables
 
 pub mod avar;
-//pub use layout::{gdef, gpos, gsub};
+pub mod base;
 pub mod cmap;
 pub mod colr;
 pub mod cpal;

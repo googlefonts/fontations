@@ -1,0 +1,82 @@
+
+/// The [BASE](https://learn.microsoft.com/en-us/typography/opentype/spec/base) (Baseline) table
+@table Base
+uint16	majorVersion	Major version of the BASE table, = 1
+uint16	minorVersion	Minor version of the BASE table, = 1
+Offset16	horizAxisOffset	Offset to horizontal Axis table, from beginning of BASE table (may be NULL)
+Offset16	vertAxisOffset	Offset to vertical Axis table, from beginning of BASE table (may be NULL)
+Offset32	itemVarStoreOffset	Offset to Item Variation Store table, from beginning of BASE table (may be null)
+
+/// [Axis Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#axis-tables-horizaxis-and-vertaxis)
+@table Axis
+Offset16	baseTagListOffset	Offset to BaseTagList table, from beginning of Axis table (may be NULL)
+Offset16	baseScriptListOffset	Offset to BaseScriptList table, from beginning of Axis table
+
+/// [BaseTagList Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basetaglist-table)
+@table BaseTagList
+uint16	baseTagCount	Number of baseline identification tags in this text direction — may be zero (0)
+Tag	baselineTags[baseTagCount]	Array of 4-byte baseline identification tags — must be in alphabetical order
+
+/// [BaseScriptList Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescriptlist-table)
+@table BaseScriptList
+uint16	baseScriptCount	Number of BaseScriptRecords defined
+BaseScriptRecord	baseScriptRecords[baseScriptCount]	Array of BaseScriptRecords, in alphabetical order by baseScriptTag
+
+/// [BaseScriptRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescriptrecord)
+@record BaseScriptRecord
+Tag	baseScriptTag	4-byte script identification tag
+Offset16	baseScriptOffset	Offset to BaseScript table, from beginning of BaseScriptList
+
+/// [BaseScript Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescript-table)
+@table BaseScript
+Offset16	baseValuesOffset	Offset to BaseValues table, from beginning of BaseScript table (may be NULL)
+Offset16	defaultMinMaxOffset	Offset to MinMax table, from beginning of BaseScript table (may be NULL)
+uint16	baseLangSysCount	Number of BaseLangSysRecords defined — may be zero (0)
+BaseLangSysRecord	baseLangSysRecords[baseLangSysCount]	Array of BaseLangSysRecords, in alphabetical order by BaseLangSysTag
+
+/// [BaseLangSysRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#baselangsysrecord)
+@record BaseLangSysRecord
+Tag	baseLangSysTag	4-byte language system identification tag
+Offset16	minMaxOffset	Offset to MinMax table, from beginning of BaseScript table
+
+/// [BaseValues](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basevalues-table) table
+@table BaseValues
+uint16	defaultBaselineIndex	Index number of default baseline for this script — equals index position of baseline tag in baselineTags array of the BaseTagList
+uint16	baseCoordCount	Number of BaseCoord tables defined — should equal baseTagCount in the BaseTagList
+Offset16	baseCoordOffsets[baseCoordCount]	Array of offsets to BaseCoord tables, from beginning of BaseValues table — order matches baselineTags array in the BaseTagList
+
+
+/// [MinMax](https://learn.microsoft.com/en-us/typography/opentype/spec/base#minmax-table) table
+@table MinMax
+Offset16	minCoordOffset	Offset to BaseCoord table that defines the minimum extent value, from the beginning of MinMax table (may be NULL)
+Offset16	maxCoordOffset	Offset to BaseCoord table that defines maximum extent value, from the beginning of MinMax table (may be NULL)
+uint16	featMinMaxCount	Number of FeatMinMaxRecords — may be zero (0)
+FeatMinMaxRecord	featMinMaxRecords[featMinMaxCount]	Array of FeatMinMaxRecords, in alphabetical order by featureTableTag
+
+/// [FeatMinMaxRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#baselangsysrecord)
+@record FeatMinMaxRecord
+Tag	featureTableTag	4-byte feature identification tag — must match feature tag in FeatureList
+Offset16	minCoordOffset	Offset to BaseCoord table that defines the minimum extent value, from beginning of MinMax table (may be NULL)
+Offset16	maxCoordOffset	Offset to BaseCoord table that defines the maximum extent value, from beginning of MinMax table (may be NULL)
+
+@table BaseCoord
+Offset16	null	FIXME: im an enum
+
+/// [BaseCoordFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-1)
+@table BaseCoordFormat1
+uint16	baseCoordFormat	Format identifier — format = 1
+int16	coordinate	X or Y value, in design units
+
+/// [BaseCoordFormat2](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-2)
+@table BaseCoordFormat2
+uint16	baseCoordFormat	Format identifier — format = 2
+int16	coordinate	X or Y value, in design units
+uint16	referenceGlyph	Glyph ID of control glyph
+uint16	baseCoordPoint	Index of contour point on the reference glyph
+
+/// [BaseCoordFormat3](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-3)
+@table BaseCoordFormat3
+uint16	baseCoordFormat	Format identifier — format = 3
+int16	coordinate	X or Y value, in design units
+Offset16	deviceOffset	Offset to Device table (non-variable font) / Variation Index table (variable font) for X or Y value, from beginning of BaseCoord table (may be NULL).
+
