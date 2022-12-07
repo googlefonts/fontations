@@ -646,6 +646,7 @@ impl Field {
         }
     }
 
+    /// the type as it appears in a `write-fonts` struct.
     pub(crate) fn owned_type(&self) -> TokenStream {
         if let Some(typ) = &self.attrs.compile_type {
             return typ.into_token_stream();
@@ -1090,6 +1091,9 @@ impl Field {
         } else if let Some(computed) = &self.attrs.compile {
             match &computed.attr {
                 CustomCompile::Expr(inline_expr) => {
+                    // this expects that the type is always some simple scalar,
+                    // and does not work if there is an explicit #[compile_type]
+                    // specified; it may need to be revaluated at some point.
                     let typ = self.typ.cooked_type_tokens();
                     let expr = inline_expr.compile_expr();
                     if !inline_expr.referenced_fields.is_empty() {
