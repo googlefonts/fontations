@@ -5,6 +5,7 @@
 table Base {
     /// (major, minor) Version for the BASE table (1,0) or (1,1)
     #[version]
+    #[compile(self.compute_version())]
     version: MajorMinor,
     /// Offset to horizontal Axis table, from beginning of BASE table (may be NULL)
     #[nullable]
@@ -32,6 +33,7 @@ table Axis {
 table BaseTagList {
     /// Number of baseline identification tags in this text direction
     /// — may be zero (0)
+    #[compile(array_len($baseline_tags))]
     base_tag_count: u16,
     /// Array of 4-byte baseline identification tags — must be in
     /// alphabetical order
@@ -42,6 +44,7 @@ table BaseTagList {
 /// [BaseScriptList Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescriptlist-table)
 table BaseScriptList {
     /// Number of BaseScriptRecords defined
+    #[compile(array_len($base_script_records))]
     base_script_count: u16,
     /// Array of BaseScriptRecords, in alphabetical order by
     /// baseScriptTag
@@ -66,6 +69,7 @@ table BaseScript {
     #[nullable]
     default_min_max_offset: Offset16<MinMax>,
     /// Number of BaseLangSysRecords defined — may be zero (0)
+    #[compile(array_len($base_lang_sys_records))]
     base_lang_sys_count: u16,
     /// Array of BaseLangSysRecords, in alphabetical order by
     /// BaseLangSysTag
@@ -89,6 +93,7 @@ table BaseValues {
     default_baseline_index: u16,
     /// Number of BaseCoord tables defined — should equal
     /// baseTagCount in the BaseTagList
+    #[compile(array_len($base_coord_offsets))]
     base_coord_count: u16,
     /// Array of offsets to BaseCoord tables, from beginning of
     /// BaseValues table — order matches baselineTags array in the
@@ -108,6 +113,7 @@ table MinMax {
     #[nullable]
     max_coord_offset: Offset16<BaseCoord>,
     /// Number of FeatMinMaxRecords — may be zero (0)
+    #[compile(array_len($feat_min_max_records))]
     feat_min_max_count: u16,
     /// Array of FeatMinMaxRecords, in alphabetical order by
     /// featureTableTag
