@@ -12,15 +12,17 @@ impl BeBuffer {
     }
 
     /// Write any scalar to this buffer.
-    pub fn push(&mut self, item: impl Scalar) {
-        self.0.extend(item.to_raw().as_ref())
+    pub fn push(mut self, item: impl Scalar) -> Self {
+        self.0.extend(item.to_raw().as_ref());
+        self
     }
 
     /// Write multiple scalars into the buffer
-    pub fn extend<T: Scalar>(&mut self, iter: impl IntoIterator<Item = T>) {
+    pub fn extend<T: Scalar>(mut self, iter: impl IntoIterator<Item = T>) -> Self {
         for item in iter {
-            self.0.extend(item.to_raw().as_ref())
+            self.0.extend(item.to_raw().as_ref());
         }
+        self
     }
 
     pub fn font_data(&self) -> FontData {

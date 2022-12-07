@@ -21,13 +21,13 @@ pub mod offsets_arrays {
 
     #[test]
     fn array_offsets() {
-        let mut builder = crate::test_helpers::BeBuffer::new();
-        builder.push(MajorMinor::VERSION_1_0);
-        builder.push(12_u16); // offset to 0xdead
-        builder.push(0u16); // nullable
-        builder.push(2u16); // array len
-        builder.push(12u16); // array offset
-        builder.extend([0xdead_u16, 0xbeef]);
+        let builder = crate::test_helpers::BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(12_u16) // offset to 0xdead
+            .push(0u16) // nullable
+            .push(2u16) // array len
+            .push(12u16) // array offset
+            .extend([0xdead_u16, 0xbeef]);
 
         let table = KindsOfOffsets::read(builder.font_data()).unwrap();
         assert_eq!(table.nonnullable().unwrap().value(), 0xdead);
