@@ -11,14 +11,24 @@ pub struct DeltaSetIndex {
     pub inner: u16,
 }
 
+impl EntryFormat {
+    pub fn entry_size(self) -> u8 {
+        ((self.bits() & Self::MAP_ENTRY_SIZE_MASK.bits()) >> 4) + 1
+    }
+
+    pub fn bit_count(self) -> u8 {
+        (self.bits() & Self::INNER_INDEX_BIT_COUNT_MASK.bits()) + 1
+    }
+}
+
 impl<'a> DeltaSetIndexMap<'a> {
     /// Returns the delta set index for the specified value.
     pub fn get(&self, index: u32) -> Result<DeltaSetIndex, ReadError> {
         let (entry_format, data) = match self {
-            Self::Format0(fmt) => (fmt.entry_format() as u32, fmt.map_data()),
-            Self::Format1(fmt) => (fmt.entry_format() as u32, fmt.map_data()),
+            Self::Format0(fmt) => (fmt.entry_format(), fmt.map_data()),
+            Self::Format1(fmt) => (fmt.entry_format(), fmt.map_data()),
         };
-        let entry_size = ((entry_format & EntryFormat::MAP_ENTRY_SIZE_MASK.bits() as u32) >> 4) + 1;
+        let entry_size = entry_format.entry_size();
         let data = FontData::new(data);
         let offset = index as usize * entry_size as usize;
         let entry = match entry_size {
@@ -32,7 +42,7 @@ impl<'a> DeltaSetIndexMap<'a> {
                 ))
             }
         };
-        let bit_count = (entry_format & 0xF) + 1;
+        let bit_count = entry_format.bit_count();
         Ok(DeltaSetIndex {
             outer: (entry >> bit_count) as u16,
             inner: (entry & ((1 << bit_count) - 1)) as u16,
@@ -40,8 +50,8 @@ impl<'a> DeltaSetIndexMap<'a> {
     }
 }
 
-fn map_data_size(entry_format: u8, map_count: u32) -> usize {
-    (((entry_format & 0x30) >> 4) + 1) as usize * map_count as usize
+fn map_data_size(entry_format: EntryFormat, map_count: u32) -> usize {
+    entry_format.entry_size() as usize * map_count as usize
 }
 
 impl<'a> ItemVariationStore<'a> {
