@@ -7,6 +7,8 @@ pub use super::layout::{
     Lookup, LookupList, ScriptList, SequenceContext,
 };
 
+use super::variations::ItemVariationStore;
+
 #[cfg(test)]
 #[path = "../tests/test_gdef.rs"]
 mod tests;

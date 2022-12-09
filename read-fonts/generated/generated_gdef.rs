@@ -161,7 +161,7 @@ impl<'a> Gdef<'a> {
     }
 
     /// Attempt to resolve [`item_var_store_offset`][Self::item_var_store_offset].
-    pub fn item_var_store(&self) -> Option<Result<ClassDef<'a>, ReadError>> {
+    pub fn item_var_store(&self) -> Option<Result<ItemVariationStore<'a>, ReadError>> {
         let data = self.data;
         self.item_var_store_offset().map(|x| x.resolve(data))?
     }
