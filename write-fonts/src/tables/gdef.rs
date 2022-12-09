@@ -4,7 +4,10 @@
 
 use types::MajorMinor;
 
-use super::layout::{ClassDef, CoverageTable, Device};
+use super::{
+    layout::{ClassDef, CoverageTable, Device},
+    variations::ItemVariationStore,
+};
 
 include!("../../generated/generated_gdef.rs");
 
@@ -28,12 +31,7 @@ mod tests {
     fn var_store_without_glyph_sets() {
         // this should compile, and version should be 1.3
         let gdef = Gdef {
-            item_var_store: NullableOffsetMarker::new(Some(ClassDef::Format1(
-                crate::tables::layout::ClassDefFormat1 {
-                    start_glyph_id: GlyphId::new(2),
-                    class_value_array: vec![1, 2, 0],
-                },
-            ))),
+            item_var_store: ItemVariationStore::default().into(),
             ..Default::default()
         };
 

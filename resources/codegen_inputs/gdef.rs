@@ -32,7 +32,7 @@ table Gdef {
     /// GDEF header (may be NULL)
     #[available(MajorMinor::VERSION_1_3)]
     #[nullable]
-    item_var_store_offset: Offset32<ClassDef>,
+    item_var_store_offset: Offset32<ItemVariationStore>,
 }
 
 /// Used in the [Glyph Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#glyph-class-definition-table)

@@ -27,7 +27,7 @@ pub struct Gdef {
     pub mark_glyph_sets_def: NullableOffsetMarker<MarkGlyphSets>,
     /// Offset to the Item Variation Store table, from beginning of
     /// GDEF header (may be NULL)
-    pub item_var_store: NullableOffsetMarker<ClassDef, WIDTH_32>,
+    pub item_var_store: NullableOffsetMarker<ItemVariationStore, WIDTH_32>,
 }
 
 impl Gdef {
