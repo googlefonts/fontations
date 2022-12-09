@@ -22,12 +22,12 @@ pub trait TableProvider<'a> {
             .and_then(FontRead::read)
     }
 
-    fn hhea(&self) -> Result<tables::hvhea::HVhea<'a>, ReadError> {
+    fn hhea(&self) -> Result<tables::hhea::Hhea<'a>, ReadError> {
         self.expect_data_for_tag(tables::hhea::TAG)
             .and_then(FontRead::read)
     }
 
-    fn vhea(&self) -> Result<tables::hvhea::HVhea<'a>, ReadError> {
+    fn vhea(&self) -> Result<tables::vhea::Vhea<'a>, ReadError> {
         self.expect_data_for_tag(tables::vhea::TAG)
             .and_then(FontRead::read)
     }
@@ -45,7 +45,7 @@ pub trait TableProvider<'a> {
     fn vmtx(&self) -> Result<tables::hvmtx::HVmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
-        let number_of_v_metrics = self.vhea().map(|vhea| vhea.number_of_long_metrics())?;
+        let number_of_v_metrics = self.vhea().map(|vhea| vhea.number_of_long_ver_metrics())?;
         self.expect_data_for_tag(tables::vmtx::TAG)
             .and_then(|data| {
                 FontReadWithArgs::read_with_args(data, &(number_of_v_metrics, num_glyphs))
