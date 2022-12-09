@@ -5,7 +5,7 @@ table DeltaSetIndexMapFormat0 {
     /// DeltaSetIndexMap format: set to 0.
     #[format = 0]
     format: u8,
-    /// A packed field that describes the compressed representation of 
+    /// A packed field that describes the compressed representation of
     /// delta-set indices. See details below.
     entry_format: EntryFormat,
     /// The number of mapping entries.
@@ -20,7 +20,7 @@ table DeltaSetIndexMapFormat1 {
     /// DeltaSetIndexMap format: set to 1.
     #[format = 1]
     format: u8,
-    /// A packed field that describes the compressed representation of 
+    /// A packed field that describes the compressed representation of
     /// delta-set indices. See details below.
     entry_format: EntryFormat,
     /// The number of mapping entries.
@@ -38,7 +38,7 @@ format u8 DeltaSetIndexMap {
 
 /// Entry format for a [DeltaSetIndexMap].
 flags u8 EntryFormat {
-    /// Mask for the low 4 bits, which give the count of bits minus one that are used in each entry for the inner-level index.    
+    /// Mask for the low 4 bits, which give the count of bits minus one that are used in each entry for the inner-level index.
     INNER_INDEX_BIT_COUNT_MASK = 0x0F,
     /// Mask for bits that indicate the size in bytes minus one of each entry.
     MAP_ENTRY_SIZE_MASK = 0x30,
@@ -46,11 +46,13 @@ flags u8 EntryFormat {
 
 /// The [VariationRegionList](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) table
 table VariationRegionList {
-    /// The number of variation axes for this font. This must be the 
+    /// The number of variation axes for this font. This must be the
     /// same number as axisCount in the 'fvar' table.
+    #[compile(self.compute_axis_count())]
     axis_count: u16,
-    /// The number of variation region tables in the variation region 
+    /// The number of variation region tables in the variation region
     /// list. Must be less than 32,768.
+    #[compile(array_len($variation_regions))]
     region_count: u16,
     /// Array of variation regions.
     #[count($region_count)]
@@ -61,7 +63,7 @@ table VariationRegionList {
 /// The [VariationRegion](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
 #[read_args(axis_count: u16)]
 record VariationRegion<'a> {
-    /// Array of region axis coordinates records, in the order of axes 
+    /// Array of region axis coordinates records, in the order of axes
     /// given in the 'fvar' table.
     #[count($axis_count)]
     region_axes: [RegionAxisCoordinates],
@@ -81,12 +83,13 @@ record RegionAxisCoordinates {
 table ItemVariationStore {
     /// Format— set to 1
     format: u16,
-    /// Offset in bytes from the start of the item variation store to 
+    /// Offset in bytes from the start of the item variation store to
     /// the variation region list.
     variation_region_list_offset: Offset32<VariationRegionList>,
     /// The number of item variation data subtables.
+    #[compile(array_len($item_variation_data_offsets))]
     item_variation_data_count: u16,
-    /// Offsets in bytes from the start of the item variation store to 
+    /// Offsets in bytes from the start of the item variation store to
     /// each item variation data subtable.
     #[nullable]
     #[count($item_variation_data_count)]
@@ -100,8 +103,9 @@ table ItemVariationData {
     /// A packed field: the high bit is a flag—see details below.
     word_delta_count: u16,
     /// The number of variation regions referenced.
+    #[compile(array_len($region_indexes))]
     region_index_count: u16,
-    /// Array of indices into the variation region list for the regions 
+    /// Array of indices into the variation region list for the regions
     /// referenced by this item variation data table.
     #[count($region_index_count)]
     region_indexes: [u16],
