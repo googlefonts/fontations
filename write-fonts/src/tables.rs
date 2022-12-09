@@ -11,5 +11,6 @@ pub mod maxp;
 pub mod name;
 pub mod post;
 pub mod stat;
+pub mod variations;
 pub mod vhea;
 pub mod vmtx;

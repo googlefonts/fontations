@@ -78,6 +78,13 @@ where
     }
 }
 
+// we need this because we special case &[u8], eliding the BigEndian wrapper.
+impl FromObjRef<u8> for u8 {
+    fn from_obj_ref(from: &u8, _data: FontData) -> Self {
+        *from
+    }
+}
+
 impl<T, U> FromObjRef<&[U]> for Vec<T>
 where
     T: FromObjRef<U>,
