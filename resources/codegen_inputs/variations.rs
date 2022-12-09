@@ -7,7 +7,7 @@ table DeltaSetIndexMapFormat0 {
     format: u8,
     /// A packed field that describes the compressed representation of 
     /// delta-set indices. See details below.
-    entry_format: u8,
+    entry_format: EntryFormat,
     /// The number of mapping entries.
     map_count: u16,
     /// The delta-set index mapping data. See details below.
@@ -22,7 +22,7 @@ table DeltaSetIndexMapFormat1 {
     format: u8,
     /// A packed field that describes the compressed representation of 
     /// delta-set indices. See details below.
-    entry_format: u8,
+    entry_format: EntryFormat,
     /// The number of mapping entries.
     map_count: u32,
     /// The delta-set index mapping data. See details below.

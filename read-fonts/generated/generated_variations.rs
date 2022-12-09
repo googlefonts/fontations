@@ -23,7 +23,7 @@ impl DeltaSetIndexMapFormat0Marker {
     }
     fn entry_format_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        start..start + EntryFormat::RAW_BYTE_LEN
     }
     fn map_count_byte_range(&self) -> Range<usize> {
         let start = self.entry_format_byte_range().end;
@@ -39,7 +39,7 @@ impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
-        let entry_format: u8 = cursor.read()?;
+        let entry_format: EntryFormat = cursor.read()?;
         let map_count: u16 = cursor.read()?;
         let map_data_byte_len = map_data_size(entry_format, map_count as u32) * u8::RAW_BYTE_LEN;
         cursor.advance_by(map_data_byte_len);
@@ -59,7 +59,7 @@ impl<'a> DeltaSetIndexMapFormat0<'a> {
 
     /// A packed field that describes the compressed representation of
     /// delta-set indices. See details below.
-    pub fn entry_format(&self) -> u8 {
+    pub fn entry_format(&self) -> EntryFormat {
         let range = self.shape.entry_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -118,7 +118,7 @@ impl DeltaSetIndexMapFormat1Marker {
     }
     fn entry_format_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u8::RAW_BYTE_LEN
+        start..start + EntryFormat::RAW_BYTE_LEN
     }
     fn map_count_byte_range(&self) -> Range<usize> {
         let start = self.entry_format_byte_range().end;
@@ -134,7 +134,7 @@ impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
-        let entry_format: u8 = cursor.read()?;
+        let entry_format: EntryFormat = cursor.read()?;
         let map_count: u32 = cursor.read()?;
         let map_data_byte_len = map_data_size(entry_format, map_count) * u8::RAW_BYTE_LEN;
         cursor.advance_by(map_data_byte_len);
@@ -154,7 +154,7 @@ impl<'a> DeltaSetIndexMapFormat1<'a> {
 
     /// A packed field that describes the compressed representation of
     /// delta-set indices. See details below.
-    pub fn entry_format(&self) -> u8 {
+    pub fn entry_format(&self) -> EntryFormat {
         let range = self.shape.entry_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
