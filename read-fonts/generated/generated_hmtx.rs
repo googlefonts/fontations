@@ -6,88 +6,86 @@
 use crate::codegen_prelude::*;
 
 /// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
-/// The [vmtx (Vertical Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/vmtx) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct HVmtxMarker {
-    long_metrics_byte_len: usize,
-    bearings_byte_len: usize,
+pub struct HmtxMarker {
+    h_metrics_byte_len: usize,
+    left_side_bearings_byte_len: usize,
 }
 
-impl HVmtxMarker {
-    fn long_metrics_byte_range(&self) -> Range<usize> {
+impl HmtxMarker {
+    fn h_metrics_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + self.long_metrics_byte_len
+        start..start + self.h_metrics_byte_len
     }
-    fn bearings_byte_range(&self) -> Range<usize> {
-        let start = self.long_metrics_byte_range().end;
-        start..start + self.bearings_byte_len
+    fn left_side_bearings_byte_range(&self) -> Range<usize> {
+        let start = self.h_metrics_byte_range().end;
+        start..start + self.left_side_bearings_byte_len
     }
 }
 
-impl ReadArgs for HVmtx<'_> {
+impl ReadArgs for Hmtx<'_> {
     type Args = (u16, u16);
 }
 
-impl<'a> FontReadWithArgs<'a> for HVmtx<'a> {
+impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
     fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
-        let (number_of_long_metrics, num_glyphs) = *args;
+        let (number_of_h_metrics, num_glyphs) = *args;
         let mut cursor = data.cursor();
-        let long_metrics_byte_len = number_of_long_metrics as usize * LongMetric::RAW_BYTE_LEN;
-        cursor.advance_by(long_metrics_byte_len);
-        let bearings_byte_len =
-            num_glyphs.saturating_sub(number_of_long_metrics) as usize * i16::RAW_BYTE_LEN;
-        cursor.advance_by(bearings_byte_len);
-        cursor.finish(HVmtxMarker {
-            long_metrics_byte_len,
-            bearings_byte_len,
+        let h_metrics_byte_len = number_of_h_metrics as usize * LongMetric::RAW_BYTE_LEN;
+        cursor.advance_by(h_metrics_byte_len);
+        let left_side_bearings_byte_len =
+            num_glyphs.saturating_sub(number_of_h_metrics) as usize * i16::RAW_BYTE_LEN;
+        cursor.advance_by(left_side_bearings_byte_len);
+        cursor.finish(HmtxMarker {
+            h_metrics_byte_len,
+            left_side_bearings_byte_len,
         })
     }
 }
 
 /// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
-/// The [vmtx (Vertical Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/vmtx) table
-pub type HVmtx<'a> = TableRef<'a, HVmtxMarker>;
+pub type Hmtx<'a> = TableRef<'a, HmtxMarker>;
 
-impl<'a> HVmtx<'a> {
+impl<'a> Hmtx<'a> {
     /// Paired advance width/height and left/top side bearing values for each
     /// glyph. Records are indexed by glyph ID.
-    pub fn long_metrics(&self) -> &'a [LongMetric] {
-        let range = self.shape.long_metrics_byte_range();
+    pub fn h_metrics(&self) -> &'a [LongMetric] {
+        let range = self.shape.h_metrics_byte_range();
         self.data.read_array(range).unwrap()
     }
 
     /// Leading (left/top) side bearings for glyph IDs greater than or equal to
     /// numberOfLongMetrics.
-    pub fn bearings(&self) -> &'a [BigEndian<i16>] {
-        let range = self.shape.bearings_byte_range();
+    pub fn left_side_bearings(&self) -> &'a [BigEndian<i16>] {
+        let range = self.shape.left_side_bearings_byte_range();
         self.data.read_array(range).unwrap()
     }
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for HVmtx<'a> {
+impl<'a> SomeTable<'a> for Hmtx<'a> {
     fn type_name(&self) -> &str {
-        "HVmtx"
+        "Hmtx"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new(
-                "long_metrics",
+                "h_metrics",
                 traversal::FieldType::array_of_records(
                     stringify!(LongMetric),
-                    self.long_metrics(),
+                    self.h_metrics(),
                     self.offset_data(),
                 ),
             )),
-            1usize => Some(Field::new("bearings", self.bearings())),
+            1usize => Some(Field::new("left_side_bearings", self.left_side_bearings())),
             _ => None,
         }
     }
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for HVmtx<'a> {
+impl<'a> std::fmt::Debug for Hmtx<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }

@@ -6,58 +6,57 @@
 use crate::codegen_prelude::*;
 
 /// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
-/// The [vmtx (Vertical Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/vmtx) table
 #[derive(Clone, Debug, Default)]
-pub struct HVmtx {
+pub struct Hmtx {
     /// Paired advance width/height and left/top side bearing values for each
     /// glyph. Records are indexed by glyph ID.
-    pub long_metrics: Vec<LongMetric>,
+    pub h_metrics: Vec<LongMetric>,
     /// Leading (left/top) side bearings for glyph IDs greater than or equal to
     /// numberOfLongMetrics.
-    pub bearings: Vec<i16>,
+    pub left_side_bearings: Vec<i16>,
 }
 
-impl HVmtx {
-    /// Construct a new `HVmtx`
-    pub fn new(long_metrics: Vec<LongMetric>, bearings: Vec<i16>) -> Self {
+impl Hmtx {
+    /// Construct a new `Hmtx`
+    pub fn new(h_metrics: Vec<LongMetric>, left_side_bearings: Vec<i16>) -> Self {
         Self {
-            long_metrics: long_metrics.into_iter().map(Into::into).collect(),
-            bearings: bearings.into_iter().map(Into::into).collect(),
+            h_metrics: h_metrics.into_iter().map(Into::into).collect(),
+            left_side_bearings: left_side_bearings.into_iter().map(Into::into).collect(),
         }
     }
 }
 
-impl FontWrite for HVmtx {
+impl FontWrite for Hmtx {
     fn write_into(&self, writer: &mut TableWriter) {
-        self.long_metrics.write_into(writer);
-        self.bearings.write_into(writer);
+        self.h_metrics.write_into(writer);
+        self.left_side_bearings.write_into(writer);
     }
 }
 
-impl Validate for HVmtx {
+impl Validate for Hmtx {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("HVmtx", |ctx| {
-            ctx.in_field("long_metrics", |ctx| {
-                if self.long_metrics.len() > (u16::MAX as usize) {
+        ctx.in_table("Hmtx", |ctx| {
+            ctx.in_field("h_metrics", |ctx| {
+                if self.h_metrics.len() > (u16::MAX as usize) {
                     ctx.report("array excedes max length");
                 }
-                self.long_metrics.validate_impl(ctx);
+                self.h_metrics.validate_impl(ctx);
             });
         })
     }
 }
 
-impl<'a> FromObjRef<read_fonts::tables::hvmtx::HVmtx<'a>> for HVmtx {
-    fn from_obj_ref(obj: &read_fonts::tables::hvmtx::HVmtx<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::hmtx::Hmtx<'a>> for Hmtx {
+    fn from_obj_ref(obj: &read_fonts::tables::hmtx::Hmtx<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
-        HVmtx {
-            long_metrics: obj.long_metrics().to_owned_obj(offset_data),
-            bearings: obj.bearings().to_owned_obj(offset_data),
+        Hmtx {
+            h_metrics: obj.h_metrics().to_owned_obj(offset_data),
+            left_side_bearings: obj.left_side_bearings().to_owned_obj(offset_data),
         }
     }
 }
 
-impl<'a> FromTableRef<read_fonts::tables::hvmtx::HVmtx<'a>> for HVmtx {}
+impl<'a> FromTableRef<read_fonts::tables::hmtx::Hmtx<'a>> for Hmtx {}
 
 #[derive(Clone, Debug, Default)]
 pub struct LongMetric {
@@ -88,8 +87,8 @@ impl Validate for LongMetric {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl FromObjRef<read_fonts::tables::hvmtx::LongMetric> for LongMetric {
-    fn from_obj_ref(obj: &read_fonts::tables::hvmtx::LongMetric, _: FontData) -> Self {
+impl FromObjRef<read_fonts::tables::hmtx::LongMetric> for LongMetric {
+    fn from_obj_ref(obj: &read_fonts::tables::hmtx::LongMetric, _: FontData) -> Self {
         LongMetric {
             advance: obj.advance(),
             side_bearing: obj.side_bearing(),

@@ -4,3 +4,5 @@ use types::Tag;
 
 /// 'hmtx'
 pub const TAG: Tag = Tag::new(b"hmtx");
+
+include!("../../generated/generated_hmtx.rs");
