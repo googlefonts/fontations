@@ -13,7 +13,6 @@ pub mod head;
 pub mod hhea;
 pub mod hmtx;
 pub mod hvar;
-pub mod hvhea;
 pub mod hvmtx;
 pub mod layout;
 pub mod loca;

@@ -1,10 +1,9 @@
-#![parse_module(read_fonts::tables::hvhea)]
+#![parse_module(read_fonts::tables::vhea)]
 
-/// [hhea](https://docs.microsoft.com/en-us/typography/opentype/spec/hhea) Horizontal Header Table
-/// [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
-table HVhea {
+/// The [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
+table Vhea {
     /// The major/minor version (1, 0)
-    #[compile(MajorMinor::VERSION_1_0)]
+    #[compile(MajorMinor::VERSION_1_1)]
     version: MajorMinor,
     /// Typographic ascent.
     ascender: FWord,
@@ -13,16 +12,15 @@ table HVhea {
     /// Typographic line gap. Negative LineGap values are treated as
     /// zero in some legacy platform implementations.
     line_gap: FWord,
-    /// Maximum advance width/height value in 'hmtx'/'vmtx' table.
-    advance_max: UfWord,
-    /// Minimum left/top sidebearing value in 'hmtx'/'vmtx' table for glyphs with
+    /// Maximum advance height value in 'vmtx' table.
+    advance_height_max: UfWord,
+    /// Minimum top sidebearing value in 'vmtx' table for glyphs with
     /// contours (empty glyphs should be ignored).
-    min_leading_bearing: FWord,
-    /// Minimum right/bottom sidebearing value; calculated as min(aw - (lsb +
-    /// xMax - xMin)) for horizontal (empty glyphs should be ignored).
-    min_trailing_bearing: FWord,
-    /// Horizontal: max(lsb + (xMax-xMin)); vertical: tsb + (yMax-yMin).
-    max_extent: FWord,
+    min_top_side_bearing: FWord,
+    /// Minimum bottom sidebearing value
+    min_bottom_side_bearing: FWord,
+    /// Defined as max( tsb + (yMax-yMin)).
+    y_max_extent: FWord,
     /// Used to calculate the slope of the cursor (rise/run); 1 for
     /// vertical caret, 0 for horizontal.
     caret_slope_rise: i16,
@@ -52,5 +50,5 @@ table HVhea {
     #[compile(0)]
     metric_data_format: i16,
     /// Number of LongMetric entries in 'hmtx'/'vmtx' table
-    number_of_long_metrics: u16,
+    number_of_long_ver_metrics: u16,
 }
