@@ -17,9 +17,6 @@ pub use value_record::ValueRecord;
 #[path = "../tests/gpos.rs"]
 mod tests;
 
-/// 'GPOS'
-pub const TAG: Tag = Tag::new(b"GPOS");
-
 include!("../../generated/generated_gpos.rs");
 
 /// A typed GPOS [LookupList](super::layout::LookupList) table

@@ -6,7 +6,7 @@
 use std::{collections::HashSet, str::FromStr};
 
 use font_types::Tag;
-use read_fonts::{traversal::SomeTable, FileRef, FontRef, ReadError, TableProvider};
+use read_fonts::{traversal::SomeTable, FileRef, FontRef, ReadError, TableProvider, TopLevelTable};
 
 mod print;
 mod query;
@@ -101,23 +101,24 @@ fn get_some_table<'a>(
     font: &FontRef<'a>,
     tag: Tag,
 ) -> Result<Box<dyn SomeTable<'a> + 'a>, ReadError> {
+    use read_fonts::tables;
     match tag {
-        read_fonts::tables::gpos::TAG => font.gpos().map(|x| Box::new(x) as _),
-        read_fonts::tables::gsub::TAG => font.gsub().map(|x| Box::new(x) as _),
-        read_fonts::tables::cmap::TAG => font.cmap().map(|x| Box::new(x) as _),
-        read_fonts::tables::gdef::TAG => font.gdef().map(|x| Box::new(x) as _),
-        read_fonts::tables::glyf::TAG => font.glyf().map(|x| Box::new(x) as _),
-        read_fonts::tables::head::TAG => font.head().map(|x| Box::new(x) as _),
-        read_fonts::tables::hhea::TAG => font.hhea().map(|x| Box::new(x) as _),
-        read_fonts::tables::hmtx::TAG => font.hmtx().map(|x| Box::new(x) as _),
-        read_fonts::tables::loca::TAG => font.loca(None).map(|x| Box::new(x) as _),
-        read_fonts::tables::maxp::TAG => font.maxp().map(|x| Box::new(x) as _),
-        read_fonts::tables::name::TAG => font.name().map(|x| Box::new(x) as _),
-        read_fonts::tables::post::TAG => font.post().map(|x| Box::new(x) as _),
-        read_fonts::tables::colr::TAG => font.colr().map(|x| Box::new(x) as _),
-        read_fonts::tables::stat::TAG => font.stat().map(|x| Box::new(x) as _),
-        read_fonts::tables::vhea::TAG => font.vhea().map(|x| Box::new(x) as _),
-        read_fonts::tables::vmtx::TAG => font.vmtx().map(|x| Box::new(x) as _),
+        tables::gpos::Gpos::TAG => font.gpos().map(|x| Box::new(x) as _),
+        tables::gsub::Gsub::TAG => font.gsub().map(|x| Box::new(x) as _),
+        tables::cmap::Cmap::TAG => font.cmap().map(|x| Box::new(x) as _),
+        tables::gdef::Gdef::TAG => font.gdef().map(|x| Box::new(x) as _),
+        tables::glyf::Glyf::TAG => font.glyf().map(|x| Box::new(x) as _),
+        tables::head::Head::TAG => font.head().map(|x| Box::new(x) as _),
+        tables::hhea::Hhea::TAG => font.hhea().map(|x| Box::new(x) as _),
+        tables::hmtx::Hmtx::TAG => font.hmtx().map(|x| Box::new(x) as _),
+        tables::loca::Loca::TAG => font.loca(None).map(|x| Box::new(x) as _),
+        tables::maxp::Maxp::TAG => font.maxp().map(|x| Box::new(x) as _),
+        tables::name::Name::TAG => font.name().map(|x| Box::new(x) as _),
+        tables::post::Post::TAG => font.post().map(|x| Box::new(x) as _),
+        tables::colr::Colr::TAG => font.colr().map(|x| Box::new(x) as _),
+        tables::stat::Stat::TAG => font.stat().map(|x| Box::new(x) as _),
+        tables::vhea::Vhea::TAG => font.vhea().map(|x| Box::new(x) as _),
+        tables::vmtx::Vmtx::TAG => font.vmtx().map(|x| Box::new(x) as _),
         _ => Err(ReadError::TableIsMissing(tag)),
     }
 }

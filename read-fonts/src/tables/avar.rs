@@ -1,10 +1,5 @@
 //! The [Axis Variations](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
 
-use types::Tag;
-
-/// 'avar'
-pub const TAG: Tag = Tag::new(b"avar");
-
 include!("../../generated/generated_avar.rs");
 
 impl<'a> SegmentMaps<'a> {

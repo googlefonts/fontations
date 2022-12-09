@@ -11,9 +11,6 @@ use types::{BigEndian, GlyphId, Tag};
 #[cfg(feature = "traversal")]
 use crate::traversal;
 
-/// 'loca'
-pub const TAG: Tag = Tag::new(b"loca");
-
 /// The [loca] table.
 ///
 /// [loca]: https://docs.microsoft.com/en-us/typography/opentype/spec/loca

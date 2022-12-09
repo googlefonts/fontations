@@ -6,14 +6,10 @@ pub use super::layout::{
     ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
     Lookup, LookupList, ScriptList, SequenceContext,
 };
-use types::Tag;
 
 #[cfg(test)]
 #[path = "../tests/test_gdef.rs"]
 mod tests;
-
-/// 'GDEF'
-pub const TAG: Tag = Tag::new(b"GDEF");
 
 include!("../../generated/generated_gdef.rs");
 
