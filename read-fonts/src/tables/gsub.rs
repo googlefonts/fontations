@@ -2,8 +2,6 @@
 //!
 //! [GSUB]: https://docs.microsoft.com/en-us/typography/opentype/spec/gsub
 
-use types::Tag;
-
 pub use super::layout::{
     ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
     Lookup, LookupList, ScriptList, SequenceContext,
@@ -12,9 +10,6 @@ pub use super::layout::{
 #[cfg(test)]
 #[path = "../tests/test_gsub.rs"]
 mod tests;
-
-/// 'GSUB'
-pub const TAG: Tag = Tag::new(b"GSUB");
 
 include!("../../generated/generated_gsub.rs");
 

@@ -1,14 +1,10 @@
 //! The [MVAR (Metrics Variation)](https://docs.microsoft.com/en-us/typography/opentype/spec/mvar) table
 
 use super::variations::{DeltaSetIndex, ItemVariationStore};
-use types::Tag;
-
-/// 'MVAR'
-pub const TAG: Tag = Tag::new(b"MVAR");
 
 /// Four-byte tags used to represent particular metric or other values.
 pub mod tags {
-    use super::Tag;
+    use font_types::Tag;
 
     /// Horizontal ascender.
     pub const HASC: Tag = Tag::new(b"hasc");

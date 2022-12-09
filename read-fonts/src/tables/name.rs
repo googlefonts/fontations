@@ -1,10 +1,5 @@
 //! The [name (Naming)](https://docs.microsoft.com/en-us/typography/opentype/spec/name) table
 
-use crate::FontData;
-
-/// 'name'
-pub const TAG: Tag = Tag::new(b"name");
-
 include!("../../generated/generated_name.rs");
 
 impl<'a> Name<'a> {

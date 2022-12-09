@@ -1,10 +1,5 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
-use crate::{FontData, ReadError};
-
-/// 'glyf'
-pub const TAG: Tag = Tag::new(b"glyf");
-
 include!("../../generated/generated_glyf.rs");
 
 macro_rules! field_getter {

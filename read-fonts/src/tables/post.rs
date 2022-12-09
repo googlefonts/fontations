@@ -1,10 +1,5 @@
 //! the [post (PostScript)](https://docs.microsoft.com/en-us/typography/opentype/spec/post#header) table
 
-use types::{GlyphId, Tag, Version16Dot16};
-
-/// 'post'
-pub const TAG: Tag = Tag::new(b"post");
-
 include!("../../generated/generated_post.rs");
 
 impl<'a> Post<'a> {
