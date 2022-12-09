@@ -32,7 +32,7 @@ pub trait TableProvider<'a> {
             .and_then(FontRead::read)
     }
 
-    fn hmtx(&self) -> Result<tables::hvmtx::HVmtx<'a>, ReadError> {
+    fn hmtx(&self) -> Result<tables::hmtx::Hmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
         let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_long_metrics())?;
@@ -42,7 +42,7 @@ pub trait TableProvider<'a> {
             })
     }
 
-    fn vmtx(&self) -> Result<tables::hvmtx::HVmtx<'a>, ReadError> {
+    fn vmtx(&self) -> Result<tables::vmtx::Vmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
         let number_of_v_metrics = self.vhea().map(|vhea| vhea.number_of_long_ver_metrics())?;
@@ -190,7 +190,7 @@ mod tests {
 
         assert_eq!(number_of_h_metrics, 1);
         assert_eq!(num_glyphs, 3);
-        assert_eq!(hmtx.long_metrics().len(), 1);
-        assert_eq!(hmtx.bearings().len(), 2);
+        assert_eq!(hmtx.h_metrics().len(), 1);
+        assert_eq!(hmtx.left_side_bearings().len(), 2);
     }
 }
