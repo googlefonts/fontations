@@ -76,12 +76,11 @@ pub struct TableRecord {
 
 impl TableRecord {
     /// Construct a new `TableRecord`
-    #[allow(clippy::useless_conversion)]
     pub fn new(tag: Tag, checksum: u32, offset: u32, length: u32) -> Self {
         Self {
             tag,
             checksum,
-            offset: offset.into(),
+            offset,
             length,
         }
     }

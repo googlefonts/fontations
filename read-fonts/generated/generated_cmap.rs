@@ -1586,10 +1586,10 @@ pub struct VariationSelector {
     pub var_selector: BigEndian<Uint24>,
     /// Offset from the start of the format 14 subtable to Default UVS
     /// Table. May be 0.
-    pub default_uvs_offset: BigEndian<Offset32>,
+    pub default_uvs_offset: BigEndian<Nullable<Offset32>>,
     /// Offset from the start of the format 14 subtable to Non-Default
     /// UVS Table. May be 0.
-    pub non_default_uvs_offset: BigEndian<Offset32>,
+    pub non_default_uvs_offset: BigEndian<Nullable<Offset32>>,
 }
 
 impl VariationSelector {
@@ -1600,14 +1600,27 @@ impl VariationSelector {
 
     /// Offset from the start of the format 14 subtable to Default UVS
     /// Table. May be 0.
-    pub fn default_uvs_offset(&self) -> Offset32 {
+    pub fn default_uvs_offset(&self) -> Nullable<Offset32> {
         self.default_uvs_offset.get()
+    }
+
+    /// Attempt to resolve [`default_uvs_offset`][Self::default_uvs_offset].
+    pub fn default_uvs<'a>(&self, data: FontData<'a>) -> Option<Result<DefaultUvs<'a>, ReadError>> {
+        self.default_uvs_offset().resolve(data)
     }
 
     /// Offset from the start of the format 14 subtable to Non-Default
     /// UVS Table. May be 0.
-    pub fn non_default_uvs_offset(&self) -> Offset32 {
+    pub fn non_default_uvs_offset(&self) -> Nullable<Offset32> {
         self.non_default_uvs_offset.get()
+    }
+
+    /// Attempt to resolve [`non_default_uvs_offset`][Self::non_default_uvs_offset].
+    pub fn non_default_uvs<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Option<Result<NonDefaultUvs<'a>, ReadError>> {
+        self.non_default_uvs_offset().resolve(data)
     }
 }
 
@@ -1625,11 +1638,11 @@ impl<'a> SomeRecord<'a> for VariationSelector {
                 0usize => Some(Field::new("var_selector", self.var_selector())),
                 1usize => Some(Field::new(
                     "default_uvs_offset",
-                    FieldType::unknown_offset(self.default_uvs_offset()),
+                    FieldType::offset(self.default_uvs_offset(), self.default_uvs(_data)),
                 )),
                 2usize => Some(Field::new(
                     "non_default_uvs_offset",
-                    FieldType::unknown_offset(self.non_default_uvs_offset()),
+                    FieldType::offset(self.non_default_uvs_offset(), self.non_default_uvs(_data)),
                 )),
                 _ => None,
             }),
@@ -1714,18 +1727,91 @@ impl<'a> std::fmt::Debug for DefaultUvs<'a> {
     }
 }
 
+/// [Non-Default UVS table](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#non-default-uvs-table)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct NonDefaultUvsMarker {
+    uvs_mapping_byte_len: usize,
+}
+
+impl NonDefaultUvsMarker {
+    fn num_uvs_mappings_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn uvs_mapping_byte_range(&self) -> Range<usize> {
+        let start = self.num_uvs_mappings_byte_range().end;
+        start..start + self.uvs_mapping_byte_len
+    }
+}
+
+impl<'a> FontRead<'a> for NonDefaultUvs<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let num_uvs_mappings: u32 = cursor.read()?;
+        let uvs_mapping_byte_len = num_uvs_mappings as usize * UvsMapping::RAW_BYTE_LEN;
+        cursor.advance_by(uvs_mapping_byte_len);
+        cursor.finish(NonDefaultUvsMarker {
+            uvs_mapping_byte_len,
+        })
+    }
+}
+
+/// [Non-Default UVS table](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#non-default-uvs-table)
+pub type NonDefaultUvs<'a> = TableRef<'a, NonDefaultUvsMarker>;
+
+impl<'a> NonDefaultUvs<'a> {
+    pub fn num_uvs_mappings(&self) -> u32 {
+        let range = self.shape.num_uvs_mappings_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn uvs_mapping(&self) -> &'a [UvsMapping] {
+        let range = self.shape.uvs_mapping_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for NonDefaultUvs<'a> {
+    fn type_name(&self) -> &str {
+        "NonDefaultUvs"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("num_uvs_mappings", self.num_uvs_mappings())),
+            1usize => Some(Field::new(
+                "uvs_mapping",
+                traversal::FieldType::array_of_records(
+                    stringify!(UvsMapping),
+                    self.uvs_mapping(),
+                    self.offset_data(),
+                ),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for NonDefaultUvs<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
 /// Part of [Cmap14]
 #[derive(Clone, Debug)]
 #[repr(C)]
 #[repr(packed)]
-pub struct UVSMapping {
+pub struct UvsMapping {
     /// Base Unicode value of the UVS
     pub unicode_value: BigEndian<Uint24>,
     /// Glyph ID of the UVS
     pub glyph_id: BigEndian<u16>,
 }
 
-impl UVSMapping {
+impl UvsMapping {
     /// Base Unicode value of the UVS
     pub fn unicode_value(&self) -> Uint24 {
         self.unicode_value.get()
@@ -1737,15 +1823,15 @@ impl UVSMapping {
     }
 }
 
-impl FixedSize for UVSMapping {
+impl FixedSize for UvsMapping {
     const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> SomeRecord<'a> for UVSMapping {
+impl<'a> SomeRecord<'a> for UvsMapping {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
         RecordResolver {
-            name: "UVSMapping",
+            name: "UvsMapping",
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("unicode_value", self.unicode_value())),
                 1usize => Some(Field::new("glyph_id", self.glyph_id())),

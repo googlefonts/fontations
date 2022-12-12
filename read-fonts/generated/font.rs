@@ -135,7 +135,7 @@ pub struct TableRecord {
     /// Checksum for the table.
     pub checksum: BigEndian<u32>,
     /// Offset from the beginning of the font data.
-    pub offset: BigEndian<Offset32>,
+    pub offset: BigEndian<u32>,
     /// Length of the table.
     pub length: BigEndian<u32>,
 }
@@ -151,11 +151,6 @@ impl TableRecord {
         self.checksum.get()
     }
 
-    /// Offset from the beginning of the font data.
-    pub fn offset(&self) -> Offset32 {
-        self.offset.get()
-    }
-
     /// Length of the table.
     pub fn length(&self) -> u32 {
         self.length.get()
@@ -164,7 +159,7 @@ impl TableRecord {
 
 impl FixedSize for TableRecord {
     const RAW_BYTE_LEN: usize =
-        Tag::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+        Tag::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -175,11 +170,7 @@ impl<'a> SomeRecord<'a> for TableRecord {
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("tag", self.tag())),
                 1usize => Some(Field::new("checksum", self.checksum())),
-                2usize => Some(Field::new(
-                    "offset",
-                    FieldType::unknown_offset(self.offset()),
-                )),
-                3usize => Some(Field::new("length", self.length())),
+                2usize => Some(Field::new("length", self.length())),
                 _ => None,
             }),
             data,
