@@ -129,3 +129,20 @@ jobs:
           command: check
           args: --manifest-path=read-fonts/Cargo.toml --no-default-features
 
+  check-wasm:
+    name: cargo check wasm
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: install stable toolchain
+        uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          profile: minimal
+          override: true
+      - run: rustup target add wasm32-unknown-unknown
+      - uses: actions-rs/cargo@v1
+        with:
+          command: check
+          args: --manifest-path=write-fonts/Cargo.toml --target wasm32-unknown-unknown
+
