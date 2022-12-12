@@ -190,7 +190,7 @@ pub(crate) struct FieldAttrs {
     pub(crate) count: Option<Attr<Count>>,
     pub(crate) compile: Option<Attr<CustomCompile>>,
     pub(crate) default: Option<Attr<syn::Expr>>,
-    pub(crate) compile_type: Option<Attr<syn::Path>>,
+    pub(crate) compile_type: Option<Attr<syn::Type>>,
     pub(crate) read_with_args: Option<Attr<FieldReadArgs>>,
     pub(crate) read_offset_args: Option<Attr<FieldReadArgs>>,
     /// If present, a custom method that returns a FieldType for this field,
