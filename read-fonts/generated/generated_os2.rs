@@ -126,12 +126,12 @@ impl Os2Marker {
         let start = self.us_last_char_index_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
-    fn s_typo_decender_byte_range(&self) -> Range<usize> {
+    fn s_typo_descender_byte_range(&self) -> Range<usize> {
         let start = self.s_typo_ascender_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
     fn s_typo_line_gap_byte_range(&self) -> Range<usize> {
-        let start = self.s_typo_decender_byte_range().end;
+        let start = self.s_typo_descender_byte_range().end;
         start..start + i16::RAW_BYTE_LEN
     }
     fn us_win_ascent_byte_range(&self) -> Range<usize> {
@@ -288,6 +288,8 @@ impl<'a> Os2<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// [Average weighted escapement](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#xavgcharwidth).
+    ///
     /// The Average Character Width parameter specifies the arithmetic average
     /// of the escapement (width) of all non-zero width glyphs in the font.
     pub fn x_avg_char_width(&self) -> i16 {
@@ -295,6 +297,8 @@ impl<'a> Os2<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// [Weight class](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#usweightclass).
+    ///
     /// Indicates the visual weight (degree of blackness or thickness of
     /// strokes) of the characters in the font. Values from 1 to 1000 are valid.
     pub fn us_weight_class(&self) -> u16 {
@@ -302,13 +306,17 @@ impl<'a> Os2<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    /// Indicates a relative change from the normal aspect ratio (width to
-    /// height ratio) as specified by a font designer for the glyphs in a font.
+    /// [Width class](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#uswidthclass).
+    ///
+    /// Indicates a relative change from the normal aspect ratio (width to height
+    /// ratio) as specified by a font designer for the glyphs in a font.
     pub fn us_width_class(&self) -> u16 {
         let range = self.shape.us_width_class_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// [Type flags](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fstype).
+    ///
     /// Indicates font embedding licensing rights for the font.
     pub fn fs_type(&self) -> u16 {
         let range = self.shape.fs_type_byte_range();
@@ -384,12 +392,15 @@ impl<'a> Os2<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// [Font-family class and subclass](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#sfamilyclass).
     /// This parameter is a classification of font-family design.
     pub fn s_family_class(&self) -> i16 {
         let range = self.shape.s_family_class_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// [PANOSE classification number](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#panose).
+    ///
     /// Additional specifications are required for PANOSE to classify non-Latin
     /// character sets.
     pub fn panose_10(&self) -> &'a [u8] {
@@ -397,6 +408,8 @@ impl<'a> Os2<'a> {
         self.data.read_array(range).unwrap()
     }
 
+    /// [Unicode Character Range](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#ulunicoderange1-bits-031ulunicoderange2-bits-3263ulunicoderange3-bits-6495ulunicoderange4-bits-96127).
+    ///
     /// Unicode Character Range (bits 0-31).
     pub fn ul_unicode_range_1(&self) -> u32 {
         let range = self.shape.ul_unicode_range_1_byte_range();
@@ -421,12 +434,16 @@ impl<'a> Os2<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
+    /// [Font Vendor Identification](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#achvendid).
+    ///
     /// The four-character identifier for the vendor of the given type face.
     pub fn ach_vend_id(&self) -> Tag {
         let range = self.shape.ach_vend_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
+    /// [Font selection flags](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fsselection).
+    ///
     /// Contains information concerning the nature of the font patterns.
     pub fn fs_selection(&self) -> u16 {
         let range = self.shape.fs_selection_byte_range();
@@ -452,8 +469,8 @@ impl<'a> Os2<'a> {
     }
 
     /// The typographic descender for this font.
-    pub fn s_typo_decender(&self) -> i16 {
-        let range = self.shape.s_typo_decender_byte_range();
+    pub fn s_typo_descender(&self) -> i16 {
+        let range = self.shape.s_typo_descender_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
@@ -463,15 +480,19 @@ impl<'a> Os2<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    /// The “Windows ascender” metric. This should be used to specify the
-    /// height above the baseline for a clipping region.
+    /// The “Windows ascender” metric.
+    ///
+    /// This should be used to specify the height above the baseline for a
+    /// clipping region.
     pub fn us_win_ascent(&self) -> u16 {
         let range = self.shape.us_win_ascent_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
-    /// The “Windows descender” metric. This should be used to specify the
-    /// vertical extend below the baseline for a clipping region.
+    /// The “Windows descender” metric.
+    ///
+    /// This should be used to specify the vertical extent below the baseline
+    /// for a clipping region.
     pub fn us_win_descent(&self) -> u16 {
         let range = self.shape.us_win_descent_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -595,7 +616,7 @@ impl<'a> SomeTable<'a> for Os2<'a> {
             )),
             24usize => Some(Field::new("us_last_char_index", self.us_last_char_index())),
             25usize => Some(Field::new("s_typo_ascender", self.s_typo_ascender())),
-            26usize => Some(Field::new("s_typo_decender", self.s_typo_decender())),
+            26usize => Some(Field::new("s_typo_descender", self.s_typo_descender())),
             27usize => Some(Field::new("s_typo_line_gap", self.s_typo_line_gap())),
             28usize => Some(Field::new("us_win_ascent", self.us_win_ascent())),
             29usize => Some(Field::new("us_win_descent", self.us_win_descent())),
