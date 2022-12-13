@@ -305,7 +305,7 @@ impl<'a> FontRead<'a> for Cmap0<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        let glyph_id_array_byte_len = 256 * u8::RAW_BYTE_LEN;
+        let glyph_id_array_byte_len = 256_usize * u8::RAW_BYTE_LEN;
         cursor.advance_by(glyph_id_array_byte_len);
         cursor.finish(Cmap0Marker {
             glyph_id_array_byte_len,
@@ -402,7 +402,7 @@ impl<'a> FontRead<'a> for Cmap2<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        let sub_header_keys_byte_len = 256 * u16::RAW_BYTE_LEN;
+        let sub_header_keys_byte_len = 256_usize * u16::RAW_BYTE_LEN;
         cursor.advance_by(sub_header_keys_byte_len);
         cursor.finish(Cmap2Marker {
             sub_header_keys_byte_len,
@@ -603,14 +603,14 @@ impl<'a> FontRead<'a> for Cmap4<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        let end_code_byte_len = seg_count_x2 as usize / 2 * u16::RAW_BYTE_LEN;
+        let end_code_byte_len = transforms::half(seg_count_x2) * u16::RAW_BYTE_LEN;
         cursor.advance_by(end_code_byte_len);
         cursor.advance::<u16>();
-        let start_code_byte_len = seg_count_x2 as usize / 2 * u16::RAW_BYTE_LEN;
+        let start_code_byte_len = transforms::half(seg_count_x2) * u16::RAW_BYTE_LEN;
         cursor.advance_by(start_code_byte_len);
-        let id_delta_byte_len = seg_count_x2 as usize / 2 * i16::RAW_BYTE_LEN;
+        let id_delta_byte_len = transforms::half(seg_count_x2) * i16::RAW_BYTE_LEN;
         cursor.advance_by(id_delta_byte_len);
-        let id_range_offsets_byte_len = seg_count_x2 as usize / 2 * u16::RAW_BYTE_LEN;
+        let id_range_offsets_byte_len = transforms::half(seg_count_x2) * u16::RAW_BYTE_LEN;
         cursor.advance_by(id_range_offsets_byte_len);
         let glyph_id_array_byte_len = cursor.remaining_bytes();
         cursor.advance_by(glyph_id_array_byte_len);
@@ -908,7 +908,7 @@ impl<'a> FontRead<'a> for Cmap8<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u32>();
         cursor.advance::<u32>();
-        let is32_byte_len = 8192 * u8::RAW_BYTE_LEN;
+        let is32_byte_len = 8192_usize * u8::RAW_BYTE_LEN;
         cursor.advance_by(is32_byte_len);
         let num_groups: u32 = cursor.read()?;
         let groups_byte_len = num_groups as usize * SequentialMapGroup::RAW_BYTE_LEN;

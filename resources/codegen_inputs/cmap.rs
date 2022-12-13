@@ -123,19 +123,19 @@ table Cmap4 {
     /// searchRange)
     range_shift: u16,
     /// End characterCode for each segment, last=0xFFFF.
-    #[count($seg_count_x2 as usize / 2)]
+    #[count(half($seg_count_x2))]
     end_code: [u16],
     /// Set to 0.
     #[skip_getter]
     reserved_pad: u16,
     /// Start character code for each segment.
-    #[count($seg_count_x2 as usize / 2)]
+    #[count(half($seg_count_x2))]
     start_code: [u16],
     /// Delta for all character codes in segment.
-    #[count($seg_count_x2 as usize / 2)]
+    #[count(half($seg_count_x2))]
     id_delta: [i16],
     /// Offsets into glyphIdArray or 0
-    #[count($seg_count_x2 as usize / 2)]
+    #[count(half($seg_count_x2))]
     id_range_offsets: [u16],
     /// Glyph index array (arbitrary length)
     #[count(..)]

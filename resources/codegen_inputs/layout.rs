@@ -265,7 +265,7 @@ table SequenceRule {
     #[compile(array_len($seq_lookup_records))]
     seq_lookup_count: u16,
     /// Array of input glyph IDs—starting with the second glyph
-    #[count(minus_one($glyph_count))]
+    #[count(subtract($glyph_count, 1))]
     input_sequence: [GlyphId],
     /// Array of Sequence lookup records
     #[count($seq_lookup_count)]
@@ -314,7 +314,7 @@ table ClassSequenceRule {
     seq_lookup_count: u16,
     /// Sequence of classes to be matched to the input glyph sequence,
     /// beginning with the second glyph position
-    #[count(minus_one($glyph_count))]
+    #[count(subtract($glyph_count, 1))]
     input_sequence: [GlyphId],
     /// Array of SequenceLookupRecords
     #[count($seq_lookup_count)]
@@ -388,7 +388,7 @@ table ChainedSequenceRule {
     #[compile(plus_one($input_sequence.len()))]
     input_glyph_count: u16,
     /// Array of input glyph IDs—start with second glyph
-    #[count(minus_one($input_glyph_count))]
+    #[count(subtract($input_glyph_count, 1))]
     input_sequence: [GlyphId],
     /// Number of glyphs in the lookahead sequence
     #[compile(array_len($lookahead_sequence))]
@@ -455,7 +455,7 @@ table ChainedClassSequenceRule {
     input_glyph_count: u16,
     /// Array of input sequence classes, beginning with the second
     /// glyph position
-    #[count(minus_one($input_glyph_count))]
+    #[count(subtract($input_glyph_count, 1))]
     input_sequence: [GlyphId],
     /// Number of glyphs in the lookahead sequence
     #[compile(array_len($lookahead_sequence))]
@@ -532,7 +532,7 @@ table Device {
     /// Format of deltaValue array data: 0x0001, 0x0002, or 0x0003
     delta_format: DeltaFormat,
     /// Array of compressed data
-    #[count(delta_value_count($start_size, $end_size, $delta_format))]
+    #[count(delta_value_count($delta_format, $start_size, $end_size))]
     delta_value: [u16],
 }
 

@@ -235,12 +235,37 @@ pub(crate) struct FieldReadArgs {
     pub(crate) inputs: Vec<syn::Ident>,
 }
 
-/// Annotations for how to calculate the count of an array.
-#[derive(Debug, Clone)]
-pub(crate) enum Count {
+#[derive(Clone, Debug)]
+pub(crate) enum CountArg {
+    All(syn::token::Dot2),
     Field(syn::Ident),
-    Expr(InlineExpr),
-    All,
+    Literal(syn::LitInt),
+}
+
+/// Annotations for how to calculate the count of an array.
+///
+/// ```no_compile
+/// #[count(1)] #[count(..)] #[count($hi)] // simple
+/// #[count(subtract($field, 1))] // complex
+/// ```
+#[derive(Clone, Debug)]
+pub(crate) enum Count {
+    Simple(CountArg),
+    NotSimple {
+        args: Vec<CountArg>,
+        xform: CountTransform,
+    },
+}
+
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum CountTransform {
+    //None,
+    /// requires exactly two args, defined as $arg1 - $arg2
+    Sub,
+    /// requires exactly one arg. defined as $arg1 / 2
+    Half,
+    DeltaValueCount,
+    DeltaSetIndexData,
 }
 
 /// Attributes for specifying how to compile a field
@@ -1184,22 +1209,85 @@ impl Item {
     }
 }
 
+impl Parse for CountArg {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        if input.peek(Token![$]) {
+            input.parse::<Token![$]>()?;
+            input.parse().map(Self::Field)
+        } else if input.peek(Token![..]) {
+            input.parse().map(Self::All)
+        } else {
+            let int = input.parse::<syn::LitInt>()?;
+            let digits = int.base10_digits();
+            if digits.starts_with('-') {
+                return Err(syn::Error::new(
+                    input.span(),
+                    "negative count is not supported",
+                ));
+            }
+            //HACK: we ensure these literals always have an explicit type.
+            //Is this necessary? no clue.
+            if int.suffix() != "usize" {
+                let reparse = format!("{digits}_usize");
+                syn::parse_str(&reparse).map(Self::Literal)
+            } else {
+                Ok(Self::Literal(int))
+            }
+        }
+    }
+}
+
 impl Parse for Count {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let fork = input.fork();
-        if fork.parse::<Token![$]>().is_ok()
-            && fork.parse::<syn::Ident>().is_ok()
-            && fork.is_empty()
-        {
-            input.parse::<Token![$]>()?;
-            return Ok(Self::Field(input.parse()?));
-        }
-
-        if input.peek(Token![..]) {
-            input.parse::<Token![..]>()?;
-            Ok(Self::All)
+        if input.peek(syn::Ident) {
+            // leading ident must be a function
+            let xform = input.parse()?;
+            let content;
+            let _ = parenthesized!(content in input);
+            let args = Punctuated::<CountArg, Token![,]>::parse_terminated(&content)?
+                .into_iter()
+                .collect();
+            Count::try_from_fancy_stuff(input.span(), xform, args)
         } else {
-            input.parse().map(Self::Expr)
+            input.parse().map(Self::Simple)
+        }
+    }
+}
+
+impl Parse for CountTransform {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let ident = input.parse::<syn::Ident>()?;
+        if ident == "subtract" {
+            Ok(CountTransform::Sub)
+        } else if ident == "half" {
+            Ok(CountTransform::Half)
+        } else if ident == "delta_value_count" {
+            Ok(CountTransform::DeltaValueCount)
+        } else if ident == "map_data_size" {
+            Ok(CountTransform::DeltaSetIndexData)
+        } else {
+            Err(syn::Error::new(ident.span(), "unknown named transform, expected one of 'subtract', 'half' 'delta_value_count', or 'map_data_size'"))
+        }
+    }
+}
+
+impl CountTransform {
+    fn arg_count(self) -> usize {
+        match self {
+            CountTransform::Sub => 2,
+            CountTransform::Half => 1,
+            CountTransform::DeltaValueCount => 3,
+            CountTransform::DeltaSetIndexData => 2,
+        }
+    }
+}
+
+impl ToTokens for CountArg {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        match self {
+            CountArg::All(_) => panic!("Count::All is a special case"),
+            CountArg::Field(fld) => fld.to_tokens(tokens),
+            CountArg::Literal(lit) => lit.to_tokens(tokens),
         }
     }
 }
@@ -1229,13 +1317,54 @@ impl Parse for FieldValidation {
 }
 
 impl Count {
+    fn try_from_fancy_stuff(
+        err_span: Span,
+        xform: CountTransform,
+        args: Vec<CountArg>,
+    ) -> Result<Self, syn::Error> {
+        if let Some(all) = args.iter().find_map(|arg| match arg {
+            CountArg::All(arg) => Some(arg),
+            _ => None,
+        }) {
+            return Err(syn::Error::new(
+                all.span(),
+                "only allowed as a single unmodified argument",
+            ));
+        }
+
+        let expected_arg_count = xform.arg_count();
+        if args.len() != expected_arg_count {
+            return Err(syn::Error::new(
+                err_span,
+                format!("expected {expected_arg_count} arguments"),
+            ));
+        }
+        Ok(Count::NotSimple { args, xform })
+    }
+
+    pub(crate) fn single_field(&self) -> Option<&syn::Ident> {
+        if let Count::Simple(CountArg::Field(ident)) = self {
+            Some(ident)
+        } else {
+            None
+        }
+    }
+
+    pub(crate) fn all(&self) -> bool {
+        matches!(self, Count::Simple(CountArg::All(_)))
+    }
+
     pub(crate) fn iter_referenced_fields(&self) -> impl Iterator<Item = &syn::Ident> {
         let (one, two) = match self {
-            Count::Field(ident) => (Some(ident), None),
-            Count::All => (None, None),
-            Count::Expr(InlineExpr {
-                referenced_fields, ..
-            }) => (None, Some(referenced_fields.iter())),
+            Self::Simple(CountArg::Field(ident)) => (Some(ident), None),
+            Self::NotSimple { args, .. } => (
+                None,
+                Some(args.iter().filter_map(|arg| match arg {
+                    CountArg::Field(ident) => Some(ident),
+                    _ => None,
+                })),
+            ),
+            _ => (None, None),
         };
         // a trick so we return the exact sample iterator type from both match arms
         one.into_iter().chain(two.into_iter().flatten())
@@ -1243,9 +1372,24 @@ impl Count {
 
     pub(crate) fn count_expr(&self) -> TokenStream {
         match self {
-            Count::Field(field) => quote!(#field as usize),
-            Count::Expr(expr) => expr.expr.to_token_stream(),
-            Count::All => panic!("count_to annotation is handled before here"),
+            Count::Simple(CountArg::All(_)) => unreachable!("'all' count handled separately"),
+            Count::Simple(CountArg::Field(arg)) => quote!(#arg as usize),
+            Count::Simple(CountArg::Literal(arg)) => quote!(#arg),
+            Count::NotSimple { args, xform } => match (xform, args.as_slice()) {
+                (CountTransform::Sub, [a, b]) => {
+                    quote!(transforms::subtract(#a, #b))
+                }
+                (CountTransform::Half, [a]) => {
+                    quote!(transforms::half(#a))
+                }
+                (CountTransform::DeltaSetIndexData, [a, b]) => {
+                    quote!(EntryFormat::map_size(#a, #b))
+                }
+                (CountTransform::DeltaValueCount, [a, b, c]) => {
+                    quote!(DeltaFormat::value_count(#a, #b, #c))
+                }
+                _ => unreachable!("validated before now"),
+            },
         }
     }
 }
@@ -1476,6 +1620,10 @@ mod tests {
         path.segments.last().unwrap().clone()
     }
 
+    fn parse_count(s: &str) -> Result<Count, syn::Error> {
+        syn::parse_str(s)
+    }
+
     #[test]
     fn offset_target() {
         let array_target = make_path_seg("Offset16<[u16]>");
@@ -1491,5 +1639,32 @@ mod tests {
 
         let tuple_target = make_path_seg("Offset16<(u16, u16)>");
         assert!(get_offset_target(&tuple_target.arguments).is_err());
+    }
+
+    #[test]
+    fn test_count_attr() {
+        assert!(matches!(
+            parse_count("$hello"),
+            Ok(Count::Simple(CountArg::Field(_)))
+        ));
+        assert!(matches!(
+            parse_count("5"),
+            Ok(Count::Simple(CountArg::Literal(_)))
+        ));
+
+        assert!(parse_count("hello").is_err());
+        assert!(parse_count("$5").is_err());
+        assert!(parse_count("5 - 2 as usize").is_err());
+
+        assert!(matches!(
+            parse_count("subtract(5, 2)"),
+            Ok(Count::NotSimple {
+                xform: CountTransform::Sub,
+                ..
+            })
+        ));
+
+        assert!(parse_count("sub(5, 2)").is_err());
+        assert!(parse_count("subtract(5)").is_err());
     }
 }

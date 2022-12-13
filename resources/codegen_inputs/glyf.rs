@@ -36,7 +36,7 @@ table SimpleGlyph {
     y_max: i16,
     /// Array of point indices for the last point of each contour,
     /// in increasing numeric order
-    #[count($number_of_contours.max(0) as usize)]
+    #[count($number_of_contours)]
     end_pts_of_contours: [u16],
     /// Total number of bytes for instructions. If instructionLength is
     /// zero, no instructions are present for this glyph, and this

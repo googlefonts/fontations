@@ -1104,7 +1104,8 @@ impl<'a> FontRead<'a> for Ligature<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<GlyphId>();
         let component_count: u16 = cursor.read()?;
-        let component_glyph_ids_byte_len = minus_one(component_count) * GlyphId::RAW_BYTE_LEN;
+        let component_glyph_ids_byte_len =
+            transforms::subtract(component_count, 1_usize) * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(component_glyph_ids_byte_len);
         cursor.finish(LigatureMarker {
             component_glyph_ids_byte_len,

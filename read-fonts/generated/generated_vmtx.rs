@@ -40,7 +40,7 @@ impl<'a> FontReadWithArgs<'a> for Vmtx<'a> {
         let v_metrics_byte_len = number_of_long_ver_metrics as usize * LongMetric::RAW_BYTE_LEN;
         cursor.advance_by(v_metrics_byte_len);
         let top_side_bearings_byte_len =
-            num_glyphs.saturating_sub(number_of_long_ver_metrics) as usize * i16::RAW_BYTE_LEN;
+            transforms::subtract(num_glyphs, number_of_long_ver_metrics) * i16::RAW_BYTE_LEN;
         cursor.advance_by(top_side_bearings_byte_len);
         cursor.finish(VmtxMarker {
             v_metrics_byte_len,

@@ -6,7 +6,7 @@ use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
-use crate::parsing::{logged_syn_error, Attr, FieldValidation, OffsetTarget, Phase};
+use crate::parsing::{logged_syn_error, Attr, CountArg, FieldValidation, OffsetTarget, Phase};
 
 use super::parsing::{
     Count, CustomCompile, Field, FieldReadArgs, FieldType, Fields, NeededWhen, Record,
@@ -47,7 +47,7 @@ impl Fields {
             }
 
             if (matches!(fld.typ, FieldType::VarLenArray(_))
-                || matches!(fld.attrs.count.as_deref(), Some(Count::All)))
+                || fld.attrs.count.as_deref().map(Count::all).unwrap_or(false))
                 && i != self.fields.len() - 1
             {
                 return Err(logged_syn_error(
@@ -180,10 +180,10 @@ impl Fields {
                 .is_some()
                 .then(|| quote!(.as_ref().unwrap()));
 
-            let array_len_check = if let Some(Count::Field(count_name)) =
-                field.attrs.count.as_deref()
+            let array_len_check = if let Some(ident) =
+                field.attrs.count.as_deref().and_then(Count::single_field)
             {
-                let typ = self.get_scalar_field_type(count_name);
+                let typ = self.get_scalar_field_type(ident);
                 Some(quote! {
                     if #maybe_check_is_some self.#name #maybe_unwrap.len() > (#typ::MAX as usize) {
                         ctx.report("array excedes max length");
@@ -957,7 +957,7 @@ impl Field {
             panic!("Should have resolved {:?}", self)
         }
         let len_expr = match self.attrs.count.as_deref() {
-            Some(Count::All) => quote!(cursor.remaining_bytes()),
+            Some(Count::Simple(CountArg::All(_))) => quote!(cursor.remaining_bytes()),
             Some(other) => {
                 let count_expr = other.count_expr();
                 let size_expr = match &self.typ {

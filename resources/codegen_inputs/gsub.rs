@@ -159,7 +159,7 @@ table Ligature {
     component_count: u16,
     /// Array of component glyph IDs — start with the second
     /// component, ordered in writing direction
-    #[count(minus_one($component_count))]
+    #[count(subtract($component_count, 1))]
     component_glyph_ids: [GlyphId],
 }
 

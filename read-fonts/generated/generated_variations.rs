@@ -41,7 +41,7 @@ impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0<'a> {
         cursor.advance::<u8>();
         let entry_format: EntryFormat = cursor.read()?;
         let map_count: u16 = cursor.read()?;
-        let map_data_byte_len = map_data_size(entry_format, map_count as u32) * u8::RAW_BYTE_LEN;
+        let map_data_byte_len = EntryFormat::map_size(entry_format, map_count) * u8::RAW_BYTE_LEN;
         cursor.advance_by(map_data_byte_len);
         cursor.finish(DeltaSetIndexMapFormat0Marker { map_data_byte_len })
     }
@@ -136,7 +136,7 @@ impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1<'a> {
         cursor.advance::<u8>();
         let entry_format: EntryFormat = cursor.read()?;
         let map_count: u32 = cursor.read()?;
-        let map_data_byte_len = map_data_size(entry_format, map_count) * u8::RAW_BYTE_LEN;
+        let map_data_byte_len = EntryFormat::map_size(entry_format, map_count) * u8::RAW_BYTE_LEN;
         cursor.advance_by(map_data_byte_len);
         cursor.finish(DeltaSetIndexMapFormat1Marker { map_data_byte_len })
     }
