@@ -19,6 +19,11 @@ impl EntryFormat {
     pub fn bit_count(self) -> u8 {
         (self.bits() & Self::INNER_INDEX_BIT_COUNT_MASK.bits()) + 1
     }
+
+    // called from codegen
+    pub(crate) fn map_size(self, map_count: impl Into<u32>) -> usize {
+        self.entry_size() as usize * map_count.into() as usize
+    }
 }
 
 impl<'a> DeltaSetIndexMap<'a> {
@@ -48,10 +53,6 @@ impl<'a> DeltaSetIndexMap<'a> {
             inner: (entry & ((1 << bit_count) - 1)) as u16,
         })
     }
-}
-
-fn map_data_size(entry_format: EntryFormat, map_count: u32) -> usize {
-    entry_format.entry_size() as usize * map_count as usize
 }
 
 impl<'a> ItemVariationStore<'a> {

@@ -40,7 +40,7 @@ impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
         let h_metrics_byte_len = number_of_h_metrics as usize * LongMetric::RAW_BYTE_LEN;
         cursor.advance_by(h_metrics_byte_len);
         let left_side_bearings_byte_len =
-            num_glyphs.saturating_sub(number_of_h_metrics) as usize * i16::RAW_BYTE_LEN;
+            transforms::subtract(num_glyphs, number_of_h_metrics) * i16::RAW_BYTE_LEN;
         cursor.advance_by(left_side_bearings_byte_len);
         cursor.finish(HmtxMarker {
             h_metrics_byte_len,

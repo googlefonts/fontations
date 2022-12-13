@@ -1728,7 +1728,8 @@ impl<'a> FontRead<'a> for SequenceRule<'a> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
         let seq_lookup_count: u16 = cursor.read()?;
-        let input_sequence_byte_len = minus_one(glyph_count) * GlyphId::RAW_BYTE_LEN;
+        let input_sequence_byte_len =
+            transforms::subtract(glyph_count, 1_usize) * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let seq_lookup_records_byte_len =
             seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
@@ -2083,7 +2084,8 @@ impl<'a> FontRead<'a> for ClassSequenceRule<'a> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
         let seq_lookup_count: u16 = cursor.read()?;
-        let input_sequence_byte_len = minus_one(glyph_count) * GlyphId::RAW_BYTE_LEN;
+        let input_sequence_byte_len =
+            transforms::subtract(glyph_count, 1_usize) * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let seq_lookup_records_byte_len =
             seq_lookup_count as usize * SequenceLookupRecord::RAW_BYTE_LEN;
@@ -2624,7 +2626,8 @@ impl<'a> FontRead<'a> for ChainedSequenceRule<'a> {
         let backtrack_sequence_byte_len = backtrack_glyph_count as usize * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(backtrack_sequence_byte_len);
         let input_glyph_count: u16 = cursor.read()?;
-        let input_sequence_byte_len = minus_one(input_glyph_count) * GlyphId::RAW_BYTE_LEN;
+        let input_sequence_byte_len =
+            transforms::subtract(input_glyph_count, 1_usize) * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let lookahead_glyph_count: u16 = cursor.read()?;
         let lookahead_sequence_byte_len = lookahead_glyph_count as usize * GlyphId::RAW_BYTE_LEN;
@@ -3089,7 +3092,8 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRule<'a> {
         let backtrack_sequence_byte_len = backtrack_glyph_count as usize * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(backtrack_sequence_byte_len);
         let input_glyph_count: u16 = cursor.read()?;
-        let input_sequence_byte_len = minus_one(input_glyph_count) * GlyphId::RAW_BYTE_LEN;
+        let input_sequence_byte_len =
+            transforms::subtract(input_glyph_count, 1_usize) * GlyphId::RAW_BYTE_LEN;
         cursor.advance_by(input_sequence_byte_len);
         let lookahead_glyph_count: u16 = cursor.read()?;
         let lookahead_sequence_byte_len = lookahead_glyph_count as usize * GlyphId::RAW_BYTE_LEN;
@@ -3580,7 +3584,7 @@ impl<'a> FontRead<'a> for Device<'a> {
         let end_size: u16 = cursor.read()?;
         let delta_format: DeltaFormat = cursor.read()?;
         let delta_value_byte_len =
-            delta_value_count(start_size, end_size, delta_format) * u16::RAW_BYTE_LEN;
+            DeltaFormat::value_count(delta_format, start_size, end_size) * u16::RAW_BYTE_LEN;
         cursor.advance_by(delta_value_byte_len);
         cursor.finish(DeviceMarker {
             delta_value_byte_len,

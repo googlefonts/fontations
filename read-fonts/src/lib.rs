@@ -67,9 +67,17 @@ pub(crate) mod codegen_prelude {
         last.trim_end_matches("Marker>")
     }
 
-    /// used in generated code
-    pub fn minus_one(val: impl Into<usize>) -> usize {
-        val.into().saturating_sub(1)
+    /// named transforms used in 'count', e.g
+    pub(crate) mod transforms {
+        pub fn subtract<T: TryInto<usize>, U: TryInto<usize>>(lhs: T, rhs: U) -> usize {
+            lhs.try_into()
+                .unwrap_or_default()
+                .saturating_sub(rhs.try_into().unwrap_or_default())
+        }
+
+        pub fn half<T: TryInto<usize>>(val: T) -> usize {
+            val.try_into().unwrap_or_default() / 2
+        }
     }
 }
 

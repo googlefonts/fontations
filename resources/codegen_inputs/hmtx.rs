@@ -10,7 +10,7 @@ table Hmtx {
     h_metrics: [LongMetric],
     /// Leading (left/top) side bearings for glyph IDs greater than or equal to
     /// numberOfLongMetrics.
-    #[count($num_glyphs.saturating_sub($number_of_h_metrics) as usize)]
+    #[count(subtract($num_glyphs, $number_of_h_metrics))]
     left_side_bearings: [i16],
 }
 

@@ -178,8 +178,13 @@ The following annotations are supported on top-level objects:
   fields.
 - `#[format = x]`: Indicates that this field is the format field of a
   multi-format table, and that it has the provided format value.
-- `#[count(arg)]`: Only valid (and required) on arrays: the argument is either a literal,
-  an expression, or a field on the type (preceded with a `$`).
+- `#[count(arg)]` and `#[count(fn_name(arg, +))]`: This annotation has two
+  forms. The simple form accepts a single argument, which can be either
+  the token `..` (meaning all remaining data, and only valid on the last field
+  in a table), the name of a field (preceded by the `$` token) or a literal
+  integer. The less-simple form begins with a function identifier, and then one
+  or more arguments, comma separated. Currently accepted function identifiers
+  are 'subtract', 'half', 'map_delta_size', and 'delta_value_count'.
 - `#[compile(arg)]`: If present, this field will not be included in the compile
   type. The value may be either the literal 'skip', or an expression that
   evalutes to the field's type: the skip case is only expected in cases where

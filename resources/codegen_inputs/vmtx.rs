@@ -11,6 +11,6 @@ table Vmtx {
     #[count($number_of_long_ver_metrics)]
     v_metrics: [LongMetric],
     /// Top side bearings for glyph IDs greater than or equal to numberOfLongMetrics.
-    #[count($num_glyphs.saturating_sub($number_of_long_ver_metrics) as usize)]
+    #[count(subtract($num_glyphs, $number_of_long_ver_metrics))]
     top_side_bearings: [i16],
 }
