@@ -4399,7 +4399,7 @@ impl<'a> std::fmt::Debug for StylisticSetParams<'a> {
 }
 
 impl Format<u16> for CharacterVariantParamsMarker {
-    const FORMAT: u16 = 1;
+    const FORMAT: u16 = 0;
 }
 
 /// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)

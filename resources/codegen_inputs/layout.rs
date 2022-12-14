@@ -678,7 +678,7 @@ table StylisticSetParams {
 /// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
 table CharacterVariantParams {
     /// Format number is set to 0.
-    #[format = 1]
+    #[format = 0]
     format: u16,
     /// The 'name' table name ID that specifies a string (or strings,
     /// for multiple languages) for a user-interface label for this
