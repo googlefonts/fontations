@@ -98,7 +98,7 @@ impl NameStringWriter<'_> {
         match self.encoding {
             Encoding::Utf16Be => self.string.chars().map(|c| c.len_utf16() as u16 * 2).sum(),
             // this will be correct assuming we pass validation
-            Encoding::MacRoman => self.string.len().try_into().unwrap(),
+            Encoding::MacRoman => self.string.chars().count().try_into().unwrap(),
             Encoding::Unknown => 0,
         }
     }
@@ -220,6 +220,19 @@ mod tests {
         assert_eq!(loaded.name_record()[0].encoding_id, 4);
         assert_eq!(loaded.name_record()[1].name_id, 1029);
         assert_eq!(loaded.name_record()[2].name_id, 1030);
+    }
+
+    /// ensure we are counting characters and not bytes
+    #[test]
+    fn mac_str_length() {
+        let name = NameRecord::new(1, 0, 0, 9, String::from("cé").into());
+        let mut table = Name::default();
+        table.name_record.insert(name);
+        let bytes = crate::dump_table(&table).unwrap();
+        let load = crate::read::tables::name::Name::read(FontData::new(&bytes)).unwrap();
+
+        let data = load.name_record()[0].string(load.string_data()).unwrap();
+        assert_eq!(data.chars().collect::<String>(), "cé");
     }
 
     #[test]
