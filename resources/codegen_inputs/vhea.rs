@@ -3,9 +3,9 @@
 /// The [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
 #[tag = "vhea"]
 table Vhea {
-    /// The major/minor version (1, 0)
-    #[compile(MajorMinor::VERSION_1_1)]
-    version: MajorMinor,
+    /// The major/minor version (1, 1)
+    #[compile(Version16Dot16::VERSION_1_1)]
+    version: Version16Dot16,
     /// Typographic ascent.
     ascender: FWord,
     /// Typographic descent.
