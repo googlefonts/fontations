@@ -6,11 +6,9 @@ use proc_macro2::TokenStream;
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
-use crate::parsing::{logged_syn_error, Attr, CountArg, FieldValidation, OffsetTarget, Phase};
-
 use super::parsing::{
-    Count, CustomCompile, Field, FieldReadArgs, FieldType, Fields, NeededWhen, Record,
-    ReferencedFields,
+    logged_syn_error, Attr, Count, CustomCompile, Field, FieldReadArgs, FieldType, FieldValidation,
+    Fields, NeededWhen, OffsetTarget, Phase, Record, ReferencedFields,
 };
 
 impl Fields {
@@ -957,7 +955,7 @@ impl Field {
             panic!("Should have resolved {:?}", self)
         }
         let len_expr = match self.attrs.count.as_deref() {
-            Some(Count::Simple(CountArg::All(_))) => quote!(cursor.remaining_bytes()),
+            Some(Count::All(_)) => quote!(cursor.remaining_bytes()),
             Some(other) => {
                 let count_expr = other.count_expr();
                 let size_expr = match &self.typ {
