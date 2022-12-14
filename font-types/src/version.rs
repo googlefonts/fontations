@@ -35,6 +35,8 @@ impl Version16Dot16 {
     pub const VERSION_0_5: Version16Dot16 = Version16Dot16::new(0, 5);
     /// Version 1.0
     pub const VERSION_1_0: Version16Dot16 = Version16Dot16::new(1, 0);
+    /// Version 1.1
+    pub const VERSION_1_1: Version16Dot16 = Version16Dot16::new(1, 1);
     /// Version 2.0
     pub const VERSION_2_0: Version16Dot16 = Version16Dot16::new(2, 0);
     /// Version 2.5

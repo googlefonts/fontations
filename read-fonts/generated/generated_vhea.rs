@@ -13,7 +13,7 @@ pub struct VheaMarker {}
 impl VheaMarker {
     fn version_byte_range(&self) -> Range<usize> {
         let start = 0;
-        start..start + MajorMinor::RAW_BYTE_LEN
+        start..start + Version16Dot16::RAW_BYTE_LEN
     }
     fn ascender_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
@@ -89,7 +89,7 @@ impl TopLevelTable for Vhea<'_> {
 impl<'a> FontRead<'a> for Vhea<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<MajorMinor>();
+        cursor.advance::<Version16Dot16>();
         cursor.advance::<FWord>();
         cursor.advance::<FWord>();
         cursor.advance::<FWord>();
@@ -114,8 +114,8 @@ impl<'a> FontRead<'a> for Vhea<'a> {
 pub type Vhea<'a> = TableRef<'a, VheaMarker>;
 
 impl<'a> Vhea<'a> {
-    /// The major/minor version (1, 0)
-    pub fn version(&self) -> MajorMinor {
+    /// The major/minor version (1, 1)
+    pub fn version(&self) -> Version16Dot16 {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }

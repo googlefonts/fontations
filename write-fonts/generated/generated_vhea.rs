@@ -72,7 +72,7 @@ impl Vhea {
 impl FontWrite for Vhea {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (MajorMinor::VERSION_1_1 as MajorMinor).write_into(writer);
+        (Version16Dot16::VERSION_1_1 as Version16Dot16).write_into(writer);
         self.ascender.write_into(writer);
         self.descender.write_into(writer);
         self.line_gap.write_into(writer);
