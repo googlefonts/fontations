@@ -2972,7 +2972,7 @@ impl CharacterVariantParams {
 impl FontWrite for CharacterVariantParams {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (1 as u16).write_into(writer);
+        (0 as u16).write_into(writer);
         self.feat_ui_label_name_id.write_into(writer);
         self.feat_ui_tooltip_text_name_id.write_into(writer);
         self.sample_text_name_id.write_into(writer);
