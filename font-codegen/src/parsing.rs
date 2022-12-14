@@ -235,13 +235,6 @@ pub(crate) struct FieldReadArgs {
     pub(crate) inputs: Vec<syn::Ident>,
 }
 
-#[derive(Clone, Debug)]
-pub(crate) enum CountArg {
-    All(syn::token::Dot2),
-    Field(syn::Ident),
-    Literal(syn::LitInt),
-}
-
 /// Annotations for how to calculate the count of an array.
 ///
 /// ```no_compile
@@ -257,9 +250,15 @@ pub(crate) enum Count {
     },
 }
 
+#[derive(Clone, Debug)]
+pub(crate) enum CountArg {
+    All(syn::token::Dot2),
+    Field(syn::Ident),
+    Literal(syn::LitInt),
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) enum CountTransform {
-    //None,
     /// requires exactly two args, defined as $arg1 - $arg2
     Sub,
     /// requires exactly one arg. defined as $arg1 / 2
@@ -1257,17 +1256,35 @@ impl Parse for Count {
 impl Parse for CountTransform {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let ident = input.parse::<syn::Ident>()?;
-        if ident == "subtract" {
-            Ok(CountTransform::Sub)
-        } else if ident == "half" {
-            Ok(CountTransform::Half)
-        } else if ident == "delta_value_count" {
-            Ok(CountTransform::DeltaValueCount)
-        } else if ident == "map_data_size" {
-            Ok(CountTransform::DeltaSetIndexData)
-        } else {
-            Err(syn::Error::new(ident.span(), "unknown named transform, expected one of 'subtract', 'half' 'delta_value_count', or 'map_data_size'"))
-        }
+        CountTransform::from_str(&ident.to_string())
+            .map_err(|err| syn::Error::new(ident.span(), err))
+    }
+}
+
+static TRANSFORM_IDENTS: &[(CountTransform, &str)] = &[
+    (CountTransform::Sub, "subtract"),
+    (CountTransform::Half, "half"),
+    (CountTransform::DeltaValueCount, "delta_value_count"),
+    (CountTransform::DeltaSetIndexData, "delta_set_index_data"),
+];
+
+impl FromStr for CountTransform {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        TRANSFORM_IDENTS
+            .iter()
+            .find_map(|(var, ident)| (*ident == s).then_some(*var))
+            .ok_or_else(|| {
+                format!(
+                    "invalid transform, expected one of {}",
+                    TRANSFORM_IDENTS
+                        .iter()
+                        .map(|(_, ident)| format!("'{ident}'"))
+                        .collect::<Vec<_>>()
+                        .join(", ")
+                )
+            })
     }
 }
 
@@ -1285,7 +1302,7 @@ impl CountTransform {
 impl ToTokens for CountArg {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
-            CountArg::All(_) => panic!("Count::All is a special case"),
+            CountArg::All(_) => unreachable!("Count::All handled before now"),
             CountArg::Field(fld) => fld.to_tokens(tokens),
             CountArg::Literal(lit) => lit.to_tokens(tokens),
         }
