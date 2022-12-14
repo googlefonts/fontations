@@ -243,8 +243,9 @@ pub(crate) struct FieldReadArgs {
 /// ```
 #[derive(Clone, Debug)]
 pub(crate) enum Count {
-    Simple(CountArg),
-    NotSimple {
+    All(syn::token::Dot2),
+    SingleArg(CountArg),
+    Complicated {
         args: Vec<CountArg>,
         xform: CountTransform,
     },
@@ -252,7 +253,6 @@ pub(crate) enum Count {
 
 #[derive(Clone, Debug)]
 pub(crate) enum CountArg {
-    All(syn::token::Dot2),
     Field(syn::Ident),
     Literal(syn::LitInt),
 }
@@ -1213,8 +1213,6 @@ impl Parse for CountArg {
         if input.peek(Token![$]) {
             input.parse::<Token![$]>()?;
             input.parse().map(Self::Field)
-        } else if input.peek(Token![..]) {
-            input.parse().map(Self::All)
         } else {
             let int = input.parse::<syn::LitInt>()?;
             let digits = int.base10_digits();
@@ -1238,7 +1236,9 @@ impl Parse for CountArg {
 
 impl Parse for Count {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        if input.peek(syn::Ident) {
+        if input.peek(Token![..]) {
+            input.parse().map(Count::All)
+        } else if input.peek(syn::Ident) {
             // leading ident must be a function
             let xform = input.parse()?;
             let content;
@@ -1248,7 +1248,7 @@ impl Parse for Count {
                 .collect();
             Count::try_from_fancy_stuff(input.span(), xform, args)
         } else {
-            input.parse().map(Self::Simple)
+            input.parse().map(Self::SingleArg)
         }
     }
 }
@@ -1302,7 +1302,6 @@ impl CountTransform {
 impl ToTokens for CountArg {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         match self {
-            CountArg::All(_) => unreachable!("Count::All handled before now"),
             CountArg::Field(fld) => fld.to_tokens(tokens),
             CountArg::Literal(lit) => lit.to_tokens(tokens),
         }
@@ -1339,16 +1338,6 @@ impl Count {
         xform: CountTransform,
         args: Vec<CountArg>,
     ) -> Result<Self, syn::Error> {
-        if let Some(all) = args.iter().find_map(|arg| match arg {
-            CountArg::All(arg) => Some(arg),
-            _ => None,
-        }) {
-            return Err(syn::Error::new(
-                all.span(),
-                "only allowed as a single unmodified argument",
-            ));
-        }
-
         let expected_arg_count = xform.arg_count();
         if args.len() != expected_arg_count {
             return Err(syn::Error::new(
@@ -1356,11 +1345,11 @@ impl Count {
                 format!("expected {expected_arg_count} arguments"),
             ));
         }
-        Ok(Count::NotSimple { args, xform })
+        Ok(Count::Complicated { args, xform })
     }
 
     pub(crate) fn single_field(&self) -> Option<&syn::Ident> {
-        if let Count::Simple(CountArg::Field(ident)) = self {
+        if let Count::SingleArg(CountArg::Field(ident)) = self {
             Some(ident)
         } else {
             None
@@ -1368,13 +1357,13 @@ impl Count {
     }
 
     pub(crate) fn all(&self) -> bool {
-        matches!(self, Count::Simple(CountArg::All(_)))
+        matches!(self, Count::All(_))
     }
 
     pub(crate) fn iter_referenced_fields(&self) -> impl Iterator<Item = &syn::Ident> {
         let (one, two) = match self {
-            Self::Simple(CountArg::Field(ident)) => (Some(ident), None),
-            Self::NotSimple { args, .. } => (
+            Self::SingleArg(CountArg::Field(ident)) => (Some(ident), None),
+            Self::Complicated { args, .. } => (
                 None,
                 Some(args.iter().filter_map(|arg| match arg {
                     CountArg::Field(ident) => Some(ident),
@@ -1389,10 +1378,10 @@ impl Count {
 
     pub(crate) fn count_expr(&self) -> TokenStream {
         match self {
-            Count::Simple(CountArg::All(_)) => unreachable!("'all' count handled separately"),
-            Count::Simple(CountArg::Field(arg)) => quote!(#arg as usize),
-            Count::Simple(CountArg::Literal(arg)) => quote!(#arg),
-            Count::NotSimple { args, xform } => match (xform, args.as_slice()) {
+            Count::All(_) => unreachable!("'all' count handled separately"),
+            Count::SingleArg(CountArg::Field(arg)) => quote!(#arg as usize),
+            Count::SingleArg(CountArg::Literal(arg)) => quote!(#arg),
+            Count::Complicated { args, xform } => match (xform, args.as_slice()) {
                 (CountTransform::Sub, [a, b]) => {
                     quote!(transforms::subtract(#a, #b))
                 }
@@ -1662,11 +1651,11 @@ mod tests {
     fn test_count_attr() {
         assert!(matches!(
             parse_count("$hello"),
-            Ok(Count::Simple(CountArg::Field(_)))
+            Ok(Count::SingleArg(CountArg::Field(_)))
         ));
         assert!(matches!(
             parse_count("5"),
-            Ok(Count::Simple(CountArg::Literal(_)))
+            Ok(Count::SingleArg(CountArg::Literal(_)))
         ));
 
         assert!(parse_count("hello").is_err());
@@ -1675,7 +1664,7 @@ mod tests {
 
         assert!(matches!(
             parse_count("subtract(5, 2)"),
-            Ok(Count::NotSimple {
+            Ok(Count::Complicated {
                 xform: CountTransform::Sub,
                 ..
             })
