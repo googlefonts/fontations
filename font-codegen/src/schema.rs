@@ -5,7 +5,8 @@ use std::collections::{BTreeMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use crate::parsing::{
-    self, Field as RawField, FieldType, Item, Items, Table as RawTable, TableFormat,
+    self, Field as RawField, FieldType, Item, Items, Record as RawRecord, Table as RawTable,
+    TableFormat, TableReadArgs,
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -15,6 +16,7 @@ struct Type(String);
 #[serde(tag = "type")]
 enum SchemaItem {
     Table(Table),
+    Record(Record),
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -39,6 +41,18 @@ struct Table {
     #[serde(skip_serializing_if = "Vec::is_empty")]
     #[serde(default)]
     formats: Vec<FormatTable>,
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    #[serde(default)]
+    fields: Vec<Field>,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Serialize)]
+struct Record {
+    name: String,
+    short_doc: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    input_args: Option<Vec<InputArgument>>,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     #[serde(default)]
     fields: Vec<Field>,
@@ -178,18 +192,23 @@ pub(crate) fn generate(items: &Items) -> Result<String, syn::Error> {
         out.push(serde_yaml::to_string(&SchemaItem::Table(table)).unwrap());
     }
 
-    out.extend(items.iter().filter_map(|item| match item {
-        Item::Table(table) if done.insert(table.raw_name().clone()) => {
-            Some(serde_yaml::to_string(&SchemaItem::Table(generate_table(table))).unwrap())
-        }
-        _ => None,
-        //Item::Format(group) =>
-        //Item::Record(_) => todo!(),
-        //Item::GenericGroup(_) => todo!(),
-        //Item::RawEnum(_) => todo!(),
-        //Item::Flags(_) => todo!(),
-        //Item::Extern(_) => todo!(),
-    }));
+    out.extend(
+        items
+            .iter()
+            .filter_map(|item| match item {
+                Item::Table(table) if done.insert(table.raw_name().clone()) => {
+                    Some(SchemaItem::Table(generate_table(table)))
+                }
+
+                Item::Record(record) => Some(SchemaItem::Record(generate_record(record))),
+                _ => None,
+                //Item::GenericGroup(_) => todo!(),
+                //Item::RawEnum(_) => todo!(),
+                //Item::Flags(_) => todo!(),
+                //Item::Extern(_) => todo!(),
+            })
+            .map(|x| serde_yaml::to_string(&x).unwrap()),
+    );
 
     Ok(out.join("\n"))
     //}
@@ -242,15 +261,7 @@ fn generate_table(item: &RawTable) -> Table {
     let name = item.raw_name().to_string();
     let sfnt_tag = None;
     let short_doc = doc_attrs_to_string(&item.attrs.docs);
-    let input_args = item.attrs.read_args.as_deref().map(|args| {
-        args.args
-            .iter()
-            .map(|arg| InputArgument {
-                name: arg.ident.to_string(),
-                type_: Type(arg.typ.to_string()),
-            })
-            .collect()
-    });
+    let input_args = item.attrs.read_args.as_deref().map(generate_input_args);
     let version = item
         .fields
         .iter()
@@ -267,6 +278,25 @@ fn generate_table(item: &RawTable) -> Table {
         doc_link: None,
         formats: Default::default(),
     }
+}
+
+fn generate_record(item: &RawRecord) -> Record {
+    Record {
+        name: item.name.to_string(),
+        short_doc: doc_attrs_to_string(&item.attrs.docs),
+        input_args: item.attrs.read_args.as_deref().map(generate_input_args),
+        fields: item.fields.iter().map(generate_field).collect(),
+    }
+}
+
+fn generate_input_args(args: &TableReadArgs) -> Vec<InputArgument> {
+    args.args
+        .iter()
+        .map(|arg| InputArgument {
+            name: arg.ident.to_string(),
+            type_: Type(arg.typ.to_string()),
+        })
+        .collect()
 }
 
 fn generate_field(field: &RawField) -> Field {
