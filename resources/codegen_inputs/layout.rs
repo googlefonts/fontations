@@ -51,6 +51,7 @@ table LangSys {
     lookup_order_offset: u16,
     /// Index of a feature required for this language system; if no
     /// required features = 0xFFFF
+    #[default(0xFFFF)]
     required_feature_index: u16,
     /// Number of feature index values for this language system —
     /// excludes the required feature

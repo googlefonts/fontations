@@ -217,7 +217,7 @@ impl FromObjRef<read_fonts::tables::layout::LangSysRecord> for LangSysRecord {
 }
 
 /// [Language System Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#language-system-table)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct LangSys {
     /// Index of a feature required for this language system; if no
     /// required features = 0xFFFF
@@ -226,12 +226,21 @@ pub struct LangSys {
     pub feature_indices: Vec<u16>,
 }
 
+impl Default for LangSys {
+    fn default() -> Self {
+        Self {
+            required_feature_index: 0xFFFF,
+            feature_indices: Default::default(),
+        }
+    }
+}
+
 impl LangSys {
     /// Construct a new `LangSys`
-    pub fn new(required_feature_index: u16, feature_indices: Vec<u16>) -> Self {
+    pub fn new(feature_indices: Vec<u16>) -> Self {
         Self {
-            required_feature_index,
             feature_indices: feature_indices.into_iter().map(Into::into).collect(),
+            ..Default::default()
         }
     }
 }
