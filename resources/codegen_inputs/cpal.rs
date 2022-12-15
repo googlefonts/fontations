@@ -28,7 +28,7 @@ table Cpal {
     /// This is an array of 32-bit flag fields that describe properties of each palette.
     ///
     /// [Palette Types Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array
-    #[available(1)]
+    #[since_version(1)]
     #[nullable]
     #[read_offset_with($num_palettes)]
     palette_types_array_offset: Offset32<[u32]>,
@@ -39,7 +39,7 @@ table Cpal {
     /// Use 0xFFFF if no name ID is provided for a palette.
     ///
     /// [Palette Labels Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-labels-array
-    #[available(1)]
+    #[since_version(1)]
     #[nullable]
     #[read_offset_with($num_palettes)]
     palette_labels_array_offset: Offset32<[u16]>,
@@ -52,7 +52,7 @@ table Cpal {
     /// palette entry.
     ///
     /// [Palette Entry Labels Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entry-label-array
-    #[available(1)]
+    #[since_version(1)]
     #[nullable]
     #[read_offset_with($num_palette_entries)]
     palette_entry_labels_array_offset: Offset32<[u16]>,

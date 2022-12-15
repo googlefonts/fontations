@@ -158,13 +158,13 @@ impl Fields {
             let is_single_nullable_offset = field.is_nullable() && !field.is_array();
             let required_by_version = field
                 .attrs
-                .available
+                .since_version
                 .as_ref()
                 .filter(|_| !is_single_nullable_offset)
                 .map(|attr| {
-                    let available = &attr.attr;
+                    let since_version = &attr.attr;
                     quote! {
-                        if version.compatible(#available) && self.#name.is_none() {
+                        if version.compatible(#since_version) && self.#name.is_none() {
                             ctx.report(format!("field must be present for version {version}"));
                         }
                     }
@@ -234,7 +234,7 @@ impl Fields {
             .map(move |(i, fld)| {
                 let condition = fld
                     .attrs
-                    .available
+                    .since_version
                     .as_ref()
                     .map(|v| quote!(if version.compatible(#v)));
                 let rhs = traversal_arm_for_field(fld, in_record, pass_data.as_ref());
@@ -267,7 +267,7 @@ fn traversal_arm_for_field(
 ) -> TokenStream {
     let name_str = &fld.name.to_string();
     let name = &fld.name;
-    let maybe_unwrap = fld.attrs.available.is_some().then(|| quote!(.unwrap()));
+    let maybe_unwrap = fld.attrs.since_version.is_some().then(|| quote!(.unwrap()));
     if let Some(traverse_with) = &fld.attrs.traverse_with {
         let traverse_fn = &traverse_with.attr;
         return quote!(Field::new(#name_str, self.#traverse_fn(#pass_data)));
@@ -490,7 +490,7 @@ impl Field {
     }
 
     pub(crate) fn is_version_dependent(&self) -> bool {
-        self.attrs.available.is_some()
+        self.attrs.since_version.is_some()
     }
 
     /// Sanity check we are in a sane state for the end of phase
@@ -783,12 +783,12 @@ impl Field {
         let where_read_clause = target_is_generic.then(|| quote!(where T: FontRead<'a>));
         let mut return_type = target.getter_return_type(target_is_generic);
 
-        if self.is_nullable() || (self.attrs.available.is_some() && !self.is_array()) {
+        if self.is_nullable() || (self.attrs.since_version.is_some() && !self.is_array()) {
             return_type = quote!(Option<#return_type>);
         }
         if self.is_array() {
             return_type = quote!(impl Iterator<Item=#return_type> + 'a);
-            if self.attrs.available.is_some() {
+            if self.attrs.since_version.is_some() {
                 return_type = quote!(Option<#return_type>);
             }
         }
@@ -889,16 +889,16 @@ impl Field {
             return quote!( cursor.advance::<#typ>(); );
         }
 
-        let versioned_field_start = self.attrs.available.as_ref().map(|available|{
+        let versioned_field_start = self.attrs.since_version.as_ref().map(|since_version|{
             let field_start_name = self.shape_byte_start_field_name();
-            quote! ( let #field_start_name = version.compatible(#available).then(|| cursor.position()).transpose()?; )
+            quote! ( let #field_start_name = version.compatible(#since_version).then(|| cursor.position()).transpose()?; )
         });
 
         let other_stuff = if self.has_computed_len() {
             let len_expr = self.computed_len_expr().unwrap();
             let len_field_name = self.shape_byte_len_field_name();
 
-            match &self.attrs.available {
+            match &self.attrs.since_version {
                 Some(version) => quote! {
                     let #len_field_name = version.compatible(#version).then_some(#len_expr);
                     if let Some(value) = #len_field_name {
@@ -910,16 +910,16 @@ impl Field {
                     cursor.advance_by(#len_field_name);
                 },
             }
-        } else if let Some(available) = &self.attrs.available {
+        } else if let Some(since_version) = &self.attrs.since_version {
             assert!(!self.is_array());
             let typ = self.typ.cooked_type_tokens();
             if self.read_at_parse_time {
                 quote! {
-                    let #name = version.compatible(#available).then(|| cursor.read::<#typ>()).transpose()?.unwrap_or(0);
+                    let #name = version.compatible(#since_version).then(|| cursor.read::<#typ>()).transpose()?.unwrap_or(0);
                 }
             } else {
                 quote! {
-                    version.compatible(#available).then(|| cursor.advance::<#typ>());
+                    version.compatible(#since_version).then(|| cursor.advance::<#typ>());
                 }
             }
         } else if self.read_at_parse_time {
@@ -1121,7 +1121,7 @@ impl Field {
                 value_expr
             };
 
-            if let Some(avail) = self.attrs.available.as_ref() {
+            if let Some(avail) = self.attrs.since_version.as_ref() {
                 let needs_unwrap =
                     !(self.is_computed() || (self.attrs.nullable.is_some() && !self.is_array()));
                 let expect = needs_unwrap.then(
@@ -1226,7 +1226,7 @@ impl Field {
                     let offset_getter = self.offset_getter_name().unwrap();
                     let getter = quote!(obj.#offset_getter(#pass_offset_data));
                     let converter = quote!(.map(|x| x.to_owned_table()).collect());
-                    if self.attrs.available.is_some() {
+                    if self.attrs.since_version.is_some() {
                         quote!(#getter.map(|obj| obj #converter))
                     } else {
                         quote!(#getter #converter)
@@ -1239,7 +1239,7 @@ impl Field {
             FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
                 let getter = quote!(obj.#name());
                 let converter = quote!( .iter().filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok()).collect() );
-                if self.attrs.available.is_some() {
+                if self.attrs.since_version.is_some() {
                     quote!(#getter.map(|obj| obj #converter))
                 } else {
                     quote!(#getter #converter)

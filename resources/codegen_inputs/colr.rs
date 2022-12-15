@@ -20,23 +20,23 @@ table Colr {
     /// Number of Layer records; may be 0 in a version 1 table.
     num_layer_records: u16,
     /// Offset to BaseGlyphList table.
-    #[available(1)]
+    #[since_version(1)]
     #[nullable]
     base_glyph_list_offset: Offset32<BaseGlyphList>,
     /// Offset to LayerList table (may be NULL).
-    #[available(1)]
+    #[since_version(1)]
     #[nullable]
     layer_list_offset: Offset32<LayerList>,
     /// Offset to ClipList table (may be NULL).
-    #[available(1)]
+    #[since_version(1)]
     #[nullable]
     clip_list_offset: Offset32<ClipList>,
     /// Offset to DeltaSetIndexMap table (may be NULL).
-    #[available(1)]
+    #[since_version(1)]
     #[nullable]
     var_index_map_offset: Offset32<DeltaSetIndexMap>,
     /// Offset to ItemVariationStore (may be NULL).
-    #[available(1)]
+    #[since_version(1)]
     #[nullable]
     item_variation_store_offset: Offset32<ItemVariationStore>,
 }

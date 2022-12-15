@@ -318,7 +318,7 @@ table Foob {
     flags_count: BigEndian<u16>,
     #[count($flags_count)]
     flags: [BigEndian<u16>],
-    #[available(1)]
+    #[since_version(1)]
     versioned_value: BigEndian<u32>,
 }
 ```
@@ -371,7 +371,7 @@ change. Let's walk through this code, field by field:
   multiplying that value by the size of the array member, and we advance the
   cursor by that number of bytes.
 - **versioned_value**: this field is only available if the `version` field is >=
-  to `1` (this is specified via the `#[available]` attribute). We record the
+  to `1` (this is specified via the `#[since_version]` attribute). We record the
   current cursor position (as an `Option`, which will be `Some` only if the
   version is compatible) and then we advance the cursor by the size of the
   field's type.
@@ -727,7 +727,7 @@ the size and contents of the array:
   table Post {
       // some fields omited
       #[count(..)]
-      #[available(Version16Dot16::VERSION_2_0)]
+      #[since_version(2,0)]
       string_data: VarLenArray<PString<'a>>,
   }
   ```

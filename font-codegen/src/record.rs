@@ -155,7 +155,7 @@ pub(crate) fn generate_compile_impl(
     // a 'version' binding at the top of our validation block
     let needs_version_decl = fields
         .iter()
-        .any(|fld| fld.attrs.available.is_some() && fld.attrs.nullable.is_none());
+        .any(|fld| fld.attrs.since_version.is_some() && fld.attrs.nullable.is_none());
 
     let version_decl = fields
         .version_field()

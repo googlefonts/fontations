@@ -174,7 +174,7 @@ pub(crate) struct Field {
 pub(crate) struct FieldAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) nullable: Option<syn::Path>,
-    pub(crate) available: Option<Attr<Available>>,
+    pub(crate) since_version: Option<Attr<SinceVersion>>,
     pub(crate) skip_getter: Option<syn::Path>,
     /// specify that an offset getter has a custom impl
     pub(crate) offset_getter: Option<Attr<syn::Ident>>,
@@ -236,7 +236,7 @@ pub(crate) struct FieldReadArgs {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct Available {
+pub(crate) struct SinceVersion {
     major: syn::LitInt,
     minor: Option<syn::LitInt>,
 }
@@ -918,7 +918,7 @@ static DOC: &str = "doc";
 static NULLABLE: &str = "nullable";
 static SKIP_GETTER: &str = "skip_getter";
 static COUNT: &str = "count";
-static AVAILABLE: &str = "available";
+static SINCE_VERSION: &str = "since_version";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
 static OFFSET_GETTER: &str = "offset_getter";
@@ -969,8 +969,8 @@ impl Parse for FieldAttrs {
                 this.validation = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == TO_OWNED {
                 this.to_owned = Some(Attr::new(ident.clone(), attr.parse_args()?));
-            } else if ident == AVAILABLE {
-                this.available = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == SINCE_VERSION {
+                this.since_version = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_WITH {
                 this.read_with_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_OFFSET_WITH {
@@ -1311,7 +1311,7 @@ impl ToTokens for CountArg {
     }
 }
 
-impl Parse for Available {
+impl Parse for SinceVersion {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let major = input.parse()?;
         input
@@ -1325,7 +1325,7 @@ impl Parse for Available {
     }
 }
 
-impl ToTokens for Available {
+impl ToTokens for SinceVersion {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let major = &self.major;
         if let Some(minor) = &self.minor {
@@ -1704,7 +1704,7 @@ mod tests {
 
     #[test]
     fn parse_available() {
-        fn parse(s: &str) -> Result<Available, syn::Error> {
+        fn parse(s: &str) -> Result<SinceVersion, syn::Error> {
             syn::parse_str(s)
         }
 

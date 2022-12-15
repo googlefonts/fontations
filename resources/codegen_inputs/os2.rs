@@ -108,37 +108,37 @@ table Os2 {
     us_win_descent: u16,
 
     /// Code page character range bits 0-31.
-    #[available(1)]
+    #[since_version(1)]
     ul_code_page_range_1: u32,
     /// Code page character range bits 32-63.
-    #[available(1)]
+    #[since_version(1)]
     ul_code_page_range_2: u32,
 
     /// This metric specifies the distance between the baseline and the
     /// approximate height of non-ascending lowercase letters measured in
     /// FUnits.
-    #[available(2)]
+    #[since_version(2)]
     sx_height: i16,
     /// This metric specifies the distance between the baseline and the
     /// approximate height of uppercase letters measured in FUnits.
-    #[available(2)]
+    #[since_version(2)]
     s_cap_height: i16,
     /// This is the Unicode code point, in UTF-16 encoding, of a character that
     /// can be used for a default glyph.
-    #[available(2)]
+    #[since_version(2)]
     us_default_char: u16,
     /// his is the Unicode code point, in UTF-16 encoding, of a character that
     /// can be used as a default break character.
-    #[available(2)]
+    #[since_version(2)]
     us_break_char: u16,
     /// This field is used for fonts with multiple optical styles.
-    #[available(2)]
+    #[since_version(2)]
     us_max_context: u16,
 
     /// This field is used for fonts with multiple optical styles.
-    #[available(5)]
+    #[since_version(5)]
     us_lower_optical_point_size: u16,
     /// This field is used for fonts with multiple optical styles.
-    #[available(5)]
+    #[since_version(5)]
     us_upper_optical_point_size: u16,
 }

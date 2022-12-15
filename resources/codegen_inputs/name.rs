@@ -20,14 +20,14 @@ table Name {
     #[compile_type(BTreeSet<NameRecord>)]
     name_record: [NameRecord],
     /// Number of language-tag records.
-    #[available(1)]
+    #[since_version(1)]
     #[compile(array_len($lang_tag_record))]
     lang_tag_count: u16,
     /// The language-tag records where langTagCount is the number of records.
     #[count($lang_tag_count)]
     #[offset_data_method(string_data)]
     #[offset_adjustment(self.compute_storage_offset() as u32)]
-    #[available(1)]
+    #[since_version(1)]
     lang_tag_record: [LangTagRecord],
 }
 

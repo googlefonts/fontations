@@ -37,7 +37,7 @@ table Stat {
     /// Name ID used as fallback when projection of names into a
     /// particular font model produces a subfamily name containing only
     /// elidable elements.
-    #[available(1,1)]
+    #[since_version(1,1)]
     elided_fallback_name_id: u16,
 }
 
