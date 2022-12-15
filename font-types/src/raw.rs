@@ -52,7 +52,7 @@ pub trait ReadScalar: FixedSize {
 pub struct BigEndian<T: Scalar>(pub(crate) T::Raw);
 
 impl<T: Scalar> BigEndian<T> {
-    /// construct a new BigEndian<T> from raw bytes
+    /// construct a new `BigEndian<T>` from raw bytes
     pub fn new(raw: T::Raw) -> BigEndian<T> {
         BigEndian(raw)
     }
