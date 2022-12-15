@@ -35,7 +35,7 @@ impl FontWrite for Base {
         self.horiz_axis.write_into(writer);
         self.vert_axis.write_into(writer);
         version
-            .compatible(MajorMinor::VERSION_1_1)
+            .compatible((1, 1))
             .then(|| self.item_var_store.write_into(writer));
     }
 }

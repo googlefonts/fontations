@@ -58,12 +58,10 @@ impl<'a> FontRead<'a> for Stat<'a> {
         cursor.advance::<u16>();
         cursor.advance::<Offset32>();
         let elided_fallback_name_id_byte_start = version
-            .compatible(MajorMinor::VERSION_1_1)
+            .compatible((1, 1))
             .then(|| cursor.position())
             .transpose()?;
-        version
-            .compatible(MajorMinor::VERSION_1_1)
-            .then(|| cursor.advance::<u16>());
+        version.compatible((1, 1)).then(|| cursor.advance::<u16>());
         cursor.finish(StatMarker {
             elided_fallback_name_id_byte_start,
         })
@@ -171,7 +169,7 @@ impl<'a> SomeTable<'a> for Stat<'a> {
                     self.offset_to_axis_values(),
                 ),
             )),
-            6usize if version.compatible(MajorMinor::VERSION_1_1) => Some(Field::new(
+            6usize if version.compatible((1, 1)) => Some(Field::new(
                 "elided_fallback_name_id",
                 self.elided_fallback_name_id().unwrap(),
             )),

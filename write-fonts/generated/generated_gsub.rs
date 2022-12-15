@@ -44,7 +44,7 @@ impl FontWrite for Gsub {
         self.feature_list.write_into(writer);
         self.lookup_list.write_into(writer);
         version
-            .compatible(MajorMinor::VERSION_1_1)
+            .compatible((1, 1))
             .then(|| self.feature_variations.write_into(writer));
     }
 }

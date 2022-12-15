@@ -16,7 +16,7 @@ table Gsub {
     lookup_list_offset: Offset16<SubstitutionLookupList>,
     /// Offset to FeatureVariations table, from beginning of the GSUB
     /// table (may be NULL)
-    #[available(MajorMinor::VERSION_1_1)]
+    #[available(1,1)]
     #[nullable]
     feature_variations_offset: Offset32<FeatureVariations>,
 }

@@ -127,17 +127,17 @@ impl Validate for TTCHeader {
                 }
             });
             ctx.in_field("dsig_tag", |ctx| {
-                if version.compatible(MajorMinor::VERSION_2_0) && self.dsig_tag.is_none() {
+                if version.compatible((2, 0)) && self.dsig_tag.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("dsig_length", |ctx| {
-                if version.compatible(MajorMinor::VERSION_2_0) && self.dsig_length.is_none() {
+                if version.compatible((2, 0)) && self.dsig_length.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("dsig_offset", |ctx| {
-                if version.compatible(MajorMinor::VERSION_2_0) && self.dsig_offset.is_none() {
+                if version.compatible((2, 0)) && self.dsig_offset.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });

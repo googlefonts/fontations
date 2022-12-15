@@ -109,19 +109,19 @@ impl FontWrite for Post {
         self.max_mem_type42.write_into(writer);
         self.min_mem_type1.write_into(writer);
         self.max_mem_type1.write_into(writer);
-        version.compatible(Version16Dot16::VERSION_2_0).then(|| {
+        version.compatible((2, 0)).then(|| {
             self.num_glyphs
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_2_0).then(|| {
+        version.compatible((2, 0)).then(|| {
             self.glyph_name_index
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_2_0).then(|| {
+        version.compatible((2, 0)).then(|| {
             self.string_data
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
@@ -135,14 +135,12 @@ impl Validate for Post {
         ctx.in_table("Post", |ctx| {
             let version = self.version;
             ctx.in_field("num_glyphs", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_2_0) && self.num_glyphs.is_none() {
+                if version.compatible((2, 0)) && self.num_glyphs.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("glyph_name_index", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_2_0)
-                    && self.glyph_name_index.is_none()
-                {
+                if version.compatible((2, 0)) && self.glyph_name_index.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.glyph_name_index.is_some()

@@ -98,96 +98,70 @@ impl<'a> FontRead<'a> for Maxp<'a> {
         let version: Version16Dot16 = cursor.read()?;
         cursor.advance::<u16>();
         let max_points_byte_start = version
-            .compatible(Version16Dot16::VERSION_1_0)
+            .compatible((1, 0))
             .then(|| cursor.position())
             .transpose()?;
-        version
-            .compatible(Version16Dot16::VERSION_1_0)
-            .then(|| cursor.advance::<u16>());
+        version.compatible((1, 0)).then(|| cursor.advance::<u16>());
         let max_contours_byte_start = version
-            .compatible(Version16Dot16::VERSION_1_0)
+            .compatible((1, 0))
             .then(|| cursor.position())
             .transpose()?;
-        version
-            .compatible(Version16Dot16::VERSION_1_0)
-            .then(|| cursor.advance::<u16>());
+        version.compatible((1, 0)).then(|| cursor.advance::<u16>());
         let max_composite_points_byte_start = version
-            .compatible(Version16Dot16::VERSION_1_0)
+            .compatible((1, 0))
             .then(|| cursor.position())
             .transpose()?;
-        version
-            .compatible(Version16Dot16::VERSION_1_0)
-            .then(|| cursor.advance::<u16>());
+        version.compatible((1, 0)).then(|| cursor.advance::<u16>());
         let max_composite_contours_byte_start = version
-            .compatible(Version16Dot16::VERSION_1_0)
+            .compatible((1, 0))
             .then(|| cursor.position())
             .transpose()?;
-        version
-            .compatible(Version16Dot16::VERSION_1_0)
-            .then(|| cursor.advance::<u16>());
+        version.compatible((1, 0)).then(|| cursor.advance::<u16>());
         let max_zones_byte_start = version
-            .compatible(Version16Dot16::VERSION_1_0)
+            .compatible((1, 0))
             .then(|| cursor.position())
             .transpose()?;
-        version
-            .compatible(Version16Dot16::VERSION_1_0)
-            .then(|| cursor.advance::<u16>());
+        version.compatible((1, 0)).then(|| cursor.advance::<u16>());
         let max_twilight_points_byte_start = version
-            .compatible(Version16Dot16::VERSION_1_0)
+            .compatible((1, 0))
             .then(|| cursor.position())
             .transpose()?;
-        version
-            .compatible(Version16Dot16::VERSION_1_0)
-            .then(|| cursor.advance::<u16>());
+        version.compatible((1, 0)).then(|| cursor.advance::<u16>());
         let max_storage_byte_start = version
-            .compatible(Version16Dot16::VERSION_1_0)
+            .compatible((1, 0))
             .then(|| cursor.position())
             .transpose()?;
-        version
-            .compatible(Version16Dot16::VERSION_1_0)
-            .then(|| cursor.advance::<u16>());
+        version.compatible((1, 0)).then(|| cursor.advance::<u16>());
         let max_function_defs_byte_start = version
-            .compatible(Version16Dot16::VERSION_1_0)
+            .compatible((1, 0))
             .then(|| cursor.position())
             .transpose()?;
-        version
-            .compatible(Version16Dot16::VERSION_1_0)
-            .then(|| cursor.advance::<u16>());
+        version.compatible((1, 0)).then(|| cursor.advance::<u16>());
         let max_instruction_defs_byte_start = version
-            .compatible(Version16Dot16::VERSION_1_0)
+            .compatible((1, 0))
             .then(|| cursor.position())
             .transpose()?;
-        version
-            .compatible(Version16Dot16::VERSION_1_0)
-            .then(|| cursor.advance::<u16>());
+        version.compatible((1, 0)).then(|| cursor.advance::<u16>());
         let max_stack_elements_byte_start = version
-            .compatible(Version16Dot16::VERSION_1_0)
+            .compatible((1, 0))
             .then(|| cursor.position())
             .transpose()?;
-        version
-            .compatible(Version16Dot16::VERSION_1_0)
-            .then(|| cursor.advance::<u16>());
+        version.compatible((1, 0)).then(|| cursor.advance::<u16>());
         let max_size_of_instructions_byte_start = version
-            .compatible(Version16Dot16::VERSION_1_0)
+            .compatible((1, 0))
             .then(|| cursor.position())
             .transpose()?;
-        version
-            .compatible(Version16Dot16::VERSION_1_0)
-            .then(|| cursor.advance::<u16>());
+        version.compatible((1, 0)).then(|| cursor.advance::<u16>());
         let max_component_elements_byte_start = version
-            .compatible(Version16Dot16::VERSION_1_0)
+            .compatible((1, 0))
             .then(|| cursor.position())
             .transpose()?;
-        version
-            .compatible(Version16Dot16::VERSION_1_0)
-            .then(|| cursor.advance::<u16>());
+        version.compatible((1, 0)).then(|| cursor.advance::<u16>());
         let max_component_depth_byte_start = version
-            .compatible(Version16Dot16::VERSION_1_0)
+            .compatible((1, 0))
             .then(|| cursor.position())
             .transpose()?;
-        version
-            .compatible(Version16Dot16::VERSION_1_0)
-            .then(|| cursor.advance::<u16>());
+        version.compatible((1, 0)).then(|| cursor.advance::<u16>());
         cursor.finish(MaxpMarker {
             max_points_byte_start,
             max_contours_byte_start,
@@ -315,51 +289,51 @@ impl<'a> SomeTable<'a> for Maxp<'a> {
         match idx {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new("num_glyphs", self.num_glyphs())),
-            2usize if version.compatible(Version16Dot16::VERSION_1_0) => {
+            2usize if version.compatible((1, 0)) => {
                 Some(Field::new("max_points", self.max_points().unwrap()))
             }
-            3usize if version.compatible(Version16Dot16::VERSION_1_0) => {
+            3usize if version.compatible((1, 0)) => {
                 Some(Field::new("max_contours", self.max_contours().unwrap()))
             }
-            4usize if version.compatible(Version16Dot16::VERSION_1_0) => Some(Field::new(
+            4usize if version.compatible((1, 0)) => Some(Field::new(
                 "max_composite_points",
                 self.max_composite_points().unwrap(),
             )),
-            5usize if version.compatible(Version16Dot16::VERSION_1_0) => Some(Field::new(
+            5usize if version.compatible((1, 0)) => Some(Field::new(
                 "max_composite_contours",
                 self.max_composite_contours().unwrap(),
             )),
-            6usize if version.compatible(Version16Dot16::VERSION_1_0) => {
+            6usize if version.compatible((1, 0)) => {
                 Some(Field::new("max_zones", self.max_zones().unwrap()))
             }
-            7usize if version.compatible(Version16Dot16::VERSION_1_0) => Some(Field::new(
+            7usize if version.compatible((1, 0)) => Some(Field::new(
                 "max_twilight_points",
                 self.max_twilight_points().unwrap(),
             )),
-            8usize if version.compatible(Version16Dot16::VERSION_1_0) => {
+            8usize if version.compatible((1, 0)) => {
                 Some(Field::new("max_storage", self.max_storage().unwrap()))
             }
-            9usize if version.compatible(Version16Dot16::VERSION_1_0) => Some(Field::new(
+            9usize if version.compatible((1, 0)) => Some(Field::new(
                 "max_function_defs",
                 self.max_function_defs().unwrap(),
             )),
-            10usize if version.compatible(Version16Dot16::VERSION_1_0) => Some(Field::new(
+            10usize if version.compatible((1, 0)) => Some(Field::new(
                 "max_instruction_defs",
                 self.max_instruction_defs().unwrap(),
             )),
-            11usize if version.compatible(Version16Dot16::VERSION_1_0) => Some(Field::new(
+            11usize if version.compatible((1, 0)) => Some(Field::new(
                 "max_stack_elements",
                 self.max_stack_elements().unwrap(),
             )),
-            12usize if version.compatible(Version16Dot16::VERSION_1_0) => Some(Field::new(
+            12usize if version.compatible((1, 0)) => Some(Field::new(
                 "max_size_of_instructions",
                 self.max_size_of_instructions().unwrap(),
             )),
-            13usize if version.compatible(Version16Dot16::VERSION_1_0) => Some(Field::new(
+            13usize if version.compatible((1, 0)) => Some(Field::new(
                 "max_component_elements",
                 self.max_component_elements().unwrap(),
             )),
-            14usize if version.compatible(Version16Dot16::VERSION_1_0) => Some(Field::new(
+            14usize if version.compatible((1, 0)) => Some(Field::new(
                 "max_component_depth",
                 self.max_component_depth().unwrap(),
             )),
