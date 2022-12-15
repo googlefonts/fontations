@@ -2,11 +2,11 @@
 
 use std::collections::{BTreeMap, HashSet};
 
+use serde::{Deserialize, Serialize};
+
 use crate::parsing::{
     self, Field as RawField, FieldType, Item, Items, Table as RawTable, TableFormat,
 };
-use log::warn;
-use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
 struct Type(String);
@@ -158,9 +158,11 @@ impl<'de> Deserialize<'de> for parsing::CountTransform {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
-enum AvailableInfo {
-    /// a constant? (or literal?) version number
-    Version(String),
+struct AvailableInfo {
+    major: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[serde(default)]
+    minor: Option<u32>,
 }
 
 pub(crate) fn generate(items: &Items) -> Result<String, syn::Error> {
@@ -328,10 +330,10 @@ fn generate_field(field: &RawField) -> Field {
             transform: Some(*xform),
         }),
     });
-    if field.attrs.available.is_some() {
-        warn!("cannot interpret expressions in #[available] attr, field '{name}'");
-    }
-    let available = None;
+    let available = field.attrs.available.as_deref().map(|avail| AvailableInfo {
+        major: avail.major.base10_parse().unwrap(),
+        minor: avail.minor.as_ref().map(|v| v.base10_parse().unwrap()),
+    });
     let hidden = false;
     Field {
         name,

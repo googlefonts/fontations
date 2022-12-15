@@ -237,8 +237,8 @@ pub(crate) struct FieldReadArgs {
 
 #[derive(Clone, Debug)]
 pub(crate) struct Available {
-    major: syn::LitInt,
-    minor: Option<syn::LitInt>,
+    pub(crate) major: syn::LitInt,
+    pub(crate) minor: Option<syn::LitInt>,
 }
 
 /// Annotations for how to calculate the count of an array.
