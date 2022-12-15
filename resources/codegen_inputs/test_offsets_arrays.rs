@@ -29,13 +29,13 @@ table KindsOfOffsets {
     /// A nullable, versioned offset to an array of records
     #[read_offset_with($array_offset_count)]
     #[nullable]
-    #[available(1,1)]
+    #[since_version(1,1)]
     versioned_nullable_record_array_offset: Offset16<[Shmecord]>,
     /// A normal offset that is versioned
-    #[available(1,1)]
+    #[since_version(1,1)]
     versioned_nonnullable_offset: Offset16<Dummy>,
     /// An offset that is nullable and versioned
-    #[available(1,1)]
+    #[since_version(1,1)]
     #[nullable]
     versioned_nullable_offset: Offset32<Dummy>,
 }
@@ -57,11 +57,11 @@ table KindsOfArraysOfOffsets {
     #[count($count)]
     nullable_offsets: [Offset16<Dummy>],
     /// A normal offset that is versioned
-    #[available(1,1)]
+    #[since_version(1,1)]
     #[count($count)]
     versioned_nonnullable_offsets: [Offset16<Dummy>],
     /// An offset that is nullable and versioned
-    #[available(1,1)]
+    #[since_version(1,1)]
     #[nullable]
     #[count($count)]
     versioned_nullable_offsets: [Offset16<Dummy>],
@@ -82,11 +82,11 @@ table KindsOfArrays {
     #[count($count)]
     records: [Shmecord],
     /// a versioned array of scalars
-    #[available(1)]
+    #[since_version(1)]
     #[count($count)]
     versioned_scalars: [u16],
     /// a versioned array of scalars
-    #[available(1)]
+    #[since_version(1)]
     #[count($count)]
     versioned_records: [Shmecord],
 }

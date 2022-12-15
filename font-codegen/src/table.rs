@@ -669,7 +669,7 @@ impl Table {
             let len_expr = field.shape_len_expr();
 
             // versioned fields have a different signature
-            if field.attrs.available.is_some() {
+            if field.attrs.since_version.is_some() {
                 prev_field_end_expr = quote!(compile_error!(
                     "non-version dependent field cannot follow version-dependent field"
                 ));
@@ -719,7 +719,7 @@ impl Table {
         }
 
         for next in self.fields.iter() {
-            let is_versioned = next.attrs.available.is_some();
+            let is_versioned = next.attrs.since_version.is_some();
             let has_computed_len = next.has_computed_len();
             if !(is_versioned || has_computed_len) {
                 continue;
