@@ -220,29 +220,23 @@ pub(crate) fn generate(items: &Items) -> Result<String, syn::Error> {
     }) {
         done.insert(item.name.clone());
         let table = generate_table_group(item, items, &mut done);
-        out.push(serde_yaml::to_string(&SchemaItem::Table(table)).unwrap());
+        out.push(SchemaItem::Table(table));
     }
 
-    out.extend(
-        items
-            .iter()
-            .filter_map(|item| match item {
-                Item::Table(table) if done.insert(table.raw_name().clone()) => {
-                    Some(SchemaItem::Table(generate_table(table)))
-                }
+    out.extend(items.iter().filter_map(|item| match item {
+        Item::Table(table) if done.insert(table.raw_name().clone()) => {
+            Some(SchemaItem::Table(generate_table(table)))
+        }
 
-                Item::Record(record) => Some(SchemaItem::Record(generate_record(record))),
-                Item::RawEnum(raw) => Some(SchemaItem::RawEnum(generate_raw_enum(raw))),
-                Item::Flags(raw) => Some(SchemaItem::Flags(generate_flags(raw))),
-                //Item::GenericGroup(_) => todo!(),
-                //Item::Extern(_) => todo!(),
-                _ => None,
-            })
-            .map(|x| serde_yaml::to_string(&x).unwrap()),
-    );
+        Item::Record(record) => Some(SchemaItem::Record(generate_record(record))),
+        Item::RawEnum(raw) => Some(SchemaItem::RawEnum(generate_raw_enum(raw))),
+        Item::Flags(raw) => Some(SchemaItem::Flags(generate_flags(raw))),
+        //Item::GenericGroup(_) => todo!(),
+        //Item::Extern(_) => todo!(),
+        _ => None,
+    }));
 
-    Ok(out.join("\n"))
-    //}
+    Ok(serde_yaml::to_string(&out).unwrap())
 }
 
 fn generate_table_group(
