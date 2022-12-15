@@ -58,18 +58,18 @@ impl<'a> FontRead<'a> for Gdef<'a> {
         cursor.advance::<Offset16>();
         cursor.advance::<Offset16>();
         let mark_glyph_sets_def_offset_byte_start = version
-            .compatible(MajorMinor::VERSION_1_2)
+            .compatible((1, 2))
             .then(|| cursor.position())
             .transpose()?;
         version
-            .compatible(MajorMinor::VERSION_1_2)
+            .compatible((1, 2))
             .then(|| cursor.advance::<Offset16>());
         let item_var_store_offset_byte_start = version
-            .compatible(MajorMinor::VERSION_1_3)
+            .compatible((1, 3))
             .then(|| cursor.position())
             .transpose()?;
         version
-            .compatible(MajorMinor::VERSION_1_3)
+            .compatible((1, 3))
             .then(|| cursor.advance::<Offset32>());
         cursor.finish(GdefMarker {
             mark_glyph_sets_def_offset_byte_start,
@@ -195,14 +195,14 @@ impl<'a> SomeTable<'a> for Gdef<'a> {
                     self.mark_attach_class_def(),
                 ),
             )),
-            5usize if version.compatible(MajorMinor::VERSION_1_2) => Some(Field::new(
+            5usize if version.compatible((1, 2)) => Some(Field::new(
                 "mark_glyph_sets_def_offset",
                 FieldType::offset(
                     self.mark_glyph_sets_def_offset().unwrap(),
                     self.mark_glyph_sets_def().unwrap(),
                 ),
             )),
-            6usize if version.compatible(MajorMinor::VERSION_1_3) => Some(Field::new(
+            6usize if version.compatible((1, 3)) => Some(Field::new(
                 "item_var_store_offset",
                 FieldType::offset(
                     self.item_var_store_offset().unwrap(),

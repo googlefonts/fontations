@@ -58,10 +58,10 @@ impl FontWrite for Gdef {
         self.lig_caret_list.write_into(writer);
         self.mark_attach_class_def.write_into(writer);
         version
-            .compatible(MajorMinor::VERSION_1_2)
+            .compatible((1, 2))
             .then(|| self.mark_glyph_sets_def.write_into(writer));
         version
-            .compatible(MajorMinor::VERSION_1_3)
+            .compatible((1, 3))
             .then(|| self.item_var_store.write_into(writer));
     }
 }

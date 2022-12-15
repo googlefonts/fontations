@@ -58,79 +58,79 @@ impl FontWrite for Maxp {
         let version = self.compute_version() as Version16Dot16;
         version.write_into(writer);
         self.num_glyphs.write_into(writer);
-        version.compatible(Version16Dot16::VERSION_1_0).then(|| {
+        version.compatible((1, 0)).then(|| {
             self.max_points
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_1_0).then(|| {
+        version.compatible((1, 0)).then(|| {
             self.max_contours
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_1_0).then(|| {
+        version.compatible((1, 0)).then(|| {
             self.max_composite_points
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_1_0).then(|| {
+        version.compatible((1, 0)).then(|| {
             self.max_composite_contours
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_1_0).then(|| {
+        version.compatible((1, 0)).then(|| {
             self.max_zones
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_1_0).then(|| {
+        version.compatible((1, 0)).then(|| {
             self.max_twilight_points
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_1_0).then(|| {
+        version.compatible((1, 0)).then(|| {
             self.max_storage
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_1_0).then(|| {
+        version.compatible((1, 0)).then(|| {
             self.max_function_defs
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_1_0).then(|| {
+        version.compatible((1, 0)).then(|| {
             self.max_instruction_defs
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_1_0).then(|| {
+        version.compatible((1, 0)).then(|| {
             self.max_stack_elements
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_1_0).then(|| {
+        version.compatible((1, 0)).then(|| {
             self.max_size_of_instructions
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_1_0).then(|| {
+        version.compatible((1, 0)).then(|| {
             self.max_component_elements
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(Version16Dot16::VERSION_1_0).then(|| {
+        version.compatible((1, 0)).then(|| {
             self.max_component_depth
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
@@ -144,85 +144,67 @@ impl Validate for Maxp {
         ctx.in_table("Maxp", |ctx| {
             let version: Version16Dot16 = self.compute_version();
             ctx.in_field("max_points", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_1_0) && self.max_points.is_none() {
+                if version.compatible((1, 0)) && self.max_points.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("max_contours", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_1_0) && self.max_contours.is_none() {
+                if version.compatible((1, 0)) && self.max_contours.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("max_composite_points", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_1_0)
-                    && self.max_composite_points.is_none()
-                {
+                if version.compatible((1, 0)) && self.max_composite_points.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("max_composite_contours", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_1_0)
-                    && self.max_composite_contours.is_none()
-                {
+                if version.compatible((1, 0)) && self.max_composite_contours.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("max_zones", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_1_0) && self.max_zones.is_none() {
+                if version.compatible((1, 0)) && self.max_zones.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("max_twilight_points", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_1_0)
-                    && self.max_twilight_points.is_none()
-                {
+                if version.compatible((1, 0)) && self.max_twilight_points.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("max_storage", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_1_0) && self.max_storage.is_none() {
+                if version.compatible((1, 0)) && self.max_storage.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("max_function_defs", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_1_0)
-                    && self.max_function_defs.is_none()
-                {
+                if version.compatible((1, 0)) && self.max_function_defs.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("max_instruction_defs", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_1_0)
-                    && self.max_instruction_defs.is_none()
-                {
+                if version.compatible((1, 0)) && self.max_instruction_defs.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("max_stack_elements", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_1_0)
-                    && self.max_stack_elements.is_none()
-                {
+                if version.compatible((1, 0)) && self.max_stack_elements.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("max_size_of_instructions", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_1_0)
-                    && self.max_size_of_instructions.is_none()
-                {
+                if version.compatible((1, 0)) && self.max_size_of_instructions.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("max_component_elements", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_1_0)
-                    && self.max_component_elements.is_none()
-                {
+                if version.compatible((1, 0)) && self.max_component_elements.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });
             ctx.in_field("max_component_depth", |ctx| {
-                if version.compatible(Version16Dot16::VERSION_1_0)
-                    && self.max_component_depth.is_none()
-                {
+                if version.compatible((1, 0)) && self.max_component_depth.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });

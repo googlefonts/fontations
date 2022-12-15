@@ -43,16 +43,16 @@ table Post {
     max_mem_type1: u32,
     /// Number of glyphs (this should be the same as numGlyphs in
     /// 'maxp' table).
-    #[available(Version16Dot16::VERSION_2_0)]
+    #[available(2,0)]
     num_glyphs: u16,
     /// Array of indices into the string data. See below for details.
     #[count($num_glyphs)]
-    #[available(Version16Dot16::VERSION_2_0)]
+    #[available(2,0)]
     glyph_name_index: [u16],
     /// Storage for the string data.
     #[count(..)]
     #[validate(skip)]
-    #[available(Version16Dot16::VERSION_2_0)]
+    #[available(2,0)]
     #[traverse_with(traverse_string_data)]
     string_data: VarLenArray<PString<'a>>,
 }

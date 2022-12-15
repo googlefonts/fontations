@@ -174,7 +174,7 @@ pub(crate) struct Field {
 pub(crate) struct FieldAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) nullable: Option<syn::Path>,
-    pub(crate) available: Option<Attr<syn::Expr>>,
+    pub(crate) available: Option<Attr<Available>>,
     pub(crate) skip_getter: Option<syn::Path>,
     /// specify that an offset getter has a custom impl
     pub(crate) offset_getter: Option<Attr<syn::Ident>>,
@@ -233,6 +233,12 @@ impl<T: ToTokens> ToTokens for Attr<T> {
 #[derive(Debug, Clone)]
 pub(crate) struct FieldReadArgs {
     pub(crate) inputs: Vec<syn::Ident>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct Available {
+    major: syn::LitInt,
+    minor: Option<syn::LitInt>,
 }
 
 /// Annotations for how to calculate the count of an array.
@@ -964,10 +970,7 @@ impl Parse for FieldAttrs {
             } else if ident == TO_OWNED {
                 this.to_owned = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == AVAILABLE {
-                this.available = Some(Attr {
-                    name: ident.clone(),
-                    attr: attr.parse_args()?,
-                });
+                this.available = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_WITH {
                 this.read_with_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_OFFSET_WITH {
@@ -1304,6 +1307,31 @@ impl ToTokens for CountArg {
         match self {
             CountArg::Field(fld) => fld.to_tokens(tokens),
             CountArg::Literal(lit) => lit.to_tokens(tokens),
+        }
+    }
+}
+
+impl Parse for Available {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let major = input.parse()?;
+        input
+            .peek(Token![,])
+            .then(|| {
+                input.parse::<Token![,]>()?;
+                input.parse::<syn::LitInt>()
+            })
+            .transpose()
+            .map(|minor| Self { major, minor })
+    }
+}
+
+impl ToTokens for Available {
+    fn to_tokens(&self, tokens: &mut TokenStream) {
+        let major = &self.major;
+        if let Some(minor) = &self.minor {
+            tokens.extend(quote!( (#major, #minor) ));
+        } else {
+            major.to_tokens(tokens);
         }
     }
 }
@@ -1672,5 +1700,23 @@ mod tests {
 
         assert!(parse_count("sub(5, 2)").is_err());
         assert!(parse_count("subtract(5)").is_err());
+    }
+
+    #[test]
+    fn parse_available() {
+        fn parse(s: &str) -> Result<Available, syn::Error> {
+            syn::parse_str(s)
+        }
+
+        assert!(parse("32").unwrap().minor.is_none());
+        assert_eq!(
+            parse("32").unwrap().major.base10_parse::<u16>().unwrap(),
+            32
+        );
+        assert!(parse("ab").is_err());
+        assert!(parse("MajorMinor::VERSION_1_0").is_err());
+        assert!(parse("1, 3").unwrap().minor.is_some());
+        assert!(parse("1, 2, 3").is_err());
+        assert!(parse("1, 'b'").is_err());
     }
 }

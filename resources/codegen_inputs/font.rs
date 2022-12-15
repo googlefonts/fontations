@@ -48,12 +48,12 @@ table TTCHeader {
     table_directory_offsets: [u32],
 
     /// Tag indicating that a DSIG table exists, 0x44534947 ('DSIG') (null if no signature)
-    #[available(MajorMinor::VERSION_2_0)]
+    #[available(2,0)]
     dsig_tag: u32,
     /// The length (in bytes) of the DSIG table (null if no signature)
-    #[available(MajorMinor::VERSION_2_0)]
+    #[available(2,0)]
     dsig_length: u32,
     /// The offset (in bytes) of the DSIG table from the beginning of the TTC file (null if no signature)
-    #[available(MajorMinor::VERSION_2_0)]
+    #[available(2,0)]
     dsig_offset: u32,
 }

@@ -121,10 +121,22 @@ impl Compatible for Version16Dot16 {
     }
 }
 
+impl Compatible<(u16, u16)> for Version16Dot16 {
+    fn compatible(&self, other: (u16, u16)) -> bool {
+        self.compatible(Version16Dot16::new(other.0, other.1))
+    }
+}
+
 impl Compatible for MajorMinor {
     #[inline]
     fn compatible(&self, other: Self) -> bool {
         self.major == other.major && self.minor >= other.minor
+    }
+}
+
+impl Compatible<(u16, u16)> for MajorMinor {
+    fn compatible(&self, other: (u16, u16)) -> bool {
+        self.compatible(MajorMinor::new(other.0, other.1))
     }
 }
 

@@ -36,7 +36,7 @@ impl FontWrite for Stat {
         self.design_axes.write_into(writer);
         (array_len(&self.offset_to_axis_values).unwrap() as u16).write_into(writer);
         self.offset_to_axis_values.write_into(writer);
-        version.compatible(MajorMinor::VERSION_1_1).then(|| {
+        version.compatible((1, 1)).then(|| {
             self.elided_fallback_name_id
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
@@ -56,9 +56,7 @@ impl Validate for Stat {
                 self.offset_to_axis_values.validate_impl(ctx);
             });
             ctx.in_field("elided_fallback_name_id", |ctx| {
-                if version.compatible(MajorMinor::VERSION_1_1)
-                    && self.elided_fallback_name_id.is_none()
-                {
+                if version.compatible((1, 1)) && self.elided_fallback_name_id.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
             });

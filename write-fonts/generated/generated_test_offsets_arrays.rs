@@ -51,16 +51,16 @@ impl FontWrite for KindsOfOffsets {
         self.array.write_into(writer);
         self.record_array.write_into(writer);
         version
-            .compatible(MajorMinor::VERSION_1_1)
+            .compatible((1, 1))
             .then(|| self.versioned_nullable_record_array.write_into(writer));
-        version.compatible(MajorMinor::VERSION_1_1).then(|| {
+        version.compatible((1, 1)).then(|| {
             self.versioned_nonnullable
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
         version
-            .compatible(MajorMinor::VERSION_1_1)
+            .compatible((1, 1))
             .then(|| self.versioned_nullable.write_into(writer));
     }
 }
@@ -82,9 +82,7 @@ impl Validate for KindsOfOffsets {
                 self.versioned_nullable_record_array.validate_impl(ctx);
             });
             ctx.in_field("versioned_nonnullable", |ctx| {
-                if version.compatible(MajorMinor::VERSION_1_1)
-                    && self.versioned_nonnullable.is_none()
-                {
+                if version.compatible((1, 1)) && self.versioned_nonnullable.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 self.versioned_nonnullable.validate_impl(ctx);
@@ -151,13 +149,13 @@ impl FontWrite for KindsOfArraysOfOffsets {
         (array_len(&self.nonnullables).unwrap() as u16).write_into(writer);
         self.nonnullables.write_into(writer);
         self.nullables.write_into(writer);
-        version.compatible(MajorMinor::VERSION_1_1).then(|| {
+        version.compatible((1, 1)).then(|| {
             self.versioned_nonnullables
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(MajorMinor::VERSION_1_1).then(|| {
+        version.compatible((1, 1)).then(|| {
             self.versioned_nullables
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
@@ -183,9 +181,7 @@ impl Validate for KindsOfArraysOfOffsets {
                 self.nullables.validate_impl(ctx);
             });
             ctx.in_field("versioned_nonnullables", |ctx| {
-                if version.compatible(MajorMinor::VERSION_1_1)
-                    && self.versioned_nonnullables.is_none()
-                {
+                if version.compatible((1, 1)) && self.versioned_nonnullables.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.versioned_nonnullables.is_some()
@@ -196,8 +192,7 @@ impl Validate for KindsOfArraysOfOffsets {
                 self.versioned_nonnullables.validate_impl(ctx);
             });
             ctx.in_field("versioned_nullables", |ctx| {
-                if version.compatible(MajorMinor::VERSION_1_1) && self.versioned_nullables.is_none()
-                {
+                if version.compatible((1, 1)) && self.versioned_nullables.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.versioned_nullables.is_some()

@@ -25,12 +25,12 @@ table Gdef {
     mark_attach_class_def_offset: Offset16<ClassDef>,
     /// Offset to the table of mark glyph set definitions, from
     /// beginning of GDEF header (may be NULL)
-    #[available(MajorMinor::VERSION_1_2)]
+    #[available(1,2)]
     #[nullable]
     mark_glyph_sets_def_offset: Offset16<MarkGlyphSets>,
     /// Offset to the Item Variation Store table, from beginning of
     /// GDEF header (may be NULL)
-    #[available(MajorMinor::VERSION_1_3)]
+    #[available(1,3)]
     #[nullable]
     item_var_store_offset: Offset32<ItemVariationStore>,
 }
