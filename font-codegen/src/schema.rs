@@ -5,8 +5,8 @@ use std::collections::{BTreeMap, HashSet};
 use serde::{Deserialize, Serialize};
 
 use crate::parsing::{
-    self, Field as RawField, FieldType, Item, Items, Record as RawRecord, Table as RawTable,
-    TableFormat, TableReadArgs,
+    self, BitFlags, Field as RawField, FieldType, Item, Items, RawEnum as RawRawRnum, RawVariant,
+    Record as RawRecord, Table as RawTable, TableFormat, TableReadArgs,
 };
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
@@ -17,6 +17,8 @@ struct Type(String);
 enum SchemaItem {
     Table(Table),
     Record(Record),
+    Flags(Flags),
+    RawEnum(RawEnum),
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -134,6 +136,35 @@ enum CountArg {
     Field(String),
 }
 
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct Flags {
+    name: String,
+    short_doc: String,
+    // must be an integer
+    #[serde(rename = "type")]
+    type_: Type,
+    values: Vec<NamedValue>,
+}
+
+//HMM: this is structurally identical to the above, it just has different semantics
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct RawEnum {
+    name: String,
+    short_doc: String,
+    // must be an integer
+    #[serde(rename = "type")]
+    type_: Type,
+    values: Vec<NamedValue>,
+}
+
+// shared between enums and flags
+#[derive(Clone, Debug, Deserialize, Serialize)]
+struct NamedValue {
+    name: String,
+    doc: String,
+    value: u32,
+}
+
 impl From<parsing::CountArg> for CountArg {
     fn from(src: parsing::CountArg) -> Self {
         match src {
@@ -201,11 +232,11 @@ pub(crate) fn generate(items: &Items) -> Result<String, syn::Error> {
                 }
 
                 Item::Record(record) => Some(SchemaItem::Record(generate_record(record))),
-                _ => None,
+                Item::RawEnum(raw) => Some(SchemaItem::RawEnum(generate_raw_enum(raw))),
+                Item::Flags(raw) => Some(SchemaItem::Flags(generate_flags(raw))),
                 //Item::GenericGroup(_) => todo!(),
-                //Item::RawEnum(_) => todo!(),
-                //Item::Flags(_) => todo!(),
                 //Item::Extern(_) => todo!(),
+                _ => None,
             })
             .map(|x| serde_yaml::to_string(&x).unwrap()),
     );
@@ -299,6 +330,32 @@ fn generate_input_args(args: &TableReadArgs) -> Vec<InputArgument> {
         .collect()
 }
 
+fn generate_raw_enum(raw: &RawRawRnum) -> RawEnum {
+    RawEnum {
+        name: raw.name.to_string(),
+        short_doc: doc_attrs_to_string(&raw.docs),
+        type_: Type(raw.typ.to_string()),
+        values: raw.variants.iter().map(generate_value).collect(),
+    }
+}
+
+fn generate_flags(raw: &BitFlags) -> Flags {
+    Flags {
+        name: raw.name.to_string(),
+        short_doc: doc_attrs_to_string(&raw.docs),
+        type_: Type(raw.typ.to_string()),
+        values: raw.variants.iter().map(generate_value).collect(),
+    }
+}
+
+fn generate_value(from: &RawVariant) -> NamedValue {
+    NamedValue {
+        name: from.name.to_string(),
+        doc: doc_attrs_to_string(&from.docs),
+        value: from.value.base10_parse().unwrap(),
+    }
+}
+
 fn generate_field(field: &RawField) -> Field {
     let name = field.name.to_string();
     let type_ = match &field.typ {
@@ -387,4 +444,26 @@ fn doc_attrs_to_string(docs: &[syn::Attribute]) -> String {
         out.push_str(as_str)
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn roundtrip_enum() {
+        let an_enum = RawEnum {
+            name: "Hello".into(),
+            short_doc: "I am a useful type that performs many important tasks".into(),
+            type_: Type("u32".into()),
+            values: vec![NamedValue {
+                name: "INFLAMMIBLE".into(),
+                doc: "Ugh I always forget which is which".into(),
+                value: 1,
+            }],
+        };
+
+        let to_str = serde_yaml::to_string(&an_enum).unwrap();
+        let _back_to_typeland: RawEnum = serde_yaml::from_str(&to_str).unwrap();
+    }
 }
