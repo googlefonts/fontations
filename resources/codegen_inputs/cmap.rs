@@ -293,10 +293,12 @@ record VariationSelector {
     var_selector: Uint24,
     /// Offset from the start of the format 14 subtable to Default UVS
     /// Table. May be 0.
-    default_uvs_offset: Offset32,
+    #[nullable]
+    default_uvs_offset: Offset32<DefaultUvs>,
     /// Offset from the start of the format 14 subtable to Non-Default
     /// UVS Table. May be 0.
-    non_default_uvs_offset: Offset32,
+    #[nullable]
+    non_default_uvs_offset: Offset32<NonDefaultUvs>,
 }
 
 /// [Default UVS table](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table)
@@ -308,8 +310,16 @@ table DefaultUvs {
     ranges: [UnicodeRange],
 }
 
+/// [Non-Default UVS table](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#non-default-uvs-table)
+table NonDefaultUvs {
+    num_uvs_mappings: u32,
+    #[count($num_uvs_mappings)]
+    uvs_mapping: [UvsMapping]
+
+}
+
 /// Part of [Cmap14]
-record UVSMapping {
+record UvsMapping {
     /// Base Unicode value of the UVS
     unicode_value: Uint24,
     /// Glyph ID of the UVS

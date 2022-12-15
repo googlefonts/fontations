@@ -274,7 +274,7 @@ fn traversal_arm_for_field(
     }
     match &fld.typ {
         FieldType::Offset {
-            target: Some(OffsetTarget::Array(inner)),
+            target: OffsetTarget::Array(inner),
             ..
         } if matches!(inner.deref(), FieldType::Struct { .. }) => {
             let typ = inner.cooked_type_tokens();
@@ -292,19 +292,13 @@ fn traversal_arm_for_field(
                     )
             ))
         }
-        FieldType::Offset {
-            target: Some(target),
-            ..
-        } => {
+        FieldType::Offset { target, .. } => {
             let constructor_name = match target {
                 OffsetTarget::Table(_) => quote!(offset),
                 OffsetTarget::Array(_) => quote!(offset_to_array_of_scalars),
             };
             let getter = fld.offset_getter_name();
             quote!(Field::new(#name_str, FieldType::#constructor_name(self.#name()#maybe_unwrap, self.#getter(#pass_data)#maybe_unwrap)))
-        }
-        FieldType::Offset { .. } => {
-            quote!(Field::new(#name_str, FieldType::unknown_offset(self.#name()#maybe_unwrap)))
         }
         FieldType::Scalar { .. } => quote!(Field::new(#name_str, self.#name()#maybe_unwrap)),
 
@@ -329,7 +323,7 @@ fn traversal_arm_for_field(
             }
 
             FieldType::Offset {
-                target: Some(OffsetTarget::Table(target)),
+                target: OffsetTarget::Table(target),
                 ..
             } => {
                 let maybe_data = pass_data.is_none().then(|| quote!(let data = self.data;));
@@ -357,13 +351,12 @@ fn traversal_arm_for_field(
                 }}
             }
             FieldType::Offset {
-                target: Some(OffsetTarget::Array(_)),
+                target: OffsetTarget::Array(_),
                 ..
             } => panic!(
                 "achievement unlocked: 'added arrays of offsets to arrays to OpenType spec' {:#?}",
                 fld
             ),
-            FieldType::Offset { .. } => quote!(Field::new(#name_str, self.#name()#maybe_unwrap)),
             _ => quote!(compile_error!("unhandled traversal case")),
         },
         FieldType::ComputedArray(arr) => {
@@ -509,7 +502,7 @@ impl Field {
             check_resolution(phase, inner_typ)?;
         }
         if let FieldType::Offset {
-            target: Some(OffsetTarget::Array(inner_typ)),
+            target: OffsetTarget::Array(inner_typ),
             ..
         } = &self.typ
         {
@@ -762,15 +755,9 @@ impl Field {
     ) -> Option<TokenStream> {
         let (_, target) = match &self.typ {
             _ if self.attrs.offset_getter.is_some() => return None,
-            FieldType::Offset {
-                typ,
-                target: Some(target),
-            } => (typ, target),
+            FieldType::Offset { typ, target } => (typ, target),
             FieldType::Array { inner_typ, .. } => match inner_typ.as_ref() {
-                FieldType::Offset {
-                    typ,
-                    target: Some(target),
-                } => (typ, target),
+                FieldType::Offset { typ, target } => (typ, target),
                 _ => return None,
             },
             _ => return None,
@@ -1150,9 +1137,8 @@ impl Field {
     fn gets_recursive_validation(&self) -> bool {
         match &self.typ {
             FieldType::Scalar { .. } | FieldType::Struct { .. } => false,
-            FieldType::Offset { target: None, .. } => false,
             FieldType::Offset {
-                target: Some(OffsetTarget::Array(elem)),
+                target: OffsetTarget::Array(elem),
                 ..
             } if matches!(elem.deref(), FieldType::Scalar { .. }) => false,
             FieldType::Offset { .. }
@@ -1173,7 +1159,7 @@ impl Field {
         match &self.typ {
             _ if self.attrs.to_owned.is_some() => false,
             FieldType::Offset {
-                target: Some(OffsetTarget::Array(_)),
+                target: OffsetTarget::Array(_),
                 ..
             } => true,
             FieldType::Offset { .. } => in_record,
@@ -1202,10 +1188,7 @@ impl Field {
             }
             FieldType::Scalar { .. } => quote!(obj.#name()),
             FieldType::Struct { .. } => quote!(obj.#name().to_owned_obj(offset_data)),
-            FieldType::Offset {
-                target: Some(target),
-                ..
-            } => {
+            FieldType::Offset { target, .. } => {
                 let offset_getter = self.offset_getter_name().unwrap();
                 match target {
                     // in this case it is possible that this is an array of
@@ -1285,20 +1268,12 @@ impl FieldType {
     }
 
     // impl code reused for the two calls above
-    fn compile_type_impl(
-        &self,
-        nullable: bool,
-        //version_dependent: bool,
-        for_constructor: bool,
-    ) -> TokenStream {
-        let raw_type = match self {
+    fn compile_type_impl(&self, nullable: bool, for_constructor: bool) -> TokenStream {
+        match self {
             FieldType::Scalar { typ } => typ.into_token_stream(),
             FieldType::Struct { typ } => typ.into_token_stream(),
             FieldType::Offset { typ, target } => {
-                let target = target
-                    .as_ref()
-                    .map(OffsetTarget::compile_type)
-                    .unwrap_or_else(|| quote!(Box<dyn FontWrite>));
+                let target = target.compile_type();
                 if for_constructor {
                     if nullable {
                         return quote!(Option<#target>);
@@ -1310,7 +1285,7 @@ impl FieldType {
                 if nullable {
                     // we don't bother wrapping this in an Option if versioned,
                     // since it already acts like an Option
-                    return quote!(NullableOffsetMarker<#target, #width>);
+                    quote!(NullableOffsetMarker<#target, #width>)
                 } else {
                     quote!(OffsetMarker<#target, #width>)
                 }
@@ -1325,13 +1300,7 @@ impl FieldType {
             }
             FieldType::ComputedArray(array) | FieldType::VarLenArray(array) => array.compile_type(),
             FieldType::PendingResolution { .. } => panic!("Should have resolved {:?}", self),
-        };
-        raw_type
-        //if version_dependent {
-        //quote!( Option<#raw_type> )
-        //} else {
-        //raw_type
-        //}
+        }
     }
 }
 

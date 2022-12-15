@@ -318,7 +318,7 @@ impl InlineExpr {
 pub(crate) enum FieldType {
     Offset {
         typ: syn::Ident,
-        target: Option<OffsetTarget>,
+        target: OffsetTarget,
     },
     Scalar {
         typ: syn::Ident,
@@ -796,7 +796,7 @@ impl FieldType {
         }
 
         if ["Offset16", "Offset24", "Offset32"].contains(&last.ident.to_string().as_str()) {
-            let target = get_offset_target(&last.arguments)?;
+            let target = get_offset_target(last)?;
             return Ok(FieldType::Offset {
                 typ: last.ident.clone(),
                 target,
@@ -822,8 +822,8 @@ fn get_single_path_segment(path: &syn::Path) -> syn::Result<&syn::PathSegment> {
 }
 
 // either a single ident or an array
-fn get_offset_target(input: &syn::PathArguments) -> syn::Result<Option<OffsetTarget>> {
-    match get_single_generic_arg(input)? {
+fn get_offset_target(input: &syn::PathSegment) -> syn::Result<OffsetTarget> {
+    match get_single_generic_arg(&input.arguments)? {
         Some(syn::GenericArgument::Type(syn::Type::Slice(t))) => {
             let inner = FieldType::from_syn_type(&t.elem)?;
             if matches!(
@@ -832,7 +832,7 @@ fn get_offset_target(input: &syn::PathArguments) -> syn::Result<Option<OffsetTar
                     | FieldType::Struct { .. }
                     | FieldType::PendingResolution { .. }
             ) {
-                Ok(Some(OffsetTarget::Array(Box::new(inner))))
+                Ok(OffsetTarget::Array(Box::new(inner)))
             } else {
                 Err(logged_syn_error(
                     t.elem.span(),
@@ -843,12 +843,10 @@ fn get_offset_target(input: &syn::PathArguments) -> syn::Result<Option<OffsetTar
         Some(syn::GenericArgument::Type(syn::Type::Path(t)))
             if t.path.segments.len() == 1 && t.path.get_ident().is_some() =>
         {
-            Ok(Some(OffsetTarget::Table(
-                t.path.get_ident().unwrap().clone(),
-            )))
+            Ok(OffsetTarget::Table(t.path.get_ident().unwrap().clone()))
         }
         Some(_) => Err(logged_syn_error(input.span(), "expected path or slice")),
-        None => Ok(None),
+        None => Err(logged_syn_error(input.span(), "expected offset target")),
     }
 }
 
@@ -1097,13 +1095,13 @@ fn resolve_field(
 
     if let FieldType::Offset { typ, target } = &field.typ {
         let offset_typ = typ;
-        if let Some(OffsetTarget::Array(array_of)) = target {
+        if let OffsetTarget::Array(array_of) = target {
             if let FieldType::PendingResolution { typ } = array_of.as_ref() {
                 let resolved_typ = resolve_ident(known, &field.name, typ)?;
                 *field = Field {
                     typ: FieldType::Offset {
                         typ: offset_typ.clone(),
-                        target: Some(OffsetTarget::Array(Box::new(resolved_typ.clone()))),
+                        target: OffsetTarget::Array(Box::new(resolved_typ.clone())),
                     },
                     ..field.clone()
                 }
@@ -1661,18 +1659,16 @@ mod tests {
     #[test]
     fn offset_target() {
         let array_target = make_path_seg("Offset16<[u16]>");
-        assert!(get_offset_target(&array_target.arguments)
-            .unwrap()
-            .is_some());
+        assert!(get_offset_target(&array_target).is_ok());
 
         let path_target = make_path_seg("Offset16<SomeType>");
-        assert!(get_offset_target(&path_target.arguments).unwrap().is_some());
+        assert!(get_offset_target(&path_target).is_ok());
 
         let non_target = make_path_seg("Offset16");
-        assert!(get_offset_target(&non_target.arguments).unwrap().is_none());
+        assert!(get_offset_target(&non_target).is_err());
 
         let tuple_target = make_path_seg("Offset16<(u16, u16)>");
-        assert!(get_offset_target(&tuple_target.arguments).is_err());
+        assert!(get_offset_target(&tuple_target).is_err());
     }
 
     #[test]

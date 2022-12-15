@@ -208,3 +208,9 @@ impl<'a> TableProvider<'a> for FontRef<'a> {
         self.table_data(tag)
     }
 }
+
+impl TableRecord {
+    pub fn offset(&self) -> Offset32 {
+        Offset32::new(self.offset.get())
+    }
+}
