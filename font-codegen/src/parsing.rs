@@ -263,7 +263,7 @@ pub(crate) enum CountArg {
     Literal(syn::LitInt),
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum CountTransform {
     /// requires exactly two args, defined as $arg1 - $arg2
     Sub,
@@ -1297,6 +1297,13 @@ impl CountTransform {
             CountTransform::DeltaValueCount => 3,
             CountTransform::DeltaSetIndexData => 2,
         }
+    }
+
+    pub(crate) fn as_str(&self) -> &'static str {
+        TRANSFORM_IDENTS
+            .iter()
+            .find_map(|(var, name)| (var == self).then_some(*name))
+            .unwrap()
     }
 }
 

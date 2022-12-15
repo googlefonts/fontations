@@ -12,6 +12,7 @@ mod flags_enums;
 mod formatting;
 mod parsing;
 mod record;
+mod schema;
 mod table;
 
 use parsing::{Item, Items, Phase};
@@ -26,6 +27,8 @@ pub enum Mode {
     Parse,
     /// Generate compilation code
     Compile,
+    /// Generate a schema
+    Schema,
 }
 
 pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
@@ -49,6 +52,7 @@ pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
     let tables = match &mode {
         Mode::Parse => generate_parse_module(&items),
         Mode::Compile => generate_compile_module(&items),
+        Mode::Schema => return schema::generate(&items),
     }?;
 
     // 4. Touchup
@@ -64,7 +68,7 @@ pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
     ))
 }
 
-pub(crate) fn generate_parse_module(items: &Items) -> Result<proc_macro2::TokenStream, syn::Error> {
+fn generate_parse_module(items: &Items) -> Result<proc_macro2::TokenStream, syn::Error> {
     let mut code = Vec::new();
     for item in items.iter() {
         let item_code = match item {
@@ -86,9 +90,7 @@ pub(crate) fn generate_parse_module(items: &Items) -> Result<proc_macro2::TokenS
     })
 }
 
-pub(crate) fn generate_compile_module(
-    items: &Items,
-) -> Result<proc_macro2::TokenStream, syn::Error> {
+fn generate_compile_module(items: &Items) -> Result<proc_macro2::TokenStream, syn::Error> {
     let code = items
         .iter()
         .map(|item| match item {
@@ -127,6 +129,7 @@ impl std::str::FromStr for Mode {
         match s {
             "parse" => Ok(Self::Parse),
             "compile" => Ok(Self::Compile),
+            "schema" => Ok(Self::Schema),
             other => Err(miette::Error::msg(format!(
                 "expected one of 'parse' or 'compile' (found {other})"
             ))),
