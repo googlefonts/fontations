@@ -62,6 +62,10 @@ pub trait TableProvider<'a> {
         self.expect_table_args(&(number_of_v_metrics, num_glyphs))
     }
 
+    fn fvar(&self) -> Result<tables::fvar::Fvar<'a>, ReadError> {
+        self.expect_table()
+    }
+
     fn avar(&self) -> Result<tables::avar::Avar<'a>, ReadError> {
         self.expect_table()
     }
