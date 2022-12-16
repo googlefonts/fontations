@@ -106,6 +106,8 @@ fn get_some_table<'a>(
         tables::gpos::Gpos::TAG => font.gpos().map(|x| Box::new(x) as _),
         tables::gsub::Gsub::TAG => font.gsub().map(|x| Box::new(x) as _),
         tables::cmap::Cmap::TAG => font.cmap().map(|x| Box::new(x) as _),
+        tables::fvar::Fvar::TAG => font.fvar().map(|x| Box::new(x) as _),
+        tables::avar::Avar::TAG => font.avar().map(|x| Box::new(x) as _),
         tables::gdef::Gdef::TAG => font.gdef().map(|x| Box::new(x) as _),
         tables::glyf::Glyf::TAG => font.glyf().map(|x| Box::new(x) as _),
         tables::head::Head::TAG => font.head().map(|x| Box::new(x) as _),
