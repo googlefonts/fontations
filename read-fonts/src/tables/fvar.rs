@@ -36,18 +36,15 @@ impl VariationAxisRecord {
         use core::cmp::Ordering::*;
         let min_value = self.min_value();
         let default_value = self.default_value();
-        let max_value = self.max_value();
-        if value < min_value {
-            value = min_value;
-        } else if value > max_value {
-            value = max_value;
-        }
+        // Make sure max is >= min to avoid potential panic in clamp.
+        let max_value = self.max_value().max(min_value);
+        value = value.clamp(min_value, max_value);
         value = match value.cmp(&default_value) {
             Less => -((default_value - value) / (default_value - min_value)),
             Greater => (value - default_value) / (max_value - default_value),
             Equal => Fixed::ZERO,
         };
-        value.min(Fixed::ONE).max(-Fixed::ONE)
+        value.clamp(-Fixed::ONE, Fixed::ONE)
     }
 }
 
