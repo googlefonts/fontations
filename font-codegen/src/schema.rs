@@ -106,6 +106,7 @@ struct OffsetInfo {
 }
 
 #[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(tag = "target_kind")]
 enum OffsetTarget {
     Table(OffsetTargetType),
     Array(OffsetTargetType),
@@ -141,8 +142,7 @@ struct Flags {
     name: String,
     short_doc: String,
     // must be an integer
-    #[serde(rename = "type")]
-    type_: Type,
+    raw_type: Type,
     values: Vec<NamedValue>,
 }
 
@@ -152,8 +152,7 @@ struct RawEnum {
     name: String,
     short_doc: String,
     // must be an integer
-    #[serde(rename = "type")]
-    type_: Type,
+    raw_type: Type,
     values: Vec<NamedValue>,
 }
 
@@ -328,7 +327,7 @@ fn generate_raw_enum(raw: &RawRawRnum) -> RawEnum {
     RawEnum {
         name: raw.name.to_string(),
         short_doc: doc_attrs_to_string(&raw.docs),
-        type_: Type(raw.typ.to_string()),
+        raw_type: Type(raw.typ.to_string()),
         values: raw.variants.iter().map(generate_value).collect(),
     }
 }
@@ -337,7 +336,7 @@ fn generate_flags(raw: &BitFlags) -> Flags {
     Flags {
         name: raw.name.to_string(),
         short_doc: doc_attrs_to_string(&raw.docs),
-        type_: Type(raw.typ.to_string()),
+        raw_type: Type(raw.typ.to_string()),
         values: raw.variants.iter().map(generate_value).collect(),
     }
 }
@@ -449,7 +448,7 @@ mod tests {
         let an_enum = RawEnum {
             name: "Hello".into(),
             short_doc: "I am a useful type that performs many important tasks".into(),
-            type_: Type("u32".into()),
+            raw_type: Type("u32".into()),
             values: vec![NamedValue {
                 name: "INFLAMMIBLE".into(),
                 doc: "Ugh I always forget which is which".into(),
