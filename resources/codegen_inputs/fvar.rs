@@ -5,10 +5,11 @@ extern record InstanceRecord;
 /// The [fvar (Font Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/fvar) table
 #[tag = "fvar"]
 table Fvar {
-    /// Major version number of the axis variations table — set to 1.
-    /// Minor version number of the axis variations table — set to 0.
+    /// Major version number of the font variations table — set to 1.
+    /// Minor version number of the font variations table — set to 0.
     version: MajorMinor,
-    /// Offset in bytes from the beginning of the table to the start of the VariationAxisRecord array.
+    /// Offset in bytes from the beginning of the table to the start of the VariationAxisRecord array. The
+    /// InstanceRecord array directly follows.
     #[read_offset_with($axis_count, $instance_count, $instance_size)]
     axis_instance_arrays_offset: Offset16<AxisInstanceArrays>,
     /// This field is permanently reserved. Set to 2.
@@ -29,10 +30,10 @@ table Fvar {
 /// Shim table to handle combined axis and instance arrays.
 #[read_args(axis_count: u16, instance_count: u16, instance_size: u16)]
 table AxisInstanceArrays {
-    /// Variation axis array.
+    /// Variation axis record array.
     #[count($axis_count)]
     axes: [VariationAxisRecord],
-    /// Instance array data.
+    /// Instance record array.
     #[count($instance_count)]
     #[read_with($axis_count, $instance_size)]
     instances: ComputedArray<InstanceRecord<'a>>,

@@ -64,14 +64,15 @@ impl<'a> FontRead<'a> for Fvar<'a> {
 pub type Fvar<'a> = TableRef<'a, FvarMarker>;
 
 impl<'a> Fvar<'a> {
-    /// Major version number of the axis variations table — set to 1.
-    /// Minor version number of the axis variations table — set to 0.
+    /// Major version number of the font variations table — set to 1.
+    /// Minor version number of the font variations table — set to 0.
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
-    /// Offset in bytes from the beginning of the table to the start of the VariationAxisRecord array.
+    /// Offset in bytes from the beginning of the table to the start of the VariationAxisRecord array. The
+    /// InstanceRecord array directly follows.
     pub fn axis_instance_arrays_offset(&self) -> Offset16 {
         let range = self.shape.axis_instance_arrays_offset_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -192,13 +193,13 @@ impl<'a> FontReadWithArgs<'a> for AxisInstanceArrays<'a> {
 pub type AxisInstanceArrays<'a> = TableRef<'a, AxisInstanceArraysMarker>;
 
 impl<'a> AxisInstanceArrays<'a> {
-    /// Variation axis array.
+    /// Variation axis record array.
     pub fn axes(&self) -> &'a [VariationAxisRecord] {
         let range = self.shape.axes_byte_range();
         self.data.read_array(range).unwrap()
     }
 
-    /// Instance array data.
+    /// Instance record array.
     pub fn instances(&self) -> ComputedArray<'a, InstanceRecord<'a>> {
         let range = self.shape.instances_byte_range();
         self.data
