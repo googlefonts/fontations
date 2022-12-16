@@ -5,6 +5,8 @@ include!("../../generated/generated_fvar.rs");
 #[path = "./instance_record.rs"]
 mod instance_record;
 
+pub use instance_record::InstanceRecord;
+
 impl<'a> Fvar<'a> {
     /// Returns the array of variation axis records.
     pub fn axes(&self) -> Result<&'a [VariationAxisRecord], ReadError> {
@@ -15,19 +17,6 @@ impl<'a> Fvar<'a> {
     pub fn instances(&self) -> Result<ComputedArray<'a, InstanceRecord<'a>>, ReadError> {
         Ok(self.axis_instance_arrays()?.instances())
     }
-}
-
-/// The [InstanceRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar#instancerecord)
-#[derive(Clone, Debug)]
-pub struct InstanceRecord<'a> {
-    /// The name ID for entries in the 'name' table that provide subfamily names for this instance.
-    subfamily_name_id: u16,
-    /// Reserved for future use — set to 0.
-    flags: u16,
-    /// The coordinates array for this instance.
-    coordinates: &'a [BigEndian<Fixed>],
-    /// Optional. The name ID for entries in the 'name' table that provide PostScript names for this instance.
-    post_script_name_id: Option<u16>,
 }
 
 impl VariationAxisRecord {

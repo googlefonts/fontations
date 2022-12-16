@@ -1,11 +1,23 @@
 //! An fvar InstanceRecord
 
-use super::InstanceRecord;
-use types::{Fixed, FixedSize};
+use types::{BigEndian, Fixed, FixedSize};
 
 #[cfg(feature = "traversal")]
 use crate::traversal::{Field, RecordResolver, SomeRecord};
 use crate::{ComputeSize, FontData, FontReadWithArgs, ReadArgs, ReadError};
+
+/// The [InstanceRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar#instancerecord)
+#[derive(Clone, Debug)]
+pub struct InstanceRecord<'a> {
+    /// The name ID for entries in the 'name' table that provide subfamily names for this instance.
+    pub subfamily_name_id: u16,
+    /// Reserved for future use — set to 0.
+    pub flags: u16,
+    /// The coordinates array for this instance.
+    pub coordinates: &'a [BigEndian<Fixed>],
+    /// Optional. The name ID for entries in the 'name' table that provide PostScript names for this instance.
+    pub post_script_name_id: Option<u16>,
+}
 
 impl ReadArgs for InstanceRecord<'_> {
     type Args = (u16, u16);
