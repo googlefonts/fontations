@@ -1,6 +1,9 @@
 //! OpenType layout.
 
-use std::collections::{BTreeMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashSet},
+    hash::Hash,
+};
 
 pub use read_fonts::tables::layout::LookupFlag;
 use read_fonts::FontRead;
@@ -537,6 +540,16 @@ impl PartialEq for Device {
 }
 
 impl Eq for Device {}
+
+//FIXME: ditto
+impl Hash for Device {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.start_size.hash(state);
+        self.end_size.hash(state);
+        (self.delta_format as u16).hash(state);
+        self.delta_value.hash(state);
+    }
+}
 
 #[cfg(test)]
 mod tests {
