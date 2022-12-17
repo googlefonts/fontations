@@ -1391,17 +1391,14 @@ impl<'a> FontRead<'a> for ClassSequenceRuleSet {
 pub struct ClassSequenceRule {
     /// Sequence of classes to be matched to the input glyph sequence,
     /// beginning with the second glyph position
-    pub input_sequence: Vec<GlyphId>,
+    pub input_sequence: Vec<u16>,
     /// Array of SequenceLookupRecords
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
 }
 
 impl ClassSequenceRule {
     /// Construct a new `ClassSequenceRule`
-    pub fn new(
-        input_sequence: Vec<GlyphId>,
-        seq_lookup_records: Vec<SequenceLookupRecord>,
-    ) -> Self {
+    pub fn new(input_sequence: Vec<u16>, seq_lookup_records: Vec<SequenceLookupRecord>) -> Self {
         Self {
             input_sequence: input_sequence.into_iter().map(Into::into).collect(),
             seq_lookup_records: seq_lookup_records.into_iter().map(Into::into).collect(),
@@ -2033,12 +2030,12 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet {
 #[derive(Clone, Debug, Default)]
 pub struct ChainedClassSequenceRule {
     /// Array of backtrack-sequence classes
-    pub backtrack_sequence: Vec<GlyphId>,
+    pub backtrack_sequence: Vec<u16>,
     /// Array of input sequence classes, beginning with the second
     /// glyph position
-    pub input_sequence: Vec<GlyphId>,
+    pub input_sequence: Vec<u16>,
     /// Array of lookahead-sequence classes
-    pub lookahead_sequence: Vec<GlyphId>,
+    pub lookahead_sequence: Vec<u16>,
     /// Array of SequenceLookupRecords
     pub seq_lookup_records: Vec<SequenceLookupRecord>,
 }
@@ -2046,9 +2043,9 @@ pub struct ChainedClassSequenceRule {
 impl ChainedClassSequenceRule {
     /// Construct a new `ChainedClassSequenceRule`
     pub fn new(
-        backtrack_sequence: Vec<GlyphId>,
-        input_sequence: Vec<GlyphId>,
-        lookahead_sequence: Vec<GlyphId>,
+        backtrack_sequence: Vec<u16>,
+        input_sequence: Vec<u16>,
+        lookahead_sequence: Vec<u16>,
         seq_lookup_records: Vec<SequenceLookupRecord>,
     ) -> Self {
         Self {
