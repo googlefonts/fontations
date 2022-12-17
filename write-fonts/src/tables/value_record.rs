@@ -11,7 +11,7 @@ use crate::{
     write::{FontWrite, TableWriter},
 };
 
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, PartialEq, Eq, Hash)]
 pub struct ValueRecord {
     pub x_placement: Option<i16>,
     pub y_placement: Option<i16>,
@@ -43,6 +43,11 @@ impl ValueRecord {
             | flag_if_true!(self.y_placement_device, ValueFormat::Y_PLACEMENT_DEVICE)
             | flag_if_true!(self.x_advance_device, ValueFormat::X_ADVANCE_DEVICE)
             | flag_if_true!(self.y_advance_device, ValueFormat::Y_ADVANCE_DEVICE)
+    }
+
+    /// Return the number of bytes required to encode this value record
+    pub fn encoded_size(&self) -> usize {
+        self.format().bits().count_ones() as usize * 2
     }
 }
 
