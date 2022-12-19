@@ -316,7 +316,7 @@ table ClassSequenceRule {
     /// Sequence of classes to be matched to the input glyph sequence,
     /// beginning with the second glyph position
     #[count(subtract($glyph_count, 1))]
-    input_sequence: [GlyphId],
+    input_sequence: [u16],
     /// Array of SequenceLookupRecords
     #[count($seq_lookup_count)]
     seq_lookup_records: [SequenceLookupRecord],
@@ -450,20 +450,20 @@ table ChainedClassSequenceRule {
     backtrack_glyph_count: u16,
     /// Array of backtrack-sequence classes
     #[count($backtrack_glyph_count)]
-    backtrack_sequence: [GlyphId],
+    backtrack_sequence: [u16],
     /// Total number of glyphs in the input sequence
     #[compile(plus_one($input_sequence.len()))]
     input_glyph_count: u16,
     /// Array of input sequence classes, beginning with the second
     /// glyph position
     #[count(subtract($input_glyph_count, 1))]
-    input_sequence: [GlyphId],
+    input_sequence: [u16],
     /// Number of glyphs in the lookahead sequence
     #[compile(array_len($lookahead_sequence))]
     lookahead_glyph_count: u16,
     /// Array of lookahead-sequence classes
     #[count($lookahead_glyph_count)]
-    lookahead_sequence: [GlyphId],
+    lookahead_sequence: [u16],
     /// Number of SequenceLookupRecords
     #[compile(array_len($seq_lookup_records))]
     seq_lookup_count: u16,
