@@ -321,6 +321,7 @@ impl CoverageTableBuilder {
     /// Create a new builder from a vec of `GlyphId`.
     pub fn from_glyphs(mut glyphs: Vec<GlyphId>) -> Self {
         glyphs.sort_unstable();
+        glyphs.dedup();
         CoverageTableBuilder { glyphs }
     }
 
@@ -623,5 +624,17 @@ mod tests {
         let result = encode_delta(DeltaFormat::Local2BitDeltas, &inp);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], 0x5540_u16);
+    }
+
+    fn make_glyph_vec<const N: usize>(gids: [u16; N]) -> Vec<GlyphId> {
+        gids.into_iter().map(GlyphId::new).collect()
+    }
+
+    #[test]
+    fn coverage_builder() {
+        let coverage = make_glyph_vec([1u16, 2, 9, 3, 6, 9])
+            .into_iter()
+            .collect::<CoverageTableBuilder>();
+        assert_eq!(coverage.glyphs, make_glyph_vec([1, 2, 3, 6, 9]));
     }
 }
