@@ -140,9 +140,7 @@ mod tests {
         let mut cx = Context::new();
         let mut scaler = cx.new_scaler().size(ppem).build(font);
         let glyph = scaler.outline(gid).unwrap();
-        let outline = match glyph.content().unwrap() {
-            Content::Outline(outline) => outline,
-        };
+        let Content::Outline(outline) = glyph.content().unwrap();
         let elements = outline.elements().collect::<Vec<_>>();
         assert_eq!(&elements[..], expected_elements);
     }
