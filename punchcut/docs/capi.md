@@ -139,7 +139,7 @@ PcScaler* scaler = pc_scaler_builder_build(builder, &font);
 // Loop over some glyphs in a run... assuming an array called
 // glyph containing ids with n_glyphs holding the array length.
 for (int i = 0; i < n_glyphs; i++) {
-    if pc_scaler_outline(scaler, glyphs[i], outline) == PC_OK {
+    if (pc_scaler_outline(scaler, glyphs[i], outline) == PC_OK) {
         // Store in a Skia path.
         SkPath path;
         pc_outline_path_elements(outline, &path, sk_path_outline_func);
