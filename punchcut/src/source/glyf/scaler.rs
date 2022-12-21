@@ -37,7 +37,7 @@ pub struct Scaler<'a> {
 }
 
 impl<'a> Scaler<'a> {
-    /// Creates a new loader for extracting outlines with the specified font
+    /// Creates a new scaler for extracting outlines with the specified font
     /// and configuration.
     pub fn new(
         context: &'a mut Context,
@@ -93,8 +93,8 @@ impl<'a> Scaler<'a> {
 
 /// State for loading a glyph.
 struct GlyphScaler<'a, 'b> {
-    /// Backing loader.
-    loader: &'b mut Scaler<'a>,
+    /// Backing scaler.
+    scaler: &'b mut Scaler<'a>,
     /// True if hinting is enabled.
     hint: bool,
     /// Phantom points.
@@ -102,10 +102,10 @@ struct GlyphScaler<'a, 'b> {
 }
 
 impl<'a, 'b> GlyphScaler<'a, 'b> {
-    pub fn new(loader: &'b mut Scaler<'a>) -> Self {
-        let hint = loader.hint.is_some();
+    pub fn new(scaler: &'b mut Scaler<'a>) -> Self {
+        let hint = scaler.hint.is_some();
         Self {
-            loader,
+            scaler,
             hint,
             phantom: Default::default(),
         }
@@ -123,7 +123,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
         if recurse_depth > RECURSION_LIMIT {
             return Err(Error::RecursionLimitExceeded(glyph_id));
         }
-        let Some(glyph) = self.loader.font.glyph(glyph_id) else {
+        let Some(glyph) = self.scaler.font.glyph(glyph_id) else {
             return Err(Error::GlyphNotFound(glyph_id));
         };
         let glyph = match glyph {
@@ -131,9 +131,9 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
             // This is a valid empty glyph
             None => return Ok(()),
         };
-        let scale = self.loader.scale;
+        let scale = self.scaler.scale;
         let bounds = [glyph.x_min(), glyph.x_max(), glyph.y_min(), glyph.y_max()];
-        self.setup(bounds, glyph_id, self.loader.coords);
+        self.setup(bounds, glyph_id, self.scaler.coords);
         // The base indices of the points and contours for the current glyph.
         let point_base = outline.points.len();
         let contour_base = outline.contours.len();
@@ -185,13 +185,13 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                 let hinted = self.hint && !ins.is_empty();
                 if hinted {
                     // Hinting requires a copy of the original unscaled points.
-                    self.loader.context.unscaled.clear();
-                    self.loader
+                    self.scaler.context.unscaled.clear();
+                    self.scaler
                         .context
                         .unscaled
                         .extend_from_slice(&outline.points[point_base..]);
                 }
-                if self.loader.is_scaled {
+                if self.scaler.is_scaled {
                     // Apply the scale to each point.
                     for p in &mut outline.points[point_base..] {
                         p.x = math::mul(p.x, scale);
@@ -203,8 +203,8 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                 if hinted {
                     // Hinting requires a copy of the scaled points. These are used
                     // as references when modifying an outline.
-                    self.loader.context.original.clear();
-                    self.loader
+                    self.scaler.context.original.clear();
+                    self.scaler
                         .context
                         .original
                         .extend_from_slice(&outline.points[point_base..point_end]);
@@ -229,8 +229,8 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                 outline.tags.truncate(outline.tags.len() - 4);
             }
             Glyph::Composite(composite) => {
-                if self.loader.is_scaled {
-                    let scale = self.loader.scale;
+                if self.scaler.is_scaled {
+                    let scale = self.scaler.scale;
                     for p in self.phantom.iter_mut() {
                         p.x = math::mul(p.x, scale);
                         p.y = math::mul(p.y, scale);
@@ -306,7 +306,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                             //     dx += d.x;
                             //     dy += d.y;
                             // }
-                            if self.loader.is_scaled {
+                            if self.scaler.is_scaled {
                                 dx = math::mul(dx, scale);
                                 dy = math::mul(dy, scale);
                                 if self.hint
@@ -351,13 +351,13 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                         self.push_phantom(outline);
                         // For composite glyphs, the unscaled and original points are simply
                         // copies of the current point set.
-                        self.loader.context.unscaled.clear();
-                        self.loader
+                        self.scaler.context.unscaled.clear();
+                        self.scaler
                             .context
                             .unscaled
                             .extend_from_slice(&outline.points[point_base..]);
-                        self.loader.context.original.clear();
-                        self.loader
+                        self.scaler.context.original.clear();
+                        self.scaler
                             .context
                             .original
                             .extend_from_slice(&outline.points[point_base..]);
@@ -390,7 +390,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                     p.x -= pp0x;
                 }
             }
-            outline.is_scaled = self.loader.is_scaled;
+            outline.is_scaled = self.scaler.is_scaled;
         }
         Ok(())
     }
@@ -413,7 +413,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
 // Per-component setup.
 impl<'a, 'b> GlyphScaler<'a, 'b> {
     fn setup(&mut self, bounds: [i16; 4], glyph_id: GlyphId, coords: &[NormalizedCoord]) {
-        let font = &self.loader.font;
+        let font = &self.scaler.font;
         let lsb = font.lsb(glyph_id, coords);
         let advance = font.advance_width(glyph_id, coords);
         // Vertical metrics aren't significant to the glyph loading process, so

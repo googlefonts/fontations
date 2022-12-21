@@ -1,4 +1,4 @@
-use super::{source::*, Context, Error, Glyph, Hinting, NormalizedCoord, Result, Variation};
+use super::{source::*, Context, Error, Hinting, NormalizedCoord, Outline, Result, Variation};
 
 use read_fonts::{
     types::{Fixed, GlyphId, Tag},
@@ -16,7 +16,7 @@ pub struct ScalerBuilder<'a> {
 }
 
 impl<'a> ScalerBuilder<'a> {
-    /// Creates a new loader builder for the specified context.
+    /// Creates a new builder for configuring a scaler with the given context.
     pub fn new(context: &'a mut Context) -> Self {
         context.coords.clear();
         context.variations.clear();
@@ -76,7 +76,7 @@ impl<'a> ScalerBuilder<'a> {
         self
     }
 
-    /// Builds a loader using the currently configured settings
+    /// Builds a scaler using the currently configured settings
     /// for the specified font.
     pub fn build(self, font: &impl TableProvider<'a>) -> Scaler<'a> {
         if !self.context.variations.is_empty() {
@@ -134,25 +134,25 @@ pub struct Scaler<'a> {
 }
 
 impl<'a> Scaler<'a> {
-    /// Returns true if the loader has a source for simple outlines.
+    /// Returns true if the scaler has a source for simple outlines.
     pub fn has_outlines(&self) -> bool {
         self.outlines.has_outlines()
     }
 
     /// Loads a simple outline for the specified glyph identifier into the target glyph.
-    pub fn outline_into(&mut self, glyph_id: GlyphId, glyph: &mut Glyph) -> Result<()> {
-        self.outlines.outline_into(glyph_id, glyph)
+    pub fn outline_into(&mut self, glyph_id: GlyphId, outline: &mut Outline) -> Result<()> {
+        self.outlines.outline_into(glyph_id, outline)
     }
 
     /// Loads a simple outline for the specified glyph identifier into a new glyph.
-    pub fn outline(&mut self, glyph_id: GlyphId) -> Result<Glyph> {
-        let mut glyph = Glyph::new();
-        self.outline_into(glyph_id, &mut glyph)?;
-        Ok(glyph)
+    pub fn outline(&mut self, glyph_id: GlyphId) -> Result<Outline> {
+        let mut outline = Outline::new();
+        self.outline_into(glyph_id, &mut outline)?;
+        Ok(outline)
     }
 }
 
-/// Loader for simple outline glyphs.
+/// Outline glyph scalers.
 struct Outlines<'a> {
     glyf: Option<(glyf::Scaler<'a>, &'a mut glyf::Outline)>,
 }
@@ -165,11 +165,11 @@ impl<'a> Outlines<'a> {
 
     /// Loads an outline for the specified glyph identifier into the given
     /// preallocated glyph.
-    fn outline_into(&mut self, glyph_id: GlyphId, glyph: &mut Glyph) -> Result<()> {
-        glyph.clear();
-        if let Some((loader, outline)) = &mut self.glyf {
-            loader.get_into(glyph_id, outline)?;
-            glyph.store_glyf_outline(outline);
+    fn outline_into(&mut self, glyph_id: GlyphId, outline: &mut Outline) -> Result<()> {
+        outline.clear();
+        if let Some((scaler, glyf_outline)) = &mut self.glyf {
+            scaler.get_into(glyph_id, glyf_outline)?;
+            outline.append_glyf(glyf_outline);
             return Ok(());
         }
         Err(Error::NoSources)

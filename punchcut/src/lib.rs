@@ -10,7 +10,7 @@ Glyph loading.
 pub use peniko;
 
 mod error;
-mod glyph;
+mod outline;
 mod scaler;
 
 pub mod source;
@@ -26,7 +26,7 @@ use source::*;
 use core::str::FromStr;
 
 pub use error::*;
-pub use glyph::*;
+pub use outline::*;
 pub use scaler::*;
 
 /// Modes for hinting.
@@ -133,14 +133,13 @@ mod tests {
             PathEl::{self, *},
             Point,
         },
-        Content, Context, Glyph, GlyphId, Scaler,
+        Context, GlyphId, Scaler,
     };
 
     fn test_glyph(font: &FontRef, gid: GlyphId, ppem: f32, expected_elements: &[PathEl]) {
         let mut cx = Context::new();
         let mut scaler = cx.new_scaler().size(ppem).build(font);
-        let glyph = scaler.outline(gid).unwrap();
-        let Content::Outline(outline) = glyph.content().unwrap();
+        let outline = scaler.outline(gid).unwrap();
         let elements = outline.elements().collect::<Vec<_>>();
         assert_eq!(&elements[..], expected_elements);
     }

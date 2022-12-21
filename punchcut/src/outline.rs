@@ -1,8 +1,6 @@
 /*!
-Representation of a glyph.
+Representation of a simple outline glyph.
 */
-
-use core::ops::Range;
 
 use peniko::kurbo::{
     segments, BezPath, ParamCurveArclen, ParamCurveArea, ParamCurveExtrema, PathEl, Point, Rect,
@@ -11,84 +9,54 @@ use peniko::kurbo::{
 
 use crate::source::*;
 
-/// Describes the content of a glyph.
-#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
-enum Kind {
-    #[default]
-    None,
-    Outline,
-}
-
-/// Vector or bitmap data that represents a glyph.
+/// Simple outline represented as a sequence of path commands.
 #[derive(Clone, Default, Debug)]
-pub struct Glyph {
-    /// The current content of the glyph.
-    kind: Kind,
-    /// Collection of verbs for all paths.
+pub struct Outline {
     verbs: Vec<Verb>,
-    /// Collection of points for all paths.
     points: Vec<(f32, f32)>,
-    /// Collection of verbs and points ranges for each path.
-    paths: Vec<PathRanges>,
 }
 
-impl Glyph {
-    /// Creates a new empty glyph.
+impl Outline {
+    /// Creates a new empty outline.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Clears all data and resets the kind to none.
+    /// Creates a new outline from a TrueType outline. Returns `None` if
+    /// the source outline is malformed.
+    pub fn from_glyf(outline: &glyf::Outline) -> Option<Self> {
+        let mut result = Self::new();
+        if result.append_glyf(outline) {
+            Some(result)
+        } else {
+            None
+        }
+    }
+
+    /// Returns true if the outline is empty.
+    pub fn is_empty(&self) -> bool {
+        self.verbs.is_empty()
+    }
+
+    /// Resets the outline to the empty state.
     pub fn clear(&mut self) {
-        self.kind = Kind::None;
         self.verbs.clear();
         self.points.clear();
-        self.paths.clear();
     }
 
-    /// Returns the path at the specified index.
-    pub fn path(&self, index: usize) -> Option<Outline> {
-        let path = self.paths.get(index)?.clone();
-        Some(Outline {
-            verbs: self.verbs.get(path.verbs)?,
-            points: self.points.get(path.points)?,
-        })
-    }
-
-    /// Returns the content of the glyph.
-    pub fn content(&self) -> Option<Content> {
-        Some(match self.kind {
-            Kind::Outline => Content::Outline(self.path(0)?),
-            _ => return None,
-        })
-    }
-}
-
-impl Glyph {
-    pub(crate) fn store_glyf_outline(&mut self, outline: &glyf::Outline) -> Option<usize> {
-        self.clear();
-        let index = self.push_glyf_outline(outline)?;
-        self.kind = Kind::Outline;
-        Some(index)
-    }
-
-    pub(crate) fn push_glyf_outline(&mut self, outline: &glyf::Outline) -> Option<usize> {
-        let index = self.paths.len();
-        let verb_start = self.verbs.len();
-        let point_start = self.points.len();
-        if !self.push_glyf_outline_inner(outline) {
-            self.verbs.truncate(verb_start);
-            self.points.truncate(point_start);
-            return None;
+    /// Returns an iterator over the path elements of the outline.
+    pub fn elements(&self) -> Elements {
+        Elements {
+            verbs: &self.verbs,
+            points: &self.points,
+            verb_pos: 0,
+            point_pos: 0,
         }
-        self.paths.push(PathRanges {
-            verbs: verb_start..self.verbs.len(),
-            points: point_start..self.points.len(),
-        });
-        Some(index)
     }
 
-    fn push_glyf_outline_inner(&mut self, outline: &glyf::Outline) -> bool {
+    /// Appends a glyf outline, converting it into a sequence of path elements.
+    /// Returns false if the source outline is malformed.
+    pub fn append_glyf(&mut self, outline: &glyf::Outline) -> bool {
         #[inline(always)]
         fn conv(p: glyf::Point, s: f32) -> (f32, f32) {
             (p.x as f32 * s, p.y as f32 * s)
@@ -228,35 +196,10 @@ impl Glyph {
     }
 }
 
-/// Content of a glyph with the relevant associated data.
-#[derive(Copy, Clone, Debug)]
-pub enum Content<'a> {
-    /// Simple outline.
-    Outline(Outline<'a>),
-}
+impl Shape for Outline {
+    type PathElementsIter<'iter> = Elements<'iter>;
 
-/// Reference to an outline in a simple or color glyph.
-#[derive(Copy, Clone, Debug)]
-pub struct Outline<'a> {
-    verbs: &'a [Verb],
-    points: &'a [(f32, f32)],
-}
-
-impl<'a> Outline<'a> {
-    /// Returns an iterator over the path elements of the outline.
-    pub fn elements(&self) -> Elements<'a> {
-        Elements {
-            path: *self,
-            verb_pos: 0,
-            point_pos: 0,
-        }
-    }
-}
-
-impl<'a> Shape for Outline<'a> {
-    type PathElementsIter<'iter> = Elements<'iter> where 'a: 'iter;
-
-    fn path_elements(&self, _tolerance: f64) -> Self::PathElementsIter<'a> {
+    fn path_elements(&self, _tolerance: f64) -> Self::PathElementsIter<'_> {
         self.elements()
     }
 
@@ -295,7 +238,8 @@ impl<'a> Shape for Outline<'a> {
 /// Iterator over the elements of a path.
 #[derive(Clone)]
 pub struct Elements<'a> {
-    path: Outline<'a>,
+    verbs: &'a [Verb],
+    points: &'a [(f32, f32)],
     verb_pos: usize,
     point_pos: usize,
 }
@@ -307,29 +251,29 @@ impl<'a> Iterator for Elements<'a> {
         fn pt(p: (f32, f32)) -> Point {
             Point::new(p.0 as f64, p.1 as f64)
         }
-        let verb = self.path.verbs.get(self.verb_pos)?;
+        let verb = self.verbs.get(self.verb_pos)?;
         self.verb_pos += 1;
         Some(match verb {
             Verb::MoveTo => {
-                let p0 = self.path.points[self.point_pos];
+                let p0 = self.points[self.point_pos];
                 self.point_pos += 1;
                 PathEl::MoveTo(pt(p0))
             }
             Verb::LineTo => {
-                let p0 = self.path.points[self.point_pos];
+                let p0 = self.points[self.point_pos];
                 self.point_pos += 1;
                 PathEl::LineTo(pt(p0))
             }
             Verb::QuadTo => {
-                let p0 = self.path.points[self.point_pos];
-                let p1 = self.path.points[self.point_pos + 1];
+                let p0 = self.points[self.point_pos];
+                let p1 = self.points[self.point_pos + 1];
                 self.point_pos += 2;
                 PathEl::QuadTo(pt(p0), pt(p1))
             }
             Verb::CurveTo => {
-                let p0 = self.path.points[self.point_pos];
-                let p1 = self.path.points[self.point_pos + 1];
-                let p2 = self.path.points[self.point_pos + 2];
+                let p0 = self.points[self.point_pos];
+                let p1 = self.points[self.point_pos + 1];
+                let p2 = self.points[self.point_pos + 2];
                 self.point_pos += 3;
                 PathEl::CurveTo(pt(p0), pt(p1), pt(p2))
             }
@@ -346,10 +290,4 @@ enum Verb {
     QuadTo,
     CurveTo,
     Close,
-}
-
-#[derive(Clone, Debug)]
-struct PathRanges {
-    verbs: Range<usize>,
-    points: Range<usize>,
 }
