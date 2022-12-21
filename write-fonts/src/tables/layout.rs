@@ -229,6 +229,27 @@ impl ClassDef {
         one.into_iter().flatten().chain(two.into_iter().flatten())
     }
 
+    /// Return the glyph class for the provided glyph.
+    ///
+    /// Glyphs which have not been assigned a class are given class 0
+    pub fn get(&self, glyph: GlyphId) -> u16 {
+        self.get_raw(glyph).unwrap_or(0)
+    }
+
+    // exposed for testing
+    fn get_raw(&self, glyph: GlyphId) -> Option<u16> {
+        match self {
+            ClassDef::Format1(table) => glyph
+                .to_u16()
+                .checked_sub(table.start_glyph_id.to_u16())
+                .and_then(|idx| table.class_value_array.get(idx as usize))
+                .copied(),
+            ClassDef::Format2(table) => table.class_range_records.iter().find_map(|rec| {
+                (rec.start_glyph_id <= glyph && rec.end_glyph_id <= glyph).then_some(rec.class)
+            }),
+        }
+    }
+
     pub fn class_count(&self) -> u16 {
         //TODO: implement a good integer set!!
         self.iter()
@@ -321,6 +342,7 @@ impl CoverageTableBuilder {
     /// Create a new builder from a vec of `GlyphId`.
     pub fn from_glyphs(mut glyphs: Vec<GlyphId>) -> Self {
         glyphs.sort_unstable();
+        glyphs.dedup();
         CoverageTableBuilder { glyphs }
     }
 
@@ -359,7 +381,7 @@ impl CoverageTableBuilder {
 impl FromIterator<(GlyphId, u16)> for ClassDefBuilder {
     fn from_iter<T: IntoIterator<Item = (GlyphId, u16)>>(iter: T) -> Self {
         Self {
-            items: iter.into_iter().collect(),
+            items: iter.into_iter().filter(|(_, cls)| *cls != 0).collect(),
         }
     }
 }
@@ -623,5 +645,34 @@ mod tests {
         let result = encode_delta(DeltaFormat::Local2BitDeltas, &inp);
         assert_eq!(result.len(), 1);
         assert_eq!(result[0], 0x5540_u16);
+    }
+
+    fn make_glyph_vec<const N: usize>(gids: [u16; N]) -> Vec<GlyphId> {
+        gids.into_iter().map(GlyphId::new).collect()
+    }
+
+    #[test]
+    fn coverage_builder() {
+        let coverage = make_glyph_vec([1u16, 2, 9, 3, 6, 9])
+            .into_iter()
+            .collect::<CoverageTableBuilder>();
+        assert_eq!(coverage.glyphs, make_glyph_vec([1, 2, 3, 6, 9]));
+    }
+
+    #[test]
+    fn class_def_builder_zero() {
+        // even if class 0 is provided, we don't need to assign explicit entries for it
+        fn make_class<const N: usize>(gid_class_pairs: [(u16, u16); N]) -> ClassDef {
+            gid_class_pairs
+                .iter()
+                .map(|(gid, cls)| (GlyphId::new(*gid), *cls))
+                .collect::<ClassDefBuilder>()
+                .build()
+        }
+
+        let class = make_class([(4, 0), (5, 1)]);
+        assert!(class.get_raw(GlyphId::new(4)).is_none());
+        assert_eq!(class.get_raw(GlyphId::new(5)), Some(1));
+        assert!(class.get_raw(GlyphId::new(100)).is_none());
     }
 }
