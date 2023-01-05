@@ -12,7 +12,7 @@ name = "codegen"
 path = "src/main.rs"
 
 [dependencies]
-font-types = { version = "0.0.3", path = "../font-types" }
+font-types = { version = "0.0.5", path = "../font-types" }
 rustfmt-wrapper = "0.1"
 regex = "1.5"
 miette = { version =  "4.6", features = ["fancy"] }

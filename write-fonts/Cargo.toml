@@ -1,6 +1,6 @@
 [package]
 name = "write-fonts"
-version = "0.0.4"
+version = "0.0.5"
 edition = "2021"
 license = "MIT/Apache-2.0"
 description = "Writing font files."
@@ -11,11 +11,11 @@ categories = ["text-processing", "parsing", "graphics"]
 [features]
 
 [dependencies]
-font-types = { version = "0.0.3", path = "../font-types" }
-read-fonts = { version = "0.0.4", path = "../read-fonts" }
+font-types = { version = "0.0.5", path = "../font-types" }
+read-fonts = { version = "0.0.5", path = "../read-fonts" }
 bitflags = "1.3"
 
 [dev-dependencies]
 diff = "0.1.12"
 ansi_term = "0.12.1"
-read-fonts = { version = "0.0.4", path = "../read-fonts", features = ["test_data"] }
+read-fonts = { version = "0.0.5", path = "../read-fonts", features = ["test_data"] }
