@@ -92,6 +92,7 @@ impl From<([u8; 4], f32)> for Variation {
 }
 
 /// Context for loading glyphs from any available source.
+#[derive(Default)]
 pub struct Context {
     /// Inner context for loading TrueType outlines.
     glyf: glyf::Context,
@@ -103,21 +104,10 @@ pub struct Context {
     variations: Vec<Variation>,
 }
 
-impl Default for Context {
-    fn default() -> Self {
-        Self::new()
-    }
-}
-
 impl Context {
     /// Creates a new glyph loading context.
     pub fn new() -> Self {
-        Self {
-            glyf: glyf::Context::new(),
-            glyf_outline: glyf::Outline::new(),
-            coords: vec![],
-            variations: vec![],
-        }
+        Self::default()
     }
 
     /// Returns a builder for configuring a scaler.
