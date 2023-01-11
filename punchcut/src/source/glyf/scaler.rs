@@ -79,8 +79,7 @@ impl<'a> Scaler<'a> {
         if glyph_id.to_u16() >= self.font.glyph_count {
             return Err(Error::GlyphNotFound(glyph_id));
         }
-        GlyphScaler::new(self).load(glyph_id, outline, 0)?;
-        Ok(())
+        GlyphScaler::new(self).load(glyph_id, outline, 0)
     }
 
     /// Loads an outline for the specified glyph identifier.
