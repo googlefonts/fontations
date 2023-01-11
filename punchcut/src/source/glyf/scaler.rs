@@ -470,7 +470,10 @@ enum CacheSlot {
     /// Uncached font.
     Uncached,
     /// Font and size cache indices.
-    Cached(usize, usize),
+    Cached {
+        font_index: usize,
+        size_index: usize,
+    },
 }
 
 // Cache management and hinting.
