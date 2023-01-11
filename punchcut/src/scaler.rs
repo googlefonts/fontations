@@ -1,4 +1,4 @@
-use super::{source::*, Context, Error, Hinting, NormalizedCoord, Outline, Result, Variation};
+use super::{source::*, Context, Error, Hinting, NormalizedCoord, PathSink, Result, Variation};
 
 use read_fonts::{
     types::{Fixed, GlyphId, Tag},
@@ -141,16 +141,10 @@ impl<'a> Scaler<'a> {
         self.outlines.has_outlines()
     }
 
-    /// Loads a simple outline for the specified glyph identifier into the target glyph.
-    pub fn outline_into(&mut self, glyph_id: GlyphId, outline: &mut Outline) -> Result<()> {
-        self.outlines.outline_into(glyph_id, outline)
-    }
-
-    /// Loads a simple outline for the specified glyph identifier into a new glyph.
-    pub fn outline(&mut self, glyph_id: GlyphId) -> Result<Outline> {
-        let mut outline = Outline::new();
-        self.outline_into(glyph_id, &mut outline)?;
-        Ok(outline)
+    /// Loads a simple outline for the specified glyph identifier and invokes the functions
+    /// in the given sink for the sequence of path commands that define the outline.
+    pub fn outline(&mut self, glyph_id: GlyphId, sink: &mut impl PathSink) -> Result<()> {
+        self.outlines.outline(glyph_id, sink)
     }
 }
 
@@ -165,13 +159,12 @@ impl<'a> Outlines<'a> {
         self.glyf.is_some()
     }
 
-    /// Loads an outline for the specified glyph identifier into the given
-    /// preallocated glyph.
-    fn outline_into(&mut self, glyph_id: GlyphId, outline: &mut Outline) -> Result<()> {
-        outline.clear();
+    /// Loads an outline for the specified glyph identifier and invokes the functions
+    /// in the sink for the sequence of path commands that define the outline.   
+    fn outline(&mut self, glyph_id: GlyphId, sink: &mut impl PathSink) -> Result<()> {
         if let Some((scaler, glyf_outline)) = &mut self.glyf {
             scaler.get_into(glyph_id, glyf_outline)?;
-            outline.append_glyf(glyf_outline);
+            glyf_outline.to_path(sink);
             return Ok(());
         }
         Err(Error::NoSources)
