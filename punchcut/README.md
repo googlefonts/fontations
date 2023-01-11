@@ -1,7 +1,7 @@
 # punchcut
 
 This is a library for high level loading of glyph outlines (and eventually color outlines and bitmaps)
-from font files. The intention is fully featured (e.g. variations and hinting) support all glyph sources
+from font files. The intention is fully featured (e.g. variations and hinting) support for all glyph sources
 except for the SVG table.
 
 This is part of the [oxidize](https://github.com/googlefonts/oxidize) project.
