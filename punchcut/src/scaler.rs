@@ -48,8 +48,9 @@ impl<'a> ScalerBuilder<'a> {
         self
     }
 
-    /// Specifies a variation with a set of normalized coordinates. This will
-    /// clear any variations specified with the variations method.
+    /// Specifies a variation with a set of normalized coordinates.
+    ///
+    /// This will clear any variations specified with the variations method.
     pub fn coords<I>(self, coords: I) -> Self
     where
         I: IntoIterator,
