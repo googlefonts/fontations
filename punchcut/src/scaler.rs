@@ -34,8 +34,9 @@ impl<'a> ScalerBuilder<'a> {
         self
     }
 
-    /// Sets the font size in pixels per em units. A size of 0.0 will disable
-    /// scaling and result in glyphs defined in font units.
+    /// Sets the font size in pixels per em units.
+    ///
+    /// A size of 0.0 will disable scaling and result in glyphs defined in font units.
     pub fn size(mut self, size: f32) -> Self {
         self.size = size.abs();
         self
