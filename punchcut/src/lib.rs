@@ -37,15 +37,16 @@ pub use scaler::*;
 pub enum Hinting {
     /// "Full" hinting mode. May generate rough outlines and poor horizontal
     /// spacing.
-    Legacy,
-    /// Subpixel mode for grayscale rendering.
-    GrayscaleSubpixel,
-    /// Cleartype subpixel mode.
-    Subpixel,
-    /// Same as subpixel, but always prevents adjustment in the horizontal
+    Full,
+    /// Light hinting mode. This prevents most movement in the horizontal direction
+    /// with the exception of a per-font backward compatibility opt in.
+    Light,
+    /// Same as light, but with additional support for RGB subpixel rendering.
+    LightSubpixel,
+    /// Same as light subpixel, but always prevents adjustment in the horizontal
     /// direction. This is the default mode.
     #[default]
-    Modern,
+    VerticalSubpixel,
 }
 
 /// Type for a normalized variation coordinate.

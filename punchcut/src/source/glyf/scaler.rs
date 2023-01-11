@@ -99,8 +99,8 @@ struct GlyphScaler<'a, 'b> {
     hint: bool,
     /// Phantom points. These are 4 extra points appended to the end of an
     /// outline that allow the bytecode interpreter to produce hinted
-    /// metrics. 
-    /// 
+    /// metrics.
+    ///
     /// See https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructing_glyphs#phantom-points
     phantom: [Point; 4],
 }
