@@ -3,7 +3,7 @@ use super::{Context, Outline, Point};
 use crate::{Error, Hinting, NormalizedCoord, Result};
 
 use read_fonts::tables::{
-    glyf::{Anchor, CompositeGlyphFlags, Glyf, Glyph},
+    glyf::{Anchor, CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, SimpleGlyph},
     hmtx::Hmtx,
     hvar::Hvar,
     loca::Loca,
@@ -79,6 +79,7 @@ impl<'a> Scaler<'a> {
         if glyph_id.to_u16() >= self.font.glyph_count {
             return Err(Error::GlyphNotFound(glyph_id));
         }
+        outline.is_scaled = self.is_scaled;
         GlyphScaler::new(self).load(glyph_id, outline, 0)
     }
 
@@ -96,7 +97,11 @@ struct GlyphScaler<'a, 'b> {
     scaler: &'b mut Scaler<'a>,
     /// True if hinting is enabled.
     hint: bool,
-    /// Phantom points.
+    /// Phantom points. These are 4 extra points appended to the end of an
+    /// outline that allow the bytecode interpreter to produce hinted
+    /// metrics. 
+    /// 
+    /// See https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructing_glyphs#phantom-points
     phantom: [Point; 4],
 }
 
@@ -130,266 +135,278 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
             // This is a valid empty glyph
             None => return Ok(()),
         };
-        let scale = self.scaler.scale;
         let bounds = [glyph.x_min(), glyph.x_max(), glyph.y_min(), glyph.y_max()];
-        self.setup(bounds, glyph_id, self.scaler.coords);
+        self.setup(bounds, glyph_id);
+        match glyph {
+            Glyph::Simple(simple) => self.load_simple(&simple, glyph_id, outline, recurse_depth),
+            Glyph::Composite(composite) => {
+                self.load_composite(&composite, glyph_id, outline, recurse_depth)
+            }
+        }
+    }
+
+    fn load_simple(
+        &mut self,
+        simple: &SimpleGlyph,
+        glyph_id: GlyphId,
+        outline: &mut Outline,
+        recurse_depth: usize,
+    ) -> Result<()> {
         // The base indices of the points and contours for the current glyph.
         let point_base = outline.points.len();
         let contour_base = outline.contours.len();
-        match glyph {
-            Glyph::Simple(simple) => {
-                let end_pts = simple.end_pts_of_contours();
-                let contour_count = end_pts.len();
-                let contour_end = contour_base + contour_count;
-                outline
-                    .contours
-                    .extend(end_pts.iter().map(|end_pt| end_pt.get()));
-                let mut point_count = simple.num_points();
-                outline.tags.resize(outline.tags.len() + point_count, 0);
-                outline
-                    .points
-                    .resize(outline.points.len() + point_count, Point::default());
-                simple.read_points_fast(
-                    &mut outline.points[point_base..],
-                    &mut outline.tags[point_base..],
-                )?;
-                let ins = simple.instructions();
-                self.push_phantom(outline);
-                point_count += 4;
-                let point_end = point_base + point_count;
-                // TODO: variations
-                // if state.vary {
-                //     self.unscaled.clear();
-                //     self.unscaled.resize(point_count, Point::new(0, 0));
-                //     self.original.clear();
-                //     self.original.resize(point_count, Point::new(0, 0));
-                //     if state.data.deltas(
-                //         state.coords,
-                //         glyph_id,
-                //         &self.scaled[point_base..],
-                //         &mut self.tags[point_base..],
-                //         &self.contours[contour_base..],
-                //         &mut self.unscaled[..],
-                //         &mut self.original[..],
-                //     ) {
-                //         for (d, p) in self.original[..point_count]
-                //             .iter()
-                //             .zip(self.scaled[point_base..].iter_mut())
-                //         {
-                //             p.x += d.x;
-                //             p.y += d.y;
-                //         }
-                //     }
-                // }
-                let hinted = self.hint && !ins.is_empty();
-                if hinted {
-                    // Hinting requires a copy of the original unscaled points.
-                    self.scaler.context.unscaled.clear();
-                    self.scaler
-                        .context
-                        .unscaled
-                        .extend_from_slice(&outline.points[point_base..]);
-                }
-                if self.scaler.is_scaled {
-                    // Apply the scale to each point.
-                    for p in &mut outline.points[point_base..] {
-                        p.x = math::mul(p.x, scale);
-                        p.y = math::mul(p.y, scale);
-                    }
-                    // Save the scaled phantom points.
-                    self.save_phantom(outline, point_base, point_count);
-                }
-                if hinted {
-                    // Hinting requires a copy of the scaled points. These are used
-                    // as references when modifying an outline.
-                    self.scaler.context.original.clear();
-                    self.scaler
-                        .context
-                        .original
-                        .extend_from_slice(&outline.points[point_base..point_end]);
-                    // When hinting, round the components of the phantom points.
-                    for p in &mut outline.points[point_end - 4..] {
-                        p.x = math::round(p.x);
-                        p.y = math::round(p.y);
-                    }
-                    // Apply hinting to the set of contours for this outline.
-                    if !self.hint(outline, point_base, contour_base, ins, false) {
-                        return Err(Error::HintingFailed(glyph_id));
-                    }
-                }
-                if point_base != 0 {
-                    // If we're not the first component, shift our contour end points.
-                    for c in &mut outline.contours[contour_base..contour_end] {
-                        *c += point_base as u16;
-                    }
-                }
-                // We're done with the phantom points, so drop them.
-                outline.points.truncate(outline.points.len() - 4);
-                outline.tags.truncate(outline.tags.len() - 4);
+        let end_pts = simple.end_pts_of_contours();
+        let contour_count = end_pts.len();
+        let contour_end = contour_base + contour_count;
+        outline
+            .contours
+            .extend(end_pts.iter().map(|end_pt| end_pt.get()));
+        let mut point_count = simple.num_points();
+        outline.tags.resize(outline.tags.len() + point_count, 0);
+        outline
+            .points
+            .resize(outline.points.len() + point_count, Point::default());
+        simple.read_points_fast(
+            &mut outline.points[point_base..],
+            &mut outline.tags[point_base..],
+        )?;
+        let ins = simple.instructions();
+        self.push_phantom(outline);
+        point_count += 4;
+        let point_end = point_base + point_count;
+        // TODO: variations
+        // if state.vary {
+        //     self.unscaled.clear();
+        //     self.unscaled.resize(point_count, Point::new(0, 0));
+        //     self.original.clear();
+        //     self.original.resize(point_count, Point::new(0, 0));
+        //     if state.data.deltas(
+        //         state.coords,
+        //         glyph_id,
+        //         &self.scaled[point_base..],
+        //         &mut self.tags[point_base..],
+        //         &self.contours[contour_base..],
+        //         &mut self.unscaled[..],
+        //         &mut self.original[..],
+        //     ) {
+        //         for (d, p) in self.original[..point_count]
+        //             .iter()
+        //             .zip(self.scaled[point_base..].iter_mut())
+        //         {
+        //             p.x += d.x;
+        //             p.y += d.y;
+        //         }
+        //     }
+        // }
+        let hinted = self.hint && !ins.is_empty();
+        if hinted {
+            // Hinting requires a copy of the original unscaled points.
+            self.scaler.context.unscaled.clear();
+            self.scaler
+                .context
+                .unscaled
+                .extend_from_slice(&outline.points[point_base..]);
+        }
+        let scale = self.scaler.scale;
+        if self.scaler.is_scaled {
+            // Apply the scale to each point.
+            for p in &mut outline.points[point_base..] {
+                p.x = math::mul(p.x, scale);
+                p.y = math::mul(p.y, scale);
             }
-            Glyph::Composite(composite) => {
-                if self.scaler.is_scaled {
-                    let scale = self.scaler.scale;
-                    for p in self.phantom.iter_mut() {
-                        p.x = math::mul(p.x, scale);
-                        p.y = math::mul(p.y, scale);
-                    }
+            // Save the scaled phantom points.
+            self.save_phantom(outline, point_base, point_count);
+        }
+        if hinted {
+            // Hinting requires a copy of the scaled points. These are used
+            // as references when modifying an outline.
+            self.scaler.context.original.clear();
+            self.scaler
+                .context
+                .original
+                .extend_from_slice(&outline.points[point_base..point_end]);
+            // When hinting, round the components of the phantom points.
+            for p in &mut outline.points[point_end - 4..] {
+                p.x = math::round(p.x);
+                p.y = math::round(p.y);
+            }
+            // Apply hinting to the set of contours for this outline.
+            if !self.hint(outline, point_base, contour_base, ins, false) {
+                return Err(Error::HintingFailed(glyph_id));
+            }
+        }
+        if point_base != 0 {
+            // If we're not the first component, shift our contour end points.
+            for c in &mut outline.contours[contour_base..contour_end] {
+                *c += point_base as u16;
+            }
+        }
+        // We're done with the phantom points, so drop them.
+        outline.points.truncate(outline.points.len() - 4);
+        outline.tags.truncate(outline.tags.len() - 4);
+        Ok(())
+    }
+
+    fn load_composite(
+        &mut self,
+        composite: &CompositeGlyph,
+        glyph_id: GlyphId,
+        outline: &mut Outline,
+        recurse_depth: usize,
+    ) -> Result<()> {
+        // The base indices of the points and contours for the current glyph.
+        let point_base = outline.points.len();
+        let contour_base = outline.contours.len();
+        let scale = self.scaler.scale;
+        if self.scaler.is_scaled {
+            for p in self.phantom.iter_mut() {
+                p.x = math::mul(p.x, scale);
+                p.y = math::mul(p.y, scale);
+            }
+        }
+        // TODO: variations
+        // let delta_base = self.deltas.len();
+        // let mut have_deltas = false;
+        // let count = composite.components().count();
+        // self.deltas.resize(delta_base + count, Point::new(0, 0));
+        // if state.data.composite_deltas(
+        //     state.coords,
+        //     glyph_id,
+        //     &mut self.deltas[delta_base..],
+        // ) {
+        //     have_deltas = true;
+        // }
+        for component in composite.components() {
+            // Save a copy of our phantom points.
+            let phantom = self.phantom;
+            // Load the component glyph and keep track of the points range.
+            let start_point = outline.points.len();
+            self.load(component.glyph, outline, recurse_depth + 1)?;
+            let end_point = outline.points.len();
+            if !component
+                .flags
+                .contains(CompositeGlyphFlags::USE_MY_METRICS)
+            {
+                // The USE_MY_METRICS flag indicates that this component's phantom
+                // points should override those of the composite glyph.
+                self.phantom = phantom;
+            }
+            // Scaling does an internal conversion to 26.6 so we don't use the
+            // fixed types in read-fonts. Maybe a better solution here? We want to match
+            // FreeType semantics.
+            fn f2dot14_to_fixed(x: F2Dot14) -> i32 {
+                i16::from_be_bytes(x.to_be_bytes()) as i32 * 4
+            }
+            let xx = f2dot14_to_fixed(component.transform.xx);
+            let yx = f2dot14_to_fixed(component.transform.yx);
+            let xy = f2dot14_to_fixed(component.transform.xy);
+            let yy = f2dot14_to_fixed(component.transform.yy);
+            let have_xform = component.flags.intersects(
+                CompositeGlyphFlags::WE_HAVE_A_SCALE
+                    | CompositeGlyphFlags::WE_HAVE_AN_X_AND_Y_SCALE
+                    | CompositeGlyphFlags::WE_HAVE_A_TWO_BY_TWO,
+            );
+            if have_xform {
+                for p in &mut outline.points[start_point..end_point] {
+                    let (x, y) = math::transform(p.x, p.y, xx, yx, xy, yy);
+                    p.x = x;
+                    p.y = y;
                 }
-                // TODO: variations
-                // let delta_base = self.deltas.len();
-                // let mut have_deltas = false;
-                // let count = composite.components().count();
-                // self.deltas.resize(delta_base + count, Point::new(0, 0));
-                // if state.data.composite_deltas(
-                //     state.coords,
-                //     glyph_id,
-                //     &mut self.deltas[delta_base..],
-                // ) {
-                //     have_deltas = true;
-                // }
-                for component in composite.components() {
-                    // Save a copy of our phantom points.
-                    let phantom = self.phantom;
-                    // Load the component glyph and keep track of the points range.
-                    let start_point = outline.points.len();
-                    self.load(component.glyph, outline, recurse_depth + 1)?;
-                    let end_point = outline.points.len();
-                    if !component
-                        .flags
-                        .contains(CompositeGlyphFlags::USE_MY_METRICS)
+            }
+            let anchor = component.anchor;
+            let (dx, dy) = match anchor {
+                Anchor::Offset { x, y } => {
+                    let (mut dx, mut dy) = (x as i32, y as i32);
+                    if have_xform
+                        && component.flags
+                            & (CompositeGlyphFlags::SCALED_COMPONENT_OFFSET
+                                | CompositeGlyphFlags::UNSCALED_COMPONENT_OFFSET)
+                            == CompositeGlyphFlags::SCALED_COMPONENT_OFFSET
                     {
-                        // The USE_MY_METRICS flag indicates that this component's phantom
-                        // points should override those of the composite glyph.
-                        self.phantom = phantom;
+                        // This matches the computation done in FreeType which is
+                        // based on a heuristic.
+                        dx = math::mul(dx, math::hypot(xx, xy));
+                        dy = math::mul(dy, math::hypot(yy, yx));
                     }
-                    // Scaling does an internal conversion to 26.6 so we don't use the
-                    // fixed types in read-fonts. Maybe a better solution here? We want to match
-                    // FreeType semantics.
-                    fn f2dot14_to_fixed(x: F2Dot14) -> i32 {
-                        i16::from_be_bytes(x.to_be_bytes()) as i32 * 4
-                    }
-                    let xx = f2dot14_to_fixed(component.transform.xx);
-                    let yx = f2dot14_to_fixed(component.transform.yx);
-                    let xy = f2dot14_to_fixed(component.transform.xy);
-                    let yy = f2dot14_to_fixed(component.transform.yy);
-                    let have_xform = component.flags.intersects(
-                        CompositeGlyphFlags::WE_HAVE_A_SCALE
-                            | CompositeGlyphFlags::WE_HAVE_AN_X_AND_Y_SCALE
-                            | CompositeGlyphFlags::WE_HAVE_A_TWO_BY_TWO,
-                    );
-                    if have_xform {
-                        for p in &mut outline.points[start_point..end_point] {
-                            let (x, y) = math::transform(p.x, p.y, xx, yx, xy, yy);
-                            p.x = x;
-                            p.y = y;
-                        }
-                    }
-                    let anchor = component.anchor;
-                    let (dx, dy) = match anchor {
-                        Anchor::Offset { x, y } => {
-                            let (mut dx, mut dy) = (x as i32, y as i32);
-                            if have_xform
-                                && component.flags
-                                    & (CompositeGlyphFlags::SCALED_COMPONENT_OFFSET
-                                        | CompositeGlyphFlags::UNSCALED_COMPONENT_OFFSET)
-                                    == CompositeGlyphFlags::SCALED_COMPONENT_OFFSET
-                            {
-                                // This matches the computation done in FreeType which is
-                                // based on a heuristic.
-                                dx = math::mul(dx, math::hypot(xx, xy));
-                                dy = math::mul(dy, math::hypot(yy, yx));
-                            }
-                            // TODO: variations
-                            // if have_deltas {
-                            //     let d = self.deltas[delta_base + i];
-                            //     dx += d.x;
-                            //     dy += d.y;
-                            // }
-                            if self.scaler.is_scaled {
-                                dx = math::mul(dx, scale);
-                                dy = math::mul(dy, scale);
-                                if self.hint
-                                    && component
-                                        .flags
-                                        .contains(CompositeGlyphFlags::ROUND_XY_TO_GRID)
-                                {
-                                    // Only round the y-coordinate, per FreeType.
-                                    dy = math::round(dy);
-                                }
-                            }
-                            (dx, dy)
-                        }
-                        Anchor::Point { base, component } => {
-                            let (a1, a2) = (base as usize, component as usize);
-                            let pi1 = point_base + a1;
-                            let pi2 = start_point + a2;
-                            let p1 = outline
-                                .points
-                                .get(pi1)
-                                .ok_or(Error::InvalidAnchorPoint(glyph_id))?;
-                            let p2 = outline
-                                .points
-                                .get(pi2)
-                                .ok_or(Error::InvalidAnchorPoint(glyph_id))?;
-                            (p1.x.wrapping_sub(p2.x), p1.y.wrapping_sub(p2.y))
-                        }
-                    };
-                    if dx != 0 || dy != 0 {
-                        for p in &mut outline.points[start_point..end_point] {
-                            p.x += dx;
-                            p.y += dy;
-                        }
-                    }
-                }
-                if self.hint {
-                    let ins = composite.instructions().unwrap_or_default();
                     // TODO: variations
-                    // self.deltas.resize(delta_base, Point::new(0, 0));
-                    if !ins.is_empty() {
-                        // Append the current phantom points to the outline.
-                        self.push_phantom(outline);
-                        // For composite glyphs, the unscaled and original points are simply
-                        // copies of the current point set.
-                        self.scaler.context.unscaled.clear();
-                        self.scaler
-                            .context
-                            .unscaled
-                            .extend_from_slice(&outline.points[point_base..]);
-                        self.scaler.context.original.clear();
-                        self.scaler
-                            .context
-                            .original
-                            .extend_from_slice(&outline.points[point_base..]);
-                        let point_end = outline.points.len();
-                        // Round the phantom points.
-                        for p in &mut outline.points[point_end - 4..] {
-                            p.x = math::round(p.x);
-                            p.y = math::round(p.y);
+                    // if have_deltas {
+                    //     let d = self.deltas[delta_base + i];
+                    //     dx += d.x;
+                    //     dy += d.y;
+                    // }
+                    if self.scaler.is_scaled {
+                        dx = math::mul(dx, scale);
+                        dy = math::mul(dy, scale);
+                        if self.hint
+                            && component
+                                .flags
+                                .contains(CompositeGlyphFlags::ROUND_XY_TO_GRID)
+                        {
+                            // Only round the y-coordinate, per FreeType.
+                            dy = math::round(dy);
                         }
-                        // Clear the "touched" flags that are used during IUP processing.
-                        const TOUCHED_FLAGS: u8 = 0x08 | 0x10;
-                        for tag in &mut outline.tags[point_base..] {
-                            *tag &= !TOUCHED_FLAGS;
-                        }
-                        if !self.hint(outline, point_base, contour_base, ins, true) {
-                            return Err(Error::HintingFailed(glyph_id));
-                        }
-                        // As in simple outlines, drop the phantom points.
-                        outline.points.truncate(outline.points.len() - 4);
-                        outline.tags.truncate(outline.tags.len() - 4);
                     }
+                    (dx, dy)
+                }
+                Anchor::Point { base, component } => {
+                    let (a1, a2) = (base as usize, component as usize);
+                    let pi1 = point_base + a1;
+                    let pi2 = start_point + a2;
+                    let p1 = outline
+                        .points
+                        .get(pi1)
+                        .ok_or(Error::InvalidAnchorPoint(glyph_id))?;
+                    let p2 = outline
+                        .points
+                        .get(pi2)
+                        .ok_or(Error::InvalidAnchorPoint(glyph_id))?;
+                    (p1.x.wrapping_sub(p2.x), p1.y.wrapping_sub(p2.y))
+                }
+            };
+            if dx != 0 || dy != 0 {
+                for p in &mut outline.points[start_point..end_point] {
+                    p.x += dx;
+                    p.y += dy;
                 }
             }
         }
-        if recurse_depth == 0 {
-            // If the first phantom point is non-zero, shift the entire outline.
-            let pp0x = self.phantom[0].x;
-            if pp0x != 0 {
-                for p in &mut outline.points {
-                    p.x -= pp0x;
+        if self.hint {
+            let ins = composite.instructions().unwrap_or_default();
+            // TODO: variations
+            // self.deltas.resize(delta_base, Point::new(0, 0));
+            if !ins.is_empty() {
+                // Append the current phantom points to the outline.
+                self.push_phantom(outline);
+                // For composite glyphs, the unscaled and original points are simply
+                // copies of the current point set.
+                self.scaler.context.unscaled.clear();
+                self.scaler
+                    .context
+                    .unscaled
+                    .extend_from_slice(&outline.points[point_base..]);
+                self.scaler.context.original.clear();
+                self.scaler
+                    .context
+                    .original
+                    .extend_from_slice(&outline.points[point_base..]);
+                let point_end = outline.points.len();
+                // Round the phantom points.
+                for p in &mut outline.points[point_end - 4..] {
+                    p.x = math::round(p.x);
+                    p.y = math::round(p.y);
                 }
+                // Clear the "touched" flags that are used during IUP processing.
+                const TOUCHED_FLAGS: u8 = 0x08 | 0x10;
+                for tag in &mut outline.tags[point_base..] {
+                    *tag &= !TOUCHED_FLAGS;
+                }
+                if !self.hint(outline, point_base, contour_base, ins, true) {
+                    return Err(Error::HintingFailed(glyph_id));
+                }
+                // As in simple outlines, drop the phantom points.
+                outline.points.truncate(outline.points.len() - 4);
+                outline.tags.truncate(outline.tags.len() - 4);
             }
-            outline.is_scaled = self.scaler.is_scaled;
         }
         Ok(())
     }
@@ -411,10 +428,10 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
 
 // Per-component setup.
 impl<'a, 'b> GlyphScaler<'a, 'b> {
-    fn setup(&mut self, bounds: [i16; 4], glyph_id: GlyphId, coords: &[NormalizedCoord]) {
+    fn setup(&mut self, bounds: [i16; 4], glyph_id: GlyphId) {
         let font = &self.scaler.font;
-        let lsb = font.lsb(glyph_id, coords);
-        let advance = font.advance_width(glyph_id, coords);
+        let lsb = font.lsb(glyph_id, self.scaler.coords);
+        let advance = font.advance_width(glyph_id, self.scaler.coords);
         // Vertical metrics aren't significant to the glyph loading process, so
         // they are ignored.
         let vadvance = 0;
