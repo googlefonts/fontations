@@ -174,13 +174,13 @@ crate::newtype_scalar!(Fixed, [u8; 4]);
 
 impl Fixed {
     /// Converts a 16.16 to 2.14 fixed point value.
+    ///
+    /// This specific conversion is defined by the spec:
+    /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvaroverview#coordinate-scales-and-normalization>
+    ///
+    /// "5. Convert the final, normalized 16.16 coordinate value to 2.14 by this method: add 0x00000002,
+    /// and sign-extend shift to the right by 2."
     pub fn to_f2dot14(self) -> F2Dot14 {
-        // This specific conversion is defined by the spec:
-        //
-        // "5. Convert the final, normalized 16.16 coordinate value to 2.14 by this method: add 0x00000002,
-        // and sign-extend shift to the right by 2."
-        //
-        // https://learn.microsoft.com/en-us/typography/opentype/spec/otvaroverview#coordinate-scales-and-normalization
         F2Dot14((self.0.wrapping_add(2) >> 2) as _)
     }
 }
