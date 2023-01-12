@@ -9,22 +9,273 @@ pub(crate) fn generate_flags(raw: &BitFlags) -> proc_macro2::TokenStream {
     let name = &raw.name;
     let docs = &raw.docs;
     let typ = &raw.typ;
-    let variants = raw.variants.iter().map(|variant| {
-        let name = &variant.name;
+    let variant_decls = raw.variants.iter().map(|variant| {
+        let const_name = &variant.name;
         let value = &variant.value;
         let docs = &variant.docs;
         quote! {
             #( #docs )*
-            const #name = #value;
+            pub const #const_name: Self = Self { bits: #value };
         }
     });
 
+    let all_names = raw.variants.iter().map(|var| var.name.to_string());
+    let all_values = raw.variants.iter().map(|var| &var.name).collect::<Vec<_>>();
+
     quote! {
-        bitflags::bitflags! {
-            #( #docs )*
-            #[derive(Default)]
-            pub struct #name: #typ {
-                #( #variants )*
+        #( #docs )*
+        #[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+        pub struct #name { bits: #typ }
+        impl #name {
+            #( #variant_decls )*
+        }
+
+        // most of this impl is taken from the bitflags crate, under the MIT/Apache license
+        // https://docs.rs/bitflags/1.3.2/src/bitflags/lib.rs.html
+        impl #name {
+            ///  Returns an empty set of flags.
+            #[inline]
+            pub const fn empty() -> Self {
+                Self { bits: 0 }
+            }
+
+            /// Returns the set containing all flags.
+            #[inline]
+            pub const fn all() -> Self {
+                Self { bits: #( Self::#all_values.bits )|* }
+            }
+
+            /// Returns the raw value of the flags currently stored.
+            #[inline]
+            pub const fn bits(&self) -> #typ {
+                self.bits
+            }
+
+            /// Convert from underlying bit representation, unless that
+            /// representation contains bits that do not correspond to a flag.
+            #[inline]
+            pub const fn from_bits(bits: #typ) -> Option<Self> {
+                if (bits & !Self::all().bits()) == 0 {
+                    Some(Self { bits })
+                } else {
+                    None
+                }
+            }
+
+            /// Convert from underlying bit representation, dropping any bits
+            /// that do not correspond to flags.
+            #[inline]
+            pub const fn from_bits_truncate(bits: #typ) -> Self {
+                Self { bits: bits & Self::all().bits }
+            }
+
+             /// Returns `true` if no flags are currently stored.
+            #[inline]
+            pub const fn is_empty(&self) -> bool {
+                self.bits() == Self::empty().bits()
+            }
+
+            /// Returns `true` if there are flags common to both `self` and `other`.
+            #[inline]
+            pub const fn intersects(&self, other: Self) -> bool {
+                !(Self { bits: self.bits & other.bits}).is_empty()
+            }
+
+            /// Returns `true` if all of the flags in `other` are contained within `self`.
+            #[inline]
+            pub const fn contains(&self, other: Self) -> bool {
+                (self.bits & other.bits) == other.bits
+            }
+
+            /// Inserts the specified flags in-place.
+            #[inline]
+            pub fn insert(&mut self, other: Self) {
+                self.bits |= other.bits;
+            }
+
+            /// Removes the specified flags in-place.
+            #[inline]
+            pub fn remove(&mut self, other: Self) {
+                self.bits &= !other.bits;
+            }
+
+            /// Toggles the specified flags in-place.
+            #[inline]
+            pub fn toggle(&mut self, other: Self) {
+                self.bits ^= other.bits;
+            }
+
+            /// Returns the intersection between the flags in `self` and
+            /// `other`.
+            ///
+            /// Specifically, the returned set contains only the flags which are
+            /// present in *both* `self` *and* `other`.
+            ///
+            /// This is equivalent to using the `&` operator (e.g.
+            /// [`ops::BitAnd`]), as in `flags & other`.
+            ///
+            /// [`ops::BitAnd`]: https://doc.rust-lang.org/std/ops/trait.BitAnd.html
+            #[inline]
+            #[must_use]
+            pub const fn intersection(self, other: Self) -> Self {
+                Self { bits: self.bits & other.bits }
+            }
+
+            /// Returns the union of between the flags in `self` and `other`.
+            ///
+            /// Specifically, the returned set contains all flags which are
+            /// present in *either* `self` *or* `other`, including any which are
+            /// present in both.
+            ///
+            /// This is equivalent to using the `|` operator (e.g.
+            /// [`ops::BitOr`]), as in `flags | other`.
+            ///
+            /// [`ops::BitOr`]: https://doc.rust-lang.org/std/ops/trait.BitOr.html
+            #[inline]
+            #[must_use]
+            pub const fn union(self, other: Self) -> Self {
+                Self { bits: self.bits | other.bits }
+            }
+
+            /// Returns the difference between the flags in `self` and `other`.
+            ///
+            /// Specifically, the returned set contains all flags present in
+            /// `self`, except for the ones present in `other`.
+            ///
+            /// It is also conceptually equivalent to the "bit-clear" operation:
+            /// `flags & !other` (and this syntax is also supported).
+            ///
+            /// This is equivalent to using the `-` operator (e.g.
+            /// [`ops::Sub`]), as in `flags - other`.
+            ///
+            /// [`ops::Sub`]: https://doc.rust-lang.org/std/ops/trait.Sub.html
+            #[inline]
+            #[must_use]
+            pub const fn difference(self, other: Self) -> Self {
+                Self { bits: self.bits & !other.bits }
+            }
+        }
+
+        impl std::ops::BitOr for #name {
+            type Output = Self;
+
+            /// Returns the union of the two sets of flags.
+            #[inline]
+            fn bitor(self, other: #name) -> Self {
+                Self { bits: self.bits | other.bits }
+            }
+        }
+
+        impl std::ops::BitOrAssign for #name {
+            /// Adds the set of flags.
+            #[inline]
+            fn bitor_assign(&mut self, other: Self) {
+                self.bits |= other.bits;
+            }
+        }
+
+        impl std::ops::BitXor for #name {
+            type Output = Self;
+
+            /// Returns the left flags, but with all the right flags toggled.
+            #[inline]
+            fn bitxor(self, other: Self) -> Self {
+                Self { bits: self.bits ^ other.bits }
+            }
+        }
+
+        impl std::ops::BitXorAssign for #name {
+            /// Toggles the set of flags.
+            #[inline]
+            fn bitxor_assign(&mut self, other: Self) {
+                self.bits ^= other.bits;
+            }
+        }
+
+        impl std::ops::BitAnd for #name {
+            type Output = Self;
+
+            /// Returns the intersection between the two sets of flags.
+            #[inline]
+            fn bitand(self, other: Self) -> Self {
+                Self { bits: self.bits & other.bits }
+            }
+        }
+
+        impl std::ops::BitAndAssign for #name {
+            /// Disables all flags disabled in the set.
+            #[inline]
+            fn bitand_assign(&mut self, other: Self) {
+                self.bits &= other.bits;
+            }
+        }
+
+        impl std::ops::Sub for #name {
+            type Output = Self;
+
+            /// Returns the set difference of the two sets of flags.
+            #[inline]
+            fn sub(self, other: Self) -> Self {
+                Self { bits: self.bits & !other.bits }
+            }
+        }
+
+        impl std::ops::SubAssign for #name {
+            /// Disables all flags enabled in the set.
+            #[inline]
+            fn sub_assign(&mut self, other: Self) {
+                self.bits &= !other.bits;
+            }
+        }
+
+        impl std::ops::Not for #name {
+            type Output = Self;
+
+            /// Returns the complement of this set of flags.
+            #[inline]
+            fn not(self) -> Self {
+                Self { bits: !self.bits } & Self::all()
+            }
+        }
+
+        impl std::fmt::Debug for #name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                let members: &[(&str, Self)] = &[#( (#all_names, Self::#all_values ), )*];
+                let mut first = true;
+                for (name, value) in members {
+                    if self.contains(*value) {
+                        if !first {
+                            f.write_str(" | ")?;
+                        }
+                        first = false;
+                        f.write_str(name)?;
+                    }
+                }
+                if first {
+                    f.write_str("(empty)")?;
+                }
+                Ok(())
+            }
+        }
+
+        impl std::fmt::Binary for #name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                std::fmt::Binary::fmt(&self.bits, f)
+            }
+        }
+        impl std::fmt::Octal for #name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                std::fmt::Octal::fmt(&self.bits, f)
+            }
+        }
+        impl std::fmt::LowerHex for #name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                std::fmt::LowerHex::fmt(&self.bits, f)
+            }
+        }
+        impl std::fmt::UpperHex for #name {
+            fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+                std::fmt::UpperHex::fmt(&self.bits, f)
             }
         }
 
