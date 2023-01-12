@@ -171,9 +171,9 @@ pub enum PlatformId {
 }
 
 impl PlatformId {
-    #[doc = r" Create from a raw scalar."]
-    #[doc = r""]
-    #[doc = r" This will never fail; unknown values will be mapped to the `Unknown` variant"]
+    /// Create from a raw scalar.
+    ///
+    /// This will never fail; unknown values will be mapped to the `Unknown` variant
     pub fn new(raw: u16) -> Self {
         match raw {
             0 => Self::Unicode,

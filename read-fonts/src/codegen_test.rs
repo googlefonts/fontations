@@ -36,3 +36,28 @@ pub mod offsets_arrays {
         assert_eq!(array, &[0xdead, 0xbeef]);
     }
 }
+
+pub mod flags {
+    include!("../generated/generated_test_flags.rs");
+
+    #[test]
+    fn basics() {
+        let all = ValueFormat::all();
+        let none = ValueFormat::empty();
+        assert!(all.contains(ValueFormat::X_PLACEMENT));
+        assert!(all.contains(ValueFormat::Y_PLACEMENT));
+        assert!(!none.contains(ValueFormat::X_PLACEMENT));
+        assert!(!none.contains(ValueFormat::Y_PLACEMENT));
+        assert_eq!(none, ValueFormat::default());
+    }
+
+    #[test]
+    fn formatting() {
+        let all = ValueFormat::all();
+        assert_eq!(format!("{all:?}"), "X_PLACEMENT | Y_PLACEMENT");
+        let none = ValueFormat::empty();
+        assert_eq!(format!("{none:?}"), "(empty)");
+        let xplace = ValueFormat::X_PLACEMENT;
+        assert_eq!(format!("{xplace:?}"), "X_PLACEMENT");
+    }
+}

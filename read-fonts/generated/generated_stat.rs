@@ -892,21 +892,301 @@ impl<'a> SomeRecord<'a> for AxisValueRecord {
     }
 }
 
-bitflags::bitflags! {
-    /// [Axis value table flags](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#flags).
-    #[derive(Default)]
-    pub struct AxisValueTableFlags: u16 {
-        /// If set, this axis value table provides axis value information
-        /// that is applicable to other fonts within the same font family.
-        /// This is used if the other fonts were released earlier and did
-        /// not include information about values for some axis. If newer
-        /// versions of the other fonts include the information themselves
-        /// and are present, then this table is ignored.
-        const OLDER_SIBLING_FONT_ATTRIBUTE = 0x0001;
-        /// If set, it indicates that the axis value represents the
-        /// “normal” value for the axis and may be omitted when
-        /// composing name strings.
-        const ELIDABLE_AXIS_VALUE_NAME = 0x0002;
+/// [Axis value table flags](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#flags).
+#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub struct AxisValueTableFlags {
+    bits: u16,
+}
+
+impl AxisValueTableFlags {
+    /// If set, this axis value table provides axis value information
+    /// that is applicable to other fonts within the same font family.
+    /// This is used if the other fonts were released earlier and did
+    /// not include information about values for some axis. If newer
+    /// versions of the other fonts include the information themselves
+    /// and are present, then this table is ignored.
+    pub const OLDER_SIBLING_FONT_ATTRIBUTE: Self = Self { bits: 0x0001 };
+
+    /// If set, it indicates that the axis value represents the
+    /// “normal” value for the axis and may be omitted when
+    /// composing name strings.
+    pub const ELIDABLE_AXIS_VALUE_NAME: Self = Self { bits: 0x0002 };
+}
+
+impl AxisValueTableFlags {
+    ///  Returns an empty set of flags.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self { bits: 0 }
+    }
+
+    /// Returns the set containing all flags.
+    #[inline]
+    pub const fn all() -> Self {
+        Self {
+            bits: Self::OLDER_SIBLING_FONT_ATTRIBUTE.bits | Self::ELIDABLE_AXIS_VALUE_NAME.bits,
+        }
+    }
+
+    /// Returns the raw value of the flags currently stored.
+    #[inline]
+    pub const fn bits(&self) -> u16 {
+        self.bits
+    }
+
+    /// Convert from underlying bit representation, unless that
+    /// representation contains bits that do not correspond to a flag.
+    #[inline]
+    pub const fn from_bits(bits: u16) -> Option<Self> {
+        if (bits & !Self::all().bits()) == 0 {
+            Some(Self { bits })
+        } else {
+            None
+        }
+    }
+
+    /// Convert from underlying bit representation, dropping any bits
+    /// that do not correspond to flags.
+    #[inline]
+    pub const fn from_bits_truncate(bits: u16) -> Self {
+        Self {
+            bits: bits & Self::all().bits,
+        }
+    }
+
+    /// Returns `true` if no flags are currently stored.
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.bits() == Self::empty().bits()
+    }
+
+    /// Returns `true` if there are flags common to both `self` and `other`.
+    #[inline]
+    pub const fn intersects(&self, other: Self) -> bool {
+        !(Self {
+            bits: self.bits & other.bits,
+        })
+        .is_empty()
+    }
+
+    /// Returns `true` if all of the flags in `other` are contained within `self`.
+    #[inline]
+    pub const fn contains(&self, other: Self) -> bool {
+        (self.bits & other.bits) == other.bits
+    }
+
+    /// Inserts the specified flags in-place.
+    #[inline]
+    pub fn insert(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+
+    /// Removes the specified flags in-place.
+    #[inline]
+    pub fn remove(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+
+    /// Toggles the specified flags in-place.
+    #[inline]
+    pub fn toggle(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+
+    /// Returns the intersection between the flags in `self` and
+    /// `other`.
+    ///
+    /// Specifically, the returned set contains only the flags which are
+    /// present in *both* `self` *and* `other`.
+    ///
+    /// This is equivalent to using the `&` operator (e.g.
+    /// [`ops::BitAnd`]), as in `flags & other`.
+    ///
+    /// [`ops::BitAnd`]: https://doc.rust-lang.org/std/ops/trait.BitAnd.html
+    #[inline]
+    #[must_use]
+    pub const fn intersection(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+
+    /// Returns the union of between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags which are
+    /// present in *either* `self` *or* `other`, including any which are
+    /// present in both.
+    ///
+    /// This is equivalent to using the `|` operator (e.g.
+    /// [`ops::BitOr`]), as in `flags | other`.
+    ///
+    /// [`ops::BitOr`]: https://doc.rust-lang.org/std/ops/trait.BitOr.html
+    #[inline]
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+
+    /// Returns the difference between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags present in
+    /// `self`, except for the ones present in `other`.
+    ///
+    /// It is also conceptually equivalent to the "bit-clear" operation:
+    /// `flags & !other` (and this syntax is also supported).
+    ///
+    /// This is equivalent to using the `-` operator (e.g.
+    /// [`ops::Sub`]), as in `flags - other`.
+    ///
+    /// [`ops::Sub`]: https://doc.rust-lang.org/std/ops/trait.Sub.html
+    #[inline]
+    #[must_use]
+    pub const fn difference(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOr for AxisValueTableFlags {
+    type Output = Self;
+
+    /// Returns the union of the two sets of flags.
+    #[inline]
+    fn bitor(self, other: AxisValueTableFlags) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOrAssign for AxisValueTableFlags {
+    /// Adds the set of flags.
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+}
+
+impl std::ops::BitXor for AxisValueTableFlags {
+    type Output = Self;
+
+    /// Returns the left flags, but with all the right flags toggled.
+    #[inline]
+    fn bitxor(self, other: Self) -> Self {
+        Self {
+            bits: self.bits ^ other.bits,
+        }
+    }
+}
+
+impl std::ops::BitXorAssign for AxisValueTableFlags {
+    /// Toggles the set of flags.
+    #[inline]
+    fn bitxor_assign(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+}
+
+impl std::ops::BitAnd for AxisValueTableFlags {
+    type Output = Self;
+
+    /// Returns the intersection between the two sets of flags.
+    #[inline]
+    fn bitand(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+}
+
+impl std::ops::BitAndAssign for AxisValueTableFlags {
+    /// Disables all flags disabled in the set.
+    #[inline]
+    fn bitand_assign(&mut self, other: Self) {
+        self.bits &= other.bits;
+    }
+}
+
+impl std::ops::Sub for AxisValueTableFlags {
+    type Output = Self;
+
+    /// Returns the set difference of the two sets of flags.
+    #[inline]
+    fn sub(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::SubAssign for AxisValueTableFlags {
+    /// Disables all flags enabled in the set.
+    #[inline]
+    fn sub_assign(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+}
+
+impl std::ops::Not for AxisValueTableFlags {
+    type Output = Self;
+
+    /// Returns the complement of this set of flags.
+    #[inline]
+    fn not(self) -> Self {
+        Self { bits: !self.bits } & Self::all()
+    }
+}
+
+impl std::fmt::Debug for AxisValueTableFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let members: &[(&str, Self)] = &[
+            (
+                "OLDER_SIBLING_FONT_ATTRIBUTE",
+                Self::OLDER_SIBLING_FONT_ATTRIBUTE,
+            ),
+            ("ELIDABLE_AXIS_VALUE_NAME", Self::ELIDABLE_AXIS_VALUE_NAME),
+        ];
+        let mut first = true;
+        for (name, value) in members {
+            if self.contains(*value) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str(name)?;
+            }
+        }
+        if first {
+            f.write_str("(empty)")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Binary for AxisValueTableFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Binary::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::Octal for AxisValueTableFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Octal::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::LowerHex for AxisValueTableFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::LowerHex::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::UpperHex for AxisValueTableFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::UpperHex::fmt(&self.bits, f)
     }
 }
 
