@@ -115,6 +115,7 @@ impl<'a> std::fmt::Debug for NameString<'a> {
 }
 
 /// An iterator over the chars of a name record.
+#[derive(Clone)]
 pub struct CharIter<'a> {
     data: &'a [u8],
     encoding: Encoding,
