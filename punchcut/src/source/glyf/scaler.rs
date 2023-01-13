@@ -206,6 +206,8 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                 .unscaled
                 .extend_from_slice(&outline.points[point_base..]);
             true
+        } else {
+            false
         };
         let scale = self.scaler.scale;
         if self.scaler.is_scaled {

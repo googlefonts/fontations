@@ -8,9 +8,7 @@ This is part of the [oxidize](https://github.com/googlefonts/oxidize) project.
 
 ## Features
 
-Current (✔️), near term (🔜) and planned (⌛) feature matrices:
-
-#### Sources:
+Current (✔️), near term (🔜) and planned (⌛) feature matrix:
 
 | Source | Loading | Variations | Hinting |
 |--------|---------|------------|---------|

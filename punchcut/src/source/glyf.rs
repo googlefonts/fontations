@@ -13,6 +13,7 @@ pub use scaler::Scaler;
 pub use read_fonts::tables::glyf::Point;
 
 /// Context for loading for TrueType glyphs.
+#[derive(Clone, Debug)]
 pub struct Context {
     /// Unscaled points.
     unscaled: Vec<Point>,

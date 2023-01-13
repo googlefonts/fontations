@@ -92,7 +92,7 @@ impl From<([u8; 4], f32)> for Variation {
 }
 
 /// Context for loading glyphs.
-#[derive(Default)]
+#[derive(Clone, Default, Debug)]
 pub struct Context {
     /// Inner context for loading TrueType outlines.
     glyf: glyf::Context,

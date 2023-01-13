@@ -2,7 +2,7 @@ use super::Point;
 use crate::PathSink;
 
 /// TrueType outline.
-#[derive(Default, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Default, Debug)]
 pub struct Outline {
     /// Set of points that define the shape of the outline.
     pub points: Vec<Point>,
