@@ -355,11 +355,11 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                     let p1 = outline
                         .points
                         .get(pi1)
-                        .ok_or(Error::InvalidAnchorPoint(glyph_id))?;
+                        .ok_or(Error::InvalidAnchorPoint(glyph_id, base))?;
                     let p2 = outline
                         .points
                         .get(pi2)
-                        .ok_or(Error::InvalidAnchorPoint(glyph_id))?;
+                        .ok_or(Error::InvalidAnchorPoint(glyph_id, component))?;
                     (p1.x.wrapping_sub(p2.x), p1.y.wrapping_sub(p2.y))
                 }
             };

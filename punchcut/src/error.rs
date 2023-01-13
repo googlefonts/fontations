@@ -15,7 +15,7 @@ pub enum Error {
     #[cfg(feature = "hinting")]
     HintingFailed(GlyphId),
     /// An anchor point had invalid indices.
-    InvalidAnchorPoint(GlyphId),
+    InvalidAnchorPoint(GlyphId, u16),
     /// Error occured when reading font data.
     Read(ReadError),
 }
@@ -39,10 +39,10 @@ impl fmt::Display for Error {
             ),
             #[cfg(feature = "hinting")]
             Self::HintingFailed(gid) => write!(f, "Bad hinting bytecode for glyph {}", gid),
-            Self::InvalidAnchorPoint(gid) => write!(
+            Self::InvalidAnchorPoint(gid, index) => write!(
                 f,
-                "Invalid anchor point indices for composite glyph {}",
-                gid
+                "Invalid anchor point index ({}) for composite glyph {}",
+                index, gid
             ),
             Self::Read(e) => write!(f, "{}", e),
         }

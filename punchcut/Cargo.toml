@@ -13,7 +13,6 @@ hinting = []
 
 [dependencies]
 read-fonts = { version = "0.0.5", path = "../read-fonts" }
-peniko = { git = "https://github.com/linebender/peniko" }
 
 [dev-dependencies]
 diff = "0.1.12"
