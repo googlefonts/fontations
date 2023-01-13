@@ -33,7 +33,6 @@ pub use sink::PathSink;
 ///
 /// Only the `glyf` source supports all hinting modes.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
-#[allow(dead_code)]
 pub enum Hinting {
     /// "Full" hinting mode. May generate rough outlines and poor horizontal
     /// spacing.
@@ -91,7 +90,7 @@ impl From<([u8; 4], f32)> for Variation {
     }
 }
 
-/// Context for loading glyphs from any available source.
+/// Context for loading glyphs.
 #[derive(Default)]
 pub struct Context {
     /// Inner context for loading TrueType outlines.

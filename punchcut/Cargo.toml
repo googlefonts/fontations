@@ -8,6 +8,9 @@ repository = "https://github.com/googlefonts/fontations"
 readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
 
+[features]
+hinting = []
+
 [dependencies]
 read-fonts = { version = "0.0.5", path = "../read-fonts" }
 peniko = { git = "https://github.com/linebender/peniko" }

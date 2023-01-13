@@ -54,7 +54,8 @@ mod tests {
     ) {
         let mut cx = Context::new();
         let mut scaler = Scaler::new(&mut cx, font, None, ppem, None, &[]).unwrap();
-        let outline = scaler.get(GlyphId::new(3)).unwrap();
+        let mut outline = Outline::new();
+        scaler.load(GlyphId::new(3), &mut outline).unwrap();
         let points = outline
             .points
             .iter()

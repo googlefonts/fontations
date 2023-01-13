@@ -71,7 +71,7 @@ impl<'a> Scaler<'a> {
 
     /// Loads an outline for the specified glyph identifier to the preallocated
     /// target.
-    pub fn get_into(&mut self, glyph_id: GlyphId, outline: &mut Outline) -> Result<()> {
+    pub fn load(&mut self, glyph_id: GlyphId, outline: &mut Outline) -> Result<()> {
         outline.clear();
         self.context.unscaled.clear();
         self.context.original.clear();
@@ -81,13 +81,6 @@ impl<'a> Scaler<'a> {
         }
         outline.is_scaled = self.is_scaled;
         GlyphScaler::new(self).load(glyph_id, outline, 0)
-    }
-
-    /// Loads an outline for the specified glyph identifier.
-    pub fn get(&mut self, glyph_id: GlyphId) -> Result<Outline> {
-        let mut outline = Outline::new();
-        self.get_into(glyph_id, &mut outline)?;
-        Ok(outline)
     }
 }
 

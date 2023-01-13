@@ -28,7 +28,8 @@ impl<'a> ScalerBuilder<'a> {
         }
     }
 
-    /// Sets a unique font identifier for hint state caching.
+    /// Sets a unique font identifier for hint state caching. Specifying `None` will
+    /// disable caching.
     pub fn font_id(mut self, font_id: Option<u64>) -> Self {
         self.font_id = font_id;
         self
@@ -43,6 +44,8 @@ impl<'a> ScalerBuilder<'a> {
     }
 
     /// Sets the hinting mode.
+    ///
+    /// Passing `None` will disable hinting.
     pub fn hint(mut self, hint: Option<Hinting>) -> Self {
         self.hint = hint;
         self
@@ -79,7 +82,7 @@ impl<'a> ScalerBuilder<'a> {
     }
 
     /// Builds a scaler using the currently configured settings
-    /// for the specified font.
+    /// and the specified font.
     pub fn build(self, font: &impl TableProvider<'a>) -> Scaler<'a> {
         if !self.context.variations.is_empty() {
             if let Ok(fvar) = font.fvar() {
@@ -154,16 +157,13 @@ struct Outlines<'a> {
 }
 
 impl<'a> Outlines<'a> {
-    /// Returns true if outlines are available.
     fn has_outlines(&self) -> bool {
         self.glyf.is_some()
     }
 
-    /// Loads an outline for the specified glyph identifier and invokes the functions
-    /// in the sink for the sequence of path commands that define the outline.   
     fn outline(&mut self, glyph_id: GlyphId, sink: &mut impl PathSink) -> Result<()> {
         if let Some((scaler, glyf_outline)) = &mut self.glyf {
-            scaler.get_into(glyph_id, glyf_outline)?;
+            scaler.load(glyph_id, glyf_outline)?;
             glyf_outline.to_path(sink);
             return Ok(());
         }
