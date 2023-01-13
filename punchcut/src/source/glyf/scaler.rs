@@ -23,6 +23,7 @@ pub struct Scaler<'a> {
     /// Font identifier for the hinting cache.
     font_id: Option<u64>,
     /// Current hinting cache slot.
+    #[cfg(feature = "hinting")]
     cache_slot: Option<CacheSlot>,
     /// True if the outline is begin scaled.
     is_scaled: bool,
@@ -61,6 +62,7 @@ impl<'a> Scaler<'a> {
             context,
             font,
             font_id,
+            #[cfg(feature = "hinting")]
             cache_slot: None,
             is_scaled,
             ppem,
@@ -208,9 +210,9 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
         let scale = self.scaler.scale;
         if self.scaler.is_scaled {
             // Apply the scale to each point.
-            for p in &mut outline.points[point_base..] {
-                p.x = math::mul(p.x, scale);
-                p.y = math::mul(p.y, scale);
+            for point in &mut outline.points[point_base..] {
+                point.x = math::mul(point.x, scale);
+                point.y = math::mul(point.y, scale);
             }
             // Save the scaled phantom points.
             self.save_phantom(outline, point_base, point_count);
@@ -225,9 +227,9 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                 .original
                 .extend_from_slice(&outline.points[point_base..point_end]);
             // When hinting, round the components of the phantom points.
-            for p in &mut outline.points[point_end - 4..] {
-                p.x = math::round(p.x);
-                p.y = math::round(p.y);
+            for point in &mut outline.points[point_end - 4..] {
+                point.x = math::round(point.x);
+                point.y = math::round(point.y);
             }
             // Apply hinting to the set of contours for this outline.
             if !self.hint(outline, point_base, contour_base, ins, false) {
@@ -258,9 +260,9 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
         let contour_base = outline.contours.len();
         let scale = self.scaler.scale;
         if self.scaler.is_scaled {
-            for p in self.phantom.iter_mut() {
-                p.x = math::mul(p.x, scale);
-                p.y = math::mul(p.y, scale);
+            for point in self.phantom.iter_mut() {
+                point.x = math::mul(point.x, scale);
+                point.y = math::mul(point.y, scale);
             }
         }
         // TODO: variations
@@ -306,10 +308,10 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                     | CompositeGlyphFlags::WE_HAVE_A_TWO_BY_TWO,
             );
             if have_xform {
-                for p in &mut outline.points[start_point..end_point] {
-                    let (x, y) = math::transform(p.x, p.y, xx, yx, xy, yy);
-                    p.x = x;
-                    p.y = y;
+                for point in &mut outline.points[start_point..end_point] {
+                    let (x, y) = math::transform(point.x, point.y, xx, yx, xy, yy);
+                    point.x = x;
+                    point.y = y;
                 }
             }
             let anchor = component.anchor;
@@ -349,24 +351,25 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                     (dx, dy)
                 }
                 Anchor::Point { base, component } => {
-                    let (a1, a2) = (base as usize, component as usize);
-                    let pi1 = point_base + a1;
-                    let pi2 = start_point + a2;
-                    let p1 = outline
+                    let (base_offset, component_offset) = (base as usize, component as usize);
+                    let base_point = outline
                         .points
-                        .get(pi1)
+                        .get(point_base + base_offset)
                         .ok_or(Error::InvalidAnchorPoint(glyph_id, base))?;
-                    let p2 = outline
+                    let component_point = outline
                         .points
-                        .get(pi2)
+                        .get(start_point + component_offset)
                         .ok_or(Error::InvalidAnchorPoint(glyph_id, component))?;
-                    (p1.x.wrapping_sub(p2.x), p1.y.wrapping_sub(p2.y))
+                    (
+                        base_point.x.wrapping_sub(component_point.x),
+                        base_point.y.wrapping_sub(component_point.y),
+                    )
                 }
             };
             if dx != 0 || dy != 0 {
-                for p in &mut outline.points[start_point..end_point] {
-                    p.x += dx;
-                    p.y += dy;
+                for point in &mut outline.points[start_point..end_point] {
+                    point.x += dx;
+                    point.y += dy;
                 }
             }
         }
@@ -466,6 +469,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
     }
 }
 
+#[cfg(feature = "hinting")]
 /// Slot for the hinting cache.
 #[derive(Copy, Clone)]
 enum CacheSlot {

@@ -37,7 +37,7 @@ impl Outline {
             (p.x as f32 * s, p.y as f32 * s)
         }
         const TAG_MASK: u8 = 0x3;
-        const CONIC: u8 = 0x0;
+        const QUAD: u8 = 0x0;
         const ON: u8 = 0x1;
         const CUBIC: u8 = 0x2;
         let s = if self.is_scaled { 1. / 64. } else { 1. };
@@ -62,7 +62,7 @@ impl Outline {
                 return false;
             }
             let mut step_point = true;
-            if tag == CONIC {
+            if tag == QUAD {
                 if tags[last] & TAG_MASK == ON {
                     v_start = v_last;
                     last -= 1;
@@ -93,8 +93,8 @@ impl Outline {
                         last_was_close = false;
                         continue;
                     }
-                    CONIC => {
-                        let mut do_close_conic = true;
+                    QUAD => {
+                        let mut do_close_quad = true;
                         let mut v_control = points[cur];
                         while cur < last {
                             cur += 1;
@@ -106,10 +106,10 @@ impl Outline {
                                 sink.quad_to(c.0, c.1, p.0, p.1);
                                 count += 1;
                                 last_was_close = false;
-                                do_close_conic = false;
+                                do_close_quad = false;
                                 break;
                             }
-                            if tag != CONIC {
+                            if tag != QUAD {
                                 return false;
                             }
                             let v_middle = Point::new(
@@ -123,7 +123,7 @@ impl Outline {
                             last_was_close = false;
                             v_control = point;
                         }
-                        if do_close_conic {
+                        if do_close_quad {
                             let c = conv(v_control, s);
                             let p = conv(v_start, s);
                             sink.quad_to(c.0, c.1, p.0, p.1);
