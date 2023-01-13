@@ -1,4 +1,7 @@
-use super::{source::*, Context, Error, Hinting, NormalizedCoord, PathSink, Result, Variation};
+use super::{source::glyf, Context, Error, NormalizedCoord, PathSink, Result, Variation};
+
+#[cfg(feature = "hinting")]
+use super::Hinting;
 
 use read_fonts::{
     types::{Fixed, GlyphId, Tag},
@@ -12,6 +15,7 @@ pub struct ScalerBuilder<'a> {
     context: &'a mut Context,
     font_id: Option<u64>,
     size: f32,
+    #[cfg(feature = "hinting")]
     hint: Option<Hinting>,
 }
 
@@ -24,6 +28,7 @@ impl<'a> ScalerBuilder<'a> {
             context,
             font_id: None,
             size: 0.0,
+            #[cfg(feature = "hinting")]
             hint: None,
         }
     }
@@ -46,6 +51,7 @@ impl<'a> ScalerBuilder<'a> {
     /// Sets the hinting mode.
     ///
     /// Passing `None` will disable hinting.
+    #[cfg(feature = "hinting")]
     pub fn hint(mut self, hint: Option<Hinting>) -> Self {
         self.hint = hint;
         self
@@ -120,6 +126,7 @@ impl<'a> ScalerBuilder<'a> {
             font,
             self.font_id,
             self.size,
+            #[cfg(feature = "hinting")]
             self.hint,
             coords,
         ) {

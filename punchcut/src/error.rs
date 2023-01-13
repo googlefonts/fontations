@@ -12,6 +12,7 @@ pub enum Error {
     /// Exceeded a recursion limit when loading a glyph.
     RecursionLimitExceeded(GlyphId),
     /// Error occured during hinting.
+    #[cfg(feature = "hinting")]
     HintingFailed(GlyphId),
     /// An anchor point had invalid indices.
     InvalidAnchorPoint(GlyphId),
@@ -32,9 +33,11 @@ impl fmt::Display for Error {
             Self::GlyphNotFound(gid) => write!(f, "Glyph {} was not found in the given font", gid),
             Self::RecursionLimitExceeded(gid) => write!(
                 f,
-                "Recursion limit exceeded when loading composite component {}",
+                "Recursion limit ({}) exceeded when loading composite component {}",
+                crate::GLYF_COMPOSITE_RECURSION_LIMIT,
                 gid
             ),
+            #[cfg(feature = "hinting")]
             Self::HintingFailed(gid) => write!(f, "Bad hinting bytecode for glyph {}", gid),
             Self::InvalidAnchorPoint(gid) => write!(
                 f,

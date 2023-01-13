@@ -10,7 +10,7 @@ This is part of the [oxidize](https://github.com/googlefonts/oxidize) project.
 
 Current (✔️), near term (🔜) and planned (⌛) feature matrices:
 
-#### Vector sources:
+#### Sources:
 
 | Source | Loading | Variations | Hinting |
 |--------|---------|------------|---------|
@@ -24,6 +24,7 @@ Current (✔️), near term (🔜) and planned (⌛) feature matrices:
 | sbix   | 🔜     | -          | -      |
 
 \* A working implementation exists for hinting but is not yet merged.
+
 \*\* This will be supported but is probably not desirable due the general affine transforms
 present in the paint graph.
 

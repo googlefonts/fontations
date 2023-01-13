@@ -29,9 +29,13 @@ pub use error::{Error, Result};
 pub use scaler::{Scaler, ScalerBuilder};
 pub use sink::PathSink;
 
+/// Limit for recursion when loading TrueType composite glyphs.
+const GLYF_COMPOSITE_RECURSION_LIMIT: usize = 32;
+
 /// Modes for hinting.
 ///
 /// Only the `glyf` source supports all hinting modes.
+#[cfg(feature = "hinting")]
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub enum Hinting {
     /// "Full" hinting mode. May generate rough outlines and poor horizontal

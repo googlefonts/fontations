@@ -1,6 +1,9 @@
 use super::math;
 use super::{Context, Outline, Point};
-use crate::{Error, Hinting, NormalizedCoord, Result};
+use crate::{Error, NormalizedCoord, Result, GLYF_COMPOSITE_RECURSION_LIMIT};
+
+#[cfg(feature = "hinting")]
+use crate::Hinting;
 
 use read_fonts::tables::{
     glyf::{Anchor, CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, SimpleGlyph},
@@ -10,9 +13,6 @@ use read_fonts::tables::{
 };
 use read_fonts::types::{BigEndian, F2Dot14, GlyphId, Tag};
 use read_fonts::TableProvider;
-
-/// Limit for recursion when loading composite glyphs.
-const RECURSION_LIMIT: usize = 32;
 
 /// TrueType glyph scaler for a specific font and configuration.
 pub struct Scaler<'a> {
@@ -31,6 +31,7 @@ pub struct Scaler<'a> {
     /// Scale factor from font units to 26.6 fixed point.
     scale: i32,
     /// Hint mode.
+    #[cfg(feature = "hinting")]
     hint: Option<Hinting>,
     /// Normalized variation coordinates.
     coords: &'a [NormalizedCoord],
@@ -44,7 +45,7 @@ impl<'a> Scaler<'a> {
         font: &impl TableProvider<'a>,
         font_id: Option<u64>,
         size: f32,
-        hint: Option<Hinting>,
+        #[cfg(feature = "hinting")] hint: Option<Hinting>,
         coords: &'a [NormalizedCoord],
     ) -> Result<Self> {
         let font = Font::new(font)?;
@@ -64,6 +65,7 @@ impl<'a> Scaler<'a> {
             is_scaled,
             ppem,
             scale,
+            #[cfg(feature = "hinting")]
             hint,
             coords,
         })
@@ -88,7 +90,7 @@ impl<'a> Scaler<'a> {
 struct GlyphScaler<'a, 'b> {
     /// Backing scaler.
     scaler: &'b mut Scaler<'a>,
-    /// True if hinting is enabled.
+    #[cfg(feature = "hinting")]
     hint: bool,
     /// Phantom points. These are 4 extra points appended to the end of an
     /// outline that allow the bytecode interpreter to produce hinted
@@ -100,9 +102,11 @@ struct GlyphScaler<'a, 'b> {
 
 impl<'a, 'b> GlyphScaler<'a, 'b> {
     pub fn new(scaler: &'b mut Scaler<'a>) -> Self {
+        #[cfg(feature = "hinting")]
         let hint = scaler.hint.is_some();
         Self {
             scaler,
+            #[cfg(feature = "hinting")]
             hint,
             phantom: Default::default(),
         }
@@ -117,7 +121,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
         outline: &mut Outline,
         recurse_depth: usize,
     ) -> Result<()> {
-        if recurse_depth > RECURSION_LIMIT {
+        if recurse_depth > GLYF_COMPOSITE_RECURSION_LIMIT {
             return Err(Error::RecursionLimitExceeded(glyph_id));
         }
         let Some(glyph) = self.scaler.font.glyph(glyph_id) else {
@@ -191,15 +195,16 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
         //         }
         //     }
         // }
-        let hinted = self.hint && !ins.is_empty();
-        if hinted {
+        #[cfg(feature = "hinting")]
+        let hinted = if self.hint && !ins.is_empty() {
             // Hinting requires a copy of the original unscaled points.
             self.scaler.context.unscaled.clear();
             self.scaler
                 .context
                 .unscaled
                 .extend_from_slice(&outline.points[point_base..]);
-        }
+            true
+        };
         let scale = self.scaler.scale;
         if self.scaler.is_scaled {
             // Apply the scale to each point.
@@ -210,6 +215,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
             // Save the scaled phantom points.
             self.save_phantom(outline, point_base, point_count);
         }
+        #[cfg(feature = "hinting")]
         if hinted {
             // Hinting requires a copy of the scaled points. These are used
             // as references when modifying an outline.
@@ -230,8 +236,8 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
         }
         if point_base != 0 {
             // If we're not the first component, shift our contour end points.
-            for c in &mut outline.contours[contour_base..contour_end] {
-                *c += point_base as u16;
+            for contour_end in &mut outline.contours[contour_base..contour_end] {
+                *contour_end += point_base as u16;
             }
         }
         // We're done with the phantom points, so drop them.
@@ -330,6 +336,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                     if self.scaler.is_scaled {
                         dx = math::mul(dx, scale);
                         dy = math::mul(dy, scale);
+                        #[cfg(feature = "hinting")]
                         if self.hint
                             && component
                                 .flags
@@ -363,6 +370,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                 }
             }
         }
+        #[cfg(feature = "hinting")]
         if self.hint {
             let ins = composite.instructions().unwrap_or_default();
             // TODO: variations
@@ -406,6 +414,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
 }
 
 // Hinting
+#[cfg(feature = "hinting")]
 impl<'a, 'b> GlyphScaler<'a, 'b> {
     fn hint(
         &mut self,
@@ -470,6 +479,7 @@ enum CacheSlot {
 }
 
 // Cache management and hinting.
+#[cfg(feature = "hinting")]
 impl Context {
     /// Prepares for the cache for hinting.
     fn prepare_for_hinting(

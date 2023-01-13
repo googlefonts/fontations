@@ -53,7 +53,10 @@ mod tests {
         expected_tags: &[u8],
     ) {
         let mut cx = Context::new();
+        #[cfg(feature = "hinting")]
         let mut scaler = Scaler::new(&mut cx, font, None, ppem, None, &[]).unwrap();
+        #[cfg(not(feature = "hinting"))]
+        let mut scaler = Scaler::new(&mut cx, font, None, ppem, &[]).unwrap();
         let mut outline = Outline::new();
         scaler.load(GlyphId::new(3), &mut outline).unwrap();
         let points = outline
