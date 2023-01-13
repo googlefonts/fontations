@@ -89,37 +89,8 @@ impl<'a> ScalerBuilder<'a> {
 
     /// Builds a scaler using the currently configured settings
     /// and the specified font.
-    pub fn build(self, font: &impl TableProvider<'a>) -> Scaler<'a> {
-        if !self.context.variations.is_empty() {
-            if let Ok(fvar) = font.fvar() {
-                let avar_mappings = font.avar().ok().map(|avar| avar.axis_segment_maps());
-                let axis_count = fvar.axis_count() as usize;
-                self.context
-                    .coords
-                    .resize(axis_count, NormalizedCoord::default());
-                if let Ok(axes) = fvar.axes() {
-                    for (i, (axis, dest_coord)) in
-                        axes.iter().zip(&mut self.context.coords).enumerate()
-                    {
-                        let tag = axis.axis_tag();
-                        for variation in &self.context.variations {
-                            if variation.tag == tag {
-                                let mut coord =
-                                    axis.normalize(Fixed::from_f64(variation.value as f64));
-                                coord = avar_mappings
-                                    .as_ref()
-                                    .and_then(|mappings| mappings.get(i).transpose().ok())
-                                    .flatten()
-                                    .map(|mapping| mapping.apply(coord))
-                                    .unwrap_or(coord);
-                                let coord = coord.to_f64() as f32;
-                                *dest_coord = NormalizedCoord::from_f32(coord);
-                            }
-                        }
-                    }
-                }
-            }
-        }
+    pub fn build(mut self, font: &impl TableProvider<'a>) -> Scaler<'a> {
+        self.apply_variations(font);
         let coords = &self.context.coords[..];
         let glyf = if let Ok(glyf) = glyf::Scaler::new(
             &mut self.context.glyf,
@@ -136,6 +107,40 @@ impl<'a> ScalerBuilder<'a> {
         };
         Scaler {
             outlines: Outlines { glyf },
+        }
+    }
+
+    fn apply_variations(&mut self, font: &impl TableProvider<'a>) {
+        if self.context.variations.is_empty() {
+            return; // nop
+        }
+        let Ok(fvar) = font.fvar() else {
+            return;  // nop
+        };
+        let Ok(axes) = fvar.axes() else {
+            return;  // nop
+        };
+        let avar_mappings = font.avar().ok().map(|avar| avar.axis_segment_maps());
+        let axis_count = fvar.axis_count() as usize;
+        self.context
+            .coords
+            .resize(axis_count, NormalizedCoord::default());
+
+        for (i, (axis, dest_coord)) in axes.iter().zip(&mut self.context.coords).enumerate() {
+            let tag = axis.axis_tag();
+            for variation in &self.context.variations {
+                if variation.tag == tag {
+                    let mut coord = axis.normalize(Fixed::from_f64(variation.value as f64));
+                    coord = avar_mappings
+                        .as_ref()
+                        .and_then(|mappings| mappings.get(i).transpose().ok())
+                        .flatten()
+                        .map(|mapping| mapping.apply(coord))
+                        .unwrap_or(coord);
+                    let coord = coord.to_f64() as f32;
+                    *dest_coord = NormalizedCoord::from_f32(coord);
+                }
+            }
         }
     }
 }
