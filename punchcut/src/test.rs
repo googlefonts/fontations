@@ -5,6 +5,8 @@ use core::str::FromStr;
 use read_fonts::{tables::glyf::Point, types::F26Dot6};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
+// clippy doesn't like the common To suffix
+#[allow(clippy::enum_variant_names)]
 pub enum PathElement {
     MoveTo([f32; 2]),
     LineTo([f32; 2]),
