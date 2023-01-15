@@ -57,7 +57,7 @@ mod tests {
         let mut outline = Outline::new();
         for expected_outline in &outlines {
             #[cfg(feature = "hinting")]
-            let mut scaler = Scaler::new(&mut cx, font, None, ppem, None, &[]).unwrap();
+            let mut scaler = Scaler::new(&mut cx, &font, None, expected_outline.size, None, &[]).unwrap();
             #[cfg(not(feature = "hinting"))]
             let mut scaler = Scaler::new(&mut cx, &font, None, expected_outline.size, &[]).unwrap();
             scaler
