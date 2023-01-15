@@ -10,6 +10,9 @@ mod error;
 mod scaler;
 mod sink;
 
+#[cfg(test)]
+mod test;
+
 pub mod source;
 
 /// Representations of fonts and font collections.
@@ -119,99 +122,30 @@ impl Context {
 #[cfg(test)]
 mod tests {
     use super::{font::*, Context, GlyphId, PathSink, Scaler};
+    use read_fonts::test_data::test_fonts;
 
-    #[derive(Copy, Clone, PartialEq, Debug)]
-    enum PathElement {
-        MoveTo([f32; 2]),
-        LineTo([f32; 2]),
-        QuadTo([f32; 4]),
-        CurveTo([f32; 6]),
-        Close,
-    }
-
-    use PathElement::*;
-
-    impl PathSink for Vec<PathElement> {
-        fn move_to(&mut self, x: f32, y: f32) {
-            self.push(PathElement::MoveTo([x, y]));
-        }
-
-        fn line_to(&mut self, x: f32, y: f32) {
-            self.push(PathElement::LineTo([x, y]));
-        }
-
-        fn quad_to(&mut self, x0: f32, y0: f32, x1: f32, y1: f32) {
-            self.push(PathElement::QuadTo([x0, y0, x1, y1]))
-        }
-
-        fn curve_to(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, x2: f32, y2: f32) {
-            self.push(PathElement::CurveTo([x0, y0, x1, y1, x2, y2]))
-        }
-
-        fn close(&mut self) {
-            self.push(PathElement::Close)
-        }
-    }
-
-    fn test_glyph(font: &FontRef, gid: GlyphId, ppem: f32, expected_elements: &[PathElement]) {
+    #[test]
+    fn vazirmatin_var() {
+        let font = FontRef::new(test_fonts::VAZIRMATN_VAR).unwrap();
+        let outlines = crate::test::parse_glyph_outlines(test_fonts::VAZIRMATN_VAR_GLYPHS);
         let mut cx = Context::new();
-        let mut scaler = cx.new_scaler().size(ppem).build(font);
-        let mut elements: Vec<PathElement> = vec![];
-        scaler.outline(gid, &mut elements).unwrap();
-        assert_eq!(&elements[..], expected_elements);
-    }
-
-    #[test]
-    fn unscaled() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::VAZIRMATN_VAR).unwrap();
-        test_glyph(
-            &font,
-            GlyphId::new(3),
-            0.0,
-            // Path elements in unscaled font units
-            &[
-                MoveTo([281.0, 1536.0]),
-                LineTo([474.0, 1242.0]),
-                LineTo([315.0, 1242.0]),
-                LineTo([57.0, 1536.0]),
-                Close,
-            ],
-        );
-    }
-
-    #[test]
-    fn scaled_16_ppem() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::VAZIRMATN_VAR).unwrap();
-        test_glyph(
-            &font,
-            GlyphId::new(3),
-            16.0,
-            // Path elements scaled to 16ppem as computed by FreeType
-            &[
-                MoveTo([2.203125, 12.0]),
-                LineTo([3.703125, 9.703125]),
-                LineTo([2.46875, 9.703125]),
-                LineTo([0.453125, 12.0]),
-                Close,
-            ],
-        );
-    }
-
-    #[test]
-    fn scaled_50_ppem() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::VAZIRMATN_VAR).unwrap();
-        test_glyph(
-            &font,
-            GlyphId::new(3),
-            50.0,
-            // Path elements scaled to 50ppem as computed by FreeType
-            &[
-                MoveTo([6.859375, 37.5]),
-                LineTo([11.578125, 30.328125]),
-                LineTo([7.6875, 30.328125]),
-                LineTo([1.390625, 37.5]),
-                Close,
-            ],
-        );
+        let mut path: Vec<crate::test::PathElement> = vec![];
+        for expected_outline in &outlines {
+            path.clear();
+            let mut scaler = cx.new_scaler().size(expected_outline.size).build(&font);
+            scaler
+                .outline(expected_outline.glyph_id, &mut path)
+                .unwrap();
+            if path != expected_outline.path {
+                panic!(
+                    "mismatch in glyph path for id {} with size {}: path: {:?} expected_path: {:?}",
+                    expected_outline.glyph_id.to_u16(),
+                    expected_outline.size,
+                    &path,
+                    &expected_outline.path
+                );
+            }
+            assert_eq!(&path, &expected_outline.path);
+        }
     }
 }

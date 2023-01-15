@@ -23,7 +23,7 @@ mod tag;
 mod uint24;
 mod version;
 
-pub use fixed::{F2Dot14, Fixed};
+pub use fixed::{F26Dot6, F2Dot14, Fixed};
 pub use fword::{FWord, UfWord};
 pub use glyph_id::GlyphId;
 pub use longdatetime::LongDateTime;

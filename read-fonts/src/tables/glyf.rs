@@ -43,7 +43,7 @@ impl<'a> SimpleGlyph<'a> {
     /// preallocate buffers.
     pub fn read_points_fast(
         &self,
-        points: &mut [Point],
+        points: &mut [Point<i32>],
         flags: &mut [u8],
     ) -> Result<(), ReadError> {
         let n_points = self.num_points();
@@ -129,16 +129,16 @@ impl<'a> SimpleGlyph<'a> {
 
 /// Point in a simple glyph.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
-pub struct Point {
+pub struct Point<T> {
     /// X cooordinate.
-    pub x: i32,
+    pub x: T,
     /// Y coordinate.
-    pub y: i32,
+    pub y: T,
 }
 
-impl Point {
+impl<T> Point<T> {
     /// Creates a new point with the specified x and y coordinates.
-    pub const fn new(x: i32, y: i32) -> Self {
+    pub const fn new(x: T, y: T) -> Self {
         Self { x, y }
     }
 }
@@ -147,7 +147,7 @@ impl Point {
 #[derive(Clone, Copy, Debug)]
 pub struct CurvePoint {
     /// The point.
-    pub point: Point,
+    pub point: Point<i32>,
     /// True if this is an on-curve point.
     pub on_curve: bool,
 }

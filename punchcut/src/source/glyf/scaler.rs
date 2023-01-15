@@ -1,6 +1,7 @@
-use super::math;
 use super::{Context, Outline, Point};
 use crate::{Error, NormalizedCoord, Result, GLYF_COMPOSITE_RECURSION_LIMIT};
+
+use read_fonts::types::F26Dot6;
 
 #[cfg(feature = "hinting")]
 use crate::Hinting;
@@ -30,7 +31,7 @@ pub struct Scaler<'a> {
     /// Size in pixels per em unit.
     ppem: u16,
     /// Scale factor from font units to 26.6 fixed point.
-    scale: i32,
+    scale: F26Dot6,
     /// Hint mode.
     #[cfg(feature = "hinting")]
     hint: Option<Hinting>,
@@ -54,9 +55,12 @@ impl<'a> Scaler<'a> {
         let ppem = size as u16;
         let upem = font.units_per_em;
         let (is_scaled, scale) = if size != 0. && upem != 0 {
-            (true, math::div((size * 64.) as i32, upem as i32))
+            (
+                true,
+                F26Dot6::from_bits((size * 64.) as i32) / F26Dot6::from_bits(upem as i32),
+            )
         } else {
-            (false, 0)
+            (false, F26Dot6::ZERO)
         };
         Ok(Self {
             context,
@@ -83,7 +87,6 @@ impl<'a> Scaler<'a> {
         if glyph_id.to_u16() >= self.font.glyph_count {
             return Err(Error::GlyphNotFound(glyph_id));
         }
-        outline.is_scaled = self.is_scaled;
         GlyphScaler::new(self).load(glyph_id, outline, 0)
     }
 }
@@ -99,13 +102,13 @@ struct GlyphScaler<'a, 'b> {
     /// metrics.
     ///
     /// See https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructing_glyphs#phantom-points
-    phantom: [Point; 4],
+    phantom: [Point<F26Dot6>; 4],
 }
 
 impl<'a, 'b> GlyphScaler<'a, 'b> {
     pub fn new(scaler: &'b mut Scaler<'a>) -> Self {
         #[cfg(feature = "hinting")]
-        let hint = scaler.hint.is_some();
+        let hint = scaler.hint.is_some() && scaler.is_scaled;
         Self {
             scaler,
             #[cfg(feature = "hinting")]
@@ -135,7 +138,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
             None => return Ok(()),
         };
         let bounds = [glyph.x_min(), glyph.x_max(), glyph.y_min(), glyph.y_max()];
-        self.setup(bounds, glyph_id);
+        self.setup_phantom(bounds, glyph_id);
         match glyph {
             Glyph::Simple(simple) => self.load_simple(&simple, glyph_id, outline, recurse_depth),
             Glyph::Composite(composite) => {
@@ -162,17 +165,27 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
             .extend(end_pts.iter().map(|end_pt| end_pt.get()));
         let mut point_count = simple.num_points();
         outline.tags.resize(outline.tags.len() + point_count, 0);
-        outline
-            .points
-            .resize(outline.points.len() + point_count, Point::default());
+        self.scaler.context.unscaled.clear();
+        self.scaler.context.unscaled.reserve(point_count + 4);
+        self.scaler
+            .context
+            .unscaled
+            .resize(point_count, Point::default());
         simple.read_points_fast(
-            &mut outline.points[point_base..],
+            &mut self.scaler.context.unscaled[..],
             &mut outline.tags[point_base..],
         )?;
         let ins = simple.instructions();
-        self.push_phantom(outline);
+        for point in &self.phantom {
+            self.scaler
+                .context
+                .unscaled
+                .push(Point::new(point.x.to_bits(), point.y.to_bits()));
+            outline.tags.push(0);
+        }
         point_count += 4;
         let point_end = point_base + point_count;
+        outline.points.resize(point_end, Point::default());
         // TODO: variations
         // if state.vary {
         //     self.unscaled.clear();
@@ -198,27 +211,29 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
         //     }
         // }
         #[cfg(feature = "hinting")]
-        let hinted = if self.hint && !ins.is_empty() {
-            // Hinting requires a copy of the original unscaled points.
-            self.scaler.context.unscaled.clear();
-            self.scaler
-                .context
-                .unscaled
-                .extend_from_slice(&outline.points[point_base..]);
-            true
-        } else {
-            false
-        };
+        let hinted = self.hint && !ins.is_empty();
         let scale = self.scaler.scale;
         if self.scaler.is_scaled {
-            // Apply the scale to each point.
-            for point in &mut outline.points[point_base..] {
-                point.x = math::mul(point.x, scale);
-                point.y = math::mul(point.y, scale);
+            for (point, unscaled) in outline.points[point_base..]
+                .iter_mut()
+                .zip(&self.scaler.context.unscaled)
+            {
+                point.x = F26Dot6::from_bits(unscaled.x) * scale;
+                point.y = F26Dot6::from_bits(unscaled.y) * scale;
             }
-            // Save the scaled phantom points.
-            self.save_phantom(outline, point_base, point_count);
+        } else {
+            // Unlike FreeType, we also store unscaled outlines in 26.6 so multiply
+            // each component by 64 (shift left by 6).
+            for (point, unscaled) in outline.points[point_base..]
+                .iter_mut()
+                .zip(&self.scaler.context.unscaled)
+            {
+                point.x = F26Dot6::from_bits(unscaled.x << 6);
+                point.y = F26Dot6::from_bits(unscaled.y << 6);
+            }
         }
+        // Save the phantom points.
+        self.save_phantom(outline, point_base, point_count);
         #[cfg(feature = "hinting")]
         if hinted {
             // Hinting requires a copy of the scaled points. These are used
@@ -230,8 +245,8 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                 .extend_from_slice(&outline.points[point_base..point_end]);
             // When hinting, round the components of the phantom points.
             for point in &mut outline.points[point_end - 4..] {
-                point.x = math::round(point.x);
-                point.y = math::round(point.y);
+                point.x = point.x.round();
+                point.y = point.y.round();
             }
             // Apply hinting to the set of contours for this outline.
             if !self.hint(outline, point_base, contour_base, ins, false) {
@@ -245,8 +260,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
             }
         }
         // We're done with the phantom points, so drop them.
-        outline.points.truncate(outline.points.len() - 4);
-        outline.tags.truncate(outline.tags.len() - 4);
+        self.drop_phantom(outline);
         Ok(())
     }
 
@@ -263,8 +277,8 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
         let scale = self.scaler.scale;
         if self.scaler.is_scaled {
             for point in self.phantom.iter_mut() {
-                point.x = math::mul(point.x, scale);
-                point.y = math::mul(point.y, scale);
+                point.x *= scale;
+                point.y *= scale;
             }
         }
         // TODO: variations
@@ -294,16 +308,15 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                 // points should override those of the composite glyph.
                 self.phantom = phantom;
             }
-            // Scaling does an internal conversion to 26.6 so we don't use the
-            // fixed types in read-fonts. Maybe a better solution here? We want to match
-            // FreeType semantics.
-            fn f2dot14_to_fixed(x: F2Dot14) -> i32 {
-                i16::from_be_bytes(x.to_be_bytes()) as i32 * 4
+            // Prepares the transform components for our conversion math below.
+            fn scale_component(x: F2Dot14) -> F26Dot6 {
+                F26Dot6::from_bits(x.to_bits() as i32 * 4)
             }
-            let xx = f2dot14_to_fixed(component.transform.xx);
-            let yx = f2dot14_to_fixed(component.transform.yx);
-            let xy = f2dot14_to_fixed(component.transform.xy);
-            let yy = f2dot14_to_fixed(component.transform.yy);
+            let xform = &component.transform;
+            let xx = scale_component(xform.xx);
+            let yx = scale_component(xform.yx);
+            let xy = scale_component(xform.xy);
+            let yy = scale_component(xform.yy);
             let have_xform = component.flags.intersects(
                 CompositeGlyphFlags::WE_HAVE_A_SCALE
                     | CompositeGlyphFlags::WE_HAVE_AN_X_AND_Y_SCALE
@@ -311,7 +324,9 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
             );
             if have_xform {
                 for point in &mut outline.points[start_point..end_point] {
-                    let (x, y) = math::transform(point.x, point.y, xx, yx, xy, yy);
+                    let divisor = F26Dot6::from_bits(0x10000);
+                    let x = point.x.mul_div(xx, divisor) + point.y.mul_div(xy, divisor);
+                    let y = point.x.mul_div(yx, divisor) + point.y.mul_div(yy, divisor);
                     point.x = x;
                     point.y = y;
                 }
@@ -319,17 +334,28 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
             let anchor = component.anchor;
             let (dx, dy) = match anchor {
                 Anchor::Offset { x, y } => {
-                    let (mut dx, mut dy) = (x as i32, y as i32);
+                    let (mut dx, mut dy) =
+                        (F26Dot6::from_bits(x as i32), F26Dot6::from_bits(y as i32));
                     if have_xform
                         && component.flags
                             & (CompositeGlyphFlags::SCALED_COMPONENT_OFFSET
                                 | CompositeGlyphFlags::UNSCALED_COMPONENT_OFFSET)
                             == CompositeGlyphFlags::SCALED_COMPONENT_OFFSET
                     {
-                        // This matches the computation done in FreeType which is
-                        // based on a heuristic.
-                        dx = math::mul(dx, math::hypot(xx, xy));
-                        dy = math::mul(dy, math::hypot(yy, yx));
+                        // According to FreeType, this algorithm is a "guess" and
+                        // works better than the one documented by Apple.
+                        // https://github.com/freetype/freetype/blob/b1c90733ee6a04882b133101d61b12e352eeb290/src/truetype/ttgload.c#L1259
+                        fn hypot(a: F26Dot6, b: F26Dot6) -> F26Dot6 {
+                            let a = a.to_bits().abs();
+                            let b = b.to_bits().abs();
+                            if a > b {
+                                F26Dot6::from_bits(a + ((3 * b) >> 3))
+                            } else {
+                                F26Dot6::from_bits(b + ((3 * a) >> 3))
+                            }
+                        }
+                        dx *= hypot(xx, xy);
+                        dy *= hypot(yy, yx);
                     }
                     // TODO: variations
                     // if have_deltas {
@@ -338,8 +364,8 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                     //     dy += d.y;
                     // }
                     if self.scaler.is_scaled {
-                        dx = math::mul(dx, scale);
-                        dy = math::mul(dy, scale);
+                        dx *= scale;
+                        dy *= scale;
                         #[cfg(feature = "hinting")]
                         if self.hint
                             && component
@@ -347,8 +373,11 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                                 .contains(CompositeGlyphFlags::ROUND_XY_TO_GRID)
                         {
                             // Only round the y-coordinate, per FreeType.
-                            dy = math::round(dy);
+                            dy = dy.round();
                         }
+                    } else {
+                        dx = F26Dot6::from_bits(dx.to_bits() << 6);
+                        dy = F26Dot6::from_bits(dy.to_bits() << 6);
                     }
                     (dx, dy)
                 }
@@ -368,7 +397,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                     )
                 }
             };
-            if dx != 0 || dy != 0 {
+            if dx != F26Dot6::ZERO || dy != F26Dot6::ZERO {
                 for point in &mut outline.points[start_point..end_point] {
                     point.x += dx;
                     point.y += dy;
@@ -386,10 +415,11 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                 // For composite glyphs, the unscaled and original points are simply
                 // copies of the current point set.
                 self.scaler.context.unscaled.clear();
-                self.scaler
-                    .context
-                    .unscaled
-                    .extend_from_slice(&outline.points[point_base..]);
+                self.scaler.context.unscaled.extend(
+                    outline.points[point_base..]
+                        .iter()
+                        .map(|point| Point::new(point.x.to_bits(), point.y.to_bits())),
+                );
                 self.scaler.context.original.clear();
                 self.scaler
                     .context
@@ -398,8 +428,8 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                 let point_end = outline.points.len();
                 // Round the phantom points.
                 for p in &mut outline.points[point_end - 4..] {
-                    p.x = math::round(p.x);
-                    p.y = math::round(p.y);
+                    p.x = p.x.round();
+                    p.y = p.y.round();
                 }
                 // Clear the "touched" flags that are used during IUP processing.
                 const TOUCHED_FLAGS: u8 = 0x08 | 0x10;
@@ -410,8 +440,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                     return Err(Error::HintingFailed(glyph_id));
                 }
                 // As in simple outlines, drop the phantom points.
-                outline.points.truncate(outline.points.len() - 4);
-                outline.tags.truncate(outline.tags.len() - 4);
+                self.drop_phantom(outline);
             }
         }
         Ok(())
@@ -433,9 +462,9 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
     }
 }
 
-// Per-component setup.
+// Phantom point management.
 impl<'a, 'b> GlyphScaler<'a, 'b> {
-    fn setup(&mut self, bounds: [i16; 4], glyph_id: GlyphId) {
+    fn setup_phantom(&mut self, bounds: [i16; 4], glyph_id: GlyphId) {
         let font = &self.scaler.font;
         let lsb = font.lsb(glyph_id, self.scaler.coords);
         let advance = font.advance_width(glyph_id, self.scaler.coords);
@@ -444,19 +473,16 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
         let vadvance = 0;
         let tsb = 0;
         // The four "phantom" points as computed by FreeType.
-        self.phantom[0].x = bounds[0] as i32 - lsb;
-        self.phantom[0].y = 0;
-        self.phantom[1].x = self.phantom[0].x + advance;
-        self.phantom[1].y = 0;
-        self.phantom[2].x = advance / 2;
-        self.phantom[2].y = bounds[3] as i32 + tsb;
-        self.phantom[3].x = advance / 2;
-        self.phantom[3].y = self.phantom[2].y - vadvance;
+        self.phantom[0].x = F26Dot6::from_bits(bounds[0] as i32 - lsb);
+        self.phantom[0].y = F26Dot6::ZERO;
+        self.phantom[1].x = self.phantom[0].x + F26Dot6::from_bits(advance);
+        self.phantom[1].y = F26Dot6::ZERO;
+        self.phantom[2].x = F26Dot6::from_bits(advance / 2);
+        self.phantom[2].y = F26Dot6::from_bits(bounds[3] as i32 + tsb);
+        self.phantom[3].x = F26Dot6::from_bits(advance / 2);
+        self.phantom[3].y = self.phantom[2].y - F26Dot6::from_bits(vadvance);
     }
-}
 
-// Phantom point management.
-impl<'a, 'b> GlyphScaler<'a, 'b> {
     fn push_phantom(&mut self, outline: &mut Outline) {
         for i in 0..4 {
             outline.points.push(self.phantom[i]);
@@ -468,6 +494,11 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
         for i in 0..4 {
             self.phantom[3 - i] = outline.points[point_base + point_count - i - 1];
         }
+    }
+
+    fn drop_phantom(&self, outline: &mut Outline) {
+        outline.points.truncate(outline.points.len() - 4);
+        outline.tags.truncate(outline.tags.len() - 4);
     }
 }
 
@@ -506,10 +537,10 @@ impl Context {
         data: &Font,
         coords: &[NormalizedCoord],
         slot: CacheSlot,
-        scaled: &mut [Point],
+        scaled: &mut [Point<F26Dot6>],
         tags: &mut [u8],
         contours: &mut [u16],
-        phantom: &mut [Point],
+        phantom: &mut [Point<F26Dot6>],
         point_base: usize,
         contour_base: usize,
         ins: &[u8],
@@ -632,6 +663,7 @@ impl<'a> Font<'a> {
         lsb
     }
 
+    #[cfg(feature = "hinting")]
     pub(crate) fn scale_cvt(&self, scale: Option<i32>, scaled_cvt: &mut Vec<i32>) {
         if scaled_cvt.len() < self.cvt.len() {
             scaled_cvt.resize(self.cvt.len(), 0);
@@ -640,9 +672,9 @@ impl<'a> Font<'a> {
             *dest = src.get() as i32 * 64;
         }
         if let Some(scale) = scale {
-            let scale = scale >> 6;
+            let scale = F26Dot6::from_bits(scale >> 6);
             for value in &mut scaled_cvt[..] {
-                *value = super::math::mul(*value, scale);
+                *value = (F26Dot6::from_bits(*value) * scale).to_bits();
             }
         }
     }

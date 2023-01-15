@@ -90,7 +90,7 @@ impl<'a> ScalerBuilder<'a> {
     /// Builds a scaler using the currently configured settings
     /// and the specified font.
     pub fn build(mut self, font: &impl TableProvider<'a>) -> Scaler<'a> {
-        self.apply_variations(font);
+        self.resolve_variations(font);
         let coords = &self.context.coords[..];
         let glyf = if let Ok(glyf) = glyf::Scaler::new(
             &mut self.context.glyf,
@@ -110,7 +110,7 @@ impl<'a> ScalerBuilder<'a> {
         }
     }
 
-    fn apply_variations(&mut self, font: &impl TableProvider<'a>) {
+    fn resolve_variations(&mut self, font: &impl TableProvider<'a>) {
         if self.context.variations.is_empty() {
             return; // nop
         }

@@ -3,7 +3,6 @@ TrueType outlines loaded from the `glyf` table.
 
 */
 
-mod math;
 mod outline;
 mod scaler;
 
@@ -12,15 +11,17 @@ pub use scaler::Scaler;
 
 pub use read_fonts::tables::glyf::Point;
 
+use read_fonts::types::F26Dot6;
+
 /// Context for loading for TrueType glyphs.
 #[derive(Clone, Debug)]
 pub struct Context {
     /// Unscaled points.
-    unscaled: Vec<Point>,
-    /// Original unscaled points.
-    original: Vec<Point>,
+    unscaled: Vec<Point<i32>>,
+    /// Original scaled points.
+    original: Vec<Point<F26Dot6>>,
     /// Storage for variation deltas.
-    deltas: Vec<Point>,
+    deltas: Vec<Point<i32>>,
 }
 
 impl Default for Context {
@@ -45,70 +46,26 @@ mod tests {
     use super::{Context, Outline, Scaler};
     use crate::{font::*, GlyphId};
 
-    fn test_glyph(
-        font: &FontRef,
-        gid: GlyphId,
-        ppem: f32,
-        expected_contours: &[u16],
-        expected_points: &[(i32, i32)],
-        expected_tags: &[u8],
-    ) {
+    use read_fonts::test_data::test_fonts;
+    use read_fonts::types::F26Dot6;
+
+    #[test]
+    fn vazirmatin_var() {
+        let font = FontRef::new(test_fonts::VAZIRMATN_VAR).unwrap();
+        let outlines = crate::test::parse_glyph_outlines(test_fonts::VAZIRMATN_VAR_GLYPHS);
         let mut cx = Context::new();
-        #[cfg(feature = "hinting")]
-        let mut scaler = Scaler::new(&mut cx, font, None, ppem, None, &[]).unwrap();
-        #[cfg(not(feature = "hinting"))]
-        let mut scaler = Scaler::new(&mut cx, font, None, ppem, &[]).unwrap();
         let mut outline = Outline::new();
-        scaler.load(GlyphId::new(3), &mut outline).unwrap();
-        let points = outline
-            .points
-            .iter()
-            .map(|pt| (pt.x, pt.y))
-            .collect::<Vec<_>>();
-        assert_eq!(&outline.contours[..], expected_contours);
-        assert_eq!(&points[..], expected_points);
-        assert_eq!(&outline.tags[..], expected_tags);
-    }
-
-    #[test]
-    fn unscaled() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::VAZIRMATN_VAR).unwrap();
-        test_glyph(
-            &font,
-            GlyphId::new(3),
-            0.0,
-            &[3],
-            // Unscaled points in font units
-            &[(281, 1536), (474, 1242), (315, 1242), (57, 1536)],
-            &[1, 1, 1, 1],
-        );
-    }
-
-    #[test]
-    fn scaled_16_ppem() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::VAZIRMATN_VAR).unwrap();
-        test_glyph(
-            &font,
-            GlyphId::new(3),
-            16.0,
-            &[3],
-            // Points scaled to 16ppem as computed by FreeType
-            &[(141, 768), (237, 621), (158, 621), (29, 768)],
-            &[1, 1, 1, 1],
-        );
-    }
-
-    #[test]
-    fn scaled_50_ppem() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::VAZIRMATN_VAR).unwrap();
-        test_glyph(
-            &font,
-            GlyphId::new(3),
-            50.0,
-            &[3],
-            // Points scaled to 50ppem as computed by FreeType
-            &[(439, 2400), (741, 1941), (492, 1941), (89, 2400)],
-            &[1, 1, 1, 1],
-        );
+        for expected_outline in &outlines {
+            #[cfg(feature = "hinting")]
+            let mut scaler = Scaler::new(&mut cx, font, None, ppem, None, &[]).unwrap();
+            #[cfg(not(feature = "hinting"))]
+            let mut scaler = Scaler::new(&mut cx, &font, None, expected_outline.size, &[]).unwrap();
+            scaler
+                .load(expected_outline.glyph_id, &mut outline)
+                .unwrap();
+            assert_eq!(&outline.points, &expected_outline.points);
+            assert_eq!(&outline.contours, &expected_outline.contours);
+            assert_eq!(&outline.tags, &expected_outline.tags);
+        }
     }
 }
