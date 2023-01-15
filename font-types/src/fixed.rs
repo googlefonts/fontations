@@ -28,6 +28,16 @@ macro_rules! fixed_impl {
             const ROUND: $ty = 1 << ($fract_bits - 1);
             const FRACT_BITS: usize = $fract_bits;
 
+            /// Creates a new fixed point value from the underlying bit representation.
+            pub const fn from_bits(bits: $ty) -> Self {
+                Self(bits)
+            }
+
+            /// Returns the underlying bit representation of the value.
+            pub const fn to_bits(self) -> $ty {
+                self.0
+            }
+
             //TODO: is this actually useful?
             /// Returns the nearest integer value.
             pub const fn round(self) -> Self {
@@ -162,9 +172,22 @@ float_conv!(Fixed, to_f64, from_f64, f64);
 crate::newtype_scalar!(F2Dot14, [u8; 2]);
 crate::newtype_scalar!(Fixed, [u8; 4]);
 
+impl Fixed {
+    /// Converts a 16.16 to 2.14 fixed point value.
+    ///
+    /// This specific conversion is defined by the spec:
+    /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvaroverview#coordinate-scales-and-normalization>
+    ///
+    /// "5. Convert the final, normalized 16.16 coordinate value to 2.14 by this method: add 0x00000002,
+    /// and sign-extend shift to the right by 2."
+    pub fn to_f2dot14(self) -> F2Dot14 {
+        F2Dot14((self.0.wrapping_add(2) >> 2) as _)
+    }
+}
+
 impl F2Dot14 {
     /// Converts a 2.14 to 16.16 fixed point value.
-    pub fn to_fixed(&self) -> Fixed {
+    pub fn to_fixed(self) -> Fixed {
         Fixed(self.0 as i32 * 4)
     }
 }

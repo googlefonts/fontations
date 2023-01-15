@@ -158,10 +158,10 @@ The following annotations are supported on top-level objects:
 - `#[nullable]`: only allowed on offsets or arrays of offsets, and indicates
   that this field is allowed to be null. This changes the behaviour of getters,
   as well as validation and compilation code.
-- `#[available(version)]`: indicates that a field only exists in a given version
+- `#[since_version(version)]`: indicates that a field only exists in a given version
   of the table. The `version` may be either a single integer literal
-  (`#[available(1)]`), or a comma-separated pair of integer literals
-  (`#[available(1,1)]`).
+  (`#[since_version(1)]`), or a comma-separated pair of integer literals
+  (`#[since_version(1,1)]`).
 - `#[skip_getter]`: if present, we will not generate a getter for this field.
   Used on things like padding fields.
 - `#[offset_getter(method name)]`: only allowed on offsets or arrays of offsets.

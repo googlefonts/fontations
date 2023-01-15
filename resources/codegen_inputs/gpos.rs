@@ -17,7 +17,7 @@ table Gpos {
     feature_list_offset: Offset16<FeatureList>,
     /// Offset to LookupList table, from beginning of GPOS table
     lookup_list_offset: Offset16<PositionLookupList>,
-    #[available(1,1)]
+    #[since_version(1,1)]
     #[nullable]
     feature_variations_offset: Offset32<FeatureVariations>,
 }

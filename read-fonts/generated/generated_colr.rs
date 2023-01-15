@@ -1393,9 +1393,9 @@ pub enum Extend {
 }
 
 impl Extend {
-    #[doc = r" Create from a raw scalar."]
-    #[doc = r""]
-    #[doc = r" This will never fail; unknown values will be mapped to the `Unknown` variant"]
+    /// Create from a raw scalar.
+    ///
+    /// This will never fail; unknown values will be mapped to the `Unknown` variant
     pub fn new(raw: u8) -> Self {
         match raw {
             0 => Self::Pad,
@@ -5489,9 +5489,9 @@ pub enum CompositeMode {
 }
 
 impl CompositeMode {
-    #[doc = r" Create from a raw scalar."]
-    #[doc = r""]
-    #[doc = r" This will never fail; unknown values will be mapped to the `Unknown` variant"]
+    /// Create from a raw scalar.
+    ///
+    /// This will never fail; unknown values will be mapped to the `Unknown` variant
     pub fn new(raw: u8) -> Self {
         match raw {
             0 => Self::Clear,

@@ -16,4 +16,3 @@ default = ["traversal"]
 
 [dependencies]
 font-types = { version = "0.0.5", path = "../font-types" }
-bitflags = "1.3"
