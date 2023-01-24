@@ -5,6 +5,139 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+/// [TupleVariationHeader](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuplevariationheader)
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct TupleVariationHeaderMarker {
+    peak_tuple_byte_len: usize,
+    intermediate_start_tuple_byte_len: usize,
+    intermediate_end_tuple_byte_len: usize,
+}
+
+impl TupleVariationHeaderMarker {
+    fn variation_data_size_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn tuple_index_byte_range(&self) -> Range<usize> {
+        let start = self.variation_data_size_byte_range().end;
+        start..start + TupleIndex::RAW_BYTE_LEN
+    }
+    fn peak_tuple_byte_range(&self) -> Range<usize> {
+        let start = self.tuple_index_byte_range().end;
+        start..start + self.peak_tuple_byte_len
+    }
+    fn intermediate_start_tuple_byte_range(&self) -> Range<usize> {
+        let start = self.peak_tuple_byte_range().end;
+        start..start + self.intermediate_start_tuple_byte_len
+    }
+    fn intermediate_end_tuple_byte_range(&self) -> Range<usize> {
+        let start = self.intermediate_start_tuple_byte_range().end;
+        start..start + self.intermediate_end_tuple_byte_len
+    }
+}
+
+impl ReadArgs for TupleVariationHeader<'_> {
+    type Args = u16;
+}
+
+impl<'a> FontReadWithArgs<'a> for TupleVariationHeader<'a> {
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let axis_count = *args;
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        let tuple_index: TupleIndex = cursor.read()?;
+        let peak_tuple_byte_len =
+            TupleIndex::tuple_len(tuple_index, axis_count, 0_usize) * F2Dot14::RAW_BYTE_LEN;
+        cursor.advance_by(peak_tuple_byte_len);
+        let intermediate_start_tuple_byte_len =
+            TupleIndex::tuple_len(tuple_index, axis_count, 1_usize) * F2Dot14::RAW_BYTE_LEN;
+        cursor.advance_by(intermediate_start_tuple_byte_len);
+        let intermediate_end_tuple_byte_len =
+            TupleIndex::tuple_len(tuple_index, axis_count, 1_usize) * F2Dot14::RAW_BYTE_LEN;
+        cursor.advance_by(intermediate_end_tuple_byte_len);
+        cursor.finish(TupleVariationHeaderMarker {
+            peak_tuple_byte_len,
+            intermediate_start_tuple_byte_len,
+            intermediate_end_tuple_byte_len,
+        })
+    }
+}
+
+/// [TupleVariationHeader](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuplevariationheader)
+pub type TupleVariationHeader<'a> = TableRef<'a, TupleVariationHeaderMarker>;
+
+impl<'a> TupleVariationHeader<'a> {
+    /// The size in bytes of the serialized data for this tuple
+    /// variation table.
+    pub fn variation_data_size(&self) -> u16 {
+        let range = self.shape.variation_data_size_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// A packed field. The high 4 bits are flags (see below). The low
+    /// 12 bits are an index into a shared tuple records array.
+    pub fn tuple_index(&self) -> TupleIndex {
+        let range = self.shape.tuple_index_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Peak tuple record for this tuple variation table — optional,
+    /// determined by flags in the tupleIndex value.  Note that this
+    /// must always be included in the 'cvar' table.
+    pub fn peak_tuple(&self) -> &'a [BigEndian<F2Dot14>] {
+        let range = self.shape.peak_tuple_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    /// Intermediate start tuple record for this tuple variation table
+    /// — optional, determined by flags in the tupleIndex value.
+    pub fn intermediate_start_tuple(&self) -> &'a [BigEndian<F2Dot14>] {
+        let range = self.shape.intermediate_start_tuple_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    /// Intermediate end tuple record for this tuple variation table
+    /// — optional, determined by flags in the tupleIndex value.
+    pub fn intermediate_end_tuple(&self) -> &'a [BigEndian<F2Dot14>] {
+        let range = self.shape.intermediate_end_tuple_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for TupleVariationHeader<'a> {
+    fn type_name(&self) -> &str {
+        "TupleVariationHeader"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new(
+                "variation_data_size",
+                self.variation_data_size(),
+            )),
+            1usize => Some(Field::new("tuple_index", self.traverse_tuple_index())),
+            2usize => Some(Field::new("peak_tuple", self.peak_tuple())),
+            3usize => Some(Field::new(
+                "intermediate_start_tuple",
+                self.intermediate_start_tuple(),
+            )),
+            4usize => Some(Field::new(
+                "intermediate_end_tuple",
+                self.intermediate_end_tuple(),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for TupleVariationHeader<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
 impl Format<u8> for DeltaSetIndexMapFormat0Marker {
     const FORMAT: u8 = 0;
 }

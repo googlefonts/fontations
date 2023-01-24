@@ -7,6 +7,86 @@ use crate::codegen_prelude::*;
 
 pub use read_fonts::tables::variations::EntryFormat;
 
+/// [TupleVariationHeader](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuplevariationheader)
+#[derive(Clone, Debug, Default)]
+pub struct TupleVariationHeader {
+    /// The size in bytes of the serialized data for this tuple
+    /// variation table.
+    pub variation_data_size: u16,
+    /// A packed field. The high 4 bits are flags (see below). The low
+    /// 12 bits are an index into a shared tuple records array.
+    pub tuple_index: TupleIndex,
+    /// Peak tuple record for this tuple variation table — optional,
+    /// determined by flags in the tupleIndex value.  Note that this
+    /// must always be included in the 'cvar' table.
+    pub peak_tuple: Vec<F2Dot14>,
+    /// Intermediate start tuple record for this tuple variation table
+    /// — optional, determined by flags in the tupleIndex value.
+    pub intermediate_start_tuple: Vec<F2Dot14>,
+    /// Intermediate end tuple record for this tuple variation table
+    /// — optional, determined by flags in the tupleIndex value.
+    pub intermediate_end_tuple: Vec<F2Dot14>,
+}
+
+impl TupleVariationHeader {
+    /// Construct a new `TupleVariationHeader`
+    pub fn new(
+        variation_data_size: u16,
+        tuple_index: TupleIndex,
+        peak_tuple: Vec<F2Dot14>,
+        intermediate_start_tuple: Vec<F2Dot14>,
+        intermediate_end_tuple: Vec<F2Dot14>,
+    ) -> Self {
+        Self {
+            variation_data_size,
+            tuple_index,
+            peak_tuple: peak_tuple.into_iter().map(Into::into).collect(),
+            intermediate_start_tuple: intermediate_start_tuple
+                .into_iter()
+                .map(Into::into)
+                .collect(),
+            intermediate_end_tuple: intermediate_end_tuple.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for TupleVariationHeader {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.variation_data_size.write_into(writer);
+        self.tuple_index.write_into(writer);
+        self.peak_tuple.write_into(writer);
+        self.intermediate_start_tuple.write_into(writer);
+        self.intermediate_end_tuple.write_into(writer);
+    }
+}
+
+impl Validate for TupleVariationHeader {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl<'a> FromObjRef<read_fonts::tables::variations::TupleVariationHeader<'a>>
+    for TupleVariationHeader
+{
+    fn from_obj_ref(
+        obj: &read_fonts::tables::variations::TupleVariationHeader<'a>,
+        _: FontData,
+    ) -> Self {
+        let offset_data = obj.offset_data();
+        TupleVariationHeader {
+            variation_data_size: obj.variation_data_size(),
+            tuple_index: obj.tuple_index(),
+            peak_tuple: obj.peak_tuple().to_owned_obj(offset_data),
+            intermediate_start_tuple: obj.intermediate_start_tuple().to_owned_obj(offset_data),
+            intermediate_end_tuple: obj.intermediate_end_tuple().to_owned_obj(offset_data),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::tables::variations::TupleVariationHeader<'a>>
+    for TupleVariationHeader
+{
+}
+
 /// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table format 0
 #[derive(Clone, Debug, Default)]
 pub struct DeltaSetIndexMapFormat0 {
