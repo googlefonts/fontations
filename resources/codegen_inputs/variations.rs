@@ -1,5 +1,34 @@
 #![parse_module(read_fonts::tables::variations)]
 
+extern scalar TupleIndex;
+
+/// [TupleVariationHeader](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuplevariationheader)
+#[read_args(axis_count: u16)]
+table TupleVariationHeader {
+    /// The size in bytes of the serialized data for this tuple
+    /// variation table.
+    variation_data_size: u16,
+    /// A packed field. The high 4 bits are flags (see below). The low
+    /// 12 bits are an index into a shared tuple records array.
+
+    #[traverse_with(traverse_tuple_index)]
+    tuple_index: TupleIndex,
+    /// Peak tuple record for this tuple variation table — optional,
+    /// determined by flags in the tupleIndex value.  Note that this
+    /// must always be included in the 'cvar' table.
+
+    #[count(tuple_len($tuple_index, $axis_count, 0))]
+    peak_tuple: [F2Dot14],
+    /// Intermediate start tuple record for this tuple variation table
+    /// — optional, determined by flags in the tupleIndex value.
+    #[count(tuple_len($tuple_index, $axis_count, 1))]
+    intermediate_start_tuple: [F2Dot14],
+    /// Intermediate end tuple record for this tuple variation table
+    /// — optional, determined by flags in the tupleIndex value.
+    #[count(tuple_len($tuple_index, $axis_count, 1))]
+    intermediate_end_tuple: [F2Dot14],
+}
+
 /// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table format 0
 table DeltaSetIndexMapFormat0 {
     /// DeltaSetIndexMap format: set to 0.

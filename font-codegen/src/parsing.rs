@@ -271,6 +271,8 @@ pub(crate) enum CountTransform {
     Half,
     DeltaValueCount,
     DeltaSetIndexData,
+    /// three args: the axis count, the tuple index, and a constant on that index
+    TupleLen,
 }
 
 /// Attributes for specifying how to compile a field
@@ -805,7 +807,7 @@ impl FieldType {
 
         // We'll figure it out later, what could go wrong?
         if !last.arguments.is_empty() {
-            return Err(logged_syn_error(path.span(), "Not sure how to handle this"));
+            return Err(logged_syn_error(path.span(), "Unexpected path arguments"));
         }
         debug!("Pending {}", quote! { #last });
         Ok(FieldType::PendingResolution {
@@ -1267,6 +1269,7 @@ static TRANSFORM_IDENTS: &[(CountTransform, &str)] = &[
     (CountTransform::Half, "half"),
     (CountTransform::DeltaValueCount, "delta_value_count"),
     (CountTransform::DeltaSetIndexData, "delta_set_index_data"),
+    (CountTransform::TupleLen, "tuple_len"),
 ];
 
 impl FromStr for CountTransform {
@@ -1296,6 +1299,7 @@ impl CountTransform {
             CountTransform::Half => 1,
             CountTransform::DeltaValueCount => 3,
             CountTransform::DeltaSetIndexData => 2,
+            CountTransform::TupleLen => 3,
         }
     }
 }
@@ -1419,6 +1423,9 @@ impl Count {
                 }
                 (CountTransform::DeltaValueCount, [a, b, c]) => {
                     quote!(DeltaFormat::value_count(#a, #b, #c))
+                }
+                (CountTransform::TupleLen, [a, b, c]) => {
+                    quote!(TupleIndex::tuple_len(#a, #b, #c))
                 }
                 _ => unreachable!("validated before now"),
             },
