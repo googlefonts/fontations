@@ -6,4 +6,5 @@ members = [
     "font-codegen",
     "write-fonts",
     "otexplorer",
+    "punchcut",
 ]

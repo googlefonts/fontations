@@ -116,6 +116,96 @@ macro_rules! fixed_impl {
     };
 }
 
+/// Implements multiplication and division operators for fixed types.
+macro_rules! fixed_mul_div {
+    ($ty:ty) => {
+        impl $ty {
+            /// Multiplies `self` by `a` and divides the product by `b`.
+            pub const fn mul_div(&self, a: Self, b: Self) -> Self {
+                let mut sign = 1;
+                let mut su = self.0 as u64;
+                let mut au = a.0 as u64;
+                let mut bu = b.0 as u64;
+                if self.0 < 0 {
+                    su = 0u64.wrapping_sub(su);
+                    sign = -1;
+                }
+                if a.0 < 0 {
+                    au = 0u64.wrapping_sub(au);
+                    sign = -sign;
+                }
+                if b.0 < 0 {
+                    bu = 0u64.wrapping_sub(bu);
+                    sign = -sign;
+                }
+                let result = if bu > 0 {
+                    su.wrapping_mul(au).wrapping_add(bu >> 1) / bu
+                } else {
+                    0x7FFFFFFF
+                };
+                Self(if sign < 0 {
+                    -(result as i32)
+                } else {
+                    result as i32
+                })
+            }
+        }
+
+        impl Mul for $ty {
+            type Output = Self;
+            #[inline(always)]
+            fn mul(self, other: Self) -> Self::Output {
+                let ab = self.0 as i64 * other.0 as i64;
+                Self(((ab + 0x8000 - i64::from(ab < 0)) >> 16) as i32)
+            }
+        }
+
+        impl MulAssign for $ty {
+            fn mul_assign(&mut self, rhs: Self) {
+                *self = *self * rhs;
+            }
+        }
+
+        impl Div for $ty {
+            type Output = Self;
+            #[inline(always)]
+            fn div(self, other: Self) -> Self::Output {
+                let mut sign = 1;
+                let mut a = self.0;
+                let mut b = other.0;
+                if a < 0 {
+                    a = -a;
+                    sign = -1;
+                }
+                if b < 0 {
+                    b = -b;
+                    sign = -sign;
+                }
+                let q = if b == 0 {
+                    0x7FFFFFFF
+                } else {
+                    ((((a as u64) << 16) + ((b as u64) >> 1)) / (b as u64)) as u32
+                };
+                Self(if sign < 0 { -(q as i32) } else { q as i32 })
+            }
+        }
+
+        impl DivAssign for $ty {
+            fn div_assign(&mut self, rhs: Self) {
+                *self = *self / rhs;
+            }
+        }
+
+        impl Neg for $ty {
+            type Output = Self;
+            #[inline(always)]
+            fn neg(self) -> Self {
+                Self(-self.0)
+            }
+        }
+    };
+}
+
 /// impl float conversion methods.
 ///
 /// We convert to different float types in order to ensure we can roundtrip
@@ -167,8 +257,12 @@ macro_rules! float_conv {
 
 fixed_impl!(F2Dot14, 16, 14, i16);
 fixed_impl!(Fixed, 32, 16, i32);
+fixed_impl!(F26Dot6, 32, 6, i32);
+fixed_mul_div!(Fixed);
+fixed_mul_div!(F26Dot6);
 float_conv!(F2Dot14, to_f32, from_f32, f32);
 float_conv!(Fixed, to_f64, from_f64, f64);
+float_conv!(F26Dot6, to_f64, from_f64, f64);
 crate::newtype_scalar!(F2Dot14, [u8; 2]);
 crate::newtype_scalar!(Fixed, [u8; 4]);
 
@@ -189,91 +283,6 @@ impl F2Dot14 {
     /// Converts a 2.14 to 16.16 fixed point value.
     pub fn to_fixed(self) -> Fixed {
         Fixed(self.0 as i32 * 4)
-    }
-}
-
-impl Fixed {
-    /// Multiplies `self` by `a` and divides the product by `b`.
-    pub const fn mul_div(&self, a: Fixed, b: Fixed) -> Fixed {
-        let mut sign = 1;
-        let mut su = self.0 as u64;
-        let mut au = a.0 as u64;
-        let mut bu = b.0 as u64;
-        if self.0 < 0 {
-            su = 0u64.wrapping_sub(su);
-            sign = -1;
-        }
-        if a.0 < 0 {
-            au = 0u64.wrapping_sub(au);
-            sign = -sign;
-        }
-        if b.0 < 0 {
-            bu = 0u64.wrapping_sub(bu);
-            sign = -sign;
-        }
-        let result = if bu > 0 {
-            su.wrapping_mul(au).wrapping_add(bu >> 1) / bu
-        } else {
-            0x7FFFFFFF
-        };
-        Fixed(if sign < 0 {
-            -(result as i32)
-        } else {
-            result as i32
-        })
-    }
-}
-
-impl Mul for Fixed {
-    type Output = Self;
-    #[inline(always)]
-    fn mul(self, other: Self) -> Self::Output {
-        let ab = self.0 as i64 * other.0 as i64;
-        Self(((ab + 0x8000 - i64::from(ab < 0)) >> 16) as i32)
-    }
-}
-
-impl MulAssign for Fixed {
-    fn mul_assign(&mut self, rhs: Self) {
-        *self = *self * rhs;
-    }
-}
-
-impl Div for Fixed {
-    type Output = Self;
-    #[inline(always)]
-    fn div(self, other: Self) -> Self::Output {
-        let mut sign = 1;
-        let mut a = self.0;
-        let mut b = other.0;
-        if a < 0 {
-            a = -a;
-            sign = -1;
-        }
-        if b < 0 {
-            b = -b;
-            sign = -sign;
-        }
-        let q = if b == 0 {
-            0x7FFFFFFF
-        } else {
-            ((((a as u64) << 16) + ((b as u64) >> 1)) / (b as u64)) as u32
-        };
-        Self(if sign < 0 { -(q as i32) } else { q as i32 })
-    }
-}
-
-impl DivAssign for Fixed {
-    fn div_assign(&mut self, rhs: Self) {
-        *self = *self / rhs;
-    }
-}
-
-impl Neg for Fixed {
-    type Output = Self;
-    #[inline(always)]
-    fn neg(self) -> Self {
-        Self(-self.0)
     }
 }
 

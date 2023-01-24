@@ -1,0 +1,18 @@
+[package]
+name = "punchcut"
+version = "0.1.0"
+edition = "2021"
+license = "MIT/Apache-2.0"
+description = "Loading glyphs from OpenType font files."
+repository = "https://github.com/googlefonts/fontations"
+readme = "README.md"
+categories = ["text-processing", "parsing", "graphics"]
+
+[features]
+hinting = []
+
+[dependencies]
+read-fonts = { version = "0.0.5", path = "../read-fonts" }
+
+[dev-dependencies]
+read-fonts = { version = "0.0.5", path = "../read-fonts", features = ["test_data"] }

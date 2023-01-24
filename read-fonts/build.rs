@@ -12,6 +12,7 @@ static FILES_TO_MOVE: &[&str] = &[
     "../resources/test_fonts/ttf/linear_gradient_rect_colr_1.ttf",
     "../resources/test_fonts/ttf/simple_glyf.ttf",
     "../resources/test_fonts/ttf/vazirmatn_var_trimmed.ttf",
+    "../resources/test_fonts/extracted/vazirmatn_var_trimmed-glyphs.txt",
 ];
 
 fn main() {
