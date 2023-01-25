@@ -351,6 +351,49 @@ impl Iterator for PackedPointNumbersIter<'_> {
     }
 }
 
+/// Implements the logic for iterating over the individual runs
+#[derive(Clone, Debug)]
+struct DeltaRunIter<'a> {
+    remaining: u8,
+    two_bytes: bool,
+    are_zero: bool,
+    cursor: Cursor<'a>,
+}
+
+impl Iterator for DeltaRunIter<'_> {
+    type Item = u16;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        /// Flag indicating that this run contains no data,
+        /// and that the deltas for this run are all zero.
+        const DELTAS_ARE_ZERO: u8 = 0x80;
+        /// Flag indicating the data type for delta values in the run.
+        const DELTAS_ARE_WORDS: u8 = 0x40;
+        /// Mask for the low 6 bits to provide the number of delta values in the run, minus one.
+        const DELTA_RUN_COUNT_MASK: u8 = 0x3F;
+
+        // if no items remain in this run, start the next one.
+        // NOTE: we use `while` so we can sanely handle the case where some
+        // run in the middle of the data has an explicit zero length
+        //TODO: create a font with data of this shape and go crash some font parsers
+        while self.remaining == 0 {
+            let control: u8 = self.cursor.read().ok()?;
+            self.are_zero = (control & DELTAS_ARE_ZERO) != 0;
+            self.two_bytes = (control & DELTAS_ARE_WORDS) != 0;
+            self.remaining = (control & DELTA_RUN_COUNT_MASK) + 1;
+        }
+
+        self.remaining -= 1;
+        if self.are_zero {
+            Some(0)
+        } else if self.two_bytes {
+            self.cursor.read().ok()
+        } else {
+            self.cursor.read::<u8>().ok().map(|v| v as u16)
+        }
+    }
+}
+
 // completely unnecessary?
 impl<'a> ExactSizeIterator for PackedPointNumbersIter<'a> {}
 
