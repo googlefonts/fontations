@@ -42,9 +42,11 @@ impl ErrorReport {
         let message = error.to_string();
         let span = error.span();
         let start = span.start();
-        let start = SourceOffset::from_location(&text, start.line, start.column);
+        // we add + 1 to these offsets because of weird upstream behaviour I'm too lazy
+        // to try and land a fix for. If spans are off-by-one, delete these + 1s :)
+        let start = SourceOffset::from_location(&text, start.line, start.column + 1);
         let end = span.end();
-        let end = SourceOffset::from_location(&text, end.line, end.column);
+        let end = SourceOffset::from_location(&text, end.line, end.column + 1);
         let start_off = start.offset();
         let len = end.offset() - start_off;
         let location = LabeledSpan::new(Some(message), start_off, len);
