@@ -353,10 +353,7 @@ fn traversal_arm_for_field(
             FieldType::Offset {
                 target: OffsetTarget::Array(_),
                 ..
-            } => panic!(
-                "achievement unlocked: 'added arrays of offsets to arrays to OpenType spec' {:#?}",
-                fld
-            ),
+            } => panic!("achievement unlocked: 'added arrays of offsets to arrays to OpenType spec' {fld:#?}"),
             _ => quote!(compile_error!("unhandled traversal case")),
         },
         FieldType::ComputedArray(arr) => {
@@ -393,7 +390,7 @@ fn traversal_arm_for_field(
         FieldType::Struct { .. } => {
             quote!(compile_error!(concat!("another weird type: ", #name_str)))
         }
-        FieldType::PendingResolution { .. } => panic!("Should have resolved {:#?}", fld),
+        FieldType::PendingResolution { .. } => panic!("Should have resolved {fld:#?}"),
     }
 }
 
@@ -404,10 +401,7 @@ fn check_resolution(phase: Phase, field_type: &FieldType) -> syn::Result<()> {
     if let FieldType::PendingResolution { typ } = field_type {
         return Err(logged_syn_error(
             typ.span(),
-            format!(
-                "{}: be ye struct or scalar? - we certainly don't know.",
-                typ
-            ),
+            format!("{typ}: be ye struct or scalar? - we certainly don't know.",),
         ));
     }
     Ok(())
@@ -568,7 +562,7 @@ impl Field {
                 let try_op = self.is_version_dependent().then(|| quote!(?));
                 quote!(self.#len_field #try_op)
             }
-            FieldType::PendingResolution { .. } => panic!("Should have resolved {:?}", self),
+            FieldType::PendingResolution { .. } => panic!("Should have resolved {self:?}"),
         }
     }
 
@@ -633,7 +627,7 @@ impl Field {
                 let inner = array.type_with_lifetime();
                 quote!(VarLenArray<'a, #inner>)
             }
-            FieldType::PendingResolution { .. } => panic!("Should have resolved {:?}", self),
+            FieldType::PendingResolution { .. } => panic!("Should have resolved {self:?}"),
         }
     }
 
@@ -727,7 +721,7 @@ impl Field {
             | FieldType::VarLenArray(_) => quote!(&self.#name),
             FieldType::Array { .. } => quote!(self.#name),
             FieldType::PendingResolution { .. } => {
-                panic!("Should have resolved {:?}", self)
+                panic!("Should have resolved {self:?}")
             }
         };
 
@@ -939,7 +933,7 @@ impl Field {
             return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args)));
         }
         if let FieldType::PendingResolution { .. } = &self.typ {
-            panic!("Should have resolved {:?}", self)
+            panic!("Should have resolved {self:?}")
         }
         let len_expr = match self.attrs.count.as_deref() {
             Some(Count::All(_)) => quote!(cursor.remaining_bytes()),
@@ -1242,7 +1236,7 @@ impl FieldType {
             | FieldType::Scalar { typ }
             | FieldType::Struct { typ } => typ,
             FieldType::PendingResolution { .. } => {
-                panic!("Should never cook a type pending resolution {:#?}", self);
+                panic!("Should never cook a type pending resolution {self:#?}");
             }
             FieldType::Array { .. }
             | FieldType::ComputedArray { .. }
@@ -1299,7 +1293,7 @@ impl FieldType {
                 quote!( Vec<#inner_tokens> )
             }
             FieldType::ComputedArray(array) | FieldType::VarLenArray(array) => array.compile_type(),
-            FieldType::PendingResolution { .. } => panic!("Should have resolved {:?}", self),
+            FieldType::PendingResolution { .. } => panic!("Should have resolved {self:?}"),
         }
     }
 }

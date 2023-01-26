@@ -30,21 +30,19 @@ impl fmt::Display for Error {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::NoSources => write!(f, "No glyph sources are available for the given font"),
-            Self::GlyphNotFound(gid) => write!(f, "Glyph {} was not found in the given font", gid),
+            Self::GlyphNotFound(gid) => write!(f, "Glyph {gid} was not found in the given font"),
             Self::RecursionLimitExceeded(gid) => write!(
                 f,
-                "Recursion limit ({}) exceeded when loading composite component {}",
+                "Recursion limit ({}) exceeded when loading composite component {gid}",
                 crate::GLYF_COMPOSITE_RECURSION_LIMIT,
-                gid
             ),
             #[cfg(feature = "hinting")]
-            Self::HintingFailed(gid) => write!(f, "Bad hinting bytecode for glyph {}", gid),
+            Self::HintingFailed(gid) => write!(f, "Bad hinting bytecode for glyph {gid}"),
             Self::InvalidAnchorPoint(gid, index) => write!(
                 f,
-                "Invalid anchor point index ({}) for composite glyph {}",
-                index, gid
+                "Invalid anchor point index ({index}) for composite glyph {gid}",
             ),
-            Self::Read(e) => write!(f, "{}", e),
+            Self::Read(e) => write!(f, "{e}"),
         }
     }
 }

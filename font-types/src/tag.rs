@@ -168,7 +168,7 @@ impl Display for InvalidTag {
     fn fmt(&self, f: &mut Formatter<'_>) -> core::fmt::Result {
         match self {
             InvalidTag::InvalidByte { pos, byte } => {
-                write!(f, "Invalid byte 0x{:X} at index {pos}", byte)
+                write!(f, "Invalid byte 0x{byte:X} at index {pos}")
             }
             InvalidTag::InvalidLength(len) => write!(f, "Invalid length ({len})"),
         }

@@ -41,7 +41,7 @@ fn main() {
         .filter(|l| !l.starts_with('#'));
 
     while let Some(item) = generate_one_item(&mut lines) {
-        println!("{}\n", item)
+        println!("{item}\n")
     }
 }
 
@@ -82,7 +82,7 @@ fn generate_one_table<'a>(decl: Decl, lines: impl Iterator<Item = Line<'a>>) -> 
     let mut result = String::new();
     writeln!(&mut result, "{} {} {{", decl.kind, decl.name).unwrap();
     for line in &fields {
-        writeln!(&mut result, "{}", line).unwrap();
+        writeln!(&mut result, "{line}").unwrap();
     }
     result.push('}');
     Some(result)
@@ -154,9 +154,8 @@ impl<'a> Decl<'a> {
             "@record" => DeclKind::Record,
             x if x.starts_with("@enum(") || x.starts_with("@flags(") => {
                 let repr = x.split_once('(').unwrap().1.trim_end_matches(')');
-                //let repr = x.trim_start_matches("@enum(").trim_end_matches(')');
                 if !["u8", "u16"].contains(&repr) {
-                    exit_with_msg!(format!("unexpected enum/flag repr '{}'", repr), line);
+                    exit_with_msg!(format!("unexpected enum/flag repr '{repr}'"), line);
                 }
                 annotation = repr;
                 if x.starts_with("@enum") {
@@ -169,7 +168,7 @@ impl<'a> Decl<'a> {
                 "@enum/@flags requires explicit repr like: '@flags(u16)'",
                 line
             ),
-            other => exit_with_msg!(format!("unknown item kind '{}'", other), line),
+            other => exit_with_msg!(format!("unknown item kind '{other}'"), line),
         };
         let name = decl
             .next()
@@ -197,7 +196,7 @@ impl<'a> std::fmt::Display for Field<'a> {
             writeln!(f, "    #[hidden]")?;
         }
         if let Some(count) = &self.maybe_count {
-            writeln!(f, "    #[count(${})]", count)?;
+            writeln!(f, "    #[count(${count})]")?;
             write!(f, "    {}: [{}],", decamalize(self.name), self.typ)?;
         } else {
             write!(f, "    {}: {},", decamalize(self.name), self.typ)?;
@@ -282,10 +281,10 @@ fn format_comment(f: &mut dyn std::fmt::Write, whitespace: &str, input: &str) ->
             if cur_len > 0 {
                 writeln!(f)?;
             }
-            write!(f, "{}/// ", whitespace)?;
+            write!(f, "{whitespace}/// ")?;
             cur_len = whitespace.len() + 4;
         }
-        write!(f, "{}", token)?;
+        write!(f, "{token}")?;
         cur_len += token.len();
     }
     if cur_len > 0 {

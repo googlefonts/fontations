@@ -157,7 +157,7 @@ impl<'a> PrettyPrinter<'a> {
         })
     }
 
-    pub fn print_field<'b>(&mut self, field: &FieldType<'b>) -> std::io::Result<()> {
+    pub fn print_field(&mut self, field: &FieldType<'_>) -> std::io::Result<()> {
         match &field {
             FieldType::I8(val) => write!(self, "{val}")?,
             FieldType::U8(val) => write!(self, "{val}")?,
