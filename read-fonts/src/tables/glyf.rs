@@ -34,10 +34,13 @@ impl<'a> SimpleGlyph<'a> {
             .unwrap_or(0)
     }
 
-    /// Reads points and flags into the specified buffers. Drops all flag bits
-    /// except on-curve. The lengths of the buffers must be equal to the value
-    /// returned by [num_points](Self::num_points).
+    /// Reads points and flags into the provided buffers.
+    ///
+    /// Drops all flag bits except on-curve. The lengths of the buffers must be
+    /// equal to the value returned by [num_points](Self::num_points).
+    ///
     /// ## Performance
+    ///
     /// As the name implies, this is faster than using the iterator returned by
     /// [points](Self::points) so should be used when it is possible to
     /// preallocate buffers.
@@ -102,7 +105,9 @@ impl<'a> SimpleGlyph<'a> {
     }
 
     /// Returns an iterator over the points in the glyph.
+    ///
     /// ## Performance
+    ///
     /// This is slower than [read_points_fast](Self::read_points_fast) but
     /// provides access to the points without requiring a preallocated buffer.
     pub fn points(&self) -> impl Iterator<Item = CurvePoint> + 'a + Clone {
