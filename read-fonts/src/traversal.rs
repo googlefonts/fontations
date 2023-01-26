@@ -49,6 +49,7 @@ pub enum FieldType<'a> {
     ArrayOffset(ArrayOffset<'a>),
     Record(RecordResolver<'a>),
     Array(Box<dyn SomeArray<'a> + 'a>),
+    Unknown,
 }
 
 /// Any offset type.
@@ -546,6 +547,7 @@ impl<'a> Debug for FieldType<'a> {
             Self::ResolvedOffset(arg0) => arg0.target.fmt(f),
             Self::Record(arg0) => (arg0 as &(dyn SomeTable<'a> + 'a)).fmt(f),
             Self::Array(arg0) => arg0.fmt(f),
+            Self::Unknown => write!(f, "no repr available"),
         }
     }
 }
