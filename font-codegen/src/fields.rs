@@ -270,6 +270,9 @@ fn traversal_arm_for_field(
     let maybe_unwrap = fld.attrs.since_version.is_some().then(|| quote!(.unwrap()));
     if let Some(traverse_with) = &fld.attrs.traverse_with {
         let traverse_fn = &traverse_with.attr;
+        if traverse_fn == "skip" {
+            return quote!(Field::new(#name_str, traversal::FieldType::Unknown));
+        }
         return quote!(Field::new(#name_str, self.#traverse_fn(#pass_data)));
     }
     match &fld.typ {

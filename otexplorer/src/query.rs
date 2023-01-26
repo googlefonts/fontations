@@ -155,6 +155,7 @@ fn ascii_fuzzy_match(query: &str, field: &str) -> bool {
 
 fn field_type_name(field_type: &FieldType) -> Cow<'static, str> {
     match field_type {
+        FieldType::Unknown => "unknown".into(),
         FieldType::I8(_) => "i8".into(),
         FieldType::U8(_) => "u8".into(),
         FieldType::I16(_) => "i16".into(),
