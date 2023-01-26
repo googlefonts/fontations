@@ -101,7 +101,7 @@ struct GlyphScaler<'a, 'b> {
     /// outline that allow the bytecode interpreter to produce hinted
     /// metrics.
     ///
-    /// See https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructing_glyphs#phantom-points
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructing_glyphs#phantom-points>
     phantom: [Point<F26Dot6>; 4],
 }
 
