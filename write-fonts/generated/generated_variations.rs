@@ -87,6 +87,55 @@ impl<'a> FromTableRef<read_fonts::tables::variations::TupleVariationHeader<'a>>
 {
 }
 
+/// A [Tuple Record](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuple-records)
+///
+/// The tuple variation store formats reference regions within the font’s
+/// variation space using tuple records. A tuple record identifies a position
+/// in terms of normalized coordinates, which use F2DOT14 values.
+#[derive(Clone, Debug, Default)]
+pub struct Tuple {
+    /// Coordinate array specifying a position within the font’s variation space.
+    ///
+    /// The number of elements must match the axisCount specified in the
+    /// 'fvar' table.
+    pub values: Vec<F2Dot14>,
+}
+
+impl Tuple {
+    /// Construct a new `Tuple`
+    pub fn new(values: Vec<F2Dot14>) -> Self {
+        Self {
+            values: values.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for Tuple {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.values.write_into(writer);
+    }
+}
+
+impl Validate for Tuple {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("Tuple", |ctx| {
+            ctx.in_field("values", |ctx| {
+                if self.values.len() > (u16::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+        })
+    }
+}
+
+impl FromObjRef<read_fonts::tables::variations::Tuple<'_>> for Tuple {
+    fn from_obj_ref(obj: &read_fonts::tables::variations::Tuple, offset_data: FontData) -> Self {
+        Tuple {
+            values: obj.values().to_owned_obj(offset_data),
+        }
+    }
+}
+
 /// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table format 0
 #[derive(Clone, Debug, Default)]
 pub struct DeltaSetIndexMapFormat0 {
