@@ -180,11 +180,11 @@ impl<'a> TupleVariationHeader<'a> {
             + index
                 .embedded_peak_tuple()
                 .then_some(tuple_byte_len)
-                .unwrap_or(0)
+                .unwrap_or_default()
             + index
                 .intermediate_region()
                 .then_some(tuple_byte_len)
-                .unwrap_or(0)
+                .unwrap_or_default()
     }
 }
 
@@ -193,12 +193,17 @@ impl<'a> Tuple<'a> {
         self.values().len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+
     pub fn get(&self, idx: usize) -> Option<F2Dot14> {
         self.values.get(idx).copied().map(BigEndian::get)
     }
 }
 
 //FIXME: add an #[extra_traits(..)] attribute!
+#[allow(clippy::derivable_impls)]
 impl Default for Tuple<'_> {
     fn default() -> Self {
         Self {
@@ -210,83 +215,84 @@ impl Default for Tuple<'_> {
 /// [Packed "Point" Numbers](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-point-numbers)
 #[derive(Clone, Debug)]
 pub struct PackedPointNumbers<'a> {
-    count: Count,
     data: FontData<'a>,
 }
 
-/// A helper for distinguishing between an explicit count of numbers and an implicit 'all' value.
-///
-/// If there is an explicit count, we need to decode the values from the data;
-/// if the count is implicit, we do not.
-#[derive(Clone, Copy, Debug)]
-enum Count {
-    AllInFont(u16),
-    Explicit(u16),
-}
-
-impl Count {
-    fn raw(self) -> u16 {
-        match self {
-            Count::AllInFont(val) => val,
-            Count::Explicit(val) => val,
-        }
+impl<'a> PackedPointNumbers<'a> {
+    /// read point numbers off the front of this data, returning the remaining data
+    pub fn split_off_front(data: FontData<'a>) -> (Self, FontData<'a>) {
+        let this = PackedPointNumbers { data };
+        let total_len = this.total_len();
+        let remainder = data.split_off(total_len).unwrap_or_default();
+        (this, remainder)
     }
-}
 
-impl ReadArgs for PackedPointNumbers<'_> {
-    /// the total number of glyph points or CVTs for this tuple.
-    type Args = u16;
-}
+    /// The number of points in this set
+    pub fn count(&self) -> u16 {
+        self.count_and_count_bytes().0
+    }
 
-impl<'a> FontReadWithArgs<'a> for PackedPointNumbers<'a> {
-    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
-        let (count, count_bytes) = match data.read_at::<u8>(0)? {
-            0 => (Count::AllInFont(*args), 1),
-            count @ 1..=127 => (Count::Explicit(count as u16), 1),
+    /// compute the count, and the number of bytes used to store it
+    fn count_and_count_bytes(&self) -> (u16, usize) {
+        match self.data.read_at::<u8>(0).unwrap_or(0) {
+            0 => (0, 1),
+            count @ 1..=127 => (count as u16, 1),
             _ => {
                 // "If the high bit of the first byte is set, then a second byte is used.
                 // The count is read from interpreting the two bytes as a big-endian
                 // uint16 value with the high-order bit masked out."
 
-                let count = data.read_at::<u16>(0)? & 0x7FFF;
+                let count = self.data.read_at::<u16>(0).unwrap_or_default() & 0x7FFF;
                 // a weird case where I'm following fonttools: if the 'use words' bit
                 // is set, but the total count is still 0, treat it like 0 first byte
                 if count == 0 {
-                    (Count::AllInFont(*args), 2)
+                    (0, 2)
                 } else {
-                    (Count::Explicit(count & 0x7FFF), 2)
+                    (count & 0x7FFF, 2)
                 }
             }
-        };
-
-        let data = data.split_off(count_bytes).ok_or(ReadError::OutOfBounds)?;
-        Ok(PackedPointNumbers { count, data })
+        }
     }
-}
 
-impl<'a> PackedPointNumbers<'a> {
-    /// The number of points in this set
-    pub fn count(&self) -> u16 {
-        self.count.raw()
+    /// the number of bytes to encode the packed point numbers
+    fn total_len(&self) -> usize {
+        let (count, mut n_bytes) = self.count_and_count_bytes();
+        if count == 0 {
+            return n_bytes;
+        }
+        let mut cursor = self.data.cursor();
+        cursor.advance_by(n_bytes);
+
+        while let Some((count, two_bytes)) = read_control_byte(&mut cursor) {
+            let word_size = 1 + usize::from(two_bytes);
+            let run_size = word_size * count as usize;
+            n_bytes += run_size + 1; // plus the control byte;
+            cursor.advance_by(run_size);
+        }
+
+        n_bytes
     }
 
     /// Iterate over the packed points
     pub fn iter(&self) -> PackedPointNumbersIter<'a> {
-        PackedPointNumbersIter::new(self.count, self.data.cursor())
+        let (count, n_bytes) = self.count_and_count_bytes();
+        let mut cursor = self.data.cursor();
+        cursor.advance_by(n_bytes);
+        PackedPointNumbersIter::new(count, cursor)
     }
 }
 
 /// An iterator over the packed point numbers data.
 #[derive(Clone, Debug)]
 pub struct PackedPointNumbersIter<'a> {
-    count: Count,
+    count: u16,
     seen: u16,
     last_val: u16,
     current_run: PointRunIter<'a>,
 }
 
 impl<'a> PackedPointNumbersIter<'a> {
-    fn new(count: Count, cursor: Cursor<'a>) -> Self {
+    fn new(count: u16, cursor: Cursor<'a>) -> Self {
         PackedPointNumbersIter {
             count,
             seen: 0,
@@ -313,10 +319,8 @@ impl Iterator for PointRunIter<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         // if no items remain in this run, start the next one.
-        if self.remaining == 0 {
-            let control: u8 = self.cursor.read().ok()?;
-            self.two_bytes = (control & 0x80) != 0;
-            self.remaining = (control & 0x7F) + 1;
+        while self.remaining == 0 {
+            (self.remaining, self.two_bytes) = read_control_byte(&mut self.cursor)?;
         }
 
         self.remaining -= 1;
@@ -328,40 +332,86 @@ impl Iterator for PointRunIter<'_> {
     }
 }
 
+/// returns the count and the 'uses_two_bytes' flag from the control byte
+fn read_control_byte(cursor: &mut Cursor) -> Option<(u8, bool)> {
+    let control: u8 = cursor.read().ok()?;
+    let two_bytes = (control & 0x80) != 0;
+    let count = (control & 0x7F) + 1;
+    Some((count, two_bytes))
+}
+
 impl Iterator for PackedPointNumbersIter<'_> {
     type Item = u16;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.count.raw() == self.seen {
+        // if our count is zero, we keep incrementing forever
+        if self.count == 0 {
+            let result = self.last_val;
+            self.last_val += 1;
+            return Some(result);
+        }
+
+        if self.count == self.seen {
             return None;
         }
         self.seen += 1;
-        match self.count {
-            // we implement the iterator in both cases, for simplicity
-            Count::AllInFont(_) => Some(self.seen - 1),
-            Count::Explicit(_) => {
-                self.last_val += self.current_run.next()?;
-                Some(self.last_val)
-            }
-        }
+        self.last_val += self.current_run.next()?;
+        Some(self.last_val)
     }
 
     fn size_hint(&self) -> (usize, Option<usize>) {
-        (self.count.raw() as usize, Some(self.count.raw() as usize))
+        (self.count as usize, Some(self.count as usize))
+    }
+}
+
+// completely unnecessary?
+impl<'a> ExactSizeIterator for PackedPointNumbersIter<'a> {}
+
+/// [Packed Deltas](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas)
+#[derive(Clone, Debug)]
+pub struct PackedDeltas<'a> {
+    data: FontData<'a>,
+    count: usize,
+}
+
+impl<'a> PackedDeltas<'a> {
+    /// NOTE: this is unbounded, and assumes all of data is deltas.
+    pub(crate) fn new(data: FontData<'a>) -> Self {
+        let count = DeltaRunIter::new(data.cursor()).count();
+        Self { data, count }
+    }
+
+    pub(crate) fn count(&self) -> usize {
+        self.count
+    }
+
+    pub(crate) fn iter(&self) -> DeltaRunIter<'a> {
+        DeltaRunIter::new(self.data.cursor())
     }
 }
 
 /// Implements the logic for iterating over the individual runs
 #[derive(Clone, Debug)]
-struct DeltaRunIter<'a> {
+pub struct DeltaRunIter<'a> {
     remaining: u8,
     two_bytes: bool,
     are_zero: bool,
     cursor: Cursor<'a>,
 }
 
+impl<'a> DeltaRunIter<'a> {
+    fn new(cursor: Cursor<'a>) -> Self {
+        DeltaRunIter {
+            remaining: 0,
+            two_bytes: false,
+            are_zero: false,
+            cursor,
+        }
+    }
+}
+
 impl Iterator for DeltaRunIter<'_> {
-    type Item = u16;
+    type Item = i16;
 
     fn next(&mut self) -> Option<Self::Item> {
         /// Flag indicating that this run contains no data,
@@ -389,13 +439,47 @@ impl Iterator for DeltaRunIter<'_> {
         } else if self.two_bytes {
             self.cursor.read().ok()
         } else {
-            self.cursor.read::<u8>().ok().map(|v| v as u16)
+            self.cursor.read::<i8>().ok().map(|v| v as i16)
         }
     }
 }
 
-// completely unnecessary?
-impl<'a> ExactSizeIterator for PackedPointNumbersIter<'a> {}
+/// A helper type for iterating over [`TupleVariationHeader`]s.
+pub struct TupleVariationHeaderIter<'a> {
+    data: FontData<'a>,
+    n_headers: usize,
+    current: usize,
+    axis_count: u16,
+}
+
+impl<'a> TupleVariationHeaderIter<'a> {
+    pub(crate) fn new(data: FontData<'a>, n_headers: usize, axis_count: u16) -> Self {
+        Self {
+            data,
+            n_headers,
+            current: 0,
+            axis_count,
+        }
+    }
+}
+
+impl<'a> Iterator for TupleVariationHeaderIter<'a> {
+    type Item = Result<TupleVariationHeader<'a>, ReadError>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.current == self.n_headers {
+            return None;
+        }
+        self.current += 1;
+        let next = TupleVariationHeader::read_with_args(self.data, &self.axis_count);
+        let next_len = next
+            .as_ref()
+            .map(|table| table.byte_len(self.axis_count))
+            .unwrap_or(0);
+        self.data = self.data.split_off(next_len)?;
+        Some(next)
+    }
+}
 
 impl EntryFormat {
     pub fn entry_size(self) -> u8 {
@@ -627,34 +711,94 @@ mod tests {
     // adapted from https://github.com/fonttools/fonttools/blob/f73220816264fc383b8a75f2146e8d69e455d398/Tests/ttLib/tables/TupleVariation_test.py#L492
     #[test]
     fn packed_points() {
-        fn decode_points(bytes: &[u8], total_points: u16) -> Vec<u16> {
+        fn decode_points(bytes: &[u8]) -> Option<Vec<u16>> {
             let data = FontData::new(bytes);
-            PackedPointNumbers::read_with_args(data, &total_points)
-                .unwrap()
-                .iter()
-                .collect()
+            let packed = PackedPointNumbers { data };
+            if packed.count() == 0 {
+                None
+            } else {
+                Some(packed.iter().collect())
+            }
         }
 
-        assert_eq!(decode_points(&[0], 3), vec![0, 1, 2]);
+        assert_eq!(decode_points(&[0]), None);
         // all points in glyph (in overly verbose encoding, not explicitly prohibited by spec)
-        assert_eq!(decode_points(&[0x80, 0], 4), vec![0, 1, 2, 3]);
+        assert_eq!(decode_points(&[0x80, 0]), None);
         // 2 points; first run: [9, 9+6]
-        assert_eq!(decode_points(&[0x02, 0x01, 0x09, 0x06], 4), vec![9, 15]);
+        assert_eq!(decode_points(&[0x02, 0x01, 0x09, 0x06]), Some(vec![9, 15]));
         // 2 points; first run: [0xBEEF, 0xCAFE]. (0x0C0F = 0xCAFE - 0xBEEF)
         assert_eq!(
-            decode_points(&[0x02, 0x81, 0xbe, 0xef, 0x0c, 0x0f], 4),
-            vec![0xbeef, 0xcafe]
+            decode_points(&[0x02, 0x81, 0xbe, 0xef, 0x0c, 0x0f]),
+            Some(vec![0xbeef, 0xcafe])
         );
         // 1 point; first run: [7]
-        assert_eq!(decode_points(&[0x01, 0, 0x07], 4), vec![7]);
+        assert_eq!(decode_points(&[0x01, 0, 0x07]), Some(vec![7]));
         // 1 point; first run: [7] in overly verbose encoding
-        assert_eq!(decode_points(&[0x01, 0x80, 0, 0x07], 4), vec![7]);
+        assert_eq!(decode_points(&[0x01, 0x80, 0, 0x07]), Some(vec![7]));
         // 1 point; first run: [65535]; requires words to be treated as unsigned numbers
-        assert_eq!(decode_points(&[0x01, 0x80, 0xff, 0xff], 4), vec![65535]);
+        assert_eq!(decode_points(&[0x01, 0x80, 0xff, 0xff]), Some(vec![65535]));
         // 4 points; first run: [7, 8]; second run: [255, 257]. 257 is stored in delta-encoded bytes (0xFF + 2).
         assert_eq!(
-            decode_points(&[0x04, 1, 7, 1, 1, 0xff, 2], 4),
-            vec![7, 8, 263, 265]
+            decode_points(&[0x04, 1, 7, 1, 1, 0xff, 2]),
+            Some(vec![7, 8, 263, 265])
         );
+    }
+
+    #[test]
+    fn packed_point_byte_len() {
+        fn count_bytes(bytes: &[u8]) -> usize {
+            let packed = PackedPointNumbers {
+                data: FontData::new(bytes),
+            };
+            packed.total_len()
+        }
+
+        static CASES: &[&[u8]] = &[
+            &[0],
+            &[0x80, 0],
+            &[0x02, 0x01, 0x09, 0x06],
+            &[0x02, 0x81, 0xbe, 0xef, 0x0c, 0x0f],
+            &[0x01, 0, 0x07],
+            &[0x01, 0x80, 0, 0x07],
+            &[0x01, 0x80, 0xff, 0xff],
+            &[0x04, 1, 7, 1, 1, 0xff, 2],
+        ];
+
+        for case in CASES {
+            assert_eq!(count_bytes(case), case.len(), "{case:?}");
+        }
+    }
+
+    // https://github.com/fonttools/fonttools/blob/c30a6355ffdf7f09d31e7719975b4b59bac410af/Tests/ttLib/tables/TupleVariation_test.py#L670
+    #[test]
+    fn packed_deltas() {
+        static INPUT: FontData = FontData::new(&[0x83, 0x40, 0x01, 0x02, 0x01, 0x81, 0x80]);
+
+        let deltas = PackedDeltas::new(INPUT);
+        assert_eq!(deltas.count, 7);
+        assert_eq!(
+            deltas.iter().collect::<Vec<_>>(),
+            &[0, 0, 0, 0, 258, -127, -128]
+        );
+
+        assert_eq!(
+            PackedDeltas::new(FontData::new(&[0x81]))
+                .iter()
+                .collect::<Vec<_>>(),
+            &[0, 0,]
+        );
+    }
+
+    // https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas
+    #[test]
+    fn packed_deltas_spec() {
+        static INPUT: FontData = FontData::new(&[
+            0x03, 0x0A, 0x97, 0x00, 0xC6, 0x87, 0x41, 0x10, 0x22, 0xFB, 0x34,
+        ]);
+        static EXPECTED: &[i16] = &[10, -105, 0, -58, 0, 0, 0, 0, 0, 0, 0, 0, 4130, -1228];
+
+        let deltas = PackedDeltas::new(INPUT);
+        assert_eq!(deltas.count, EXPECTED.len());
+        assert_eq!(deltas.iter().collect::<Vec<_>>(), EXPECTED);
     }
 }

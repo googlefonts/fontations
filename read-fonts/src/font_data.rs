@@ -50,8 +50,19 @@ impl<'a> FontData<'a> {
         self.bytes.is_empty()
     }
 
+    /// Returns self[pos..]
     pub fn split_off(&self, pos: usize) -> Option<FontData<'a>> {
         self.bytes.get(pos..).map(|bytes| FontData { bytes })
+    }
+
+    /// returns self[..pos], and updates self to = self[pos..];
+    pub fn take_up_to(&mut self, pos: usize) -> Option<FontData<'a>> {
+        if pos > self.len() {
+            return None;
+        }
+        let (head, tail) = self.bytes.split_at(pos);
+        self.bytes = tail;
+        Some(FontData { bytes: head })
     }
 
     pub fn slice(&self, range: impl RangeBounds<usize>) -> Option<FontData<'a>> {
