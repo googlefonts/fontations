@@ -26,3 +26,16 @@ impl FontWrite for TupleIndex {
         self.bits().write_into(writer)
     }
 }
+
+//hack: unclear if we're even going to do any codegen for writing, but
+//for the time being this lets us compile
+impl<'a> FromObjRef<Option<read_fonts::tables::variations::Tuple<'a>>> for Vec<F2Dot14> {
+    fn from_obj_ref(
+        from: &Option<read_fonts::tables::variations::Tuple<'a>>,
+        _data: FontData,
+    ) -> Self {
+        from.as_ref()
+            .map(|tup| tup.values.iter().copied().map(BigEndian::get).collect())
+            .unwrap_or_default()
+    }
+}

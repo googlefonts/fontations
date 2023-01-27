@@ -10,23 +10,39 @@ table TupleVariationHeader {
     variation_data_size: u16,
     /// A packed field. The high 4 bits are flags (see below). The low
     /// 12 bits are an index into a shared tuple records array.
-
     #[traverse_with(traverse_tuple_index)]
     tuple_index: TupleIndex,
     /// Peak tuple record for this tuple variation table — optional,
     /// determined by flags in the tupleIndex value.  Note that this
     /// must always be included in the 'cvar' table.
-
+    #[skip_getter]
     #[count(tuple_len($tuple_index, $axis_count, 0))]
     peak_tuple: [F2Dot14],
     /// Intermediate start tuple record for this tuple variation table
     /// — optional, determined by flags in the tupleIndex value.
+    #[skip_getter]
     #[count(tuple_len($tuple_index, $axis_count, 1))]
     intermediate_start_tuple: [F2Dot14],
     /// Intermediate end tuple record for this tuple variation table
     /// — optional, determined by flags in the tupleIndex value.
+    #[skip_getter]
     #[count(tuple_len($tuple_index, $axis_count, 1))]
     intermediate_end_tuple: [F2Dot14],
+}
+
+/// A [Tuple Record](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuple-records)
+///
+/// The tuple variation store formats reference regions within the font’s
+/// variation space using tuple records. A tuple record identifies a position
+/// in terms of normalized coordinates, which use F2DOT14 values.
+#[read_args(axis_count: u16)]
+record Tuple<'a> {
+    /// Coordinate array specifying a position within the font’s variation space.
+    ///
+    /// The number of elements must match the axisCount specified in the
+    /// 'fvar' table.
+    #[count($axis_count)]
+    values: [F2Dot14],
 }
 
 /// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table format 0

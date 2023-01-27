@@ -131,6 +131,82 @@ impl types::Scalar for TupleVariationCount {
     }
 }
 
+impl<'a> TupleVariationHeader<'a> {
+    #[cfg(feature = "traversal")]
+    fn traverse_tuple_index(&self) -> traversal::FieldType<'a> {
+        self.tuple_index().0.into()
+    }
+
+    /// Peak tuple record for this tuple variation table — optional,
+    /// determined by flags in the tupleIndex value.  Note that this
+    /// must always be included in the 'cvar' table.
+    pub fn peak_tuple(&self) -> Option<Tuple<'a>> {
+        self.tuple_index().embedded_peak_tuple().then(|| {
+            let range = self.shape.peak_tuple_byte_range();
+            Tuple {
+                values: self.data.read_array(range).unwrap(),
+            }
+        })
+    }
+
+    /// Intermediate start tuple record for this tuple variation table
+    /// — optional, determined by flags in the tupleIndex value.
+    pub fn intermediate_start_tuple(&self) -> Option<Tuple<'a>> {
+        self.tuple_index().intermediate_region().then(|| {
+            let range = self.shape.intermediate_start_tuple_byte_range();
+            Tuple {
+                values: self.data.read_array(range).unwrap(),
+            }
+        })
+    }
+
+    /// Intermediate end tuple record for this tuple variation table
+    /// — optional, determined by flags in the tupleIndex value.
+    pub fn intermediate_end_tuple(&self) -> Option<Tuple<'a>> {
+        self.tuple_index().intermediate_region().then(|| {
+            let range = self.shape.intermediate_end_tuple_byte_range();
+            Tuple {
+                values: self.data.read_array(range).unwrap(),
+            }
+        })
+    }
+
+    /// Compute the actual length of this table in bytes
+    fn byte_len(&self, axis_count: u16) -> usize {
+        const FIXED_LEN: usize = u16::RAW_BYTE_LEN + TupleIndex::RAW_BYTE_LEN;
+        let tuple_byte_len = F2Dot14::RAW_BYTE_LEN * axis_count as usize;
+        let index = self.tuple_index();
+        FIXED_LEN
+            + index
+                .embedded_peak_tuple()
+                .then_some(tuple_byte_len)
+                .unwrap_or(0)
+            + index
+                .intermediate_region()
+                .then_some(tuple_byte_len)
+                .unwrap_or(0)
+    }
+}
+
+impl<'a> Tuple<'a> {
+    pub fn len(&self) -> usize {
+        self.values().len()
+    }
+
+    pub fn get(&self, idx: usize) -> Option<F2Dot14> {
+        self.values.get(idx).copied().map(BigEndian::get)
+    }
+}
+
+//FIXME: add an #[extra_traits(..)] attribute!
+impl Default for Tuple<'_> {
+    fn default() -> Self {
+        Self {
+            values: Default::default(),
+        }
+    }
+}
+
 /// [Packed "Point" Numbers](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-point-numbers)
 #[derive(Clone, Debug)]
 pub struct PackedPointNumbers<'a> {
@@ -278,12 +354,6 @@ impl Iterator for PackedPointNumbersIter<'_> {
 // completely unnecessary?
 impl<'a> ExactSizeIterator for PackedPointNumbersIter<'a> {}
 
-impl<'a> TupleVariationHeader<'a> {
-    #[cfg(feature = "traversal")]
-    fn traverse_tuple_index(&self) -> traversal::FieldType<'a> {
-        self.tuple_index().0.into()
-    }
-}
 impl EntryFormat {
     pub fn entry_size(self) -> u8 {
         ((self.bits() & Self::MAP_ENTRY_SIZE_MASK.bits()) >> 4) + 1

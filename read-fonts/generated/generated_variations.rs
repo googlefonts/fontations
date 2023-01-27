@@ -81,28 +81,6 @@ impl<'a> TupleVariationHeader<'a> {
         let range = self.shape.tuple_index_byte_range();
         self.data.read_at(range.start).unwrap()
     }
-
-    /// Peak tuple record for this tuple variation table — optional,
-    /// determined by flags in the tupleIndex value.  Note that this
-    /// must always be included in the 'cvar' table.
-    pub fn peak_tuple(&self) -> &'a [BigEndian<F2Dot14>] {
-        let range = self.shape.peak_tuple_byte_range();
-        self.data.read_array(range).unwrap()
-    }
-
-    /// Intermediate start tuple record for this tuple variation table
-    /// — optional, determined by flags in the tupleIndex value.
-    pub fn intermediate_start_tuple(&self) -> &'a [BigEndian<F2Dot14>] {
-        let range = self.shape.intermediate_start_tuple_byte_range();
-        self.data.read_array(range).unwrap()
-    }
-
-    /// Intermediate end tuple record for this tuple variation table
-    /// — optional, determined by flags in the tupleIndex value.
-    pub fn intermediate_end_tuple(&self) -> &'a [BigEndian<F2Dot14>] {
-        let range = self.shape.intermediate_end_tuple_byte_range();
-        self.data.read_array(range).unwrap()
-    }
 }
 
 #[cfg(feature = "traversal")]
@@ -117,15 +95,6 @@ impl<'a> SomeTable<'a> for TupleVariationHeader<'a> {
                 self.variation_data_size(),
             )),
             1usize => Some(Field::new("tuple_index", self.traverse_tuple_index())),
-            2usize => Some(Field::new("peak_tuple", self.peak_tuple())),
-            3usize => Some(Field::new(
-                "intermediate_start_tuple",
-                self.intermediate_start_tuple(),
-            )),
-            4usize => Some(Field::new(
-                "intermediate_end_tuple",
-                self.intermediate_end_tuple(),
-            )),
             _ => None,
         }
     }
@@ -135,6 +104,65 @@ impl<'a> SomeTable<'a> for TupleVariationHeader<'a> {
 impl<'a> std::fmt::Debug for TupleVariationHeader<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+/// A [Tuple Record](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuple-records)
+///
+/// The tuple variation store formats reference regions within the font’s
+/// variation space using tuple records. A tuple record identifies a position
+/// in terms of normalized coordinates, which use F2DOT14 values.
+#[derive(Clone, Debug)]
+pub struct Tuple<'a> {
+    /// Coordinate array specifying a position within the font’s variation space.
+    ///
+    /// The number of elements must match the axisCount specified in the
+    /// 'fvar' table.
+    pub values: &'a [BigEndian<F2Dot14>],
+}
+
+impl<'a> Tuple<'a> {
+    /// Coordinate array specifying a position within the font’s variation space.
+    ///
+    /// The number of elements must match the axisCount specified in the
+    /// 'fvar' table.
+    pub fn values(&self) -> &'a [BigEndian<F2Dot14>] {
+        self.values
+    }
+}
+
+impl ReadArgs for Tuple<'_> {
+    type Args = u16;
+}
+
+impl ComputeSize for Tuple<'_> {
+    fn compute_size(args: &u16) -> usize {
+        let axis_count = *args;
+        axis_count as usize * F2Dot14::RAW_BYTE_LEN
+    }
+}
+
+impl<'a> FontReadWithArgs<'a> for Tuple<'a> {
+    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let axis_count = *args;
+        Ok(Self {
+            values: cursor.read_array(axis_count as usize)?,
+        })
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for Tuple<'a> {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "Tuple",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("values", self.values())),
+                _ => None,
+            }),
+            data,
+        }
     }
 }
 
