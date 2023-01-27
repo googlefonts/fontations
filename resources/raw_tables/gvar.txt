@@ -1,0 +1,19 @@
+
+/// The ['gvar' header](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#gvar-header)
+@table Gvar
+uint16	majorVersion	Major version number of the glyph variations table — set to 1.
+uint16	minorVersion	Minor version number of the glyph variations table — set to 0.
+uint16	axisCount	The number of variation axes for this font. This must be the same number as axisCount in the 'fvar' table.
+uint16	sharedTupleCount	The number of shared tuple records. Shared tuple records can be referenced within glyph variation data tables for multiple glyphs, as opposed to other tuple records stored directly within a glyph variation data table.
+Offset32	sharedTuplesOffset	Offset from the start of this table to the shared tuple records.
+uint16	glyphCount	The number of glyphs in this font. This must match the number of glyphs stored elsewhere in the font.
+uint16	flags	Bit-field that gives the format of the offset array that follows. If bit 0 is clear, the offsets are uint16; if bit 0 is set, the offsets are uint32.
+Offset32	glyphVariationDataArrayOffset	Offset from the start of this table to the array of GlyphVariationData tables.
+Offset16 or Offset32	glyphVariationDataOffsets[glyphCount + 1]	Offsets from the start of the GlyphVariationData array to each GlyphVariationData table.
+Tuple	sharedTuples[sharedTupleCount]	Array of tuple records shared across all glyph variation data tables.
+
+/// The [GlyphVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#the-glyphvariationdata-table-array) table
+@table GlyphVariationData
+uint16	tupleVariationCount	A packed field. The high 4 bits are flags, and the low 12 bits are the number of tuple variation tables for this glyph. The number of tuple variation tables can be any number between 1 and 4095.
+Offset16	dataOffset	Offset from the start of the GlyphVariationData table to the serialized data
+TupleVariationHeader	tupleVariationHeaders[tupleCount]	Array of tuple variation headers.
