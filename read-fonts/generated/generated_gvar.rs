@@ -557,12 +557,12 @@ impl GlyphVariationDataHeaderMarker {
         let start = 0;
         start..start + TupleVariationCount::RAW_BYTE_LEN
     }
-    fn data_offset_byte_range(&self) -> Range<usize> {
+    fn serialized_data_offset_byte_range(&self) -> Range<usize> {
         let start = self.tuple_variation_count_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + Offset16::RAW_BYTE_LEN
     }
     fn tuple_variation_headers_byte_range(&self) -> Range<usize> {
-        let start = self.data_offset_byte_range().end;
+        let start = self.serialized_data_offset_byte_range().end;
         start..start + self.tuple_variation_headers_byte_len
     }
 }
@@ -571,7 +571,7 @@ impl<'a> FontRead<'a> for GlyphVariationDataHeader<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<TupleVariationCount>();
-        cursor.advance::<u16>();
+        cursor.advance::<Offset16>();
         let tuple_variation_headers_byte_len = cursor.remaining_bytes();
         cursor.advance_by(tuple_variation_headers_byte_len);
         cursor.finish(GlyphVariationDataHeaderMarker {
@@ -595,9 +595,15 @@ impl<'a> GlyphVariationDataHeader<'a> {
 
     /// Offset from the start of the GlyphVariationData table to the
     /// serialized data
-    pub fn data_offset(&self) -> u16 {
-        let range = self.shape.data_offset_byte_range();
+    pub fn serialized_data_offset(&self) -> Offset16 {
+        let range = self.shape.serialized_data_offset_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`serialized_data_offset`][Self::serialized_data_offset].
+    pub fn serialized_data(&self) -> Result<FontData<'a>, ReadError> {
+        let data = self.data;
+        self.serialized_data_offset().resolve(data)
     }
 
     /// Array of tuple variation headers.
@@ -618,7 +624,10 @@ impl<'a> SomeTable<'a> for GlyphVariationDataHeader<'a> {
                 "tuple_variation_count",
                 traversal::FieldType::Unknown,
             )),
-            1usize => Some(Field::new("data_offset", self.data_offset())),
+            1usize => Some(Field::new(
+                "serialized_data_offset",
+                traversal::FieldType::Unknown,
+            )),
             2usize => Some(Field::new(
                 "tuple_variation_headers",
                 traversal::FieldType::Unknown,

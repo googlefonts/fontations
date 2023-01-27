@@ -60,7 +60,8 @@ table GlyphVariationDataHeader {
     tuple_variation_count: TupleVariationCount,
     /// Offset from the start of the GlyphVariationData table to the
     /// serialized data
-    data_offset: u16,
+    #[traverse_with(skip)]
+    serialized_data_offset: Offset16<FontData>,
     /// Array of tuple variation headers.
     #[count(..)]
     #[traverse_with(skip)]
