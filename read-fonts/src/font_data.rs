@@ -7,6 +7,7 @@ use types::{FixedSize, ReadScalar};
 use crate::array::ComputedArray;
 use crate::read::{ComputeSize, FontReadWithArgs, ReadError};
 use crate::table_ref::TableRef;
+use crate::FontRead;
 
 /// A reference to raw binary font data.
 ///
@@ -250,6 +251,13 @@ impl<'a> Cursor<'a> {
         let data = self.data;
         data.check_in_bounds(self.pos)?;
         Ok(TableRef { data, shape })
+    }
+}
+
+// useful so we can have offsets that are just to data
+impl<'a> FontRead<'a> for FontData<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        Ok(data)
     }
 }
 
