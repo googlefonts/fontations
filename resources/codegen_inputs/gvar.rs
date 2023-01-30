@@ -31,7 +31,7 @@ table Gvar {
     glyph_variation_data_array_offset: u32,
     /// Offsets from the start of the GlyphVariationData array to each
     /// GlyphVariationData table.
-    #[count($glyph_count)]
+    #[count(add($glyph_count, 1))]
     #[read_with($flags)]
     #[traverse_with(skip)]
     glyph_variation_data_offsets: ComputedArray<U16Or32>,

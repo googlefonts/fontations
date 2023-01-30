@@ -8,6 +8,7 @@ use super::variations::{
     TupleVariationCount, TupleVariationHeader, TupleVariationHeaderIter,
 };
 
+#[derive(Clone, Copy, Debug)]
 pub struct U16Or32(u32);
 
 impl ReadArgs for U16Or32 {
@@ -185,7 +186,8 @@ pub struct TupleVariation<'a> {
 }
 
 impl<'a> TupleVariation<'a> {
-    fn peak(&self) -> Tuple<'a> {
+    /// Returns the 'peak' tuple for this variation
+    pub fn peak(&self) -> Tuple<'a> {
         self.header
             .tuple_index()
             .tuple_records_index()
@@ -303,6 +305,7 @@ impl<'a> Iterator for DeltaIter<'a> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::{FontRef, TableProvider};
 
     // Shared tuples in the 'gvar' table of the Skia font, as printed
     // in Apple's TrueType specification.
@@ -422,5 +425,65 @@ mod tests {
         for (a, b) in deltas.iter().zip(expected.iter()) {
             assert_eq!(a, b);
         }
+    }
+
+    #[test]
+    fn vazirmatn_var() {
+        use crate::test_data::test_fonts;
+        let gvar = FontRef::new(test_fonts::VAZIRMATN_VAR)
+            .unwrap()
+            .gvar()
+            .unwrap();
+        let a_glyph_var = gvar.glyph_variation_data(GlyphId::new(1)).unwrap();
+        assert_eq!(a_glyph_var.axis_count, 1);
+        let mut tuples = a_glyph_var.tuples();
+        let tup1 = tuples.next().unwrap();
+        assert_eq!(tup1.peak().values(), &[F2Dot14::from_f32(-1.0)]);
+        assert_eq!(tup1.deltas().count(), 18);
+        let x_vals = &[
+            -90, -134, 4, -6, -81, 18, -25, -33, -109, -121, -111, -111, -22, -22, 0, -113, 0, 0,
+        ];
+        let y_vals = &[83, 0, 0, 0, 0, 0, 83, 0, 0, 0, -50, 54, 54, -50, 0, 0, 0, 0];
+        assert_eq!(tup1.deltas().map(|d| d.x_delta).collect::<Vec<_>>(), x_vals);
+        assert_eq!(tup1.deltas().map(|d| d.y_delta).collect::<Vec<_>>(), y_vals);
+        let tup2 = tuples.next().unwrap();
+        assert_eq!(tup2.peak().values(), &[F2Dot14::from_f32(1.0)]);
+        let x_vals = &[
+            20, 147, -33, -53, 59, -90, 37, -6, 109, 90, -79, -79, -8, -8, 0, 59, 0, 0,
+        ];
+        let y_vals = &[
+            -177, 0, 0, 0, 0, 0, -177, 0, 0, 0, 4, -109, -109, 4, 0, 0, 0, 0,
+        ];
+
+        assert_eq!(tup2.deltas().map(|d| d.x_delta).collect::<Vec<_>>(), x_vals);
+        assert_eq!(tup2.deltas().map(|d| d.y_delta).collect::<Vec<_>>(), y_vals);
+        assert!(tuples.next().is_none());
+
+        let agrave_glyph_var = gvar.glyph_variation_data(GlyphId::new(2)).unwrap();
+        let mut tuples = agrave_glyph_var.tuples();
+        let tup1 = tuples.next().unwrap();
+        assert_eq!(
+            tup1.deltas()
+                .map(|d| (d.position, d.x_delta, d.y_delta))
+                .collect::<Vec<_>>(),
+            &[(1, -51, 8), (3, -113, 0)]
+        );
+        let tup2 = tuples.next().unwrap();
+        assert_eq!(
+            tup2.deltas()
+                .map(|d| (d.position, d.x_delta, d.y_delta))
+                .collect::<Vec<_>>(),
+            &[(1, -54, -1), (3, 59, 0)]
+        );
+        let grave_glyph_var = gvar.glyph_variation_data(GlyphId::new(3)).unwrap();
+        let mut tuples = grave_glyph_var.tuples();
+        let tup1 = tuples.next().unwrap();
+        let tup2 = tuples.next().unwrap();
+        assert!(tuples.next().is_none());
+        assert_eq!(tup1.deltas().count(), 8);
+        assert_eq!(
+            tup2.deltas().map(|d| d.y_delta).collect::<Vec<_>>(),
+            &[0, -20, -20, 0, 0, 0, 0, 0]
+        );
     }
 }

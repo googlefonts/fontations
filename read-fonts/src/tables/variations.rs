@@ -256,18 +256,21 @@ impl<'a> PackedPointNumbers<'a> {
 
     /// the number of bytes to encode the packed point numbers
     fn total_len(&self) -> usize {
-        let (count, mut n_bytes) = self.count_and_count_bytes();
-        if count == 0 {
+        let (n_points, mut n_bytes) = self.count_and_count_bytes();
+        if n_points == 0 {
             return n_bytes;
         }
         let mut cursor = self.data.cursor();
         cursor.advance_by(n_bytes);
 
-        while let Some((count, two_bytes)) = read_control_byte(&mut cursor) {
+        let mut n_seen = 0;
+        while n_seen < n_points {
+            let Some((count, two_bytes)) = read_control_byte(&mut cursor) else { return n_bytes };
             let word_size = 1 + usize::from(two_bytes);
             let run_size = word_size * count as usize;
             n_bytes += run_size + 1; // plus the control byte;
             cursor.advance_by(run_size);
+            n_seen += count as u16;
         }
 
         n_bytes
@@ -800,5 +803,16 @@ mod tests {
         let deltas = PackedDeltas::new(INPUT);
         assert_eq!(deltas.count, EXPECTED.len());
         assert_eq!(deltas.iter().collect::<Vec<_>>(), EXPECTED);
+    }
+
+    #[test]
+    fn packed_point_split() {
+        static INPUT: FontData =
+            FontData::new(&[2, 1, 1, 2, 1, 205, 143, 1, 8, 0, 1, 202, 59, 1, 255, 0]);
+        let (points, data) = PackedPointNumbers::split_off_front(INPUT);
+        assert_eq!(points.count(), 2);
+        assert_eq!(points.iter().collect::<Vec<_>>(), &[1, 3]);
+        assert_eq!(points.total_len(), 4);
+        assert_eq!(data.len(), INPUT.len() - 4);
     }
 }

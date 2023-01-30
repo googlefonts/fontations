@@ -107,6 +107,10 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    fn gvar(&self) -> Result<tables::gvar::Gvar<'a>, ReadError> {
+        self.expect_table()
+    }
+
     fn cmap(&self) -> Result<tables::cmap::Cmap<'a>, ReadError> {
         self.expect_table()
     }
