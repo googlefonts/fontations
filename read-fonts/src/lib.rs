@@ -75,6 +75,12 @@ pub(crate) mod codegen_prelude {
                 .saturating_sub(rhs.try_into().unwrap_or_default())
         }
 
+        pub fn add<T: TryInto<usize>, U: TryInto<usize>>(lhs: T, rhs: U) -> usize {
+            lhs.try_into()
+                .unwrap_or_default()
+                .saturating_add(rhs.try_into().unwrap_or_default())
+        }
+
         pub fn half<T: TryInto<usize>>(val: T) -> usize {
             val.try_into().unwrap_or_default() / 2
         }
