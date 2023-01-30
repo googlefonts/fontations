@@ -63,7 +63,7 @@ impl<'a> FontRead<'a> for Gvar<'a> {
         let flags: GvarFlags = cursor.read()?;
         cursor.advance::<u32>();
         let glyph_variation_data_offsets_byte_len =
-            glyph_count as usize * <U16Or32 as ComputeSize>::compute_size(&flags);
+            transforms::add(glyph_count, 1_usize) * <U16Or32 as ComputeSize>::compute_size(&flags);
         cursor.advance_by(glyph_variation_data_offsets_byte_len);
         cursor.finish(GvarMarker {
             glyph_variation_data_offsets_byte_len,
