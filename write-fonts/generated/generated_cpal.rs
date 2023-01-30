@@ -96,7 +96,7 @@ impl Validate for Cpal {
             });
             ctx.in_field("color_record_indices", |ctx| {
                 if self.color_record_indices.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
         })

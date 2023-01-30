@@ -170,13 +170,13 @@ impl Validate for KindsOfArraysOfOffsets {
             let version: MajorMinor = MajorMinor::VERSION_1_1;
             ctx.in_field("nonnullables", |ctx| {
                 if self.nonnullables.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.nonnullables.validate_impl(ctx);
             });
             ctx.in_field("nullables", |ctx| {
                 if self.nullables.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.nullables.validate_impl(ctx);
             });
@@ -187,7 +187,7 @@ impl Validate for KindsOfArraysOfOffsets {
                 if self.versioned_nonnullables.is_some()
                     && self.versioned_nonnullables.as_ref().unwrap().len() > (u16::MAX as usize)
                 {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.versioned_nonnullables.validate_impl(ctx);
             });
@@ -198,7 +198,7 @@ impl Validate for KindsOfArraysOfOffsets {
                 if self.versioned_nullables.is_some()
                     && self.versioned_nullables.as_ref().unwrap().len() > (u16::MAX as usize)
                 {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.versioned_nullables.validate_impl(ctx);
             });
@@ -292,12 +292,12 @@ impl Validate for KindsOfArrays {
             let version = self.version;
             ctx.in_field("scalars", |ctx| {
                 if self.scalars.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
             ctx.in_field("records", |ctx| {
                 if self.records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.records.validate_impl(ctx);
             });
@@ -308,7 +308,7 @@ impl Validate for KindsOfArrays {
                 if self.versioned_scalars.is_some()
                     && self.versioned_scalars.as_ref().unwrap().len() > (u16::MAX as usize)
                 {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
             ctx.in_field("versioned_records", |ctx| {
@@ -318,7 +318,7 @@ impl Validate for KindsOfArrays {
                 if self.versioned_records.is_some()
                     && self.versioned_records.as_ref().unwrap().len() > (u16::MAX as usize)
                 {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.versioned_records.validate_impl(ctx);
             });

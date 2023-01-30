@@ -578,7 +578,7 @@ mod tests {
     use super::*;
 
     #[test]
-    #[should_panic(expected = "array excedes max length")]
+    #[should_panic(expected = "array exceeds max length")]
     fn array_len_smoke_test() {
         let table = ScriptList {
             script_records: vec![ScriptRecord {

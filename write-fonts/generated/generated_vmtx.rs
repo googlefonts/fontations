@@ -37,7 +37,7 @@ impl Validate for Vmtx {
         ctx.in_table("Vmtx", |ctx| {
             ctx.in_field("v_metrics", |ctx| {
                 if self.v_metrics.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.v_metrics.validate_impl(ctx);
             });

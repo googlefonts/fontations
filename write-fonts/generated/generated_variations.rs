@@ -241,7 +241,7 @@ impl Validate for VariationRegionList {
         ctx.in_table("VariationRegionList", |ctx| {
             ctx.in_field("variation_regions", |ctx| {
                 if self.variation_regions.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.variation_regions.validate_impl(ctx);
             });
@@ -307,7 +307,7 @@ impl Validate for VariationRegion {
         ctx.in_table("VariationRegion", |ctx| {
             ctx.in_field("region_axes", |ctx| {
                 if self.region_axes.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.region_axes.validate_impl(ctx);
             });
@@ -419,7 +419,7 @@ impl Validate for ItemVariationStore {
             });
             ctx.in_field("item_variation_datas", |ctx| {
                 if self.item_variation_datas.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.item_variation_datas.validate_impl(ctx);
             });
@@ -502,7 +502,7 @@ impl Validate for ItemVariationData {
         ctx.in_table("ItemVariationData", |ctx| {
             ctx.in_field("region_indexes", |ctx| {
                 if self.region_indexes.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
         })

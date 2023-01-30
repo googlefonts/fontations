@@ -184,7 +184,7 @@ impl Fields {
                 let typ = self.get_scalar_field_type(ident);
                 Some(quote! {
                     if #maybe_check_is_some self.#name #maybe_unwrap.len() > (#typ::MAX as usize) {
-                        ctx.report("array excedes max length");
+                        ctx.report("array exceeds max length");
                     }
                 })
             } else {

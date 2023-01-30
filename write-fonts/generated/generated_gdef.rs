@@ -160,7 +160,7 @@ impl Validate for AttachList {
             });
             ctx.in_field("attach_points", |ctx| {
                 if self.attach_points.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.attach_points.validate_impl(ctx);
             });
@@ -214,7 +214,7 @@ impl Validate for AttachPoint {
         ctx.in_table("AttachPoint", |ctx| {
             ctx.in_field("point_indices", |ctx| {
                 if self.point_indices.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
         })
@@ -275,7 +275,7 @@ impl Validate for LigCaretList {
             });
             ctx.in_field("lig_glyphs", |ctx| {
                 if self.lig_glyphs.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.lig_glyphs.validate_impl(ctx);
             });
@@ -330,7 +330,7 @@ impl Validate for LigGlyph {
         ctx.in_table("LigGlyph", |ctx| {
             ctx.in_field("caret_values", |ctx| {
                 if self.caret_values.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.caret_values.validate_impl(ctx);
             });
@@ -601,7 +601,7 @@ impl Validate for MarkGlyphSets {
         ctx.in_table("MarkGlyphSets", |ctx| {
             ctx.in_field("coverages", |ctx| {
                 if self.coverages.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.coverages.validate_impl(ctx);
             });

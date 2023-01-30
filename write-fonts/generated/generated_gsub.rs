@@ -332,7 +332,7 @@ impl Validate for SingleSubstFormat2 {
             });
             ctx.in_field("substitute_glyph_ids", |ctx| {
                 if self.substitute_glyph_ids.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
         })
@@ -397,7 +397,7 @@ impl Validate for MultipleSubstFormat1 {
             });
             ctx.in_field("sequences", |ctx| {
                 if self.sequences.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.sequences.validate_impl(ctx);
             });
@@ -452,7 +452,7 @@ impl Validate for Sequence {
         ctx.in_table("Sequence", |ctx| {
             ctx.in_field("substitute_glyph_ids", |ctx| {
                 if self.substitute_glyph_ids.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
         })
@@ -515,7 +515,7 @@ impl Validate for AlternateSubstFormat1 {
             });
             ctx.in_field("alternate_sets", |ctx| {
                 if self.alternate_sets.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.alternate_sets.validate_impl(ctx);
             });
@@ -576,7 +576,7 @@ impl Validate for AlternateSet {
         ctx.in_table("AlternateSet", |ctx| {
             ctx.in_field("alternate_glyph_ids", |ctx| {
                 if self.alternate_glyph_ids.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
         })
@@ -639,7 +639,7 @@ impl Validate for LigatureSubstFormat1 {
             });
             ctx.in_field("ligature_sets", |ctx| {
                 if self.ligature_sets.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.ligature_sets.validate_impl(ctx);
             });
@@ -695,7 +695,7 @@ impl Validate for LigatureSet {
         ctx.in_table("LigatureSet", |ctx| {
             ctx.in_field("ligatures", |ctx| {
                 if self.ligatures.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.ligatures.validate_impl(ctx);
             });
@@ -961,19 +961,19 @@ impl Validate for ReverseChainSingleSubstFormat1 {
             });
             ctx.in_field("backtrack_coverages", |ctx| {
                 if self.backtrack_coverages.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.backtrack_coverages.validate_impl(ctx);
             });
             ctx.in_field("lookahead_coverages", |ctx| {
                 if self.lookahead_coverages.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.lookahead_coverages.validate_impl(ctx);
             });
             ctx.in_field("substitute_glyph_ids", |ctx| {
                 if self.substitute_glyph_ids.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
         })

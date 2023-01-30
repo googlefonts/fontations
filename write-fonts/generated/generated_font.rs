@@ -53,7 +53,7 @@ impl Validate for TableDirectory {
         ctx.in_table("TableDirectory", |ctx| {
             ctx.in_field("table_records", |ctx| {
                 if self.table_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.table_records.validate_impl(ctx);
             });
@@ -122,7 +122,7 @@ impl Validate for TTCHeader {
             let version: MajorMinor = self.compute_version();
             ctx.in_field("table_directory_offsets", |ctx| {
                 if self.table_directory_offsets.len() > (u32::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
             ctx.in_field("dsig_tag", |ctx| {

@@ -165,7 +165,7 @@ impl Validate for BaseTagList {
         ctx.in_table("BaseTagList", |ctx| {
             ctx.in_field("baseline_tags", |ctx| {
                 if self.baseline_tags.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
         })
@@ -219,7 +219,7 @@ impl Validate for BaseScriptList {
         ctx.in_table("BaseScriptList", |ctx| {
             ctx.in_field("base_script_records", |ctx| {
                 if self.base_script_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.base_script_records.validate_impl(ctx);
             });
@@ -341,7 +341,7 @@ impl Validate for BaseScript {
             });
             ctx.in_field("base_lang_sys_records", |ctx| {
                 if self.base_lang_sys_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.base_lang_sys_records.validate_impl(ctx);
             });
@@ -453,7 +453,7 @@ impl Validate for BaseValues {
         ctx.in_table("BaseValues", |ctx| {
             ctx.in_field("base_coords", |ctx| {
                 if self.base_coords.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.base_coords.validate_impl(ctx);
             });
@@ -528,7 +528,7 @@ impl Validate for MinMax {
             });
             ctx.in_field("feat_min_max_records", |ctx| {
                 if self.feat_min_max_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.feat_min_max_records.validate_impl(ctx);
             });

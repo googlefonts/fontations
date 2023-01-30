@@ -77,7 +77,7 @@ impl Validate for Table2 {
         ctx.in_table("Table2", |ctx| {
             ctx.in_field("values", |ctx| {
                 if self.values.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
         })

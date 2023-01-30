@@ -146,7 +146,7 @@ impl Validate for Post {
                 if self.glyph_name_index.is_some()
                     && self.glyph_name_index.as_ref().unwrap().len() > (u16::MAX as usize)
                 {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
         })
