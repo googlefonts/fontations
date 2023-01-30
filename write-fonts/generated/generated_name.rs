@@ -55,7 +55,7 @@ impl Validate for Name {
             let version: u16 = self.compute_version();
             ctx.in_field("name_record", |ctx| {
                 if self.name_record.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.name_record.validate_impl(ctx);
             });
@@ -66,7 +66,7 @@ impl Validate for Name {
                 if self.lang_tag_record.is_some()
                     && self.lang_tag_record.as_ref().unwrap().len() > (u16::MAX as usize)
                 {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.lang_tag_record.validate_impl(ctx);
             });

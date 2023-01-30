@@ -480,7 +480,7 @@ impl Validate for MarkArray {
         ctx.in_table("MarkArray", |ctx| {
             ctx.in_field("mark_records", |ctx| {
                 if self.mark_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.mark_records.validate_impl(ctx);
             });
@@ -708,7 +708,7 @@ impl Validate for SinglePosFormat2 {
             });
             ctx.in_field("value_records", |ctx| {
                 if self.value_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.value_records.validate_impl(ctx);
             });
@@ -850,7 +850,7 @@ impl Validate for PairPosFormat1 {
             });
             ctx.in_field("pair_sets", |ctx| {
                 if self.pair_sets.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.pair_sets.validate_impl(ctx);
             });
@@ -904,7 +904,7 @@ impl Validate for PairSet {
         ctx.in_table("PairSet", |ctx| {
             ctx.in_field("pair_value_records", |ctx| {
                 if self.pair_value_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.pair_value_records.validate_impl(ctx);
             });
@@ -1040,7 +1040,7 @@ impl Validate for PairPosFormat2 {
             });
             ctx.in_field("class1_records", |ctx| {
                 if self.class1_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.class1_records.validate_impl(ctx);
             });
@@ -1098,7 +1098,7 @@ impl Validate for Class1Record {
         ctx.in_table("Class1Record", |ctx| {
             ctx.in_field("class2_records", |ctx| {
                 if self.class2_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.class2_records.validate_impl(ctx);
             });
@@ -1194,7 +1194,7 @@ impl Validate for CursivePosFormat1 {
             });
             ctx.in_field("entry_exit_record", |ctx| {
                 if self.entry_exit_record.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.entry_exit_record.validate_impl(ctx);
             });
@@ -1386,7 +1386,7 @@ impl Validate for BaseArray {
         ctx.in_table("BaseArray", |ctx| {
             ctx.in_field("base_records", |ctx| {
                 if self.base_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.base_records.validate_impl(ctx);
             });
@@ -1438,7 +1438,7 @@ impl Validate for BaseRecord {
         ctx.in_table("BaseRecord", |ctx| {
             ctx.in_field("base_anchors", |ctx| {
                 if self.base_anchors.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.base_anchors.validate_impl(ctx);
             });
@@ -1573,7 +1573,7 @@ impl Validate for LigatureArray {
         ctx.in_table("LigatureArray", |ctx| {
             ctx.in_field("ligature_attaches", |ctx| {
                 if self.ligature_attaches.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.ligature_attaches.validate_impl(ctx);
             });
@@ -1621,7 +1621,7 @@ impl Validate for LigatureAttach {
         ctx.in_table("LigatureAttach", |ctx| {
             ctx.in_field("component_records", |ctx| {
                 if self.component_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.component_records.validate_impl(ctx);
             });
@@ -1673,7 +1673,7 @@ impl Validate for ComponentRecord {
         ctx.in_table("ComponentRecord", |ctx| {
             ctx.in_field("ligature_anchors", |ctx| {
                 if self.ligature_anchors.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.ligature_anchors.validate_impl(ctx);
             });
@@ -1807,7 +1807,7 @@ impl Validate for Mark2Array {
         ctx.in_table("Mark2Array", |ctx| {
             ctx.in_field("mark2_records", |ctx| {
                 if self.mark2_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.mark2_records.validate_impl(ctx);
             });
@@ -1859,7 +1859,7 @@ impl Validate for Mark2Record {
         ctx.in_table("Mark2Record", |ctx| {
             ctx.in_field("mark2_anchors", |ctx| {
                 if self.mark2_anchors.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.mark2_anchors.validate_impl(ctx);
             });

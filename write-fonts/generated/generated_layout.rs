@@ -36,7 +36,7 @@ impl Validate for ScriptList {
         ctx.in_table("ScriptList", |ctx| {
             ctx.in_field("script_records", |ctx| {
                 if self.script_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.script_records.validate_impl(ctx);
             });
@@ -143,7 +143,7 @@ impl Validate for Script {
             });
             ctx.in_field("lang_sys_records", |ctx| {
                 if self.lang_sys_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.lang_sys_records.validate_impl(ctx);
             });
@@ -260,7 +260,7 @@ impl Validate for LangSys {
         ctx.in_table("LangSys", |ctx| {
             ctx.in_field("feature_indices", |ctx| {
                 if self.feature_indices.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
         })
@@ -315,7 +315,7 @@ impl Validate for FeatureList {
         ctx.in_table("FeatureList", |ctx| {
             ctx.in_field("feature_records", |ctx| {
                 if self.feature_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.feature_records.validate_impl(ctx);
             });
@@ -426,7 +426,7 @@ impl Validate for Feature {
             });
             ctx.in_field("lookup_list_indices", |ctx| {
                 if self.lookup_list_indices.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
         })
@@ -475,7 +475,7 @@ impl<T: Validate> Validate for LookupList<T> {
         ctx.in_table("LookupList", |ctx| {
             ctx.in_field("lookups", |ctx| {
                 if self.lookups.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.lookups.validate_impl(ctx);
             });
@@ -532,7 +532,7 @@ impl<T: Validate> Validate for Lookup<T> {
         ctx.in_table("Lookup", |ctx| {
             ctx.in_field("subtables", |ctx| {
                 if self.subtables.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.subtables.validate_impl(ctx);
             });
@@ -591,7 +591,7 @@ impl Validate for CoverageFormat1 {
         ctx.in_table("CoverageFormat1", |ctx| {
             ctx.in_field("glyph_array", |ctx| {
                 if self.glyph_array.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
         })
@@ -646,7 +646,7 @@ impl Validate for CoverageFormat2 {
         ctx.in_table("CoverageFormat2", |ctx| {
             ctx.in_field("range_records", |ctx| {
                 if self.range_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.range_records.validate_impl(ctx);
             });
@@ -812,7 +812,7 @@ impl Validate for ClassDefFormat1 {
         ctx.in_table("ClassDefFormat1", |ctx| {
             ctx.in_field("class_value_array", |ctx| {
                 if self.class_value_array.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
         })
@@ -868,7 +868,7 @@ impl Validate for ClassDefFormat2 {
         ctx.in_table("ClassDefFormat2", |ctx| {
             ctx.in_field("class_range_records", |ctx| {
                 if self.class_range_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.class_range_records.validate_impl(ctx);
             });
@@ -1083,7 +1083,7 @@ impl Validate for SequenceContextFormat1 {
             });
             ctx.in_field("seq_rule_sets", |ctx| {
                 if self.seq_rule_sets.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.seq_rule_sets.validate_impl(ctx);
             });
@@ -1147,7 +1147,7 @@ impl Validate for SequenceRuleSet {
         ctx.in_table("SequenceRuleSet", |ctx| {
             ctx.in_field("seq_rules", |ctx| {
                 if self.seq_rules.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.seq_rules.validate_impl(ctx);
             });
@@ -1209,7 +1209,7 @@ impl Validate for SequenceRule {
         ctx.in_table("SequenceRule", |ctx| {
             ctx.in_field("seq_lookup_records", |ctx| {
                 if self.seq_lookup_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.seq_lookup_records.validate_impl(ctx);
             });
@@ -1287,7 +1287,7 @@ impl Validate for SequenceContextFormat2 {
             });
             ctx.in_field("class_seq_rule_sets", |ctx| {
                 if self.class_seq_rule_sets.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.class_seq_rule_sets.validate_impl(ctx);
             });
@@ -1355,7 +1355,7 @@ impl Validate for ClassSequenceRuleSet {
         ctx.in_table("ClassSequenceRuleSet", |ctx| {
             ctx.in_field("class_seq_rules", |ctx| {
                 if self.class_seq_rules.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.class_seq_rules.validate_impl(ctx);
             });
@@ -1421,7 +1421,7 @@ impl Validate for ClassSequenceRule {
         ctx.in_table("ClassSequenceRule", |ctx| {
             ctx.in_field("seq_lookup_records", |ctx| {
                 if self.seq_lookup_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.seq_lookup_records.validate_impl(ctx);
             });
@@ -1487,13 +1487,13 @@ impl Validate for SequenceContextFormat3 {
         ctx.in_table("SequenceContextFormat3", |ctx| {
             ctx.in_field("coverages", |ctx| {
                 if self.coverages.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.coverages.validate_impl(ctx);
             });
             ctx.in_field("seq_lookup_records", |ctx| {
                 if self.seq_lookup_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.seq_lookup_records.validate_impl(ctx);
             });
@@ -1651,7 +1651,7 @@ impl Validate for ChainedSequenceContextFormat1 {
             });
             ctx.in_field("chained_seq_rule_sets", |ctx| {
                 if self.chained_seq_rule_sets.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.chained_seq_rule_sets.validate_impl(ctx);
             });
@@ -1718,7 +1718,7 @@ impl Validate for ChainedSequenceRuleSet {
         ctx.in_table("ChainedSequenceRuleSet", |ctx| {
             ctx.in_field("chained_seq_rules", |ctx| {
                 if self.chained_seq_rules.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.chained_seq_rules.validate_impl(ctx);
             });
@@ -1803,17 +1803,17 @@ impl Validate for ChainedSequenceRule {
         ctx.in_table("ChainedSequenceRule", |ctx| {
             ctx.in_field("backtrack_sequence", |ctx| {
                 if self.backtrack_sequence.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
             ctx.in_field("lookahead_sequence", |ctx| {
                 if self.lookahead_sequence.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
             ctx.in_field("seq_lookup_records", |ctx| {
                 if self.seq_lookup_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.seq_lookup_records.validate_impl(ctx);
             });
@@ -1917,7 +1917,7 @@ impl Validate for ChainedSequenceContextFormat2 {
             });
             ctx.in_field("chained_class_seq_rule_sets", |ctx| {
                 if self.chained_class_seq_rule_sets.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.chained_class_seq_rule_sets.validate_impl(ctx);
             });
@@ -1990,7 +1990,7 @@ impl Validate for ChainedClassSequenceRuleSet {
         ctx.in_table("ChainedClassSequenceRuleSet", |ctx| {
             ctx.in_field("chained_class_seq_rules", |ctx| {
                 if self.chained_class_seq_rules.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.chained_class_seq_rules.validate_impl(ctx);
             });
@@ -2076,17 +2076,17 @@ impl Validate for ChainedClassSequenceRule {
         ctx.in_table("ChainedClassSequenceRule", |ctx| {
             ctx.in_field("backtrack_sequence", |ctx| {
                 if self.backtrack_sequence.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
             ctx.in_field("lookahead_sequence", |ctx| {
                 if self.lookahead_sequence.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
             ctx.in_field("seq_lookup_records", |ctx| {
                 if self.seq_lookup_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.seq_lookup_records.validate_impl(ctx);
             });
@@ -2173,25 +2173,25 @@ impl Validate for ChainedSequenceContextFormat3 {
         ctx.in_table("ChainedSequenceContextFormat3", |ctx| {
             ctx.in_field("backtrack_coverages", |ctx| {
                 if self.backtrack_coverages.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.backtrack_coverages.validate_impl(ctx);
             });
             ctx.in_field("input_coverages", |ctx| {
                 if self.input_coverages.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.input_coverages.validate_impl(ctx);
             });
             ctx.in_field("lookahead_coverages", |ctx| {
                 if self.lookahead_coverages.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.lookahead_coverages.validate_impl(ctx);
             });
             ctx.in_field("seq_lookup_records", |ctx| {
                 if self.seq_lookup_records.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.seq_lookup_records.validate_impl(ctx);
             });
@@ -2476,7 +2476,7 @@ impl Validate for FeatureVariations {
         ctx.in_table("FeatureVariations", |ctx| {
             ctx.in_field("feature_variation_records", |ctx| {
                 if self.feature_variation_records.len() > (u32::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.feature_variation_records.validate_impl(ctx);
             });
@@ -2590,7 +2590,7 @@ impl Validate for ConditionSet {
         ctx.in_table("ConditionSet", |ctx| {
             ctx.in_field("conditions", |ctx| {
                 if self.conditions.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.conditions.validate_impl(ctx);
             });
@@ -2707,7 +2707,7 @@ impl Validate for FeatureTableSubstitution {
         ctx.in_table("FeatureTableSubstitution", |ctx| {
             ctx.in_field("substitutions", |ctx| {
                 if self.substitutions.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.substitutions.validate_impl(ctx);
             });
@@ -2994,7 +2994,7 @@ impl Validate for CharacterVariantParams {
         ctx.in_table("CharacterVariantParams", |ctx| {
             ctx.in_field("character", |ctx| {
                 if self.character.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
             });
         })

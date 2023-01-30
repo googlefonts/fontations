@@ -38,7 +38,7 @@ impl Validate for Hmtx {
         ctx.in_table("Hmtx", |ctx| {
             ctx.in_field("h_metrics", |ctx| {
                 if self.h_metrics.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.h_metrics.validate_impl(ctx);
             });

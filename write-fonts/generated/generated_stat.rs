@@ -162,7 +162,7 @@ impl Validate for AxisValueArray {
         ctx.in_table("AxisValueArray", |ctx| {
             ctx.in_field("axis_values", |ctx| {
                 if self.axis_values.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.axis_values.validate_impl(ctx);
             });
@@ -567,7 +567,7 @@ impl Validate for AxisValueFormat4 {
         ctx.in_table("AxisValueFormat4", |ctx| {
             ctx.in_field("axis_values", |ctx| {
                 if self.axis_values.len() > (u16::MAX as usize) {
-                    ctx.report("array excedes max length");
+                    ctx.report("array exceeds max length");
                 }
                 self.axis_values.validate_impl(ctx);
             });
