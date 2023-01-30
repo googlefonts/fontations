@@ -551,28 +551,6 @@ fn encode_chunk(chunk: &[i8], mask: u8, bits: usize) -> u16 {
     out
 }
 
-//FIXME: we should derive this in codegen
-impl PartialEq for Device {
-    fn eq(&self, other: &Self) -> bool {
-        self.start_size == other.start_size
-            && self.end_size == other.end_size
-            && self.delta_format == other.delta_format
-            && self.delta_value == other.delta_value
-    }
-}
-
-impl Eq for Device {}
-
-//FIXME: ditto
-impl Hash for Device {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.start_size.hash(state);
-        self.end_size.hash(state);
-        (self.delta_format as u16).hash(state);
-        self.delta_value.hash(state);
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

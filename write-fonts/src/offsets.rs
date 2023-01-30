@@ -13,7 +13,7 @@ pub const WIDTH_32: usize = 4;
 /// An offset subtable.
 ///
 /// The generic const `N` is the width of the offset, in bytes.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct OffsetMarker<T, const N: usize = WIDTH_16> {
     obj: T,
     //error: Option<Box<ReadError>>,
@@ -22,7 +22,7 @@ pub struct OffsetMarker<T, const N: usize = WIDTH_16> {
 /// An offset subtable which may be null.
 ///
 /// The generic const `N` is the width of the offset, in bytes.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NullableOffsetMarker<T, const N: usize = WIDTH_16> {
     obj: Option<T>,
 }

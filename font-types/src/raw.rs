@@ -91,6 +91,24 @@ impl<T: Scalar + Copy + PartialEq> PartialEq<T> for BigEndian<T> {
     }
 }
 
+impl<T: Scalar + Copy + PartialOrd + PartialEq> PartialOrd for BigEndian<T>
+where
+    <T as Scalar>::Raw: PartialEq,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.get().partial_cmp(&other.get())
+    }
+}
+
+impl<T: Scalar + Copy + Ord + Eq> Ord for BigEndian<T>
+where
+    <T as Scalar>::Raw: Eq,
+{
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.get().cmp(&other.get())
+    }
+}
+
 // these following impls are an elaborate way to impl ReadScalar for BigEndian<T>
 impl<const N: usize> FixedSize for [u8; N] {
     const RAW_BYTE_LEN: usize = N;

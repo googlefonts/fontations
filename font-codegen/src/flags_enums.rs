@@ -338,7 +338,7 @@ pub(crate) fn generate_raw_enum(raw: &RawEnum) -> TokenStream {
 
     quote! {
         #( #docs )*
-        #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+        #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
         #[repr(#typ)]
         pub enum #name {
             #( #variants )*

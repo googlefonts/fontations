@@ -526,6 +526,7 @@ enum u16 DeltaFormat {
 
 /// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
 #[skip_constructor]
+#[derive_traits(PartialEq, Eq, Hash)]
 table Device {
     /// Smallest size to correct, in ppem
     start_size: u16,
