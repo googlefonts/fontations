@@ -43,10 +43,14 @@ pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
         }
     });
     let maybe_impl_read_with_args = (has_read_args).then(|| generate_read_with_args(item));
+    let maybe_extra_traits = item.attrs.extra_traits.as_ref().map(|args| {
+        let traits = &args.traits;
+        quote!( #( #traits, )* )
+    });
 
     Ok(quote! {
     #( #docs )*
-    #[derive(Clone, Debug)]
+    #[derive(Clone, Debug, #maybe_extra_traits)]
     #repr_packed
     pub struct #name #lifetime {
         #( #field_docs pub #field_names: #field_types, )*
@@ -230,7 +234,7 @@ pub(crate) fn generate_compile_impl(
     });
 
     let can_derive_default = fields.can_derive_default()?;
-    let maybe_derive_default = can_derive_default.then(|| quote!(, Default));
+    let maybe_derive_default = can_derive_default.then(|| quote!(Default,));
     let default_impl_params = generic_param.map(|t| quote! { <#t: Default> });
     let maybe_custom_default = (!can_derive_default).then(|| {
         let default_field_inits = fields.iter_compile_default_inits();
@@ -243,6 +247,10 @@ pub(crate) fn generate_compile_impl(
             }
         }
         }
+    });
+    let maybe_extra_traits = attrs.extra_traits.as_ref().map(|args| {
+        let traits = &args.traits;
+        quote!( #( #traits, )* )
     });
 
     let constructor_args_raw = fields.iter_constructor_info().collect::<Vec<_>>();
@@ -300,7 +308,7 @@ pub(crate) fn generate_compile_impl(
 
     Ok(quote! {
         #( #docs )*
-        #[derive(Clone, Debug #maybe_derive_default)]
+        #[derive(Clone, Debug, #maybe_derive_default #maybe_extra_traits)]
         pub struct #name <#generic_param> {
             #( #field_decls, )*
         }

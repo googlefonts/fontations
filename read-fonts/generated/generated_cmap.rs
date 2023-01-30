@@ -158,7 +158,7 @@ impl<'a> SomeRecord<'a> for EncodingRecord {
 }
 
 /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#platform-ids>
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[repr(u16)]
 pub enum PlatformId {
     #[default]

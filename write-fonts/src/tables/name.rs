@@ -124,41 +124,6 @@ impl FromObjRef<read_fonts::tables::name::NameString<'_>> for String {
 
 impl FromTableRef<read_fonts::tables::name::NameString<'_>> for String {}
 
-impl PartialEq for NameRecord {
-    fn eq(&self, other: &Self) -> bool {
-        self.platform_id == other.platform_id
-            && self.encoding_id == other.encoding_id
-            && self.language_id == other.language_id
-            && self.name_id == other.name_id
-            && self.string == other.string
-    }
-}
-
-impl Eq for NameRecord {}
-
-impl Ord for NameRecord {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        (
-            self.platform_id,
-            self.encoding_id,
-            self.language_id,
-            self.name_id,
-        )
-            .cmp(&(
-                other.platform_id,
-                other.encoding_id,
-                other.language_id,
-                other.name_id,
-            ))
-    }
-}
-
-impl PartialOrd for NameRecord {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -66,6 +66,7 @@ pub(crate) struct TableAttrs {
     pub(crate) tag: Option<Attr<syn::LitStr>>,
     /// Custom validation behaviour, must be a fn(&self, &mut ValidationCtx) for the type
     pub(crate) validate: Option<Attr<syn::Ident>>,
+    pub(crate) extra_traits: Option<Attr<ExtraTraits>>,
 }
 
 #[derive(Debug, Clone)]
@@ -77,6 +78,11 @@ pub(crate) struct TableReadArgs {
 pub(crate) struct TableReadArg {
     pub(crate) ident: syn::Ident,
     pub(crate) typ: syn::Ident,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct ExtraTraits {
+    pub(crate) traits: Vec<syn::Ident>,
 }
 
 #[derive(Debug, Clone)]
@@ -1011,6 +1017,7 @@ static SKIP_FONT_WRITE: &str = "skip_font_write";
 static SKIP_CONSTRUCTOR: &str = "skip_constructor";
 static READ_ARGS: &str = "read_args";
 static GENERIC_OFFSET: &str = "generic_offset";
+static EXTRA_TRAITS: &str = "derive_traits";
 static TAG: &str = "tag";
 
 impl Parse for TableAttrs {
@@ -1035,6 +1042,8 @@ impl Parse for TableAttrs {
                 this.read_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == GENERIC_OFFSET {
                 this.generic_offset = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == EXTRA_TRAITS {
+                this.extra_traits = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == TAG {
                 let tag: syn::LitStr = parse_attr_eq_value(attr.tokens)?;
                 if let Err(e) = Tag::new_checked(tag.value().as_bytes()) {
@@ -1094,6 +1103,15 @@ impl Parse for TableReadArg {
         input.parse::<Token![:]>()?;
         let typ = input.parse()?;
         Ok(TableReadArg { ident, typ })
+    }
+}
+
+impl Parse for ExtraTraits {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let traits = Punctuated::<syn::Ident, Token![,]>::parse_separated_nonempty(input)?
+            .into_iter()
+            .collect();
+        Ok(ExtraTraits { traits })
     }
 }
 

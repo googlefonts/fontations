@@ -101,18 +101,6 @@ impl RangeRecord {
     }
 }
 
-impl Ord for DeltaFormat {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        (*self as u16).cmp(&(*other as u16))
-    }
-}
-
-impl PartialOrd for DeltaFormat {
-    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
-        Some(Ord::cmp(self, other))
-    }
-}
-
 impl DeltaFormat {
     pub(crate) fn value_count(self, start_size: u16, end_size: u16) -> usize {
         let range_len = end_size.saturating_add(1).saturating_sub(start_size) as usize;

@@ -2343,7 +2343,7 @@ impl FontWrite for DeltaFormat {
 }
 
 /// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct Device {
     /// Smallest size to correct, in ppem
     pub start_size: u16,

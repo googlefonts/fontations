@@ -47,6 +47,7 @@ record LangTagRecord {
 }
 
 ///[Name Records](https://docs.microsoft.com/en-us/typography/opentype/spec/name#name-records)
+#[derive_traits(PartialEq, Eq, PartialOrd, Ord)]
 record NameRecord {
     /// Platform ID.
     platform_id: u16,
