@@ -133,6 +133,9 @@ impl<'a> SimpleGlyph<'a> {
 }
 
 /// Point in a simple glyph.
+///
+/// This is the representation used by punchcut, where we use higher precision
+/// and use both integer and fixed-point representations
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub struct Point<T> {
     /// X cooordinate.
@@ -149,12 +152,33 @@ impl<T> Point<T> {
 }
 
 /// Point with an associated on-curve flag in a simple glyph.
-#[derive(Clone, Copy, Debug)]
+///
+/// This type is a simpler representation of the data in the blob.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct CurvePoint {
-    /// The point.
-    pub point: Point<i32>,
+    /// X cooordinate.
+    pub x: i16,
+    /// Y cooordinate.
+    pub y: i16,
     /// True if this is an on-curve point.
     pub on_curve: bool,
+}
+
+impl CurvePoint {
+    /// Construct a new `CurvePoint`
+    pub fn new(x: i16, y: i16, on_curve: bool) -> Self {
+        Self { x, y, on_curve }
+    }
+
+    /// Convenience method to construct an on-curve point
+    pub fn on_curve(x: i16, y: i16) -> Self {
+        Self::new(x, y, true)
+    }
+
+    /// Convenience method to construct an off-curve point
+    pub fn off_curve(x: i16, y: i16) -> Self {
+        Self::new(x, y, false)
+    }
 }
 
 #[derive(Clone)]
@@ -173,13 +197,8 @@ impl<'a> Iterator for PointIter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         self.advance_flags()?;
         self.advance_points();
-        Some(CurvePoint {
-            point: Point {
-                x: self.cur_x as i32,
-                y: self.cur_y as i32,
-            },
-            on_curve: self.cur_flags.contains(SimpleGlyphFlags::ON_CURVE_POINT),
-        })
+        let is_on_curve = self.cur_flags.contains(SimpleGlyphFlags::ON_CURVE_POINT);
+        Some(CurvePoint::new(self.cur_x, self.cur_y, is_on_curve))
     }
 }
 
@@ -518,7 +537,7 @@ mod tests {
         assert_eq!(
             simple_glyph
                 .points()
-                .map(|pt| (pt.point.x, pt.point.y, pt.on_curve))
+                .map(|pt| (pt.x, pt.y, pt.on_curve))
                 .collect::<Vec<_>>(),
             &[
                 (5, 0, true),

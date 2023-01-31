@@ -2,6 +2,7 @@
 
 pub mod base;
 pub mod gdef;
+pub mod glyf;
 pub mod gpos;
 pub mod gsub;
 pub mod head;
