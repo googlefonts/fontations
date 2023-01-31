@@ -222,6 +222,57 @@ impl FontWrite for CoordDelta {
     }
 }
 
+/// A little helper for writing flags that may have a 'repeat' byte
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct RepeatableFlag {
+    flag: SimpleGlyphFlags,
+    repeat: u8,
+}
+
+impl FontWrite for RepeatableFlag {
+    fn write_into(&self, writer: &mut crate::TableWriter) {
+        debug_assert_eq!(
+            self.flag.contains(SimpleGlyphFlags::REPEAT_FLAG),
+            self.repeat > 0
+        );
+
+        self.flag.bits().write_into(writer);
+        if self.flag.contains(SimpleGlyphFlags::REPEAT_FLAG) {
+            self.repeat.write_into(writer);
+        }
+    }
+}
+
+impl RepeatableFlag {
+    /// given an iterator over raw flags, return an iterator over flags + repeat values
+    // writing this as an iterator instead of just returning a vec is very marginal
+    // gains, but I'm just in the habit at this point
+    fn iter_from_flags(
+        flags: impl IntoIterator<Item = SimpleGlyphFlags>,
+    ) -> impl Iterator<Item = RepeatableFlag> {
+        let mut iter = flags.into_iter();
+        let mut prev = None;
+
+        std::iter::from_fn(move || loop {
+            match (iter.next(), prev.take()) {
+                (None, prev) => return prev,
+                (Some(flag), None) => prev = Some(RepeatableFlag { flag, repeat: 0 }),
+                (Some(flag), Some(mut last)) => {
+                    if (last.flag & !SimpleGlyphFlags::REPEAT_FLAG) == flag && last.repeat < u8::MAX
+                    {
+                        last.repeat += 1;
+                        last.flag |= SimpleGlyphFlags::REPEAT_FLAG;
+                        prev = Some(last);
+                    } else {
+                        prev = Some(RepeatableFlag { flag, repeat: 0 });
+                        return Some(last);
+                    }
+                }
+            }
+        })
+    }
+}
+
 impl<'a> IntoIterator for &'a Contour {
     type Item = &'a CurvePoint;
 
@@ -250,10 +301,8 @@ impl FontWrite for SimpleGlyf {
         self._instructions.write_into(writer);
 
         let deltas = self.compute_point_deltas().collect::<Vec<_>>();
-        //TODO: calculate flag repeats here
-        deltas
-            .iter()
-            .for_each(|(flag, _, _)| flag.bits().write_into(writer));
+        RepeatableFlag::iter_from_flags(deltas.iter().map(|(flag, _, _)| *flag))
+            .for_each(|flag| flag.write_into(writer));
         deltas.iter().for_each(|(_, x, _)| x.write_into(writer));
         deltas.iter().for_each(|(_, _, y)| y.write_into(writer));
     }
@@ -294,5 +343,82 @@ mod tests {
         assert_eq!(points[4].x, -255);
         assert_eq!(points[4].y, 256);
         assert!(points[4].on_curve);
+    }
+
+    #[test]
+    fn compile_repeatable_flags() {
+        let mut path = BezPath::new();
+        path.move_to((20., -100.));
+        path.line_to((80., -20.));
+        path.line_to((50., -69.));
+        path.line_to((25., -90.));
+        // before reversal/rotation: A B C D
+        // after reversal D C B A
+        // after r-rot-1 A D C B
+
+        let glyph = SimpleGlyf::from_kurbo(&path).unwrap();
+        let flags = glyph
+            .compute_point_deltas()
+            .map(|x| x.0)
+            .collect::<Vec<_>>();
+        let r_flags = RepeatableFlag::iter_from_flags(flags.iter().copied()).collect::<Vec<_>>();
+
+        assert_eq!(r_flags.len(), 2, "{r_flags:?}");
+        let bytes = crate::dump_table(&glyph).unwrap();
+        let read = read_fonts::tables::glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(read.number_of_contours(), 1);
+        assert_eq!(read.num_points(), 4);
+        assert_eq!(read.end_pts_of_contours(), &[3]);
+        let points = read.points().collect::<Vec<_>>();
+        assert_eq!(points[0].x, 20);
+        assert_eq!(points[0].y, -100);
+        assert_eq!(points[1].x, 25);
+        assert_eq!(points[1].y, -90);
+        assert_eq!(points[2].x, 50);
+        assert_eq!(points[2].y, -69);
+        assert_eq!(points[3].x, 80);
+        assert_eq!(points[3].y, -20);
+    }
+
+    #[test]
+    fn repeatable_flags_basic() {
+        let flags = [
+            SimpleGlyphFlags::ON_CURVE_POINT,
+            SimpleGlyphFlags::X_SHORT_VECTOR,
+        ];
+        let repeatable = RepeatableFlag::iter_from_flags(flags).collect::<Vec<_>>();
+        assert_eq!(repeatable[0].repeat, 0);
+        assert_eq!(repeatable[1].flag, flags[1]);
+    }
+
+    #[test]
+    fn repeatable_flags_repeats() {
+        let some_dupes = std::iter::repeat(SimpleGlyphFlags::ON_CURVE_POINT).take(4);
+        let many_dupes = std::iter::repeat(SimpleGlyphFlags::Y_SHORT_VECTOR).take(257);
+        let repeatable =
+            RepeatableFlag::iter_from_flags(some_dupes.chain(many_dupes)).collect::<Vec<_>>();
+        assert_eq!(repeatable.len(), 3);
+        assert_eq!(
+            repeatable[0],
+            RepeatableFlag {
+                flag: SimpleGlyphFlags::ON_CURVE_POINT | SimpleGlyphFlags::REPEAT_FLAG,
+                repeat: 3
+            }
+        );
+        assert_eq!(
+            repeatable[1],
+            RepeatableFlag {
+                flag: SimpleGlyphFlags::Y_SHORT_VECTOR | SimpleGlyphFlags::REPEAT_FLAG,
+                repeat: u8::MAX,
+            }
+        );
+
+        assert_eq!(
+            repeatable[2],
+            RepeatableFlag {
+                flag: SimpleGlyphFlags::Y_SHORT_VECTOR,
+                repeat: 0,
+            }
+        )
     }
 }
