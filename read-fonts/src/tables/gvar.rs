@@ -186,6 +186,11 @@ pub struct TupleVariation<'a> {
 }
 
 impl<'a> TupleVariation<'a> {
+    /// Returns true if this tuple provides deltas for all points in a glyph.
+    pub fn all_points(&self) -> bool {
+        self.point_numbers.count() == 0
+    }
+
     /// Returns the 'peak' tuple for this variation
     pub fn peak(&self) -> Tuple<'a> {
         self.header
@@ -199,8 +204,11 @@ impl<'a> TupleVariation<'a> {
     // transcribed from pinot/moscato
     /// Compute the scalar for a this tuple at a given point in design space.
     ///
+    /// The `coords` slice must be of lesser or equal length to the number of axes.
+    /// If it is less, missing (trailing) axes will be assumed to have zero values.
+    ///
     /// Returns `None` if this tuple is not applicable at the provided coordinates.
-    pub fn compute_scalar(&self, coords: &[Fixed]) -> Option<Fixed> {
+    pub fn compute_scalar(&self, coords: &[F2Dot14]) -> Option<Fixed> {
         const ZERO: Fixed = Fixed::ZERO;
         let mut scalar = Fixed::ONE;
         let peak = self.peak();
@@ -210,7 +218,9 @@ impl<'a> TupleVariation<'a> {
             return None;
         }
 
-        for (i, coord) in coords.iter().copied().enumerate() {
+        for i in 0..self.axis_count {
+            let i = i as usize;
+            let coord = coords.get(i).copied().unwrap_or_default().to_fixed();
             let peak = peak.get(i).unwrap_or_default().to_fixed();
             if peak == ZERO || peak == coord {
                 continue;
@@ -227,15 +237,15 @@ impl<'a> TupleVariation<'a> {
                     return None;
                 }
                 if coord < peak {
-                    scalar = scalar * (coord - start) / (peak - start);
+                    scalar = scalar.mul_div(coord - start, peak - start);
                 } else {
-                    scalar = scalar * (end - coord) / (end - peak);
+                    scalar = scalar.mul_div(end - coord, end - peak);
                 }
             } else {
                 if coord < peak.min(ZERO) || coord > peak.max(ZERO) {
                     return None;
                 }
-                scalar = scalar * coord / peak;
+                scalar = scalar.mul_div(coord, peak);
             }
         }
         Some(scalar)
