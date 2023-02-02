@@ -145,6 +145,16 @@ impl TableWriter {
         data.add_offset(obj_id, width, self.offset_adjustment);
     }
 
+    /// Add a padding byte of necessary to ensure the table length is word-aligned.
+    ///
+    /// This is necessary for things like the glyph table, which require offsets
+    /// to be aligned on 2-byte boundaries.
+    pub fn ensure_word_aligned(&mut self) {
+        if self.stack.last().unwrap().bytes.len() % 2 != 0 {
+            self.write_slice(&[0]);
+        }
+    }
+
     /// used when writing top-level font objects, which are done more manually.
     pub(crate) fn into_data(mut self) -> Vec<u8> {
         assert_eq!(self.stack.len(), 1);
