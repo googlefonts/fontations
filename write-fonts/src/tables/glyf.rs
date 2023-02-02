@@ -1,6 +1,6 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
-use kurbo::{BezPath, Shape};
+use kurbo::{BezPath, Rect, Shape};
 
 use read_fonts::tables::glyf::{CurvePoint, SimpleGlyphFlags};
 
@@ -10,12 +10,17 @@ use crate::FontWrite;
 #[derive(Clone, Debug)]
 pub struct Contour(Vec<CurvePoint>);
 
-/// A simple (without components) glyph
-pub struct SimpleGlyf {
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+struct Bbox {
     x_min: i16,
     y_min: i16,
     x_max: i16,
     y_max: i16,
+}
+
+/// A simple (without components) glyph
+pub struct SimpleGlyf {
+    bbox: Bbox,
     contours: Vec<Contour>,
     _instructions: Vec<u8>,
 }
@@ -134,10 +139,7 @@ impl SimpleGlyf {
 
         let bbox = path.bounding_box();
         Ok(SimpleGlyf {
-            x_max: ot_round(bbox.max_x() as f32),
-            y_max: ot_round(bbox.max_y() as f32),
-            x_min: ot_round(bbox.min_x() as f32),
-            y_min: ot_round(bbox.min_y() as f32),
+            bbox: bbox.into(),
             contours,
             _instructions: Default::default(),
         })
@@ -285,8 +287,7 @@ impl FontWrite for SimpleGlyf {
         assert!(self._instructions.len() < u16::MAX as usize);
         let n_contours = self.contours.len() as i16;
         n_contours.write_into(writer);
-        let bbox = [self.x_min, self.y_min, self.x_max, self.y_max];
-        bbox.write_into(writer);
+        self.bbox.write_into(writer);
         // now write end points of contours:
         let mut cur = 0;
         for contour in &self.contours {
@@ -307,6 +308,29 @@ impl FontWrite for SimpleGlyf {
 impl crate::validate::Validate for SimpleGlyf {
     fn validate_impl(&self, _ctx: &mut crate::codegen_prelude::ValidationCtx) {
         // pass
+    }
+}
+
+impl From<Rect> for Bbox {
+    fn from(value: Rect) -> Self {
+        Bbox {
+            x_min: ot_round(value.min_x() as f32),
+            y_min: ot_round(value.min_y() as f32),
+            x_max: ot_round(value.max_x() as f32),
+            y_max: ot_round(value.max_y() as f32),
+        }
+    }
+}
+
+impl FontWrite for Bbox {
+    fn write_into(&self, writer: &mut crate::TableWriter) {
+        let Bbox {
+            x_min,
+            y_min,
+            x_max,
+            y_max,
+        } = *self;
+        [x_min, y_min, x_max, y_max].write_into(writer)
     }
 }
 
