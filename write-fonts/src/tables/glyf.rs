@@ -6,7 +6,7 @@ use read_fonts::tables::glyf::{CurvePoint, SimpleGlyphFlags};
 
 use crate::FontWrite;
 
-/// A single quadratic bezier contour
+/// A single contour, comprising only line and quadratic bezier segments
 #[derive(Clone, Debug)]
 pub struct Contour(Vec<CurvePoint>);
 
@@ -312,9 +312,23 @@ impl crate::validate::Validate for SimpleGlyf {
 
 #[cfg(test)]
 mod tests {
-    use read::{FontData, FontRead};
+    use read::{
+        tables::glyf as read_glyf, types::GlyphId, FontData, FontRead, FontRef, TableProvider,
+    };
 
     use super::*;
+    use crate::read::test_data;
+
+    #[test]
+    #[should_panic(expected = "HasCubic")]
+    fn bad_path_input() {
+        let mut path = BezPath::new();
+        path.move_to((0., 0.));
+        path.curve_to((10., 10.), (20., 20.), (30., 30.));
+        path.line_to((50., 50.));
+        path.line_to((10., 10.));
+        let _glyph = SimpleGlyf::from_kurbo(&path).unwrap();
+    }
 
     fn simple_glyph_to_bezpath(glyph: &read::tables::glyf::SimpleGlyph) -> BezPath {
         use types::{F26Dot6, Pen};
@@ -369,23 +383,17 @@ mod tests {
 
     #[test]
     fn round_trip_simple() {
-        use read::{
-            tables::glyf::{Glyph, SimpleGlyph},
-            test_data, FontRef, TableProvider,
-        };
-        use types::GlyphId;
-        // load an existing glyph
         let font = FontRef::new(test_data::test_fonts::SIMPLE_GLYF).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
-        let Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
+        let read_glyf::Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
         let orig_bytes = orig.offset_data();
 
         let bezpath = simple_glyph_to_bezpath(&orig);
 
         let ours = SimpleGlyf::from_kurbo(&bezpath).unwrap();
         let bytes = crate::dump_table(&ours).unwrap();
-        let ours = SimpleGlyph::read(FontData::new(&bytes)).unwrap();
+        let ours = read_glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
 
         let our_points = ours.points().collect::<Vec<_>>();
         let their_points = orig.points().collect::<Vec<_>>();
