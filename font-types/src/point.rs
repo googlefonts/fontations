@@ -3,7 +3,7 @@ use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssi
 /// Two dimensional point with a generic coordinate type.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub struct Point<T> {
-    /// X cooordinate.
+    /// X coordinate.
     pub x: T,
     /// Y coordinate.
     pub y: T,
