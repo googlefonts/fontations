@@ -423,7 +423,7 @@ struct FieldLengths {
 }
 
 /// Transform for a composite component.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Transform {
     /// X scale factor.
     pub xx: F2Dot14,
@@ -447,6 +447,7 @@ impl Default for Transform {
 }
 
 /// A reference to another glyph. Part of [CompositeGlyph].
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Component {
     /// Component flags.
     pub flags: CompositeGlyphFlags,
@@ -459,7 +460,7 @@ pub struct Component {
 }
 
 /// Anchor position for a composite component.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Anchor {
     Offset { x: i16, y: i16 },
     Point { base: u16, component: u16 },
