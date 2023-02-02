@@ -2,7 +2,10 @@
 
 use kurbo::{BezPath, Rect, Shape};
 
-use read_fonts::tables::glyf::{CurvePoint, SimpleGlyphFlags};
+use read_fonts::{
+    tables::glyf::{Anchor, CompositeGlyphFlags, CurvePoint, SimpleGlyphFlags, Transform},
+    types::GlyphId,
+};
 
 use crate::{
     from_obj::{FromObjRef, FromTableRef},
@@ -26,6 +29,48 @@ pub struct SimpleGlyph {
     bbox: Bbox,
     contours: Vec<Contour>,
     _instructions: Vec<u8>,
+}
+
+/// A glyph consisting of multiple component sub-glyphs
+#[derive(Clone, Debug)]
+pub struct CompositeGlyph {
+    bbox: Bbox,
+    components: Vec<Component>,
+    _instructions: Vec<u8>,
+}
+
+/// A single component glyph (part of a [`CompositeGlyph`]).
+#[derive(Clone, Debug)]
+pub struct Component {
+    glyph: GlyphId,
+    anchor: Anchor,
+    pub flags: ComponentFlags,
+    transform: Transform,
+}
+
+/// Options that can be manually set for a given component.
+///
+/// This provides an easier interface for setting those flags that are not
+/// calculated based on other properties of the glyph. For more information
+/// on these flags, see [Component Glyph Flags](flags-spec) in the spec.
+///
+/// These eventually are combined with calculated flags into the
+/// [`CompositeGlyphFlags`] bitset.
+///
+/// [flags-spec]: https://learn.microsoft.com/en-us/typography/opentype/spec/glyf#compositeGlyphFlags
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+pub struct ComponentFlags {
+    /// Round xy values to the nearest grid line
+    pub round_xy_to_grid: bool,
+    /// Use the advance/lsb/rsb values of this component for the whole
+    /// composite glyph
+    pub use_my_metrics: bool,
+    /// The composite should have this component's offset scaled
+    pub scaled_component_offset: bool,
+    /// The composite should *not* have this component's offset scaled
+    pub unscaled_component_offset: bool,
+    /// If set, the components of the composite glyph overlap.
+    pub overlap_compound: bool,
 }
 
 /// An error if an input curve is malformed
@@ -357,12 +402,169 @@ impl FontWrite for SimpleGlyph {
             .for_each(|flag| flag.write_into(writer));
         deltas.iter().for_each(|(_, x, _)| x.write_into(writer));
         deltas.iter().for_each(|(_, _, y)| y.write_into(writer));
+        writer.ensure_word_aligned();
     }
 }
 
 impl crate::validate::Validate for SimpleGlyph {
-    fn validate_impl(&self, _ctx: &mut crate::codegen_prelude::ValidationCtx) {
-        // pass
+    fn validate_impl(&self, ctx: &mut crate::codegen_prelude::ValidationCtx) {
+        if self._instructions.len() > u16::MAX as usize {
+            ctx.report("instructions len overflows");
+        }
+    }
+}
+
+impl Component {
+    /// Create a new component.
+    pub fn new(
+        glyph: GlyphId,
+        anchor: Anchor,
+        transform: Transform,
+        flags: impl Into<ComponentFlags>,
+    ) -> Self {
+        Component {
+            glyph,
+            anchor,
+            flags: flags.into(),
+            transform,
+        }
+    }
+    /// Compute the flags for this glyph, excepting `MORE_COMPONENTS` and
+    /// `WE_HAVE_INSTRUCTIONS`, which must be set manually
+    fn compute_flag(&self) -> CompositeGlyphFlags {
+        self.anchor.compute_flags() | self.transform.compute_flags() | self.flags.into()
+    }
+
+    /// like `FontWrite` but lets us pass in the flags that must be determined
+    /// externally (WE_HAVE_INSTRUCTIONS and MORE_COMPONENTS)
+    fn write_into(&self, writer: &mut crate::TableWriter, extra_flags: CompositeGlyphFlags) {
+        let flags = self.compute_flag() | extra_flags;
+        flags.bits().write_into(writer);
+        self.glyph.write_into(writer);
+        self.anchor.write_into(writer);
+        self.transform.write_into(writer);
+    }
+}
+
+impl CompositeGlyph {
+    /// Create a new composite glyph, with the provided component.
+    ///
+    /// Additional components can be added with [`add_component`][Self::add_component]
+    pub fn new(component: Component) -> Self {
+        Self {
+            bbox: Default::default(),
+            components: vec![component],
+            _instructions: Default::default(),
+        }
+    }
+
+    /// Add a new component to this glyph
+    pub fn add_component(&mut self, component: Component) {
+        self.components.push(component);
+    }
+}
+
+impl FontWrite for CompositeGlyph {
+    fn write_into(&self, writer: &mut crate::TableWriter) {
+        const N_CONTOURS: i16 = -1;
+        N_CONTOURS.write_into(writer);
+        self.bbox.write_into(writer);
+        let (last, rest) = self
+            .components
+            .split_last()
+            .expect("empty composites checked in validation");
+        for comp in rest {
+            comp.write_into(writer, CompositeGlyphFlags::MORE_COMPONENTS);
+        }
+        let last_flags = if self._instructions.is_empty() {
+            CompositeGlyphFlags::empty()
+        } else {
+            CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS
+        };
+        last.write_into(writer, last_flags);
+
+        if !self._instructions.is_empty() {
+            (self._instructions.len() as u16).write_into(writer);
+            self._instructions.write_into(writer);
+        }
+        writer.ensure_word_aligned();
+    }
+}
+
+impl crate::validate::Validate for CompositeGlyph {
+    fn validate_impl(&self, ctx: &mut crate::codegen_prelude::ValidationCtx) {
+        if self.components.is_empty() {
+            ctx.report("composite glyph must have components");
+        }
+        if self._instructions.len() > u16::MAX as usize {
+            ctx.report("instructions len overflows");
+        }
+    }
+}
+
+impl FontWrite for Anchor {
+    fn write_into(&self, writer: &mut crate::TableWriter) {
+        let two_bytes = self
+            .compute_flags()
+            .contains(CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS);
+        match self {
+            Anchor::Offset { x, y } if !two_bytes => [*x as i8, *y as i8].write_into(writer),
+            Anchor::Offset { x, y } => [*x, *y].write_into(writer),
+            Anchor::Point { base, component } if !two_bytes => {
+                [*base as u8, *component as u8].write_into(writer)
+            }
+            Anchor::Point { base, component } => [*base, *component].write_into(writer),
+        }
+    }
+}
+
+impl FontWrite for Transform {
+    fn write_into(&self, writer: &mut crate::TableWriter) {
+        let flags = self.compute_flags();
+        if flags.contains(CompositeGlyphFlags::WE_HAVE_A_TWO_BY_TWO) {
+            [self.xx, self.yx, self.xy, self.yy].write_into(writer);
+        } else if flags.contains(CompositeGlyphFlags::WE_HAVE_AN_X_AND_Y_SCALE) {
+            [self.xx, self.yy].write_into(writer);
+        } else if flags.contains(CompositeGlyphFlags::WE_HAVE_A_SCALE) {
+            self.xx.write_into(writer)
+        }
+    }
+}
+
+impl From<CompositeGlyphFlags> for ComponentFlags {
+    fn from(src: CompositeGlyphFlags) -> ComponentFlags {
+        ComponentFlags {
+            round_xy_to_grid: src.contains(CompositeGlyphFlags::ROUND_XY_TO_GRID),
+            use_my_metrics: src.contains(CompositeGlyphFlags::USE_MY_METRICS),
+            scaled_component_offset: src.contains(CompositeGlyphFlags::SCALED_COMPONENT_OFFSET),
+            unscaled_component_offset: src.contains(CompositeGlyphFlags::UNSCALED_COMPONENT_OFFSET),
+            overlap_compound: src.contains(CompositeGlyphFlags::OVERLAP_COMPOUND),
+        }
+    }
+}
+
+impl From<ComponentFlags> for CompositeGlyphFlags {
+    fn from(value: ComponentFlags) -> Self {
+        value
+            .round_xy_to_grid
+            .then_some(CompositeGlyphFlags::ROUND_XY_TO_GRID)
+            .unwrap_or_default()
+            | value
+                .use_my_metrics
+                .then_some(CompositeGlyphFlags::USE_MY_METRICS)
+                .unwrap_or_default()
+            | value
+                .scaled_component_offset
+                .then_some(CompositeGlyphFlags::SCALED_COMPONENT_OFFSET)
+                .unwrap_or_default()
+            | value
+                .unscaled_component_offset
+                .then_some(CompositeGlyphFlags::UNSCALED_COMPONENT_OFFSET)
+                .unwrap_or_default()
+            | value
+                .overlap_compound
+                .then_some(CompositeGlyphFlags::OVERLAP_COMPOUND)
+                .unwrap_or_default()
     }
 }
 
@@ -639,5 +841,40 @@ mod tests {
                 repeat: 0,
             }
         )
+    }
+
+    #[test]
+    fn roundtrip_composite() {
+        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let loca = font.loca(None).unwrap();
+        let glyf = font.glyf().unwrap();
+        let read_glyf::Glyph::Composite(orig) = loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap() else { panic!("not a composite glyph") };
+
+        let mut iter = orig
+            .components()
+            .map(|comp| Component::new(comp.glyph, comp.anchor, comp.transform, comp.flags));
+        let mut composite = CompositeGlyph::new(iter.next().unwrap());
+        composite.add_component(iter.next().unwrap());
+        composite._instructions = orig.instructions().unwrap_or_default().to_vec();
+        //FIXME: figure out how we're actually computing bboxes here
+        composite.bbox = Bbox {
+            x_min: orig.x_min(),
+            y_min: orig.y_min(),
+            x_max: orig.x_max(),
+            y_max: orig.y_max(),
+        };
+        assert!(iter.next().is_none());
+        let bytes = crate::dump_table(&composite).unwrap();
+        let ours = read::tables::glyf::CompositeGlyph::read(FontData::new(&bytes)).unwrap();
+
+        let our_comps = ours.components().collect::<Vec<_>>();
+        let orig_comps = orig.components().collect::<Vec<_>>();
+        assert_eq!(our_comps.len(), orig_comps.len());
+        assert_eq!(&our_comps[0], &orig_comps[0]);
+        assert_eq!(&our_comps[1], &orig_comps[1]);
+        assert_eq!(ours.instructions(), orig.instructions());
+        assert_eq!(orig.offset_data().len(), bytes.len());
+
+        assert_eq!(orig.offset_data().as_ref(), bytes);
     }
 }
