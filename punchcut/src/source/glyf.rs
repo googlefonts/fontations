@@ -9,7 +9,7 @@ mod scaler;
 pub use outline::Outline;
 pub use scaler::Scaler;
 
-pub use read_fonts::tables::glyf::Point;
+pub use read_fonts::types::Point;
 
 use read_fonts::types::F26Dot6;
 

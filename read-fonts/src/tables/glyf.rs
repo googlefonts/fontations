@@ -1,5 +1,7 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
+use types::Point;
+
 include!("../../generated/generated_glyf.rs");
 
 macro_rules! field_getter {
@@ -129,25 +131,6 @@ impl<'a> SimpleGlyph<'a> {
         let (x_coords, y_coords) = data.split_at(lens.x_coords as usize);
 
         Some(PointIter::new(flags, x_coords, y_coords))
-    }
-}
-
-/// Point in a simple glyph.
-///
-/// This is the representation used by punchcut, where we use higher precision
-/// and use both integer and fixed-point representations
-#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
-pub struct Point<T> {
-    /// X cooordinate.
-    pub x: T,
-    /// Y coordinate.
-    pub y: T,
-}
-
-impl<T> Point<T> {
-    /// Creates a new point with the specified x and y coordinates.
-    pub const fn new(x: T, y: T) -> Self {
-        Self { x, y }
     }
 }
 

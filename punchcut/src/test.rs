@@ -2,7 +2,7 @@
 
 use super::{font::*, Context, GlyphId, PathSink, Scaler};
 use core::str::FromStr;
-use read_fonts::{tables::glyf::Point, types::F26Dot6};
+use read_fonts::types::{F26Dot6, Point};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 // clippy doesn't like the common To suffix

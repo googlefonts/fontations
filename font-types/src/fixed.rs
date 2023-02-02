@@ -267,6 +267,22 @@ crate::newtype_scalar!(F2Dot14, [u8; 2]);
 crate::newtype_scalar!(Fixed, [u8; 4]);
 
 impl Fixed {
+    /// Creates a 16.16 fixed point value from a 32 bit integer.
+    pub const fn from_i32(i: i32) -> Self {
+        Self(i << 16)
+    }
+
+    /// Converts a 16.16 fixed point value to a 32 bit integer, rounding off
+    /// the fractional bits.
+    pub const fn to_i32(self) -> i32 {
+        self.0.wrapping_add(0x8000) >> 16
+    }
+
+    /// Converts a 16.16 to 26.6 fixed point value.
+    pub const fn to_f26dot6(self) -> F26Dot6 {
+        F26Dot6(self.0.wrapping_add(0x200) >> 10)
+    }
+
     /// Converts a 16.16 to 2.14 fixed point value.
     ///
     /// This specific conversion is defined by the spec:
@@ -274,14 +290,27 @@ impl Fixed {
     ///
     /// "5. Convert the final, normalized 16.16 coordinate value to 2.14 by this method: add 0x00000002,
     /// and sign-extend shift to the right by 2."
-    pub fn to_f2dot14(self) -> F2Dot14 {
+    pub const fn to_f2dot14(self) -> F2Dot14 {
         F2Dot14((self.0.wrapping_add(2) >> 2) as _)
+    }
+}
+
+impl F26Dot6 {
+    /// Creates a 26.6 fixed point value from a 32 bit integer.
+    pub const fn from_i32(i: i32) -> Self {
+        Self(i << 6)
+    }
+
+    /// Converts a 26.6 fixed point value to a 32 bit integer, rounding off
+    /// the fractional bits.
+    pub const fn to_i32(self) -> i32 {
+        self.0.wrapping_add(32) >> 6
     }
 }
 
 impl F2Dot14 {
     /// Converts a 2.14 to 16.16 fixed point value.
-    pub fn to_fixed(self) -> Fixed {
+    pub const fn to_fixed(self) -> Fixed {
         Fixed(self.0 as i32 * 4)
     }
 }
@@ -345,6 +374,25 @@ mod tests {
             Fixed::from_f64(-0.000015259)
         );
         assert_eq!(Fixed(0x7fff_ffff), Fixed::from_f64(32768.0));
+    }
+
+    #[test]
+    fn fixed_to_int() {
+        assert_eq!(Fixed::from_f64(1.0).to_i32(), 1);
+        assert_eq!(Fixed::from_f64(1.5).to_i32(), 2);
+        assert_eq!(F26Dot6::from_f64(1.0).to_i32(), 1);
+        assert_eq!(F26Dot6::from_f64(1.5).to_i32(), 2);
+    }
+
+    #[test]
+    fn fixed_from_int() {
+        assert_eq!(Fixed::from_i32(1000).to_bits(), 1000 << 16);
+        assert_eq!(F26Dot6::from_i32(1000).to_bits(), 1000 << 6);
+    }
+
+    #[test]
+    fn fixed_to_f26dot6() {
+        assert_eq!(Fixed::from_f64(42.5).to_f26dot6(), F26Dot6::from_f64(42.5));
     }
 
     #[test]
