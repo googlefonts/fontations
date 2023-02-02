@@ -19,7 +19,7 @@ struct Bbox {
 }
 
 /// A simple (without components) glyph
-pub struct SimpleGlyf {
+pub struct SimpleGlyph {
     bbox: Bbox,
     contours: Vec<Contour>,
     _instructions: Vec<u8>,
@@ -88,7 +88,7 @@ impl Contour {
     }
 }
 
-impl SimpleGlyf {
+impl SimpleGlyph {
     /// Attempt to create a simple glyph from a kurbo `BezPath`
     ///
     /// The path may contain only line and quadratic bezier segments. The caller
@@ -138,7 +138,7 @@ impl SimpleGlyf {
         }
 
         let bbox = path.bounding_box();
-        Ok(SimpleGlyf {
+        Ok(SimpleGlyph {
             bbox: bbox.into(),
             contours,
             _instructions: Default::default(),
@@ -281,7 +281,7 @@ impl<'a> IntoIterator for &'a Contour {
     }
 }
 
-impl FontWrite for SimpleGlyf {
+impl FontWrite for SimpleGlyph {
     fn write_into(&self, writer: &mut crate::TableWriter) {
         assert!(self.contours.len() < i16::MAX as usize);
         assert!(self._instructions.len() < u16::MAX as usize);
@@ -305,7 +305,7 @@ impl FontWrite for SimpleGlyf {
     }
 }
 
-impl crate::validate::Validate for SimpleGlyf {
+impl crate::validate::Validate for SimpleGlyph {
     fn validate_impl(&self, _ctx: &mut crate::codegen_prelude::ValidationCtx) {
         // pass
     }
@@ -351,7 +351,7 @@ mod tests {
         path.curve_to((10., 10.), (20., 20.), (30., 30.));
         path.line_to((50., 50.));
         path.line_to((10., 10.));
-        let _glyph = SimpleGlyf::from_kurbo(&path).unwrap();
+        let _glyph = SimpleGlyph::from_kurbo(&path).unwrap();
     }
 
     fn simple_glyph_to_bezpath(glyph: &read::tables::glyf::SimpleGlyph) -> BezPath {
@@ -415,7 +415,7 @@ mod tests {
 
         let bezpath = simple_glyph_to_bezpath(&orig);
 
-        let ours = SimpleGlyf::from_kurbo(&bezpath).unwrap();
+        let ours = SimpleGlyph::from_kurbo(&bezpath).unwrap();
         let bytes = crate::dump_table(&ours).unwrap();
         let ours = read_glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
 
@@ -435,7 +435,7 @@ mod tests {
         path.quad_to((13., 255.), (-255., 256.));
         path.line_to((20., -100.));
 
-        let glyph = SimpleGlyf::from_kurbo(&path).unwrap();
+        let glyph = SimpleGlyph::from_kurbo(&path).unwrap();
         let bytes = crate::dump_table(&glyph).unwrap();
         let read = read_fonts::tables::glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
         assert_eq!(read.number_of_contours(), 1);
@@ -458,7 +458,7 @@ mod tests {
         path.line_to((50., -69.));
         path.line_to((80., -20.));
 
-        let glyph = SimpleGlyf::from_kurbo(&path).unwrap();
+        let glyph = SimpleGlyph::from_kurbo(&path).unwrap();
         let flags = glyph
             .compute_point_deltas()
             .map(|x| x.0)
@@ -467,7 +467,7 @@ mod tests {
 
         assert_eq!(r_flags.len(), 2, "{r_flags:?}");
         let bytes = crate::dump_table(&glyph).unwrap();
-        let read = read_fonts::tables::glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
+        let read = read_glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
         assert_eq!(read.number_of_contours(), 1);
         assert_eq!(read.num_points(), 4);
         assert_eq!(read.end_pts_of_contours(), &[3]);
