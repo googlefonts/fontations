@@ -130,10 +130,6 @@ impl SimpleGlyf {
             if contour.0.first() == contour.0.last() {
                 contour.0.pop();
             }
-
-            // ot point order is reversed, and the last point is first
-            contour.0.reverse();
-            contour.0.rotate_right(1);
         }
 
         let bbox = path.bounding_box();
@@ -334,9 +330,7 @@ mod tests {
         assert_eq!(read.number_of_contours(), 1);
         assert_eq!(read.num_points(), 5);
         assert_eq!(read.end_pts_of_contours(), &[4]);
-        let mut points = read.points().collect::<Vec<_>>();
-        points.rotate_left(1);
-        points.reverse();
+        let points = read.points().collect::<Vec<_>>();
         assert_eq!(points[0].x, 20);
         assert_eq!(points[1].y, 1338);
         assert!(!points[1].on_curve);
@@ -349,12 +343,9 @@ mod tests {
     fn compile_repeatable_flags() {
         let mut path = BezPath::new();
         path.move_to((20., -100.));
-        path.line_to((80., -20.));
-        path.line_to((50., -69.));
         path.line_to((25., -90.));
-        // before reversal/rotation: A B C D
-        // after reversal D C B A
-        // after r-rot-1 A D C B
+        path.line_to((50., -69.));
+        path.line_to((80., -20.));
 
         let glyph = SimpleGlyf::from_kurbo(&path).unwrap();
         let flags = glyph
