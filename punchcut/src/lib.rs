@@ -8,7 +8,6 @@ Glyph loading.
 
 mod error;
 mod scaler;
-mod sink;
 
 #[cfg(test)]
 mod test;
@@ -25,9 +24,10 @@ use source::glyf;
 
 use core::str::FromStr;
 
+pub use read_fonts::types::PathSink;
+
 pub use error::{Error, Result};
 pub use scaler::{Scaler, ScalerBuilder};
-pub use sink::PathSink;
 
 /// Limit for recursion when loading TrueType composite glyphs.
 const GLYF_COMPOSITE_RECURSION_LIMIT: usize = 32;
@@ -129,23 +129,22 @@ mod tests {
         let font = FontRef::new(test_fonts::VAZIRMATN_VAR).unwrap();
         let outlines = crate::test::parse_glyph_outlines(test_fonts::VAZIRMATN_VAR_GLYPHS);
         let mut cx = Context::new();
-        let mut path: Vec<crate::test::PathElement> = vec![];
+        let mut path = crate::test::Path::default();
         for expected_outline in &outlines {
-            path.clear();
+            path.0.clear();
             let mut scaler = cx.new_scaler().size(expected_outline.size).build(&font);
             scaler
                 .outline(expected_outline.glyph_id, &mut path)
                 .unwrap();
-            if path != expected_outline.path {
+            if path.0 != expected_outline.path {
                 panic!(
                     "mismatch in glyph path for id {} with size {}: path: {:?} expected_path: {:?}",
                     expected_outline.glyph_id.to_u16(),
                     expected_outline.size,
-                    &path,
+                    &path.0,
                     &expected_outline.path
                 );
             }
-            assert_eq!(&path, &expected_outline.path);
         }
     }
 }

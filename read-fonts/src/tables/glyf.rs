@@ -1,6 +1,7 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
-use types::Point;
+use std::fmt;
+use types::{F26Dot6, PathSink, Point};
 
 include!("../../generated/generated_glyf.rs");
 
@@ -475,6 +476,175 @@ impl<'a> SomeTable<'a> for Component {
             _ => None,
         }
     }
+}
+
+/// Errors that can occur when converting an outline to a path.
+#[derive(Clone, Debug)]
+pub enum ToPathError {
+    /// Contour end point at this index was less than its preceding end point.
+    ContourOrder(usize),
+    /// Expected a quadratic off-curve point at this index.
+    ExpectedQuad(usize),
+    /// Expected a quadratic off-curve or on-curve point at this index.
+    ExpectedQuadOrOnCurve(usize),
+    /// Expected a cubic off-curve point at this index.
+    ExpectedCubic(usize),
+}
+
+impl fmt::Display for ToPathError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Self::ContourOrder(ix) => write!(
+                f,
+                "Contour end point at index {ix} was less than preceeding end point"
+            ),
+            Self::ExpectedQuad(ix) => write!(f, "Expected quadatic off-curve point at index {ix}"),
+            Self::ExpectedQuadOrOnCurve(ix) => write!(
+                f,
+                "Expected quadatic off-curve or on-curve point at index {ix}"
+            ),
+            Self::ExpectedCubic(ix) => write!(f, "Expected cubic off-curve point at index {ix}"),
+        }
+    }
+}
+
+/// Converts a `glyf` outline described by points, flags and contour end points to a sequence of
+/// path elements and and invokes the appropriate callback on the given sink for each.
+///
+/// The input points are expected in `F26Dot6` format as that is the standard result of scaling
+/// a TrueType glyph. Output points are generated in `f32`.
+pub fn to_path(
+    points: &[Point<F26Dot6>],
+    flags: &[u8],
+    contours: &[u16],
+    sink: &mut impl PathSink<f32>,
+) -> Result<(), ToPathError> {
+    fn to_f32(x: F26Dot6) -> f32 {
+        x.to_f64() as f32
+    }
+    const FLAG_MASK: u8 = 0x3;
+    const QUAD: u8 = 0x0;
+    const ON: u8 = 0x1;
+    const CUBIC: u8 = 0x2;
+    const TWO: F26Dot6 = F26Dot6::from_i32(2);
+    let mut count = 0usize;
+    let mut last_was_close = false;
+    for contour_ix in 0..contours.len() {
+        let mut cur_ix = if contour_ix > 0 {
+            contours[contour_ix - 1] as usize + 1
+        } else {
+            0
+        };
+        let mut last_ix = contours[contour_ix] as usize;
+        if last_ix < cur_ix || last_ix >= points.len() {
+            return Err(ToPathError::ContourOrder(contour_ix));
+        }
+        let mut v_start = points[cur_ix];
+        let v_last = v_start;
+        let mut flag = flags[cur_ix] & FLAG_MASK;
+        if flag == CUBIC {
+            return Err(ToPathError::ExpectedQuadOrOnCurve(cur_ix));
+        }
+        let mut step_point = true;
+        if flag == QUAD {
+            if flags[last_ix] & FLAG_MASK == ON {
+                v_start = v_last;
+                last_ix -= 1;
+            } else {
+                v_start = (v_start + v_last) / TWO;
+            }
+            step_point = false;
+        }
+        let p = v_start.map(to_f32);
+        if count > 0 && !last_was_close {
+            sink.close();
+        }
+        sink.move_to(p.x, p.y);
+        count += 1;
+        last_was_close = false;
+        while cur_ix < last_ix {
+            if step_point {
+                cur_ix += 1;
+            }
+            step_point = true;
+            flag = flags[cur_ix] & FLAG_MASK;
+            match flag {
+                ON => {
+                    let p = points[cur_ix].map(to_f32);
+                    sink.line_to(p.x, p.y);
+                    count += 1;
+                    last_was_close = false;
+                    continue;
+                }
+                QUAD => {
+                    let mut do_close_quad = true;
+                    let mut v_control = points[cur_ix];
+                    while cur_ix < last_ix {
+                        cur_ix += 1;
+                        let cur_point = points[cur_ix];
+                        flag = flags[cur_ix] & FLAG_MASK;
+                        if flag == ON {
+                            let control = v_control.map(to_f32);
+                            let point = cur_point.map(to_f32);
+                            sink.quad_to(control.x, control.y, point.x, point.y);
+                            count += 1;
+                            last_was_close = false;
+                            do_close_quad = false;
+                            break;
+                        }
+                        if flag != QUAD {
+                            return Err(ToPathError::ExpectedQuad(cur_ix));
+                        }
+                        let v_middle = (v_control + cur_point) / TWO;
+                        let control = v_control.map(to_f32);
+                        let point = v_middle.map(to_f32);
+                        sink.quad_to(control.x, control.y, point.x, point.y);
+                        count += 1;
+                        last_was_close = false;
+                        v_control = cur_point;
+                    }
+                    if do_close_quad {
+                        let control = v_control.map(to_f32);
+                        let point = v_start.map(to_f32);
+                        sink.quad_to(control.x, control.y, point.x, point.y);
+                        count += 1;
+                        last_was_close = false;
+                        break;
+                    }
+                    continue;
+                }
+                _ => {
+                    if cur_ix + 1 > last_ix || (flags[cur_ix + 1] & FLAG_MASK != CUBIC) {
+                        return Err(ToPathError::ExpectedCubic(cur_ix + 1));
+                    }
+                    let control0 = points[cur_ix].map(to_f32);
+                    let control1 = points[cur_ix + 1].map(to_f32);
+                    cur_ix += 2;
+                    if cur_ix <= last_ix {
+                        let point = points[cur_ix].map(to_f32);
+                        sink.curve_to(
+                            control0.x, control0.y, control1.x, control1.y, point.x, point.y,
+                        );
+                        count += 1;
+                        last_was_close = false;
+                        continue;
+                    }
+                    let point = v_start.map(to_f32);
+                    sink.curve_to(
+                        control0.x, control0.y, control1.x, control1.y, point.x, point.y,
+                    );
+                    count += 1;
+                    last_was_close = false;
+                    break;
+                }
+            }
+        }
+        if count > 0 && !last_was_close {
+            sink.close();
+            last_was_close = true;
+        }
+    }
+    Ok(())
 }
 
 //NOTE: we want generated_glyf traversal to include this:
