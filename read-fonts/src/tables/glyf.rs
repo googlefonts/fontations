@@ -509,10 +509,12 @@ impl fmt::Display for ToPathError {
 }
 
 /// Converts a `glyf` outline described by points, flags and contour end points to a sequence of
-/// path elements and and invokes the appropriate callback on the given sink for each.
+/// path elements and invokes the appropriate callback on the given sink for each.
 ///
 /// The input points are expected in `F26Dot6` format as that is the standard result of scaling
 /// a TrueType glyph. Output points are generated in `f32`.
+///
+/// This is roughly equivalent to [`FT_Outline_Decompose`](https://freetype.org/freetype2/docs/reference/ft2-outline_processing.html#ft_outline_decompose).
 pub fn to_path(
     points: &[Point<F26Dot6>],
     flags: &[u8],
