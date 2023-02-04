@@ -132,15 +132,20 @@ mod tests {
         let mut path = crate::test::Path::default();
         for expected_outline in &outlines {
             path.0.clear();
-            let mut scaler = cx.new_scaler().size(expected_outline.size).build(&font);
+            let mut scaler = cx
+                .new_scaler()
+                .size(expected_outline.size)
+                .coords(&expected_outline.coords)
+                .build(&font);
             scaler
                 .outline(expected_outline.glyph_id, &mut path)
                 .unwrap();
             if path.0 != expected_outline.path {
                 panic!(
-                    "mismatch in glyph path for id {} with size {}: path: {:?} expected_path: {:?}",
+                    "mismatch in glyph path for id {} (size: {}, coords: {:?}): path: {:?} expected_path: {:?}",
                     expected_outline.glyph_id.to_u16(),
                     expected_outline.size,
+                    expected_outline.coords,
                     &path.0,
                     &expected_outline.path
                 );

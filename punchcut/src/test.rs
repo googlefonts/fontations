@@ -3,7 +3,7 @@
 use super::{font::*, Context, GlyphId, Pen, Scaler};
 use core::str::FromStr;
 use read_fonts::tables::glyf::PointFlags;
-use read_fonts::types::{F26Dot6, Point};
+use read_fonts::types::{F26Dot6, F2Dot14, Point};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 // clippy doesn't like the common To suffix
@@ -57,9 +57,10 @@ impl Pen for Path {
 pub struct GlyphOutline {
     pub glyph_id: GlyphId,
     pub size: f32,
+    pub coords: Vec<F2Dot14>,
     pub points: Vec<Point<F26Dot6>>,
     pub contours: Vec<u16>,
-    pub tags: Vec<PointFlags>,
+    pub flags: Vec<PointFlags>,
     pub path: Vec<PathElement>,
 }
 
@@ -75,6 +76,12 @@ pub fn parse_glyph_outlines(source: &str) -> Vec<GlyphOutline> {
             let parts = line.split(' ').collect::<Vec<_>>();
             cur_outline.glyph_id = GlyphId::new(parts[1].parse().unwrap());
             cur_outline.size = parts[2].parse().unwrap();
+        } else if line.starts_with("coords") {
+            for coord in line.split(' ').skip(1) {
+                cur_outline
+                    .coords
+                    .push(F2Dot14::from_f32(coord.parse().unwrap()));
+            }
         } else if line.starts_with("contours") {
             for contour in line.split(' ').skip(1) {
                 cur_outline.contours.push(contour.parse().unwrap());
@@ -94,7 +101,7 @@ pub fn parse_glyph_outlines(source: &str) -> Vec<GlyphOutline> {
         } else if line.starts_with("tags") {
             for tag in line.split(' ').skip(1) {
                 cur_outline
-                    .tags
+                    .flags
                     .push(PointFlags::from_bits(tag.parse().unwrap()));
             }
         } else {

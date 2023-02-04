@@ -292,6 +292,13 @@ pub struct GlyphDelta {
     pub y_delta: i16,
 }
 
+impl GlyphDelta {
+    /// Applies a tuple scalar to this delta.
+    pub fn apply_scalar(self, scalar: Fixed) -> Point<Fixed> {
+        Point::new(self.x_delta as i32, self.y_delta as i32).map(Fixed::from_i32) * scalar
+    }
+}
+
 impl<'a> Iterator for DeltaIter<'a> {
     type Item = GlyphDelta;
 

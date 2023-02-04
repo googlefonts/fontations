@@ -106,6 +106,7 @@ impl<'a> ScalerBuilder<'a> {
             None
         };
         Scaler {
+            coords,
             outlines: Outlines { glyf },
         }
     }
@@ -122,24 +123,26 @@ impl<'a> ScalerBuilder<'a> {
         };
         let avar_mappings = font.avar().ok().map(|avar| avar.axis_segment_maps());
         let axis_count = fvar.axis_count() as usize;
+        self.context.coords.clear();
         self.context
             .coords
             .resize(axis_count, NormalizedCoord::default());
-
-        for (i, (axis, dest_coord)) in axes.iter().zip(&mut self.context.coords).enumerate() {
-            let tag = axis.axis_tag();
-            for variation in &self.context.variations {
-                if variation.tag == tag {
-                    let mut coord = axis.normalize(Fixed::from_f64(variation.value as f64));
-                    coord = avar_mappings
-                        .as_ref()
-                        .and_then(|mappings| mappings.get(i).transpose().ok())
-                        .flatten()
-                        .map(|mapping| mapping.apply(coord))
-                        .unwrap_or(coord);
-                    let coord = coord.to_f64() as f32;
-                    *dest_coord = NormalizedCoord::from_f32(coord);
-                }
+        for variation in &self.context.variations {
+            // Make sure we iterate over all axes to support the case with multiple axes
+            // with the same name.
+            for (i, axis) in axes
+                .iter()
+                .enumerate()
+                .filter(|(_, axis)| axis.axis_tag() == variation.tag)
+            {
+                let coord = axis.normalize(Fixed::from_f64(variation.value as f64));
+                let coord = avar_mappings
+                    .as_ref()
+                    .and_then(|mappings| mappings.get(i).transpose().ok())
+                    .flatten()
+                    .map(|mapping| mapping.apply(coord))
+                    .unwrap_or(coord);
+                self.context.coords[i] = coord.to_f2dot14();
             }
         }
     }
@@ -147,10 +150,16 @@ impl<'a> ScalerBuilder<'a> {
 
 /// Glyph scaler for a specific font and configuration.
 pub struct Scaler<'a> {
+    coords: &'a [NormalizedCoord],
     outlines: Outlines<'a>,
 }
 
 impl<'a> Scaler<'a> {
+    /// Returns the current set of normalized coordinates in use by the scaler.
+    pub fn normalized_coords(&self) -> &'a [NormalizedCoord] {
+        self.coords
+    }
+
     /// Returns true if the scaler has a source for simple outlines.
     pub fn has_outlines(&self) -> bool {
         self.outlines.has_outlines()

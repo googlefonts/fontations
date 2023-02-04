@@ -68,7 +68,7 @@ impl PointFlags {
     }
 
     /// Creates a new off curve quadratic point flag.
-    pub fn off_curve_quadratic() -> Self {
+    pub fn off_curve_quad() -> Self {
         Self(0)
     }
 
