@@ -41,6 +41,10 @@ impl PointMarker {
     /// Marker that signifies that the y coordinate of a point has been touched
     /// by an IUP hinting instruction.
     pub const TOUCHED_Y: Self = Self(0x10);
+
+    /// Marker that signifies that the both coordinates of a point has been touched
+    /// by an IUP hinting instruction.
+    pub const TOUCHED: Self = Self(0x8 | 0x10);
 }
 
 /// Flags describing the properties of a point.

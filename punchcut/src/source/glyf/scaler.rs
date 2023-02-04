@@ -2,7 +2,7 @@ use super::{Context, Outline, Point};
 use crate::{Error, NormalizedCoord, Result, GLYF_COMPOSITE_RECURSION_LIMIT};
 
 #[cfg(feature = "hinting")]
-use crate::Hinting;
+use {crate::Hinting, read_fonts::tables::glyf::PointMarker};
 
 use read_fonts::{
     tables::{
@@ -434,9 +434,8 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                     p.y = p.y.round();
                 }
                 // Clear the "touched" flags that are used during IUP processing.
-                const TOUCHED_FLAGS: u8 = 0x08 | 0x10;
-                for tag in &mut outline.tags[point_base..] {
-                    *tag &= !TOUCHED_FLAGS;
+                for flag in &mut outline.flags[point_base..] {
+                    flag.clear_marker(PointMarker::TOUCHED);
                 }
                 if !self.hint(outline, point_base, contour_base, ins, true) {
                     return Err(Error::HintingFailed(glyph_id));
