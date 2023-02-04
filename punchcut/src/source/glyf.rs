@@ -66,7 +66,7 @@ mod tests {
                 .unwrap();
             assert_eq!(&outline.points, &expected_outline.points);
             assert_eq!(&outline.contours, &expected_outline.contours);
-            assert_eq!(&outline.tags, &expected_outline.tags);
+            assert_eq!(&outline.flags, &expected_outline.tags);
         }
     }
 }

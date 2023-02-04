@@ -12,10 +12,10 @@ pub struct Contour(Vec<CurvePoint>);
 
 /// A simple (without components) glyph
 pub struct SimpleGlyf {
-    x_max: i16,
-    y_max: i16,
     x_min: i16,
     y_min: i16,
+    x_max: i16,
+    y_max: i16,
     contours: Vec<Contour>,
     _instructions: Vec<u8>,
 }
@@ -285,7 +285,7 @@ impl FontWrite for SimpleGlyf {
         assert!(self._instructions.len() < u16::MAX as usize);
         let n_contours = self.contours.len() as i16;
         n_contours.write_into(writer);
-        let bbox = [self.x_max, self.y_max, self.x_min, self.y_min];
+        let bbox = [self.x_min, self.y_min, self.x_max, self.y_max];
         bbox.write_into(writer);
         // now write end points of contours:
         let mut cur = 0;
@@ -315,6 +315,85 @@ mod tests {
     use read::{FontData, FontRead};
 
     use super::*;
+
+    fn simple_glyph_to_bezpath(glyph: &read::tables::glyf::SimpleGlyph) -> BezPath {
+        use types::{F26Dot6, Pen};
+
+        #[derive(Default)]
+        struct Path(BezPath);
+
+        impl Pen for Path {
+            fn move_to(&mut self, x: f32, y: f32) {
+                self.0.move_to((x as f64, y as f64));
+            }
+
+            fn line_to(&mut self, x: f32, y: f32) {
+                self.0.line_to((x as f64, y as f64));
+            }
+
+            fn quad_to(&mut self, x0: f32, y0: f32, x1: f32, y1: f32) {
+                self.0
+                    .quad_to((x0 as f64, y0 as f64), (x1 as f64, y1 as f64));
+            }
+
+            fn curve_to(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, x2: f32, y2: f32) {
+                self.0.curve_to(
+                    (x0 as f64, y0 as f64),
+                    (x1 as f64, y1 as f64),
+                    (x2 as f64, y2 as f64),
+                );
+            }
+
+            fn close(&mut self) {
+                self.0.close_path();
+            }
+        }
+
+        let contours = glyph
+            .end_pts_of_contours()
+            .iter()
+            .map(|x| x.get())
+            .collect::<Vec<_>>();
+        let num_points = glyph.num_points();
+        let mut points = vec![Default::default(); num_points];
+        let mut flags = vec![Default::default(); num_points];
+        glyph.read_points_fast(&mut points, &mut flags).unwrap();
+        let points = points
+            .into_iter()
+            .map(|point| point.map(F26Dot6::from_i32))
+            .collect::<Vec<_>>();
+        let mut path = Path::default();
+        read::tables::glyf::to_path(&points, &flags, &contours, &mut path).unwrap();
+        path.0
+    }
+
+    #[test]
+    fn round_trip_simple() {
+        use read::{
+            tables::glyf::{Glyph, SimpleGlyph},
+            test_data, FontRef, TableProvider,
+        };
+        use types::GlyphId;
+        // load an existing glyph
+        let font = FontRef::new(test_data::test_fonts::SIMPLE_GLYF).unwrap();
+        let loca = font.loca(None).unwrap();
+        let glyf = font.glyf().unwrap();
+        let Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
+        let orig_bytes = orig.offset_data();
+
+        let bezpath = simple_glyph_to_bezpath(&orig);
+
+        let ours = SimpleGlyf::from_kurbo(&bezpath).unwrap();
+        let bytes = crate::dump_table(&ours).unwrap();
+        let ours = SimpleGlyph::read(FontData::new(&bytes)).unwrap();
+
+        let our_points = ours.points().collect::<Vec<_>>();
+        let their_points = orig.points().collect::<Vec<_>>();
+        assert_eq!(our_points, their_points);
+        assert_eq!(orig_bytes.as_ref(), bytes);
+        assert_eq!(orig.glyph_data(), ours.glyph_data());
+        assert_eq!(orig_bytes.len(), bytes.len());
+    }
 
     #[test]
     fn very_simple_glyph() {

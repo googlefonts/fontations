@@ -1,7 +1,8 @@
 //! Helpers for unit testing
 
-use super::{font::*, Context, GlyphId, PathSink, Scaler};
+use super::{font::*, Context, GlyphId, Pen, Scaler};
 use core::str::FromStr;
+use read_fonts::tables::glyf::PointFlags;
 use read_fonts::types::{F26Dot6, Point};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -16,21 +17,24 @@ pub enum PathElement {
 
 use PathElement::*;
 
-impl PathSink for Vec<PathElement> {
+#[derive(Default)]
+pub struct Path(pub Vec<PathElement>);
+
+impl Pen for Path {
     fn move_to(&mut self, x: f32, y: f32) {
-        self.push(PathElement::MoveTo([x, y]));
+        self.0.push(PathElement::MoveTo([x, y]));
     }
 
     fn line_to(&mut self, x: f32, y: f32) {
-        self.push(PathElement::LineTo([x, y]));
+        self.0.push(PathElement::LineTo([x, y]));
     }
 
     fn quad_to(&mut self, x0: f32, y0: f32, x1: f32, y1: f32) {
-        self.push(PathElement::QuadTo([x0, y0, x1, y1]))
+        self.0.push(PathElement::QuadTo([x0, y0, x1, y1]))
     }
 
     fn curve_to(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, x2: f32, y2: f32) {
-        self.push(PathElement::CurveTo([x0, y0, x1, y1, x2, y2]))
+        self.0.push(PathElement::CurveTo([x0, y0, x1, y1, x2, y2]))
     }
 
     fn close(&mut self) {
@@ -38,12 +42,13 @@ impl PathSink for Vec<PathElement> {
         // we insert a line to same point as the most recent move_to which copies
         // FreeType's behavior.
         let last_move = self
+            .0
             .iter()
             .rev()
             .find(|element| matches!(*element, PathElement::MoveTo(_)))
             .copied();
         if let Some(PathElement::MoveTo(point)) = last_move {
-            self.push(PathElement::LineTo(point));
+            self.0.push(PathElement::LineTo(point));
         }
     }
 }
@@ -54,7 +59,7 @@ pub struct GlyphOutline {
     pub size: f32,
     pub points: Vec<Point<F26Dot6>>,
     pub contours: Vec<u16>,
-    pub tags: Vec<u8>,
+    pub tags: Vec<PointFlags>,
     pub path: Vec<PathElement>,
 }
 
@@ -88,7 +93,9 @@ pub fn parse_glyph_outlines(source: &str) -> Vec<GlyphOutline> {
             }
         } else if line.starts_with("tags") {
             for tag in line.split(' ').skip(1) {
-                cur_outline.tags.push(tag.parse().unwrap());
+                cur_outline
+                    .tags
+                    .push(PointFlags::from_bits(tag.parse().unwrap()));
             }
         } else {
             match line.as_bytes()[0] {

@@ -1,4 +1,4 @@
-use read_fonts::{types::GlyphId, ReadError};
+use read_fonts::{tables::glyf::ToPathError, types::GlyphId, ReadError};
 
 use std::fmt;
 
@@ -16,8 +16,16 @@ pub enum Error {
     HintingFailed(GlyphId),
     /// An anchor point had invalid indices.
     InvalidAnchorPoint(GlyphId, u16),
+    /// Conversion from outline to path failed.
+    ToPath(ToPathError),
     /// Error occured when reading font data.
     Read(ReadError),
+}
+
+impl From<ToPathError> for Error {
+    fn from(e: ToPathError) -> Self {
+        Self::ToPath(e)
+    }
 }
 
 impl From<ReadError> for Error {
@@ -42,6 +50,7 @@ impl fmt::Display for Error {
                 f,
                 "Invalid anchor point index ({index}) for composite glyph {gid}",
             ),
+            Self::ToPath(e) => write!(f, "{e}"),
             Self::Read(e) => write!(f, "{e}"),
         }
     }
