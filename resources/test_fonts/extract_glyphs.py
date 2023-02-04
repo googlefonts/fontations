@@ -13,6 +13,9 @@ assert freetype.version() == (2, 12, 0)
 # an unscaled glyph (results in font units)
 SAMPLE_SIZES = [0, 16, 50]
 
+# For variable fonts, sample the glyphs at these normalized coordinates.
+SAMPLE_COORDS = [-1.0, -0.2, 0.0, 0.3, 1.0]
+
 class DecomposeContext:
     def __init__(self, is_scaled: bool):
         self.data = ""
@@ -44,7 +47,7 @@ class GlyphData:
     def __init__(self):
         self.data = ""
 
-    def add_glyph(self, face: freetype.Face, size, glyph_id, hinting = "none"):
+    def add_glyph(self, face: freetype.Face, size, glyph_id, coords = [], hinting = "none"):
         face.set_pixel_sizes(size, size)
         flags = freetype.FT_LOAD_NO_AUTOHINT | freetype.FT_LOAD_NO_BITMAP
         if hinting == "full":
@@ -60,8 +63,14 @@ class GlyphData:
             flags |= freetype.FT_LOAD_NO_SCALE
             # freetype doesn't like pixel sizes of 0
             face.set_pixel_sizes(16, 16)
+        face.set_var_blend_coords(coords)
         face.load_glyph(glyph_id, flags)
         self.data += "glyph {} {} {}\n".format(glyph_id, size, hinting)
+        if len(coords) != 0:
+            self.data += "coords"
+            for coord in coords:
+                self.data += " " + str(coord)
+            self.data += "\n"
         self.data += "contours"
         for contour in face.glyph.outline.contours:
             self.data += " " + str(contour)
@@ -91,11 +100,22 @@ except:
     # load in FreeType
     exit(0)    
 
-outline = GlyphData()
-for glyph_id in range(0, face.num_glyphs):
-    for size in SAMPLE_SIZES:
-        outline.add_glyph(face, size, glyph_id)
+axis_count = len(face.get_var_design_coords())
+
+glyphs = GlyphData()
+
+if axis_count > 0:
+    for coord in SAMPLE_COORDS:
+        coords = [coord] * axis_count
+        face.set_var_design_coords(coords)
+        for glyph_id in range(0, face.num_glyphs):
+            for size in SAMPLE_SIZES:
+                glyphs.add_glyph(face, size, glyph_id, coords)
+else:
+    for glyph_id in range(0, face.num_glyphs):
+        for size in SAMPLE_SIZES:
+            glyphs.add_glyph(face, size, glyph_id)
 
 f = open(out_path, "w")
-f.write(outline.data)
+f.write(glyphs.data)
 f.close()

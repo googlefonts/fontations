@@ -3,6 +3,7 @@ TrueType outlines loaded from the `glyf` table.
 
 */
 
+mod deltas;
 mod outline;
 mod scaler;
 
@@ -11,33 +12,27 @@ pub use scaler::Scaler;
 
 pub use read_fonts::types::Point;
 
-use read_fonts::types::F26Dot6;
+use read_fonts::types::{F26Dot6, Fixed};
 
 /// Context for loading for TrueType glyphs.
-#[derive(Clone, Debug)]
+#[derive(Clone, Default, Debug)]
 pub struct Context {
     /// Unscaled points.
     unscaled: Vec<Point<i32>>,
     /// Original scaled points.
     original: Vec<Point<F26Dot6>>,
-    /// Storage for variation deltas.
-    deltas: Vec<Point<i32>>,
-}
-
-impl Default for Context {
-    fn default() -> Self {
-        Self::new()
-    }
+    /// Storage for simple glyph deltas.
+    deltas: Vec<Point<Fixed>>,
+    /// Storage for composite glyph deltas.
+    composite_deltas: Vec<Point<Fixed>>,
+    /// Temporary storage for computing interpolated deltas.
+    interp_points: Vec<Point<Fixed>>,
 }
 
 impl Context {
     /// Creates a new context.
     pub fn new() -> Self {
-        Self {
-            unscaled: vec![],
-            original: vec![],
-            deltas: vec![],
-        }
+        Self::default()
     }
 }
 
@@ -57,16 +52,30 @@ mod tests {
         let mut outline = Outline::new();
         for expected_outline in &outlines {
             #[cfg(feature = "hinting")]
-            let mut scaler =
-                Scaler::new(&mut cx, &font, None, expected_outline.size, None, &[]).unwrap();
+            let mut scaler = Scaler::new(
+                &mut cx,
+                &font,
+                None,
+                expected_outline.size,
+                None,
+                &expected_outline.coords,
+            )
+            .unwrap();
             #[cfg(not(feature = "hinting"))]
-            let mut scaler = Scaler::new(&mut cx, &font, None, expected_outline.size, &[]).unwrap();
+            let mut scaler = Scaler::new(
+                &mut cx,
+                &font,
+                None,
+                expected_outline.size,
+                &expected_outline.coords,
+            )
+            .unwrap();
             scaler
                 .load(expected_outline.glyph_id, &mut outline)
                 .unwrap();
             assert_eq!(&outline.points, &expected_outline.points);
             assert_eq!(&outline.contours, &expected_outline.contours);
-            assert_eq!(&outline.flags, &expected_outline.tags);
+            assert_eq!(&outline.flags, &expected_outline.flags);
         }
     }
 }

@@ -7,11 +7,12 @@ use {crate::Hinting, read_fonts::tables::glyf::PointMarker};
 use read_fonts::{
     tables::{
         glyf::{Anchor, CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, PointFlags, SimpleGlyph},
+        gvar::Gvar,
         hmtx::Hmtx,
         hvar::Hvar,
         loca::Loca,
     },
-    types::{BigEndian, F26Dot6, F2Dot14, GlyphId, Tag},
+    types::{BigEndian, F26Dot6, F2Dot14, Fixed, GlyphId, Tag},
     TableProvider,
 };
 
@@ -188,50 +189,91 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
         point_count += 4;
         let point_end = point_base + point_count;
         outline.points.resize(point_end, Point::default());
-        // TODO: variations
-        // if state.vary {
-        //     self.unscaled.clear();
-        //     self.unscaled.resize(point_count, Point::new(0, 0));
-        //     self.original.clear();
-        //     self.original.resize(point_count, Point::new(0, 0));
-        //     if state.data.deltas(
-        //         state.coords,
-        //         glyph_id,
-        //         &self.scaled[point_base..],
-        //         &mut self.tags[point_base..],
-        //         &self.contours[contour_base..],
-        //         &mut self.unscaled[..],
-        //         &mut self.original[..],
-        //     ) {
-        //         for (d, p) in self.original[..point_count]
-        //             .iter()
-        //             .zip(self.scaled[point_base..].iter_mut())
-        //         {
-        //             p.x += d.x;
-        //             p.y += d.y;
-        //         }
-        //     }
-        // }
+        // Compute deltas, but don't apply them yet.
+        let mut have_deltas = false;
+        if !self.scaler.coords.is_empty() && self.scaler.font.gvar.is_some() {
+            let gvar = self.scaler.font.gvar.clone().unwrap();
+            let deltas = &mut self.scaler.context.deltas;
+            let working_points = &mut self.scaler.context.interp_points;
+            deltas.clear();
+            deltas.resize(point_count, Default::default());
+            working_points.clear();
+            working_points.resize(point_count, Default::default());
+            let glyph = super::deltas::SimpleGlyph {
+                points: &self.scaler.context.unscaled,
+                flags: &mut outline.flags[point_base..],
+                contours: &outline.contours[contour_base..],
+            };
+            if super::deltas::simple_glyph(
+                &gvar,
+                glyph_id,
+                self.scaler.coords,
+                glyph,
+                &mut working_points[..],
+                &mut deltas[..],
+            )
+            .is_ok()
+            {
+                have_deltas = true;
+            }
+        }
         #[cfg(feature = "hinting")]
         let hinted = self.hint && !ins.is_empty();
         let scale = self.scaler.scale;
         if self.scaler.is_scaled {
-            for (point, unscaled) in outline.points[point_base..]
-                .iter_mut()
-                .zip(&self.scaler.context.unscaled)
-            {
-                point.x = F26Dot6::from_bits(unscaled.x) * scale;
-                point.y = F26Dot6::from_bits(unscaled.y) * scale;
+            if have_deltas {
+                for ((point, unscaled), delta) in outline.points[point_base..]
+                    .iter_mut()
+                    .zip(self.scaler.context.unscaled.iter_mut())
+                    .zip(&self.scaler.context.deltas)
+                {
+                    let delta = delta.map(Fixed::to_f26dot6);
+                    let scaled = (unscaled.map(F26Dot6::from_i32) + delta) * scale;
+                    // The computed scale factor has an i32 -> 26.26 conversion built in. This undoes the
+                    // extra shift.
+                    *point = scaled.map(|v| F26Dot6::from_bits(v.to_i32()));
+                }
+                #[cfg(feature = "hinting")]
+                if hinted {
+                    // For hinting, we need to adjust the unscaled points as well.
+                    // Round off deltas for unscaled outlines.
+                    for (unscaled, delta) in self
+                        .scaler
+                        .context
+                        .unscaled
+                        .iter_mut()
+                        .zip(&self.scaler.context.deltas)
+                    {
+                        *unscaled += delta.map(Fixed::to_i32);
+                    }
+                }
+            } else {
+                for (point, unscaled) in outline.points[point_base..]
+                    .iter_mut()
+                    .zip(&self.scaler.context.unscaled)
+                {
+                    *point = unscaled.map(|v| F26Dot6::from_bits(v) * scale);
+                }
             }
         } else {
-            // Unlike FreeType, we also store unscaled outlines in 26.6 so multiply
-            // each component by 64 (shift left by 6).
+            if have_deltas {
+                // Round off deltas for unscaled outlines.
+                for (unscaled, delta) in self
+                    .scaler
+                    .context
+                    .unscaled
+                    .iter_mut()
+                    .zip(&self.scaler.context.deltas)
+                {
+                    *unscaled += delta.map(Fixed::to_i32);
+                }
+            }
+            // Unlike FreeType, we also store unscaled outlines in 26.6.
             for (point, unscaled) in outline.points[point_base..]
                 .iter_mut()
                 .zip(&self.scaler.context.unscaled)
             {
-                point.x = F26Dot6::from_bits(unscaled.x << 6);
-                point.y = F26Dot6::from_bits(unscaled.y << 6);
+                *point = unscaled.map(F26Dot6::from_i32);
             }
         }
         // Save the phantom points.
@@ -279,23 +321,30 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
         let scale = self.scaler.scale;
         if self.scaler.is_scaled {
             for point in self.phantom.iter_mut() {
-                point.x *= scale;
-                point.y *= scale;
+                *point *= scale;
             }
         }
-        // TODO: variations
-        // let delta_base = self.deltas.len();
-        // let mut have_deltas = false;
-        // let count = composite.components().count();
-        // self.deltas.resize(delta_base + count, Point::new(0, 0));
-        // if state.data.composite_deltas(
-        //     state.coords,
-        //     glyph_id,
-        //     &mut self.deltas[delta_base..],
-        // ) {
-        //     have_deltas = true;
-        // }
-        for component in composite.components() {
+        // Compute the per component deltas. Since composites can be nested, we
+        // use a stack and keep track of the base.
+        let mut have_deltas = false;
+        let delta_base = self.scaler.context.composite_deltas.len();
+        if !self.scaler.coords.is_empty() && self.scaler.font.gvar.is_some() {
+            let gvar = self.scaler.font.gvar.as_ref().unwrap();
+            let count = composite.components().count();
+            let deltas = &mut self.scaler.context.composite_deltas;
+            deltas.resize(delta_base + count, Default::default());
+            if super::deltas::composite_glyph(
+                gvar,
+                glyph_id,
+                self.scaler.coords,
+                &mut deltas[delta_base..],
+            )
+            .is_ok()
+            {
+                have_deltas = true;
+            }
+        }
+        for (i, component) in composite.components().enumerate() {
             // Save a copy of our phantom points.
             let phantom = self.phantom;
             // Load the component glyph and keep track of the points range.
@@ -325,19 +374,27 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                     | CompositeGlyphFlags::WE_HAVE_A_TWO_BY_TWO,
             );
             if have_xform {
-                for point in &mut outline.points[start_point..end_point] {
-                    let divisor = F26Dot6::from_bits(0x10000);
-                    let x = point.x.mul_div(xx, divisor) + point.y.mul_div(xy, divisor);
-                    let y = point.x.mul_div(yx, divisor) + point.y.mul_div(yy, divisor);
-                    point.x = x;
-                    point.y = y;
+                if self.scaler.is_scaled {
+                    for point in &mut outline.points[start_point..end_point] {
+                        let x = point.x * xx + point.y * xy;
+                        let y = point.x * yx + point.y * yy;
+                        point.x = x;
+                        point.y = y;
+                    }
+                } else {
+                    for point in &mut outline.points[start_point..end_point] {
+                        // This juggling is necessary because, unlike FreeType, we also
+                        // return unscaled outlines in 26.6 format for a consistent interface.
+                        let unscaled = point.map(|c| F26Dot6::from_bits(c.to_i32()));
+                        let x = unscaled.x * xx + unscaled.y * xy;
+                        let y = unscaled.x * yx + unscaled.y * yy;
+                        *point = Point::new(x, y).map(|c| F26Dot6::from_i32(c.to_bits()));
+                    }
                 }
             }
-            let anchor = component.anchor;
-            let (dx, dy) = match anchor {
+            let anchor_offset = match component.anchor {
                 Anchor::Offset { x, y } => {
-                    let (mut dx, mut dy) =
-                        (F26Dot6::from_bits(x as i32), F26Dot6::from_bits(y as i32));
+                    let (mut x, mut y) = (x as i32, y as i32);
                     if have_xform
                         && component.flags
                             & (CompositeGlyphFlags::SCALED_COMPONENT_OFFSET
@@ -347,27 +404,35 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                         // According to FreeType, this algorithm is a "guess" and
                         // works better than the one documented by Apple.
                         // https://github.com/freetype/freetype/blob/b1c90733ee6a04882b133101d61b12e352eeb290/src/truetype/ttgload.c#L1259
-                        fn hypot(a: F26Dot6, b: F26Dot6) -> F26Dot6 {
+                        fn hypot(a: F26Dot6, b: F26Dot6) -> Fixed {
                             let a = a.to_bits().abs();
                             let b = b.to_bits().abs();
-                            if a > b {
-                                F26Dot6::from_bits(a + ((3 * b) >> 3))
+                            Fixed::from_bits(if a > b {
+                                a + ((3 * b) >> 3)
                             } else {
-                                F26Dot6::from_bits(b + ((3 * a) >> 3))
-                            }
+                                b + ((3 * a) >> 3)
+                            })
                         }
-                        dx *= hypot(xx, xy);
-                        dy *= hypot(yy, yx);
+                        // FreeType uses a fixed point multiplication here.
+                        x = (Fixed::from_bits(x) * hypot(xx, xy)).to_bits();
+                        y = (Fixed::from_bits(y) * hypot(yy, yx)).to_bits();
                     }
-                    // TODO: variations
-                    // if have_deltas {
-                    //     let d = self.deltas[delta_base + i];
-                    //     dx += d.x;
-                    //     dy += d.y;
-                    // }
+                    if have_deltas {
+                        let delta = self
+                            .scaler
+                            .context
+                            .composite_deltas
+                            .get(delta_base + i)
+                            .copied()
+                            .unwrap_or_default();
+                        // For composite glyphs, we copy FreeType and round off the fractional parts of deltas.
+                        x += delta.x.to_i32();
+                        y += delta.y.to_i32();
+                    }
                     if self.scaler.is_scaled {
-                        dx *= scale;
-                        dy *= scale;
+                        // This only needs to be mutable when hinting is enabled. Ignore the warning.
+                        #[allow(unused_mut)]
+                        let mut offset = Point::new(x, y).map(F26Dot6::from_bits) * scale;
                         #[cfg(feature = "hinting")]
                         if self.hint
                             && component
@@ -375,13 +440,12 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                                 .contains(CompositeGlyphFlags::ROUND_XY_TO_GRID)
                         {
                             // Only round the y-coordinate, per FreeType.
-                            dy = dy.round();
+                            offset.y = offset.y.round();
                         }
+                        offset
                     } else {
-                        dx = F26Dot6::from_bits(dx.to_bits() << 6);
-                        dy = F26Dot6::from_bits(dy.to_bits() << 6);
+                        Point::new(x, y).map(F26Dot6::from_i32)
                     }
-                    (dx, dy)
                 }
                 Anchor::Point { base, component } => {
                     let (base_offset, component_offset) = (base as usize, component as usize);
@@ -393,24 +457,21 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                         .points
                         .get(start_point + component_offset)
                         .ok_or(Error::InvalidAnchorPoint(glyph_id, component))?;
-                    (
-                        base_point.x.wrapping_sub(component_point.x),
-                        base_point.y.wrapping_sub(component_point.y),
-                    )
+                    *base_point - *component_point
                 }
             };
-            if dx != F26Dot6::ZERO || dy != F26Dot6::ZERO {
+            if anchor_offset.x != F26Dot6::ZERO || anchor_offset.y != F26Dot6::ZERO {
                 for point in &mut outline.points[start_point..end_point] {
-                    point.x += dx;
-                    point.y += dy;
+                    *point += anchor_offset;
                 }
             }
+        }
+        if have_deltas {
+            self.scaler.context.composite_deltas.truncate(delta_base);
         }
         #[cfg(feature = "hinting")]
         if self.hint {
             let ins = composite.instructions().unwrap_or_default();
-            // TODO: variations
-            // self.deltas.resize(delta_base, Point::new(0, 0));
             if !ins.is_empty() {
                 // Append the current phantom points to the outline.
                 self.push_phantom(outline);
@@ -557,6 +618,7 @@ impl Context {
 pub struct Font<'a> {
     pub glyf: Glyf<'a>,
     pub loca: Loca<'a>,
+    pub gvar: Option<Gvar<'a>>,
     pub hmtx: Hmtx<'a>,
     pub hvar: Option<Hvar<'a>>,
     pub fpgm: &'a [u8],
@@ -576,6 +638,7 @@ impl<'a> Font<'a> {
     pub fn new(font: &impl TableProvider<'a>) -> Result<Self> {
         let glyf = font.glyf()?;
         let loca = font.loca(None)?;
+        let gvar = font.gvar().ok();
         let hmtx = font.hmtx()?;
         let hvar = font.hvar().ok();
         let upem = font.head()?.units_per_em();
@@ -597,6 +660,7 @@ impl<'a> Font<'a> {
         Ok(Self {
             glyf,
             loca,
+            gvar,
             hmtx,
             hvar,
             fpgm,
