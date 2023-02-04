@@ -1,7 +1,8 @@
 //! Helpers for unit testing
 
-use super::{font::*, Context, GlyphId, PathSink, Scaler};
+use super::{font::*, Context, GlyphId, Pen, Scaler};
 use core::str::FromStr;
+use read_fonts::tables::glyf::PointFlags;
 use read_fonts::types::{F26Dot6, Point};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -19,7 +20,7 @@ use PathElement::*;
 #[derive(Default)]
 pub struct Path(pub Vec<PathElement>);
 
-impl PathSink<f32> for Path {
+impl Pen for Path {
     fn move_to(&mut self, x: f32, y: f32) {
         self.0.push(PathElement::MoveTo([x, y]));
     }
@@ -58,7 +59,7 @@ pub struct GlyphOutline {
     pub size: f32,
     pub points: Vec<Point<F26Dot6>>,
     pub contours: Vec<u16>,
-    pub tags: Vec<u8>,
+    pub tags: Vec<PointFlags>,
     pub path: Vec<PathElement>,
 }
 
@@ -92,7 +93,9 @@ pub fn parse_glyph_outlines(source: &str) -> Vec<GlyphOutline> {
             }
         } else if line.starts_with("tags") {
             for tag in line.split(' ').skip(1) {
-                cur_outline.tags.push(tag.parse().unwrap());
+                cur_outline
+                    .tags
+                    .push(PointFlags::from_bits(tag.parse().unwrap()));
             }
         } else {
             match line.as_bytes()[0] {

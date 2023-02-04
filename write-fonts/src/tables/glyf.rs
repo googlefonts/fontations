@@ -317,12 +317,12 @@ mod tests {
     use super::*;
 
     fn simple_glyph_to_bezpath(glyph: &read::tables::glyf::SimpleGlyph) -> BezPath {
-        use types::{F26Dot6, PathSink};
+        use types::{F26Dot6, Pen};
 
         #[derive(Default)]
         struct Path(BezPath);
 
-        impl PathSink<f32> for Path {
+        impl Pen for Path {
             fn move_to(&mut self, x: f32, y: f32) {
                 self.0.move_to((x as f64, y as f64));
             }
@@ -356,7 +356,7 @@ mod tests {
             .collect::<Vec<_>>();
         let num_points = glyph.num_points();
         let mut points = vec![Default::default(); num_points];
-        let mut flags = vec![0u8; num_points];
+        let mut flags = vec![Default::default(); num_points];
         glyph.read_points_fast(&mut points, &mut flags).unwrap();
         let points = points
             .into_iter()

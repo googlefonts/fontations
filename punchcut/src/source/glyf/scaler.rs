@@ -1,19 +1,19 @@
 use super::{Context, Outline, Point};
 use crate::{Error, NormalizedCoord, Result, GLYF_COMPOSITE_RECURSION_LIMIT};
 
-use read_fonts::types::F26Dot6;
-
 #[cfg(feature = "hinting")]
 use crate::Hinting;
 
-use read_fonts::tables::{
-    glyf::{Anchor, CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, SimpleGlyph},
-    hmtx::Hmtx,
-    hvar::Hvar,
-    loca::Loca,
+use read_fonts::{
+    tables::{
+        glyf::{Anchor, CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, PointFlags, SimpleGlyph},
+        hmtx::Hmtx,
+        hvar::Hvar,
+        loca::Loca,
+    },
+    types::{BigEndian, F26Dot6, F2Dot14, GlyphId, Tag},
+    TableProvider,
 };
-use read_fonts::types::{BigEndian, F2Dot14, GlyphId, Tag};
-use read_fonts::TableProvider;
 
 /// TrueType glyph scaler for a specific font and configuration.
 pub struct Scaler<'a> {
@@ -164,7 +164,9 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
             .contours
             .extend(end_pts.iter().map(|end_pt| end_pt.get()));
         let mut point_count = simple.num_points();
-        outline.tags.resize(outline.tags.len() + point_count, 0);
+        outline
+            .flags
+            .resize(outline.flags.len() + point_count, Default::default());
         self.scaler.context.unscaled.clear();
         self.scaler.context.unscaled.reserve(point_count + 4);
         self.scaler
@@ -173,7 +175,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
             .resize(point_count, Point::default());
         simple.read_points_fast(
             &mut self.scaler.context.unscaled[..],
-            &mut outline.tags[point_base..],
+            &mut outline.flags[point_base..],
         )?;
         let ins = simple.instructions();
         for point in &self.phantom {
@@ -181,7 +183,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                 .context
                 .unscaled
                 .push(Point::new(point.x.to_bits(), point.y.to_bits()));
-            outline.tags.push(0);
+            outline.flags.push(Default::default());
         }
         point_count += 4;
         let point_end = point_base + point_count;
@@ -486,7 +488,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
     fn push_phantom(&mut self, outline: &mut Outline) {
         for i in 0..4 {
             outline.points.push(self.phantom[i]);
-            outline.tags.push(0);
+            outline.flags.push(Default::default());
         }
     }
 
@@ -498,7 +500,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
 
     fn drop_phantom(&self, outline: &mut Outline) {
         outline.points.truncate(outline.points.len() - 4);
-        outline.tags.truncate(outline.tags.len() - 4);
+        outline.flags.truncate(outline.flags.len() - 4);
     }
 }
 
@@ -538,7 +540,7 @@ impl Context {
         coords: &[NormalizedCoord],
         slot: CacheSlot,
         scaled: &mut [Point<F26Dot6>],
-        tags: &mut [u8],
+        flags: &mut [PointFlags],
         contours: &mut [u16],
         phantom: &mut [Point<F26Dot6>],
         point_base: usize,

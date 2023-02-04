@@ -24,7 +24,7 @@ use source::glyf;
 
 use core::str::FromStr;
 
-pub use read_fonts::types::PathSink;
+pub use read_fonts::types::Pen;
 
 pub use error::{Error, Result};
 pub use scaler::{Scaler, ScalerBuilder};
@@ -121,7 +121,7 @@ impl Context {
 
 #[cfg(test)]
 mod tests {
-    use super::{font::*, Context, GlyphId, PathSink, Scaler};
+    use super::{font::*, Context, GlyphId, Pen, Scaler};
     use read_fonts::test_data::test_fonts;
 
     #[test]

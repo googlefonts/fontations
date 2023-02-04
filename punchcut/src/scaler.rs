@@ -1,4 +1,4 @@
-use super::{source::glyf, Context, Error, NormalizedCoord, PathSink, Result, Variation};
+use super::{source::glyf, Context, Error, NormalizedCoord, Pen, Result, Variation};
 
 #[cfg(feature = "hinting")]
 use super::Hinting;
@@ -158,7 +158,7 @@ impl<'a> Scaler<'a> {
 
     /// Loads a simple outline for the specified glyph identifier and invokes the functions
     /// in the given sink for the sequence of path commands that define the outline.
-    pub fn outline(&mut self, glyph_id: GlyphId, sink: &mut impl PathSink<f32>) -> Result<()> {
+    pub fn outline(&mut self, glyph_id: GlyphId, sink: &mut impl Pen) -> Result<()> {
         self.outlines.outline(glyph_id, sink)
     }
 }
@@ -173,7 +173,7 @@ impl<'a> Outlines<'a> {
         self.glyf.is_some()
     }
 
-    fn outline(&mut self, glyph_id: GlyphId, sink: &mut impl PathSink<f32>) -> Result<()> {
+    fn outline(&mut self, glyph_id: GlyphId, sink: &mut impl Pen) -> Result<()> {
         if let Some((scaler, glyf_outline)) = &mut self.glyf {
             scaler.load(glyph_id, glyf_outline)?;
             Ok(glyf_outline.to_path(sink)?)

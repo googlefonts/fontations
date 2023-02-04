@@ -1,7 +1,7 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
 use std::fmt;
-use types::{F26Dot6, PathSink, Point};
+use types::{F26Dot6, Pen, Point};
 
 include!("../../generated/generated_glyf.rs");
 
@@ -24,9 +24,91 @@ impl<'a> Glyph<'a> {
     field_getter!(y_max, i16);
 }
 
-//NOTE: This code below was taken from an old implementation, and has a bunch
-// of funny warts. It should be replaced at some point, but might be useful in
-// the interim?
+/// Marker bits for point flags that are set during variation delta
+/// processing and hinting.
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+pub struct PointMarker(u8);
+
+impl PointMarker {
+    /// Marker for points that have an explicit delta in a glyph variation
+    /// tuple.
+    pub const HAS_DELTA: Self = Self(0x4);
+
+    /// Marker that signifies that the x coordinate of a point has been touched
+    /// by an IUP hinting instruction.
+    pub const TOUCHED_X: Self = Self(0x8);
+
+    /// Marker that signifies that the y coordinate of a point has been touched
+    /// by an IUP hinting instruction.
+    pub const TOUCHED_Y: Self = Self(0x10);
+}
+
+/// Flags describing the properties of a point.
+///
+/// Some properties, such as on- and off-curve flags are intrinsic to the point
+/// itself. Others, designated as markers are set and cleared while an outline
+/// is being transformed during variation application and hinting.
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+pub struct PointFlags(u8);
+
+impl PointFlags {
+    // Note: OFF_CURVE_QUAD is signified by the absence of both ON_CURVE
+    // and OFF_CURVE_CUBIC bits, per FreeType and TrueType convention.
+    const CURVE_MASK: u8 = 0x3;
+    const ON_CURVE: u8 = 0x1;
+    const OFF_CURVE_CUBIC: u8 = 0x2;
+
+    /// Creates a new on curve point flag.
+    pub fn on_curve() -> Self {
+        Self(Self::ON_CURVE)
+    }
+
+    /// Creates a new off curve quadratic point flag.
+    pub fn off_curve_quadratic() -> Self {
+        Self(0)
+    }
+
+    /// Creates a new off curve cubic point flag.
+    pub fn off_curve_cubic() -> Self {
+        Self(Self::OFF_CURVE_CUBIC)
+    }
+
+    /// Creates a point flag from the given bits. These are truncated
+    /// to ignore markers.
+    pub fn from_bits(bits: u8) -> Self {
+        Self(bits & Self::CURVE_MASK)
+    }
+
+    /// Returns true if this is an on curve point.
+    pub fn is_on_curve(self) -> bool {
+        self.0 & Self::ON_CURVE != 0
+    }
+
+    /// Returns true if this is an off curve quadratic point.
+    pub fn is_off_curve_quad(self) -> bool {
+        self.0 & Self::CURVE_MASK == 0
+    }
+
+    /// Returns true if this is an off curve cubic point.
+    pub fn is_off_curve_cubic(self) -> bool {
+        self.0 & Self::OFF_CURVE_CUBIC != 0
+    }
+
+    /// Returns true if the given marker is set for this point.
+    pub fn has_marker(self, marker: PointMarker) -> bool {
+        self.0 & marker.0 != 0
+    }
+
+    /// Applies the given marker to this point.
+    pub fn set_marker(&mut self, marker: PointMarker) {
+        self.0 |= marker.0;
+    }
+
+    /// Clears the given marker for this point.
+    pub fn clear_marker(&mut self, marker: PointMarker) {
+        self.0 &= !marker.0
+    }
+}
 
 impl<'a> SimpleGlyph<'a> {
     /// Returns the total number of points.
@@ -50,7 +132,7 @@ impl<'a> SimpleGlyph<'a> {
     pub fn read_points_fast(
         &self,
         points: &mut [Point<i32>],
-        flags: &mut [u8],
+        flags: &mut [PointFlags],
     ) -> Result<(), ReadError> {
         let n_points = self.num_points();
         if points.len() != n_points || flags.len() != n_points {
@@ -64,18 +146,18 @@ impl<'a> SimpleGlyph<'a> {
             if flag.contains(SimpleGlyphFlags::REPEAT_FLAG) {
                 let count = (cursor.read::<u8>()? as usize + 1).min(n_points - i);
                 for f in &mut flags[i..i + count] {
-                    *f = flag_bits;
+                    f.0 = flag_bits;
                 }
                 i += count;
             } else {
-                flags[i] = flag_bits;
+                flags[i].0 = flag_bits;
                 i += 1;
             }
         }
         let mut x = 0i32;
-        for (&flag_bits, point) in flags.iter().zip(points.as_mut()) {
+        for (&point_flags, point) in flags.iter().zip(points.as_mut()) {
             let mut delta = 0i32;
-            let flag = SimpleGlyphFlags::from_bits_truncate(flag_bits);
+            let flag = SimpleGlyphFlags::from_bits_truncate(point_flags.0);
             if flag.contains(SimpleGlyphFlags::X_SHORT_VECTOR) {
                 delta = cursor.read::<u8>()? as i32;
                 if !flag.contains(SimpleGlyphFlags::X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR) {
@@ -88,9 +170,9 @@ impl<'a> SimpleGlyph<'a> {
             point.x = x;
         }
         let mut y = 0i32;
-        for (flag_bits, point) in flags.iter_mut().zip(points.as_mut()) {
+        for (point_flags, point) in flags.iter_mut().zip(points.as_mut()) {
             let mut delta = 0i32;
-            let flag = SimpleGlyphFlags::from_bits_truncate(*flag_bits);
+            let flag = SimpleGlyphFlags::from_bits_truncate(point_flags.0);
             if flag.contains(SimpleGlyphFlags::Y_SHORT_VECTOR) {
                 delta = cursor.read::<u8>()? as i32;
                 if !flag.contains(SimpleGlyphFlags::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR) {
@@ -102,7 +184,7 @@ impl<'a> SimpleGlyph<'a> {
             y = y.wrapping_add(delta);
             point.y = y;
             // Only keep the on-curve bit
-            *flag_bits &= 1;
+            point_flags.0 &= 1;
         }
         Ok(())
     }
@@ -517,17 +599,13 @@ impl fmt::Display for ToPathError {
 /// This is roughly equivalent to [`FT_Outline_Decompose`](https://freetype.org/freetype2/docs/reference/ft2-outline_processing.html#ft_outline_decompose).
 pub fn to_path(
     points: &[Point<F26Dot6>],
-    flags: &[u8],
+    flags: &[PointFlags],
     contours: &[u16],
-    sink: &mut impl PathSink<f32>,
+    sink: &mut impl Pen,
 ) -> Result<(), ToPathError> {
     fn to_f32(x: F26Dot6) -> f32 {
         x.to_f64() as f32
     }
-    const FLAG_MASK: u8 = 0x3;
-    const QUAD: u8 = 0x0;
-    const ON: u8 = 0x1;
-    const CUBIC: u8 = 0x2;
     const TWO: F26Dot6 = F26Dot6::from_i32(2);
     let mut count = 0usize;
     let mut last_was_close = false;
@@ -543,13 +621,13 @@ pub fn to_path(
         }
         let mut v_start = points[cur_ix];
         let v_last = v_start;
-        let mut flag = flags[cur_ix] & FLAG_MASK;
-        if flag == CUBIC {
+        let mut flag = flags[cur_ix];
+        if flag.is_off_curve_cubic() {
             return Err(ToPathError::ExpectedQuadOrOnCurve(cur_ix));
         }
         let mut step_point = true;
-        if flag == QUAD {
-            if flags[last_ix] & FLAG_MASK == ON {
+        if flag.is_off_curve_quad() {
+            if flags[last_ix].is_on_curve() {
                 v_start = v_last;
                 last_ix -= 1;
             } else {
@@ -569,76 +647,72 @@ pub fn to_path(
                 cur_ix += 1;
             }
             step_point = true;
-            flag = flags[cur_ix] & FLAG_MASK;
-            match flag {
-                ON => {
-                    let p = points[cur_ix].map(to_f32);
-                    sink.line_to(p.x, p.y);
-                    count += 1;
-                    last_was_close = false;
-                    continue;
-                }
-                QUAD => {
-                    let mut do_close_quad = true;
-                    let mut v_control = points[cur_ix];
-                    while cur_ix < last_ix {
-                        cur_ix += 1;
-                        let cur_point = points[cur_ix];
-                        flag = flags[cur_ix] & FLAG_MASK;
-                        if flag == ON {
-                            let control = v_control.map(to_f32);
-                            let point = cur_point.map(to_f32);
-                            sink.quad_to(control.x, control.y, point.x, point.y);
-                            count += 1;
-                            last_was_close = false;
-                            do_close_quad = false;
-                            break;
-                        }
-                        if flag != QUAD {
-                            return Err(ToPathError::ExpectedQuad(cur_ix));
-                        }
-                        let v_middle = (v_control + cur_point) / TWO;
+            flag = flags[cur_ix];
+            if flag.is_on_curve() {
+                let p = points[cur_ix].map(to_f32);
+                sink.line_to(p.x, p.y);
+                count += 1;
+                last_was_close = false;
+                continue;
+            } else if flag.is_off_curve_quad() {
+                let mut do_close_quad = true;
+                let mut v_control = points[cur_ix];
+                while cur_ix < last_ix {
+                    cur_ix += 1;
+                    let cur_point = points[cur_ix];
+                    flag = flags[cur_ix];
+                    if flag.is_on_curve() {
                         let control = v_control.map(to_f32);
-                        let point = v_middle.map(to_f32);
+                        let point = cur_point.map(to_f32);
                         sink.quad_to(control.x, control.y, point.x, point.y);
                         count += 1;
                         last_was_close = false;
-                        v_control = cur_point;
-                    }
-                    if do_close_quad {
-                        let control = v_control.map(to_f32);
-                        let point = v_start.map(to_f32);
-                        sink.quad_to(control.x, control.y, point.x, point.y);
-                        count += 1;
-                        last_was_close = false;
+                        do_close_quad = false;
                         break;
                     }
-                    continue;
+                    if !flag.is_off_curve_quad() {
+                        return Err(ToPathError::ExpectedQuad(cur_ix));
+                    }
+                    let v_middle = (v_control + cur_point) / TWO;
+                    let control = v_control.map(to_f32);
+                    let point = v_middle.map(to_f32);
+                    sink.quad_to(control.x, control.y, point.x, point.y);
+                    count += 1;
+                    last_was_close = false;
+                    v_control = cur_point;
                 }
-                _ => {
-                    if cur_ix + 1 > last_ix || (flags[cur_ix + 1] & FLAG_MASK != CUBIC) {
-                        return Err(ToPathError::ExpectedCubic(cur_ix + 1));
-                    }
-                    let control0 = points[cur_ix].map(to_f32);
-                    let control1 = points[cur_ix + 1].map(to_f32);
-                    cur_ix += 2;
-                    if cur_ix <= last_ix {
-                        let point = points[cur_ix].map(to_f32);
-                        sink.curve_to(
-                            control0.x, control0.y, control1.x, control1.y, point.x, point.y,
-                        );
-                        count += 1;
-                        last_was_close = false;
-                        continue;
-                    }
+                if do_close_quad {
+                    let control = v_control.map(to_f32);
                     let point = v_start.map(to_f32);
+                    sink.quad_to(control.x, control.y, point.x, point.y);
+                    count += 1;
+                    last_was_close = false;
+                    break;
+                }
+                continue;
+            } else {
+                if cur_ix + 1 > last_ix || !flags[cur_ix + 1].is_off_curve_cubic() {
+                    return Err(ToPathError::ExpectedCubic(cur_ix + 1));
+                }
+                let control0 = points[cur_ix].map(to_f32);
+                let control1 = points[cur_ix + 1].map(to_f32);
+                cur_ix += 2;
+                if cur_ix <= last_ix {
+                    let point = points[cur_ix].map(to_f32);
                     sink.curve_to(
                         control0.x, control0.y, control1.x, control1.y, point.x, point.y,
                     );
                     count += 1;
                     last_was_close = false;
-                    break;
+                    continue;
                 }
+                let point = v_start.map(to_f32);
+                sink.curve_to(
+                    control0.x, control0.y, control1.x, control1.y, point.x, point.y,
+                );
+                count += 1;
+                last_was_close = false;
+                break;
             }
         }
         if count > 0 && !last_was_close {
