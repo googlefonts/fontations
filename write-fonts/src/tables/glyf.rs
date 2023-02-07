@@ -250,8 +250,19 @@ impl RepeatableFlag {
     ) -> impl Iterator<Item = RepeatableFlag> {
         let mut iter = flags.into_iter();
         let mut prev = None;
+        // if a flag repeats exactly once, then there is no (space) cost difference
+        // between using a repeat flag followed by a value of '1' and just repeating
+        // the flag (without setting the repeat bit). Our approach naturally suggests
+        // the first approach, but fontmake takes the second, so we add an extra
+        // step where if we see a case where there's a single repeat, we split it into
+        // two separate non-repeating flags.
+        let mut decompose_single_repeat = None;
 
         std::iter::from_fn(move || loop {
+            if let Some(repeat) = decompose_single_repeat.take() {
+                return Some(repeat);
+            }
+
             match (iter.next(), prev.take()) {
                 (None, prev) => return prev,
                 (Some(flag), None) => prev = Some(RepeatableFlag { flag, repeat: 0 }),
@@ -262,6 +273,14 @@ impl RepeatableFlag {
                         last.flag |= SimpleGlyphFlags::REPEAT_FLAG;
                         prev = Some(last);
                     } else {
+                        // split a single repeat into two non-repeat flags
+                        if last.repeat == 1 {
+                            last.flag &= !SimpleGlyphFlags::REPEAT_FLAG;
+                            last.repeat = 0;
+                            // stash the extra flag, which we'll use at the top
+                            // of the next pass of the loop
+                            decompose_single_repeat = Some(last);
+                        }
                         prev = Some(RepeatableFlag { flag, repeat: 0 });
                         return Some(last);
                     }
@@ -425,6 +444,32 @@ mod tests {
         assert_eq!(orig_bytes.as_ref(), bytes);
         assert_eq!(orig.glyph_data(), ours.glyph_data());
         assert_eq!(orig_bytes.len(), bytes.len());
+    }
+
+    #[test]
+    fn round_trip_multi_contour() {
+        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let loca = font.loca(None).unwrap();
+        let glyf = font.glyf().unwrap();
+        let read_glyf::Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(1), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
+        let orig_bytes = orig.offset_data();
+
+        let bezpath = simple_glyph_to_bezpath(&orig);
+
+        let ours = SimpleGlyph::from_kurbo(&bezpath).unwrap();
+        let bytes = crate::dump_table(&ours).unwrap();
+        let ours = read_glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
+
+        let our_points = ours.points().collect::<Vec<_>>();
+        let their_points = orig.points().collect::<Vec<_>>();
+        dbg!(
+            SimpleGlyphFlags::from_bits(1),
+            SimpleGlyphFlags::from_bits(9)
+        );
+        assert_eq!(our_points, their_points);
+        assert_eq!(orig.glyph_data(), ours.glyph_data());
+        assert_eq!(orig_bytes.len(), bytes.len());
+        assert_eq!(orig_bytes.as_ref(), bytes);
     }
 
     #[test]
