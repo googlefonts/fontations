@@ -251,10 +251,11 @@ impl RepeatableFlag {
         let mut iter = flags.into_iter();
         let mut prev = None;
         // if a flag repeats exactly once, then there is no (space) cost difference
-        // between using a repeat flag followed by a value of '1' and just repeating
-        // the flag (without setting the repeat bit). Our approach naturally suggests
-        // the first approach, but fontmake takes the second, so we add an extra
-        // step where if we see a case where there's a single repeat, we split it into
+        // between 1) using a repeat flag followed by a value of '1' and 2) just
+        // repeating the flag (without setting the repeat bit).
+        // It would be simplest for us to go with option 1), but fontmake goes
+        // with 2). We like doing what fontmake does, so we add an extra step
+        // where if we see a case where there's a single repeat, we split it into
         // two separate non-repeating flags.
         let mut decompose_single_repeat = None;
 
@@ -264,6 +265,11 @@ impl RepeatableFlag {
             }
 
             match (iter.next(), prev.take()) {
+                (None, Some(RepeatableFlag { flag, repeat })) if repeat == 1 => {
+                    let flag = flag & !SimpleGlyphFlags::REPEAT_FLAG;
+                    decompose_single_repeat = Some(RepeatableFlag { flag, repeat: 0 });
+                    return decompose_single_repeat;
+                }
                 (None, prev) => return prev,
                 (Some(flag), None) => prev = Some(RepeatableFlag { flag, repeat: 0 }),
                 (Some(flag), Some(mut last)) => {
@@ -532,10 +538,17 @@ mod tests {
         let flags = [
             SimpleGlyphFlags::ON_CURVE_POINT,
             SimpleGlyphFlags::X_SHORT_VECTOR,
+            SimpleGlyphFlags::X_SHORT_VECTOR,
         ];
         let repeatable = RepeatableFlag::iter_from_flags(flags).collect::<Vec<_>>();
-        assert_eq!(repeatable[0].repeat, 0);
-        assert_eq!(repeatable[1].flag, flags[1]);
+        let expected = flags
+            .into_iter()
+            .map(|flag| RepeatableFlag { flag, repeat: 0 })
+            .collect::<Vec<_>>();
+
+        // even though we have a repeating flag at the end, we should still produce
+        // three flags, since we don't bother with repeat counts < 2.
+        assert_eq!(repeatable, expected);
     }
 
     #[test]
