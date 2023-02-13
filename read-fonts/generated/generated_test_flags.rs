@@ -6,7 +6,7 @@
 use crate::codegen_prelude::*;
 
 /// Some flags!
-#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ValueFormat {
     bits: u16,
 }

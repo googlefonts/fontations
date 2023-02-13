@@ -176,7 +176,7 @@ impl<'a> std::fmt::Debug for Gvar<'a> {
     }
 }
 
-#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GvarFlags {
     bits: u16,
 }

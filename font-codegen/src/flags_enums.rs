@@ -24,7 +24,7 @@ pub(crate) fn generate_flags(raw: &BitFlags) -> proc_macro2::TokenStream {
 
     quote! {
         #( #docs )*
-        #[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+        #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct #name { bits: #typ }
         impl #name {
             #( #variant_decls )*

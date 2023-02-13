@@ -401,7 +401,7 @@ impl<'a> SomeTable<'a> for DeltaSetIndexMap<'a> {
 }
 
 /// Entry format for a [DeltaSetIndexMap].
-#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EntryFormat {
     bits: u8,
 }
