@@ -16,12 +16,17 @@ use crate::{
 #[derive(Clone, Debug)]
 pub struct Contour(Vec<CurvePoint>);
 
+/// A Bounding box.
+///
+/// This should be the minimum rectangle which fully encloses the glyph outline;
+/// importantly this can only be determined by computing the individual Bezier
+/// segments, and cannot be determiend from points alone.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
-struct Bbox {
-    x_min: i16,
-    y_min: i16,
-    x_max: i16,
-    y_max: i16,
+pub struct Bbox {
+    pub x_min: i16,
+    pub y_min: i16,
+    pub x_max: i16,
+    pub y_max: i16,
 }
 
 /// A simple (without components) glyph
@@ -402,7 +407,7 @@ impl FontWrite for SimpleGlyph {
             .for_each(|flag| flag.write_into(writer));
         deltas.iter().for_each(|(_, x, _)| x.write_into(writer));
         deltas.iter().for_each(|(_, _, y)| y.write_into(writer));
-        writer.ensure_word_aligned();
+        writer.ensure_2byte_aligned();
     }
 }
 
@@ -449,18 +454,25 @@ impl Component {
 impl CompositeGlyph {
     /// Create a new composite glyph, with the provided component.
     ///
+    /// The 'bbox' argument is the bounding box of the glyph after the transform
+    /// has been applied.
+    ///
     /// Additional components can be added with [`add_component`][Self::add_component]
-    pub fn new(component: Component) -> Self {
+    pub fn new(component: Component, bbox: impl Into<Bbox>) -> Self {
         Self {
-            bbox: Default::default(),
+            bbox: bbox.into(),
             components: vec![component],
             _instructions: Default::default(),
         }
     }
 
     /// Add a new component to this glyph
-    pub fn add_component(&mut self, component: Component) {
+    ///
+    /// The 'bbox' argument is the bounding box of the glyph after the transform
+    /// has been applied.
+    pub fn add_component(&mut self, component: Component, bbox: impl Into<Bbox>) {
         self.components.push(component);
+        self.bbox = self.bbox.union(bbox.into());
     }
 }
 
@@ -487,7 +499,7 @@ impl FontWrite for CompositeGlyph {
             (self._instructions.len() as u16).write_into(writer);
             self._instructions.write_into(writer);
         }
-        writer.ensure_word_aligned();
+        writer.ensure_2byte_aligned();
     }
 }
 
@@ -565,6 +577,17 @@ impl From<ComponentFlags> for CompositeGlyphFlags {
                 .overlap_compound
                 .then_some(CompositeGlyphFlags::OVERLAP_COMPOUND)
                 .unwrap_or_default()
+    }
+}
+
+impl Bbox {
+    fn union(self, other: Bbox) -> Bbox {
+        Bbox {
+            x_min: self.x_min.min(other.x_min),
+            y_min: self.y_min.min(other.y_min),
+            x_max: self.x_max.max(other.x_max),
+            y_max: self.y_max.max(other.x_max),
+        }
     }
 }
 
@@ -850,19 +873,18 @@ mod tests {
         let glyf = font.glyf().unwrap();
         let read_glyf::Glyph::Composite(orig) = loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap() else { panic!("not a composite glyph") };
 
-        let mut iter = orig
-            .components()
-            .map(|comp| Component::new(comp.glyph, comp.anchor, comp.transform, comp.flags));
-        let mut composite = CompositeGlyph::new(iter.next().unwrap());
-        composite.add_component(iter.next().unwrap());
-        composite._instructions = orig.instructions().unwrap_or_default().to_vec();
-        //FIXME: figure out how we're actually computing bboxes here
-        composite.bbox = Bbox {
+        let bbox = Bbox {
             x_min: orig.x_min(),
             y_min: orig.y_min(),
             x_max: orig.x_max(),
             y_max: orig.y_max(),
         };
+        let mut iter = orig
+            .components()
+            .map(|comp| Component::new(comp.glyph, comp.anchor, comp.transform, comp.flags));
+        let mut composite = CompositeGlyph::new(iter.next().unwrap(), bbox);
+        composite.add_component(iter.next().unwrap(), bbox);
+        composite._instructions = orig.instructions().unwrap_or_default().to_vec();
         assert!(iter.next().is_none());
         let bytes = crate::dump_table(&composite).unwrap();
         let ours = read::tables::glyf::CompositeGlyph::read(FontData::new(&bytes)).unwrap();
@@ -870,6 +892,7 @@ mod tests {
         let our_comps = ours.components().collect::<Vec<_>>();
         let orig_comps = orig.components().collect::<Vec<_>>();
         assert_eq!(our_comps.len(), orig_comps.len());
+        assert_eq!(our_comps.len(), 2);
         assert_eq!(&our_comps[0], &orig_comps[0]);
         assert_eq!(&our_comps[1], &orig_comps[1]);
         assert_eq!(ours.instructions(), orig.instructions());

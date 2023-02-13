@@ -887,7 +887,7 @@ mod tests {
 
     #[test]
     fn compute_transform_flags() {
-        fn make_xform(xx: f32, yy: f32, xy: f32, yx: f32) -> Transform {
+        fn make_xform(xx: f32, yx: f32, xy: f32, yy: f32) -> Transform {
             Transform {
                 xx: F2Dot14::from_f32(xx),
                 yx: F2Dot14::from_f32(yx),
@@ -897,19 +897,19 @@ mod tests {
         }
 
         assert_eq!(
-            make_xform(1.0, 1.0, 0., 0.).compute_flags(),
+            make_xform(1.0, 0., 0., 1.0).compute_flags(),
             CompositeGlyphFlags::empty()
         );
         assert_eq!(
-            make_xform(2.0, 2.0, 0., 0.).compute_flags(),
+            make_xform(2.0, 0., 0., 2.0).compute_flags(),
             CompositeGlyphFlags::WE_HAVE_A_SCALE
         );
         assert_eq!(
-            make_xform(2.0, 1.0, 0., 0.).compute_flags(),
+            make_xform(2.0, 0., 0., 1.0).compute_flags(),
             CompositeGlyphFlags::WE_HAVE_AN_X_AND_Y_SCALE
         );
         assert_eq!(
-            make_xform(2.0, 1.0, 1.0, 0.).compute_flags(),
+            make_xform(2.0, 0., 1.0, 1.0).compute_flags(),
             CompositeGlyphFlags::WE_HAVE_A_TWO_BY_TWO
         );
     }
