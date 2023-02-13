@@ -219,7 +219,7 @@ impl<'a> SomeTable<'a> for PositionLookup<'a> {
 }
 
 /// See [ValueRecord]
-#[derive(Clone, Copy, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ValueFormat {
     bits: u16,
 }

@@ -60,4 +60,11 @@ pub mod flags {
         let xplace = ValueFormat::X_PLACEMENT;
         assert_eq!(format!("{xplace:?}"), "X_PLACEMENT");
     }
+
+    // not exactly a test, but this will fail to compile if these are missing
+    #[test]
+    fn impl_traits() {
+        fn impl_check<T: Copy + std::hash::Hash + Eq + Ord>() {}
+        impl_check::<ValueFormat>();
+    }
 }
