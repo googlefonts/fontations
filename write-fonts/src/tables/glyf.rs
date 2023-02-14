@@ -4,7 +4,10 @@ use kurbo::{BezPath, Rect, Shape};
 
 use read_fonts::tables::glyf::{CurvePoint, SimpleGlyphFlags};
 
-use crate::FontWrite;
+use crate::{
+    from_obj::{FromObjRef, FromTableRef},
+    FontWrite,
+};
 
 /// A single contour, comprising only line and quadratic bezier segments
 #[derive(Clone, Debug)]
@@ -200,6 +203,33 @@ impl SimpleGlyph {
         })
     }
 }
+
+impl<'a> FromObjRef<read::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {
+    fn from_obj_ref(from: &read::tables::glyf::SimpleGlyph, _data: read::FontData) -> Self {
+        let bbox = Bbox {
+            x_min: from.x_min(),
+            y_min: from.y_min(),
+            x_max: from.x_max(),
+            y_max: from.y_max(),
+        };
+        let mut points = from.points();
+        let mut last_end = 0;
+        let mut contours = vec![];
+        for end_pt in from.end_pts_of_contours() {
+            let end = end_pt.get() as usize;
+            let count = end - last_end + 1;
+            last_end = end;
+            contours.push(Contour(points.by_ref().take(count).collect()));
+        }
+        Self {
+            bbox,
+            contours,
+            _instructions: from.instructions().to_owned(),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {}
 
 /// A little helper for managing how we're representing a given delta
 #[derive(Clone, Copy, Debug)]
@@ -428,6 +458,26 @@ mod tests {
         let mut path = Path::default();
         read::tables::glyf::to_path(&points, &flags, &contours, &mut path).unwrap();
         path.0
+    }
+
+    #[test]
+    fn read_write_simple() {
+        let font = FontRef::new(test_data::test_fonts::SIMPLE_GLYF).unwrap();
+        let loca = font.loca(None).unwrap();
+        let glyf = font.glyf().unwrap();
+        let read_glyf::Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
+        let orig_bytes = orig.offset_data();
+
+        let ours = SimpleGlyph::from_table_ref(&orig);
+        let bytes = crate::dump_table(&ours).unwrap();
+        let ours = read_glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
+
+        let our_points = ours.points().collect::<Vec<_>>();
+        let their_points = orig.points().collect::<Vec<_>>();
+        assert_eq!(our_points, their_points);
+        assert_eq!(orig_bytes.as_ref(), bytes);
+        assert_eq!(orig.glyph_data(), ours.glyph_data());
+        assert_eq!(orig_bytes.len(), bytes.len());
     }
 
     #[test]
