@@ -216,9 +216,9 @@ impl<'a> FromObjRef<read::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {
         let mut last_end = 0;
         let mut contours = vec![];
         for end_pt in from.end_pts_of_contours() {
-            let end = end_pt.get() as usize;
-            let count = end - last_end + 1;
-            last_end = end + 1;
+            let end = end_pt.get() as usize + 1;
+            let count = end - last_end;
+            last_end = end;
             contours.push(Contour(points.by_ref().take(count).collect()));
         }
         Self {
