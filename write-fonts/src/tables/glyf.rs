@@ -460,16 +460,25 @@ mod tests {
         path.0
     }
 
+    // For `indexToLocFormat == 0` (short version), offset divided by 2 is stored, so add a padding
+    // byte if the length is not even to ensure our computed bytes match those of our test glyphs.
+    fn pad_for_loca_format(loca: &read::tables::loca::Loca, mut bytes: Vec<u8>) -> Vec<u8> {
+        if matches!(loca, read::tables::loca::Loca::Short(_)) && bytes.len() & 1 != 0 {
+            bytes.push(0);
+        }
+        bytes
+    }
+
     #[test]
     fn read_write_simple() {
         let font = FontRef::new(test_data::test_fonts::SIMPLE_GLYF).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
-        let read_glyf::Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
+        let read_glyf::Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(0), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
         let orig_bytes = orig.offset_data();
 
         let ours = SimpleGlyph::from_table_ref(&orig);
-        let bytes = crate::dump_table(&ours).unwrap();
+        let bytes = pad_for_loca_format(&loca, crate::dump_table(&ours).unwrap());
         let ours = read_glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
 
         let our_points = ours.points().collect::<Vec<_>>();
@@ -491,7 +500,7 @@ mod tests {
         let bezpath = simple_glyph_to_bezpath(&orig);
 
         let ours = SimpleGlyph::from_kurbo(&bezpath).unwrap();
-        let bytes = crate::dump_table(&ours).unwrap();
+        let bytes = pad_for_loca_format(&loca, crate::dump_table(&ours).unwrap());
         let ours = read_glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
 
         let our_points = ours.points().collect::<Vec<_>>();
@@ -513,7 +522,7 @@ mod tests {
         let bezpath = simple_glyph_to_bezpath(&orig);
 
         let ours = SimpleGlyph::from_kurbo(&bezpath).unwrap();
-        let bytes = crate::dump_table(&ours).unwrap();
+        let bytes = pad_for_loca_format(&loca, crate::dump_table(&ours).unwrap());
         let ours = read_glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
 
         let our_points = ours.points().collect::<Vec<_>>();
