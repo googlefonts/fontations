@@ -4,7 +4,10 @@ use kurbo::{BezPath, Rect, Shape};
 
 use read_fonts::tables::glyf::{CurvePoint, SimpleGlyphFlags};
 
-use crate::FontWrite;
+use crate::{
+    from_obj::{FromObjRef, FromTableRef},
+    FontWrite,
+};
 
 /// A single contour, comprising only line and quadratic bezier segments
 #[derive(Clone, Debug)]
@@ -200,6 +203,33 @@ impl SimpleGlyph {
         })
     }
 }
+
+impl<'a> FromObjRef<read::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {
+    fn from_obj_ref(from: &read::tables::glyf::SimpleGlyph, _data: read::FontData) -> Self {
+        let bbox = Bbox {
+            x_min: from.x_min(),
+            y_min: from.y_min(),
+            x_max: from.x_max(),
+            y_max: from.y_max(),
+        };
+        let mut points = from.points();
+        let mut last_end = 0;
+        let mut contours = vec![];
+        for end_pt in from.end_pts_of_contours() {
+            let end = end_pt.get() as usize + 1;
+            let count = end - last_end;
+            last_end = end;
+            contours.push(Contour(points.by_ref().take(count).collect()));
+        }
+        Self {
+            bbox,
+            contours,
+            _instructions: from.instructions().to_owned(),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {}
 
 /// A little helper for managing how we're representing a given delta
 #[derive(Clone, Copy, Debug)]
@@ -430,6 +460,35 @@ mod tests {
         path.0
     }
 
+    // For `indexToLocFormat == 0` (short version), offset divided by 2 is stored, so add a padding
+    // byte if the length is not even to ensure our computed bytes match those of our test glyphs.
+    fn pad_for_loca_format(loca: &read::tables::loca::Loca, mut bytes: Vec<u8>) -> Vec<u8> {
+        if matches!(loca, read::tables::loca::Loca::Short(_)) && bytes.len() & 1 != 0 {
+            bytes.push(0);
+        }
+        bytes
+    }
+
+    #[test]
+    fn read_write_simple() {
+        let font = FontRef::new(test_data::test_fonts::SIMPLE_GLYF).unwrap();
+        let loca = font.loca(None).unwrap();
+        let glyf = font.glyf().unwrap();
+        let read_glyf::Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(0), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
+        let orig_bytes = orig.offset_data();
+
+        let ours = SimpleGlyph::from_table_ref(&orig);
+        let bytes = pad_for_loca_format(&loca, crate::dump_table(&ours).unwrap());
+        let ours = read_glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
+
+        let our_points = ours.points().collect::<Vec<_>>();
+        let their_points = orig.points().collect::<Vec<_>>();
+        assert_eq!(our_points, their_points);
+        assert_eq!(orig_bytes.as_ref(), bytes);
+        assert_eq!(orig.glyph_data(), ours.glyph_data());
+        assert_eq!(orig_bytes.len(), bytes.len());
+    }
+
     #[test]
     fn round_trip_simple() {
         let font = FontRef::new(test_data::test_fonts::SIMPLE_GLYF).unwrap();
@@ -441,7 +500,7 @@ mod tests {
         let bezpath = simple_glyph_to_bezpath(&orig);
 
         let ours = SimpleGlyph::from_kurbo(&bezpath).unwrap();
-        let bytes = crate::dump_table(&ours).unwrap();
+        let bytes = pad_for_loca_format(&loca, crate::dump_table(&ours).unwrap());
         let ours = read_glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
 
         let our_points = ours.points().collect::<Vec<_>>();
@@ -463,7 +522,7 @@ mod tests {
         let bezpath = simple_glyph_to_bezpath(&orig);
 
         let ours = SimpleGlyph::from_kurbo(&bezpath).unwrap();
-        let bytes = crate::dump_table(&ours).unwrap();
+        let bytes = pad_for_loca_format(&loca, crate::dump_table(&ours).unwrap());
         let ours = read_glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
 
         let our_points = ours.points().collect::<Vec<_>>();
