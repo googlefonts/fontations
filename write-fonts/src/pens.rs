@@ -1,7 +1,5 @@
 //! Pen implementations based on <https://github.com/fonttools/fonttools/tree/main/Lib/fontTools/pens>
 
-use std::mem;
-
 use font_types::Pen;
 use kurbo::{Affine, BezPath, Point};
 
@@ -30,34 +28,26 @@ impl<'a, T: Pen> TransformPen<'a, T> {
 }
 
 impl<'a, T: Pen> Pen for TransformPen<'a, T> {
-    fn move_to(&mut self, mut x: f32, mut y: f32) {
-        (x, y) = self.map_point(x, y);
+    fn move_to(&mut self, x: f32, y: f32) {
+        let (x, y) = self.map_point(x, y);
         self.inner_pen.move_to(x, y);
     }
 
-    fn line_to(&mut self, mut x: f32, mut y: f32) {
-        (x, y) = self.map_point(x, y);
+    fn line_to(&mut self, x: f32, y: f32) {
+        let (x, y) = self.map_point(x, y);
         self.inner_pen.line_to(x, y);
     }
 
-    fn quad_to(&mut self, mut cx0: f32, mut cy0: f32, mut x: f32, mut y: f32) {
-        (cx0, cy0) = self.map_point(cx0, cy0);
-        (x, y) = self.map_point(x, y);
+    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
+        let (cx0, cy0) = self.map_point(cx0, cy0);
+        let (x, y) = self.map_point(x, y);
         self.inner_pen.quad_to(cx0, cy0, x, y);
     }
 
-    fn curve_to(
-        &mut self,
-        mut cx0: f32,
-        mut cy0: f32,
-        mut cx1: f32,
-        mut cy1: f32,
-        mut x: f32,
-        mut y: f32,
-    ) {
-        (cx0, cy0) = self.map_point(cx0, cy0);
-        (cx1, cy1) = self.map_point(cx1, cy1);
-        (x, y) = self.map_point(x, y);
+    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+        let (cx0, cy0) = self.map_point(cx0, cy0);
+        let (cx1, cy1) = self.map_point(cx1, cy1);
+        let (x, y) = self.map_point(x, y);
         self.inner_pen.curve_to(cx0, cy0, cx1, cy1, x, y);
     }
 
@@ -84,8 +74,8 @@ impl BezPathPen {
         }
     }
 
-    pub fn take_path(&mut self) -> BezPath {
-        mem::replace(&mut self.path, BezPath::new())
+    pub fn into_inner(self) -> BezPath {
+        self.path
     }
 }
 
@@ -134,6 +124,7 @@ mod tests {
         double.move_to(1.0, 1.0);
         double.line_to(2.0, 2.0);
 
-        assert_eq!("M1 1L2 2M2 2L4 4", bez.take_path().to_svg());
+        // We should see the move/line passed through double is doubled
+        assert_eq!("M1 1L2 2M2 2L4 4", bez.into_inner().to_svg());
     }
 }
