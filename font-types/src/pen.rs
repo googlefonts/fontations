@@ -2,6 +2,9 @@
 ///
 /// This is a general abstraction to unify ouput for processes that decode and/or
 /// transform outlines.
+///
+/// /// AbstractPen in Python terms.
+/// <https://github.com/fonttools/fonttools/blob/78e10d8b42095b709cd4125e592d914d3ed1558e/Lib/fontTools/pens/basePen.py#L54>
 pub trait Pen {
     /// Emit a command to begin a new subpath at (x, y).
     fn move_to(&mut self, x: f32, y: f32);
