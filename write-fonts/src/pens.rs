@@ -60,7 +60,7 @@ pub struct BezPathPen {
     path: BezPath,
 }
 
-fn pt(x: f32, y: f32) -> Point {
+fn as_kurbo_point(x: f32, y: f32) -> Point {
     Point {
         x: x as f64,
         y: y as f64,
@@ -87,19 +87,24 @@ impl Default for BezPathPen {
 
 impl Pen for BezPathPen {
     fn move_to(&mut self, x: f32, y: f32) {
-        self.path.move_to(pt(x, y))
+        self.path.move_to(as_kurbo_point(x, y))
     }
 
     fn line_to(&mut self, x: f32, y: f32) {
-        self.path.line_to(pt(x, y))
+        self.path.line_to(as_kurbo_point(x, y))
     }
 
     fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
-        self.path.quad_to(pt(cx0, cy0), pt(x, y));
+        self.path
+            .quad_to(as_kurbo_point(cx0, cy0), as_kurbo_point(x, y));
     }
 
     fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
-        self.path.curve_to(pt(cx0, cy0), pt(cx1, cy1), pt(x, y));
+        self.path.curve_to(
+            as_kurbo_point(cx0, cy0),
+            as_kurbo_point(cx1, cy1),
+            as_kurbo_point(x, y),
+        );
     }
 
     fn close(&mut self) {
@@ -110,6 +115,7 @@ impl Pen for BezPathPen {
 #[derive(Debug)]
 pub enum ContourReversalError {
     InvalidFirstCommand(PenCommand),
+    SubpathDoesNotStartWithMoveTo,
 }
 
 /// Buffers commands until a close is seen, then plays in reverse on inner pen.
@@ -120,16 +126,6 @@ pub enum ContourReversalError {
 pub struct ReverseContourPen<'a, T: Pen> {
     inner_pen: &'a mut T,
     pending: Vec<PenCommand>,
-}
-
-fn end(subpath_start_x: f32, subpath_start_y: f32, subpath_cmd: PenCommand) -> (f32, f32) {
-    match subpath_cmd {
-        PenCommand::MoveTo { x, y } => (x, y),
-        PenCommand::LineTo { x, y } => (x, y),
-        PenCommand::QuadTo { x, y, .. } => (x, y),
-        PenCommand::CurveTo { x, y, .. } => (x, y),
-        PenCommand::Close => (subpath_start_x, subpath_start_y),
-    }
 }
 
 /// Reverse the commands in a path.
@@ -144,24 +140,26 @@ fn flush_subpath<T: Pen>(commands: &[PenCommand], pen: &mut T) -> Result<(), Con
     let mut commands = commands;
     let mut reversed = Vec::new();
 
-    // subpath by definition contains 0 or 1 move commands, and the move is at [0] if it exists
-    let (start_x, start_y) = if let PenCommand::MoveTo { x, y } = commands[0] {
-        // When reversed, the move is to the end point of the last command
-        // in a typical [move, ..., close] structure, end point == start point
-        let (end_x, end_y) = end(x, y, *commands.last().unwrap());
-        reversed.push(PenCommand::MoveTo { x: end_x, y: end_y });
-        commands = &commands[1..];
-        (x, y)
-    } else {
-        (0.0, 0.0)
+    // subpath must start with a move, and by definition it can't have any other move
+    let PenCommand::MoveTo { x, y } = commands[0] else {
+        return Err(ContourReversalError::SubpathDoesNotStartWithMoveTo);
     };
+    let (start_x, start_y) = (x, y);
+
+    // When reversed, the move is to the end point of the last command
+    // in a typical [move, ..., close] structure, end point == start point
+    let (end_x, end_y) = commands
+        .last()
+        .unwrap()
+        .end_point()
+        .unwrap_or((start_x, start_y));
+    reversed.push(PenCommand::MoveTo { x: end_x, y: end_y });
+    commands = &commands[1..];
 
     // Reverse the commands between move (if any) and final close (if any)
     for (idx, cmd) in commands.iter().enumerate().rev() {
         let (end_x, end_y) = if idx > 0 {
-            end(start_x, start_y, commands[idx - 1])
-        // } else if ends_with_close {
-        //     (start_x, start_y)
+            commands[idx - 1].end_point().unwrap_or((start_x, start_y))
         } else {
             (start_x, start_y)
         };
