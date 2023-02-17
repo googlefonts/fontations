@@ -4,7 +4,8 @@
 /// transform outlines.
 ///
 /// /// AbstractPen in Python terms.
-/// <https://github.com/fonttools/fonttools/blob/78e10d8b42095b709cd4125e592d914d3ed1558e/Lib/fontTools/pens/basePen.py#L54>
+/// <https://github.com/fonttools/fonttools/blob/78e10d8b42095b709cd4125e592d914d3ed1558e/Lib/fontTools/pens/basePen.py#L54>.
+/// Implementations
 pub trait Pen {
     /// Emit a command to begin a new subpath at (x, y).
     fn move_to(&mut self, x: f32, y: f32);
@@ -22,4 +23,51 @@ pub trait Pen {
 
     /// Emit a command to close the current subpath.
     fn close(&mut self);
+}
+
+/// Captures commands to [Pen] to facilitate implementations that buffer commands.
+#[derive(Debug, Copy, Clone)]
+pub enum PenCommand {
+    MoveTo {
+        x: f32,
+        y: f32,
+    },
+    LineTo {
+        x: f32,
+        y: f32,
+    },
+    QuadTo {
+        cx0: f32,
+        cy0: f32,
+        x: f32,
+        y: f32,
+    },
+    CurveTo {
+        cx0: f32,
+        cy0: f32,
+        cx1: f32,
+        cy1: f32,
+        x: f32,
+        y: f32,
+    },
+    Close,
+}
+
+impl PenCommand {
+    pub fn apply_to<T: Pen>(&self, pen: &mut T) {
+        match *self {
+            PenCommand::MoveTo { x, y } => pen.move_to(x, y),
+            PenCommand::LineTo { x, y } => pen.line_to(x, y),
+            PenCommand::QuadTo { cx0, cy0, x, y } => pen.quad_to(cx0, cy0, x, y),
+            PenCommand::CurveTo {
+                cx0,
+                cy0,
+                cx1,
+                cy1,
+                x,
+                y,
+            } => pen.curve_to(cx0, cy0, cx1, cy1, x, y),
+            PenCommand::Close => pen.close(),
+        }
+    }
 }

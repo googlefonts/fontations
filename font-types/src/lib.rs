@@ -30,7 +30,7 @@ pub use fword::{FWord, UfWord};
 pub use glyph_id::GlyphId;
 pub use longdatetime::LongDateTime;
 pub use offset::{Nullable, Offset16, Offset24, Offset32};
-pub use pen::Pen;
+pub use pen::{Pen, PenCommand};
 pub use point::Point;
 pub use raw::{BigEndian, FixedSize, ReadScalar, Scalar};
 pub use tag::{InvalidTag, Tag};
