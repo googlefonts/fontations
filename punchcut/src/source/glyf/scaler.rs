@@ -61,7 +61,7 @@ impl<'a> Scaler<'a> {
                 F26Dot6::from_bits((size * 64.) as i32) / F26Dot6::from_bits(upem as i32),
             )
         } else {
-            (false, F26Dot6::ZERO)
+            (false, F26Dot6::from_bits(0x10000))
         };
         Ok(Self {
             context,
@@ -88,7 +88,15 @@ impl<'a> Scaler<'a> {
         if glyph_id.to_u16() >= self.font.glyph_count {
             return Err(Error::GlyphNotFound(glyph_id));
         }
-        GlyphScaler::new(self).load(glyph_id, outline, 0)
+        let mut glyph_scaler = GlyphScaler::new(self);
+        glyph_scaler.load(glyph_id, outline, 0)?;
+        let x_shift = glyph_scaler.phantom[0].x;
+        if x_shift != F26Dot6::ZERO {
+            for point in outline.points.iter_mut() {
+                point.x -= x_shift;
+            }
+        }
+        Ok(())
     }
 }
 
@@ -208,6 +216,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                 &gvar,
                 glyph_id,
                 self.scaler.coords,
+                self.scaler.font.has_var_lsb,
                 glyph,
                 &mut working_points[..],
                 &mut deltas[..],
@@ -323,6 +332,10 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
             for point in self.phantom.iter_mut() {
                 *point *= scale;
             }
+        } else {
+            for point in self.phantom.iter_mut() {
+                *point = point.map(|x| F26Dot6::from_i32(x.to_bits()));
+            }
         }
         // Compute the per component deltas. Since composites can be nested, we
         // use a stack and keep track of the base.
@@ -330,7 +343,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
         let delta_base = self.scaler.context.composite_deltas.len();
         if !self.scaler.coords.is_empty() && self.scaler.font.gvar.is_some() {
             let gvar = self.scaler.font.gvar.as_ref().unwrap();
-            let count = composite.components().count();
+            let count = composite.components().count() + 4;
             let deltas = &mut self.scaler.context.composite_deltas;
             deltas.resize(delta_base + count, Default::default());
             if super::deltas::composite_glyph(
@@ -341,11 +354,18 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
             )
             .is_ok()
             {
+                // If the font is missing variation data for LSBs in HVAR then we
+                // apply the delta to the first phantom point.
+                if !self.scaler.font.has_var_lsb {
+                    self.phantom[0].x +=
+                        F26Dot6::from_bits(deltas[delta_base + count - 4].x.to_i32());
+                }
                 have_deltas = true;
             }
         }
         for (i, component) in composite.components().enumerate() {
-            // Save a copy of our phantom points.
+            // Loading a component glyph will override phantom points so save a copy. We'll
+            // restore them unless the USE_MY_METRICS flag is set.
             let phantom = self.phantom;
             // Load the component glyph and keep track of the points range.
             let start_point = outline.points.len();
@@ -355,8 +375,8 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
                 .flags
                 .contains(CompositeGlyphFlags::USE_MY_METRICS)
             {
-                // The USE_MY_METRICS flag indicates that this component's phantom
-                // points should override those of the composite glyph.
+                // If the USE_MY_METRICS flag is missing, we restore the phantom points we
+                // saved at the start of the loop.
                 self.phantom = phantom;
             }
             // Prepares the transform components for our conversion math below.
@@ -632,6 +652,7 @@ pub struct Font<'a> {
     pub max_instruction_defs: u16,
     pub max_twilight: u16,
     pub axis_count: u16,
+    pub has_var_lsb: bool,
 }
 
 impl<'a> Font<'a> {
@@ -657,6 +678,10 @@ impl<'a> Font<'a> {
         let maxp = font.maxp()?;
         let glyph_count = maxp.num_glyphs();
         let axis_count = font.fvar().map(|fvar| fvar.axis_count()).unwrap_or(0);
+        let has_var_lsb = hvar
+            .as_ref()
+            .map(|hvar| hvar.lsb_mapping().is_some())
+            .unwrap_or_default();
         Ok(Self {
             glyf,
             loca,
@@ -674,6 +699,7 @@ impl<'a> Font<'a> {
             max_instruction_defs: maxp.max_instruction_defs().unwrap_or(0),
             max_twilight: maxp.max_twilight_points().unwrap_or(0),
             axis_count,
+            has_var_lsb,
         })
     }
 
