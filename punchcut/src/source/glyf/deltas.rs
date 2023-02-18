@@ -57,6 +57,7 @@ pub fn simple_glyph(
     gvar: &Gvar,
     glyph_id: GlyphId,
     coords: &[F2Dot14],
+    has_var_lsb: bool,
     glyph: SimpleGlyph,
     working_points: &mut [Point<Fixed>],
     deltas: &mut [Point<Fixed>],
@@ -73,25 +74,27 @@ pub fn simple_glyph(
         flags,
         contours,
     } = glyph;
-    // We don't apply variations to the phantom points. A properly constructed
-    // variable font contains an HVAR table which would have already applied the
-    // adjustments we generate here.
-    let len_without_phantom = points.len() - 4;
+    // Include the first phantom point if the font is missing variable metrics
+    // for left side bearings. The adjustment made here may affect the final
+    // shift of the outline.
+    let actual_len = if has_var_lsb {
+        points.len() - 4
+    } else {
+        points.len() - 3
+    };
     for tuple in var_data.tuples() {
         let Some(scalar) = tuple.compute_scalar(coords) else {
             continue;
         };
         if tuple.all_points() {
             // When a tuple contains all points, we can simply accumulate the deltas directly.
-            for (delta, tuple_delta) in deltas[0..len_without_phantom]
-                .iter_mut()
-                .zip(tuple.deltas())
-            {
+            for (delta, tuple_delta) in deltas[0..actual_len].iter_mut().zip(tuple.deltas()) {
                 *delta += tuple_delta.apply_scalar(scalar);
             }
         } else {
             // Otherwise, we need to infer missing deltas by interpolation.
-            // Prepare our working buffer and clear the HAS_DELTA flags.
+            // Prepare our working buffer by converting the points to 16.16
+            // and clearing the HAS_DELTA flags.
             for ((flag, point), working_point) in
                 flags.iter_mut().zip(points).zip(&mut working_points[..])
             {
@@ -107,7 +110,7 @@ pub fn simple_glyph(
             }
             interpolate_deltas(points, flags, contours, &mut working_points[..])
                 .ok_or(ReadError::OutOfBounds)?;
-            for ((delta, point), working_point) in deltas[..len_without_phantom]
+            for ((delta, point), working_point) in deltas[..actual_len]
                 .iter_mut()
                 .zip(points)
                 .zip(working_points.iter())
@@ -119,6 +122,10 @@ pub fn simple_glyph(
     Ok(())
 }
 
+/// Interpolate points without delta values, similar to the IUP hinting
+/// instruction.
+///
+/// Modeled after the FreeType implementation: <https://github.com/freetype/freetype/blob/bbfcd79eacb4985d4b68783565f4b494aa64516b/src/truetype/ttgxvar.c#L3881>
 fn interpolate_deltas(
     points: &[Point<i32>],
     flags: &[PointFlags],
@@ -132,15 +139,18 @@ fn interpolate_deltas(
     for &end_point_ix in contours {
         let end_point_ix = end_point_ix as usize;
         let first_point_ix = point_ix;
-        while point_ix <= end_point_ix && flags.get(point_ix)?.has_marker(PointMarker::HAS_DELTA) {
+        // Search for first point that has a delta.
+        while point_ix <= end_point_ix && !flags.get(point_ix)?.has_marker(PointMarker::HAS_DELTA) {
             point_ix += 1;
         }
         if point_ix <= end_point_ix {
             let first_delta_ix = point_ix;
             let mut cur_delta_ix = point_ix;
             point_ix += 1;
+            // Search for next point that has a delta...
             while point_ix <= end_point_ix {
                 if flags.get(point_ix)?.has_marker(PointMarker::HAS_DELTA) {
+                    // ... and interpolate intermediate points.
                     interpolate_range(
                         points,
                         cur_delta_ix + 1,
@@ -153,6 +163,7 @@ fn interpolate_deltas(
                 }
                 point_ix += 1;
             }
+            // If we only have a single delta, shift the contour.
             if cur_delta_ix == first_delta_ix {
                 shift_range(
                     points,
@@ -162,6 +173,7 @@ fn interpolate_deltas(
                     out_points,
                 )?;
             } else {
+                // Otherwise, handle remaining points at beginning and end of contour.
                 interpolate_range(
                     points,
                     cur_delta_ix + 1,
@@ -186,8 +198,10 @@ fn interpolate_deltas(
     Some(())
 }
 
-/// Shifts a range of points by the difference in the given reference
-/// point.
+/// Shift the coordinates of all points between `start` and `end` inclusive
+/// using the difference given by the point at `ref_`.
+///
+/// Modeled after the FreeType implementation: <https://github.com/freetype/freetype/blob/bbfcd79eacb4985d4b68783565f4b494aa64516b/src/truetype/ttgxvar.c#L3776>
 fn shift_range(
     points: &[Point<i32>],
     start: usize,
@@ -210,7 +224,10 @@ fn shift_range(
     Some(())
 }
 
-/// Generates inferred deltas by interpolating between the given range of points.
+/// Interpolate the coordinates of all points between `start` and `end` using
+/// `ref1` and `ref2` as the reference point indices.
+///
+/// Modeled after the FreeType implementation: <https://github.com/freetype/freetype/blob/bbfcd79eacb4985d4b68783565f4b494aa64516b/src/truetype/ttgxvar.c#L3813>
 ///
 /// For details on the algorithm, see: <https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#inferred-deltas-for-un-referenced-point-numbers>
 fn interpolate_range(

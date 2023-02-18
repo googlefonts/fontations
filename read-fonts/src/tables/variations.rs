@@ -174,7 +174,7 @@ impl<'a> TupleVariationHeader<'a> {
     /// Compute the actual length of this table in bytes
     fn byte_len(&self, axis_count: u16) -> usize {
         const FIXED_LEN: usize = u16::RAW_BYTE_LEN + TupleIndex::RAW_BYTE_LEN;
-        let tuple_byte_len = F2Dot14::RAW_BYTE_LEN * 2 * axis_count as usize;
+        let tuple_byte_len = F2Dot14::RAW_BYTE_LEN * axis_count as usize;
         let index = self.tuple_index();
         FIXED_LEN
             + index
@@ -183,7 +183,7 @@ impl<'a> TupleVariationHeader<'a> {
                 .unwrap_or_default()
             + index
                 .intermediate_region()
-                .then_some(tuple_byte_len)
+                .then_some(tuple_byte_len * 2)
                 .unwrap_or_default()
     }
 }
