@@ -1,21 +1,29 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
-use kurbo::{BezPath, Shape};
+use kurbo::{BezPath, Rect, Shape};
 
 use read_fonts::tables::glyf::{CurvePoint, SimpleGlyphFlags};
 
-use crate::FontWrite;
+use crate::{
+    from_obj::{FromObjRef, FromTableRef},
+    FontWrite,
+};
 
-/// A single quadratic bezier contour
+/// A single contour, comprising only line and quadratic bezier segments
 #[derive(Clone, Debug)]
 pub struct Contour(Vec<CurvePoint>);
 
-/// A simple (without components) glyph
-pub struct SimpleGlyf {
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash)]
+struct Bbox {
     x_min: i16,
     y_min: i16,
     x_max: i16,
     y_max: i16,
+}
+
+/// A simple (without components) glyph
+pub struct SimpleGlyph {
+    bbox: Bbox,
     contours: Vec<Contour>,
     _instructions: Vec<u8>,
 }
@@ -83,7 +91,7 @@ impl Contour {
     }
 }
 
-impl SimpleGlyf {
+impl SimpleGlyph {
     /// Attempt to create a simple glyph from a kurbo `BezPath`
     ///
     /// The path may contain only line and quadratic bezier segments. The caller
@@ -133,11 +141,8 @@ impl SimpleGlyf {
         }
 
         let bbox = path.bounding_box();
-        Ok(SimpleGlyf {
-            x_max: ot_round(bbox.max_x() as f32),
-            y_max: ot_round(bbox.max_y() as f32),
-            x_min: ot_round(bbox.min_x() as f32),
-            y_min: ot_round(bbox.min_y() as f32),
+        Ok(SimpleGlyph {
+            bbox: bbox.into(),
             contours,
             _instructions: Default::default(),
         })
@@ -199,6 +204,33 @@ impl SimpleGlyf {
     }
 }
 
+impl<'a> FromObjRef<read::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {
+    fn from_obj_ref(from: &read::tables::glyf::SimpleGlyph, _data: read::FontData) -> Self {
+        let bbox = Bbox {
+            x_min: from.x_min(),
+            y_min: from.y_min(),
+            x_max: from.x_max(),
+            y_max: from.y_max(),
+        };
+        let mut points = from.points();
+        let mut last_end = 0;
+        let mut contours = vec![];
+        for end_pt in from.end_pts_of_contours() {
+            let end = end_pt.get() as usize + 1;
+            let count = end - last_end;
+            last_end = end;
+            contours.push(Contour(points.by_ref().take(count).collect()));
+        }
+        Self {
+            bbox,
+            contours,
+            _instructions: from.instructions().to_owned(),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {}
+
 /// A little helper for managing how we're representing a given delta
 #[derive(Clone, Copy, Debug)]
 enum CoordDelta {
@@ -248,9 +280,26 @@ impl RepeatableFlag {
     ) -> impl Iterator<Item = RepeatableFlag> {
         let mut iter = flags.into_iter();
         let mut prev = None;
+        // if a flag repeats exactly once, then there is no (space) cost difference
+        // between 1) using a repeat flag followed by a value of '1' and 2) just
+        // repeating the flag (without setting the repeat bit).
+        // It would be simplest for us to go with option 1), but fontmake goes
+        // with 2). We like doing what fontmake does, so we add an extra step
+        // where if we see a case where there's a single repeat, we split it into
+        // two separate non-repeating flags.
+        let mut decompose_single_repeat = None;
 
         std::iter::from_fn(move || loop {
+            if let Some(repeat) = decompose_single_repeat.take() {
+                return Some(repeat);
+            }
+
             match (iter.next(), prev.take()) {
+                (None, Some(RepeatableFlag { flag, repeat })) if repeat == 1 => {
+                    let flag = flag & !SimpleGlyphFlags::REPEAT_FLAG;
+                    decompose_single_repeat = Some(RepeatableFlag { flag, repeat: 0 });
+                    return decompose_single_repeat;
+                }
                 (None, prev) => return prev,
                 (Some(flag), None) => prev = Some(RepeatableFlag { flag, repeat: 0 }),
                 (Some(flag), Some(mut last)) => {
@@ -260,6 +309,14 @@ impl RepeatableFlag {
                         last.flag |= SimpleGlyphFlags::REPEAT_FLAG;
                         prev = Some(last);
                     } else {
+                        // split a single repeat into two non-repeat flags
+                        if last.repeat == 1 {
+                            last.flag &= !SimpleGlyphFlags::REPEAT_FLAG;
+                            last.repeat = 0;
+                            // stash the extra flag, which we'll use at the top
+                            // of the next pass of the loop
+                            decompose_single_repeat = Some(last);
+                        }
                         prev = Some(RepeatableFlag { flag, repeat: 0 });
                         return Some(last);
                     }
@@ -279,14 +336,13 @@ impl<'a> IntoIterator for &'a Contour {
     }
 }
 
-impl FontWrite for SimpleGlyf {
+impl FontWrite for SimpleGlyph {
     fn write_into(&self, writer: &mut crate::TableWriter) {
         assert!(self.contours.len() < i16::MAX as usize);
         assert!(self._instructions.len() < u16::MAX as usize);
         let n_contours = self.contours.len() as i16;
         n_contours.write_into(writer);
-        let bbox = [self.x_min, self.y_min, self.x_max, self.y_max];
-        bbox.write_into(writer);
+        self.bbox.write_into(writer);
         // now write end points of contours:
         let mut cur = 0;
         for contour in &self.contours {
@@ -304,17 +360,54 @@ impl FontWrite for SimpleGlyf {
     }
 }
 
-impl crate::validate::Validate for SimpleGlyf {
+impl crate::validate::Validate for SimpleGlyph {
     fn validate_impl(&self, _ctx: &mut crate::codegen_prelude::ValidationCtx) {
         // pass
     }
 }
 
+impl From<Rect> for Bbox {
+    fn from(value: Rect) -> Self {
+        Bbox {
+            x_min: ot_round(value.min_x() as f32),
+            y_min: ot_round(value.min_y() as f32),
+            x_max: ot_round(value.max_x() as f32),
+            y_max: ot_round(value.max_y() as f32),
+        }
+    }
+}
+
+impl FontWrite for Bbox {
+    fn write_into(&self, writer: &mut crate::TableWriter) {
+        let Bbox {
+            x_min,
+            y_min,
+            x_max,
+            y_max,
+        } = *self;
+        [x_min, y_min, x_max, y_max].write_into(writer)
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use read::{FontData, FontRead};
+    use read::{
+        tables::glyf as read_glyf, types::GlyphId, FontData, FontRead, FontRef, TableProvider,
+    };
 
     use super::*;
+    use crate::read::test_data;
+
+    #[test]
+    #[should_panic(expected = "HasCubic")]
+    fn bad_path_input() {
+        let mut path = BezPath::new();
+        path.move_to((0., 0.));
+        path.curve_to((10., 10.), (20., 20.), (30., 30.));
+        path.line_to((50., 50.));
+        path.line_to((10., 10.));
+        let _glyph = SimpleGlyph::from_kurbo(&path).unwrap();
+    }
 
     fn simple_glyph_to_bezpath(glyph: &read::tables::glyf::SimpleGlyph) -> BezPath {
         use types::{F26Dot6, Pen};
@@ -367,25 +460,26 @@ mod tests {
         path.0
     }
 
+    // For `indexToLocFormat == 0` (short version), offset divided by 2 is stored, so add a padding
+    // byte if the length is not even to ensure our computed bytes match those of our test glyphs.
+    fn pad_for_loca_format(loca: &read::tables::loca::Loca, mut bytes: Vec<u8>) -> Vec<u8> {
+        if matches!(loca, read::tables::loca::Loca::Short(_)) && bytes.len() & 1 != 0 {
+            bytes.push(0);
+        }
+        bytes
+    }
+
     #[test]
-    fn round_trip_simple() {
-        use read::{
-            tables::glyf::{Glyph, SimpleGlyph},
-            test_data, FontRef, TableProvider,
-        };
-        use types::GlyphId;
-        // load an existing glyph
+    fn read_write_simple() {
         let font = FontRef::new(test_data::test_fonts::SIMPLE_GLYF).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
-        let Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
+        let read_glyf::Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(0), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
         let orig_bytes = orig.offset_data();
 
-        let bezpath = simple_glyph_to_bezpath(&orig);
-
-        let ours = SimpleGlyf::from_kurbo(&bezpath).unwrap();
-        let bytes = crate::dump_table(&ours).unwrap();
-        let ours = SimpleGlyph::read(FontData::new(&bytes)).unwrap();
+        let ours = SimpleGlyph::from_table_ref(&orig);
+        let bytes = pad_for_loca_format(&loca, crate::dump_table(&ours).unwrap());
+        let ours = read_glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
 
         let our_points = ours.points().collect::<Vec<_>>();
         let their_points = orig.points().collect::<Vec<_>>();
@@ -396,6 +490,54 @@ mod tests {
     }
 
     #[test]
+    fn round_trip_simple() {
+        let font = FontRef::new(test_data::test_fonts::SIMPLE_GLYF).unwrap();
+        let loca = font.loca(None).unwrap();
+        let glyf = font.glyf().unwrap();
+        let read_glyf::Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
+        let orig_bytes = orig.offset_data();
+
+        let bezpath = simple_glyph_to_bezpath(&orig);
+
+        let ours = SimpleGlyph::from_kurbo(&bezpath).unwrap();
+        let bytes = pad_for_loca_format(&loca, crate::dump_table(&ours).unwrap());
+        let ours = read_glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
+
+        let our_points = ours.points().collect::<Vec<_>>();
+        let their_points = orig.points().collect::<Vec<_>>();
+        assert_eq!(our_points, their_points);
+        assert_eq!(orig_bytes.as_ref(), bytes);
+        assert_eq!(orig.glyph_data(), ours.glyph_data());
+        assert_eq!(orig_bytes.len(), bytes.len());
+    }
+
+    #[test]
+    fn round_trip_multi_contour() {
+        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let loca = font.loca(None).unwrap();
+        let glyf = font.glyf().unwrap();
+        let read_glyf::Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(1), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
+        let orig_bytes = orig.offset_data();
+
+        let bezpath = simple_glyph_to_bezpath(&orig);
+
+        let ours = SimpleGlyph::from_kurbo(&bezpath).unwrap();
+        let bytes = pad_for_loca_format(&loca, crate::dump_table(&ours).unwrap());
+        let ours = read_glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
+
+        let our_points = ours.points().collect::<Vec<_>>();
+        let their_points = orig.points().collect::<Vec<_>>();
+        dbg!(
+            SimpleGlyphFlags::from_bits(1),
+            SimpleGlyphFlags::from_bits(9)
+        );
+        assert_eq!(our_points, their_points);
+        assert_eq!(orig.glyph_data(), ours.glyph_data());
+        assert_eq!(orig_bytes.len(), bytes.len());
+        assert_eq!(orig_bytes.as_ref(), bytes);
+    }
+
+    #[test]
     fn very_simple_glyph() {
         let mut path = BezPath::new();
         path.move_to((20., -100.));
@@ -403,7 +545,7 @@ mod tests {
         path.quad_to((13., 255.), (-255., 256.));
         path.line_to((20., -100.));
 
-        let glyph = SimpleGlyf::from_kurbo(&path).unwrap();
+        let glyph = SimpleGlyph::from_kurbo(&path).unwrap();
         let bytes = crate::dump_table(&glyph).unwrap();
         let read = read_fonts::tables::glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
         assert_eq!(read.number_of_contours(), 1);
@@ -426,7 +568,7 @@ mod tests {
         path.line_to((50., -69.));
         path.line_to((80., -20.));
 
-        let glyph = SimpleGlyf::from_kurbo(&path).unwrap();
+        let glyph = SimpleGlyph::from_kurbo(&path).unwrap();
         let flags = glyph
             .compute_point_deltas()
             .map(|x| x.0)
@@ -435,7 +577,7 @@ mod tests {
 
         assert_eq!(r_flags.len(), 2, "{r_flags:?}");
         let bytes = crate::dump_table(&glyph).unwrap();
-        let read = read_fonts::tables::glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
+        let read = read_glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
         assert_eq!(read.number_of_contours(), 1);
         assert_eq!(read.num_points(), 4);
         assert_eq!(read.end_pts_of_contours(), &[3]);
@@ -455,10 +597,17 @@ mod tests {
         let flags = [
             SimpleGlyphFlags::ON_CURVE_POINT,
             SimpleGlyphFlags::X_SHORT_VECTOR,
+            SimpleGlyphFlags::X_SHORT_VECTOR,
         ];
         let repeatable = RepeatableFlag::iter_from_flags(flags).collect::<Vec<_>>();
-        assert_eq!(repeatable[0].repeat, 0);
-        assert_eq!(repeatable[1].flag, flags[1]);
+        let expected = flags
+            .into_iter()
+            .map(|flag| RepeatableFlag { flag, repeat: 0 })
+            .collect::<Vec<_>>();
+
+        // even though we have a repeating flag at the end, we should still produce
+        // three flags, since we don't bother with repeat counts < 2.
+        assert_eq!(repeatable, expected);
     }
 
     #[test]

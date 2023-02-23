@@ -610,7 +610,11 @@ pub fn to_path(
     fn to_f32(x: F26Dot6) -> f32 {
         x.to_f64() as f32
     }
-    const TWO: F26Dot6 = F26Dot6::from_i32(2);
+    // FreeType uses integer division to compute midpoints.
+    // See: https://github.com/freetype/freetype/blob/de8b92dd7ec634e9e2b25ef534c54a3537555c11/src/base/ftoutln.c#L123
+    fn midpoint(a: Point<F26Dot6>, b: Point<F26Dot6>) -> Point<F26Dot6> {
+        ((a + b).map(F26Dot6::to_bits) / 2).map(F26Dot6::from_bits)
+    }
     let mut count = 0usize;
     let mut last_was_close = false;
     for contour_ix in 0..contours.len() {
@@ -635,7 +639,7 @@ pub fn to_path(
                 v_start = v_last;
                 last_ix -= 1;
             } else {
-                v_start = (v_start + v_last) / TWO;
+                v_start = midpoint(v_start, v_last);
             }
             step_point = false;
         }
@@ -677,7 +681,7 @@ pub fn to_path(
                     if !flag.is_off_curve_quad() {
                         return Err(ToPathError::ExpectedQuad(cur_ix));
                     }
-                    let v_middle = (v_control + cur_point) / TWO;
+                    let v_middle = midpoint(v_control, cur_point);
                     let control = v_control.map(to_f32);
                     let point = v_middle.map(to_f32);
                     sink.quad_to(control.x, control.y, point.x, point.y);
