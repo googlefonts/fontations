@@ -58,9 +58,9 @@ pub struct PointFlags(u8);
 impl PointFlags {
     // Note: OFF_CURVE_QUAD is signified by the absence of both ON_CURVE
     // and OFF_CURVE_CUBIC bits, per FreeType and TrueType convention.
-    const CURVE_MASK: u8 = 0x3;
+    const CURVE_MASK: u8 = 0x81;
     const ON_CURVE: u8 = 0x1;
-    const OFF_CURVE_CUBIC: u8 = 0x2;
+    const OFF_CURVE_CUBIC: u8 = 0x8;
 
     /// Creates a new on curve point flag.
     pub fn on_curve() -> Self {
@@ -96,6 +96,27 @@ impl PointFlags {
     /// Returns true if this is an off curve cubic point.
     pub fn is_off_curve_cubic(self) -> bool {
         self.0 & Self::OFF_CURVE_CUBIC != 0
+    }
+
+    /// Flips the state of the on curve flag.
+    ///
+    /// This is used for the TrueType `FLIPPT` instruction.
+    pub fn flip_on_curve(&mut self) {
+        self.0 ^= 1;
+    }
+
+    /// Enables the on curve flag.
+    ///
+    /// This is used for the TrueType `FLIPRGON` instruction.
+    pub fn set_on_curve(&mut self) {
+        self.0 |= Self::ON_CURVE;
+    }
+
+    /// Disables the on curve flag.
+    ///
+    /// This is used for the TrueType `FLIPRGOFF` instruction.
+    pub fn clear_on_curve(&mut self) {
+        self.0 &= !Self::ON_CURVE;
     }
 
     /// Returns true if the given marker is set for this point.
