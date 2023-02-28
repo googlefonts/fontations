@@ -26,7 +26,7 @@ pub trait Pen {
 }
 
 /// Captures commands to [Pen] to facilitate implementations that buffer commands.
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, PartialEq)]
 pub enum PenCommand {
     MoveTo {
         x: f32,

@@ -120,7 +120,9 @@ pub enum ContourReversalError {
 
 /// Buffers commands until a close is seen, then plays in reverse on inner pen.
 ///
-/// Reverses the winding direction of the contour. Keeps the first point unchanged.
+/// Reverses the winding direction of the contour. Keeps the first point unchanged. In FontTools terms
+/// we implement only reversedContour(..., outputImpliedClosingLine=True) as this appears to be necessary
+/// to ensure retention of interpolation.
 ///
 /// <https://github.com/fonttools/fonttools/blob/78e10d8b42095b709cd4125e592d914d3ed1558e/Lib/fontTools/pens/reverseContourPen.py#L8>
 pub struct ReverseContourPen<'a, T: Pen> {
@@ -270,12 +272,64 @@ impl<'a, T: Pen> Pen for ReverseContourPen<'a, T> {
     }
 }
 
+/// Records commands as [PenCommand]
+pub struct RecordingPen {
+    commands: Vec<PenCommand>,
+}
+
+impl RecordingPen {
+    pub fn new() -> RecordingPen {
+        RecordingPen {
+            commands: Vec::new(),
+        }
+    }
+
+    pub fn commands(&self) -> &Vec<PenCommand> {
+        &self.commands
+    }
+}
+
+impl Default for RecordingPen {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+impl Pen for RecordingPen {
+    fn move_to(&mut self, x: f32, y: f32) {
+        self.commands.push(PenCommand::MoveTo { x, y });
+    }
+
+    fn line_to(&mut self, x: f32, y: f32) {
+        self.commands.push(PenCommand::LineTo { x, y });
+    }
+
+    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
+        self.commands.push(PenCommand::QuadTo { cx0, cy0, x, y });
+    }
+
+    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+        self.commands.push(PenCommand::CurveTo {
+            cx0,
+            cy0,
+            cx1,
+            cy1,
+            x,
+            y,
+        });
+    }
+
+    fn close(&mut self) {
+        self.commands.push(PenCommand::Close);
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use font_types::Pen;
+    use font_types::{Pen, PenCommand};
     use kurbo::Affine;
 
-    use super::{BezPathPen, ReverseContourPen, TransformPen};
+    use super::{BezPathPen, RecordingPen, ReverseContourPen, TransformPen};
 
     fn draw_open_test_shape(pen: &mut impl Pen) {
         pen.move_to(10.0, 10.0);
@@ -362,6 +416,30 @@ mod tests {
         assert_eq!(
             "M125 100L100 50L75 100Q0 150 25 300C50 150 150 150 175 300Q200 150 125 100",
             bez.into_inner().to_svg()
+        );
+    }
+
+    /// https://github.com/fonttools/fonttools/blob/bf265ce49e0cae6f032420a4c80c31d8e16285b8/Tests/pens/reverseContourPen_test.py#L7
+    #[test]
+    fn test_reverse_lines() {
+        let mut rec = RecordingPen::new();
+        let mut rev = ReverseContourPen::new(&mut rec);
+        rev.move_to(0.0, 0.0);
+        rev.line_to(1.0, 1.0);
+        rev.line_to(2.0, 2.0);
+        rev.line_to(3.0, 3.0);
+        rev.close();
+        rev.flush().unwrap();
+
+        assert_eq!(
+            &vec![
+                PenCommand::MoveTo { x: 0.0, y: 0.0 },
+                PenCommand::LineTo { x: 3.0, y: 3.0 },
+                PenCommand::LineTo { x: 2.0, y: 2.0 },
+                PenCommand::LineTo { x: 1.0, y: 1.0 },
+                PenCommand::Close,
+            ],
+            rec.commands()
         );
     }
 }
