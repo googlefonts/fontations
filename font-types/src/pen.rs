@@ -76,10 +76,10 @@ impl PenCommand {
     /// Notably, Close does have an end point but it is not directly stated so it returns None.
     pub fn end_point(&self) -> Option<(f32, f32)> {
         match *self {
-            PenCommand::MoveTo { x, y } => Some((x, y)),
-            PenCommand::LineTo { x, y } => Some((x, y)),
-            PenCommand::QuadTo { x, y, .. } => Some((x, y)),
-            PenCommand::CurveTo { x, y, .. } => Some((x, y)),
+            PenCommand::MoveTo { x, y }
+            | PenCommand::LineTo { x, y }
+            | PenCommand::QuadTo { x, y, .. }
+            | PenCommand::CurveTo { x, y, .. } => Some((x, y)),
             PenCommand::Close => None,
         }
     }

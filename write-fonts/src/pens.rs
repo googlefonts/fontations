@@ -284,7 +284,7 @@ impl RecordingPen {
         }
     }
 
-    pub fn commands(&self) -> &Vec<PenCommand> {
+    pub fn commands(&self) -> &[PenCommand] {
         &self.commands
     }
 }
