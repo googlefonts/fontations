@@ -1,26 +1,11 @@
-"""Read (default) or set the version of the crates in the workspace.
+"""Set the version of the crates in the workspace.
 
 Usage:
 
     # in a venv with version-requirements.txt installed
     # in the root of a workspace
 
-    # print versions
-    $ python3 resources/scripts/version.py 
-        read-fonts      0.0.5
-        font-types      0.0.5
-        font-codegen    0.0.0
-        write-fonts     0.0.5
-        otexplorer      0.1.0
-        punchcut        0.1.0
-
-    $ python3 resources/scripts/version.py --inc 0.0.1
-        read-fonts      0.0.6
-        font-types      0.0.6
-        font-codegen    0.0.0
-        write-fonts     0.0.6
-        otexplorer      0.1.1
-        punchcut        0.1.1
+    $ python3 resources/scripts/version.py --ver 0.0.6
 """
 
 from absl import app
@@ -32,34 +17,49 @@ import tomlkit
 FLAGS = flags.FLAGS
 
 
-flags.DEFINE_string("inc", None, "Amount to increase versions by, e.g. 0.0.1")
+flags.DEFINE_string("ver", None, "The new version, e.g. 0.0.6")
+
+
+def set_version(cargo_file: Path, workspace_members):
+    new_version = [int(s) for s in FLAGS.ver.split(".")]
+    assert len(new_version) == 3, f"Bad version {new_version}"
+    new_version = ".".join(str(v) for v in new_version)
+
+    assert cargo_file.is_file(), cargo_file
+    toml = tomlkit.loads(cargo_file.read_text())
+
+    if "workspace" in toml:
+        version = toml["workspace"]["package"]["version"]
+        version = [int(s) for s in version.split(".")]
+        if all(v == 0 for v in version):
+            return  # nop
+        toml["workspace"]["package"]["version"] = new_version
+
+    # bump dependencies on workspace targets, distinguished by use of path
+    workspace_members = set(workspace_members)
+    for dep_block in ["dependencies", "dev-dependencies"]:
+        if dep_block not in toml:
+            continue
+        for dep_name, dep_cfg in toml[dep_block].items():
+            if dep_name not in workspace_members:
+                continue
+            dep_cfg["version"] = new_version
+
+    cargo_file.write_text(tomlkit.dumps(toml))
 
 
 def main(_):
-    workspace = tomlkit.loads(Path("Cargo.toml").read_text())
-    inc = []
-    if FLAGS.inc is not None:
-        inc = [int(s) for s in FLAGS.inc.split(".")]
-        assert len(inc) == 3, f"Bad increment {inc}"
-    for crate in workspace["workspace"]["members"]:
+    workspace_file = Path("Cargo.toml")
+    workspace = tomlkit.loads(workspace_file.read_text())
+
+    workspace_members = workspace["workspace"]["members"]
+
+    set_version(workspace_file, workspace_members)
+    for crate in workspace_members:
         cargo_file = Path(crate) / "Cargo.toml"
-        assert cargo_file.is_file(), cargo_file
-        cargo_toml = tomlkit.loads(cargo_file.read_text())
-        version = cargo_toml["package"]["version"]
-
-        if inc:
-            version = [int(s) for s in version.split(".")]
-            if not all(v == 0 for v in version):
-                for i in range(0, min(len(version), len(inc))):
-                    version[i] += inc[i]
-                version = ".".join(str(v) for v in version)
-                cargo_toml["package"]["version"] = version
-                cargo_file.write_text(tomlkit.dumps(cargo_toml))
-            else:
-                version = ".".join(str(v) for v in version)
-
-        print(f"{crate:<12} {version:>8}")
+        set_version(cargo_file, workspace_members)
 
 
 if __name__ == "__main__":
+    flags.mark_flags_as_required(["ver"])
     app.run(main)
