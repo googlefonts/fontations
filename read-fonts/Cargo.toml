@@ -15,4 +15,4 @@ traversal = ["std"]
 default = ["traversal"]
 
 [dependencies]
-font-types = { version = "0.0.6", path = "../font-types" }
+font-types = { version = "0.1.0", path = "../font-types" }
