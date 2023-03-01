@@ -202,7 +202,7 @@ impl<'a, 'b> GlyphScaler<'a, 'b> {
         if !self.scaler.coords.is_empty() && self.scaler.font.gvar.is_some() {
             let gvar = self.scaler.font.gvar.clone().unwrap();
             let deltas = &mut self.scaler.context.deltas;
-            let working_points = &mut self.scaler.context.interp_points;
+            let working_points = &mut self.scaler.context.working_points;
             deltas.clear();
             deltas.resize(point_count, Default::default());
             working_points.clear();

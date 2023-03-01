@@ -14,6 +14,9 @@ pub use read_fonts::types::Point;
 
 use read_fonts::types::{F26Dot6, Fixed};
 
+/// Point that actually represents a vector holding a variation delta.
+pub type Delta = Point<Fixed>;
+
 /// Context for loading for TrueType glyphs.
 #[derive(Clone, Default, Debug)]
 pub struct Context {
@@ -22,11 +25,12 @@ pub struct Context {
     /// Original scaled points.
     original: Vec<Point<F26Dot6>>,
     /// Storage for simple glyph deltas.
-    deltas: Vec<Point<Fixed>>,
+    deltas: Vec<Delta>,
     /// Storage for composite glyph deltas.
-    composite_deltas: Vec<Point<Fixed>>,
-    /// Temporary storage for computing interpolated deltas.
-    interp_points: Vec<Point<Fixed>>,
+    composite_deltas: Vec<Delta>,
+    /// Temporary point storage that is used for storing intermediate
+    /// interpolated values while computing deltas.
+    working_points: Vec<Point<Fixed>>,
 }
 
 impl Context {

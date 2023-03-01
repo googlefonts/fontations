@@ -128,8 +128,11 @@ impl<'a> ScalerBuilder<'a> {
             .coords
             .resize(axis_count, NormalizedCoord::default());
         for variation in &self.context.variations {
-            // Make sure we iterate over all axes to support the case with multiple axes
-            // with the same name.
+            // To permit non-linear interpolation, iterate over all axes to ensure we match
+            // multiple axes with the same tag:
+            // https://github.com/PeterConstable/OT_Drafts/blob/master/NLI/UnderstandingNLI.md
+            // We accept quadratic behavior here to avoid dynamic allocation and with the assumption
+            // that fonts contain a relatively small number of axes.
             for (i, axis) in axes
                 .iter()
                 .enumerate()
