@@ -5,6 +5,8 @@
 /// Expose our "raw" underlying parser crate.
 pub extern crate read_fonts as raw;
 
+pub mod meta;
+
 #[cfg(feature = "scale")]
 pub mod scale;
 
@@ -13,3 +15,6 @@ pub type NormalizedCoord = read_fonts::types::F2Dot14;
 
 /// Type for a glyph identifier.
 pub type GlyphId = read_fonts::types::GlyphId;
+
+#[doc(inline)]
+pub use meta::MetadataProvider;
