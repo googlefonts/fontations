@@ -14,7 +14,7 @@ scale = []
 hinting = []
 
 [dependencies]
-read-fonts = { version = "0.0.6", path = "../read-fonts" }
+read-fonts = { version = "0.1.0", path = "../read-fonts" }
 
 [dev-dependencies]
-read-fonts = { version = "0.0.6", path = "../read-fonts", features = ["test_data"] }
+read-fonts = { version = "0.1.0", path = "../read-fonts", features = ["test_data"] }
