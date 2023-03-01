@@ -127,6 +127,19 @@ impl<'a> GlyphVariationData<'a> {
         }
     }
 
+    /// Returns an iterator over all of the pairs of (variation tuple, scalar)
+    /// for this glyph that are active for the given set of normalized
+    /// coordinates.
+    pub fn active_tuples_at(
+        &self,
+        coords: &'a [F2Dot14],
+    ) -> impl Iterator<Item = (TupleVariation<'a>, Fixed)> + 'a {
+        self.tuples().filter_map(|tuple| {
+            let scaler = tuple.compute_scalar(coords)?;
+            Some((tuple, scaler))
+        })
+    }
+
     fn tuple_count(&self) -> usize {
         self.tuple_count.count() as usize
     }
@@ -187,7 +200,7 @@ pub struct TupleVariation<'a> {
 
 impl<'a> TupleVariation<'a> {
     /// Returns true if this tuple provides deltas for all points in a glyph.
-    pub fn all_points(&self) -> bool {
+    pub fn has_deltas_for_all_points(&self) -> bool {
         self.point_numbers.count() == 0
     }
 
@@ -207,7 +220,8 @@ impl<'a> TupleVariation<'a> {
     /// The `coords` slice must be of lesser or equal length to the number of axes.
     /// If it is less, missing (trailing) axes will be assumed to have zero values.
     ///
-    /// Returns `None` if this tuple is not applicable at the provided coordinates.
+    /// Returns `None` if this tuple is not applicable at the provided coordinates
+    /// (e.g. if the resulting scalar is zero).
     pub fn compute_scalar(&self, coords: &[F2Dot14]) -> Option<Fixed> {
         const ZERO: Fixed = Fixed::ZERO;
         let mut scalar = Fixed::ONE;

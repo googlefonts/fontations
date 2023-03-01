@@ -143,7 +143,7 @@ mod tests {
             if path.0 != expected_outline.path {
                 panic!(
                     "mismatch in glyph path for id {} (size: {}, coords: {:?}): path: {:?} expected_path: {:?}",
-                    expected_outline.glyph_id.to_u16(),
+                    expected_outline.glyph_id,
                     expected_outline.size,
                     expected_outline.coords,
                     &path.0,
