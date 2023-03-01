@@ -1,4 +1,4 @@
-# punchcut
+# skrifa
 
 This is a library for high level loading of glyph outlines (and eventually color outlines and bitmaps)
 from font files. The intention is fully featured (e.g. variations and hinting) support for all glyph sources
@@ -12,7 +12,7 @@ Current (✔️), near term (🔜) and planned (⌛) feature matrix:
 
 | Source | Loading | Variations | Hinting |
 |--------|---------|------------|---------|
-| glyf   | ✔️     |  🔜        | ⌛*    |
+| glyf   | ✔️     |  ✔️        | ⌛*    |
 | CFF    | ⌛     | ⌛         | ⌛     |
 | CFF2   | ⌛     | ⌛         | ⌛     |
 | COLRv0 | 🔜     | 🔜         | *      |
@@ -28,10 +28,5 @@ present in the paint graph.
 
 ## The name?
 
-Wikipedia says "[punchcutting](https://en.wikipedia.org/wiki/Punchcutting) is a craft used in traditional
-typography to cut letter punches in steel as the first stage of making metal type." The punches carry the
-outline of the desired letter which can be used to create a mold to transfer the design to various
-surfaces.
-
-The primary purpose of this crate is the generation of outlines from font data, so the name seemed
-appropriate.
+Following along with our theme, *skrifa* is Old Norse for "write" or "it is written." And
+so it is named.

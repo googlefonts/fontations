@@ -7,7 +7,7 @@ members = [
     "font-codegen",
     "write-fonts",
     "otexplorer",
-    "punchcut",
+    "skrifa",
 ]
 
 [workspace.package]

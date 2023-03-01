@@ -1,8 +1,8 @@
+use super::super::{Error, NormalizedCoord, Result, GLYF_COMPOSITE_RECURSION_LIMIT};
 use super::{Context, Outline, Point};
-use crate::{Error, NormalizedCoord, Result, GLYF_COMPOSITE_RECURSION_LIMIT};
 
 #[cfg(feature = "hinting")]
-use {crate::Hinting, read_fonts::tables::glyf::PointMarker};
+use {super::super::Hinting, read_fonts::tables::glyf::PointMarker};
 
 use read_fonts::{
     tables::{

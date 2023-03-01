@@ -42,7 +42,7 @@ impl fmt::Display for Error {
             Self::RecursionLimitExceeded(gid) => write!(
                 f,
                 "Recursion limit ({}) exceeded when loading composite component {gid}",
-                crate::GLYF_COMPOSITE_RECURSION_LIMIT,
+                super::GLYF_COMPOSITE_RECURSION_LIMIT,
             ),
             #[cfg(feature = "hinting")]
             Self::HintingFailed(gid) => write!(f, "Bad hinting bytecode for glyph {gid}"),

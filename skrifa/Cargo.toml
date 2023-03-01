@@ -1,14 +1,16 @@
 [package]
-name = "punchcut"
+name = "skrifa"
 version.workspace = true
 edition = "2021"
 license = "MIT/Apache-2.0"
-description = "Loading glyphs from OpenType font files."
+description = "Metadata and glyph loading for OpenType fonts."
 repository = "https://github.com/googlefonts/fontations"
 readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
 
 [features]
+default = ["scale"]
+scale = []
 hinting = []
 
 [dependencies]

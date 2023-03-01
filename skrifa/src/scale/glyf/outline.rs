@@ -1,5 +1,4 @@
-use super::Point;
-use crate::Pen;
+use super::{Pen, Point};
 
 use read_fonts::{
     tables::glyf::{PointFlags, ToPathError},
