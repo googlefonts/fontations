@@ -12,3 +12,4 @@ members = [
 
 [workspace.package]
 version = "0.0.5"
+
