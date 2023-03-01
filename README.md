@@ -46,6 +46,12 @@ changes, you can set this as your git hooksPath:
 git config core.hooksPath "./git_hooks"
 ```
 
+## releasing
+
+1. Set the version, typically akin to `python3 resources/scripts/version.py --ver 0.0.6`
+1. Release as normal
+   * See https://doc.rust-lang.org/cargo/reference/publishing.html
+
 
 [codegen-readme]: ./font-codegen/README.md
 [`read-fonts`]: ./read-fonts
