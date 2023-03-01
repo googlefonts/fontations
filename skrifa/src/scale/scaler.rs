@@ -1,14 +1,13 @@
-use super::{source::glyf, Context, Error, NormalizedCoord, Pen, Result, Variation};
+use super::{glyf, Context, Error, NormalizedCoord, Pen, Result, Variation};
 
 #[cfg(feature = "hinting")]
 use super::Hinting;
 
+use core::{borrow::Borrow, str::FromStr};
 use read_fonts::{
     types::{Fixed, GlyphId, Tag},
     TableProvider,
 };
-
-use core::{borrow::Borrow, str::FromStr};
 
 /// Builder for configuring a glyph scaler.
 pub struct ScalerBuilder<'a> {

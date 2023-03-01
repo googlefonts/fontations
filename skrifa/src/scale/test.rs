@@ -1,9 +1,12 @@
 //! Helpers for unit testing
 
-use super::{font::*, Context, GlyphId, Pen, Scaler};
+use super::{Context, GlyphId, Pen, Scaler};
 use core::str::FromStr;
-use read_fonts::tables::glyf::PointFlags;
-use read_fonts::types::{F26Dot6, F2Dot14, Point};
+use read_fonts::{
+    tables::glyf::PointFlags,
+    types::{F26Dot6, F2Dot14, Point},
+    FontRef,
+};
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 // clippy doesn't like the common To suffix

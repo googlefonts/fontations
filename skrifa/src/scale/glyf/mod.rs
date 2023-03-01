@@ -14,6 +14,9 @@ pub use read_fonts::types::Point;
 
 use read_fonts::types::{F26Dot6, Fixed};
 
+use super::{Error, Pen, Result, Variation};
+use crate::NormalizedCoord;
+
 /// Point that actually represents a vector holding a variation delta.
 pub type Delta = Point<Fixed>;
 
@@ -42,16 +45,17 @@ impl Context {
 
 #[cfg(test)]
 mod tests {
-    use super::{Context, Outline, Scaler};
-    use crate::{font::*, GlyphId};
-
-    use read_fonts::test_data::test_fonts;
-    use read_fonts::types::F26Dot6;
+    use super::{super::test, Context, Outline, Scaler};
+    use read_fonts::{
+        test_data::test_fonts,
+        types::{F26Dot6, GlyphId},
+        FontRef,
+    };
 
     #[test]
     fn vazirmatin_var() {
         let font = FontRef::new(test_fonts::VAZIRMATN_VAR).unwrap();
-        let outlines = crate::test::parse_glyph_outlines(test_fonts::VAZIRMATN_VAR_GLYPHS);
+        let outlines = test::parse_glyph_outlines(test_fonts::VAZIRMATN_VAR_GLYPHS);
         let mut cx = Context::new();
         let mut outline = Outline::new();
         for expected_outline in &outlines {

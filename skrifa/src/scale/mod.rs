@@ -1,10 +1,6 @@
 /*!
-Glyph loading.
+Glyph loading and scaling.
 */
-
-#![forbid(unsafe_code)]
-// TODO: this is temporary-- remove when hinting is added.
-#![allow(dead_code, unused_imports, unused_variables)]
 
 mod error;
 mod scaler;
@@ -12,22 +8,16 @@ mod scaler;
 #[cfg(test)]
 mod test;
 
-pub mod source;
-
-/// Representations of fonts and font collections.
-pub mod font {
-    pub use read_fonts::{types::Tag, CollectionRef, FileRef, FontRef, TableProvider};
-}
-
-use font::Tag;
-use source::glyf;
-
-use core::str::FromStr;
+pub mod glyf;
 
 pub use read_fonts::types::Pen;
 
 pub use error::{Error, Result};
 pub use scaler::{Scaler, ScalerBuilder};
+
+use super::{GlyphId, NormalizedCoord};
+use core::str::FromStr;
+use read_fonts::types::Tag;
 
 /// Limit for recursion when loading TrueType composite glyphs.
 const GLYF_COMPOSITE_RECURSION_LIMIT: usize = 32;
@@ -51,12 +41,6 @@ pub enum Hinting {
     #[default]
     VerticalSubpixel,
 }
-
-/// Type for a normalized variation coordinate.
-pub type NormalizedCoord = read_fonts::types::F2Dot14;
-
-/// Type for a glyph identifier.
-pub type GlyphId = read_fonts::types::GlyphId;
 
 /// Setting for specifying a variation by tag and value.
 #[derive(Copy, Clone, Debug)]
@@ -121,15 +105,15 @@ impl Context {
 
 #[cfg(test)]
 mod tests {
-    use super::{font::*, Context, GlyphId, Pen, Scaler};
-    use read_fonts::test_data::test_fonts;
+    use super::{test, Context, GlyphId, Pen, Scaler};
+    use read_fonts::{test_data::test_fonts, FontRef};
 
     #[test]
     fn vazirmatin_var() {
         let font = FontRef::new(test_fonts::VAZIRMATN_VAR).unwrap();
-        let outlines = crate::test::parse_glyph_outlines(test_fonts::VAZIRMATN_VAR_GLYPHS);
+        let outlines = test::parse_glyph_outlines(test_fonts::VAZIRMATN_VAR_GLYPHS);
         let mut cx = Context::new();
-        let mut path = crate::test::Path::default();
+        let mut path = test::Path::default();
         for expected_outline in &outlines {
             path.0.clear();
             let mut scaler = cx
