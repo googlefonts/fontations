@@ -7,6 +7,8 @@ use read_fonts::{
     ReadError,
 };
 
+use super::Delta;
+
 /// Compute a set of deltas for the component offsets of a composite glyph.
 ///
 /// Interpolation is meaningless for component offsets so this is a
@@ -15,7 +17,7 @@ pub fn composite_glyph(
     gvar: &Gvar,
     glyph_id: GlyphId,
     coords: &[F2Dot14],
-    deltas: &mut [Point<Fixed>],
+    deltas: &mut [Delta],
 ) -> Result<(), ReadError> {
     compute_deltas_for_glyph(gvar, glyph_id, coords, deltas, |scalar, tuple, deltas| {
         for tuple_delta in tuple.deltas() {
@@ -47,7 +49,7 @@ pub fn simple_glyph(
     has_var_lsb: bool,
     glyph: SimpleGlyph,
     working_points: &mut [Point<Fixed>],
-    deltas: &mut [Point<Fixed>],
+    deltas: &mut [Delta],
 ) -> Result<(), ReadError> {
     for delta in deltas.iter_mut() {
         *delta = Default::default();
@@ -104,7 +106,7 @@ fn compute_deltas_for_glyph(
     gvar: &Gvar,
     glyph_id: GlyphId,
     coords: &[F2Dot14],
-    deltas: &mut [Point<Fixed>],
+    deltas: &mut [Delta],
     mut apply_tuple_missing_deltas_fn: impl FnMut(
         Fixed,
         TupleVariation,
@@ -298,9 +300,7 @@ mod tests {
         let working_points = points
             .iter()
             .zip(deltas)
-            .map(|(point, delta)| {
-                point.map(|x| Fixed::from_i32(x)) + delta.map(|x| Fixed::from_i32(x))
-            })
+            .map(|(point, delta)| point.map(Fixed::from_i32) + delta.map(Fixed::from_i32))
             .collect();
         let flags = deltas
             .iter()
