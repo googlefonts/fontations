@@ -1,7 +1,42 @@
 //! Pen implementations based on <https://github.com/fonttools/fonttools/tree/main/Lib/fontTools/pens>
 
 use font_types::{Pen, PenCommand};
-use kurbo::{Affine, BezPath, Point};
+use kurbo::{Affine, BezPath, PathEl, Point};
+
+pub fn write_to_pen(path: &BezPath, pen: &mut impl Pen) {
+    path.elements()
+        .iter()
+        .map(|e| to_pen_command(*e))
+        .for_each(|c| c.apply_to(pen));
+}
+
+pub fn to_pen_command(el: PathEl) -> PenCommand {
+    match el {
+        PathEl::MoveTo(Point { x, y }) => PenCommand::MoveTo {
+            x: x as f32,
+            y: y as f32,
+        },
+        PathEl::LineTo(Point { x, y }) => PenCommand::LineTo {
+            x: x as f32,
+            y: y as f32,
+        },
+        PathEl::QuadTo(c0, Point { x, y }) => PenCommand::QuadTo {
+            cx0: c0.x as f32,
+            cy0: c0.y as f32,
+            x: x as f32,
+            y: y as f32,
+        },
+        PathEl::CurveTo(c0, c1, Point { x, y }) => PenCommand::CurveTo {
+            cx0: c0.x as f32,
+            cy0: c0.y as f32,
+            cx1: c1.x as f32,
+            cy1: c1.y as f32,
+            x: x as f32,
+            y: y as f32,
+        },
+        PathEl::ClosePath => PenCommand::Close,
+    }
+}
 
 /// A pen that transforms params using [kurbo::Affine].
 pub struct TransformPen<'a, T: Pen> {
