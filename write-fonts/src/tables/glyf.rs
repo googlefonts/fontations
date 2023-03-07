@@ -1,5 +1,7 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
+use std::{error::Error, fmt::Display};
+
 use kurbo::{BezPath, Rect, Shape};
 
 use read_fonts::{
@@ -30,6 +32,7 @@ pub struct Bbox {
 }
 
 /// A simple (without components) glyph
+#[derive(Clone, Debug)]
 pub struct SimpleGlyph {
     bbox: Bbox,
     contours: Vec<Contour>,
@@ -451,6 +454,19 @@ impl Component {
     }
 }
 
+#[derive(Debug)]
+pub enum CompositeGlyphError {
+    NoComponentsDefined,
+}
+
+impl Display for CompositeGlyphError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?}", self)
+    }
+}
+
+impl std::error::Error for CompositeGlyphError {}
+
 impl CompositeGlyph {
     /// Create a new composite glyph, with the provided component.
     ///
@@ -473,6 +489,29 @@ impl CompositeGlyph {
     pub fn add_component(&mut self, component: Component, bbox: impl Into<Bbox>) {
         self.components.push(component);
         self.bbox = self.bbox.union(bbox.into());
+    }
+
+    pub fn try_from(
+        source: impl IntoIterator<Item = (Component, Bbox)>,
+    ) -> Result<Self, CompositeGlyphError> {
+        let mut components = Vec::new();
+        let mut union_box: Option<Bbox> = None;
+
+        for (component, bbox) in source {
+            components.push(component);
+            union_box.get_or_insert(bbox).union(bbox);
+        }
+
+        if components.is_empty() {
+            return Err(CompositeGlyphError::NoComponentsDefined);
+        }
+
+        let bbox = union_box.unwrap();
+        Ok(CompositeGlyph {
+            bbox,
+            components,
+            _instructions: Default::default(),
+        })
     }
 }
 
