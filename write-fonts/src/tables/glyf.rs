@@ -30,6 +30,7 @@ pub struct Bbox {
 }
 
 /// A simple (without components) glyph
+#[derive(Clone, Debug)]
 pub struct SimpleGlyph {
     bbox: Bbox,
     contours: Vec<Contour>,
@@ -451,6 +452,19 @@ impl Component {
     }
 }
 
+/// An error that occurs if a `CompositeGlyph` is constructed with no components.
+#[derive(Clone, Copy, Debug)]
+#[non_exhaustive]
+pub struct NoComponents;
+
+impl std::fmt::Display for NoComponents {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "A composite glyph must contain at least one component")
+    }
+}
+
+impl std::error::Error for NoComponents {}
+
 impl CompositeGlyph {
     /// Create a new composite glyph, with the provided component.
     ///
@@ -473,6 +487,32 @@ impl CompositeGlyph {
     pub fn add_component(&mut self, component: Component, bbox: impl Into<Bbox>) {
         self.components.push(component);
         self.bbox = self.bbox.union(bbox.into());
+    }
+
+    /// Construct a `CompositeGlyph` from an iterator of `Component` and `Bbox`es.
+    ///
+    /// This returns an error if the iterator is empty; a CompositeGlyph must always
+    /// contain at least one component.
+    pub fn try_from_iter(
+        source: impl IntoIterator<Item = (Component, Bbox)>,
+    ) -> Result<Self, NoComponents> {
+        let mut components = Vec::new();
+        let mut union_box: Option<Bbox> = None;
+
+        for (component, bbox) in source {
+            components.push(component);
+            union_box.get_or_insert(bbox).union(bbox);
+        }
+
+        if components.is_empty() {
+            Err(NoComponents)
+        } else {
+            Ok(CompositeGlyph {
+                bbox: union_box.unwrap(),
+                components,
+                _instructions: Default::default(),
+            })
+        }
     }
 }
 
