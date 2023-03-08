@@ -23,7 +23,7 @@ jobs:
         run: cargo fmt --all -- --check
 
       - name: cargo doc
-        run: cargo doc --all-features --document-private-items
+        run: cargo doc --all-features --document-private-items --no-deps
 
   clippy-lint:
     name: Clippy lints
