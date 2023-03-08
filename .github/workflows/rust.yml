@@ -6,7 +6,7 @@ on:
     tags:
       - "*"
   schedule:
-    - cron '22 2 * * *' # run at 2:22 every day
+    - cron: '22 2 * * *' # run at 2:22 every day
 
 name: Continuous integration
 
