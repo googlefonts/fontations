@@ -7,6 +7,7 @@ description = "Metadata and glyph loading for OpenType fonts."
 repository = "https://github.com/googlefonts/fontations"
 readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
+publish = false
 
 [features]
 default = ["scale"]
@@ -18,3 +19,7 @@ read-fonts = { version = "0.1.0", path = "../read-fonts" }
 
 [dev-dependencies]
 read-fonts = { version = "0.1.0", path = "../read-fonts", features = ["test_data"] }
+
+# cargo-release settings
+[package.metadata.release]
+release = false
