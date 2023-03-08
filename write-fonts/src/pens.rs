@@ -400,7 +400,7 @@ mod tests {
         double.line_to(2.0, 2.0);
 
         // We should see the move/line passed through double is doubled
-        assert_eq!("M1 1L2 2M2 2L4 4", bez.into_inner().to_svg());
+        assert_eq!("M1,1 L2,2 M2,2 L4,4", bez.into_inner().to_svg());
     }
 
     #[test]
@@ -408,7 +408,7 @@ mod tests {
         let mut bez = BezPathPen::new();
         draw_open_test_shape(&mut bez);
         assert_eq!(
-            "M10 10Q40 40 60 10L100 10C125 10 150 50 125 60",
+            "M10,10 Q40,40 60,10 L100,10 C125,10 150,50 125,60",
             bez.into_inner().to_svg()
         );
 
@@ -417,7 +417,7 @@ mod tests {
         draw_open_test_shape(&mut rev);
         rev.flush().unwrap();
         assert_eq!(
-            "M125 60C150 50 125 10 100 10L60 10Q40 40 10 10",
+            "M125,60 C150,50 125,10 100,10 L60,10 Q40,40 10,10",
             bez.into_inner().to_svg()
         );
     }
@@ -426,13 +426,13 @@ mod tests {
     fn reverse_closed_triangle() {
         let mut bez = BezPathPen::new();
         draw_closed_triangle(&mut bez);
-        assert_eq!("M100 100L150 200L50 200Z", bez.into_inner().to_svg());
+        assert_eq!("M100,100 L150,200 L50,200 Z", bez.into_inner().to_svg());
 
         let mut bez = BezPathPen::new();
         let mut rev = ReverseContourPen::new(&mut bez);
         draw_closed_triangle(&mut rev);
         rev.flush().unwrap();
-        assert_eq!("M100 100L50 200L150 200Z", bez.into_inner().to_svg());
+        assert_eq!("M100,100 L50,200 L150,200 Z", bez.into_inner().to_svg());
     }
 
     #[test]
@@ -440,7 +440,7 @@ mod tests {
         let mut bez = BezPathPen::new();
         draw_closed_test_shape(&mut bez);
         assert_eq!(
-            "M125 100Q200 150 175 300C150 150 50 150 25 300Q0 150 75 100L100 50Z",
+            "M125,100 Q200,150 175,300 C150,150 50,150 25,300 Q0,150 75,100 L100,50 Z",
             bez.into_inner().to_svg()
         );
 
@@ -449,7 +449,7 @@ mod tests {
         draw_closed_test_shape(&mut rev);
         rev.flush().unwrap();
         assert_eq!(
-            "M125 100L100 50L75 100Q0 150 25 300C50 150 150 150 175 300Q200 150 125 100",
+            "M125,100 L100,50 L75,100 Q0,150 25,300 C50,150 150,150 175,300 Q200,150 125,100",
             bez.into_inner().to_svg()
         );
     }
