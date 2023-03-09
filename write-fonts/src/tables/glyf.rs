@@ -32,7 +32,7 @@ pub struct Bbox {
 /// A simple (without components) glyph
 #[derive(Clone, Debug)]
 pub struct SimpleGlyph {
-    bbox: Bbox,
+    pub bbox: Bbox,
     contours: Vec<Contour>,
     _instructions: Vec<u8>,
 }
@@ -40,7 +40,7 @@ pub struct SimpleGlyph {
 /// A glyph consisting of multiple component sub-glyphs
 #[derive(Clone, Debug)]
 pub struct CompositeGlyph {
-    bbox: Bbox,
+    pub bbox: Bbox,
     components: Vec<Component>,
     _instructions: Vec<u8>,
 }
@@ -48,10 +48,10 @@ pub struct CompositeGlyph {
 /// A single component glyph (part of a [`CompositeGlyph`]).
 #[derive(Clone, Debug)]
 pub struct Component {
-    glyph: GlyphId,
-    anchor: Anchor,
+    pub glyph: GlyphId,
+    pub anchor: Anchor,
     pub flags: ComponentFlags,
-    transform: Transform,
+    pub transform: Transform,
 }
 
 /// Options that can be manually set for a given component.
@@ -513,6 +513,10 @@ impl CompositeGlyph {
                 _instructions: Default::default(),
             })
         }
+    }
+
+    pub fn components(&self) -> impl Iterator<Item = &Component> {
+        self.components.iter()
     }
 }
 
