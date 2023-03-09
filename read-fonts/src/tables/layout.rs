@@ -101,6 +101,7 @@ impl RangeRecord {
     }
 }
 
+#[allow(clippy::derivable_impls)]
 impl Default for DeltaFormat {
     fn default() -> Self {
         DeltaFormat::Local2BitDeltas
