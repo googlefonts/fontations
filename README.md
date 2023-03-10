@@ -48,10 +48,34 @@ git config core.hooksPath "./git_hooks"
 
 ## releasing
 
-1. Set the version, typically akin to `python3 resources/scripts/version.py --ver 0.0.6`
-1. Release as normal
-   * See https://doc.rust-lang.org/cargo/reference/publishing.html
+We use [`cargo-release`] to help guide the release process. It can be installed
+with `$ cargo install cargo-release`. Releasing involves the following steps:
 
+1. Determine which crates may need to be published: run `cargo release changes`
+   to see which crates have been modified since their last release.
+1. Determine the new versions for the crates. Before 1.0, breaking changes bump
+   the *minor* version number, and non-breaking changes modify the *patch* number.
+1. Update the manifests with the new version numbers. For each crate that needs
+   release, use
+   ```
+   $ cargo release version $bump -p $crate -x
+   ```
+   where `$bump` is one of 'major', 'minor', or 'patch', and `$crate` is the
+   name of the crate to update. For instance, to bump the minor version of
+   `read-fonts`, you would enter,
+   ```
+   $ cargo release version minor -p read-fonts -x
+   ```
+   *this will only modify the relevant manifests, it does not create a commit*.
+1. Commit these changes to a new branch, get it approved and merged, and switch
+   to the up-to-date `main`.
+1. Publish the crates. First do a dry-run with `$ cargo release publish`, and if
+   everything looks good, run `$cargo release publish -x` to publish to
+   crates.io.
+1. Create tags for the new releases: `$ cargo release tag -x`. Confirm the tags
+   are correct.
+1. Push the new tags: `$ git push --tags`
+1. Go to github and create releases for the published crates.
 
 [codegen-readme]: ./font-codegen/README.md
 [`read-fonts`]: ./read-fonts
@@ -60,3 +84,4 @@ git config core.hooksPath "./git_hooks"
 [`otexplorer`]: ./otexplorer
 [oxidize]: https://github.com/googlefonts/oxidize
 [codegen-tour]: ./docs/codegen-tour.md
+[`cargo-release`]: https://github.com/crate-ci/cargo-release
