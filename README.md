@@ -49,7 +49,10 @@ git config core.hooksPath "./git_hooks"
 ## releasing
 
 We use [`cargo-release`] to help guide the release process. It can be installed
-with `$ cargo install cargo-release`. Releasing involves the following steps:
+with `cargo install cargo-release`. You may need to install `pkg-config` via your
+package manager for this to work.
+
+Releasing involves the following steps:
 
 1. Determine which crates may need to be published: run `cargo release changes`
    to see which crates have been modified since their last release.
@@ -69,12 +72,12 @@ with `$ cargo install cargo-release`. Releasing involves the following steps:
    *this will only modify the relevant manifests, it does not create a commit*.
 1. Commit these changes to a new branch, get it approved and merged, and switch
    to the up-to-date `main`.
-1. Publish the crates. First do a dry-run with `$ cargo release publish`, and if
-   everything looks good, run `$cargo release publish -x` to publish to
+1. Publish the crates. First do a dry-run with `cargo release publish`, and if
+   everything looks good, run `cargo release publish -x` to publish to
    crates.io.
-1. Create tags for the new releases: `$ cargo release tag -x`. Confirm the tags
+1. Create tags for the new releases: `cargo release tag -x`. Confirm the tags
    are correct.
-1. Push the new tags: `$ git push --tags`
+1. Push the new tags: `git push --tags`
 1. Go to github and create releases for the published crates.
 
 [codegen-readme]: ./font-codegen/README.md

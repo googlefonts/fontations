@@ -8,3 +8,6 @@ members = [
     "otexplorer",
     "skrifa",
 ]
+
+[workspace.metadata.release]
+allow-branch = ["main"]
