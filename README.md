@@ -56,29 +56,29 @@ Releasing involves the following steps:
 
 1. Determine which crates may need to be published: run `cargo release changes`
    to see which crates have been modified since their last release.
-1. Determine the new versions for the crates. Before 1.0, breaking changes bump
-   the *minor* version number, and non-breaking changes modify the *patch* number.
-1. Update the manifests with the new version numbers. For each crate that needs
-   release, use
+1. Determine the new versions for the crates.
+   * Before 1.0, breaking changes bump the *minor* version number, and non-breaking changes modify the *patch* number.
+1. Update manifest versions and release. `release.sh` orchestrates this process.
+   * `cargo release` does all the heavy lifting
+
+   ```shell
+   # To see usage
+   ./bump-version.sh
+   # To do the thing
+   ./bump-version.sh read-fonts write-fonts patch
    ```
-   $ cargo release version $bump -p $crate -x
-   ```
-   where `$bump` is one of 'major', 'minor', or 'patch', and `$crate` is the
-   name of the crate to update. For instance, to bump the minor version of
-   `read-fonts`, you would enter,
-   ```
-   $ cargo release version minor -p read-fonts -x
-   ```
-   *this will only modify the relevant manifests, it does not create a commit*.
+
 1. Commit these changes to a new branch, get it approved and merged, and switch
    to the up-to-date `main`.
-1. Publish the crates. First do a dry-run with `cargo release publish`, and if
-   everything looks good, run `cargo release publish -x` to publish to
-   crates.io.
-1. Create tags for the new releases: `cargo release tag -x`. Confirm the tags
-   are correct.
-1. Push the new tags: `git push --tags`
-1. Go to github and create releases for the published crates.
+1. Publish the crates. `release.sh` orchestrates the process.
+   * You will be prompted to review changes along the way
+
+   ```shell
+   # To see usage
+   ./release.sh
+   # To do the thing
+   ./release.sh read-fonts write-fonts
+   ```
 
 [codegen-readme]: ./font-codegen/README.md
 [`read-fonts`]: ./read-fonts
