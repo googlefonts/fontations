@@ -515,8 +515,8 @@ impl CompositeGlyph {
         }
     }
 
-    pub fn components(&self) -> impl Iterator<Item = &Component> {
-        self.components.iter()
+    pub fn components(&self) -> &[Component] {
+        &self.components
     }
 }
 
