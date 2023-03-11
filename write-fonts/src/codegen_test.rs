@@ -53,3 +53,14 @@ mod formats {
 mod offsets_arrays {
     include!("../generated/generated_test_offsets_arrays.rs");
 }
+
+mod enums {
+    include!("../generated/generated_test_enum.rs");
+
+    #[test]
+    fn default_works() {
+        let rec = MyRecord::new(Default::default(), Default::default());
+        assert_eq!(MyEnum1::ItsAZero, rec.my_enum1);
+        assert_eq!(MyEnum2::ItsAThree, rec.my_enum2);
+    }
+}

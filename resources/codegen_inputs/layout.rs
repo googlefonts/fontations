@@ -513,6 +513,7 @@ format u16 ChainedSequenceContext {
 /// delta formats
 enum u16 DeltaFormat {
     /// Signed 2-bit value, 8 values per uint16
+    #[default]
     Local2BitDeltas = 0x0001,
     /// Signed 4-bit value, 4 values per uint16
     Local4BitDeltas = 0x0002,

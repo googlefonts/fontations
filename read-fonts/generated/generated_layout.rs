@@ -3503,10 +3503,11 @@ impl<'a> SomeTable<'a> for ChainedSequenceContext<'a> {
 
 /// [Device](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
 /// delta formats
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(u16)]
 pub enum DeltaFormat {
     /// Signed 2-bit value, 8 values per uint16
+    #[default]
     Local2BitDeltas = 0x0001,
     /// Signed 4-bit value, 4 values per uint16
     Local4BitDeltas = 0x0002,

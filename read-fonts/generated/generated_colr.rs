@@ -1382,13 +1382,14 @@ impl<'a> std::fmt::Debug for VarColorLine<'a> {
 }
 
 /// [Extend](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) enumeration
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Extend {
     Pad = 0,
     Repeat = 1,
     Reflect = 2,
     #[doc(hidden)]
+    #[default]
     Unknown,
 }
 
@@ -5453,7 +5454,7 @@ impl<'a> std::fmt::Debug for PaintComposite<'a> {
 }
 
 /// [CompositeMode](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#format-32-paintcomposite) enumeration
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(u8)]
 pub enum CompositeMode {
     Clear = 0,
@@ -5485,6 +5486,7 @@ pub enum CompositeMode {
     HslColor = 26,
     HslLuminosity = 27,
     #[doc(hidden)]
+    #[default]
     Unknown,
 }
 

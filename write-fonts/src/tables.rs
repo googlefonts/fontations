@@ -1,6 +1,8 @@
 //! A directory of all the font tables.
 
 pub mod base;
+// TODO fix bug with enum defaults
+//pub mod cmap;
 pub mod gdef;
 pub mod glyf;
 pub mod gpos;

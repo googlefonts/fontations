@@ -12,7 +12,7 @@ pub(crate) fn generate_flags(raw: &BitFlags) -> proc_macro2::TokenStream {
     let variant_decls = raw.variants.iter().map(|variant| {
         let const_name = &variant.name;
         let value = &variant.value;
-        let docs = &variant.docs;
+        let docs = &variant.attrs.docs;
         quote! {
             #( #docs )*
             pub const #const_name: Self = Self { bits: #value };
@@ -321,25 +321,30 @@ pub(crate) fn generate_raw_enum(raw: &RawEnum) -> TokenStream {
     let variants = raw.variants.iter().map(|variant| {
         let name = &variant.name;
         let value = &variant.value;
-        let docs = &variant.docs;
+        let docs = &variant.attrs.docs;
+        let maybe_default = variant.attrs.default.then(|| quote!(#[default]));
         quote! {
             #( #docs )*
+            #maybe_default
             #name = #value,
         }
     });
+
     let variant_inits = raw.variants.iter().map(|variant| {
         let name = &variant.name;
         let value = &variant.value;
         quote!(#value => Self::#name,)
     });
 
+    let maybe_default = (!raw.variants.iter().any(|v| v.attrs.default)).then(|| quote!(#[default]));
     quote! {
         #( #docs )*
-        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
         #[repr(#typ)]
         pub enum #name {
             #( #variants )*
             #[doc(hidden)]
+            #maybe_default
             Unknown,
         }
 

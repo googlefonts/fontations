@@ -394,9 +394,15 @@ pub(crate) struct RawEnum {
 /// A raw scalar variant
 #[derive(Debug, Clone)]
 pub(crate) struct RawVariant {
-    pub(crate) docs: Vec<syn::Attribute>,
+    pub(crate) attrs: EnumVariantAttrs,
     pub(crate) name: syn::Ident,
     pub(crate) value: syn::LitInt,
+}
+
+#[derive(Debug, Default, Clone)]
+pub(crate) struct EnumVariantAttrs {
+    pub(crate) docs: Vec<syn::Attribute>,
+    pub(crate) default: bool,
 }
 
 /// A set of bit-flags
@@ -567,9 +573,27 @@ impl Parse for RawEnum {
         let name = input.parse::<syn::Ident>()?;
         let content;
         let _ = braced!(content in input);
-        let variants = Punctuated::<RawVariant, Token![,]>::parse_terminated(&content)?
+        let variants: Vec<_> = Punctuated::<RawVariant, Token![,]>::parse_terminated(&content)?
             .into_iter()
             .collect();
+
+        let defaults: Vec<_> = variants
+            .iter()
+            .filter_map(|v| {
+                if v.attrs.default {
+                    Some(v.name.clone())
+                } else {
+                    None
+                }
+            })
+            .collect();
+        if defaults.len() > 1 {
+            return Err(logged_syn_error(
+                name.span(),
+                format!("multiple defaults {defaults:?}"),
+            ));
+        }
+
         Ok(RawEnum {
             docs,
             name,
@@ -870,11 +894,11 @@ impl Parse for FieldReadArgs {
 
 impl Parse for RawVariant {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        let docs = get_optional_docs(input)?;
+        let attrs = input.parse()?;
         let name = input.parse::<syn::Ident>()?;
         let _ = input.parse::<Token![=]>()?;
         let value: syn::LitInt = input.parse()?;
-        Ok(Self { docs, name, value })
+        Ok(Self { attrs, name, value })
     }
 }
 
@@ -1031,6 +1055,31 @@ impl Parse for TableAttrs {
                 return Err(logged_syn_error(
                     ident.span(),
                     format!("unknown table attribute {ident}"),
+                ));
+            }
+        }
+        Ok(this)
+    }
+}
+
+impl Parse for EnumVariantAttrs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut this = EnumVariantAttrs::default();
+        let attrs = Attribute::parse_outer(input)
+            .map_err(|e| syn::Error::new(e.span(), format!("hmm: '{e}'")))?;
+
+        for attr in attrs {
+            let ident = attr.path.get_ident().ok_or_else(|| {
+                syn::Error::new(attr.path.span(), "attr paths should be a single identifer")
+            })?;
+            if ident == DOC {
+                this.docs.push(attr);
+            } else if ident == DEFAULT {
+                this.default = true;
+            } else {
+                return Err(logged_syn_error(
+                    ident.span(),
+                    format!("unknown field attribute {ident}"),
                 ));
             }
         }
