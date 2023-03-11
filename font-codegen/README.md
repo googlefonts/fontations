@@ -6,9 +6,14 @@ and how it works, see the [codegen-tour][] document.
 
 The basics:
 - Inputs live in `resources/codegen_inputs`.
-- The codegen tool can be run on a per-file basis with,
+- To run the code generator:
   ```sh
+  # Rebuild all the things (normal use case)
+  $ cargo run --bin=codegen resources/codegen_plan.toml
+  
+  # Process a single file
   $ cargo run --bin=codegen file $mode $input
+  $ cargo run --bin=codegen file parse resources/codegen_inputs/cmap.rs > read-fonts/generated/generated_cmap.rs
   ```
   where `$input` is the path to an input file, and `$mode` is one of 'parse' or
   'compile', and which will generate the code corresponding to the `read-fonts`
