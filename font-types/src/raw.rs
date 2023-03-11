@@ -57,7 +57,11 @@ impl<T: Scalar> BigEndian<T> {
         BigEndian(raw)
     }
     /// Read a copy of this type from raw bytes.
-    pub fn get(self) -> T {
+    pub fn get(&self) -> T {
+        T::from_raw(self.0)
+    }
+
+    pub fn into_inner(self) -> T {
         T::from_raw(self.0)
     }
 
@@ -122,7 +126,7 @@ where
 {
     #[inline]
     fn read(bytes: &[u8]) -> Option<Self> {
-        BigEndian::<T>::read(bytes).map(BigEndian::get)
+        BigEndian::<T>::read(bytes).map(BigEndian::into_inner)
     }
 }
 

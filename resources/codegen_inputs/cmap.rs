@@ -4,6 +4,7 @@
 #[tag = "cmap"]
 table Cmap {
     /// Table version number (0).
+    #[compile(0)]
     version: u16,
     /// Number of encoding tables that follow.
     #[compile(array_len($encoding_records))]
@@ -68,7 +69,6 @@ table Cmap2 {
     #[format = 2]
     format: u16,
     /// This is the length in bytes of the subtable.
-    #[compile(panic!("not implemented"))]
     length: u16,
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.

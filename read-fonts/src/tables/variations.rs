@@ -198,7 +198,7 @@ impl<'a> Tuple<'a> {
     }
 
     pub fn get(&self, idx: usize) -> Option<F2Dot14> {
-        self.values.get(idx).copied().map(BigEndian::get)
+        self.values.get(idx).copied().map(BigEndian::into_inner)
     }
 }
 
