@@ -120,21 +120,20 @@ impl FromObjRef<read_fonts::codegen_test::records::SimpleRecord> for SimpleRecor
 
 #[derive(Clone, Debug, Default)]
 pub struct PadLikeCmap {
-    /// Set to 0.
-    pub reserved: u16,
     pub val: Uint24,
 }
 
 impl PadLikeCmap {
     /// Construct a new `PadLikeCmap`
-    pub fn new(reserved: u16, val: Uint24) -> Self {
-        Self { reserved, val }
+    pub fn new(val: Uint24) -> Self {
+        Self { val }
     }
 }
 
 impl FontWrite for PadLikeCmap {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        self.reserved.write_into(writer);
+        (0 as u16).write_into(writer);
         self.val.write_into(writer);
     }
 }
@@ -145,10 +144,7 @@ impl Validate for PadLikeCmap {
 
 impl<'a> FromObjRef<read_fonts::codegen_test::records::PadLikeCmap<'a>> for PadLikeCmap {
     fn from_obj_ref(obj: &read_fonts::codegen_test::records::PadLikeCmap<'a>, _: FontData) -> Self {
-        PadLikeCmap {
-            reserved: obj.reserved(),
-            val: obj.val(),
-        }
+        PadLikeCmap { val: obj.val() }
     }
 }
 

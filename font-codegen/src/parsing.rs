@@ -199,6 +199,8 @@ pub(crate) struct FieldAttrs {
     pub(crate) to_owned: Option<Attr<InlineExpr>>,
     /// Custom validation behaviour
     pub(crate) validation: Option<Attr<FieldValidation>>,
+    /// Whether the value is computed by the user
+    pub(crate) user_computed: Option<syn::Path>,
 }
 
 #[derive(Debug, Clone)]
@@ -958,6 +960,7 @@ static READ_OFFSET_WITH: &str = "read_offset_with";
 static TRAVERSE_WITH: &str = "traverse_with";
 static TO_OWNED: &str = "to_owned";
 static VALIDATE: &str = "validate";
+static USER_COMPUTED: &str = "user_computed";
 
 impl Parse for FieldAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -1005,6 +1008,8 @@ impl Parse for FieldAttrs {
                 this.traverse_with = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == FORMAT {
                 this.format = Some(Attr::new(ident.clone(), parse_attr_eq_value(attr.tokens)?))
+            } else if ident == USER_COMPUTED {
+                this.user_computed = Some(attr.path);
             } else {
                 return Err(logged_syn_error(
                     ident.span(),

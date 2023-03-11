@@ -29,6 +29,7 @@ record SimpleRecord {
 table PadLikeCmap {
     /// Set to 0.
     #[skip_getter]
+    #[compile(0)]
     reserved: u16,
     val: Uint24,
 }

@@ -127,6 +127,7 @@ table Cmap4 {
     end_code: [u16],
     /// Set to 0.
     #[skip_getter]
+    #[compile(0)]
     reserved_pad: u16,
     /// Start character code for each segment.
     #[count(half($seg_count_x2))]
@@ -168,6 +169,7 @@ table Cmap8 {
     format: u16,
     /// Reserved; set to 0
     #[skip_getter]
+    #[compile(0)]
     reserved: u16,
     /// Byte length of this subtable (including the header)
     length: u32,
@@ -207,6 +209,7 @@ table Cmap10 {
     format: u16,
     /// Reserved; set to 0
     #[skip_getter]
+    #[compile(0)]
     reserved: u16,
     /// Byte length of this subtable (including the header)
     length: u32,
@@ -229,6 +232,7 @@ table Cmap12 {
     format: u16,
     /// Reserved; set to 0
     #[skip_getter]
+    #[compile(0)]
     reserved: u16,
     /// Byte length of this subtable (including the header)
     length: u32,
@@ -249,6 +253,7 @@ table Cmap13 {
     format: u16,
     /// Reserved; set to 0
     #[skip_getter]
+    #[compile(0)]
     reserved: u16,
     /// Byte length of this subtable (including the header)
     length: u32,

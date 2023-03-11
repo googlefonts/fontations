@@ -55,6 +55,14 @@ impl Fields {
                 }
             }
 
+            // We can't generate a compile type if don't define a way to have value
+            if !fld.has_defined_value() {
+                return Err(logged_syn_error(
+                    fld.name.span(),
+                    "There is no defined way to get a value. If you are skipping getter then perhaps you need #[compile(const)] or #[user_computed]?",
+                ));
+            }
+
             if (matches!(fld.typ, FieldType::VarLenArray(_))
                 || fld.attrs.count.as_deref().map(Count::all).unwrap_or(false))
                 && i != self.fields.len() - 1
@@ -551,6 +559,10 @@ impl Field {
         self.attrs.format.is_some() || self.attrs.compile.is_some()
     }
 
+    fn is_count(&self) -> bool {
+        self.attrs.count.is_some()
+    }
+
     pub(crate) fn validate_at_parse(&self) -> bool {
         false
         //FIXME: validate fields?
@@ -848,6 +860,17 @@ impl Field {
 
     fn is_offset_or_array_of_offsets(&self) -> bool {
         self.is_offset() || self.is_array_of_offsets()
+    }
+
+    fn is_user_computed(&self) -> bool {
+        self.attrs.user_computed.is_some()
+    }
+
+    fn has_defined_value(&self) -> bool {
+        if self.attrs.skip_getter.is_none() {
+            return true;
+        }
+        self.is_computed() || self.is_count() || self.is_user_computed()
     }
 
     pub(crate) fn offset_getter_name(&self) -> Option<syn::Ident> {
