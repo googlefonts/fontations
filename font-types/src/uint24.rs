@@ -1,5 +1,5 @@
 /// 24-bit unsigned integer.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Uint24(u32);
 
 impl Uint24 {
