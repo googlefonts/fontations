@@ -7,10 +7,11 @@
 #![parse_module(read_fonts::codegen_test::records)]
 
 table BasicTable {
+    padded: Offset32<PadLikeCmap>,
     #[compile(array_len($simple_records))]
     simple_count: u16,
     #[count($simple_count)]
-    simple_records: [SimpleRecord],
+    simple_records: [SimpleRecord],    
     #[compile(self.compute_arrays_inner_count())]
     arrays_inner_count: u16,
     #[compile(array_len($array_records))]
@@ -22,7 +23,14 @@ table BasicTable {
 
 record SimpleRecord {
     val1: u16,
-    va2: u32,
+    va2: u32,        
+}
+
+table PadLikeCmap {
+    /// Set to 0.
+    #[skip_getter]
+    reserved: u16,
+    val: Uint24,
 }
 
 #[read_args(array_len: u16)]

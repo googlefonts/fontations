@@ -13,8 +13,12 @@ pub struct BasicTableMarker {
 }
 
 impl BasicTableMarker {
-    fn simple_count_byte_range(&self) -> Range<usize> {
+    fn padded_byte_range(&self) -> Range<usize> {
         let start = 0;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+    fn simple_count_byte_range(&self) -> Range<usize> {
+        let start = self.padded_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
     fn simple_records_byte_range(&self) -> Range<usize> {
@@ -38,6 +42,7 @@ impl BasicTableMarker {
 impl<'a> FontRead<'a> for BasicTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
+        cursor.advance::<Offset32>();
         let simple_count: u16 = cursor.read()?;
         let simple_records_byte_len = simple_count as usize * SimpleRecord::RAW_BYTE_LEN;
         cursor.advance_by(simple_records_byte_len);
@@ -56,6 +61,17 @@ impl<'a> FontRead<'a> for BasicTable<'a> {
 pub type BasicTable<'a> = TableRef<'a, BasicTableMarker>;
 
 impl<'a> BasicTable<'a> {
+    pub fn padded(&self) -> Offset32 {
+        let range = self.shape.padded_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`padded`][Self::padded].
+    pub fn padded(&self) -> Result<PadLikeCmap<'a>, ReadError> {
+        let data = self.data;
+        self.padded().resolve(data)
+    }
+
     pub fn simple_count(&self) -> u16 {
         let range = self.shape.simple_count_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -91,8 +107,12 @@ impl<'a> SomeTable<'a> for BasicTable<'a> {
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
-            0usize => Some(Field::new("simple_count", self.simple_count())),
-            1usize => Some(Field::new(
+            0usize => Some(Field::new(
+                "padded",
+                FieldType::offset(self.padded(), self.padded()),
+            )),
+            1usize => Some(Field::new("simple_count", self.simple_count())),
+            2usize => Some(Field::new(
                 "simple_records",
                 traversal::FieldType::array_of_records(
                     stringify!(SimpleRecord),
@@ -100,12 +120,12 @@ impl<'a> SomeTable<'a> for BasicTable<'a> {
                     self.offset_data(),
                 ),
             )),
-            2usize => Some(Field::new("arrays_inner_count", self.arrays_inner_count())),
-            3usize => Some(Field::new(
+            3usize => Some(Field::new("arrays_inner_count", self.arrays_inner_count())),
+            4usize => Some(Field::new(
                 "array_records_count",
                 self.array_records_count(),
             )),
-            4usize => Some(Field::new(
+            5usize => Some(Field::new(
                 "array_records",
                 traversal::FieldType::computed_array(
                     "ContainsArrays",
@@ -159,6 +179,59 @@ impl<'a> SomeRecord<'a> for SimpleRecord {
             }),
             data,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct PadLikeCmapMarker {}
+
+impl PadLikeCmapMarker {
+    fn reserved_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn val_byte_range(&self) -> Range<usize> {
+        let start = self.reserved_byte_range().end;
+        start..start + Uint24::RAW_BYTE_LEN
+    }
+}
+
+impl<'a> FontRead<'a> for PadLikeCmap<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<Uint24>();
+        cursor.finish(PadLikeCmapMarker {})
+    }
+}
+
+pub type PadLikeCmap<'a> = TableRef<'a, PadLikeCmapMarker>;
+
+impl<'a> PadLikeCmap<'a> {
+    pub fn val(&self) -> Uint24 {
+        let range = self.shape.val_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for PadLikeCmap<'a> {
+    fn type_name(&self) -> &str {
+        "PadLikeCmap"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("val", self.val())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for PadLikeCmap<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 

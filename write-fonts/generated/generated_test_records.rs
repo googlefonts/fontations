@@ -7,14 +7,20 @@ use crate::codegen_prelude::*;
 
 #[derive(Clone, Debug, Default)]
 pub struct BasicTable {
+    pub padded: OffsetMarker<PadLikeCmap, WIDTH_32>,
     pub simple_records: Vec<SimpleRecord>,
     pub array_records: Vec<ContainsArrays>,
 }
 
 impl BasicTable {
     /// Construct a new `BasicTable`
-    pub fn new(simple_records: Vec<SimpleRecord>, array_records: Vec<ContainsArrays>) -> Self {
+    pub fn new(
+        padded: PadLikeCmap,
+        simple_records: Vec<SimpleRecord>,
+        array_records: Vec<ContainsArrays>,
+    ) -> Self {
         Self {
+            padded: padded.into(),
             simple_records: simple_records.into_iter().map(Into::into).collect(),
             array_records,
         }
@@ -24,6 +30,7 @@ impl BasicTable {
 impl FontWrite for BasicTable {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
+        self.padded.write_into(writer);
         (array_len(&self.simple_records).unwrap() as u16).write_into(writer);
         self.simple_records.write_into(writer);
         (self.compute_arrays_inner_count() as u16).write_into(writer);
@@ -35,6 +42,9 @@ impl FontWrite for BasicTable {
 impl Validate for BasicTable {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("BasicTable", |ctx| {
+            ctx.in_field("padded", |ctx| {
+                self.padded.validate_impl(ctx);
+            });
             ctx.in_field("simple_records", |ctx| {
                 if self.simple_records.len() > (u16::MAX as usize) {
                     ctx.report("array exceeds max length");
@@ -55,6 +65,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::records::BasicTable<'a>> for Basic
     fn from_obj_ref(obj: &read_fonts::codegen_test::records::BasicTable<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         BasicTable {
+            padded: obj.padded().to_owned_table(),
             simple_records: obj.simple_records().to_owned_obj(offset_data),
             array_records: obj
                 .array_records()
@@ -104,6 +115,49 @@ impl FromObjRef<read_fonts::codegen_test::records::SimpleRecord> for SimpleRecor
             val1: obj.val1(),
             va2: obj.va2(),
         }
+    }
+}
+
+#[derive(Clone, Debug, Default)]
+pub struct PadLikeCmap {
+    /// Set to 0.
+    pub reserved: u16,
+    pub val: Uint24,
+}
+
+impl PadLikeCmap {
+    /// Construct a new `PadLikeCmap`
+    pub fn new(reserved: u16, val: Uint24) -> Self {
+        Self { reserved, val }
+    }
+}
+
+impl FontWrite for PadLikeCmap {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.reserved.write_into(writer);
+        self.val.write_into(writer);
+    }
+}
+
+impl Validate for PadLikeCmap {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl<'a> FromObjRef<read_fonts::codegen_test::records::PadLikeCmap<'a>> for PadLikeCmap {
+    fn from_obj_ref(obj: &read_fonts::codegen_test::records::PadLikeCmap<'a>, _: FontData) -> Self {
+        PadLikeCmap {
+            reserved: obj.reserved(),
+            val: obj.val(),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::codegen_test::records::PadLikeCmap<'a>> for PadLikeCmap {}
+
+impl<'a> FontRead<'a> for PadLikeCmap {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::codegen_test::records::PadLikeCmap as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
     }
 }
 
