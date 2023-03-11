@@ -44,6 +44,17 @@ impl Fields {
                 normal_offset_data_fld = Some(fld);
             }
 
+            // Ideally we'd map is_offset => _offset and array of offsets => _offsets but STAT::offsetToAxisValueOffsets breaks the rule
+            if fld.is_offset_or_array_of_offsets() {
+                let name = fld.name.to_string();
+                if !name.ends_with("_offset") && !name.ends_with("_offsets") {
+                    return Err(logged_syn_error(
+                        fld.name.span(),
+                        "name must end in _offset or _offsets",
+                    ));
+                }
+            }
+
             if (matches!(fld.typ, FieldType::VarLenArray(_))
                 || fld.attrs.count.as_deref().map(Count::all).unwrap_or(false))
                 && i != self.fields.len() - 1
@@ -824,16 +835,19 @@ impl Field {
         })
     }
 
+    fn is_offset(&self) -> bool {
+        matches!(self.typ, FieldType::Offset { .. })
+    }
+
+    fn is_array_of_offsets(&self) -> bool {
+        let FieldType::Array { inner_typ } = &self.typ else {
+            return false;
+        };
+        matches!(inner_typ.as_ref(), FieldType::Offset { .. })
+    }
+
     fn is_offset_or_array_of_offsets(&self) -> bool {
-        match &self.typ {
-            FieldType::Offset { .. } => true,
-            FieldType::Array { inner_typ }
-                if matches!(inner_typ.as_ref(), FieldType::Offset { .. }) =>
-            {
-                true
-            }
-            _ => false,
-        }
+        self.is_offset() || self.is_array_of_offsets()
     }
 
     pub(crate) fn offset_getter_name(&self) -> Option<syn::Ident> {

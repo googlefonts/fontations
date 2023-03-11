@@ -67,6 +67,7 @@ pub fn generate_code(code_str: &str, mode: Mode) -> Result<String, syn::Error> {
 pub(crate) fn generate_parse_module(items: &Items) -> Result<proc_macro2::TokenStream, syn::Error> {
     let mut code = Vec::new();
     for item in items.iter() {
+        debug!("Generate {}", item.name());
         let item_code = match item {
             Item::Record(item) => record::generate(item)?,
             Item::Table(item) => table::generate(item)?,

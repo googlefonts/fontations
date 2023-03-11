@@ -1237,7 +1237,7 @@ impl Items {
 }
 
 impl Item {
-    fn name(&self) -> &syn::Ident {
+    pub(crate) fn name(&self) -> &syn::Ident {
         match self {
             Item::Table(table) => &table.name,
             Item::Record(record) => &record.name,
