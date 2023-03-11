@@ -7,7 +7,7 @@
 #![parse_module(read_fonts::codegen_test::records)]
 
 table BasicTable {
-    padded: Offset32<PadLikeCmap>,
+    padded_offset: Offset32<PadLikeCmap>,
     #[compile(array_len($simple_records))]
     simple_count: u16,
     #[count($simple_count)]

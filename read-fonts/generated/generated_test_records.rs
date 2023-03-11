@@ -13,12 +13,12 @@ pub struct BasicTableMarker {
 }
 
 impl BasicTableMarker {
-    fn padded_byte_range(&self) -> Range<usize> {
+    fn padded_offset_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + Offset32::RAW_BYTE_LEN
     }
     fn simple_count_byte_range(&self) -> Range<usize> {
-        let start = self.padded_byte_range().end;
+        let start = self.padded_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
     fn simple_records_byte_range(&self) -> Range<usize> {
@@ -61,15 +61,15 @@ impl<'a> FontRead<'a> for BasicTable<'a> {
 pub type BasicTable<'a> = TableRef<'a, BasicTableMarker>;
 
 impl<'a> BasicTable<'a> {
-    pub fn padded(&self) -> Offset32 {
-        let range = self.shape.padded_byte_range();
+    pub fn padded_offset(&self) -> Offset32 {
+        let range = self.shape.padded_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
-    /// Attempt to resolve [`padded`][Self::padded].
+    /// Attempt to resolve [`padded_offset`][Self::padded_offset].
     pub fn padded(&self) -> Result<PadLikeCmap<'a>, ReadError> {
         let data = self.data;
-        self.padded().resolve(data)
+        self.padded_offset().resolve(data)
     }
 
     pub fn simple_count(&self) -> u16 {
@@ -108,8 +108,8 @@ impl<'a> SomeTable<'a> for BasicTable<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new(
-                "padded",
-                FieldType::offset(self.padded(), self.padded()),
+                "padded_offset",
+                FieldType::offset(self.padded_offset(), self.padded()),
             )),
             1usize => Some(Field::new("simple_count", self.simple_count())),
             2usize => Some(Field::new(
