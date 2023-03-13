@@ -573,27 +573,9 @@ impl Parse for RawEnum {
         let name = input.parse::<syn::Ident>()?;
         let content;
         let _ = braced!(content in input);
-        let variants: Vec<_> = Punctuated::<RawVariant, Token![,]>::parse_terminated(&content)?
+        let variants = Punctuated::<RawVariant, Token![,]>::parse_terminated(&content)?
             .into_iter()
             .collect();
-
-        let defaults: Vec<_> = variants
-            .iter()
-            .filter_map(|v| {
-                if v.attrs.default.is_some() {
-                    Some(v.name.clone())
-                } else {
-                    None
-                }
-            })
-            .collect();
-        if defaults.len() > 1 {
-            return Err(logged_syn_error(
-                name.span(),
-                format!("multiple defaults {defaults:?}"),
-            ));
-        }
-
         Ok(RawEnum {
             docs,
             name,
@@ -1254,11 +1236,28 @@ impl Item {
             Item::Table(item) => item.sanity_check(phase),
             Item::Record(item) => item.sanity_check(phase),
             Item::Format(_) => Ok(()),
-            Item::RawEnum(_) => Ok(()),
+            Item::RawEnum(item) => item.sanity_check(phase),
             Item::Flags(_) => Ok(()),
             Item::GenericGroup(_) => Ok(()),
             Item::Extern(..) => Ok(()),
         }
+    }
+}
+
+impl RawEnum {
+    pub(crate) fn sanity_check(&self, _: Phase) -> syn::Result<()> {
+        let defaults: Vec<_> = self
+            .variants
+            .iter()
+            .filter_map(|v| v.attrs.default.as_ref().map(|_| &v.name))
+            .collect();
+        if defaults.len() > 1 {
+            return Err(logged_syn_error(
+                self.name.span(),
+                format!("multiple defaults {defaults:?}"),
+            ));
+        }
+        Ok(())
     }
 }
 
