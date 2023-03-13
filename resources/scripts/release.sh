@@ -1,7 +1,7 @@
 #!/bin/bash
 # See usage() for usage
 
-source rel-common.sh
+source "$(dirname -- "$0";)/rel-common.sh"
 
 # Helpers
 function usage() {
