@@ -32,5 +32,5 @@ $PIP install -r $REQUIREMENTS
 
 for f in $(ls $SRC_DIR/*.ttx); do
     $TTX -o $OUT_DIR/$(basename "$f" .ttx).ttf --no-recalc-timestamp -b $f
-    $VENV_DIR/bin/python3 $EXTRACT_GLYPHS $OUT_DIR/$(basename "$f" .ttx).ttf
+    $VENV_DIR/bin/python $EXTRACT_GLYPHS $OUT_DIR/$(basename "$f" .ttx).ttf
 done
