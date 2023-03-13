@@ -98,7 +98,9 @@ try:
 except:
     # some of our fonts are not complete (e.g. missing hhea table) and will fail to
     # load in FreeType
-    exit(0)    
+    exit(0)
+
+print("Extracting glyphs from \"%s\" to \"%s\"..." %(font_path, out_path))
 
 axis_count = len(face.get_var_design_coords())
 
