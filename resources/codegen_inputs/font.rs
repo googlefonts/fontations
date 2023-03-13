@@ -25,8 +25,6 @@ record TableRecord {
     checksum: u32,
     /// Offset from the beginning of the font data.
     // we handle this offset manually, since we can't always know the type
-    #[skip_getter]
-    #[user_computed]
     offset: u32,
     /// Length of the table.
     length: u32,

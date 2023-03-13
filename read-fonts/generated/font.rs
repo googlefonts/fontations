@@ -151,6 +151,11 @@ impl TableRecord {
         self.checksum.get()
     }
 
+    /// Offset from the beginning of the font data.
+    pub fn offset(&self) -> u32 {
+        self.offset.get()
+    }
+
     /// Length of the table.
     pub fn length(&self) -> u32 {
         self.length.get()
@@ -170,7 +175,8 @@ impl<'a> SomeRecord<'a> for TableRecord {
             get_field: Box::new(move |idx, _data| match idx {
                 0usize => Some(Field::new("tag", self.tag())),
                 1usize => Some(Field::new("checksum", self.checksum())),
-                2usize => Some(Field::new("length", self.length())),
+                2usize => Some(Field::new("offset", self.offset())),
+                3usize => Some(Field::new("length", self.length())),
                 _ => None,
             }),
             data,

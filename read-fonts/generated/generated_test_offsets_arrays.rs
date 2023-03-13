@@ -661,13 +661,9 @@ impl DummyMarker {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn reserved_byte_range(&self) -> Range<usize> {
+    fn _reserved_byte_range(&self) -> Range<usize> {
         let start = self.value_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
-    }
-    fn offset_byte_range(&self) -> Range<usize> {
-        let start = self.reserved_byte_range().end;
-        start..start + u32::RAW_BYTE_LEN
     }
 }
 
@@ -676,7 +672,6 @@ impl<'a> FontRead<'a> for Dummy<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        cursor.advance::<u32>();
         cursor.finish(DummyMarker {})
     }
 }

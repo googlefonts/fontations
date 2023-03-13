@@ -47,7 +47,7 @@ fn list_tables(font: &FontRef) {
         println!(
             "{0} 0x{1:02$X} {3:8} 0x{4:08X} ",
             record.tag(),
-            record.offset().to_u32(),
+            record.offset(),
             offset_pad,
             record.length(),
             record.checksum()
@@ -81,7 +81,7 @@ fn get_offset_width(font: &FontRef) -> usize {
         .table_directory
         .table_records()
         .iter()
-        .map(|rec| rec.offset().to_u32())
+        .map(|rec| rec.offset())
         .max()
         .unwrap_or_default();
     hex_width(max_off)

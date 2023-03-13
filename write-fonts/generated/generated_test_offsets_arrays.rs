@@ -357,7 +357,6 @@ impl<'a> FontRead<'a> for KindsOfArrays {
 #[derive(Clone, Debug, Default)]
 pub struct Dummy {
     pub value: u16,
-    pub offset: u32,
 }
 
 impl FontWrite for Dummy {
@@ -365,7 +364,6 @@ impl FontWrite for Dummy {
     fn write_into(&self, writer: &mut TableWriter) {
         self.value.write_into(writer);
         (0 as u16).write_into(writer);
-        self.offset.write_into(writer);
     }
 }
 
@@ -378,10 +376,7 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::Dummy<'a>> for Dum
         obj: &read_fonts::codegen_test::offsets_arrays::Dummy<'a>,
         _: FontData,
     ) -> Self {
-        Dummy {
-            value: obj.value(),
-            offset: obj.offset(),
-        }
+        Dummy { value: obj.value() }
     }
 }
 

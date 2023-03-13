@@ -98,12 +98,12 @@ table Dummy {
     // If we didn't set compile(0) there would be no way for write-fonts to have a value.
     #[skip_getter]
     #[compile(0)]
-    reserved: u16,
+    _reserved: u16,
     // Has no getter, but isn't a compile time const.
     // write-fonts users need to set this themselves.
-    #[skip_getter]
-    #[user_computed]
-    offset: u32,
+    // #[skip_getter]
+    // #[user_computed]
+    // offset: u32,
 }
 
 #[skip_constructor]
