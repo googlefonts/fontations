@@ -68,3 +68,7 @@ pub mod flags {
         impl_check::<ValueFormat>();
     }
 }
+
+pub mod enums {
+    include!("../generated/generated_test_enum.rs");
+}

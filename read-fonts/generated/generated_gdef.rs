@@ -222,9 +222,10 @@ impl<'a> std::fmt::Debug for Gdef<'a> {
 }
 
 /// Used in the [Glyph Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#glyph-class-definition-table)
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(u16)]
 pub enum GlyphClassDef {
+    #[default]
     Base = 1,
     Ligature = 2,
     Mark = 3,
