@@ -59,7 +59,7 @@ impl Fields {
             if !fld.has_defined_value() {
                 return Err(logged_syn_error(
                     fld.name.span(),
-                    "There is no defined way to get a value. If you are skipping getter then perhaps you need #[compile(const)], such as for a reserved field that should be set to 0, or #[user_computed] for a field write-fonts users need to set directly?",
+                    "There is no defined way to get a value. If you are skipping getter then perhaps you have a fixed value, such as for a reserved field that should be set to 0? - if so please use #[compile(0)]",
                 ));
             }
 
