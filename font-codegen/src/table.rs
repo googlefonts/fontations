@@ -526,8 +526,12 @@ fn generate_format_constructors(item: &TableFormat, items: &Items) -> syn::Resul
         let constructor_ident = make_snake_case_ident(var_name);
 
         let docstring = format!(" Construct a new `{}` subtable", variant.type_name());
+        // judiciously allow this lint
+        let too_many_args =
+            (constructor_args.len() > 7).then(|| quote!(#[allow(clippy::too_many_arguments)]));
         constructors.push(quote! {
-            #[doc = #docstring]
+             #[doc = #docstring]
+            #too_many_args
             pub fn #constructor_ident ( #( #constructor_args,)*  ) -> Self {
                 Self::#var_name( #var_type::new( #( #constructor_arg_names, )* ))
             }
