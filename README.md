@@ -58,26 +58,26 @@ Releasing involves the following steps:
    to see which crates have been modified since their last release.
 1. Determine the new versions for the crates.
    * Before 1.0, breaking changes bump the *minor* version number, and non-breaking changes modify the *patch* number.
-1. Update manifest versions and release. `release.sh` orchestrates this process.
+1. Update manifest versions and release. `./resources/scripts/bump-version.sh` orchestrates this process.
    * `cargo release` does all the heavy lifting
 
    ```shell
    # To see usage
-   ./bump-version.sh
+   ./resources/scripts/bump-version.sh
    # To do the thing
-   ./bump-version.sh read-fonts write-fonts patch
+   ./resources/scripts/bump-version.sh read-fonts write-fonts patch
    ```
 
 1. Commit these changes to a new branch, get it approved and merged, and switch
    to the up-to-date `main`.
-1. Publish the crates. `release.sh` orchestrates the process.
+1. Publish the crates. `./resources/scripts/release.sh` orchestrates the process.
    * You will be prompted to review changes along the way
 
    ```shell
    # To see usage
-   ./release.sh
+   ./resources/scripts/release.sh
    # To do the thing
-   ./release.sh read-fonts write-fonts
+   ./resources/scripts/release.sh read-fonts write-fonts
    ```
 
 [codegen-readme]: ./font-codegen/README.md
