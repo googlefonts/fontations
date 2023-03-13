@@ -402,7 +402,7 @@ pub(crate) struct RawVariant {
 #[derive(Debug, Default, Clone)]
 pub(crate) struct EnumVariantAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
-    pub(crate) default: bool,
+    pub(crate) default: Option<syn::Path>,
 }
 
 /// A set of bit-flags
@@ -580,7 +580,7 @@ impl Parse for RawEnum {
         let defaults: Vec<_> = variants
             .iter()
             .filter_map(|v| {
-                if v.attrs.default {
+                if v.attrs.default.is_some() {
                     Some(v.name.clone())
                 } else {
                     None
@@ -1075,7 +1075,7 @@ impl Parse for EnumVariantAttrs {
             if ident == DOC {
                 this.docs.push(attr);
             } else if ident == DEFAULT {
-                this.default = true;
+                this.default = Some(attr.path);
             } else {
                 return Err(logged_syn_error(
                     ident.span(),

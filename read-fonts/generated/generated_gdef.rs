@@ -225,12 +225,12 @@ impl<'a> std::fmt::Debug for Gdef<'a> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(u16)]
 pub enum GlyphClassDef {
+    #[default]
     Base = 1,
     Ligature = 2,
     Mark = 3,
     Component = 4,
     #[doc(hidden)]
-    #[default]
     Unknown,
 }
 

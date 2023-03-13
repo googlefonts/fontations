@@ -25,6 +25,7 @@ record EncodingRecord {
 
 /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#platform-ids>
 enum u16 PlatformId {
+    #[default]
     Unicode = 0,
     Macintosh = 1,
     ISO  = 2,

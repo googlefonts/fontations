@@ -161,13 +161,13 @@ impl<'a> SomeRecord<'a> for EncodingRecord {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(u16)]
 pub enum PlatformId {
+    #[default]
     Unicode = 0,
     Macintosh = 1,
     ISO = 2,
     Windows = 3,
     Custom = 4,
     #[doc(hidden)]
-    #[default]
     Unknown,
 }
 

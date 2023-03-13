@@ -322,7 +322,7 @@ pub(crate) fn generate_raw_enum(raw: &RawEnum) -> TokenStream {
         let name = &variant.name;
         let value = &variant.value;
         let docs = &variant.attrs.docs;
-        let maybe_default = variant.attrs.default.then(|| quote!(#[default]));
+        let maybe_default = variant.attrs.default.as_ref().map(|_| quote!(#[default]));
         quote! {
             #( #docs )*
             #maybe_default
@@ -336,7 +336,6 @@ pub(crate) fn generate_raw_enum(raw: &RawEnum) -> TokenStream {
         quote!(#value => Self::#name,)
     });
 
-    let maybe_default = (!raw.variants.iter().any(|v| v.attrs.default)).then(|| quote!(#[default]));
     quote! {
         #( #docs )*
         #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -344,7 +343,6 @@ pub(crate) fn generate_raw_enum(raw: &RawEnum) -> TokenStream {
         pub enum #name {
             #( #variants )*
             #[doc(hidden)]
-            #maybe_default
             Unknown,
         }
 

@@ -1385,11 +1385,11 @@ impl<'a> std::fmt::Debug for VarColorLine<'a> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[repr(u8)]
 pub enum Extend {
+    #[default]
     Pad = 0,
     Repeat = 1,
     Reflect = 2,
     #[doc(hidden)]
-    #[default]
     Unknown,
 }
 
@@ -5460,6 +5460,7 @@ pub enum CompositeMode {
     Clear = 0,
     Src = 1,
     Dest = 2,
+    #[default]
     SrcOver = 3,
     DestOver = 4,
     SrcIn = 5,
@@ -5486,7 +5487,6 @@ pub enum CompositeMode {
     HslColor = 26,
     HslLuminosity = 27,
     #[doc(hidden)]
-    #[default]
     Unknown,
 }
 
