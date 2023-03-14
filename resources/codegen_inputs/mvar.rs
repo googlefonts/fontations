@@ -8,6 +8,7 @@ table Mvar {
     version: MajorMinor,
     /// Not used; set to 0.
     #[skip_getter]
+    #[compile(0)]
     _reserved: u16,
     /// The size in bytes of each value record — must be greater than zero.
     value_record_size: u16,
