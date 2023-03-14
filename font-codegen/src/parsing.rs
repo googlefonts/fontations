@@ -232,7 +232,13 @@ impl<T: ToTokens> ToTokens for Attr<T> {
 
 #[derive(Debug, Clone)]
 pub(crate) struct FieldReadArgs {
-    pub(crate) inputs: Vec<syn::Ident>,
+    pub(crate) inputs: Vec<FieldReadArg>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct FieldReadArg {
+    pub(crate) arg_name: Option<syn::Ident>,
+    pub(crate) input: syn::Ident,
 }
 
 #[derive(Clone, Debug)]
@@ -864,13 +870,29 @@ impl Parse for FieldReadArgs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let mut inputs = Vec::new();
         while !input.is_empty() {
-            input.parse::<Token![$]>()?;
-            inputs.push(input.parse::<syn::Ident>()?);
+            inputs.push(input.parse()?);
             if !input.is_empty() {
                 input.parse::<Token![,]>()?;
             }
         }
         Ok(FieldReadArgs { inputs })
+    }
+}
+
+impl Parse for FieldReadArg {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let arg_name = input
+            .peek(syn::Ident)
+            .then(|| {
+                let ident = input.parse::<syn::Ident>();
+                input.parse::<Token![:]>()?;
+                ident
+            })
+            .transpose()?;
+        input.parse::<Token![$]>()?;
+        let input = input.parse::<syn::Ident>()?;
+
+        Ok(FieldReadArg { arg_name, input })
     }
 }
 
@@ -1731,6 +1753,20 @@ mod tests {
 
         let tuple_target = make_path_seg("Offset16<(u16, u16)>");
         assert!(get_offset_target(&tuple_target).is_err());
+    }
+
+    #[test]
+    fn field_read_args() {
+        fn parse_field_args(s: &str) -> Result<FieldReadArgs, syn::Error> {
+            syn::parse_str(s)
+        }
+
+        let x = parse_field_args("$one, two: $cool").unwrap();
+        assert!(x.inputs[0].arg_name.is_none());
+        assert_eq!(
+            x.inputs[1].arg_name,
+            Some(syn::Ident::new("two", Span::call_site()))
+        );
     }
 
     #[test]

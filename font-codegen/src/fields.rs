@@ -7,8 +7,8 @@ use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
 use super::parsing::{
-    logged_syn_error, Attr, Count, CustomCompile, Field, FieldReadArgs, FieldType, FieldValidation,
-    Fields, NeededWhen, OffsetTarget, Phase, Record, ReferencedFields,
+    logged_syn_error, Attr, Count, CustomCompile, Field, FieldReadArg, FieldReadArgs, FieldType,
+    FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record, ReferencedFields,
 };
 
 impl Fields {
@@ -606,19 +606,14 @@ impl Field {
                     .read_with_args
                     .as_ref()
                     .into_iter()
-                    .flat_map(|args| args.inputs.iter().map(|x| (x.clone(), NeededWhen::Both))),
+                    .flat_map(|args| args.iter_inputs().map(|x| (x.clone(), NeededWhen::Both))),
             )
             .chain(
                 self.attrs
                     .read_offset_args
                     .as_ref()
                     .into_iter()
-                    .flat_map(|args| {
-                        args.inputs
-                            .iter()
-                            .cloned()
-                            .map(|arg| (arg, NeededWhen::Runtime))
-                    }),
+                    .flat_map(|args| args.iter_inputs().map(|x| (x.clone(), NeededWhen::Runtime))),
             )
     }
 
@@ -1363,17 +1358,27 @@ fn width_for_offset(offset: &syn::Ident) -> Option<syn::Ident> {
 }
 
 impl FieldReadArgs {
+    pub(crate) fn iter_inputs(&self) -> impl Iterator<Item = &syn::Ident> + '_ {
+        self.inputs.iter().map(|input| &input.input)
+    }
+
     fn to_tokens_for_table_getter(&self) -> TokenStream {
         match self.inputs.as_slice() {
-            [arg] => quote!(self.#arg()),
-            args => quote!( ( #( self.#args() ),* ) ),
+            [FieldReadArg { input, .. }] => quote!(self.#input()),
+            _args => {
+                let iter = self.iter_inputs();
+                quote!( ( #( self.#iter() ),* ) )
+            }
         }
     }
 
     fn to_tokens_for_validation(&self) -> TokenStream {
         match self.inputs.as_slice() {
-            [arg] => arg.to_token_stream(),
-            args => quote!( ( #( #args ),* ) ),
+            [FieldReadArg { input, .. }] => input.to_token_stream(),
+            _ => {
+                let iter = self.iter_inputs();
+                quote!( ( #( #iter ),* ) )
+            }
         }
     }
 }
