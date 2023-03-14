@@ -36,8 +36,8 @@ impl CmapSubtable {
         let search_range = 2u16.pow(entry_selector as u32).checked_mul(2).unwrap();
 
         // if 2^entry_selector*2 is a u16 then so is entry_selector
-        let entry_selector: u16 = entry_selector as u16;
-        let range_shift: u16 = seg_count * 2 - search_range;
+        let entry_selector = entry_selector as u16;
+        let range_shift = seg_count * 2 - search_range;
 
         let id_range_offsets = id_deltas.iter().map(|_| 0).collect();
         CmapSubtable::Format4(Cmap4::new(
