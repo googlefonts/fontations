@@ -2,8 +2,6 @@
 //!
 //! [cmap]: https://docs.microsoft.com/en-us/typography/opentype/spec/cmap
 
-use std::collections::HashSet;
-
 include!("../../generated/generated_cmap.rs");
 
 // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#unicode-platform-platform-id--0
@@ -22,9 +20,10 @@ impl CmapSubtable {
         start_code: Vec<u16>,
         id_deltas: Vec<i16>,
     ) -> Self {
-        if HashSet::from([start_code.len(), end_code.len(), id_deltas.len()]).len() != 1 {
-            panic!("uneven parallel arrays, very bad. Very very bad.");
-        }
+        assert!(
+            end_code.len() == start_code.len() && end_code.len() == id_deltas.len(),
+            "uneven parallel arrays, very bad. Very very bad."
+        );
 
         let seg_count: u16 = start_code.len().try_into().unwrap();
         // Spec: Log2 of the maximum power of 2 less than or equal to segCount (log2(searchRange/2),
@@ -63,10 +62,9 @@ impl Cmap {
     /// so we can drive towards compiling working fonts. In time we may wish to additionally emit format 12 to support
     /// novel codepoints.
     pub fn from_mappings(mappings: impl IntoIterator<Item = (char, GlyphId)>) -> Cmap {
-        let mut end_code: Vec<u16> = Vec::new();
-        let mut start_code: Vec<u16> = Vec::new();
-        let mut id_deltas: Vec<i16> = Vec::new();
-        let mut id_range_offsets: Vec<u16> = Vec::new();
+        let mut end_code = Vec::new();
+        let mut start_code = Vec::new();
+        let mut id_deltas = Vec::new();
 
         let mut prev = (u16::MAX - 1, u16::MAX - 1);
         for (cp, gid) in mappings.into_iter() {
@@ -85,7 +83,6 @@ impl Cmap {
                 // we might need to reach further than an i16 can take us
                 // using idRangeOffset ... but we're saving that for another day
                 id_deltas.push((gid.to_u16() as i32 - cp as i32).try_into().unwrap());
-                id_range_offsets.push(0);
             } else {
                 // Continue the prior run
                 let last = end_code.last_mut().unwrap();
@@ -98,7 +95,6 @@ impl Cmap {
         start_code.push(0xFFFF);
         end_code.push(0xFFFF);
         id_deltas.push(1);
-        id_range_offsets.push(0);
 
         Cmap::new(vec![EncodingRecord::new(
             PlatformId::Unicode,
