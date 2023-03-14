@@ -39,7 +39,7 @@ impl CmapSubtable {
         let entry_selector = entry_selector as u16;
         let range_shift = seg_count * 2 - search_range;
 
-        let id_range_offsets = id_deltas.iter().map(|_| 0).collect();
+        let id_range_offsets = vec![0; id_deltas.len()];
         CmapSubtable::Format4(Cmap4::new(
             size_of_cmap4(seg_count, 0),
             lang,
