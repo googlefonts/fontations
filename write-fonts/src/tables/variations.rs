@@ -35,13 +35,7 @@ impl<'a> FromObjRef<Option<read_fonts::tables::variations::Tuple<'a>>> for Vec<F
         _data: FontData,
     ) -> Self {
         from.as_ref()
-            .map(|tup| {
-                tup.values
-                    .iter()
-                    .copied()
-                    .map(BigEndian::into_inner)
-                    .collect()
-            })
+            .map(|tup| tup.values.iter().map(BigEndian::get).collect())
             .unwrap_or_default()
     }
 }

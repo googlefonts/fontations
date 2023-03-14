@@ -61,10 +61,6 @@ impl<T: Scalar> BigEndian<T> {
         T::from_raw(self.0)
     }
 
-    pub fn into_inner(self) -> T {
-        T::from_raw(self.0)
-    }
-
     /// Set the value, overwriting the bytes.
     pub fn set(&mut self, value: T) {
         self.0 = value.to_raw();
@@ -126,7 +122,7 @@ where
 {
     #[inline]
     fn read(bytes: &[u8]) -> Option<Self> {
-        BigEndian::<T>::read(bytes).map(BigEndian::into_inner)
+        BigEndian::<T>::read(bytes).as_ref().map(BigEndian::get)
     }
 }
 
