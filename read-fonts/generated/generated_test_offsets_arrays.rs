@@ -30,8 +30,20 @@ impl KindsOfOffsetsMarker {
         let start = self.nullable_offset_byte_range().end;
         start..start + u16::RAW_BYTE_LEN
     }
-    fn array_offset_byte_range(&self) -> Range<usize> {
+    fn _brightness_byte_range(&self) -> Range<usize> {
         let start = self.array_offset_count_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+    fn read_args_offset_byte_range(&self) -> Range<usize> {
+        let start = self._brightness_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn nullable_read_args_offset_byte_range(&self) -> Range<usize> {
+        let start = self.read_args_offset_byte_range().end;
+        start..start + Offset16::RAW_BYTE_LEN
+    }
+    fn array_offset_byte_range(&self) -> Range<usize> {
+        let start = self.nullable_read_args_offset_byte_range().end;
         start..start + Offset16::RAW_BYTE_LEN
     }
     fn record_array_offset_byte_range(&self) -> Range<usize> {
@@ -59,6 +71,9 @@ impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
         cursor.advance::<Offset16>();
         cursor.advance::<Offset16>();
         cursor.advance::<u16>();
+        cursor.advance::<i16>();
+        cursor.advance::<Offset16>();
+        cursor.advance::<Offset16>();
         cursor.advance::<Offset16>();
         cursor.advance::<Offset16>();
         let versioned_nullable_record_array_offset_byte_start = version
@@ -127,6 +142,39 @@ impl<'a> KindsOfOffsets<'a> {
     pub fn array_offset_count(&self) -> u16 {
         let range = self.shape.array_offset_count_byte_range();
         self.data.read_at(range.start).unwrap()
+    }
+
+    /// Another field
+    pub fn _brightness(&self) -> i16 {
+        let range = self.shape._brightness_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// An offset with read_args:
+    pub fn read_args_offset(&self) -> Offset16 {
+        let range = self.shape.read_args_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`read_args_offset`][Self::read_args_offset].
+    pub fn read_args(&self) -> Result<HasArgsTable<'a>, ReadError> {
+        let data = self.data;
+        let args = (self.array_offset_count(), self._brightness());
+        self.read_args_offset().resolve_with_args(data, &args)
+    }
+
+    /// A nullable offset with read_args:
+    pub fn nullable_read_args_offset(&self) -> Nullable<Offset16> {
+        let range = self.shape.nullable_read_args_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`nullable_read_args_offset`][Self::nullable_read_args_offset].
+    pub fn nullable_read_args(&self) -> Option<Result<HasArgsTable<'a>, ReadError>> {
+        let data = self.data;
+        let args = (self.array_offset_count(), self._brightness());
+        self.nullable_read_args_offset()
+            .resolve_with_args(data, &args)
     }
 
     /// An offset to an array:
@@ -214,11 +262,20 @@ impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
                 FieldType::offset(self.nullable_offset(), self.nullable()),
             )),
             3usize => Some(Field::new("array_offset_count", self.array_offset_count())),
-            4usize => Some(Field::new(
+            4usize => Some(Field::new("_brightness", self._brightness())),
+            5usize => Some(Field::new(
+                "read_args_offset",
+                FieldType::offset(self.read_args_offset(), self.read_args()),
+            )),
+            6usize => Some(Field::new(
+                "nullable_read_args_offset",
+                FieldType::offset(self.nullable_read_args_offset(), self.nullable_read_args()),
+            )),
+            7usize => Some(Field::new(
                 "array_offset",
                 FieldType::offset_to_array_of_scalars(self.array_offset(), self.array()),
             )),
-            5usize => Some(Field::new(
+            8usize => Some(Field::new(
                 "record_array_offset",
                 traversal::FieldType::offset_to_array_of_records(
                     self.record_array_offset(),
@@ -227,7 +284,7 @@ impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
                     self.offset_data(),
                 ),
             )),
-            6usize if version.compatible((1, 1)) => Some(Field::new(
+            9usize if version.compatible((1, 1)) => Some(Field::new(
                 "versioned_nullable_record_array_offset",
                 traversal::FieldType::offset_to_array_of_records(
                     self.versioned_nullable_record_array_offset().unwrap(),
@@ -236,14 +293,14 @@ impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
                     self.offset_data(),
                 ),
             )),
-            7usize if version.compatible((1, 1)) => Some(Field::new(
+            10usize if version.compatible((1, 1)) => Some(Field::new(
                 "versioned_nonnullable_offset",
                 FieldType::offset(
                     self.versioned_nonnullable_offset().unwrap(),
                     self.versioned_nonnullable().unwrap(),
                 ),
             )),
-            8usize if version.compatible((1, 1)) => Some(Field::new(
+            11usize if version.compatible((1, 1)) => Some(Field::new(
                 "versioned_nullable_offset",
                 FieldType::offset(
                     self.versioned_nullable_offset().unwrap(),
@@ -700,6 +757,73 @@ impl<'a> SomeTable<'a> for Dummy<'a> {
 
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Dummy<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct HasArgsTableMarker {
+    things_byte_len: usize,
+}
+
+impl HasArgsTableMarker {
+    fn hmm_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn things_byte_range(&self) -> Range<usize> {
+        let start = self.hmm_byte_range().end;
+        start..start + self.things_byte_len
+    }
+}
+
+impl ReadArgs for HasArgsTable<'_> {
+    type Args = (u16, i16);
+}
+
+impl<'a> FontReadWithArgs<'a> for HasArgsTable<'a> {
+    fn read_with_args(data: FontData<'a>, args: &(u16, i16)) -> Result<Self, ReadError> {
+        let (count, _brightness) = *args;
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        let things_byte_len = count as usize * u16::RAW_BYTE_LEN;
+        cursor.advance_by(things_byte_len);
+        cursor.finish(HasArgsTableMarker { things_byte_len })
+    }
+}
+
+pub type HasArgsTable<'a> = TableRef<'a, HasArgsTableMarker>;
+
+impl<'a> HasArgsTable<'a> {
+    pub fn hmm(&self) -> u16 {
+        let range = self.shape.hmm_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn things(&self) -> &'a [BigEndian<u16>] {
+        let range = self.shape.things_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for HasArgsTable<'a> {
+    fn type_name(&self) -> &str {
+        "HasArgsTable"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("hmm", self.hmm())),
+            1usize => Some(Field::new("things", self.things())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for HasArgsTable<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }

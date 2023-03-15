@@ -16,7 +16,7 @@ table BasicTable {
     #[compile(array_len($array_records))]
     array_records_count: u32,
     #[count($array_records_count)]
-    #[read_with($arrays_inner_count)]
+    #[read_with(array_len: $arrays_inner_count)]
     array_records: ComputedArray<ContainsArrays<'a>>,
 }
 
@@ -36,7 +36,7 @@ record ContainsArrays<'a> {
 record ContainsOffests {
     #[compile(array_len($array_offset))]
     off_array_count: u16,
-    #[read_offset_with($off_array_count)]
+    #[read_offset_with(count: $off_array_count)]
     array_offset: Offset16<[SimpleRecord]>,
     other_offset: Offset32<BasicTable>,
 }

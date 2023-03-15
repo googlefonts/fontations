@@ -13,6 +13,12 @@ pub struct KindsOfOffsets {
     pub nonnullable: OffsetMarker<Dummy>,
     /// An offset that is nullable, but always present
     pub nullable: NullableOffsetMarker<Dummy>,
+    /// Another field
+    pub _brightness: i16,
+    /// An offset with read_args:
+    pub read_args: OffsetMarker<HasArgsTable>,
+    /// A nullable offset with read_args:
+    pub nullable_read_args: NullableOffsetMarker<HasArgsTable>,
     /// An offset to an array:
     pub array: OffsetMarker<Vec<u16>>,
     /// An offset to an array of records
@@ -31,6 +37,9 @@ impl Default for KindsOfOffsets {
             version: MajorMinor::VERSION_1_1,
             nonnullable: Default::default(),
             nullable: Default::default(),
+            _brightness: Default::default(),
+            read_args: Default::default(),
+            nullable_read_args: Default::default(),
             array: Default::default(),
             record_array: Default::default(),
             versioned_nullable_record_array: Default::default(),
@@ -48,6 +57,9 @@ impl FontWrite for KindsOfOffsets {
         self.nonnullable.write_into(writer);
         self.nullable.write_into(writer);
         (array_len(&self.array).unwrap() as u16).write_into(writer);
+        self._brightness.write_into(writer);
+        self.read_args.write_into(writer);
+        self.nullable_read_args.write_into(writer);
         self.array.write_into(writer);
         self.record_array.write_into(writer);
         version
@@ -74,6 +86,12 @@ impl Validate for KindsOfOffsets {
             });
             ctx.in_field("nullable", |ctx| {
                 self.nullable.validate_impl(ctx);
+            });
+            ctx.in_field("read_args", |ctx| {
+                self.read_args.validate_impl(ctx);
+            });
+            ctx.in_field("nullable_read_args", |ctx| {
+                self.nullable_read_args.validate_impl(ctx);
             });
             ctx.in_field("record_array", |ctx| {
                 self.record_array.validate_impl(ctx);
@@ -106,6 +124,9 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::KindsOfOffsets<'a>
             version: obj.version(),
             nonnullable: obj.nonnullable().to_owned_table(),
             nullable: obj.nullable().to_owned_table(),
+            _brightness: obj._brightness(),
+            read_args: obj.read_args().to_owned_table(),
+            nullable_read_args: obj.nullable_read_args().to_owned_table(),
             array: obj.array().to_owned_obj(offset_data),
             record_array: obj.record_array().to_owned_obj(offset_data),
             versioned_nullable_record_array: obj
@@ -388,6 +409,56 @@ impl<'a> FontRead<'a> for Dummy {
             .map(|x| x.to_owned_table())
     }
 }
+
+#[derive(Clone, Debug, Default)]
+pub struct HasArgsTable {
+    pub hmm: u16,
+    pub things: Vec<u16>,
+}
+
+impl HasArgsTable {
+    /// Construct a new `HasArgsTable`
+    pub fn new(hmm: u16, things: Vec<u16>) -> Self {
+        Self {
+            hmm,
+            things: things.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for HasArgsTable {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.hmm.write_into(writer);
+        self.things.write_into(writer);
+    }
+}
+
+impl Validate for HasArgsTable {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("HasArgsTable", |ctx| {
+            ctx.in_field("things", |ctx| {
+                if self.things.len() > (u16::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::HasArgsTable<'a>> for HasArgsTable {
+    fn from_obj_ref(
+        obj: &read_fonts::codegen_test::offsets_arrays::HasArgsTable<'a>,
+        _: FontData,
+    ) -> Self {
+        let offset_data = obj.offset_data();
+        HasArgsTable {
+            hmm: obj.hmm(),
+            things: obj.things().to_owned_obj(offset_data),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::codegen_test::offsets_arrays::HasArgsTable<'a>> for HasArgsTable {}
 
 #[derive(Clone, Debug, Default)]
 pub struct Shmecord {

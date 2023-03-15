@@ -20,14 +20,23 @@ table KindsOfOffsets {
     /// count of the array at array_offset
     #[compile(array_len($array_offset))]
     array_offset_count: u16,
+    /// Another field
+    _brightness: i16,
+    /// An offset with read_args:
+    #[read_offset_with(count: $array_offset_count, $_brightness)]
+    read_args_offset: Offset16<HasArgsTable>,
+    /// A nullable offset with read_args:
+    #[nullable]
+    #[read_offset_with(count: $array_offset_count, $_brightness)]
+    nullable_read_args_offset: Offset16<HasArgsTable>,
     /// An offset to an array:
-    #[read_offset_with($array_offset_count)]
+    #[read_offset_with(count: $array_offset_count)]
     array_offset: Offset16<[u16]>,
     /// An offset to an array of records
-    #[read_offset_with($array_offset_count)]
+    #[read_offset_with(count: $array_offset_count)]
     record_array_offset: Offset16<[Shmecord]>,
     /// A nullable, versioned offset to an array of records
-    #[read_offset_with($array_offset_count)]
+    #[read_offset_with(count: $array_offset_count)]
     #[nullable]
     #[since_version(1,1)]
     versioned_nullable_record_array_offset: Offset16<[Shmecord]>,
@@ -104,6 +113,13 @@ table Dummy {
     // #[skip_getter]
     // #[user_computed]
     // offset: u32,
+}
+
+#[read_args(count: u16, _brightness: i16)]
+table HasArgsTable {
+    hmm: u16,
+    #[count($count)]
+    things: [u16],
 }
 
 #[skip_constructor]

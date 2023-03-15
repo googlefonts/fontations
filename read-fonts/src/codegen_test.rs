@@ -23,10 +23,13 @@ pub mod offsets_arrays {
     fn array_offsets() {
         let builder = crate::test_helpers::BeBuffer::new()
             .push(MajorMinor::VERSION_1_0)
-            .push(12_u16) // offset to 0xdead
+            .push(18_u16) // offset to 0xdead
             .push(0u16) // nullable
             .push(2u16) // array len
-            .push(12u16) // array offset
+            .push(69i16) // brightness
+            .push(18u16)
+            .push(0u16) // nullable
+            .push(18u16) // array offset
             .extend([0xdead_u16, 0xbeef]);
 
         let table = KindsOfOffsets::read(builder.font_data()).unwrap();
