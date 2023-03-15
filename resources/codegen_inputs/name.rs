@@ -32,7 +32,6 @@ table Name {
 }
 
 /// Part of [Name]
-#[skip_font_write]
 record LangTagRecord {
     /// Language-tag string length (in bytes)
     #[compile(skip)]
@@ -42,12 +41,12 @@ record LangTagRecord {
     #[offset_getter(lang_tag)]
     #[traverse_with(traverse_lang_tag)]
     #[compile_type(OffsetMarker<String>)]
+    #[compile_with(compile_name_string)]
     #[validate(skip)]
     lang_tag_offset: Offset16<NameString>,
 }
 
 ///[Name Records](https://docs.microsoft.com/en-us/typography/opentype/spec/name#name-records)
-#[skip_font_write]
 record NameRecord {
     /// Platform ID.
     platform_id: u16,
@@ -64,6 +63,7 @@ record NameRecord {
     #[traverse_with(traverse_string)]
     #[offset_getter(string)]
     #[compile_type(OffsetMarker<String>)]
+    #[compile_with(compile_name_string)]
     #[validate(validate_string_data)]
     string_offset: Offset16<NameString>,
 }
