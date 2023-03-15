@@ -189,6 +189,22 @@ impl<'a> FontReadWithArgs<'a> for AxisInstanceArrays<'a> {
     }
 }
 
+impl<'a> AxisInstanceArrays<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(
+        data: FontData<'a>,
+        axis_count: u16,
+        instance_count: u16,
+        instance_size: u16,
+    ) -> Result<Self, ReadError> {
+        let args = (axis_count, instance_count, instance_size);
+        Self::read_with_args(data, &args)
+    }
+}
+
 /// Shim table to handle combined axis and instance arrays.
 pub type AxisInstanceArrays<'a> = TableRef<'a, AxisInstanceArraysMarker>;
 

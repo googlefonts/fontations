@@ -539,6 +539,17 @@ impl<'a> FontReadWithArgs<'a> for Feature<'a> {
     }
 }
 
+impl<'a> Feature<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, feature_tag: Tag) -> Result<Self, ReadError> {
+        let args = feature_tag;
+        Self::read_with_args(data, &args)
+    }
+}
+
 /// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
 pub type Feature<'a> = TableRef<'a, FeatureMarker>;
 

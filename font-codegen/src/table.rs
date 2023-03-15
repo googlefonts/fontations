@@ -139,6 +139,8 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
     if let Some(read_args) = &item.attrs.read_args {
         let args_type = read_args.args_type();
         let destructure_pattern = read_args.destructure_pattern();
+        let constructor_args = read_args.constructor_args();
+        let args_from_constructor_args = read_args.read_args_from_constructor_args();
         Ok(quote! {
             #error_if_phantom_and_read_args
             impl ReadArgs for #name<'_> {
@@ -153,6 +155,17 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
                     cursor.finish( #marker_name {
                         #( #shape_field_names, )*
                     })
+                }
+            }
+
+            impl<'a> #name<'a> {
+                /// A constructor that requires additional arguments.
+                ///
+                /// This type requires some external state in order to be
+                /// parsed.
+                pub fn read(data: FontData<'a>, #( #constructor_args, )* ) -> Result<Self, ReadError> {
+                    let args = #args_from_constructor_args;
+                    Self::read_with_args(data, &args)
                 }
             }
         })
@@ -789,6 +802,23 @@ impl TableReadArgs {
     }
 
     pub(crate) fn destructure_pattern(&self) -> TokenStream {
+        match self.args.as_slice() {
+            [TableReadArg { ident, .. }] => ident.to_token_stream(),
+            other => {
+                let idents = other.iter().map(|arg| &arg.ident);
+                quote!( ( #(#idents,)* ) )
+            }
+        }
+    }
+
+    pub(crate) fn constructor_args(&self) -> impl Iterator<Item = TokenStream> + '_ {
+        self.args
+            .iter()
+            .map(|TableReadArg { ident, typ }| quote!(#ident: #typ))
+    }
+
+    // if only one arg then just that, else a tuple of args
+    pub(crate) fn read_args_from_constructor_args(&self) -> TokenStream {
         match self.args.as_slice() {
             [TableReadArg { ident, .. }] => ident.to_token_stream(),
             other => {
