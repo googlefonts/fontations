@@ -26,11 +26,11 @@ impl NameRecord {
         self.string.as_str()
     }
 
-    fn string_writer(&self) -> NameStringWriter {
-        NameStringWriter {
+    fn compile_name_string(&self) -> NameStringAndLenWriter {
+        NameStringAndLenWriter(NameStringWriter {
             encoding: Encoding::new(self.platform_id, self.encoding_id),
             string: self.string(),
-        }
+        })
     }
 
     fn validate_string_data(&self, ctx: &mut ValidationCtx) {
@@ -55,38 +55,21 @@ impl NameRecord {
     }
 }
 
-impl FontWrite for NameRecord {
-    fn write_into(&self, writer: &mut TableWriter) {
-        self.platform_id.write_into(writer);
-        self.encoding_id.write_into(writer);
-        self.language_id.write_into(writer);
-        self.name_id.write_into(writer);
-        let string_writer = self.string_writer();
-        string_writer.compute_length().write_into(writer);
-        writer.write_offset(&string_writer, 2);
-    }
-}
-
 impl LangTagRecord {
     fn lang_tag(&self) -> &str {
         self.lang_tag.as_str()
     }
 
-    fn string_writer(&self) -> NameStringWriter {
-        NameStringWriter {
+    fn compile_name_string(&self) -> NameStringAndLenWriter {
+        NameStringAndLenWriter(NameStringWriter {
             encoding: Encoding::Utf16Be,
             string: self.lang_tag(),
-        }
+        })
     }
 }
 
-impl FontWrite for LangTagRecord {
-    fn write_into(&self, writer: &mut TableWriter) {
-        let string_writer = self.string_writer();
-        string_writer.compute_length().write_into(writer);
-        writer.write_offset(&string_writer, 2);
-    }
-}
+/// A helper that compiles both the length filed and the offset string data
+struct NameStringAndLenWriter<'a>(NameStringWriter<'a>);
 
 struct NameStringWriter<'a> {
     encoding: Encoding,
@@ -101,6 +84,13 @@ impl NameStringWriter<'_> {
             Encoding::MacRoman => self.string.chars().count().try_into().unwrap(),
             Encoding::Unknown => 0,
         }
+    }
+}
+
+impl FontWrite for NameStringAndLenWriter<'_> {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.0.compute_length().write_into(writer);
+        writer.write_offset(&self.0, 2)
     }
 }
 
