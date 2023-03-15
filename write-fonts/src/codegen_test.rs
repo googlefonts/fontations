@@ -20,6 +20,21 @@ mod records {
         }
     }
 
+    impl SimpleRecord {
+        // the [compile_with] attribute specifies this method, which returns
+        // a different type than the one declared in the table.
+        fn compile_va2(&self) -> [u8; 4] {
+            [0xde, 0xad, 0xbe, 0xef]
+        }
+    }
+
+    #[test]
+    fn compile_with() {
+        let record = SimpleRecord::new(69, 16);
+        let bytes = crate::dump_table(&record).unwrap();
+        assert_eq!(bytes, [0, 69, 0xde, 0xad, 0xbe, 0xef])
+    }
+
     #[test]
     fn constructors() {
         let simple = vec![SimpleRecord::new(6, 32)];

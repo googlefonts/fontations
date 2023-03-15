@@ -197,6 +197,11 @@ The following annotations are supported on top-level objects:
   evalutes to the field's type: the skip case is only expected in cases where
   there is a manual `FontWrite` impl, and the field does not make sense on the
   compile type.
+- `#[compile_with(method_name)]`: Specify custom compilation behaviour. This
+  attribute lets you name a method that will be called to get some type that
+  will be used to compile this field. This may be any type that implements the
+  `FontWrite` trait; this can be used in cases where the logic to compile a
+  given type requires some custom implementation.
 - `#[compile_type(type)]`: specify an alternate type to be used in the struct
   generated for this type.
 - `#[default(expr)]`: specify a value that will be used in the implementation of

@@ -548,6 +548,15 @@ impl Field {
             }
         }
 
+        if let Some(comp_attr) = &self.attrs.compile_with {
+            if self.attrs.compile.is_some() {
+                return Err(logged_syn_error(
+                    comp_attr.span(),
+                    "cannot have both 'compile' and 'compile_with'",
+                ));
+            }
+        }
+
         Ok(())
     }
 
@@ -1117,6 +1126,9 @@ impl Field {
                 // noop
                 CustomCompile::Skip => return Default::default(),
             }
+        } else if let Some(attr) = self.attrs.compile_with.as_ref() {
+            let method = &attr.attr;
+            quote!( self.#method() )
         } else {
             computed = false;
             let name = self.name_for_compile();

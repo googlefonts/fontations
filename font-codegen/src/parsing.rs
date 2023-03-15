@@ -189,6 +189,7 @@ pub(crate) struct FieldAttrs {
     pub(crate) format: Option<Attr<syn::LitInt>>,
     pub(crate) count: Option<Attr<Count>>,
     pub(crate) compile: Option<Attr<CustomCompile>>,
+    pub(crate) compile_with: Option<Attr<syn::Ident>>,
     pub(crate) default: Option<Attr<syn::Expr>>,
     pub(crate) compile_type: Option<Attr<syn::Type>>,
     pub(crate) read_with_args: Option<Attr<FieldReadArgs>>,
@@ -933,6 +934,7 @@ static OFFSET_GETTER: &str = "offset_getter";
 static OFFSET_DATA: &str = "offset_data_method";
 static OFFSET_ADJUSTMENT: &str = "offset_adjustment";
 static COMPILE: &str = "compile";
+static COMPILE_WITH: &str = "compile_with";
 static COMPILE_TYPE: &str = "compile_type";
 static DEFAULT: &str = "default";
 static READ_WITH: &str = "read_with";
@@ -969,6 +971,8 @@ impl Parse for FieldAttrs {
                 this.count = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == COMPILE {
                 this.compile = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == COMPILE_WITH {
+                this.compile_with = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == COMPILE_TYPE {
                 this.compile_type = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == DEFAULT {
