@@ -388,9 +388,9 @@ mod tests {
 
         const N_AXES: u16 = 2;
 
-        let read_args = (EXPECTED.len() as u16, N_AXES);
         let tuples =
-            SharedTuples::read_with_args(SKIA_GVAR_SHARED_TUPLES_DATA, &read_args).unwrap();
+            SharedTuples::read(SKIA_GVAR_SHARED_TUPLES_DATA, EXPECTED.len() as u16, N_AXES)
+                .unwrap();
         let tuple_vec: Vec<_> = tuples
             .tuples()
             .iter()
@@ -410,8 +410,7 @@ mod tests {
         let header = GlyphVariationDataHeader::read(SKIA_GVAR_I_DATA).unwrap();
         assert_eq!(header.serialized_data_offset(), 36);
         assert_eq!(header.tuple_variation_count().count(), 8);
-        let shared_tuples =
-            SharedTuples::read_with_args(SKIA_GVAR_SHARED_TUPLES_DATA, &(8, 2)).unwrap();
+        let shared_tuples = SharedTuples::read(SKIA_GVAR_SHARED_TUPLES_DATA, 8, 2).unwrap();
 
         let vardata = GlyphVariationData::new(SKIA_GVAR_I_DATA, 2, shared_tuples).unwrap();
         assert_eq!(vardata.tuple_count(), 8);

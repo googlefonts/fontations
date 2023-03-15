@@ -19,7 +19,7 @@ mod tests {
         let _dumped = crate::write::dump_table(&hmtx).unwrap();
 
         let data = FontData::new(&_dumped);
-        let loaded = read_fonts::tables::hmtx::Hmtx::read_with_args(data, &(1, 5)).unwrap();
+        let loaded = read_fonts::tables::hmtx::Hmtx::read(data, 1, 5).unwrap();
         assert_eq!(loaded.h_metrics()[0].advance(), 602);
         assert_eq!(loaded.h_metrics()[0].side_bearing(), -214);
         assert_eq!(loaded.left_side_bearings(), &hmtx.left_side_bearings);

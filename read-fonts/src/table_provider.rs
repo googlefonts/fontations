@@ -2,7 +2,7 @@
 
 use types::Tag;
 
-use crate::{tables, FontData, FontRead, FontReadWithArgs, ReadError};
+use crate::{tables, FontData, FontRead, ReadError};
 
 /// A table that has an associated tag.
 ///
@@ -22,14 +22,6 @@ pub trait TableProvider<'a> {
 
     fn expect_table<T: TopLevelTable + FontRead<'a>>(&self) -> Result<T, ReadError> {
         self.expect_data_for_tag(T::TAG).and_then(FontRead::read)
-    }
-
-    fn expect_table_args<T: TopLevelTable + FontReadWithArgs<'a>>(
-        &self,
-        args: &T::Args,
-    ) -> Result<T, ReadError> {
-        self.expect_data_for_tag(T::TAG)
-            .and_then(|data| T::read_with_args(data, args))
     }
 
     fn head(&self) -> Result<tables::head::Head<'a>, ReadError> {
@@ -52,14 +44,16 @@ pub trait TableProvider<'a> {
         //FIXME: should we make the user pass these in?
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
         let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_long_metrics())?;
-        self.expect_table_args(&(number_of_h_metrics, num_glyphs))
+        let data = self.expect_data_for_tag(tables::hmtx::Hmtx::TAG)?;
+        tables::hmtx::Hmtx::read(data, number_of_h_metrics, num_glyphs)
     }
 
     fn vmtx(&self) -> Result<tables::vmtx::Vmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
         let number_of_v_metrics = self.vhea().map(|vhea| vhea.number_of_long_ver_metrics())?;
-        self.expect_table_args(&(number_of_v_metrics, num_glyphs))
+        let data = self.expect_data_for_tag(tables::vmtx::Vmtx::TAG)?;
+        tables::vmtx::Vmtx::read(data, number_of_v_metrics, num_glyphs)
     }
 
     fn fvar(&self) -> Result<tables::fvar::Fvar<'a>, ReadError> {
@@ -100,7 +94,8 @@ pub trait TableProvider<'a> {
             Some(val) => val,
             None => self.head()?.index_to_loc_format() == 1,
         };
-        self.expect_table_args(&is_long)
+        let data = self.expect_data_for_tag(tables::loca::Loca::TAG)?;
+        tables::loca::Loca::read(data, is_long)
     }
 
     fn glyf(&self) -> Result<tables::glyf::Glyf<'a>, ReadError> {

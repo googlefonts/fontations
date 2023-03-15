@@ -5,6 +5,7 @@
 use crate::{
     read::{FontRead, FontReadWithArgs, ReadArgs, ReadError},
     table_provider::TopLevelTable,
+    FontData,
 };
 use types::{BigEndian, GlyphId, Tag};
 
@@ -25,6 +26,10 @@ impl TopLevelTable for Loca<'_> {
 }
 
 impl<'a> Loca<'a> {
+    pub fn read(data: FontData<'a>, is_long: bool) -> Result<Self, crate::ReadError> {
+        Self::read_with_args(data, &is_long)
+    }
+
     pub fn len(&self) -> usize {
         match self {
             Loca::Short(data) => data.len().saturating_sub(1),
@@ -71,10 +76,7 @@ impl ReadArgs for Loca<'_> {
 }
 
 impl<'a> FontReadWithArgs<'a> for Loca<'a> {
-    fn read_with_args(
-        data: crate::FontData<'a>,
-        args: &Self::Args,
-    ) -> Result<Self, crate::ReadError> {
+    fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, crate::ReadError> {
         let is_long = *args;
         if is_long {
             data.read_array(0..data.len()).map(Loca::Long)
