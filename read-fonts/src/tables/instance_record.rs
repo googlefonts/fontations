@@ -23,6 +23,18 @@ impl ReadArgs for InstanceRecord<'_> {
     type Args = (u16, u16);
 }
 
+impl<'a> InstanceRecord<'a> {
+    /// Parse an instance record with a known axis_count and instance_size
+    pub fn read(
+        data: FontData<'a>,
+        axis_count: u16,
+        instance_size: u16,
+    ) -> Result<Self, ReadError> {
+        let args = (axis_count, instance_size);
+        Self::read_with_args(data, &args)
+    }
+}
+
 impl<'a> FontReadWithArgs<'a> for InstanceRecord<'a> {
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
         let axis_count = args.0 as usize;
