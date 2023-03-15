@@ -5,7 +5,7 @@ include!("../../generated/generated_fvar.rs");
 #[path = "./instance_record.rs"]
 mod instance_record;
 
-pub use instance_record::InstanceRecord;
+pub use instance_record::{InstanceRecord, InstanceRecordArgs};
 
 impl<'a> Fvar<'a> {
     /// Returns the array of variation axis records.

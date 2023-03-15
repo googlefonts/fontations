@@ -131,7 +131,9 @@ impl<'a> Cpal<'a> {
     /// Attempt to resolve [`color_records_array_offset`][Self::color_records_array_offset].
     pub fn color_records_array(&self) -> Option<Result<&'a [ColorRecord], ReadError>> {
         let data = self.data;
-        let args = self.num_color_records();
+        let args = ArrayArgs {
+            count: self.num_color_records(),
+        };
         self.color_records_array_offset()
             .resolve_with_args(data, &args)
     }
@@ -156,7 +158,9 @@ impl<'a> Cpal<'a> {
     /// Attempt to resolve [`palette_types_array_offset`][Self::palette_types_array_offset].
     pub fn palette_types_array(&self) -> Option<Result<&'a [BigEndian<u32>], ReadError>> {
         let data = self.data;
-        let args = self.num_palettes();
+        let args = ArrayArgs {
+            count: self.num_palettes(),
+        };
         self.palette_types_array_offset()
             .map(|x| x.resolve_with_args(data, &args))?
     }
@@ -176,7 +180,9 @@ impl<'a> Cpal<'a> {
     /// Attempt to resolve [`palette_labels_array_offset`][Self::palette_labels_array_offset].
     pub fn palette_labels_array(&self) -> Option<Result<&'a [BigEndian<u16>], ReadError>> {
         let data = self.data;
-        let args = self.num_palettes();
+        let args = ArrayArgs {
+            count: self.num_palettes(),
+        };
         self.palette_labels_array_offset()
             .map(|x| x.resolve_with_args(data, &args))?
     }
@@ -198,7 +204,9 @@ impl<'a> Cpal<'a> {
     /// Attempt to resolve [`palette_entry_labels_array_offset`][Self::palette_entry_labels_array_offset].
     pub fn palette_entry_labels_array(&self) -> Option<Result<&'a [BigEndian<u16>], ReadError>> {
         let data = self.data;
-        let args = self.num_palette_entries();
+        let args = ArrayArgs {
+            count: self.num_palette_entries(),
+        };
         self.palette_entry_labels_array_offset()
             .map(|x| x.resolve_with_args(data, &args))?
     }

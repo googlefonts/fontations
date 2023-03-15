@@ -29,13 +29,23 @@ impl TopLevelTable for Hmtx<'_> {
     const TAG: Tag = Tag::new(b"hmtx");
 }
 
+///The [ReadArgs] type for [Hmtx].
+#[derive(Clone, Copy, Debug)]
+pub struct HmtxArgs {
+    pub number_of_h_metrics: u16,
+    pub num_glyphs: u16,
+}
+
 impl ReadArgs for Hmtx<'_> {
-    type Args = (u16, u16);
+    type Args = HmtxArgs;
 }
 
 impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
-    fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
-        let (number_of_h_metrics, num_glyphs) = *args;
+    fn read_with_args(data: FontData<'a>, args: &HmtxArgs) -> Result<Self, ReadError> {
+        let HmtxArgs {
+            number_of_h_metrics,
+            num_glyphs,
+        } = *args;
         let mut cursor = data.cursor();
         let h_metrics_byte_len = number_of_h_metrics as usize * LongMetric::RAW_BYTE_LEN;
         cursor.advance_by(h_metrics_byte_len);

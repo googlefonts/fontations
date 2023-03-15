@@ -27,6 +27,11 @@ pub trait FontRead<'a>: Sized {
 
 /// A trait for a type that needs additional arguments to be read.
 pub trait ReadArgs {
+    /// The arguments required to read this type.
+    ///
+    /// By convention, this is a struct that is the name of the implementing type,
+    /// suffixed with "Args". For example, the `Args` for the type `VeryBadTable`
+    /// would be `VeryBadTableArgs`
     type Args: Copy;
 }
 
@@ -36,10 +41,6 @@ pub trait FontReadWithArgs<'a>: Sized + ReadArgs {
     ///
     /// If successful, returns a new item of this type, and the number of bytes
     /// used to construct it.
-    ///
-    /// If a type requires multiple arguments, they will be passed as a tuple.
-    //TODO: split up the 'takes args' and 'reports size' parts of this into
-    // separate traits
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError>;
 }
 

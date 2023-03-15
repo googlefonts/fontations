@@ -11,11 +11,11 @@ table Colr {
     num_base_glyph_records: u16,
     /// Offset to baseGlyphRecords array (may be NULL).
     #[nullable]
-    #[read_offset_with($num_base_glyph_records)]
+    #[read_offset_with(count: $num_base_glyph_records)]
     base_glyph_records_offset: Offset32<[BaseGlyph]>,
     /// Offset to layerRecords array (may be NULL).
     #[nullable]
-    #[read_offset_with($num_layer_records)]
+    #[read_offset_with(count: $num_layer_records)]
     layer_records_offset: Offset32<[Layer]>,
     /// Number of Layer records; may be 0 in a version 1 table.
     num_layer_records: u16,

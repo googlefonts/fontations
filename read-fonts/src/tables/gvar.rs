@@ -4,20 +4,26 @@
 include!("../../generated/generated_gvar.rs");
 
 use super::variations::{
-    DeltaRunIter, PackedDeltas, PackedPointNumbers, PackedPointNumbersIter, Tuple,
+    DeltaRunIter, PackedDeltas, PackedPointNumbers, PackedPointNumbersIter, Tuple, TupleArgs,
     TupleVariationCount, TupleVariationHeader, TupleVariationHeaderIter,
 };
 
 #[derive(Clone, Copy, Debug)]
 pub struct U16Or32(u32);
 
+/// The [ReadArgs] args for [U16Or32].
+#[derive(Clone, Copy, Debug)]
+pub struct U16Or32Args {
+    pub flags: GvarFlags,
+}
+
 impl ReadArgs for U16Or32 {
-    type Args = GvarFlags;
+    type Args = U16Or32Args;
 }
 
 impl ComputeSize for U16Or32 {
-    fn compute_size(args: &GvarFlags) -> usize {
-        if args.contains(GvarFlags::LONG_OFFSETS) {
+    fn compute_size(args: &U16Or32Args) -> usize {
+        if args.flags.contains(GvarFlags::LONG_OFFSETS) {
             4
         } else {
             2
@@ -27,7 +33,7 @@ impl ComputeSize for U16Or32 {
 
 impl FontReadWithArgs<'_> for U16Or32 {
     fn read_with_args(data: FontData<'_>, args: &Self::Args) -> Result<Self, ReadError> {
-        if args.contains(GvarFlags::LONG_OFFSETS) {
+        if args.flags.contains(GvarFlags::LONG_OFFSETS) {
             data.read_at::<u32>(0).map(Self)
         } else {
             data.read_at::<u16>(0).map(|v| Self(v as u32 * 2))
@@ -388,7 +394,10 @@ mod tests {
 
         const N_AXES: u16 = 2;
 
-        let read_args = (EXPECTED.len() as u16, N_AXES);
+        let read_args = SharedTuplesArgs {
+            shared_tuple_count: EXPECTED.len() as _,
+            axis_count: N_AXES,
+        };
         let tuples =
             SharedTuples::read_with_args(SKIA_GVAR_SHARED_TUPLES_DATA, &read_args).unwrap();
         let tuple_vec: Vec<_> = tuples
@@ -410,8 +419,14 @@ mod tests {
         let header = GlyphVariationDataHeader::read(SKIA_GVAR_I_DATA).unwrap();
         assert_eq!(header.serialized_data_offset(), 36);
         assert_eq!(header.tuple_variation_count().count(), 8);
-        let shared_tuples =
-            SharedTuples::read_with_args(SKIA_GVAR_SHARED_TUPLES_DATA, &(8, 2)).unwrap();
+        let shared_tuples = SharedTuples::read_with_args(
+            SKIA_GVAR_SHARED_TUPLES_DATA,
+            &SharedTuplesArgs {
+                shared_tuple_count: 8,
+                axis_count: 2,
+            },
+        )
+        .unwrap();
 
         let vardata = GlyphVariationData::new(SKIA_GVAR_I_DATA, 2, shared_tuples).unwrap();
         assert_eq!(vardata.tuple_count(), 8);

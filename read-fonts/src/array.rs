@@ -144,13 +144,21 @@ impl<'a, T> FontRead<'a> for VarLenArray<'a, T> {
     }
 }
 
+/// The [ReadArgs] args for array types.
+#[derive(Clone, Copy, Debug)]
+pub struct ArrayArgs {
+    /// The number of items in the array
+    pub count: u16,
+}
+
 impl<'a, T: FixedSize> ReadArgs for &'a [T] {
-    type Args = u16;
+    type Args = ArrayArgs;
 }
 
 impl<'a, T: FixedSize> FontReadWithArgs<'a> for &'a [T] {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let len = *args as usize * T::RAW_BYTE_LEN;
+    fn read_with_args(data: FontData<'a>, args: &ArrayArgs) -> Result<Self, ReadError> {
+        let ArrayArgs { count } = *args;
+        let len = count as usize * T::RAW_BYTE_LEN;
         data.read_array(0..len)
     }
 }

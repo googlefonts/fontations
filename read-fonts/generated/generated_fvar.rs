@@ -81,11 +81,11 @@ impl<'a> Fvar<'a> {
     /// Attempt to resolve [`axis_instance_arrays_offset`][Self::axis_instance_arrays_offset].
     pub fn axis_instance_arrays(&self) -> Result<AxisInstanceArrays<'a>, ReadError> {
         let data = self.data;
-        let args = (
-            self.axis_count(),
-            self.instance_count(),
-            self.instance_size(),
-        );
+        let args = AxisInstanceArraysArgs {
+            axis_count: self.axis_count(),
+            instance_count: self.instance_count(),
+            instance_size: self.instance_size(),
+        };
         self.axis_instance_arrays_offset()
             .resolve_with_args(data, &args)
     }
@@ -167,18 +167,36 @@ impl AxisInstanceArraysMarker {
     }
 }
 
+///The [ReadArgs] type for [AxisInstanceArrays].
+#[derive(Clone, Copy, Debug)]
+pub struct AxisInstanceArraysArgs {
+    pub axis_count: u16,
+    pub instance_count: u16,
+    pub instance_size: u16,
+}
+
 impl ReadArgs for AxisInstanceArrays<'_> {
-    type Args = (u16, u16, u16);
+    type Args = AxisInstanceArraysArgs;
 }
 
 impl<'a> FontReadWithArgs<'a> for AxisInstanceArrays<'a> {
-    fn read_with_args(data: FontData<'a>, args: &(u16, u16, u16)) -> Result<Self, ReadError> {
-        let (axis_count, instance_count, instance_size) = *args;
+    fn read_with_args(
+        data: FontData<'a>,
+        args: &AxisInstanceArraysArgs,
+    ) -> Result<Self, ReadError> {
+        let AxisInstanceArraysArgs {
+            axis_count,
+            instance_count,
+            instance_size,
+        } = *args;
         let mut cursor = data.cursor();
         let axes_byte_len = axis_count as usize * VariationAxisRecord::RAW_BYTE_LEN;
         cursor.advance_by(axes_byte_len);
         let instances_byte_len = instance_count as usize
-            * <InstanceRecord as ComputeSize>::compute_size(&(axis_count, instance_size));
+            * <InstanceRecord as ComputeSize>::compute_size(&InstanceRecordArgs {
+                axis_count,
+                instance_size,
+            });
         cursor.advance_by(instances_byte_len);
         cursor.finish(AxisInstanceArraysMarker {
             axis_count,
@@ -203,7 +221,13 @@ impl<'a> AxisInstanceArrays<'a> {
     pub fn instances(&self) -> ComputedArray<'a, InstanceRecord<'a>> {
         let range = self.shape.instances_byte_range();
         self.data
-            .read_with_args(range, &(self.axis_count(), self.instance_size()))
+            .read_with_args(
+                range,
+                &InstanceRecordArgs {
+                    axis_count: self.axis_count(),
+                    instance_size: self.instance_size(),
+                },
+            )
             .unwrap()
     }
 

@@ -42,7 +42,7 @@ pub extern crate font_types as types;
 /// All the types that may be referenced in auto-generated code.
 #[doc(hidden)]
 pub(crate) mod codegen_prelude {
-    pub use crate::array::{ComputedArray, VarLenArray};
+    pub use crate::array::{ArrayArgs, ComputedArray, VarLenArray};
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
     pub use crate::read::{

@@ -105,7 +105,9 @@ impl<'a> Stat<'a> {
     /// Attempt to resolve [`design_axes_offset`][Self::design_axes_offset].
     pub fn design_axes(&self) -> Result<&'a [AxisRecord], ReadError> {
         let data = self.data;
-        let args = self.design_axis_count();
+        let args = ArrayArgs {
+            count: self.design_axis_count(),
+        };
         self.design_axes_offset().resolve_with_args(data, &args)
     }
 
@@ -127,7 +129,9 @@ impl<'a> Stat<'a> {
     /// Attempt to resolve [`offset_to_axis_value_offsets`][Self::offset_to_axis_value_offsets].
     pub fn offset_to_axis_values(&self) -> Result<AxisValueArray<'a>, ReadError> {
         let data = self.data;
-        let args = self.axis_value_count();
+        let args = AxisValueArrayArgs {
+            axis_value_count: self.axis_value_count(),
+        };
         self.offset_to_axis_value_offsets()
             .resolve_with_args(data, &args)
     }
@@ -255,13 +259,19 @@ impl AxisValueArrayMarker {
     }
 }
 
+///The [ReadArgs] type for [AxisValueArray].
+#[derive(Clone, Copy, Debug)]
+pub struct AxisValueArrayArgs {
+    pub axis_value_count: u16,
+}
+
 impl ReadArgs for AxisValueArray<'_> {
-    type Args = u16;
+    type Args = AxisValueArrayArgs;
 }
 
 impl<'a> FontReadWithArgs<'a> for AxisValueArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let axis_value_count = *args;
+    fn read_with_args(data: FontData<'a>, args: &AxisValueArrayArgs) -> Result<Self, ReadError> {
+        let AxisValueArrayArgs { axis_value_count } = *args;
         let mut cursor = data.cursor();
         let axis_value_offsets_byte_len = axis_value_count as usize * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(axis_value_offsets_byte_len);

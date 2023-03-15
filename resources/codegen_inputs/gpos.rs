@@ -224,10 +224,10 @@ record PairValueRecord {
     /// the Coverage table).
     second_glyph: GlyphId,
     /// Positioning data for the first glyph in the pair.
-    #[read_with($value_format1)]
+    #[read_with(value_format: $value_format1)]
     value_record1: ValueRecord,
     /// Positioning data for the second glyph in the pair.
-    #[read_with($value_format2)]
+    #[read_with(value_format: $value_format2)]
     value_record2: ValueRecord,
 }
 
@@ -277,10 +277,10 @@ record Class1Record<'a> {
 #[read_args(value_format1: ValueFormat, value_format2: ValueFormat)]
 record Class2Record {
     /// Positioning for first glyph — empty if valueFormat1 = 0.
-    #[read_with($value_format1)]
+    #[read_with(value_format: $value_format1)]
     value_record1: ValueRecord,
     /// Positioning for second glyph — empty if valueFormat2 = 0.
-    #[read_with($value_format2)]
+    #[read_with(value_format: $value_format2)]
     value_record2: ValueRecord,
 }
 

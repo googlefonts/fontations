@@ -16,7 +16,7 @@ table Cpal {
     /// Offset from the beginning of CPAL table to the first
     /// ColorRecord.
     #[nullable]
-    #[read_offset_with($num_color_records)]
+    #[read_offset_with(count: $num_color_records)]
     color_records_array_offset: Offset32<[ColorRecord]>,
     /// Index of each palette’s first color record in the combined
     /// color record array.
@@ -30,7 +30,7 @@ table Cpal {
     /// [Palette Types Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array
     #[since_version(1)]
     #[nullable]
-    #[read_offset_with($num_palettes)]
+    #[read_offset_with(count: $num_palettes)]
     palette_types_array_offset: Offset32<[u32]>,
     /// Offset from the beginning of CPAL table to the [Palette Labels Array][].
     ///
@@ -41,7 +41,7 @@ table Cpal {
     /// [Palette Labels Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-labels-array
     #[since_version(1)]
     #[nullable]
-    #[read_offset_with($num_palettes)]
+    #[read_offset_with(count: $num_palettes)]
     palette_labels_array_offset: Offset32<[u16]>,
     /// Offset from the beginning of CPAL table to the [Palette Entry Labels Array][].
     ///
@@ -54,7 +54,7 @@ table Cpal {
     /// [Palette Entry Labels Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entry-label-array
     #[since_version(1)]
     #[nullable]
-    #[read_offset_with($num_palette_entries)]
+    #[read_offset_with(count: $num_palette_entries)]
     palette_entry_labels_array_offset: Offset32<[u16]>,
 }
 

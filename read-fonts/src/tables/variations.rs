@@ -474,7 +474,12 @@ impl<'a> Iterator for TupleVariationHeaderIter<'a> {
             return None;
         }
         self.current += 1;
-        let next = TupleVariationHeader::read_with_args(self.data, &self.axis_count);
+        let next = TupleVariationHeader::read_with_args(
+            self.data,
+            &TupleVariationHeaderArgs {
+                axis_count: self.axis_count,
+            },
+        );
         let next_len = next
             .as_ref()
             .map(|table| table.byte_len(self.axis_count))

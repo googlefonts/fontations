@@ -11,7 +11,7 @@ pub mod validate;
 mod write;
 
 #[cfg(test)]
-mod codegen_test;
+pub mod codegen_test;
 #[cfg(test)]
 mod hex_diff;
 

@@ -52,14 +52,23 @@ pub trait TableProvider<'a> {
         //FIXME: should we make the user pass these in?
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
         let number_of_h_metrics = self.hhea().map(|hhea| hhea.number_of_long_metrics())?;
-        self.expect_table_args(&(number_of_h_metrics, num_glyphs))
+        let args = tables::hmtx::HmtxArgs {
+            num_glyphs,
+            number_of_h_metrics,
+        };
+        self.expect_table_args(&args)
     }
 
     fn vmtx(&self) -> Result<tables::vmtx::Vmtx<'a>, ReadError> {
         //FIXME: should we make the user pass these in?
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;
-        let number_of_v_metrics = self.vhea().map(|vhea| vhea.number_of_long_ver_metrics())?;
-        self.expect_table_args(&(number_of_v_metrics, num_glyphs))
+        let number_of_long_ver_metrics =
+            self.vhea().map(|vhea| vhea.number_of_long_ver_metrics())?;
+        let args = tables::vmtx::VmtxArgs {
+            num_glyphs,
+            number_of_long_ver_metrics,
+        };
+        self.expect_table_args(&args)
     }
 
     fn fvar(&self) -> Result<tables::fvar::Fvar<'a>, ReadError> {
@@ -182,8 +191,8 @@ mod tests {
             }
         }
 
-        let number_of_h_metrics = DummyProvider.hhea().unwrap().number_of_long_metrics();
-        let num_glyphs = DummyProvider.maxp().unwrap().num_glyphs();
+        let number_of_h_metrics = dbg!(DummyProvider.hhea().unwrap().number_of_long_metrics());
+        let num_glyphs = dbg!(DummyProvider.maxp()).unwrap().num_glyphs();
         let hmtx = DummyProvider.hmtx().unwrap();
 
         assert_eq!(number_of_h_metrics, 1);

@@ -116,13 +116,19 @@ impl ValueRecord {
     }
 }
 
+/// the [ReadArgs] args for [ValueRecord]
+#[derive(Clone, Copy, Debug)]
+pub struct ValueRecordArgs {
+    pub value_format: ValueFormat,
+}
+
 impl ReadArgs for ValueRecord {
-    type Args = ValueFormat;
+    type Args = ValueRecordArgs;
 }
 
 impl<'a> FontReadWithArgs<'a> for ValueRecord {
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
-        ValueRecord::read(data, *args)
+        ValueRecord::read(data, args.value_format)
     }
 }
 
@@ -147,8 +153,8 @@ impl std::fmt::Debug for ValueRecord {
 
 impl ComputeSize for ValueRecord {
     #[inline]
-    fn compute_size(args: &ValueFormat) -> usize {
-        args.record_byte_len()
+    fn compute_size(args: &ValueRecordArgs) -> usize {
+        args.value_format.record_byte_len()
     }
 }
 

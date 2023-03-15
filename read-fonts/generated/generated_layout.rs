@@ -470,7 +470,9 @@ impl FeatureRecord {
 
     /// Attempt to resolve [`feature_offset`][Self::feature_offset].
     pub fn feature<'a>(&self, data: FontData<'a>) -> Result<Feature<'a>, ReadError> {
-        let args = self.feature_tag();
+        let args = FeatureArgs {
+            feature_tag: self.feature_tag(),
+        };
         self.feature_offset().resolve_with_args(data, &args)
     }
 }
@@ -520,13 +522,19 @@ impl FeatureMarker {
     }
 }
 
+///The [ReadArgs] type for [Feature].
+#[derive(Clone, Copy, Debug)]
+pub struct FeatureArgs {
+    pub feature_tag: Tag,
+}
+
 impl ReadArgs for Feature<'_> {
-    type Args = Tag;
+    type Args = FeatureArgs;
 }
 
 impl<'a> FontReadWithArgs<'a> for Feature<'a> {
-    fn read_with_args(data: FontData<'a>, args: &Tag) -> Result<Self, ReadError> {
-        let feature_tag = *args;
+    fn read_with_args(data: FontData<'a>, args: &FeatureArgs) -> Result<Self, ReadError> {
+        let FeatureArgs { feature_tag } = *args;
         let mut cursor = data.cursor();
         cursor.advance::<Offset16>();
         let lookup_index_count: u16 = cursor.read()?;
@@ -552,7 +560,9 @@ impl<'a> Feature<'a> {
     /// Attempt to resolve [`feature_params_offset`][Self::feature_params_offset].
     pub fn feature_params(&self) -> Option<Result<FeatureParams<'a>, ReadError>> {
         let data = self.data;
-        let args = self.feature_tag();
+        let args = FeatureParamsArgs {
+            feature_tag: self.feature_tag(),
+        };
         self.feature_params_offset().resolve_with_args(data, &args)
     }
 

@@ -21,7 +21,7 @@ table Stat {
     /// start of the design axes array. If designAxisCount is zero, set
     /// to zero; if designAxisCount is greater than zero, must be
     /// greater than zero.
-    #[read_offset_with($design_axis_count)]
+    #[read_offset_with(count: $design_axis_count)]
     design_axes_offset: Offset32<[AxisRecord]>,
     /// The number of axis value tables.
     #[compile(array_len($offset_to_axis_value_offsets))]

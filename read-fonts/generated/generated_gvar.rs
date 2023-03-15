@@ -62,8 +62,8 @@ impl<'a> FontRead<'a> for Gvar<'a> {
         let glyph_count: u16 = cursor.read()?;
         let flags: GvarFlags = cursor.read()?;
         cursor.advance::<u32>();
-        let glyph_variation_data_offsets_byte_len =
-            transforms::add(glyph_count, 1_usize) * <U16Or32 as ComputeSize>::compute_size(&flags);
+        let glyph_variation_data_offsets_byte_len = transforms::add(glyph_count, 1_usize)
+            * <U16Or32 as ComputeSize>::compute_size(&U16Or32Args { flags });
         cursor.advance_by(glyph_variation_data_offsets_byte_len);
         cursor.finish(GvarMarker {
             glyph_variation_data_offsets_byte_len,
@@ -106,7 +106,10 @@ impl<'a> Gvar<'a> {
     /// Attempt to resolve [`shared_tuples_offset`][Self::shared_tuples_offset].
     pub fn shared_tuples(&self) -> Result<SharedTuples<'a>, ReadError> {
         let data = self.data;
-        let args = (self.shared_tuple_count(), self.axis_count());
+        let args = SharedTuplesArgs {
+            shared_tuple_count: self.shared_tuple_count(),
+            axis_count: self.axis_count(),
+        };
         self.shared_tuples_offset().resolve_with_args(data, &args)
     }
 
@@ -136,7 +139,14 @@ impl<'a> Gvar<'a> {
     /// GlyphVariationData table.
     pub fn glyph_variation_data_offsets(&self) -> ComputedArray<'a, U16Or32> {
         let range = self.shape.glyph_variation_data_offsets_byte_range();
-        self.data.read_with_args(range, &self.flags()).unwrap()
+        self.data
+            .read_with_args(
+                range,
+                &U16Or32Args {
+                    flags: self.flags(),
+                },
+            )
+            .unwrap()
     }
 }
 
@@ -490,16 +500,26 @@ impl SharedTuplesMarker {
     }
 }
 
+///The [ReadArgs] type for [SharedTuples].
+#[derive(Clone, Copy, Debug)]
+pub struct SharedTuplesArgs {
+    pub shared_tuple_count: u16,
+    pub axis_count: u16,
+}
+
 impl ReadArgs for SharedTuples<'_> {
-    type Args = (u16, u16);
+    type Args = SharedTuplesArgs;
 }
 
 impl<'a> FontReadWithArgs<'a> for SharedTuples<'a> {
-    fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
-        let (shared_tuple_count, axis_count) = *args;
+    fn read_with_args(data: FontData<'a>, args: &SharedTuplesArgs) -> Result<Self, ReadError> {
+        let SharedTuplesArgs {
+            shared_tuple_count,
+            axis_count,
+        } = *args;
         let mut cursor = data.cursor();
-        let tuples_byte_len =
-            shared_tuple_count as usize * <Tuple as ComputeSize>::compute_size(&axis_count);
+        let tuples_byte_len = shared_tuple_count as usize
+            * <Tuple as ComputeSize>::compute_size(&TupleArgs { axis_count });
         cursor.advance_by(tuples_byte_len);
         cursor.finish(SharedTuplesMarker {
             axis_count,
@@ -514,7 +534,14 @@ pub type SharedTuples<'a> = TableRef<'a, SharedTuplesMarker>;
 impl<'a> SharedTuples<'a> {
     pub fn tuples(&self) -> ComputedArray<'a, Tuple<'a>> {
         let range = self.shape.tuples_byte_range();
-        self.data.read_with_args(range, &self.axis_count()).unwrap()
+        self.data
+            .read_with_args(
+                range,
+                &TupleArgs {
+                    axis_count: self.axis_count(),
+                },
+            )
+            .unwrap()
     }
 
     pub(crate) fn axis_count(&self) -> u16 {

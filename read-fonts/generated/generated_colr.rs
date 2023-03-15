@@ -132,7 +132,9 @@ impl<'a> Colr<'a> {
     /// Attempt to resolve [`base_glyph_records_offset`][Self::base_glyph_records_offset].
     pub fn base_glyph_records(&self) -> Option<Result<&'a [BaseGlyph], ReadError>> {
         let data = self.data;
-        let args = self.num_base_glyph_records();
+        let args = ArrayArgs {
+            count: self.num_base_glyph_records(),
+        };
         self.base_glyph_records_offset()
             .resolve_with_args(data, &args)
     }
@@ -146,7 +148,9 @@ impl<'a> Colr<'a> {
     /// Attempt to resolve [`layer_records_offset`][Self::layer_records_offset].
     pub fn layer_records(&self) -> Option<Result<&'a [Layer], ReadError>> {
         let data = self.data;
-        let args = self.num_layer_records();
+        let args = ArrayArgs {
+            count: self.num_layer_records(),
+        };
         self.layer_records_offset().resolve_with_args(data, &args)
     }
 

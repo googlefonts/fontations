@@ -1108,7 +1108,8 @@ impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let value_format: ValueFormat = cursor.read()?;
-        let value_record_byte_len = <ValueRecord as ComputeSize>::compute_size(&value_format);
+        let value_record_byte_len =
+            <ValueRecord as ComputeSize>::compute_size(&ValueRecordArgs { value_format });
         cursor.advance_by(value_record_byte_len);
         cursor.finish(SinglePosFormat1Marker {
             value_record_byte_len,
@@ -1149,7 +1150,12 @@ impl<'a> SinglePosFormat1<'a> {
     pub fn value_record(&self) -> ValueRecord {
         let range = self.shape.value_record_byte_range();
         self.data
-            .read_with_args(range, &self.value_format())
+            .read_with_args(
+                range,
+                &ValueRecordArgs {
+                    value_format: self.value_format(),
+                },
+            )
             .unwrap()
     }
 }
@@ -1224,8 +1230,8 @@ impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
         cursor.advance::<Offset16>();
         let value_format: ValueFormat = cursor.read()?;
         let value_count: u16 = cursor.read()?;
-        let value_records_byte_len =
-            value_count as usize * <ValueRecord as ComputeSize>::compute_size(&value_format);
+        let value_records_byte_len = value_count as usize
+            * <ValueRecord as ComputeSize>::compute_size(&ValueRecordArgs { value_format });
         cursor.advance_by(value_records_byte_len);
         cursor.finish(SinglePosFormat2Marker {
             value_records_byte_len,
@@ -1272,7 +1278,12 @@ impl<'a> SinglePosFormat2<'a> {
     pub fn value_records(&self) -> ComputedArray<'a, ValueRecord> {
         let range = self.shape.value_records_byte_range();
         self.data
-            .read_with_args(range, &self.value_format())
+            .read_with_args(
+                range,
+                &ValueRecordArgs {
+                    value_format: self.value_format(),
+                },
+            )
             .unwrap()
     }
 }
@@ -1461,7 +1472,10 @@ impl<'a> PairPosFormat1<'a> {
     /// Attempt to resolve [`pair_set_offsets`][Self::pair_set_offsets].
     pub fn pair_sets(&self) -> impl Iterator<Item = Result<PairSet<'a>, ReadError>> + 'a {
         let data = self.data;
-        let args = (self.value_format1(), self.value_format2());
+        let args = PairSetArgs {
+            value_format1: self.value_format1(),
+            value_format2: self.value_format2(),
+        };
         self.pair_set_offsets()
             .iter()
             .map(move |off| off.get().resolve_with_args(data, &args))
@@ -1485,7 +1499,10 @@ impl<'a> SomeTable<'a> for PairPosFormat1<'a> {
             4usize => Some(Field::new("pair_set_count", self.pair_set_count())),
             5usize => Some({
                 let data = self.data;
-                let args = (self.value_format1(), self.value_format2());
+                let args = PairSetArgs {
+                    value_format1: self.value_format1(),
+                    value_format2: self.value_format2(),
+                };
                 Field::new(
                     "pair_set_offsets",
                     FieldType::array_of_offsets(
@@ -1530,20 +1547,30 @@ impl PairSetMarker {
     }
 }
 
+///The [ReadArgs] type for [PairSet].
+#[derive(Clone, Copy, Debug)]
+pub struct PairSetArgs {
+    pub value_format1: ValueFormat,
+    pub value_format2: ValueFormat,
+}
+
 impl ReadArgs for PairSet<'_> {
-    type Args = (ValueFormat, ValueFormat);
+    type Args = PairSetArgs;
 }
 
 impl<'a> FontReadWithArgs<'a> for PairSet<'a> {
-    fn read_with_args(
-        data: FontData<'a>,
-        args: &(ValueFormat, ValueFormat),
-    ) -> Result<Self, ReadError> {
-        let (value_format1, value_format2) = *args;
+    fn read_with_args(data: FontData<'a>, args: &PairSetArgs) -> Result<Self, ReadError> {
+        let PairSetArgs {
+            value_format1,
+            value_format2,
+        } = *args;
         let mut cursor = data.cursor();
         let pair_value_count: u16 = cursor.read()?;
         let pair_value_records_byte_len = pair_value_count as usize
-            * <PairValueRecord as ComputeSize>::compute_size(&(value_format1, value_format2));
+            * <PairValueRecord as ComputeSize>::compute_size(&PairValueRecordArgs {
+                value_format1,
+                value_format2,
+            });
         cursor.advance_by(pair_value_records_byte_len);
         cursor.finish(PairSetMarker {
             value_format1,
@@ -1568,7 +1595,13 @@ impl<'a> PairSet<'a> {
     pub fn pair_value_records(&self) -> ComputedArray<'a, PairValueRecord> {
         let range = self.shape.pair_value_records_byte_range();
         self.data
-            .read_with_args(range, &(self.value_format1(), self.value_format2()))
+            .read_with_args(
+                range,
+                &PairValueRecordArgs {
+                    value_format1: self.value_format1(),
+                    value_format2: self.value_format2(),
+                },
+            )
             .unwrap()
     }
 
@@ -1639,30 +1672,48 @@ impl PairValueRecord {
     }
 }
 
+///The [ReadArgs] type for [PairValueRecord].
+#[derive(Clone, Copy, Debug)]
+pub struct PairValueRecordArgs {
+    pub value_format1: ValueFormat,
+    pub value_format2: ValueFormat,
+}
+
 impl ReadArgs for PairValueRecord {
-    type Args = (ValueFormat, ValueFormat);
+    type Args = PairValueRecordArgs;
 }
 
 impl ComputeSize for PairValueRecord {
-    fn compute_size(args: &(ValueFormat, ValueFormat)) -> usize {
-        let (value_format1, value_format2) = *args;
+    fn compute_size(args: &PairValueRecordArgs) -> usize {
+        let PairValueRecordArgs {
+            value_format1,
+            value_format2,
+        } = *args;
         GlyphId::RAW_BYTE_LEN
-            + <ValueRecord as ComputeSize>::compute_size(&value_format1)
-            + <ValueRecord as ComputeSize>::compute_size(&value_format2)
+            + <ValueRecord as ComputeSize>::compute_size(&ValueRecordArgs {
+                value_format: value_format1,
+            })
+            + <ValueRecord as ComputeSize>::compute_size(&ValueRecordArgs {
+                value_format: value_format2,
+            })
     }
 }
 
 impl<'a> FontReadWithArgs<'a> for PairValueRecord {
-    fn read_with_args(
-        data: FontData<'a>,
-        args: &(ValueFormat, ValueFormat),
-    ) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: &PairValueRecordArgs) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let (value_format1, value_format2) = *args;
+        let PairValueRecordArgs {
+            value_format1,
+            value_format2,
+        } = *args;
         Ok(Self {
             second_glyph: cursor.read()?,
-            value_record1: cursor.read_with_args(&value_format1)?,
-            value_record2: cursor.read_with_args(&value_format2)?,
+            value_record1: cursor.read_with_args(&ValueRecordArgs {
+                value_format: value_format1,
+            })?,
+            value_record2: cursor.read_with_args(&ValueRecordArgs {
+                value_format: value_format2,
+            })?,
         })
     }
 }
@@ -1751,11 +1802,11 @@ impl<'a> FontRead<'a> for PairPosFormat2<'a> {
         let class1_count: u16 = cursor.read()?;
         let class2_count: u16 = cursor.read()?;
         let class1_records_byte_len = class1_count as usize
-            * <Class1Record as ComputeSize>::compute_size(&(
+            * <Class1Record as ComputeSize>::compute_size(&Class1RecordArgs {
                 class2_count,
                 value_format1,
                 value_format2,
-            ));
+            });
         cursor.advance_by(class1_records_byte_len);
         cursor.finish(PairPosFormat2Marker {
             class1_records_byte_len,
@@ -1843,11 +1894,11 @@ impl<'a> PairPosFormat2<'a> {
         self.data
             .read_with_args(
                 range,
-                &(
-                    self.class2_count(),
-                    self.value_format1(),
-                    self.value_format2(),
-                ),
+                &Class1RecordArgs {
+                    class2_count: self.class2_count(),
+                    value_format1: self.value_format1(),
+                    value_format2: self.value_format2(),
+                },
             )
             .unwrap()
     }
@@ -1911,28 +1962,49 @@ impl<'a> Class1Record<'a> {
     }
 }
 
+///The [ReadArgs] type for [Class1Record].
+#[derive(Clone, Copy, Debug)]
+pub struct Class1RecordArgs {
+    pub class2_count: u16,
+    pub value_format1: ValueFormat,
+    pub value_format2: ValueFormat,
+}
+
 impl ReadArgs for Class1Record<'_> {
-    type Args = (u16, ValueFormat, ValueFormat);
+    type Args = Class1RecordArgs;
 }
 
 impl ComputeSize for Class1Record<'_> {
-    fn compute_size(args: &(u16, ValueFormat, ValueFormat)) -> usize {
-        let (class2_count, value_format1, value_format2) = *args;
+    fn compute_size(args: &Class1RecordArgs) -> usize {
+        let Class1RecordArgs {
+            class2_count,
+            value_format1,
+            value_format2,
+        } = *args;
         class2_count as usize
-            * <Class2Record as ComputeSize>::compute_size(&(value_format1, value_format2))
+            * <Class2Record as ComputeSize>::compute_size(&Class2RecordArgs {
+                value_format1,
+                value_format2,
+            })
     }
 }
 
 impl<'a> FontReadWithArgs<'a> for Class1Record<'a> {
-    fn read_with_args(
-        data: FontData<'a>,
-        args: &(u16, ValueFormat, ValueFormat),
-    ) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: &Class1RecordArgs) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let (class2_count, value_format1, value_format2) = *args;
+        let Class1RecordArgs {
+            class2_count,
+            value_format1,
+            value_format2,
+        } = *args;
         Ok(Self {
-            class2_records: cursor
-                .read_computed_array(class2_count as usize, &(value_format1, value_format2))?,
+            class2_records: cursor.read_computed_array(
+                class2_count as usize,
+                &Class2RecordArgs {
+                    value_format1,
+                    value_format2,
+                },
+            )?,
         })
     }
 }
@@ -1979,28 +2051,45 @@ impl Class2Record {
     }
 }
 
+///The [ReadArgs] type for [Class2Record].
+#[derive(Clone, Copy, Debug)]
+pub struct Class2RecordArgs {
+    pub value_format1: ValueFormat,
+    pub value_format2: ValueFormat,
+}
+
 impl ReadArgs for Class2Record {
-    type Args = (ValueFormat, ValueFormat);
+    type Args = Class2RecordArgs;
 }
 
 impl ComputeSize for Class2Record {
-    fn compute_size(args: &(ValueFormat, ValueFormat)) -> usize {
-        let (value_format1, value_format2) = *args;
-        <ValueRecord as ComputeSize>::compute_size(&value_format1)
-            + <ValueRecord as ComputeSize>::compute_size(&value_format2)
+    fn compute_size(args: &Class2RecordArgs) -> usize {
+        let Class2RecordArgs {
+            value_format1,
+            value_format2,
+        } = *args;
+        <ValueRecord as ComputeSize>::compute_size(&ValueRecordArgs {
+            value_format: value_format1,
+        }) + <ValueRecord as ComputeSize>::compute_size(&ValueRecordArgs {
+            value_format: value_format2,
+        })
     }
 }
 
 impl<'a> FontReadWithArgs<'a> for Class2Record {
-    fn read_with_args(
-        data: FontData<'a>,
-        args: &(ValueFormat, ValueFormat),
-    ) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: &Class2RecordArgs) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let (value_format1, value_format2) = *args;
+        let Class2RecordArgs {
+            value_format1,
+            value_format2,
+        } = *args;
         Ok(Self {
-            value_record1: cursor.read_with_args(&value_format1)?,
-            value_record2: cursor.read_with_args(&value_format2)?,
+            value_record1: cursor.read_with_args(&ValueRecordArgs {
+                value_format: value_format1,
+            })?,
+            value_record2: cursor.read_with_args(&ValueRecordArgs {
+                value_format: value_format2,
+            })?,
         })
     }
 }
@@ -2320,7 +2409,9 @@ impl<'a> MarkBasePosFormat1<'a> {
     /// Attempt to resolve [`base_array_offset`][Self::base_array_offset].
     pub fn base_array(&self) -> Result<BaseArray<'a>, ReadError> {
         let data = self.data;
-        let args = self.mark_class_count();
+        let args = BaseArrayArgs {
+            mark_class_count: self.mark_class_count(),
+        };
         self.base_array_offset().resolve_with_args(data, &args)
     }
 }
@@ -2381,17 +2472,23 @@ impl BaseArrayMarker {
     }
 }
 
+///The [ReadArgs] type for [BaseArray].
+#[derive(Clone, Copy, Debug)]
+pub struct BaseArrayArgs {
+    pub mark_class_count: u16,
+}
+
 impl ReadArgs for BaseArray<'_> {
-    type Args = u16;
+    type Args = BaseArrayArgs;
 }
 
 impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mark_class_count = *args;
+    fn read_with_args(data: FontData<'a>, args: &BaseArrayArgs) -> Result<Self, ReadError> {
+        let BaseArrayArgs { mark_class_count } = *args;
         let mut cursor = data.cursor();
         let base_count: u16 = cursor.read()?;
-        let base_records_byte_len =
-            base_count as usize * <BaseRecord as ComputeSize>::compute_size(&mark_class_count);
+        let base_records_byte_len = base_count as usize
+            * <BaseRecord as ComputeSize>::compute_size(&BaseRecordArgs { mark_class_count });
         cursor.advance_by(base_records_byte_len);
         cursor.finish(BaseArrayMarker {
             mark_class_count,
@@ -2414,7 +2511,12 @@ impl<'a> BaseArray<'a> {
     pub fn base_records(&self) -> ComputedArray<'a, BaseRecord<'a>> {
         let range = self.shape.base_records_byte_range();
         self.data
-            .read_with_args(range, &self.mark_class_count())
+            .read_with_args(
+                range,
+                &BaseRecordArgs {
+                    mark_class_count: self.mark_class_count(),
+                },
+            )
             .unwrap()
     }
 
@@ -2479,21 +2581,27 @@ impl<'a> BaseRecord<'a> {
     }
 }
 
+///The [ReadArgs] type for [BaseRecord].
+#[derive(Clone, Copy, Debug)]
+pub struct BaseRecordArgs {
+    pub mark_class_count: u16,
+}
+
 impl ReadArgs for BaseRecord<'_> {
-    type Args = u16;
+    type Args = BaseRecordArgs;
 }
 
 impl ComputeSize for BaseRecord<'_> {
-    fn compute_size(args: &u16) -> usize {
-        let mark_class_count = *args;
+    fn compute_size(args: &BaseRecordArgs) -> usize {
+        let BaseRecordArgs { mark_class_count } = *args;
         mark_class_count as usize * Offset16::RAW_BYTE_LEN
     }
 }
 
 impl<'a> FontReadWithArgs<'a> for BaseRecord<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: &BaseRecordArgs) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let mark_class_count = *args;
+        let BaseRecordArgs { mark_class_count } = *args;
         Ok(Self {
             base_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
         })
@@ -2640,7 +2748,9 @@ impl<'a> MarkLigPosFormat1<'a> {
     /// Attempt to resolve [`ligature_array_offset`][Self::ligature_array_offset].
     pub fn ligature_array(&self) -> Result<LigatureArray<'a>, ReadError> {
         let data = self.data;
-        let args = self.mark_class_count();
+        let args = LigatureArrayArgs {
+            mark_class_count: self.mark_class_count(),
+        };
         self.ligature_array_offset().resolve_with_args(data, &args)
     }
 }
@@ -2701,13 +2811,19 @@ impl LigatureArrayMarker {
     }
 }
 
+///The [ReadArgs] type for [LigatureArray].
+#[derive(Clone, Copy, Debug)]
+pub struct LigatureArrayArgs {
+    pub mark_class_count: u16,
+}
+
 impl ReadArgs for LigatureArray<'_> {
-    type Args = u16;
+    type Args = LigatureArrayArgs;
 }
 
 impl<'a> FontReadWithArgs<'a> for LigatureArray<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mark_class_count = *args;
+    fn read_with_args(data: FontData<'a>, args: &LigatureArrayArgs) -> Result<Self, ReadError> {
+        let LigatureArrayArgs { mark_class_count } = *args;
         let mut cursor = data.cursor();
         let ligature_count: u16 = cursor.read()?;
         let ligature_attach_offsets_byte_len = ligature_count as usize * Offset16::RAW_BYTE_LEN;
@@ -2742,7 +2858,9 @@ impl<'a> LigatureArray<'a> {
         &self,
     ) -> impl Iterator<Item = Result<LigatureAttach<'a>, ReadError>> + 'a {
         let data = self.data;
-        let args = self.mark_class_count();
+        let args = LigatureAttachArgs {
+            mark_class_count: self.mark_class_count(),
+        };
         self.ligature_attach_offsets()
             .iter()
             .map(move |off| off.get().resolve_with_args(data, &args))
@@ -2763,7 +2881,9 @@ impl<'a> SomeTable<'a> for LigatureArray<'a> {
             0usize => Some(Field::new("ligature_count", self.ligature_count())),
             1usize => Some({
                 let data = self.data;
-                let args = self.mark_class_count();
+                let args = LigatureAttachArgs {
+                    mark_class_count: self.mark_class_count(),
+                };
                 Field::new(
                     "ligature_attach_offsets",
                     FieldType::array_of_offsets(
@@ -2807,17 +2927,25 @@ impl LigatureAttachMarker {
     }
 }
 
+///The [ReadArgs] type for [LigatureAttach].
+#[derive(Clone, Copy, Debug)]
+pub struct LigatureAttachArgs {
+    pub mark_class_count: u16,
+}
+
 impl ReadArgs for LigatureAttach<'_> {
-    type Args = u16;
+    type Args = LigatureAttachArgs;
 }
 
 impl<'a> FontReadWithArgs<'a> for LigatureAttach<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mark_class_count = *args;
+    fn read_with_args(data: FontData<'a>, args: &LigatureAttachArgs) -> Result<Self, ReadError> {
+        let LigatureAttachArgs { mark_class_count } = *args;
         let mut cursor = data.cursor();
         let component_count: u16 = cursor.read()?;
         let component_records_byte_len = component_count as usize
-            * <ComponentRecord as ComputeSize>::compute_size(&mark_class_count);
+            * <ComponentRecord as ComputeSize>::compute_size(&ComponentRecordArgs {
+                mark_class_count,
+            });
         cursor.advance_by(component_records_byte_len);
         cursor.finish(LigatureAttachMarker {
             mark_class_count,
@@ -2840,7 +2968,12 @@ impl<'a> LigatureAttach<'a> {
     pub fn component_records(&self) -> ComputedArray<'a, ComponentRecord<'a>> {
         let range = self.shape.component_records_byte_range();
         self.data
-            .read_with_args(range, &self.mark_class_count())
+            .read_with_args(
+                range,
+                &ComponentRecordArgs {
+                    mark_class_count: self.mark_class_count(),
+                },
+            )
             .unwrap()
     }
 
@@ -2905,21 +3038,27 @@ impl<'a> ComponentRecord<'a> {
     }
 }
 
+///The [ReadArgs] type for [ComponentRecord].
+#[derive(Clone, Copy, Debug)]
+pub struct ComponentRecordArgs {
+    pub mark_class_count: u16,
+}
+
 impl ReadArgs for ComponentRecord<'_> {
-    type Args = u16;
+    type Args = ComponentRecordArgs;
 }
 
 impl ComputeSize for ComponentRecord<'_> {
-    fn compute_size(args: &u16) -> usize {
-        let mark_class_count = *args;
+    fn compute_size(args: &ComponentRecordArgs) -> usize {
+        let ComponentRecordArgs { mark_class_count } = *args;
         mark_class_count as usize * Offset16::RAW_BYTE_LEN
     }
 }
 
 impl<'a> FontReadWithArgs<'a> for ComponentRecord<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: &ComponentRecordArgs) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let mark_class_count = *args;
+        let ComponentRecordArgs { mark_class_count } = *args;
         Ok(Self {
             ligature_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
         })
@@ -3066,7 +3205,9 @@ impl<'a> MarkMarkPosFormat1<'a> {
     /// Attempt to resolve [`mark2_array_offset`][Self::mark2_array_offset].
     pub fn mark2_array(&self) -> Result<Mark2Array<'a>, ReadError> {
         let data = self.data;
-        let args = self.mark_class_count();
+        let args = Mark2ArrayArgs {
+            mark_class_count: self.mark_class_count(),
+        };
         self.mark2_array_offset().resolve_with_args(data, &args)
     }
 }
@@ -3127,17 +3268,23 @@ impl Mark2ArrayMarker {
     }
 }
 
+///The [ReadArgs] type for [Mark2Array].
+#[derive(Clone, Copy, Debug)]
+pub struct Mark2ArrayArgs {
+    pub mark_class_count: u16,
+}
+
 impl ReadArgs for Mark2Array<'_> {
-    type Args = u16;
+    type Args = Mark2ArrayArgs;
 }
 
 impl<'a> FontReadWithArgs<'a> for Mark2Array<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let mark_class_count = *args;
+    fn read_with_args(data: FontData<'a>, args: &Mark2ArrayArgs) -> Result<Self, ReadError> {
+        let Mark2ArrayArgs { mark_class_count } = *args;
         let mut cursor = data.cursor();
         let mark2_count: u16 = cursor.read()?;
-        let mark2_records_byte_len =
-            mark2_count as usize * <Mark2Record as ComputeSize>::compute_size(&mark_class_count);
+        let mark2_records_byte_len = mark2_count as usize
+            * <Mark2Record as ComputeSize>::compute_size(&Mark2RecordArgs { mark_class_count });
         cursor.advance_by(mark2_records_byte_len);
         cursor.finish(Mark2ArrayMarker {
             mark_class_count,
@@ -3160,7 +3307,12 @@ impl<'a> Mark2Array<'a> {
     pub fn mark2_records(&self) -> ComputedArray<'a, Mark2Record<'a>> {
         let range = self.shape.mark2_records_byte_range();
         self.data
-            .read_with_args(range, &self.mark_class_count())
+            .read_with_args(
+                range,
+                &Mark2RecordArgs {
+                    mark_class_count: self.mark_class_count(),
+                },
+            )
             .unwrap()
     }
 
@@ -3225,21 +3377,27 @@ impl<'a> Mark2Record<'a> {
     }
 }
 
+///The [ReadArgs] type for [Mark2Record].
+#[derive(Clone, Copy, Debug)]
+pub struct Mark2RecordArgs {
+    pub mark_class_count: u16,
+}
+
 impl ReadArgs for Mark2Record<'_> {
-    type Args = u16;
+    type Args = Mark2RecordArgs;
 }
 
 impl ComputeSize for Mark2Record<'_> {
-    fn compute_size(args: &u16) -> usize {
-        let mark_class_count = *args;
+    fn compute_size(args: &Mark2RecordArgs) -> usize {
+        let Mark2RecordArgs { mark_class_count } = *args;
         mark_class_count as usize * Offset16::RAW_BYTE_LEN
     }
 }
 
 impl<'a> FontReadWithArgs<'a> for Mark2Record<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: &Mark2RecordArgs) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let mark_class_count = *args;
+        let Mark2RecordArgs { mark_class_count } = *args;
         Ok(Self {
             mark2_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
         })

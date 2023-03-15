@@ -44,7 +44,9 @@ impl<'a> FontRead<'a> for BasicTable<'a> {
         let arrays_inner_count: u16 = cursor.read()?;
         let array_records_count: u32 = cursor.read()?;
         let array_records_byte_len = array_records_count as usize
-            * <ContainsArrays as ComputeSize>::compute_size(&arrays_inner_count);
+            * <ContainsArrays as ComputeSize>::compute_size(&ContainsArraysArgs {
+                array_len: arrays_inner_count,
+            });
         cursor.advance_by(array_records_byte_len);
         cursor.finish(BasicTableMarker {
             simple_records_byte_len,
@@ -79,7 +81,12 @@ impl<'a> BasicTable<'a> {
     pub fn array_records(&self) -> ComputedArray<'a, ContainsArrays<'a>> {
         let range = self.shape.array_records_byte_range();
         self.data
-            .read_with_args(range, &self.arrays_inner_count())
+            .read_with_args(
+                range,
+                &ContainsArraysArgs {
+                    array_len: self.arrays_inner_count(),
+                },
+            )
             .unwrap()
     }
 }
@@ -178,21 +185,27 @@ impl<'a> ContainsArrays<'a> {
     }
 }
 
+///The [ReadArgs] type for [ContainsArrays].
+#[derive(Clone, Copy, Debug)]
+pub struct ContainsArraysArgs {
+    pub array_len: u16,
+}
+
 impl ReadArgs for ContainsArrays<'_> {
-    type Args = u16;
+    type Args = ContainsArraysArgs;
 }
 
 impl ComputeSize for ContainsArrays<'_> {
-    fn compute_size(args: &u16) -> usize {
-        let array_len = *args;
+    fn compute_size(args: &ContainsArraysArgs) -> usize {
+        let ContainsArraysArgs { array_len } = *args;
         array_len as usize * u16::RAW_BYTE_LEN + array_len as usize * SimpleRecord::RAW_BYTE_LEN
     }
 }
 
 impl<'a> FontReadWithArgs<'a> for ContainsArrays<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: &ContainsArraysArgs) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let array_len = *args;
+        let ContainsArraysArgs { array_len } = *args;
         Ok(Self {
             scalars: cursor.read_array(array_len as usize)?,
             records: cursor.read_array(array_len as usize)?,
@@ -242,7 +255,9 @@ impl ContainsOffests {
 
     /// Attempt to resolve [`array_offset`][Self::array_offset].
     pub fn array<'a>(&self, data: FontData<'a>) -> Result<&'a [SimpleRecord], ReadError> {
-        let args = self.off_array_count();
+        let args = ArrayArgs {
+            count: self.off_array_count(),
+        };
         self.array_offset().resolve_with_args(data, &args)
     }
 

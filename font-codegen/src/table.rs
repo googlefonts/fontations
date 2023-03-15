@@ -137,16 +137,20 @@ fn generate_font_read(item: &Table) -> syn::Result<TokenStream> {
     let maybe_mut_kw = (!item.fields.fields.is_empty()).then(|| quote!(mut));
 
     if let Some(read_args) = &item.attrs.read_args {
-        let args_type = read_args.args_type();
-        let destructure_pattern = read_args.destructure_pattern();
+        let args_type_name = make_args_type_name(name);
+        let args_type_decl = read_args.type_declaration(name);
+        let destructure_pattern = read_args.destructure_pattern(&args_type_name);
         Ok(quote! {
             #error_if_phantom_and_read_args
+
+            #args_type_decl
+
             impl ReadArgs for #name<'_> {
-                type Args = #args_type;
+                type Args = #args_type_name;
             }
 
             impl<'a> FontReadWithArgs<'a> for #name<'a> {
-                fn read_with_args(data: FontData<'a>, args: &#args_type) -> Result<Self, ReadError> {
+                fn read_with_args(data: FontData<'a>, args: &#args_type_name) -> Result<Self, ReadError> {
                     let #destructure_pattern = *args;
                     let #maybe_mut_kw cursor = data.cursor();
                     #( #field_validation_stmts )*
@@ -778,24 +782,25 @@ impl Table {
 }
 
 impl TableReadArgs {
-    pub(crate) fn args_type(&self) -> TokenStream {
-        match self.args.as_slice() {
-            [TableReadArg { typ, .. }] => typ.to_token_stream(),
-            other => {
-                let typs = other.iter().map(|arg| &arg.typ);
-                quote!( ( #(#typs,)* ) )
+    pub(crate) fn type_declaration(&self, name: &syn::Ident) -> TokenStream {
+        let args_type_name = make_args_type_name(name);
+        let args = self.args.as_slice();
+        let doc_string = format!("The [ReadArgs] type for [{name}].");
+        let idents = args.iter().map(|arg| &arg.ident).collect::<Vec<_>>();
+        let types = args.iter().map(|arg| &arg.typ).collect::<Vec<_>>();
+
+        quote! {
+            #[doc = #doc_string]
+            #[derive(Clone, Copy, Debug)]
+            pub struct #args_type_name {
+                #( pub #idents: #types, )*
             }
         }
     }
 
-    pub(crate) fn destructure_pattern(&self) -> TokenStream {
-        match self.args.as_slice() {
-            [TableReadArg { ident, .. }] => ident.to_token_stream(),
-            other => {
-                let idents = other.iter().map(|arg| &arg.ident);
-                quote!( ( #(#idents,)* ) )
-            }
-        }
+    pub(crate) fn destructure_pattern(&self, args_type_name: &syn::Ident) -> TokenStream {
+        let idents = self.args.as_slice().iter().map(|arg| &arg.ident);
+        quote!( #args_type_name { #(#idents,)* } )
     }
 
     fn iter_table_ref_getters<'a>(
@@ -831,4 +836,9 @@ fn make_snake_case_ident(ident: &syn::Ident) -> syn::Ident {
     }
 
     syn::Ident::new(&output, ident.span())
+}
+
+pub(crate) fn make_args_type_name(ident: &syn::Ident) -> syn::Ident {
+    let name = format!("{ident}Args");
+    syn::Ident::new(&name, ident.span())
 }

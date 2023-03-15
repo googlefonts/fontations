@@ -2,7 +2,7 @@
 
 use std::{borrow::Cow, ops::Deref};
 
-use proc_macro2::TokenStream;
+use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
@@ -350,8 +350,9 @@ fn traversal_arm_for_field(
             } => {
                 let maybe_data = pass_data.is_none().then(|| quote!(let data = self.data;));
                 let args_if_needed = fld.attrs.read_offset_args.as_ref().map(|args| {
-                    let args = args.to_tokens_for_table_getter();
-                    quote!(let args = #args;)
+                    let args_type = super::table::make_args_type_name(target);
+                    let args = args.field_init_for_table_reader();
+                    quote!(let args = #args_type { #args };)
                 });
                 let resolve = match fld.attrs.read_offset_args.as_deref() {
                     None => quote!(resolve::<#target>(data)),
@@ -648,6 +649,30 @@ impl Field {
         }
     }
 
+    /// The identifer for the ReadArgs type for this field's target.
+    ///
+    /// This is always $ident + "Args"; if it's an array it's always "ArrayArgs".
+    fn args_type_for_read_args(&self) -> syn::Ident {
+        match &self.typ {
+            FieldType::Struct { typ } => super::table::make_args_type_name(typ),
+            FieldType::Array { .. } => syn::Ident::new("ArrayArgs", Span::call_site()),
+            FieldType::ComputedArray(inner) => {
+                super::table::make_args_type_name(inner.raw_inner_type())
+            }
+            other => panic!("no args type for {other:?}, should be validated before now"),
+        }
+    }
+
+    fn args_type_for_read_offset_args(&self) -> syn::Ident {
+        let thing = self
+            .get_offset_target()
+            .expect("not an offset, should be checked before now");
+        match thing {
+            OffsetTarget::Table(ident) => super::table::make_args_type_name(ident),
+            OffsetTarget::Array(_) => syn::Ident::new("ArrayArgs", Span::call_site()),
+        }
+    }
+
     /// the type as it appears in a `write-fonts` struct.
     pub(crate) fn owned_type(&self) -> TokenStream {
         if let Some(typ) = &self.attrs.compile_type {
@@ -682,8 +707,9 @@ impl Field {
 
         let range_stmt = self.getter_range_stmt();
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
-            let get_args = args.to_tokens_for_table_getter();
-            quote!( self.data.read_with_args(range, &#get_args).unwrap() )
+            let args_type = self.args_type_for_read_args();
+            let get_args = args.field_init_for_table_reader();
+            quote!( self.data.read_with_args(range, & #args_type { #get_args }).unwrap() )
         } else if is_var_array {
             quote!(VarLenArray::read(self.data.split_off(range.start).unwrap()).unwrap())
         } else if is_array {
@@ -759,20 +785,24 @@ impl Field {
         quote!( self.shape.#shape_range_fn_name() #try_op )
     }
 
+    fn get_offset_target(&self) -> Option<&OffsetTarget> {
+        match &self.typ {
+            _ if self.attrs.offset_getter.is_some() => None,
+            FieldType::Offset { target, .. } => Some(target),
+            FieldType::Array { inner_typ, .. } => match inner_typ.as_ref() {
+                FieldType::Offset { target, .. } => Some(target),
+                _ => None,
+            },
+            _ => None,
+        }
+    }
+
     fn typed_offset_field_getter(
         &self,
         generic: Option<&syn::Ident>,
         record: Option<&Record>,
     ) -> Option<TokenStream> {
-        let (_, target) = match &self.typ {
-            _ if self.attrs.offset_getter.is_some() => return None,
-            FieldType::Offset { typ, target } => (typ, target),
-            FieldType::Array { inner_typ, .. } => match inner_typ.as_ref() {
-                FieldType::Offset { typ, target } => (typ, target),
-                _ => return None,
-            },
-            _ => return None,
-        };
+        let target = self.get_offset_target()?;
 
         let raw_name = &self.name;
         let getter_name = self.offset_getter_name().unwrap();
@@ -797,8 +827,9 @@ impl Field {
         };
 
         let args_if_needed = self.attrs.read_offset_args.as_ref().map(|args| {
-            let args = args.to_tokens_for_table_getter();
-            quote!(let args = #args;)
+            let type_name = self.args_type_for_read_offset_args();
+            let constructor = args.field_init_for_table_reader();
+            quote!(let args = #type_name { #constructor };)
         });
 
         // if a record, data is passed in
@@ -955,10 +986,11 @@ impl Field {
             .attrs
             .read_with_args
             .as_deref()
-            .map(FieldReadArgs::to_tokens_for_validation);
+            .map(FieldReadArgs::field_init_for_validation);
 
         if let FieldType::Struct { typ } = &self.typ {
-            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args)));
+            let args_type = super::table::make_args_type_name(typ);
+            return Some(quote!( <#typ as ComputeSize>::compute_size(& #args_type { #read_args })));
         }
         if let FieldType::PendingResolution { .. } = &self.typ {
             panic!("Should have resolved {self:?}")
@@ -974,7 +1006,8 @@ impl Field {
                     }
                     FieldType::ComputedArray(array) => {
                         let inner = array.raw_inner_type();
-                        quote!( <#inner as ComputeSize>::compute_size(&#read_args) )
+                        let args_type = super::table::make_args_type_name(inner);
+                        quote!( <#inner as ComputeSize>::compute_size(&#args_type { #read_args }) )
                     }
                     _ => unreachable!("count not valid here"),
                 };
@@ -999,25 +1032,31 @@ impl Field {
                 let count_expr = self.attrs.count.as_ref().unwrap().count_expr();
                 quote!(cursor.read_array(#count_expr)?)
             }
-            FieldType::ComputedArray(_) => {
+            FieldType::ComputedArray(inner) => {
                 let args = self
                     .attrs
                     .read_with_args
                     .as_ref()
                     .unwrap()
-                    .to_tokens_for_validation();
+                    .field_init_for_validation();
+                let args_type = super::table::make_args_type_name(inner.raw_inner_type());
+
                 let count = self.attrs.count.as_ref().unwrap().count_expr();
-                quote!(cursor.read_computed_array(#count, &#args)?)
+                quote!(cursor.read_computed_array(#count, &#args_type { #args })?)
             }
-            _ => match self
+            FieldType::Struct { typ } => match self
                 .attrs
                 .read_with_args
                 .as_deref()
-                .map(FieldReadArgs::to_tokens_for_validation)
+                .map(FieldReadArgs::field_init_for_validation)
             {
-                Some(args) => quote!(cursor.read_with_args(&#args)?),
+                Some(args) => {
+                    let args_type = super::table::make_args_type_name(typ);
+                    quote!(cursor.read_with_args(&#args_type { #args })?)
+                }
                 None => quote!(cursor.read()?),
             },
+            _ => quote!(cursor.read()?),
         };
         quote!( #name : #rhs )
     }
@@ -1358,27 +1397,30 @@ fn width_for_offset(offset: &syn::Ident) -> Option<syn::Ident> {
 }
 
 impl FieldReadArgs {
-    pub(crate) fn iter_inputs(&self) -> impl Iterator<Item = &syn::Ident> + '_ {
+    fn iter_inputs(&self) -> impl Iterator<Item = &syn::Ident> + '_ {
         self.inputs.iter().map(|input| &input.input)
     }
 
-    fn to_tokens_for_table_getter(&self) -> TokenStream {
-        match self.inputs.as_slice() {
-            [FieldReadArg { input, .. }] => quote!(self.#input()),
-            _args => {
-                let iter = self.iter_inputs();
-                quote!( ( #( self.#iter() ),* ) )
-            }
-        }
+    fn iter_field_names(&self) -> impl Iterator<Item = &syn::Ident> + '_ {
+        self.inputs
+            .iter()
+            .map(|input| input.arg_name.as_ref().unwrap_or(&input.input))
     }
 
-    fn to_tokens_for_validation(&self) -> TokenStream {
-        match self.inputs.as_slice() {
-            [FieldReadArg { input, .. }] => input.to_token_stream(),
-            _ => {
-                let iter = self.iter_inputs();
-                quote!( ( #( #iter ),* ) )
-            }
-        }
+    fn field_init_for_table_reader(&self) -> TokenStream {
+        let fields = self.iter_field_names();
+        let inputs = self.iter_inputs();
+        quote!( #( #fields: self.#inputs(), )* )
+    }
+
+    fn field_init_for_validation(&self) -> TokenStream {
+        let args = self
+            .inputs
+            .iter()
+            .map(|FieldReadArg { arg_name, input }| match arg_name {
+                Some(ident) => quote!(#ident: #input),
+                None => quote!(#input),
+            });
+        quote!( #( #args, )* )
     }
 }

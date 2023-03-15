@@ -159,7 +159,10 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`read_args_offset`][Self::read_args_offset].
     pub fn read_args(&self) -> Result<HasArgsTable<'a>, ReadError> {
         let data = self.data;
-        let args = (self.array_offset_count(), self._brightness());
+        let args = HasArgsTableArgs {
+            count: self.array_offset_count(),
+            _brightness: self._brightness(),
+        };
         self.read_args_offset().resolve_with_args(data, &args)
     }
 
@@ -172,7 +175,10 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`nullable_read_args_offset`][Self::nullable_read_args_offset].
     pub fn nullable_read_args(&self) -> Option<Result<HasArgsTable<'a>, ReadError>> {
         let data = self.data;
-        let args = (self.array_offset_count(), self._brightness());
+        let args = HasArgsTableArgs {
+            count: self.array_offset_count(),
+            _brightness: self._brightness(),
+        };
         self.nullable_read_args_offset()
             .resolve_with_args(data, &args)
     }
@@ -186,7 +192,9 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`array_offset`][Self::array_offset].
     pub fn array(&self) -> Result<&'a [BigEndian<u16>], ReadError> {
         let data = self.data;
-        let args = self.array_offset_count();
+        let args = ArrayArgs {
+            count: self.array_offset_count(),
+        };
         self.array_offset().resolve_with_args(data, &args)
     }
 
@@ -199,7 +207,9 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`record_array_offset`][Self::record_array_offset].
     pub fn record_array(&self) -> Result<&'a [Shmecord], ReadError> {
         let data = self.data;
-        let args = self.array_offset_count();
+        let args = ArrayArgs {
+            count: self.array_offset_count(),
+        };
         self.record_array_offset().resolve_with_args(data, &args)
     }
 
@@ -214,7 +224,9 @@ impl<'a> KindsOfOffsets<'a> {
     /// Attempt to resolve [`versioned_nullable_record_array_offset`][Self::versioned_nullable_record_array_offset].
     pub fn versioned_nullable_record_array(&self) -> Option<Result<&'a [Shmecord], ReadError>> {
         let data = self.data;
-        let args = self.array_offset_count();
+        let args = ArrayArgs {
+            count: self.array_offset_count(),
+        };
         self.versioned_nullable_record_array_offset()
             .map(|x| x.resolve_with_args(data, &args))?
     }
@@ -779,13 +791,20 @@ impl HasArgsTableMarker {
     }
 }
 
+///The [ReadArgs] type for [HasArgsTable].
+#[derive(Clone, Copy, Debug)]
+pub struct HasArgsTableArgs {
+    pub count: u16,
+    pub _brightness: i16,
+}
+
 impl ReadArgs for HasArgsTable<'_> {
-    type Args = (u16, i16);
+    type Args = HasArgsTableArgs;
 }
 
 impl<'a> FontReadWithArgs<'a> for HasArgsTable<'a> {
-    fn read_with_args(data: FontData<'a>, args: &(u16, i16)) -> Result<Self, ReadError> {
-        let (count, _brightness) = *args;
+    fn read_with_args(data: FontData<'a>, args: &HasArgsTableArgs) -> Result<Self, ReadError> {
+        let HasArgsTableArgs { count, _brightness } = *args;
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let things_byte_len = count as usize * u16::RAW_BYTE_LEN;

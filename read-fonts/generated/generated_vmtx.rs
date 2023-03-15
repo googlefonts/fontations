@@ -29,13 +29,23 @@ impl TopLevelTable for Vmtx<'_> {
     const TAG: Tag = Tag::new(b"vmtx");
 }
 
+///The [ReadArgs] type for [Vmtx].
+#[derive(Clone, Copy, Debug)]
+pub struct VmtxArgs {
+    pub number_of_long_ver_metrics: u16,
+    pub num_glyphs: u16,
+}
+
 impl ReadArgs for Vmtx<'_> {
-    type Args = (u16, u16);
+    type Args = VmtxArgs;
 }
 
 impl<'a> FontReadWithArgs<'a> for Vmtx<'a> {
-    fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
-        let (number_of_long_ver_metrics, num_glyphs) = *args;
+    fn read_with_args(data: FontData<'a>, args: &VmtxArgs) -> Result<Self, ReadError> {
+        let VmtxArgs {
+            number_of_long_ver_metrics,
+            num_glyphs,
+        } = *args;
         let mut cursor = data.cursor();
         let v_metrics_byte_len = number_of_long_ver_metrics as usize * LongMetric::RAW_BYTE_LEN;
         cursor.advance_by(v_metrics_byte_len);

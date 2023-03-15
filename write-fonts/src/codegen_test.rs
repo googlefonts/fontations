@@ -50,7 +50,7 @@ mod formats {
     }
 }
 
-mod offsets_arrays {
+pub mod offsets_arrays {
     include!("../generated/generated_test_offsets_arrays.rs");
 }
 

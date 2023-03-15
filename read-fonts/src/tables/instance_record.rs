@@ -19,14 +19,24 @@ pub struct InstanceRecord<'a> {
     pub post_script_name_id: Option<u16>,
 }
 
+/// The [ReadArgs] args for [InstanceRecord].
+#[derive(Clone, Copy, Debug)]
+pub struct InstanceRecordArgs {
+    pub axis_count: u16,
+    pub instance_size: u16,
+}
+
 impl ReadArgs for InstanceRecord<'_> {
-    type Args = (u16, u16);
+    type Args = InstanceRecordArgs;
 }
 
 impl<'a> FontReadWithArgs<'a> for InstanceRecord<'a> {
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
-        let axis_count = args.0 as usize;
-        let instance_size = args.1 as usize;
+        let InstanceRecordArgs {
+            axis_count,
+            instance_size,
+        } = *args;
+        let axis_count = axis_count as usize;
         let mut cursor = data.cursor();
         let subfamily_name_id = cursor.read()?;
         let flags = cursor.read()?;
@@ -35,7 +45,7 @@ impl<'a> FontReadWithArgs<'a> for InstanceRecord<'a> {
         let common_byte_len = u16::RAW_BYTE_LEN * 2 + (axis_count * Fixed::RAW_BYTE_LEN);
         // The instance contains a post_script_name_id field if the instance size is greater than
         // or equal to the common size plus the 2 bytes for the optional field.
-        let has_post_script_name_id = instance_size >= common_byte_len + u16::RAW_BYTE_LEN;
+        let has_post_script_name_id = instance_size as usize >= common_byte_len + u16::RAW_BYTE_LEN;
         let post_script_name_id = if has_post_script_name_id {
             Some(cursor.read()?)
         } else {
@@ -52,8 +62,8 @@ impl<'a> FontReadWithArgs<'a> for InstanceRecord<'a> {
 
 impl ComputeSize for InstanceRecord<'_> {
     #[inline]
-    fn compute_size(args: &(u16, u16)) -> usize {
-        args.1 as usize
+    fn compute_size(args: &InstanceRecordArgs) -> usize {
+        args.instance_size as usize
     }
 }
 

@@ -37,13 +37,22 @@ impl TupleVariationHeaderMarker {
     }
 }
 
+///The [ReadArgs] type for [TupleVariationHeader].
+#[derive(Clone, Copy, Debug)]
+pub struct TupleVariationHeaderArgs {
+    pub axis_count: u16,
+}
+
 impl ReadArgs for TupleVariationHeader<'_> {
-    type Args = u16;
+    type Args = TupleVariationHeaderArgs;
 }
 
 impl<'a> FontReadWithArgs<'a> for TupleVariationHeader<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let axis_count = *args;
+    fn read_with_args(
+        data: FontData<'a>,
+        args: &TupleVariationHeaderArgs,
+    ) -> Result<Self, ReadError> {
+        let TupleVariationHeaderArgs { axis_count } = *args;
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let tuple_index: TupleIndex = cursor.read()?;
@@ -131,21 +140,27 @@ impl<'a> Tuple<'a> {
     }
 }
 
+///The [ReadArgs] type for [Tuple].
+#[derive(Clone, Copy, Debug)]
+pub struct TupleArgs {
+    pub axis_count: u16,
+}
+
 impl ReadArgs for Tuple<'_> {
-    type Args = u16;
+    type Args = TupleArgs;
 }
 
 impl ComputeSize for Tuple<'_> {
-    fn compute_size(args: &u16) -> usize {
-        let axis_count = *args;
+    fn compute_size(args: &TupleArgs) -> usize {
+        let TupleArgs { axis_count } = *args;
         axis_count as usize * F2Dot14::RAW_BYTE_LEN
     }
 }
 
 impl<'a> FontReadWithArgs<'a> for Tuple<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: &TupleArgs) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let axis_count = *args;
+        let TupleArgs { axis_count } = *args;
         Ok(Self {
             values: cursor.read_array(axis_count as usize)?,
         })
@@ -736,8 +751,8 @@ impl<'a> FontRead<'a> for VariationRegionList<'a> {
         let mut cursor = data.cursor();
         let axis_count: u16 = cursor.read()?;
         let region_count: u16 = cursor.read()?;
-        let variation_regions_byte_len =
-            region_count as usize * <VariationRegion as ComputeSize>::compute_size(&axis_count);
+        let variation_regions_byte_len = region_count as usize
+            * <VariationRegion as ComputeSize>::compute_size(&VariationRegionArgs { axis_count });
         cursor.advance_by(variation_regions_byte_len);
         cursor.finish(VariationRegionListMarker {
             variation_regions_byte_len,
@@ -766,7 +781,14 @@ impl<'a> VariationRegionList<'a> {
     /// Array of variation regions.
     pub fn variation_regions(&self) -> ComputedArray<'a, VariationRegion<'a>> {
         let range = self.shape.variation_regions_byte_range();
-        self.data.read_with_args(range, &self.axis_count()).unwrap()
+        self.data
+            .read_with_args(
+                range,
+                &VariationRegionArgs {
+                    axis_count: self.axis_count(),
+                },
+            )
+            .unwrap()
     }
 }
 
@@ -815,21 +837,27 @@ impl<'a> VariationRegion<'a> {
     }
 }
 
+///The [ReadArgs] type for [VariationRegion].
+#[derive(Clone, Copy, Debug)]
+pub struct VariationRegionArgs {
+    pub axis_count: u16,
+}
+
 impl ReadArgs for VariationRegion<'_> {
-    type Args = u16;
+    type Args = VariationRegionArgs;
 }
 
 impl ComputeSize for VariationRegion<'_> {
-    fn compute_size(args: &u16) -> usize {
-        let axis_count = *args;
+    fn compute_size(args: &VariationRegionArgs) -> usize {
+        let VariationRegionArgs { axis_count } = *args;
         axis_count as usize * RegionAxisCoordinates::RAW_BYTE_LEN
     }
 }
 
 impl<'a> FontReadWithArgs<'a> for VariationRegion<'a> {
-    fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: &VariationRegionArgs) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let axis_count = *args;
+        let VariationRegionArgs { axis_count } = *args;
         Ok(Self {
             region_axes: cursor.read_array(axis_count as usize)?,
         })

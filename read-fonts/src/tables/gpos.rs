@@ -11,7 +11,7 @@ use crate::array::ComputedArray;
 pub use super::layout::{
     ClassDef, CoverageTable, Device, FeatureList, FeatureVariations, Lookup, ScriptList,
 };
-pub use value_record::ValueRecord;
+pub use value_record::{ValueRecord, ValueRecordArgs};
 
 #[cfg(test)]
 #[path = "../tests/gpos.rs"]

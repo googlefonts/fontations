@@ -70,12 +70,15 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
     let anon_lifetime = lifetime.is_some().then(|| quote!(<'_>));
 
     let args = item.attrs.read_args.as_ref().unwrap();
-    let args_type = args.args_type();
-    let destructure_pattern = args.destructure_pattern();
+    let args_type = super::table::make_args_type_name(name);
+    let args_type_decl = args.type_declaration(name);
+    let destructure_pattern = args.destructure_pattern(&args_type);
     let field_size_expr = item.fields.iter().map(Field::record_len_expr);
     let field_inits = item.fields.iter().map(Field::record_init_stmt);
 
     quote! {
+        #args_type_decl
+
         impl ReadArgs for #name #anon_lifetime {
             type Args = #args_type;
         }
