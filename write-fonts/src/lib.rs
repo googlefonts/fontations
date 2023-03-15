@@ -6,6 +6,7 @@ pub mod from_obj;
 mod graph;
 mod offsets;
 pub mod pens;
+mod round;
 pub mod tables;
 pub mod validate;
 mod write;
@@ -17,6 +18,7 @@ mod hex_diff;
 
 pub use font_builder::FontBuilder;
 pub use offsets::{NullableOffsetMarker, OffsetMarker};
+pub use round::OtRound;
 pub use write::{dump_table, FontWrite, TableWriter};
 
 /// Rexport of the common font types
