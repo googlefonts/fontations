@@ -1,5 +1,6 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
+use crate::OtRound;
 use kurbo::{BezPath, Rect, Shape};
 
 use read_fonts::{
@@ -94,7 +95,7 @@ pub trait OtPoint {
 
 impl OtPoint for kurbo::Point {
     fn get(self) -> (i16, i16) {
-        (ot_round(self.x as f32), ot_round(self.y as f32))
+        (self.x.ot_round(), self.y.ot_round())
     }
 }
 
@@ -102,12 +103,6 @@ impl OtPoint for (i16, i16) {
     fn get(self) -> (i16, i16) {
         self
     }
-}
-
-// adapted from simon:
-// https://github.com/simoncozens/rust-font-tools/blob/105436d3a617ddbebd25f790b041ff506bd90d44/otmath/src/lib.rs#L17
-fn ot_round(val: f32) -> i16 {
-    (val + 0.5).floor() as i16
 }
 
 impl Contour {
@@ -638,10 +633,10 @@ impl Bbox {
 impl From<Rect> for Bbox {
     fn from(value: Rect) -> Self {
         Bbox {
-            x_min: ot_round(value.min_x() as f32),
-            y_min: ot_round(value.min_y() as f32),
-            x_max: ot_round(value.max_x() as f32),
-            y_max: ot_round(value.max_y() as f32),
+            x_min: value.min_x().ot_round(),
+            y_min: value.min_y().ot_round(),
+            x_max: value.max_x().ot_round(),
+            y_max: value.max_y().ot_round(),
         }
     }
 }
