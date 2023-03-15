@@ -64,6 +64,17 @@ impl<'a> FontReadWithArgs<'a> for TupleVariationHeader<'a> {
     }
 }
 
+impl<'a> TupleVariationHeader<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, axis_count: u16) -> Result<Self, ReadError> {
+        let args = axis_count;
+        Self::read_with_args(data, &args)
+    }
+}
+
 /// [TupleVariationHeader](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuplevariationheader)
 pub type TupleVariationHeader<'a> = TableRef<'a, TupleVariationHeaderMarker>;
 
@@ -149,6 +160,17 @@ impl<'a> FontReadWithArgs<'a> for Tuple<'a> {
         Ok(Self {
             values: cursor.read_array(axis_count as usize)?,
         })
+    }
+}
+
+impl<'a> Tuple<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, axis_count: u16) -> Result<Self, ReadError> {
+        let args = axis_count;
+        Self::read_with_args(data, &args)
     }
 }
 
@@ -833,6 +855,17 @@ impl<'a> FontReadWithArgs<'a> for VariationRegion<'a> {
         Ok(Self {
             region_axes: cursor.read_array(axis_count as usize)?,
         })
+    }
+}
+
+impl<'a> VariationRegion<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, axis_count: u16) -> Result<Self, ReadError> {
+        let args = axis_count;
+        Self::read_with_args(data, &args)
     }
 }
 

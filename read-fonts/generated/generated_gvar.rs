@@ -508,6 +508,21 @@ impl<'a> FontReadWithArgs<'a> for SharedTuples<'a> {
     }
 }
 
+impl<'a> SharedTuples<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(
+        data: FontData<'a>,
+        shared_tuple_count: u16,
+        axis_count: u16,
+    ) -> Result<Self, ReadError> {
+        let args = (shared_tuple_count, axis_count);
+        Self::read_with_args(data, &args)
+    }
+}
+
 /// Array of tuple records shared across all glyph variation data tables.
 pub type SharedTuples<'a> = TableRef<'a, SharedTuplesMarker>;
 

@@ -31,6 +31,10 @@ pub trait ReadArgs {
 }
 
 /// A trait for types that require external data in order to be constructed.
+///
+/// You should not need to use this directly; it is intended to be used from
+/// generated code. Any type that requires external arguments also has a custom
+/// `read` constructor where you can pass those arguments like normal.
 pub trait FontReadWithArgs<'a>: Sized + ReadArgs {
     /// read an item, using the provided args.
     ///
@@ -38,8 +42,6 @@ pub trait FontReadWithArgs<'a>: Sized + ReadArgs {
     /// used to construct it.
     ///
     /// If a type requires multiple arguments, they will be passed as a tuple.
-    //TODO: split up the 'takes args' and 'reports size' parts of this into
-    // separate traits
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError>;
 }
 

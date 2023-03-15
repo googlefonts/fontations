@@ -271,6 +271,17 @@ impl<'a> FontReadWithArgs<'a> for AxisValueArray<'a> {
     }
 }
 
+impl<'a> AxisValueArray<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, axis_value_count: u16) -> Result<Self, ReadError> {
+        let args = axis_value_count;
+        Self::read_with_args(data, &args)
+    }
+}
+
 /// An array of [AxisValue] tables.
 pub type AxisValueArray<'a> = TableRef<'a, AxisValueArrayMarker>;
 

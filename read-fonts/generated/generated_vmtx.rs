@@ -49,6 +49,21 @@ impl<'a> FontReadWithArgs<'a> for Vmtx<'a> {
     }
 }
 
+impl<'a> Vmtx<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(
+        data: FontData<'a>,
+        number_of_long_ver_metrics: u16,
+        num_glyphs: u16,
+    ) -> Result<Self, ReadError> {
+        let args = (number_of_long_ver_metrics, num_glyphs);
+        Self::read_with_args(data, &args)
+    }
+}
+
 /// The [vmtx (Vertical Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/vmtx) table
 pub type Vmtx<'a> = TableRef<'a, VmtxMarker>;
 
