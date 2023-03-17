@@ -13,6 +13,7 @@ extern crate std;
 #[macro_use]
 extern crate core as std;
 
+mod bbox;
 mod fixed;
 mod fword;
 mod glyph_id;
@@ -25,6 +26,7 @@ mod tag;
 mod uint24;
 mod version;
 
+pub use bbox::BoundingBox;
 pub use fixed::{F26Dot6, F2Dot14, Fixed};
 pub use fword::{FWord, UfWord};
 pub use glyph_id::GlyphId;

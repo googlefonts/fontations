@@ -1,4 +1,5 @@
 use super::{glyf, Context, Error, NormalizedCoord, Pen, Result, Variation};
+use crate::Size;
 
 #[cfg(feature = "hinting")]
 use super::Hinting;
@@ -13,7 +14,7 @@ use read_fonts::{
 pub struct ScalerBuilder<'a> {
     context: &'a mut Context,
     font_id: Option<u64>,
-    size: f32,
+    size: Size,
     #[cfg(feature = "hinting")]
     hint: Option<Hinting>,
 }
@@ -26,7 +27,7 @@ impl<'a> ScalerBuilder<'a> {
         Self {
             context,
             font_id: None,
-            size: 0.0,
+            size: Size::unscaled(),
             #[cfg(feature = "hinting")]
             hint: None,
         }
@@ -39,11 +40,12 @@ impl<'a> ScalerBuilder<'a> {
         self
     }
 
-    /// Sets the font size in pixels per em units.
+    /// Sets the requested font size.
     ///
-    /// A size of 0.0 will disable scaling and result in glyphs defined in font units.
-    pub fn size(mut self, size: f32) -> Self {
-        self.size = size.abs();
+    /// The default value is `Size::unscaled()` and outlines will be generated
+    /// in font units.
+    pub fn size(mut self, size: Size) -> Self {
+        self.size = size;
         self
     }
 
@@ -95,7 +97,7 @@ impl<'a> ScalerBuilder<'a> {
             &mut self.context.glyf,
             font,
             self.font_id,
-            self.size,
+            self.size.ppem().unwrap_or_default(),
             #[cfg(feature = "hinting")]
             self.hint,
             coords,
