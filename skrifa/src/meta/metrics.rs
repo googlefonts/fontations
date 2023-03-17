@@ -1,4 +1,26 @@
 //! Global font and glyph specific metrics.
+//!
+//! Metrics are various measurements that define positioning and layout
+//! characteristics for a font. They come in two flavors:
+//!
+//! * Global metrics: these are applicable to all glyphs in a font and generally
+//! define values that are used for the layout of a collection of glyphs. For example,
+//! the ascent, descent and leading values determine the position of the baseline where
+//! a glyph should be rendered as well as the suggested spacing above and below it.
+//!
+//! * Glyph metrics: these apply to single glyphs. For example, the advance
+//! width value describes the distance between two consecutive glyphs on a line.
+//!
+//! ### Selecting an "instance"
+//! Both global and glyph specific metrics accept two additional pieces of information
+//! to select the desired instance of a font:
+//! * Size: represented by the [Size] type, this determines the scaling factor that is
+//! applied to all metrics.
+//! * Normalized variation coordinates: respresented by the [NormalizedCoords] type,
+//! these define the position in design space for a variable font. For a non-variable
+//! font, these coordinates are ignored and you can pass [NormalizedCoords::default()]
+//! as an argument for this parameter.
+//!
 
 use read_fonts::{
     tables::{glyf::Glyf, hmtx::LongMetric, hvar::Hvar, loca::Loca},
@@ -6,9 +28,14 @@ use read_fonts::{
     TableProvider,
 };
 
-use crate::NormalizedCoord;
+use crate::{NormalizedCoord, NormalizedCoords, Size};
+
+pub type BoundingBox = read_fonts::types::BoundingBox<f32>;
 
 /// Metrics for a text decoration.
+///
+/// This represents the suggested offset and thickness of an underline
+/// or strikeout text decoration.
 #[derive(Copy, Clone, PartialEq, Default, Debug)]
 pub struct Decoration {
     /// Offset to the top of the decoration from the baseline.
@@ -17,20 +44,22 @@ pub struct Decoration {
     pub thickness: f32,
 }
 
-/// Extents of a rectangular region.
-#[derive(Copy, Clone, PartialEq, Default, Debug)]
-pub struct BoundingBox {
-    /// Minimum x-coordinate.
-    pub x_min: f32,
-    /// Minimum y-coordinate.
-    pub y_min: f32,
-    /// Maximum x-coordinate.
-    pub x_max: f32,
-    /// Maximum y-coordinate.
-    pub y_max: f32,
-}
-
 /// Metrics that apply to all glyphs in a font.
+///
+/// These are retrieved for a specific position in the design space.
+///
+/// This metrics here are derived from the following tables:
+/// * [head](https://learn.microsoft.com/en-us/typography/opentype/spec/head): `units_per_em`, `bounds`
+/// * [maxp](https://learn.microsoft.com/en-us/typography/opentype/spec/maxp): `glyph_count`
+/// * [post](https://learn.microsoft.com/en-us/typography/opentype/spec/post): `is_monospace`, `italic_angle`, `underline`
+/// * [OS/2](https://learn.microsoft.com/en-us/typography/opentype/spec/os2): `average_width`, `cap_height`,
+/// `x_height`, `strikeout`, as well as the line metrics: `ascent`, `descent`, `leading` if the `USE_TYPOGRAPHIC_METRICS`
+/// flag is set or the `hhea` line metrics are zero (the Windows metrics are used as a last resort).
+/// * [hhea](https://learn.microsoft.com/en-us/typography/opentype/spec/hhea): `max_width`, as well as the line metrics:
+/// `ascent`, `descent`, `leading` if they are non-zero and the `USE_TYPOGRAHIC_METRICS` flag is not set in the OS/2 table
+///
+/// For variable fonts, deltas are computed using the  [MVAR](https://learn.microsoft.com/en-us/typography/opentype/spec/MVAR)
+/// table.
 #[derive(Copy, Clone, PartialEq, Default, Debug)]
 pub struct Metrics {
     /// Number of font design units per em unit.
@@ -66,21 +95,22 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    /// Creates new metrics for the given font, size in pixels per em, and
+    /// Creates new metrics for the given font, size, and
     /// normalized variation coordinates.
     ///
-    /// If `size` is `None` or `Some(0.0)`, resulting metric values will be in font units.
-    pub fn from_font<'a>(
+    /// For details on these parameters, see [selecting an instance](crate::meta::metrics#selecting-an-instance).
+    pub fn new<'a>(
         font: &impl TableProvider<'a>,
-        size: Option<f32>,
-        coords: &'a [NormalizedCoord],
+        size: Size,
+        coords: NormalizedCoords<'a>,
     ) -> Self {
         let head = font.head();
         let mut metrics = Metrics {
             units_per_em: head.map(|head| head.units_per_em()).unwrap_or_default(),
             ..Default::default()
         };
-        let scale = compute_scale(size, metrics.units_per_em as f32);
+        let coords = coords.inner();
+        let scale = size.linear_scale(metrics.units_per_em);
         if let Ok(head) = font.head() {
             metrics.bounds = Some(BoundingBox {
                 x_min: head.x_min() as f32 * scale,
@@ -114,6 +144,8 @@ impl Metrics {
         // 3. If hhea metrics are zero and the OS/2 table exists:
         //    3a. Use the typo metrics if they are non-zero
         //    3b. Otherwise, use the win metrics
+        //
+        // See: https://github.com/freetype/freetype/blob/5c37b6406258ec0d7ab64b8619c5ea2c19e3c69a/src/sfnt/sfobjs.c#L1311
         let os2 = font.os2().ok();
         let mut used_typo_metrics = false;
         if let Some(os2) = &os2 {
@@ -155,27 +187,24 @@ impl Metrics {
         }
         if let (Ok(mvar), true) = (font.mvar(), !coords.is_empty()) {
             use read_fonts::tables::mvar::tags::*;
-            macro_rules! metric_delta {
-                ($tag: ident) => {
-                    mvar.metric_delta($tag, coords).unwrap_or_default().to_f64() as f32 * scale
-                };
-            }
-            metrics.ascent += metric_delta!(HASC);
-            metrics.descent += metric_delta!(HDSC);
-            metrics.leading += metric_delta!(HLGP);
+            let metric_delta =
+                |tag| mvar.metric_delta(tag, coords).unwrap_or_default().to_f64() as f32 * scale;
+            metrics.ascent += metric_delta(HASC);
+            metrics.descent += metric_delta(HDSC);
+            metrics.leading += metric_delta(HLGP);
             if let Some(cap_height) = &mut metrics.cap_height {
-                *cap_height += metric_delta!(CPHT);
+                *cap_height += metric_delta(CPHT);
             }
             if let Some(x_height) = &mut metrics.x_height {
-                *x_height += metric_delta!(XHGT);
+                *x_height += metric_delta(XHGT);
             }
             if let Some(underline) = &mut metrics.underline {
-                underline.offset += metric_delta!(UNDO);
-                underline.thickness += metric_delta!(UNDS);
+                underline.offset += metric_delta(UNDO);
+                underline.thickness += metric_delta(UNDS);
             }
             if let Some(strikeout) = &mut metrics.strikeout {
-                strikeout.offset += metric_delta!(STRO);
-                strikeout.thickness += metric_delta!(STRS);
+                strikeout.offset += metric_delta(STRO);
+                strikeout.thickness += metric_delta(STRS);
             }
         }
         metrics
@@ -196,15 +225,11 @@ pub struct GlyphMetrics<'a> {
 }
 
 impl<'a> GlyphMetrics<'a> {
-    /// Creates new glyph metrics from the given font, size in pixels per em units, and normalized
+    /// Creates new glyph metrics from the given font, size, and normalized
     /// variation coordinates.
     ///
-    /// If `size` is `None` or `Some(0.0)`, resulting metric values will be in font units.
-    pub fn from_font(
-        font: &impl TableProvider<'a>,
-        size: Option<f32>,
-        coords: &'a [NormalizedCoord],
-    ) -> Self {
+    /// For details on these parameters, see [selecting an instance](crate::meta::metrics#selecting-an-instance).
+    pub fn new(font: &impl TableProvider<'a>, size: Size, coords: NormalizedCoords<'a>) -> Self {
         let glyph_count = font
             .maxp()
             .map(|maxp| maxp.num_glyphs())
@@ -212,8 +237,9 @@ impl<'a> GlyphMetrics<'a> {
         let upem = font
             .head()
             .map(|head| head.units_per_em())
-            .unwrap_or_default() as f32;
-        let scale = compute_scale(size, upem);
+            .unwrap_or_default();
+        let scale = size.linear_scale(upem);
+        let coords = coords.inner();
         let (h_metrics, default_advance_width, lsbs) = font
             .hmtx()
             .map(|hmtx| {
@@ -241,6 +267,11 @@ impl<'a> GlyphMetrics<'a> {
         }
     }
 
+    /// Returns the number of available glyphs in the font.
+    pub fn glyph_count(&self) -> u16 {
+        self.glyph_count
+    }
+
     /// Returns the advance width for the specified glyph.
     ///
     /// If normalized coordinates were providing when constructing glyph metrics and
@@ -258,6 +289,7 @@ impl<'a> GlyphMetrics<'a> {
             advance += hvar
                 .advance_width_delta(glyph_id, self.coords)
                 // FreeType truncates metric deltas...
+                // https://github.com/freetype/freetype/blob/7838c78f53f206ac5b8e9cefde548aa81cb00cf4/src/truetype/ttgxvar.c#L1027
                 .map(|delta| delta.to_f64() as i32)
                 .unwrap_or(0);
         }
@@ -287,6 +319,7 @@ impl<'a> GlyphMetrics<'a> {
             lsb += hvar
                 .lsb_delta(glyph_id, self.coords)
                 // FreeType truncates metric deltas...
+                // https://github.com/freetype/freetype/blob/7838c78f53f206ac5b8e9cefde548aa81cb00cf4/src/truetype/ttgxvar.c#L1027
                 .map(|delta| delta.to_f64() as i32)
                 .unwrap_or(0);
         }
@@ -312,15 +345,6 @@ impl<'a> GlyphMetrics<'a> {
     }
 }
 
-fn compute_scale(size: Option<f32>, upem: f32) -> f32 {
-    let size = size.unwrap_or(0.0).abs();
-    if size == 0.0 || upem == 0.0 {
-        1.0
-    } else {
-        size / upem
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -331,7 +355,7 @@ mod tests {
     #[test]
     fn metrics() {
         let font = FontRef::new(SIMPLE_GLYF).unwrap();
-        let metrics = font.metrics(None, &[]);
+        let metrics = font.metrics(Size::unscaled(), NormalizedCoords::default());
         let expected = Metrics {
             units_per_em: 1024,
             glyph_count: 3,
@@ -362,7 +386,7 @@ mod tests {
     #[test]
     fn metrics_missing_os2() {
         let font = FontRef::new(VAZIRMATN_VAR).unwrap();
-        let metrics = font.metrics(None, &[]);
+        let metrics = font.metrics(Size::unscaled(), NormalizedCoords::default());
         let expected = Metrics {
             units_per_em: 2048,
             glyph_count: 4,
@@ -390,7 +414,7 @@ mod tests {
     #[test]
     fn glyph_metrics() {
         let font = FontRef::new(VAZIRMATN_VAR).unwrap();
-        let glyph_metrics = font.glyph_metrics(None, &[]);
+        let glyph_metrics = font.glyph_metrics(Size::unscaled(), NormalizedCoords::default());
         // (advance_width, lsb) in glyph order
         let expected = &[
             (908.0, 100.0),
@@ -413,7 +437,7 @@ mod tests {
     fn glyph_metrics_var() {
         let font = FontRef::new(VAZIRMATN_VAR).unwrap();
         let coords = &[NormalizedCoord::from_f32(-0.8)];
-        let glyph_metrics = font.glyph_metrics(None, coords);
+        let glyph_metrics = font.glyph_metrics(Size::unscaled(), NormalizedCoords::new(coords));
         // (advance_width, lsb) in glyph order
         let expected = &[
             (908.0, 100.0),

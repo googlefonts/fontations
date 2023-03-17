@@ -106,6 +106,7 @@ impl Context {
 #[cfg(test)]
 mod tests {
     use super::{test, Context, GlyphId, Pen, Scaler};
+    use crate::Size;
     use read_fonts::{test_data::test_fonts, FontRef};
 
     #[test]
@@ -118,7 +119,7 @@ mod tests {
             path.0.clear();
             let mut scaler = cx
                 .new_scaler()
-                .size(expected_outline.size)
+                .size(Size::new(expected_outline.size))
                 .coords(&expected_outline.coords)
                 .build(&font);
             scaler
