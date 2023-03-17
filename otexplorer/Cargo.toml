@@ -1,14 +1,18 @@
 [package]
 name = "otexplorer"
-version.workspace = true
+version = "0.1.0"
 edition = "2021"
 license = "MIT/Apache-2.0"
+publish = false
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 xflags = "0.2.4"
-read-fonts = { path = "../read-fonts",version = "0.1.0"}
-font-types = { path = "../font-types",version = "0.1.0"}
+read-fonts = { path = "../read-fonts",version = "0.1.2" }
+font-types = { path = "../font-types",version = "0.1.1" }
 ansi_term = "0.12.1"
 atty = "0.2"
+
+# cargo-release settings
+[package.metadata.release]
+release = false

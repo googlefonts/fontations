@@ -37,6 +37,7 @@ table Gdef {
 
 /// Used in the [Glyph Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#glyph-class-definition-table)
 enum u16 GlyphClassDef {
+    #[default]
     Base = 1,
     Ligature = 2,
     Mark = 3,

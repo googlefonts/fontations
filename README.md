@@ -6,6 +6,7 @@ robust and performant open tools for a variety of font engineering and
 production tasks. For an overview of the motivations, see
 [googlefonts/oxidize][oxidize].
 
+
 ## structure
 
 Currently, this repo contains three main library crates: [`font-types`][], [`read-fonts`][],
@@ -48,10 +49,37 @@ git config core.hooksPath "./git_hooks"
 
 ## releasing
 
-1. Set the version, typically akin to `python3 resources/scripts/version.py --ver 0.0.6`
-1. Release as normal
-   * See https://doc.rust-lang.org/cargo/reference/publishing.html
+We use [`cargo-release`] to help guide the release process. It can be installed
+with `cargo install cargo-release`. You may need to install `pkg-config` via your
+package manager for this to work.
 
+Releasing involves the following steps:
+
+1. Determine which crates may need to be published: run `cargo release changes`
+   to see which crates have been modified since their last release.
+1. Determine the new versions for the crates.
+   * Before 1.0, breaking changes bump the *minor* version number, and non-breaking changes modify the *patch* number.
+1. Update manifest versions and release. `./resources/scripts/bump-version.sh` orchestrates this process.
+   * `cargo release` does all the heavy lifting
+
+   ```shell
+   # To see usage
+   ./resources/scripts/bump-version.sh
+   # To do the thing
+   ./resources/scripts/bump-version.sh read-fonts write-fonts patch
+   ```
+
+1. Commit these changes to a new branch, get it approved and merged, and switch
+   to the up-to-date `main`.
+1. Publish the crates. `./resources/scripts/release.sh` orchestrates the process.
+   * You will be prompted to review changes along the way
+
+   ```shell
+   # To see usage
+   ./resources/scripts/release.sh
+   # To do the thing
+   ./resources/scripts/release.sh read-fonts write-fonts
+   ```
 
 [codegen-readme]: ./font-codegen/README.md
 [`read-fonts`]: ./read-fonts
@@ -60,3 +88,4 @@ git config core.hooksPath "./git_hooks"
 [`otexplorer`]: ./otexplorer
 [oxidize]: https://github.com/googlefonts/oxidize
 [codegen-tour]: ./docs/codegen-tour.md
+[`cargo-release`]: https://github.com/crate-ci/cargo-release

@@ -74,6 +74,8 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
     let destructure_pattern = args.destructure_pattern();
     let field_size_expr = item.fields.iter().map(Field::record_len_expr);
     let field_inits = item.fields.iter().map(Field::record_init_stmt);
+    let constructor_args = args.constructor_args();
+    let args_from_constructor_args = args.read_args_from_constructor_args();
 
     quote! {
         impl ReadArgs for #name #anon_lifetime {
@@ -95,6 +97,17 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
                     #( #field_inits, )*
                 })
 
+            }
+        }
+
+        impl<'a> #name #lifetime {
+            /// A constructor that requires additional arguments.
+            ///
+            /// This type requires some external state in order to be
+            /// parsed.
+            pub fn read(data: FontData<'a>, #( #constructor_args, )* ) -> Result<Self, ReadError> {
+                let args = #args_from_constructor_args;
+                Self::read_with_args(data, &args)
             }
         }
     }

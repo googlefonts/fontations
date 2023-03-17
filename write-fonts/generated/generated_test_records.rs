@@ -90,7 +90,7 @@ impl SimpleRecord {
 impl FontWrite for SimpleRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.val1.write_into(writer);
-        self.va2.write_into(writer);
+        (self.compile_va2()).write_into(writer);
     }
 }
 

@@ -101,12 +101,6 @@ impl RangeRecord {
     }
 }
 
-impl Default for DeltaFormat {
-    fn default() -> Self {
-        DeltaFormat::Local2BitDeltas
-    }
-}
-
 impl Ord for DeltaFormat {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
         (*self as u16).cmp(&(*other as u16))

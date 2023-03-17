@@ -1,12 +1,13 @@
 [package]
 name = "skrifa"
-version.workspace = true
+version = "0.1.0"
 edition = "2021"
 license = "MIT/Apache-2.0"
 description = "Metadata and glyph loading for OpenType fonts."
 repository = "https://github.com/googlefonts/fontations"
 readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
+publish = false
 
 [features]
 default = ["scale"]
@@ -14,7 +15,11 @@ scale = []
 hinting = []
 
 [dependencies]
-read-fonts = { version = "0.1.0", path = "../read-fonts" }
+read-fonts = { version = "0.1.2", path = "../read-fonts" }
 
 [dev-dependencies]
-read-fonts = { version = "0.1.0", path = "../read-fonts", features = ["test_data"] }
+read-fonts = { version = "0.1.2", path = "../read-fonts", features = ["test_data"] }
+
+# cargo-release settings
+[package.metadata.release]
+release = false

@@ -13,7 +13,7 @@ VENV_DIR=$SCRIPT_DIR/../../.venv
 REQUIREMENTS=$SCRIPT_DIR/requirements.txt
 PIP=$VENV_DIR/bin/pip
 TTX=$VENV_DIR/bin/ttx
-EXTRACT_GLYPHS = $SCRIPT_DIR/extract_glyphs.py
+EXTRACT_GLYPHS=$SCRIPT_DIR/extract_glyphs.py
 
 # check that we have python3 + virtualenv installed:
 if ! python3 -m venv -h  >/dev/null 2>&1; then
@@ -32,5 +32,5 @@ $PIP install -r $REQUIREMENTS
 
 for f in $(ls $SRC_DIR/*.ttx); do
     $TTX -o $OUT_DIR/$(basename "$f" .ttx).ttf --no-recalc-timestamp -b $f
-    python3 $EXTRACT_GLYPHS $OUT_DIR/$(basename "$f" .ttx).ttf
+    $VENV_DIR/bin/python $EXTRACT_GLYPHS $OUT_DIR/$(basename "$f" .ttx).ttf
 done

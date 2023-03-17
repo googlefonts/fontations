@@ -423,7 +423,7 @@ struct FieldLengths {
 }
 
 /// Transform for a composite component.
-#[derive(Clone, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Transform {
     /// X scale factor.
     pub xx: F2Dot14,
@@ -447,6 +447,7 @@ impl Default for Transform {
 }
 
 /// A reference to another glyph. Part of [CompositeGlyph].
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Component {
     /// Component flags.
     pub flags: CompositeGlyphFlags,
@@ -459,7 +460,7 @@ pub struct Component {
 }
 
 /// Anchor position for a composite component.
-#[derive(Debug, Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Anchor {
     Offset { x: i16, y: i16 },
     Point { base: u16, component: u16 },
@@ -752,6 +753,45 @@ pub fn to_path(
     Ok(())
 }
 
+impl Anchor {
+    /// Compute the flags that describe this anchor
+    pub fn compute_flags(&self) -> CompositeGlyphFlags {
+        const I8_RANGE: Range<i16> = i8::MIN as i16..i8::MAX as i16 + 1;
+        const U8_MAX: u16 = u8::MAX as u16;
+
+        let mut flags = CompositeGlyphFlags::empty();
+        match self {
+            Anchor::Offset { x, y } => {
+                flags |= CompositeGlyphFlags::ARGS_ARE_XY_VALUES;
+                if !I8_RANGE.contains(x) || !I8_RANGE.contains(y) {
+                    flags |= CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS;
+                }
+            }
+            Anchor::Point { base, component } => {
+                if base > &U8_MAX || component > &U8_MAX {
+                    flags |= CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS;
+                }
+            }
+        }
+        flags
+    }
+}
+
+impl Transform {
+    /// Compute the flags that describe this transform
+    pub fn compute_flags(&self) -> CompositeGlyphFlags {
+        if self.yx != F2Dot14::ZERO || self.xy != F2Dot14::ZERO {
+            CompositeGlyphFlags::WE_HAVE_A_TWO_BY_TWO
+        } else if (self.xx - self.yy) != F2Dot14::ZERO {
+            CompositeGlyphFlags::WE_HAVE_AN_X_AND_Y_SCALE
+        } else if self.xx != F2Dot14::ONE {
+            CompositeGlyphFlags::WE_HAVE_A_SCALE
+        } else {
+            CompositeGlyphFlags::empty()
+        }
+    }
+}
+
 //NOTE: we want generated_glyf traversal to include this:
 //7usize => {
 //let this = self.sneaky_copy();
@@ -768,7 +808,7 @@ pub fn to_path(
 
 #[cfg(test)]
 mod tests {
-    use super::Glyph;
+    use super::*;
     use crate::test_data;
     use crate::{FontRef, GlyphId, TableProvider};
 
@@ -807,6 +847,70 @@ mod tests {
                 (40, 95, true),
                 (10, 95, true),
             ]
+        );
+    }
+
+    #[test]
+    fn compute_anchor_flags() {
+        let anchor = Anchor::Offset { x: -128, y: 127 };
+        assert_eq!(
+            anchor.compute_flags(),
+            CompositeGlyphFlags::ARGS_ARE_XY_VALUES
+        );
+
+        let anchor = Anchor::Offset { x: -129, y: 127 };
+        assert_eq!(
+            anchor.compute_flags(),
+            CompositeGlyphFlags::ARGS_ARE_XY_VALUES | CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS
+        );
+        let anchor = Anchor::Offset { x: -1, y: 128 };
+        assert_eq!(
+            anchor.compute_flags(),
+            CompositeGlyphFlags::ARGS_ARE_XY_VALUES | CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS
+        );
+
+        let anchor = Anchor::Point {
+            base: 255,
+            component: 20,
+        };
+        assert_eq!(anchor.compute_flags(), CompositeGlyphFlags::empty());
+
+        let anchor = Anchor::Point {
+            base: 256,
+            component: 20,
+        };
+        assert_eq!(
+            anchor.compute_flags(),
+            CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS
+        )
+    }
+
+    #[test]
+    fn compute_transform_flags() {
+        fn make_xform(xx: f32, yx: f32, xy: f32, yy: f32) -> Transform {
+            Transform {
+                xx: F2Dot14::from_f32(xx),
+                yx: F2Dot14::from_f32(yx),
+                xy: F2Dot14::from_f32(xy),
+                yy: F2Dot14::from_f32(yy),
+            }
+        }
+
+        assert_eq!(
+            make_xform(1.0, 0., 0., 1.0).compute_flags(),
+            CompositeGlyphFlags::empty()
+        );
+        assert_eq!(
+            make_xform(2.0, 0., 0., 2.0).compute_flags(),
+            CompositeGlyphFlags::WE_HAVE_A_SCALE
+        );
+        assert_eq!(
+            make_xform(2.0, 0., 0., 1.0).compute_flags(),
+            CompositeGlyphFlags::WE_HAVE_AN_X_AND_Y_SCALE
+        );
+        assert_eq!(
+            make_xform(2.0, 0., 1.0, 1.0).compute_flags(),
+            CompositeGlyphFlags::WE_HAVE_A_TWO_BY_TWO
         );
     }
 }

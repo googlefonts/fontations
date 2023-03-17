@@ -22,6 +22,7 @@ table BasicTable {
 
 record SimpleRecord {
     val1: u16,
+    #[compile_with(compile_va2)]
     va2: u32,
 }
 

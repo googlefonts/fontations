@@ -4,6 +4,7 @@
 #[tag = "cmap"]
 table Cmap {
     /// Table version number (0).
+    #[compile(0)]
     version: u16,
     /// Number of encoding tables that follow.
     #[compile(array_len($encoding_records))]
@@ -25,6 +26,7 @@ record EncodingRecord {
 
 /// <https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#platform-ids>
 enum u16 PlatformId {
+    #[default]
     Unicode = 0,
     Macintosh = 1,
     ISO  = 2,
@@ -67,7 +69,6 @@ table Cmap2 {
     #[format = 2]
     format: u16,
     /// This is the length in bytes of the subtable.
-    #[compile(panic!("not implemented"))]
     length: u16,
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
@@ -127,6 +128,7 @@ table Cmap4 {
     end_code: [u16],
     /// Set to 0.
     #[skip_getter]
+    #[compile(0)]
     reserved_pad: u16,
     /// Start character code for each segment.
     #[count(half($seg_count_x2))]
@@ -168,6 +170,7 @@ table Cmap8 {
     format: u16,
     /// Reserved; set to 0
     #[skip_getter]
+    #[compile(0)]
     reserved: u16,
     /// Byte length of this subtable (including the header)
     length: u32,
@@ -207,6 +210,7 @@ table Cmap10 {
     format: u16,
     /// Reserved; set to 0
     #[skip_getter]
+    #[compile(0)]
     reserved: u16,
     /// Byte length of this subtable (including the header)
     length: u32,
@@ -229,6 +233,7 @@ table Cmap12 {
     format: u16,
     /// Reserved; set to 0
     #[skip_getter]
+    #[compile(0)]
     reserved: u16,
     /// Byte length of this subtable (including the header)
     length: u32,
@@ -249,6 +254,7 @@ table Cmap13 {
     format: u16,
     /// Reserved; set to 0
     #[skip_getter]
+    #[compile(0)]
     reserved: u16,
     /// Byte length of this subtable (including the header)
     length: u32,

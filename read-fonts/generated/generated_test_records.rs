@@ -200,6 +200,17 @@ impl<'a> FontReadWithArgs<'a> for ContainsArrays<'a> {
     }
 }
 
+impl<'a> ContainsArrays<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, array_len: u16) -> Result<Self, ReadError> {
+        let args = array_len;
+        Self::read_with_args(data, &args)
+    }
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for ContainsArrays<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {

@@ -661,11 +661,16 @@ impl DummyMarker {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
     }
+    fn _reserved_byte_range(&self) -> Range<usize> {
+        let start = self.value_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
 }
 
 impl<'a> FontRead<'a> for Dummy<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
+        cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.finish(DummyMarker {})
     }

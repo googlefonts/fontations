@@ -188,7 +188,7 @@ impl<'a> FontRef<'a> {
             .ok()
             .and_then(|idx| self.table_directory.table_records().get(idx))
             .and_then(|record| {
-                let start = record.offset().non_null()?;
+                let start = Offset32::new(record.offset()).non_null()?;
                 let len = record.length() as usize;
                 self.data.slice(start..start + len)
             })
@@ -212,11 +212,5 @@ impl<'a> FontRef<'a> {
 impl<'a> TableProvider<'a> for FontRef<'a> {
     fn data_for_tag(&self, tag: Tag) -> Option<FontData<'a>> {
         self.table_data(tag)
-    }
-}
-
-impl TableRecord {
-    pub fn offset(&self) -> Offset32 {
-        Offset32::new(self.offset.get())
     }
 }

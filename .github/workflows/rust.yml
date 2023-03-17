@@ -5,6 +5,8 @@ on:
       - main
     tags:
       - "*"
+  schedule:
+    - cron: '22 2 * * *' # run at 2:22 every day
 
 name: Continuous integration
 
@@ -13,90 +15,53 @@ jobs:
     name: Rustfmt
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v1
-      - uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          override: true
+      - uses: actions/checkout@v3
+      - uses: dtolnay/rust-toolchain@stable
       - run: rustup component add rustfmt
 
       - name: rustfmt check
-        uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
+        run: cargo fmt --all -- --check
 
       - name: cargo doc
-        uses: actions-rs/cargo@v1
-        with:
-          command: doc
-          args: --all-features --document-private-items
+        run: cargo doc --all-features --document-private-items --no-deps
 
   clippy-lint:
     name: Clippy lints
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
-
+      - uses: actions/checkout@v3
       - name: install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          components: clippy
-          profile: minimal
-          override: true
-
-      #- run: git submodule update --init --recursive
+        uses: dtolnay/rust-toolchain@stable
 
       - name: cargo clippy --all-features
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-features --all-targets -- -D warnings
+        run: cargo clippy --all-features --all-targets -- -D warnings
 
-      - name: cargo clippy
-        uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-targets --no-default-features -- -D warnings
+      - name: cargo clippy --no-default-features
+        run: cargo clippy --all-targets --no-default-features -- -D warnings
 
   test-stable:
     name: cargo test stable
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+        uses: dtolnay/rust-toolchain@stable
 
       - name: cargo test
-        uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-targets --all-features
+        run: cargo test --all-targets --all-features
 
   ensure-clean-codegen:
     name: check codegen is up-to-date
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+        uses: dtolnay/rust-toolchain@stable
 
       - name: run codegen
-        uses: actions-rs/cargo@v1
-        with:
-          command: run
-          args: --bin=codegen resources/codegen_plan.toml
+        run: cargo run --bin=codegen resources/codegen_plan.toml
       - name: ensure no unstaged changes
         run: |
           git add .
@@ -107,42 +72,26 @@ jobs:
     name: cargo check no std
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
 
       - name: install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
-
+        uses: dtolnay/rust-toolchain@stable
 
       - name: cargo check font-types
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --manifest-path=font-types/Cargo.toml --no-default-features
+        run: cargo check --manifest-path=font-types/Cargo.toml --no-default-features
 
       - name: cargo check read-fonts
-        uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --manifest-path=read-fonts/Cargo.toml --no-default-features
+        run: cargo check --manifest-path=read-fonts/Cargo.toml --no-default-features
 
   check-wasm:
     name: cargo check wasm
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
+
       - name: install stable toolchain
-        uses: actions-rs/toolchain@v1
-        with:
-          toolchain: stable
-          profile: minimal
-          override: true
+        uses: dtolnay/rust-toolchain@stable
       - run: rustup target add wasm32-unknown-unknown
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --manifest-path=write-fonts/Cargo.toml --target wasm32-unknown-unknown
+      - name: cargo check wasm target
+        run: cargo check --manifest-path=write-fonts/Cargo.toml --target wasm32-unknown-unknown
 

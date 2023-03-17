@@ -204,6 +204,7 @@ table VarColorLine {
 
 /// [Extend](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) enumeration
 enum u8 Extend {
+    #[default]
     Pad = 0,
     Repeat = 1,
     Reflect = 2,
@@ -816,6 +817,7 @@ enum u8 CompositeMode {
     Clear = 0,
     Src = 1,
     Dest = 2,
+    #[default]
     SrcOver = 3,
     DestOver = 4,
     SrcIn = 5,

@@ -198,7 +198,7 @@ impl<'a> Tuple<'a> {
     }
 
     pub fn get(&self, idx: usize) -> Option<F2Dot14> {
-        self.values.get(idx).copied().map(BigEndian::get)
+        self.values.get(idx).map(BigEndian::get)
     }
 }
 
@@ -474,7 +474,7 @@ impl<'a> Iterator for TupleVariationHeaderIter<'a> {
             return None;
         }
         self.current += 1;
-        let next = TupleVariationHeader::read_with_args(self.data, &self.axis_count);
+        let next = TupleVariationHeader::read(self.data, self.axis_count);
         let next_len = next
             .as_ref()
             .map(|table| table.byte_len(self.axis_count))

@@ -20,6 +20,21 @@ mod records {
         }
     }
 
+    impl SimpleRecord {
+        // the [compile_with] attribute specifies this method, which returns
+        // a different type than the one declared in the table.
+        fn compile_va2(&self) -> [u8; 4] {
+            [0xde, 0xad, 0xbe, 0xef]
+        }
+    }
+
+    #[test]
+    fn compile_with() {
+        let record = SimpleRecord::new(69, 16);
+        let bytes = crate::dump_table(&record).unwrap();
+        assert_eq!(bytes, [0, 69, 0xde, 0xad, 0xbe, 0xef])
+    }
+
     #[test]
     fn constructors() {
         let simple = vec![SimpleRecord::new(6, 32)];
@@ -52,4 +67,15 @@ mod formats {
 
 mod offsets_arrays {
     include!("../generated/generated_test_offsets_arrays.rs");
+}
+
+mod enums {
+    include!("../generated/generated_test_enum.rs");
+
+    #[test]
+    fn default_works() {
+        let rec = MyRecord::new(Default::default(), Default::default());
+        assert_eq!(MyEnum1::ItsAZero, rec.my_enum1);
+        assert_eq!(MyEnum2::ItsAThree, rec.my_enum2);
+    }
 }

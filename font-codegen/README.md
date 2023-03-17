@@ -6,9 +6,14 @@ and how it works, see the [codegen-tour][] document.
 
 The basics:
 - Inputs live in `resources/codegen_inputs`.
-- The codegen tool can be run on a per-file basis with,
+- To run the code generator:
   ```sh
+  # Rebuild all the things (normal use case)
+  $ cargo run --bin=codegen resources/codegen_plan.toml
+  
+  # Process a single file
   $ cargo run --bin=codegen file $mode $input
+  $ cargo run --bin=codegen file parse resources/codegen_inputs/cmap.rs > read-fonts/generated/generated_cmap.rs
   ```
   where `$input` is the path to an input file, and `$mode` is one of 'parse' or
   'compile', and which will generate the code corresponding to the `read-fonts`
@@ -192,6 +197,11 @@ The following annotations are supported on top-level objects:
   evalutes to the field's type: the skip case is only expected in cases where
   there is a manual `FontWrite` impl, and the field does not make sense on the
   compile type.
+- `#[compile_with(method_name)]`: Specify custom compilation behaviour. This
+  attribute lets you name a method that will be called to get some type that
+  will be used to compile this field. This may be any type that implements the
+  `FontWrite` trait; this can be used in cases where the logic to compile a
+  given type requires some custom implementation.
 - `#[compile_type(type)]`: specify an alternate type to be used in the struct
   generated for this type.
 - `#[default(expr)]`: specify a value that will be used in the implementation of

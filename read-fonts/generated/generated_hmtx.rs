@@ -49,6 +49,21 @@ impl<'a> FontReadWithArgs<'a> for Hmtx<'a> {
     }
 }
 
+impl<'a> Hmtx<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(
+        data: FontData<'a>,
+        number_of_h_metrics: u16,
+        num_glyphs: u16,
+    ) -> Result<Self, ReadError> {
+        let args = (number_of_h_metrics, num_glyphs);
+        Self::read_with_args(data, &args)
+    }
+}
+
 /// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
 pub type Hmtx<'a> = TableRef<'a, HmtxMarker>;
 

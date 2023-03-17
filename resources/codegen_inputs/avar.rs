@@ -8,6 +8,7 @@ table Avar {
     version: MajorMinor,
     /// Permanently reserved; set to zero.
     #[skip_getter]
+    #[compile(0)]
     _reserved: u16,
     /// The number of variation axes for this font. This must be the same number as axisCount in the 'fvar' table.
     axis_count: u16,

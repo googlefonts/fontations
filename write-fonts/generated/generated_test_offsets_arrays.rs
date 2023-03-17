@@ -360,8 +360,10 @@ pub struct Dummy {
 }
 
 impl FontWrite for Dummy {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.value.write_into(writer);
+        (0 as u16).write_into(writer);
     }
 }
 

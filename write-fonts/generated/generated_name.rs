@@ -114,6 +114,13 @@ impl LangTagRecord {
     }
 }
 
+impl FontWrite for LangTagRecord {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (self.compile_name_string()).write_into(writer);
+    }
+}
+
 impl Validate for LangTagRecord {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
@@ -158,6 +165,17 @@ impl NameRecord {
             name_id,
             string: string.into(),
         }
+    }
+}
+
+impl FontWrite for NameRecord {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.platform_id.write_into(writer);
+        self.encoding_id.write_into(writer);
+        self.language_id.write_into(writer);
+        self.name_id.write_into(writer);
+        (self.compile_name_string()).write_into(writer);
     }
 }
 

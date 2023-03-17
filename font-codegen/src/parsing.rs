@@ -189,6 +189,7 @@ pub(crate) struct FieldAttrs {
     pub(crate) format: Option<Attr<syn::LitInt>>,
     pub(crate) count: Option<Attr<Count>>,
     pub(crate) compile: Option<Attr<CustomCompile>>,
+    pub(crate) compile_with: Option<Attr<syn::Ident>>,
     pub(crate) default: Option<Attr<syn::Expr>>,
     pub(crate) compile_type: Option<Attr<syn::Type>>,
     pub(crate) read_with_args: Option<Attr<FieldReadArgs>>,
@@ -394,9 +395,15 @@ pub(crate) struct RawEnum {
 /// A raw scalar variant
 #[derive(Debug, Clone)]
 pub(crate) struct RawVariant {
-    pub(crate) docs: Vec<syn::Attribute>,
+    pub(crate) attrs: EnumVariantAttrs,
     pub(crate) name: syn::Ident,
     pub(crate) value: syn::LitInt,
+}
+
+#[derive(Debug, Default, Clone)]
+pub(crate) struct EnumVariantAttrs {
+    pub(crate) docs: Vec<syn::Attribute>,
+    pub(crate) default: Option<syn::Path>,
 }
 
 /// A set of bit-flags
@@ -870,11 +877,11 @@ impl Parse for FieldReadArgs {
 
 impl Parse for RawVariant {
     fn parse(input: ParseStream) -> Result<Self, syn::Error> {
-        let docs = get_optional_docs(input)?;
+        let attrs = input.parse()?;
         let name = input.parse::<syn::Ident>()?;
         let _ = input.parse::<Token![=]>()?;
         let value: syn::LitInt = input.parse()?;
-        Ok(Self { docs, name, value })
+        Ok(Self { attrs, name, value })
     }
 }
 
@@ -927,6 +934,7 @@ static OFFSET_GETTER: &str = "offset_getter";
 static OFFSET_DATA: &str = "offset_data_method";
 static OFFSET_ADJUSTMENT: &str = "offset_adjustment";
 static COMPILE: &str = "compile";
+static COMPILE_WITH: &str = "compile_with";
 static COMPILE_TYPE: &str = "compile_type";
 static DEFAULT: &str = "default";
 static READ_WITH: &str = "read_with";
@@ -963,6 +971,8 @@ impl Parse for FieldAttrs {
                 this.count = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == COMPILE {
                 this.compile = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == COMPILE_WITH {
+                this.compile_with = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == COMPILE_TYPE {
                 this.compile_type = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == DEFAULT {
@@ -1031,6 +1041,31 @@ impl Parse for TableAttrs {
                 return Err(logged_syn_error(
                     ident.span(),
                     format!("unknown table attribute {ident}"),
+                ));
+            }
+        }
+        Ok(this)
+    }
+}
+
+impl Parse for EnumVariantAttrs {
+    fn parse(input: ParseStream) -> syn::Result<Self> {
+        let mut this = EnumVariantAttrs::default();
+        let attrs = Attribute::parse_outer(input)
+            .map_err(|e| syn::Error::new(e.span(), format!("hmm: '{e}'")))?;
+
+        for attr in attrs {
+            let ident = attr.path.get_ident().ok_or_else(|| {
+                syn::Error::new(attr.path.span(), "attr paths should be a single identifer")
+            })?;
+            if ident == DOC {
+                this.docs.push(attr);
+            } else if ident == DEFAULT {
+                this.default = Some(attr.path);
+            } else {
+                return Err(logged_syn_error(
+                    ident.span(),
+                    format!("unknown field attribute {ident}"),
                 ));
             }
         }
@@ -1205,11 +1240,28 @@ impl Item {
             Item::Table(item) => item.sanity_check(phase),
             Item::Record(item) => item.sanity_check(phase),
             Item::Format(_) => Ok(()),
-            Item::RawEnum(_) => Ok(()),
+            Item::RawEnum(item) => item.sanity_check(phase),
             Item::Flags(_) => Ok(()),
             Item::GenericGroup(_) => Ok(()),
             Item::Extern(..) => Ok(()),
         }
+    }
+}
+
+impl RawEnum {
+    pub(crate) fn sanity_check(&self, _: Phase) -> syn::Result<()> {
+        let defaults: Vec<_> = self
+            .variants
+            .iter()
+            .filter_map(|v| v.attrs.default.as_ref().map(|_| &v.name))
+            .collect();
+        if defaults.len() > 1 {
+            return Err(logged_syn_error(
+                self.name.span(),
+                format!("multiple defaults {defaults:?}"),
+            ));
+        }
+        Ok(())
     }
 }
 

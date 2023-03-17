@@ -44,6 +44,25 @@ impl Fields {
                 normal_offset_data_fld = Some(fld);
             }
 
+            // Ideally we'd map is_offset => _offset and array of offsets => _offsets but STAT::offsetToAxisValueOffsets breaks the rule
+            if fld.is_offset_or_array_of_offsets() {
+                let name = fld.name.to_string();
+                if !name.ends_with("_offset") && !name.ends_with("_offsets") {
+                    return Err(logged_syn_error(
+                        fld.name.span(),
+                        "name must end in _offset or _offsets",
+                    ));
+                }
+            }
+
+            // We can't generate a compile type if don't define a way to have value
+            if !fld.has_defined_value() {
+                return Err(logged_syn_error(
+                    fld.name.span(),
+                    "There is no defined way to get a value. If you are skipping getter then perhaps you have a fixed value, such as for a reserved field that should be set to 0? - if so please use #[compile(0)]",
+                ));
+            }
+
             if (matches!(fld.typ, FieldType::VarLenArray(_))
                 || fld.attrs.count.as_deref().map(Count::all).unwrap_or(false))
                 && i != self.fields.len() - 1
@@ -529,6 +548,15 @@ impl Field {
             }
         }
 
+        if let Some(comp_attr) = &self.attrs.compile_with {
+            if self.attrs.compile.is_some() {
+                return Err(logged_syn_error(
+                    comp_attr.span(),
+                    "cannot have both 'compile' and 'compile_with'",
+                ));
+            }
+        }
+
         Ok(())
     }
 
@@ -824,6 +852,10 @@ impl Field {
         })
     }
 
+    fn is_count(&self) -> bool {
+        self.attrs.count.is_some()
+    }
+
     fn is_offset_or_array_of_offsets(&self) -> bool {
         match &self.typ {
             FieldType::Offset { .. } => true,
@@ -834,6 +866,13 @@ impl Field {
             }
             _ => false,
         }
+    }
+
+    fn has_defined_value(&self) -> bool {
+        if self.attrs.skip_getter.is_none() {
+            return true;
+        }
+        self.is_computed() || self.is_count()
     }
 
     pub(crate) fn offset_getter_name(&self) -> Option<syn::Ident> {
@@ -1087,6 +1126,9 @@ impl Field {
                 // noop
                 CustomCompile::Skip => return Default::default(),
             }
+        } else if let Some(attr) = self.attrs.compile_with.as_ref() {
+            let method = &attr.attr;
+            quote!( self.#method() )
         } else {
             computed = false;
             let name = self.name_for_compile();

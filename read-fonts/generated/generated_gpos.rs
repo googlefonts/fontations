@@ -1553,6 +1553,21 @@ impl<'a> FontReadWithArgs<'a> for PairSet<'a> {
     }
 }
 
+impl<'a> PairSet<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(
+        data: FontData<'a>,
+        value_format1: ValueFormat,
+        value_format2: ValueFormat,
+    ) -> Result<Self, ReadError> {
+        let args = (value_format1, value_format2);
+        Self::read_with_args(data, &args)
+    }
+}
+
 /// Part of [PairPosFormat1]
 pub type PairSet<'a> = TableRef<'a, PairSetMarker>;
 
@@ -1664,6 +1679,21 @@ impl<'a> FontReadWithArgs<'a> for PairValueRecord {
             value_record1: cursor.read_with_args(&value_format1)?,
             value_record2: cursor.read_with_args(&value_format2)?,
         })
+    }
+}
+
+impl<'a> PairValueRecord {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(
+        data: FontData<'a>,
+        value_format1: ValueFormat,
+        value_format2: ValueFormat,
+    ) -> Result<Self, ReadError> {
+        let args = (value_format1, value_format2);
+        Self::read_with_args(data, &args)
     }
 }
 
@@ -1937,6 +1967,22 @@ impl<'a> FontReadWithArgs<'a> for Class1Record<'a> {
     }
 }
 
+impl<'a> Class1Record<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(
+        data: FontData<'a>,
+        class2_count: u16,
+        value_format1: ValueFormat,
+        value_format2: ValueFormat,
+    ) -> Result<Self, ReadError> {
+        let args = (class2_count, value_format1, value_format2);
+        Self::read_with_args(data, &args)
+    }
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for Class1Record<'a> {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -2002,6 +2048,21 @@ impl<'a> FontReadWithArgs<'a> for Class2Record {
             value_record1: cursor.read_with_args(&value_format1)?,
             value_record2: cursor.read_with_args(&value_format2)?,
         })
+    }
+}
+
+impl<'a> Class2Record {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(
+        data: FontData<'a>,
+        value_format1: ValueFormat,
+        value_format2: ValueFormat,
+    ) -> Result<Self, ReadError> {
+        let args = (value_format1, value_format2);
+        Self::read_with_args(data, &args)
     }
 }
 
@@ -2400,6 +2461,17 @@ impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
     }
 }
 
+impl<'a> BaseArray<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
+        let args = mark_class_count;
+        Self::read_with_args(data, &args)
+    }
+}
+
 /// Part of [MarkBasePosFormat1]
 pub type BaseArray<'a> = TableRef<'a, BaseArrayMarker>;
 
@@ -2497,6 +2569,17 @@ impl<'a> FontReadWithArgs<'a> for BaseRecord<'a> {
         Ok(Self {
             base_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
         })
+    }
+}
+
+impl<'a> BaseRecord<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
+        let args = mark_class_count;
+        Self::read_with_args(data, &args)
     }
 }
 
@@ -2719,6 +2802,17 @@ impl<'a> FontReadWithArgs<'a> for LigatureArray<'a> {
     }
 }
 
+impl<'a> LigatureArray<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
+        let args = mark_class_count;
+        Self::read_with_args(data, &args)
+    }
+}
+
 /// Part of [MarkLigPosFormat1]
 pub type LigatureArray<'a> = TableRef<'a, LigatureArrayMarker>;
 
@@ -2826,6 +2920,17 @@ impl<'a> FontReadWithArgs<'a> for LigatureAttach<'a> {
     }
 }
 
+impl<'a> LigatureAttach<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
+        let args = mark_class_count;
+        Self::read_with_args(data, &args)
+    }
+}
+
 /// Part of [MarkLigPosFormat1]
 pub type LigatureAttach<'a> = TableRef<'a, LigatureAttachMarker>;
 
@@ -2923,6 +3028,17 @@ impl<'a> FontReadWithArgs<'a> for ComponentRecord<'a> {
         Ok(Self {
             ligature_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
         })
+    }
+}
+
+impl<'a> ComponentRecord<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
+        let args = mark_class_count;
+        Self::read_with_args(data, &args)
     }
 }
 
@@ -3146,6 +3262,17 @@ impl<'a> FontReadWithArgs<'a> for Mark2Array<'a> {
     }
 }
 
+impl<'a> Mark2Array<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
+        let args = mark_class_count;
+        Self::read_with_args(data, &args)
+    }
+}
+
 /// Part of [MarkMarkPosFormat1]Class2Record
 pub type Mark2Array<'a> = TableRef<'a, Mark2ArrayMarker>;
 
@@ -3243,6 +3370,17 @@ impl<'a> FontReadWithArgs<'a> for Mark2Record<'a> {
         Ok(Self {
             mark2_anchor_offsets: cursor.read_array(mark_class_count as usize)?,
         })
+    }
+}
+
+impl<'a> Mark2Record<'a> {
+    /// A constructor that requires additional arguments.
+    ///
+    /// This type requires some external state in order to be
+    /// parsed.
+    pub fn read(data: FontData<'a>, mark_class_count: u16) -> Result<Self, ReadError> {
+        let args = mark_class_count;
+        Self::read_with_args(data, &args)
     }
 }
 
