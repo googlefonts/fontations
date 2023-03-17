@@ -248,6 +248,10 @@ impl SimpleGlyph {
             Some((flag, x_data, y_data))
         })
     }
+
+    pub fn contours(&self) -> &[Contour] {
+        &self.contours
+    }
 }
 
 impl<'a> FromObjRef<read::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {
