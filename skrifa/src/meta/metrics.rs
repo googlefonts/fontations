@@ -274,7 +274,7 @@ impl<'a> GlyphMetrics<'a> {
 
     /// Returns the advance width for the specified glyph.
     ///
-    /// If normalized coordinates were providing when constructing glyph metrics and
+    /// If normalized coordinates were provided when constructing glyph metrics and
     /// an `HVAR` table is present, applies the appropriate delta.
     pub fn advance_width(&self, glyph_id: GlyphId) -> Option<f32> {
         if glyph_id.to_u16() >= self.glyph_count {
@@ -298,7 +298,7 @@ impl<'a> GlyphMetrics<'a> {
 
     /// Returns the left side bearing for the specified glyph.
     ///
-    /// If normalized coordinates were providing when constructing glyph metrics and
+    /// If normalized coordinates were provided when constructing glyph metrics and
     /// an `HVAR` table is present, applies the appropriate delta.
     pub fn left_side_bearing(&self, glyph_id: GlyphId) -> Option<f32> {
         if glyph_id.to_u16() >= self.glyph_count {

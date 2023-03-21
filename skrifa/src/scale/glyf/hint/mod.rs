@@ -53,7 +53,7 @@ pub struct HintGlyph<'a> {
     pub original: &'a mut [Point<F26Dot6>],
     pub unscaled: &'a mut [Point<i32>],
     pub flags: &'a mut [PointFlags],
-    pub contours: &'a [u16],
+    pub contours: &'a mut [u16],
     pub point_base: usize,
     pub contour_base: usize,
     pub phantom: &'a mut [Point<F26Dot6>],

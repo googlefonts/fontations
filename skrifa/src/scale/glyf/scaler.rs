@@ -528,7 +528,7 @@ impl<'a> Scaler<'a> {
             original: &mut self.context.original[..],
             unscaled: &mut self.context.unscaled[..],
             flags: &mut outline.flags[..],
-            contours: &outline.contours[..],
+            contours: &mut outline.contours[..],
             phantom: &mut self.phantom[..],
             point_base,
             contour_base,
