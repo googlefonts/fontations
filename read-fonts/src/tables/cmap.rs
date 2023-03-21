@@ -114,9 +114,10 @@ impl<'a> Cmap14<'a> {
         let selector_records = self.var_selector();
         // Variation selector records are sorted in order of var_selector. Binary search to find
         // the appropriate record.
-        let selector_record = match selector_records
-            .binary_search_by(|record| <_ as Into<u32>>::into(record.var_selector()).cmp(&selector))
-        {
+        let selector_record = match selector_records.binary_search_by(|rec| {
+            let rec_selector: u32 = rec.var_selector().into();
+            rec_selector.cmp(&selector)
+        }) {
             Ok(idx) => selector_records.get(idx)?,
             _ => return None,
         };
@@ -125,27 +126,32 @@ impl<'a> Cmap14<'a> {
         // If found, ignore the selector and return a value indicating that the default cmap mapping
         // should be used.
         if let Some(Ok(default_uvs)) = selector_record.default_uvs(self.offset_data()) {
-            let ranges = default_uvs.ranges();
-            let mut lo = 0;
-            let mut hi = ranges.len();
-            while lo < hi {
-                let i = (lo + hi) / 2;
-                let range = &ranges[i];
-                let start = range.start_unicode_value().into();
-                if codepoint < start {
-                    hi = i;
-                } else if codepoint > (start + range.additional_count() as u32) {
-                    lo = i + 1;
-                } else {
-                    return Some(MapVariant::UseDefault);
-                }
+            use core::cmp::Ordering;
+            let found_default_uvs = default_uvs
+                .ranges()
+                .binary_search_by(|range| {
+                    let start = range.start_unicode_value().into();
+                    if codepoint < start {
+                        Ordering::Greater
+                    } else if codepoint > (start + range.additional_count() as u32) {
+                        Ordering::Less
+                    } else {
+                        Ordering::Equal
+                    }
+                })
+                .is_ok();
+            if found_default_uvs {
+                return Some(MapVariant::UseDefault);
             }
         }
         // Binary search the non-default UVS table if present. This maps codepoint+selector to a variant glyph.
         let non_default_uvs = selector_record.non_default_uvs(self.offset_data())?.ok()?;
         let mapping = non_default_uvs.uvs_mapping();
         let ix = mapping
-            .binary_search_by(|rec| <_ as Into<u32>>::into(rec.unicode_value()).cmp(&codepoint))
+            .binary_search_by(|map| {
+                let map_codepoint: u32 = map.unicode_value().into();
+                map_codepoint.cmp(&codepoint)
+            })
             .ok()?;
         Some(MapVariant::Variant(GlyphId::new(
             mapping.get(ix)?.glyph_id(),
