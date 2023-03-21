@@ -1,3 +1,4 @@
+pub use read_fonts as raw;
 use super::metrics::{GlyphMetrics, Metrics};
 use crate::{NormalizedCoord, NormalizedCoords, Size};
 

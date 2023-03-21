@@ -3,7 +3,8 @@
 #![allow(dead_code, unused_imports, unused_variables)]
 
 /// Expose our "raw" underlying parser crate.
-pub extern crate read_fonts as raw;
+pub use font_types;
+pub use read_fonts as raw;
 
 pub mod meta;
 
