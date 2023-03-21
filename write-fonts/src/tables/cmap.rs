@@ -66,6 +66,9 @@ impl Cmap {
         let mut start_code = Vec::new();
         let mut id_deltas = Vec::new();
 
+        let mut mappings: Vec<_> = mappings.into_iter().collect();
+        mappings.sort();
+
         let mut prev = (u16::MAX - 1, u16::MAX - 1);
         for (cp, gid) in mappings.into_iter() {
             let cp = (cp as u32).try_into().unwrap();
@@ -124,15 +127,7 @@ mod tests {
         bees.iter().map(|be| be.get()).collect()
     }
 
-    // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values
-    // "map characters 10-20, 30-90, and 153-480 onto a contiguous range of glyph indices"
-    #[test]
-    fn generate_simple_cmap4() {
-        let mappings = (10..=20)
-            .chain(30..=90)
-            .chain(153..=480)
-            .enumerate()
-            .map(|(idx, codepoint)| (char::from_u32(codepoint).unwrap(), GlyphId::new(idx as u16)));
+    fn assert_generates_simple_cmap(mappings: Vec<(char, GlyphId)>) {
         let cmap = write::Cmap::from_mappings(mappings);
 
         let bytes = dump_table(&cmap).unwrap();
@@ -142,7 +137,7 @@ mod tests {
         assert_eq!(1, cmap.encoding_records().len(), "{cmap:?}");
         let encoding_record = &cmap.encoding_records()[0];
         assert_eq!(
-            (PlatformId::Unicode, WINDOWS_BMP_ENCODING),
+            (PlatformId::Windows, WINDOWS_BMP_ENCODING),
             (encoding_record.platform_id(), encoding_record.encoding_id())
         );
 
@@ -174,5 +169,37 @@ mod tests {
             vec![0u16, 0u16, 0u16, 0u16],
             to_vec(cmap4.id_range_offsets())
         );
+    }
+
+    fn simple_cmap_mappings() -> Vec<(char, GlyphId)> {
+        (10..=20)
+            .chain(30..=90)
+            .chain(153..=480)
+            .enumerate()
+            .map(|(idx, codepoint)| (char::from_u32(codepoint).unwrap(), GlyphId::new(idx as u16)))
+            .collect()
+    }
+
+    // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values
+    // "map characters 10-20, 30-90, and 153-480 onto a contiguous range of glyph indices"
+    #[test]
+    fn generate_simple_cmap4() {
+        let mappings = simple_cmap_mappings();
+        assert_generates_simple_cmap(mappings);
+    }
+
+    #[test]
+    fn generate_cmap4_out_of_order_input() {
+        let mut ordered = simple_cmap_mappings();
+        let mut disordered = Vec::new();
+        while !ordered.is_empty() {
+            if ordered.len() % 2 == 0 {
+                disordered.insert(0, ordered.remove(0));
+            } else {
+                disordered.push(ordered.remove(0));
+            }
+        }
+        assert_ne!(ordered, disordered);
+        assert_generates_simple_cmap(disordered);
     }
 }
