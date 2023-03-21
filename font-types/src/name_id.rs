@@ -1,12 +1,17 @@
+//! Name Identifiers
+//!
+//! Although these are treated as u16s in the spec, we choose to represent them
+//! as a distinct type.
+
 use core::fmt;
 
 /// Identifier for an informational string (or name).
 ///
-/// A set of pre-defined identifiers exist for accessing names and other various metadata
+/// A set of predefined identifiers exist for accessing names and other various metadata
 /// about the font and those are provided as associated constants on this type.
 ///
 /// IDs 26 to 255, inclusive, are reserved for future standard names. IDs 256 to 32767,
-/// inclusive, are reserved for font-specific names such as those referenced by a font’s
+/// inclusive, are reserved for font-specific names such as those referenced by a font's
 /// layout features.
 ///
 /// For more detail, see <https://learn.microsoft.com/en-us/typography/opentype/spec/name#name-ids>
@@ -17,96 +22,132 @@ impl NameId {
     /// Copyright notice.
     pub const COPYRIGHT_NOTICE: Self = Self(0);
 
-    /// Font Family name. The Font Family name is used in combination with Font Subfamily name (name ID 2),
+    /// Font family name.
+    ///
+    /// The font family name is used in combination with font subfamily name (ID 2),
     /// and should be shared among at most four fonts that differ only in weight or style (as described below).
     pub const FAMILY_NAME: Self = Self(1);
 
-    /// Font Subfamily name. The Font Subfamily name is used in combination with Font Family name (name ID 1),
-    /// and distinguishes the fonts in a group with the same Font Family name. This should be used for style
+    /// Font subfamily name.
+    ///
+    /// The font subfamily name is used in combination with font family name (ID 1),
+    /// and distinguishes the fonts in a group with the same font family name. This should be used for style
     /// and weight variants only (as described below).
     pub const SUBFAMILY_NAME: Self = Self(2);
 
     /// Unique font identifier.
     pub const UNIQUE_ID: Self = Self(3);
 
-    /// Full font name that reflects all family and relevant subfamily descriptors. The full font name is generally
-    /// a combination of name IDs 1 and 2, or of name IDs 16 and 17, or a similar human-readable variant.
+    /// Full font name that reflects all family and relevant subfamily descriptors.
+    ///
+    /// The full font name is generally a combination of IDs 1 and 2, or of IDs 16 and
+    /// 17, or a similar human-readable variant.
     pub const FULL_NAME: Self = Self(4);
 
-    /// Version string. Should begin with the syntax “Version number.number” (upper case, lower case, or mixed,
+    /// Version string.
+    ///
+    /// Should begin with the syntax “Version number.number” (upper case, lower case, or mixed,
     /// with a space between “Version” and the number).
     pub const VERSION_STRING: Self = Self(5);
 
-    /// PostScript name for the font; Name ID 6 specifies a string which is used to invoke a PostScript language font
+    /// PostScript name for the font.
+    ///
+    /// ID 6 specifies a string which is used to invoke a PostScript language font
     /// that corresponds to this OpenType font. When translated to ASCII, the name string must be no longer than 63
     /// characters and restricted to the printable ASCII subset, codes 33 to 126, except for the 10 characters '[', ']',
     /// '(', ')', '{', '}', '<', '>', '/', '%'.
     pub const POSTSCRIPT_NAME: Self = Self(6);
 
-    /// Trademark; this is used to save any trademark notice/information for this font. Such information should be based
-    /// on legal advice. This is distinctly separate from the copyright.
+    /// Trademark; this is used to save any trademark notice/information for this font.
+    ///
+    /// Such information should be based on legal advice. This is distinctly separate from the copyright.
     pub const TRADEMARK: Self = Self(7);
 
     /// Manufacturer name.
     pub const MANUFACTURER: Self = Self(8);
 
-    /// Designer; name of the designer of the typeface.
+    /// Name of the designer of the typeface.
     pub const DESIGNER: Self = Self(9);
 
-    /// Description; description of the typeface. Can contain revision information, usage recommendations, history, features, etc.
+    /// Description of the typeface.
+    ///
+    /// Can contain revision information, usage recommendations, history, features, etc.
     pub const DESCRIPTION: Self = Self(10);
 
-    /// URL Vendor; URL of font vendor (with protocol, e.g., http://, ftp://). If a unique serial number is embedded in the URL,
-    /// it can be used to register the font.
+    /// URL of font vendor (with protocol, e.g., http://, ftp://).
+    ///
+    /// If a unique serial number is embedded in the URL, it can be used to register the font.
     pub const VENDOR_URL: Self = Self(11);
 
-    /// URL Designer; URL of typeface designer (with protocol, e.g., http://, ftp://).
+    /// URL of typeface designer (with protocol, e.g., http://, ftp://).
     pub const DESIGNER_URL: Self = Self(12);
 
-    /// License Description; description of how the font may be legally used, or different example scenarios for licensed use.
+    /// License description.
+    ///
+    /// A description of how the font may be legally used, or different example scenarios for licensed use.
     /// This field should be written in plain language, not legalese.
     pub const LICENSE_DESCRIPTION: Self = Self(13);
 
     /// URL where additional licensing information can be found.
     pub const LICENSE_URL: Self = Self(14);
 
-    /// Typographic Family name: The typographic family grouping doesn’t impose any constraints on the number of faces within it,
+    /// Typographic family name.
+    ///
+    /// The typographic family grouping doesn't impose any constraints on the number of faces within it,
     /// in contrast with the 4-style family grouping (ID 1), which is present both for historical reasons and to express style
     /// linking groups.
     pub const TYPOGRAPHIC_FAMILY_NAME: Self = Self(16);
 
-    /// Typographic Subfamily name: This allows font designers to specify a subfamily name within the typographic family grouping.
+    /// Typographic subfamily name.
+    ///
+    /// This allows font designers to specify a subfamily name within the typographic family grouping.
     /// This string must be unique within a particular typographic family.
     pub const TYPOGRAPHIC_SUBFAMILY_NAME: Self = Self(17);
 
-    /// Compatible Full (Macintosh only); On the Macintosh, the menu name is constructed using the FOND resource. This usually matches
-    /// the Full Name. If you want the name of the font to appear differently than the Full Name, you can insert the Compatible Full
-    /// Name in ID 18.
+    /// Compatible full (Macintosh only).
+    ///
+    /// On the Macintosh, the menu name is constructed using the FOND resource. This usually matches
+    /// the full name. If you want the name of the font to appear differently than the Full Name, you can insert the compatible full
+    /// name in ID 18.
     pub const COMPATIBLE_FULL_NAME: Self = Self(18);
 
-    /// Sample text; This can be the font name, or any other text that the designer thinks is the best sample to display the font in.
+    /// Sample text.
+    ///
+    /// This can be the font name, or any other text that the designer thinks is the best sample to display the font in.
     pub const SAMPLE_TEXT: Self = Self(19);
 
-    /// PostScript CID findfont name; Its presence in a font means that the nameID 6 holds a PostScript font name that is meant to be
+    /// PostScript CID findfont name.
+    ///
+    /// Its presence in a font means that the ID 6 holds a PostScript font name that is meant to be
     /// used with the “composefont” invocation in order to invoke the font in a PostScript interpreter.
     pub const POSTSCRIPT_CID_NAME: Self = Self(20);
 
-    /// WWS Family Name. Used to provide a WWS-conformant family name in case the entries for IDs 16 and 17 do not conform to the WWS model.
+    /// WWS family name.
+    ///
+    /// Used to provide a WWS-conformant family name in case the entries for IDs 16 and 17 do not conform to the WWS model.
     pub const WWS_FAMILY_NAME: Self = Self(21);
 
-    /// WWS Subfamily Name. Used in conjunction with ID 21, this ID provides a WWS-conformant subfamily name (reflecting only weight, width
+    /// WWS subfamily name.
+    ///
+    /// Used in conjunction with ID 21, this ID provides a WWS-conformant subfamily name (reflecting only weight, width
     /// and slope attributes) in case the entries for IDs 16 and 17 do not conform to the WWS model.
     pub const WWS_SUBFAMILY_NAME: Self = Self(22);
 
-    /// Light Background Palette. This ID, if used in the CPAL table’s Palette Labels Array, specifies that the corresponding color palette in
+    /// Light background palette.
+    ///
+    /// This ID, if used in the CPAL table's Palette Labels Array, specifies that the corresponding color palette in
     /// the CPAL table is appropriate to use with the font when displaying it on a light background such as white.
     pub const LIGHT_BACKGROUND_PALETTE: Self = Self(23);
 
-    /// Dark Background Palette. This ID, if used in the CPAL table’s Palette Labels Array, specifies that the corresponding color palette in
+    /// Dark background palette.
+    ///
+    /// This ID, if used in the CPAL table's Palette Labels Array, specifies that the corresponding color palette in
     /// the CPAL table is appropriate to use with the font when displaying it on a dark background such as black.
     pub const DARK_BACKGROUND_PALETTE: Self = Self(24);
 
-    /// Variations PostScript Name Prefix. If present in a variable font, it may be used as the family prefix in the PostScript Name Generation
+    /// Variations PostScript name prefix.
+    ///
+    /// If present in a variable font, it may be used as the family prefix in the PostScript Name Generation
     /// for Variation Fonts algorithm.
     pub const VARIATIONS_POSTSCRIPT_NAME_PREFIX: Self = Self(25);
 }
