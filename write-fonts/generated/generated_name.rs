@@ -143,7 +143,7 @@ pub struct NameRecord {
     /// Language ID.
     pub language_id: u16,
     /// Name ID.
-    pub name_id: u16,
+    pub name_id: NameId,
     /// String offset from start of storage area (in bytes).
     pub string: OffsetMarker<String>,
 }
@@ -155,7 +155,7 @@ impl NameRecord {
         platform_id: u16,
         encoding_id: u16,
         language_id: u16,
-        name_id: u16,
+        name_id: NameId,
         string: OffsetMarker<String>,
     ) -> Self {
         Self {

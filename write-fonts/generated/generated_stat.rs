@@ -23,7 +23,7 @@ pub struct Stat {
     /// Name ID used as fallback when projection of names into a
     /// particular font model produces a subfamily name containing only
     /// elidable elements.
-    pub elided_fallback_name_id: Option<u16>,
+    pub elided_fallback_name_id: Option<NameId>,
 }
 
 impl FontWrite for Stat {
@@ -94,7 +94,7 @@ pub struct AxisRecord {
     pub axis_tag: Tag,
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this axis.
-    pub axis_name_id: u16,
+    pub axis_name_id: NameId,
     /// A value that applications can use to determine primary sorting
     /// of face names, or for ordering of labels when composing family
     /// or face names.
@@ -103,7 +103,7 @@ pub struct AxisRecord {
 
 impl AxisRecord {
     /// Construct a new `AxisRecord`
-    pub fn new(axis_tag: Tag, axis_name_id: u16, axis_ordering: u16) -> Self {
+    pub fn new(axis_tag: Tag, axis_name_id: NameId, axis_ordering: u16) -> Self {
         Self {
             axis_tag,
             axis_name_id,
@@ -194,7 +194,7 @@ impl AxisValue {
     pub fn format_1(
         axis_index: u16,
         flags: AxisValueTableFlags,
-        value_name_id: u16,
+        value_name_id: NameId,
         value: Fixed,
     ) -> Self {
         Self::Format1(AxisValueFormat1::new(
@@ -209,7 +209,7 @@ impl AxisValue {
     pub fn format_2(
         axis_index: u16,
         flags: AxisValueTableFlags,
-        value_name_id: u16,
+        value_name_id: NameId,
         nominal_value: Fixed,
         range_min_value: Fixed,
         range_max_value: Fixed,
@@ -228,7 +228,7 @@ impl AxisValue {
     pub fn format_3(
         axis_index: u16,
         flags: AxisValueTableFlags,
-        value_name_id: u16,
+        value_name_id: NameId,
         value: Fixed,
         linked_value: Fixed,
     ) -> Self {
@@ -244,7 +244,7 @@ impl AxisValue {
     /// Construct a new `AxisValueFormat4` subtable
     pub fn format_4(
         flags: AxisValueTableFlags,
-        value_name_id: u16,
+        value_name_id: NameId,
         axis_values: Vec<AxisValueRecord>,
     ) -> Self {
         Self::Format4(AxisValueFormat4::new(flags, value_name_id, axis_values))
@@ -310,7 +310,7 @@ pub struct AxisValueFormat1 {
     pub flags: AxisValueTableFlags,
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
-    pub value_name_id: u16,
+    pub value_name_id: NameId,
     /// A numeric value for this attribute value.
     pub value: Fixed,
 }
@@ -320,7 +320,7 @@ impl AxisValueFormat1 {
     pub fn new(
         axis_index: u16,
         flags: AxisValueTableFlags,
-        value_name_id: u16,
+        value_name_id: NameId,
         value: Fixed,
     ) -> Self {
         Self {
@@ -378,7 +378,7 @@ pub struct AxisValueFormat2 {
     pub flags: AxisValueTableFlags,
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
-    pub value_name_id: u16,
+    pub value_name_id: NameId,
     /// A nominal numeric value for this attribute value.
     pub nominal_value: Fixed,
     /// The minimum value for a range associated with the specified
@@ -394,7 +394,7 @@ impl AxisValueFormat2 {
     pub fn new(
         axis_index: u16,
         flags: AxisValueTableFlags,
-        value_name_id: u16,
+        value_name_id: NameId,
         nominal_value: Fixed,
         range_min_value: Fixed,
         range_max_value: Fixed,
@@ -460,7 +460,7 @@ pub struct AxisValueFormat3 {
     pub flags: AxisValueTableFlags,
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
-    pub value_name_id: u16,
+    pub value_name_id: NameId,
     /// A numeric value for this attribute value.
     pub value: Fixed,
     /// The numeric value for a style-linked mapping from this value.
@@ -472,7 +472,7 @@ impl AxisValueFormat3 {
     pub fn new(
         axis_index: u16,
         flags: AxisValueTableFlags,
-        value_name_id: u16,
+        value_name_id: NameId,
         value: Fixed,
         linked_value: Fixed,
     ) -> Self {
@@ -530,7 +530,7 @@ pub struct AxisValueFormat4 {
     pub flags: AxisValueTableFlags,
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this combination of axis values.
-    pub value_name_id: u16,
+    pub value_name_id: NameId,
     /// Array of AxisValue records that provide the combination of axis
     /// values, one for each contributing axis.
     pub axis_values: Vec<AxisValueRecord>,
@@ -540,7 +540,7 @@ impl AxisValueFormat4 {
     /// Construct a new `AxisValueFormat4`
     pub fn new(
         flags: AxisValueTableFlags,
-        value_name_id: u16,
+        value_name_id: NameId,
         axis_values: Vec<AxisValueRecord>,
     ) -> Self {
         Self {

@@ -43,7 +43,7 @@ pub struct Cpal {
     /// palette entry.
     ///
     /// [Palette Entry Labels Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entry-label-array
-    pub palette_entry_labels_array: NullableOffsetMarker<Vec<u16>, WIDTH_32>,
+    pub palette_entry_labels_array: NullableOffsetMarker<Vec<NameId>, WIDTH_32>,
 }
 
 impl Cpal {

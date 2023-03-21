@@ -38,7 +38,7 @@ table Stat {
     /// particular font model produces a subfamily name containing only
     /// elidable elements.
     #[since_version(1,1)]
-    elided_fallback_name_id: u16,
+    elided_fallback_name_id: NameId,
 }
 
 /// [Axis Records](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-records)
@@ -47,7 +47,7 @@ record AxisRecord {
     axis_tag: Tag,
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this axis.
-    axis_name_id: u16,
+    axis_name_id: NameId,
     /// A value that applications can use to determine primary sorting
     /// of face names, or for ordering of labels when composing family
     /// or face names.
@@ -86,7 +86,7 @@ table AxisValueFormat1 {
     flags: AxisValueTableFlags,
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
-    value_name_id: u16,
+    value_name_id: NameId,
     /// A numeric value for this attribute value.
     value: Fixed,
 }
@@ -104,7 +104,7 @@ table AxisValueFormat2 {
     flags: AxisValueTableFlags,
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
-    value_name_id: u16,
+    value_name_id: NameId,
     /// A nominal numeric value for this attribute value.
     nominal_value: Fixed,
     /// The minimum value for a range associated with the specified
@@ -128,7 +128,7 @@ table AxisValueFormat3 {
     flags: AxisValueTableFlags,
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
-    value_name_id: u16,
+    value_name_id: NameId,
     /// A numeric value for this attribute value.
     value: Fixed,
     /// The numeric value for a style-linked mapping from this value.
@@ -148,7 +148,7 @@ table AxisValueFormat4 {
     flags: AxisValueTableFlags,
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this combination of axis values.
-    value_name_id: u16,
+    value_name_id: NameId,
     /// Array of AxisValue records that provide the combination of axis
     /// values, one for each contributing axis.
     #[count($axis_count)]

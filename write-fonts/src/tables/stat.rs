@@ -7,7 +7,7 @@ impl Stat {
     pub fn new(
         design_axes: Vec<AxisRecord>,
         axis_values: Vec<AxisValue>,
-        elided_fallback_name_id: u16,
+        elided_fallback_name_id: NameId,
     ) -> Self {
         Stat {
             design_axes: design_axes.into(),
@@ -46,12 +46,22 @@ mod tests {
     #[test]
     fn smoke_test() {
         let table = Stat::new(
-            vec![AxisRecord::new(Tag::new(b"wght"), 257, 1)],
+            vec![AxisRecord::new(Tag::new(b"wght"), NameId::new(257), 1)],
             vec![
-                AxisValue::format_1(0, AxisValueTableFlags::empty(), 258, Fixed::from_f64(100.)),
-                AxisValue::format_1(0, AxisValueTableFlags::empty(), 261, Fixed::from_f64(400.)),
+                AxisValue::format_1(
+                    0,
+                    AxisValueTableFlags::empty(),
+                    NameId::new(258),
+                    Fixed::from_f64(100.),
+                ),
+                AxisValue::format_1(
+                    0,
+                    AxisValueTableFlags::empty(),
+                    NameId::new(261),
+                    Fixed::from_f64(400.),
+                ),
             ],
-            0,
+            NameId::new(0),
         );
 
         let bytes = dump_table(&table).unwrap();
@@ -63,6 +73,6 @@ mod tests {
         assert_eq!(axis_values.axis_value_offsets().len(), 2);
         let value2 = axis_values.axis_values().nth(1).unwrap().unwrap();
         let read_stat::AxisValue::Format1(value2) = value2 else { panic!("wrong format"); };
-        assert_eq!(value2.value_name_id(), 261);
+        assert_eq!(value2.value_name_id(), NameId::new(261));
     }
 }

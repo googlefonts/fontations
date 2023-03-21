@@ -4353,7 +4353,7 @@ impl StylisticSetParamsMarker {
     }
     fn ui_name_id_byte_range(&self) -> Range<usize> {
         let start = self.version_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + NameId::RAW_BYTE_LEN
     }
 }
 
@@ -4361,7 +4361,7 @@ impl<'a> FontRead<'a> for StylisticSetParams<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
-        cursor.advance::<u16>();
+        cursor.advance::<NameId>();
         cursor.finish(StylisticSetParamsMarker {})
     }
 }
@@ -4383,7 +4383,7 @@ impl<'a> StylisticSetParams<'a> {
     /// be provided in multiple languages. An English string should be included
     /// as a fallback. The string should be kept to a minimal length to fit
     /// comfortably with different application interfaces.
-    pub fn ui_name_id(&self) -> u16 {
+    pub fn ui_name_id(&self) -> NameId {
         let range = self.shape.ui_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -4428,15 +4428,15 @@ impl CharacterVariantParamsMarker {
     }
     fn feat_ui_label_name_id_byte_range(&self) -> Range<usize> {
         let start = self.format_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + NameId::RAW_BYTE_LEN
     }
     fn feat_ui_tooltip_text_name_id_byte_range(&self) -> Range<usize> {
         let start = self.feat_ui_label_name_id_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + NameId::RAW_BYTE_LEN
     }
     fn sample_text_name_id_byte_range(&self) -> Range<usize> {
         let start = self.feat_ui_tooltip_text_name_id_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + NameId::RAW_BYTE_LEN
     }
     fn num_named_parameters_byte_range(&self) -> Range<usize> {
         let start = self.sample_text_name_id_byte_range().end;
@@ -4444,7 +4444,7 @@ impl CharacterVariantParamsMarker {
     }
     fn first_param_ui_label_name_id_byte_range(&self) -> Range<usize> {
         let start = self.num_named_parameters_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + NameId::RAW_BYTE_LEN
     }
     fn char_count_byte_range(&self) -> Range<usize> {
         let start = self.first_param_ui_label_name_id_byte_range().end;
@@ -4460,11 +4460,11 @@ impl<'a> FontRead<'a> for CharacterVariantParams<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
+        cursor.advance::<NameId>();
+        cursor.advance::<NameId>();
+        cursor.advance::<NameId>();
         cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
+        cursor.advance::<NameId>();
         let char_count: u16 = cursor.read()?;
         let character_byte_len = char_count as usize * Uint24::RAW_BYTE_LEN;
         cursor.advance_by(character_byte_len);
@@ -4485,7 +4485,7 @@ impl<'a> CharacterVariantParams<'a> {
     /// The 'name' table name ID that specifies a string (or strings,
     /// for multiple languages) for a user-interface label for this
     /// feature. (May be NULL.)
-    pub fn feat_ui_label_name_id(&self) -> u16 {
+    pub fn feat_ui_label_name_id(&self) -> NameId {
         let range = self.shape.feat_ui_label_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -4493,14 +4493,14 @@ impl<'a> CharacterVariantParams<'a> {
     /// The 'name' table name ID that specifies a string (or strings,
     /// for multiple languages) that an application can use for tooltip
     /// text for this feature. (May be NULL.)
-    pub fn feat_ui_tooltip_text_name_id(&self) -> u16 {
+    pub fn feat_ui_tooltip_text_name_id(&self) -> NameId {
         let range = self.shape.feat_ui_tooltip_text_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// The 'name' table name ID that specifies sample text that
     /// illustrates the effect of this feature. (May be NULL.)
-    pub fn sample_text_name_id(&self) -> u16 {
+    pub fn sample_text_name_id(&self) -> NameId {
         let range = self.shape.sample_text_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -4514,7 +4514,7 @@ impl<'a> CharacterVariantParams<'a> {
     /// The first 'name' table name ID used to specify strings for
     /// user-interface labels for the feature parameters. (Must be zero
     /// if numParameters is zero.)
-    pub fn first_param_ui_label_name_id(&self) -> u16 {
+    pub fn first_param_ui_label_name_id(&self) -> NameId {
         let range = self.shape.first_param_ui_label_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }

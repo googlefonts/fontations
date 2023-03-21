@@ -283,7 +283,7 @@ pub struct VariationAxisRecord {
     /// Axis qualifiers — see details below.
     pub flags: BigEndian<u16>,
     /// The name ID for entries in the 'name' table that provide a display name for this axis.
-    pub axis_name_id: BigEndian<u16>,
+    pub axis_name_id: BigEndian<NameId>,
 }
 
 impl VariationAxisRecord {
@@ -313,7 +313,7 @@ impl VariationAxisRecord {
     }
 
     /// The name ID for entries in the 'name' table that provide a display name for this axis.
-    pub fn axis_name_id(&self) -> u16 {
+    pub fn axis_name_id(&self) -> NameId {
         self.axis_name_id.get()
     }
 }
@@ -324,7 +324,7 @@ impl FixedSize for VariationAxisRecord {
         + Fixed::RAW_BYTE_LEN
         + Fixed::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
-        + u16::RAW_BYTE_LEN;
+        + NameId::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]

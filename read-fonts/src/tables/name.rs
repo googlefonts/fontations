@@ -2,6 +2,8 @@
 
 include!("../../generated/generated_name.rs");
 
+pub use types::NameId;
+
 impl<'a> Name<'a> {
     /// The FontData containing the encoded name strings.
     pub fn string_data(&self) -> FontData<'a> {

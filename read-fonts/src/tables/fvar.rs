@@ -40,7 +40,7 @@ impl VariationAxisRecord {
 #[cfg(test)]
 mod tests {
     use crate::{test_data, FontRef, TableProvider};
-    use types::{Fixed, Tag};
+    use types::{Fixed, NameId, Tag};
 
     #[test]
     fn axes() {
@@ -53,7 +53,7 @@ mod tests {
         assert_eq!(wght.default_value(), Fixed::from_f64(400.0));
         assert_eq!(wght.max_value(), Fixed::from_f64(900.0));
         assert_eq!(wght.flags(), 0);
-        assert_eq!(wght.axis_name_id(), 257);
+        assert_eq!(wght.axis_name_id(), NameId::new(257));
     }
 
     #[test]
@@ -66,7 +66,7 @@ mod tests {
         let instances = fvar.instances().unwrap();
         for i in 0..9 {
             let value = 100.0 * (i + 1) as f64;
-            let name_id = 258 + i as u16;
+            let name_id = NameId::new(258 + i as u16);
             let instance = instances.get(i).unwrap();
             assert_eq!(instance.coordinates.len(), 1);
             assert_eq!(

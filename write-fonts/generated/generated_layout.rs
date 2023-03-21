@@ -2890,12 +2890,12 @@ pub struct StylisticSetParams {
     /// be provided in multiple languages. An English string should be included
     /// as a fallback. The string should be kept to a minimal length to fit
     /// comfortably with different application interfaces.
-    pub ui_name_id: u16,
+    pub ui_name_id: NameId,
 }
 
 impl StylisticSetParams {
     /// Construct a new `StylisticSetParams`
-    pub fn new(ui_name_id: u16) -> Self {
+    pub fn new(ui_name_id: NameId) -> Self {
         Self { ui_name_id }
     }
 }
@@ -2935,20 +2935,20 @@ pub struct CharacterVariantParams {
     /// The 'name' table name ID that specifies a string (or strings,
     /// for multiple languages) for a user-interface label for this
     /// feature. (May be NULL.)
-    pub feat_ui_label_name_id: u16,
+    pub feat_ui_label_name_id: NameId,
     /// The 'name' table name ID that specifies a string (or strings,
     /// for multiple languages) that an application can use for tooltip
     /// text for this feature. (May be NULL.)
-    pub feat_ui_tooltip_text_name_id: u16,
+    pub feat_ui_tooltip_text_name_id: NameId,
     /// The 'name' table name ID that specifies sample text that
     /// illustrates the effect of this feature. (May be NULL.)
-    pub sample_text_name_id: u16,
+    pub sample_text_name_id: NameId,
     /// Number of named parameters. (May be zero.)
     pub num_named_parameters: u16,
     /// The first 'name' table name ID used to specify strings for
     /// user-interface labels for the feature parameters. (Must be zero
     /// if numParameters is zero.)
-    pub first_param_ui_label_name_id: u16,
+    pub first_param_ui_label_name_id: NameId,
     /// The Unicode Scalar Value of the characters for which this
     /// feature provides glyph variants.
     pub character: Vec<Uint24>,
@@ -2957,11 +2957,11 @@ pub struct CharacterVariantParams {
 impl CharacterVariantParams {
     /// Construct a new `CharacterVariantParams`
     pub fn new(
-        feat_ui_label_name_id: u16,
-        feat_ui_tooltip_text_name_id: u16,
-        sample_text_name_id: u16,
+        feat_ui_label_name_id: NameId,
+        feat_ui_tooltip_text_name_id: NameId,
+        sample_text_name_id: NameId,
         num_named_parameters: u16,
-        first_param_ui_label_name_id: u16,
+        first_param_ui_label_name_id: NameId,
         character: Vec<Uint24>,
     ) -> Self {
         Self {

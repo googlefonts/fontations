@@ -55,7 +55,7 @@ table Cpal {
     #[since_version(1)]
     #[nullable]
     #[read_offset_with($num_palette_entries)]
-    palette_entry_labels_array_offset: Offset32<[u16]>,
+    palette_entry_labels_array_offset: Offset32<[NameId]>,
 }
 
 /// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record

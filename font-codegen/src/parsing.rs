@@ -702,7 +702,7 @@ impl Parse for FieldType {
 
 // https://learn.microsoft.com/en-us/typography/opentype/spec/otff#data-types
 // Offset(16,24,32) get special handling, not listed here
-// GlyphId and MajorMinor are *not* spec names for scalar but are captured here
+// GlyphId, NameId, and MajorMinor are *not* spec names for scalar but are captured here
 #[derive(Debug, PartialEq)]
 enum WellKnownScalar {
     UInt8,
@@ -720,6 +720,7 @@ enum WellKnownScalar {
     Tag,
     Version16Dot16,
     GlyphId,
+    NameId,
     MajorMinor,
 }
 
@@ -745,6 +746,7 @@ impl FromStr for WellKnownScalar {
             "Tag" => Ok(WellKnownScalar::Tag),
             "Version16Dot16" => Ok(WellKnownScalar::Version16Dot16),
             "GlyphId" => Ok(WellKnownScalar::GlyphId),
+            "NameId" => Ok(WellKnownScalar::NameId),
             "MajorMinor" => Ok(WellKnownScalar::MajorMinor),
             _ => Err(()),
         }

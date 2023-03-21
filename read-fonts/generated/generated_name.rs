@@ -222,7 +222,7 @@ pub struct NameRecord {
     /// Language ID.
     pub language_id: BigEndian<u16>,
     /// Name ID.
-    pub name_id: BigEndian<u16>,
+    pub name_id: BigEndian<NameId>,
     /// String length (in bytes).
     pub length: BigEndian<u16>,
     /// String offset from start of storage area (in bytes).
@@ -246,7 +246,7 @@ impl NameRecord {
     }
 
     /// Name ID.
-    pub fn name_id(&self) -> u16 {
+    pub fn name_id(&self) -> NameId {
         self.name_id.get()
     }
 
@@ -265,7 +265,7 @@ impl FixedSize for NameRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
-        + u16::RAW_BYTE_LEN
+        + NameId::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN;
 }

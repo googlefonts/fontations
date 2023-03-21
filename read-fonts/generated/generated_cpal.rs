@@ -196,7 +196,7 @@ impl<'a> Cpal<'a> {
     }
 
     /// Attempt to resolve [`palette_entry_labels_array_offset`][Self::palette_entry_labels_array_offset].
-    pub fn palette_entry_labels_array(&self) -> Option<Result<&'a [BigEndian<u16>], ReadError>> {
+    pub fn palette_entry_labels_array(&self) -> Option<Result<&'a [BigEndian<NameId>], ReadError>> {
         let data = self.data;
         let args = self.num_palette_entries();
         self.palette_entry_labels_array_offset()
