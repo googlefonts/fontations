@@ -2,6 +2,17 @@
 
 include!("../../generated/generated_cmap.rs");
 
+/// Result of the mapping a codepoint with a variation selector.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum MapVariant {
+    /// The variation selector should be ignored and the default mapping
+    /// of the character should be used.
+    UseDefault,
+    /// The variant glyph mapped by a codepoint and associated variation
+    /// selector.
+    Variant(GlyphId),
+}
+
 impl<'a> Cmap<'a> {
     /// Maps a codepoint to a nominal glyph identifier using the first
     /// available subtable that provides a valid mapping.
@@ -91,6 +102,57 @@ impl<'a> Cmap12<'a> {
     }
 }
 
+impl<'a> Cmap14<'a> {
+    /// Maps a codepoint and variation selector to a nominal glyph identifier.
+    pub fn map_variant(
+        &self,
+        codepoint: impl Into<u32>,
+        selector: impl Into<u32>,
+    ) -> Option<MapVariant> {
+        let codepoint = codepoint.into();
+        let selector = selector.into();
+        let selector_records = self.var_selector();
+        // Variation selector records are sorted in order of var_selector. Binary search to find
+        // the appropriate record.
+        let selector_record = match selector_records
+            .binary_search_by(|record| <_ as Into<u32>>::into(record.var_selector()).cmp(&selector))
+        {
+            Ok(idx) => selector_records.get(idx)?,
+            _ => return None,
+        };
+        // If a default UVS table is present in this selector record, binary search on the ranges
+        // (start_unicode_value, start_unicode_value + additional_count) to find the requested codepoint.
+        // If found, ignore the selector and return a value indicating that the default cmap mapping
+        // should be used.
+        if let Some(Ok(default_uvs)) = selector_record.default_uvs(self.offset_data()) {
+            let ranges = default_uvs.ranges();
+            let mut lo = 0;
+            let mut hi = ranges.len();
+            while lo < hi {
+                let i = (lo + hi) / 2;
+                let range = &ranges[i];
+                let start = range.start_unicode_value().into();
+                if codepoint < start {
+                    hi = i;
+                } else if codepoint > (start + range.additional_count() as u32) {
+                    lo = i + 1;
+                } else {
+                    return Some(MapVariant::UseDefault);
+                }
+            }
+        }
+        // Binary search the non-default UVS table if present. This maps codepoint+selector to a variant glyph.
+        let non_default_uvs = selector_record.non_default_uvs(self.offset_data())?.ok()?;
+        let mapping = non_default_uvs.uvs_mapping();
+        let ix = mapping
+            .binary_search_by(|rec| <_ as Into<u32>>::into(rec.unicode_value()).cmp(&codepoint))
+            .ok()?;
+        Some(MapVariant::Variant(GlyphId::new(
+            mapping.get(ix)?.glyph_id(),
+        )))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::test_data;
@@ -110,5 +172,33 @@ mod tests {
         assert_eq!(cmap.map_codepoint(' '), Some(GlyphId::new(1)));
         assert_eq!(cmap.map_codepoint(0xE_u32), Some(GlyphId::new(2)));
         assert_eq!(cmap.map_codepoint('B'), None);
+    }
+
+    #[test]
+    fn map_variants() {
+        use super::{CmapSubtable, MapVariant::*};
+        let font = FontRef::new(test_data::test_fonts::CMAP14_FONT1).unwrap();
+        let cmap = font.cmap().unwrap();
+        let cmap14 = cmap
+            .encoding_records()
+            .iter()
+            .filter_map(|record| record.subtable(cmap.offset_data()).ok())
+            .find_map(|subtable| match subtable {
+                CmapSubtable::Format14(cmap14) => Some(cmap14),
+                _ => None,
+            })
+            .unwrap();
+        let selector = '\u{e0100}';
+        assert_eq!(cmap14.map_variant('a', selector), None);
+        assert_eq!(cmap14.map_variant('\u{4e00}', selector), Some(UseDefault));
+        assert_eq!(cmap14.map_variant('\u{4e06}', selector), Some(UseDefault));
+        assert_eq!(
+            cmap14.map_variant('\u{4e08}', selector),
+            Some(Variant(GlyphId::new(25)))
+        );
+        assert_eq!(
+            cmap14.map_variant('\u{4e09}', selector),
+            Some(Variant(GlyphId::new(26)))
+        );
     }
 }

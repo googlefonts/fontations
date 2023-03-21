@@ -9,6 +9,7 @@
 use std::path::Path;
 
 static FILES_TO_MOVE: &[&str] = &[
+    "../resources/test_fonts/ttf/cmap14_font1.ttf",
     "../resources/test_fonts/ttf/linear_gradient_rect_colr_1.ttf",
     "../resources/test_fonts/ttf/simple_glyf.ttf",
     "../resources/test_fonts/ttf/vazirmatn_var_trimmed.ttf",
