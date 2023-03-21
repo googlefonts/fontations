@@ -55,7 +55,7 @@ record NameRecord {
     /// Language ID.
     language_id: u16,
     /// Name ID.
-    name_id: u16,
+    name_id: NameId,
     /// String length (in bytes).
     #[compile(skip)]
     length: u16,

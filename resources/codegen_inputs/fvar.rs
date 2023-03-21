@@ -52,5 +52,5 @@ record VariationAxisRecord {
     /// Axis qualifiers — see details below.
     flags: u16,
     /// The name ID for entries in the 'name' table that provide a display name for this axis.
-    axis_name_id: u16,
+    axis_name_id: NameId,
 }

@@ -39,7 +39,7 @@ impl StatMarker {
     }
     fn elided_fallback_name_id_byte_range(&self) -> Option<Range<usize>> {
         let start = self.elided_fallback_name_id_byte_start?;
-        Some(start..start + u16::RAW_BYTE_LEN)
+        Some(start..start + NameId::RAW_BYTE_LEN)
     }
 }
 
@@ -61,7 +61,9 @@ impl<'a> FontRead<'a> for Stat<'a> {
             .compatible((1, 1))
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible((1, 1)).then(|| cursor.advance::<u16>());
+        version
+            .compatible((1, 1))
+            .then(|| cursor.advance::<NameId>());
         cursor.finish(StatMarker {
             elided_fallback_name_id_byte_start,
         })
@@ -135,7 +137,7 @@ impl<'a> Stat<'a> {
     /// Name ID used as fallback when projection of names into a
     /// particular font model produces a subfamily name containing only
     /// elidable elements.
-    pub fn elided_fallback_name_id(&self) -> Option<u16> {
+    pub fn elided_fallback_name_id(&self) -> Option<NameId> {
         let range = self.shape.elided_fallback_name_id_byte_range()?;
         Some(self.data.read_at(range.start).unwrap())
     }
@@ -194,7 +196,7 @@ pub struct AxisRecord {
     pub axis_tag: BigEndian<Tag>,
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this axis.
-    pub axis_name_id: BigEndian<u16>,
+    pub axis_name_id: BigEndian<NameId>,
     /// A value that applications can use to determine primary sorting
     /// of face names, or for ordering of labels when composing family
     /// or face names.
@@ -209,7 +211,7 @@ impl AxisRecord {
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this axis.
-    pub fn axis_name_id(&self) -> u16 {
+    pub fn axis_name_id(&self) -> NameId {
         self.axis_name_id.get()
     }
 
@@ -222,7 +224,7 @@ impl AxisRecord {
 }
 
 impl FixedSize for AxisRecord {
-    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+    const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
 #[cfg(feature = "traversal")]
@@ -409,7 +411,7 @@ impl AxisValueFormat1Marker {
     }
     fn value_name_id_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + NameId::RAW_BYTE_LEN
     }
     fn value_byte_range(&self) -> Range<usize> {
         let start = self.value_name_id_byte_range().end;
@@ -423,7 +425,7 @@ impl<'a> FontRead<'a> for AxisValueFormat1<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<AxisValueTableFlags>();
-        cursor.advance::<u16>();
+        cursor.advance::<NameId>();
         cursor.advance::<Fixed>();
         cursor.finish(AxisValueFormat1Marker {})
     }
@@ -455,7 +457,7 @@ impl<'a> AxisValueFormat1<'a> {
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
-    pub fn value_name_id(&self) -> u16 {
+    pub fn value_name_id(&self) -> NameId {
         let range = self.shape.value_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -515,7 +517,7 @@ impl AxisValueFormat2Marker {
     }
     fn value_name_id_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + NameId::RAW_BYTE_LEN
     }
     fn nominal_value_byte_range(&self) -> Range<usize> {
         let start = self.value_name_id_byte_range().end;
@@ -537,7 +539,7 @@ impl<'a> FontRead<'a> for AxisValueFormat2<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<AxisValueTableFlags>();
-        cursor.advance::<u16>();
+        cursor.advance::<NameId>();
         cursor.advance::<Fixed>();
         cursor.advance::<Fixed>();
         cursor.advance::<Fixed>();
@@ -571,7 +573,7 @@ impl<'a> AxisValueFormat2<'a> {
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
-    pub fn value_name_id(&self) -> u16 {
+    pub fn value_name_id(&self) -> NameId {
         let range = self.shape.value_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -647,7 +649,7 @@ impl AxisValueFormat3Marker {
     }
     fn value_name_id_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + NameId::RAW_BYTE_LEN
     }
     fn value_byte_range(&self) -> Range<usize> {
         let start = self.value_name_id_byte_range().end;
@@ -665,7 +667,7 @@ impl<'a> FontRead<'a> for AxisValueFormat3<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<AxisValueTableFlags>();
-        cursor.advance::<u16>();
+        cursor.advance::<NameId>();
         cursor.advance::<Fixed>();
         cursor.advance::<Fixed>();
         cursor.finish(AxisValueFormat3Marker {})
@@ -698,7 +700,7 @@ impl<'a> AxisValueFormat3<'a> {
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this attribute value.
-    pub fn value_name_id(&self) -> u16 {
+    pub fn value_name_id(&self) -> NameId {
         let range = self.shape.value_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -767,7 +769,7 @@ impl AxisValueFormat4Marker {
     }
     fn value_name_id_byte_range(&self) -> Range<usize> {
         let start = self.flags_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + NameId::RAW_BYTE_LEN
     }
     fn axis_values_byte_range(&self) -> Range<usize> {
         let start = self.value_name_id_byte_range().end;
@@ -781,7 +783,7 @@ impl<'a> FontRead<'a> for AxisValueFormat4<'a> {
         cursor.advance::<u16>();
         let axis_count: u16 = cursor.read()?;
         cursor.advance::<AxisValueTableFlags>();
-        cursor.advance::<u16>();
+        cursor.advance::<NameId>();
         let axis_values_byte_len = axis_count as usize * AxisValueRecord::RAW_BYTE_LEN;
         cursor.advance_by(axis_values_byte_len);
         cursor.finish(AxisValueFormat4Marker {
@@ -815,7 +817,7 @@ impl<'a> AxisValueFormat4<'a> {
 
     /// The name ID for entries in the 'name' table that provide a
     /// display string for this combination of axis values.
-    pub fn value_name_id(&self) -> u16 {
+    pub fn value_name_id(&self) -> NameId {
         let range = self.shape.value_name_id_byte_range();
         self.data.read_at(range.start).unwrap()
     }

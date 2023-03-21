@@ -187,35 +187,35 @@ mod tests {
             platform_id: 3,
             encoding_id: 1,
             language_id: 0,
-            name_id: 1030,
+            name_id: NameId::new(1030),
             string: OffsetMarker::new("Ordinær".into()),
         });
         table.name_record.insert(NameRecord {
             platform_id: 0,
             encoding_id: 4,
             language_id: 0,
-            name_id: 4,
+            name_id: NameId::new(4),
             string: OffsetMarker::new("oh".into()),
         });
         table.name_record.insert(NameRecord {
             platform_id: 3,
             encoding_id: 1,
             language_id: 0,
-            name_id: 1029,
+            name_id: NameId::new(1029),
             string: OffsetMarker::new("Regular".into()),
         });
 
         let _dumped = crate::dump_table(&table).unwrap();
         let loaded = read_fonts::tables::name::Name::read(FontData::new(&_dumped)).unwrap();
         assert_eq!(loaded.name_record()[0].encoding_id, 4);
-        assert_eq!(loaded.name_record()[1].name_id, 1029);
-        assert_eq!(loaded.name_record()[2].name_id, 1030);
+        assert_eq!(loaded.name_record()[1].name_id, NameId::new(1029));
+        assert_eq!(loaded.name_record()[2].name_id, NameId::new(1030));
     }
 
     /// ensure we are counting characters and not bytes
     #[test]
     fn mac_str_length() {
-        let name = NameRecord::new(1, 0, 0, 9, String::from("cé").into());
+        let name = NameRecord::new(1, 0, 0, NameId::new(9), String::from("cé").into());
         let mut table = Name::default();
         table.name_record.insert(name);
         let bytes = crate::dump_table(&table).unwrap();
