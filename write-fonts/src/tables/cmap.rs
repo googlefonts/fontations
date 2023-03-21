@@ -4,8 +4,8 @@
 
 include!("../../generated/generated_cmap.rs");
 
-// https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#unicode-platform-platform-id--0
-const UNICODE_BMP_ENCODING: u16 = 3;
+// https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#windows-platform-platform-id--3
+const WINDOWS_BMP_ENCODING: u16 = 1;
 
 fn size_of_cmap4(seg_count: u16, gid_count: u16) -> u16 {
     8 * 2  // 8 uint16's
@@ -97,8 +97,8 @@ impl Cmap {
         id_deltas.push(1);
 
         Cmap::new(vec![EncodingRecord::new(
-            PlatformId::Unicode,
-            UNICODE_BMP_ENCODING,
+            PlatformId::Windows,
+            WINDOWS_BMP_ENCODING,
             CmapSubtable::create_format_4(
                 0, // set to zero for all 'cmap' subtables whose platform IDs are other than Macintosh
                 end_code, start_code, id_deltas,
@@ -117,7 +117,7 @@ mod tests {
 
     use crate::{
         dump_table,
-        tables::cmap::{self as write, UNICODE_BMP_ENCODING},
+        tables::cmap::{self as write, WINDOWS_BMP_ENCODING},
     };
 
     fn to_vec<T: Scalar>(bees: &[BigEndian<T>]) -> Vec<T> {
@@ -142,7 +142,7 @@ mod tests {
         assert_eq!(1, cmap.encoding_records().len(), "{cmap:?}");
         let encoding_record = &cmap.encoding_records()[0];
         assert_eq!(
-            (PlatformId::Unicode, UNICODE_BMP_ENCODING),
+            (PlatformId::Unicode, WINDOWS_BMP_ENCODING),
             (encoding_record.platform_id(), encoding_record.encoding_id())
         );
 
