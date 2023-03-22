@@ -813,6 +813,49 @@ mod tests {
     use crate::{FontRef, GlyphId, TableProvider};
 
     #[test]
+    fn all_off_curve_to_path() {
+        fn pt(x: i32, y: i32) -> Point<F26Dot6> {
+            Point::new(x, y).map(F26Dot6::from_bits)
+        }
+        let points = [
+            pt(437, 191),
+            pt(716, 191),
+            pt(911, 389),
+            pt(911, 668),
+            pt(716, 864),
+            pt(437, 864),
+            pt(241, 668),
+            pt(241, 389),
+        ];
+        let flags = [PointFlags::off_curve_quad(); 8];
+        let contours = [7];
+        struct SvgPen(String);
+        impl Pen for SvgPen {
+            fn move_to(&mut self, x: f32, y: f32) {
+                self.0.push_str(&format!("M{x:.3},{y:.3} "));
+            }
+            fn line_to(&mut self, x: f32, y: f32) {
+                self.0.push_str(&format!("L{x:.3},{y:.3} "));
+            }
+            fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
+                self.0
+                    .push_str(&format!("Q{cx0:.3},{cy0:.3} {x:.3},{y:.3} "));
+            }
+            fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+                self.0.push_str(&format!(
+                    "C{cx0:.3},{cy0:.3} {cx1:.3},{cy1:.3} {x:.3},{y:.3} "
+                ));
+            }
+            fn close(&mut self) {
+                self.0.push_str("z ");
+            }
+        }
+        let mut pen = SvgPen(String::default());
+        to_path(&points, &flags, &contours, &mut pen).unwrap();
+        assert_eq!(pen.0.trim(), "M5.297,4.531 Q6.828,2.984 9.000,2.984 Q11.188,2.984 12.703,4.531 Q14.234,6.078 14.234,8.250 Q14.234,10.438 12.703,11.969 Q11.188,13.500 9.000,13.500 Q6.828,13.500 5.297,11.969 Q3.766,10.438 3.766,8.250 Q3.766,6.078 5.297,4.531 z");
+    }
+
+    #[test]
     fn simple_glyph() {
         let font = FontRef::new(test_data::test_fonts::COLR_GRADIENT_RECT).unwrap();
         let loca = font.loca(None).unwrap();
