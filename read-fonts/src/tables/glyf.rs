@@ -817,9 +817,16 @@ mod tests {
         fn pt(x: i32, y: i32) -> Point<F26Dot6> {
             Point::new(x, y).map(F26Dot6::from_bits)
         }
-        let points = [pt(640, 128), pt(256, 64), pt(640, 64), pt(128, 128)];
         let flags = [PointFlags::off_curve_quad(); 4];
         let contours = [3];
+        // This test is meant to prevent a bug where the first move-to was computed improperly
+        // for a contour consisting of all off curve points.
+        // In this case, the start of the path should be the midpoint between the first and last points.
+        // For this test case (in 26.6 fixed point): [(640, 128) + (128, 128)] / 2 = (384, 128)
+        // which becomes (6.0, 2.0) when converted to floating point.
+        let points = [pt(640, 128), pt(256, 64), pt(640, 64), pt(128, 128)];
+        let expected =
+            "M6.0,2.0 Q10.0,2.0 7.0,1.5 Q4.0,1.0 7.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 z";
         struct SvgPen(String);
         impl Pen for SvgPen {
             fn move_to(&mut self, x: f32, y: f32) {
@@ -843,10 +850,7 @@ mod tests {
         }
         let mut pen = SvgPen(String::default());
         to_path(&points, &flags, &contours, &mut pen).unwrap();
-        assert_eq!(
-            pen.0.trim(),
-            "M6.0,2.0 Q10.0,2.0 7.0,1.5 Q4.0,1.0 7.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 z"
-        );
+        assert_eq!(pen.0.trim(), expected);
     }
 
     #[test]
