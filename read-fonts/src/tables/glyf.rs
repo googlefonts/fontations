@@ -650,7 +650,7 @@ pub fn to_path(
             return Err(ToPathError::ContourOrder(contour_ix));
         }
         let mut v_start = points[cur_ix];
-        let v_last = v_start;
+        let v_last = points[last_ix];
         let mut flag = flags[cur_ix];
         if flag.is_off_curve_cubic() {
             return Err(ToPathError::ExpectedQuadOrOnCurve(cur_ix));
