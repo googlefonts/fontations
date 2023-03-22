@@ -387,7 +387,8 @@ pub struct PackedDeltas<'a> {
 
 impl<'a> PackedDeltas<'a> {
     /// NOTE: this is unbounded, and assumes all of data is deltas.
-    pub(crate) fn new(data: FontData<'a>) -> Self {
+    #[doc(hidden)] // used by tests in write-fonts
+    pub fn new(data: FontData<'a>) -> Self {
         let count = DeltaRunIter::new(data.cursor()).count();
         Self { data, count }
     }
@@ -396,7 +397,8 @@ impl<'a> PackedDeltas<'a> {
         self.count
     }
 
-    pub(crate) fn iter(&self) -> DeltaRunIter<'a> {
+    #[doc(hidden)] // used by tests in write-fonts
+    pub fn iter(&self) -> DeltaRunIter<'a> {
         DeltaRunIter::new(self.data.cursor())
     }
 }

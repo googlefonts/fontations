@@ -27,6 +27,121 @@ pub struct PackedPointNumbers {
     numbers: Vec<u16>,
 }
 
+/// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas>
+pub struct PackedDeltas {
+    deltas: Vec<i16>,
+}
+
+impl Validate for PackedDeltas {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl FontWrite for PackedDeltas {
+    fn write_into(&self, writer: &mut TableWriter) {
+        for run in self.iter_runs() {
+            run.write_into(writer)
+        }
+    }
+}
+
+impl PackedDeltas {
+    /// Construct a `PackedDeltas` from a vector of raw delta values.
+    pub fn new(deltas: Vec<i16>) -> Self {
+        Self { deltas }
+    }
+
+    fn iter_runs(&self) -> impl Iterator<Item = PackedDeltaRun> {
+        const MAX_POINTS_PER_RUN: usize = 64;
+
+        fn in_i8_range(val: i16) -> bool {
+            const MIN: i16 = i8::MIN as i16;
+            const MAX: i16 = i8::MAX as i16;
+            (MIN..=MAX).contains(&val)
+        }
+
+        fn count_leading_zeros(slice: &[i16]) -> usize {
+            slice.iter().position(|x| *x != 0).unwrap_or(slice.len())
+        }
+
+        /// compute the number of deltas in the next run, and whether they are i8s or not
+        fn next_run_len(slice: &[i16]) -> (usize, bool) {
+            let (first, rest) = slice.split_first().expect("bounds checked before here");
+            debug_assert!(*first != 0);
+            let is_1_byte = in_i8_range(*first);
+
+            for (i, raw) in rest.iter().copied().enumerate().take(MAX_POINTS_PER_RUN) {
+                let two_zeros = raw == 0 && rest.get(i + 1) == Some(&0);
+                let different_enc_len = in_i8_range(raw) != is_1_byte;
+                if two_zeros || different_enc_len {
+                    return (i + 1, is_1_byte);
+                }
+            }
+
+            (slice.len(), is_1_byte)
+        }
+
+        let mut deltas = self.deltas.as_slice();
+
+        std::iter::from_fn(move || {
+            if deltas.is_empty() {
+                return None;
+            }
+            // first handle the zero case
+            let n_zeros = count_leading_zeros(deltas);
+            if n_zeros > 0 {
+                deltas = &deltas[n_zeros..];
+                return Some(PackedDeltaRun::Zeros(n_zeros as u8));
+            }
+
+            let (len, is_i8) = next_run_len(deltas);
+            let (head, tail) = deltas.split_at(len);
+            deltas = tail;
+            let result = if is_i8 {
+                PackedDeltaRun::OneByte(head)
+            } else {
+                PackedDeltaRun::TwoBytes(head)
+            };
+            Some(result)
+        })
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+enum PackedDeltaRun<'a> {
+    Zeros(u8),
+    OneByte(&'a [i16]),
+    TwoBytes(&'a [i16]),
+}
+
+impl PackedDeltaRun<'_> {
+    fn compute_flag(&self) -> u8 {
+        /// Flag indicating that this run contains no data,
+        /// and that the deltas for this run are all zero.
+        const DELTAS_ARE_ZERO: u8 = 0x80;
+        /// Flag indicating the data type for delta values in the run.
+        const DELTAS_ARE_WORDS: u8 = 0x40;
+
+        match self {
+            PackedDeltaRun::Zeros(count) => (count - 1) | DELTAS_ARE_ZERO,
+            PackedDeltaRun::OneByte(deltas) => deltas.len() as u8 - 1,
+            PackedDeltaRun::TwoBytes(deltas) => (deltas.len() as u8 - 1) | DELTAS_ARE_WORDS,
+        }
+    }
+}
+
+impl FontWrite for PackedDeltaRun<'_> {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.compute_flag().write_into(writer);
+        match self {
+            PackedDeltaRun::Zeros(_) => (),
+            PackedDeltaRun::OneByte(deltas) => {
+                deltas.iter().for_each(|v| (*v as i8).write_into(writer))
+            }
+            PackedDeltaRun::TwoBytes(deltas) => deltas.iter().for_each(|v| v.write_into(writer)),
+        }
+    }
+}
+
 impl crate::validate::Validate for PackedPointNumbers {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         if self.numbers.len() > 0x7FFF {
@@ -205,5 +320,27 @@ mod tests {
             FontData::new(&bytes),
         );
         assert_eq!(thing.numbers, read.iter().collect::<Vec<_>>());
+    }
+
+    // <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas>
+    #[test]
+    fn packed_deltas_spec() {
+        static EXPECTED: &[u8] = &[
+            0x03, 0x0A, 0x97, 0x00, 0xC6, 0x87, 0x41, 0x10, 0x22, 0xFB, 0x34,
+        ];
+
+        let deltas = PackedDeltas::new(vec![10, -105, 0, -58, 0, 0, 0, 0, 0, 0, 0, 0, 4130, -1228]);
+        let runs = deltas.iter_runs().collect::<Vec<_>>();
+        assert_eq!(runs[0], PackedDeltaRun::OneByte(&[10, -105, 0, -58]));
+        assert_eq!(runs[1], PackedDeltaRun::Zeros(8));
+        assert_eq!(runs[2], PackedDeltaRun::TwoBytes(&[4130, -1228]));
+
+        let bytes = crate::dump_table(&deltas).unwrap();
+        assert_eq!(bytes, EXPECTED);
+        let read = read_fonts::tables::variations::PackedDeltas::new(FontData::new(&bytes));
+        let decoded = read.iter().collect::<Vec<_>>();
+        assert_eq!(deltas.deltas.len(), decoded.len());
+        assert_eq!(deltas.deltas, decoded);
+        assert_eq!(bytes, EXPECTED);
     }
 }
