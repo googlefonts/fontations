@@ -11,18 +11,15 @@ pub struct Avar {
     /// Major version number of the axis variations table — set to 1.
     /// Minor version number of the axis variations table — set to 0.
     pub version: MajorMinor,
-    /// The number of variation axes for this font. This must be the same number as axisCount in the 'fvar' table.
-    pub axis_count: u16,
     /// The segment maps array — one segment map for each axis, in the order of axes specified in the 'fvar' table.
     pub axis_segment_maps: Vec<SegmentMaps>,
 }
 
 impl Avar {
     /// Construct a new `Avar`
-    pub fn new(version: MajorMinor, axis_count: u16, axis_segment_maps: Vec<SegmentMaps>) -> Self {
+    pub fn new(version: MajorMinor, axis_segment_maps: Vec<SegmentMaps>) -> Self {
         Self {
             version,
-            axis_count,
             axis_segment_maps,
         }
     }
@@ -33,7 +30,7 @@ impl FontWrite for Avar {
     fn write_into(&self, writer: &mut TableWriter) {
         self.version.write_into(writer);
         (0 as u16).write_into(writer);
-        self.axis_count.write_into(writer);
+        (array_len(&self.axis_segment_maps).unwrap() as u16).write_into(writer);
         self.axis_segment_maps.write_into(writer);
     }
 }
@@ -57,7 +54,6 @@ impl<'a> FromObjRef<read_fonts::tables::avar::Avar<'a>> for Avar {
         let offset_data = obj.offset_data();
         Avar {
             version: obj.version(),
-            axis_count: obj.axis_count(),
             axis_segment_maps: obj
                 .axis_segment_maps()
                 .iter()
@@ -78,25 +74,23 @@ impl<'a> FontRead<'a> for Avar {
 /// [SegmentMaps](https://learn.microsoft.com/en-us/typography/opentype/spec/avar#table-formats) record
 #[derive(Clone, Debug, Default)]
 pub struct SegmentMaps {
-    /// The number of correspondence pairs for this axis.
-    pub position_map_count: u16,
     /// The array of axis value map records for this axis.
     pub axis_value_maps: Vec<AxisValueMap>,
 }
 
 impl SegmentMaps {
     /// Construct a new `SegmentMaps`
-    pub fn new(position_map_count: u16, axis_value_maps: Vec<AxisValueMap>) -> Self {
+    pub fn new(axis_value_maps: Vec<AxisValueMap>) -> Self {
         Self {
-            position_map_count,
             axis_value_maps: axis_value_maps.into_iter().map(Into::into).collect(),
         }
     }
 }
 
 impl FontWrite for SegmentMaps {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        self.position_map_count.write_into(writer);
+        (array_len(&self.axis_value_maps).unwrap() as u16).write_into(writer);
         self.axis_value_maps.write_into(writer);
     }
 }
@@ -117,7 +111,6 @@ impl Validate for SegmentMaps {
 impl FromObjRef<read_fonts::tables::avar::SegmentMaps<'_>> for SegmentMaps {
     fn from_obj_ref(obj: &read_fonts::tables::avar::SegmentMaps, offset_data: FontData) -> Self {
         SegmentMaps {
-            position_map_count: obj.position_map_count(),
             axis_value_maps: obj.axis_value_maps().to_owned_obj(offset_data),
         }
     }
