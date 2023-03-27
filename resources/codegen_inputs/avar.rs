@@ -11,6 +11,7 @@ table Avar {
     #[compile(0)]
     _reserved: u16,
     /// The number of variation axes for this font. This must be the same number as axisCount in the 'fvar' table.
+    #[compile(array_len($axis_segment_maps))]
     axis_count: u16,
     /// The segment maps array — one segment map for each axis, in the order of axes specified in the 'fvar' table.
     #[count(..)]
@@ -20,6 +21,7 @@ table Avar {
 /// [SegmentMaps](https://learn.microsoft.com/en-us/typography/opentype/spec/avar#table-formats) record
 record SegmentMaps<'a> {
     /// The number of correspondence pairs for this axis.
+    #[compile(array_len($axis_value_maps))]
     position_map_count: u16,
     /// The array of axis value map records for this axis.
     #[count($position_map_count)]

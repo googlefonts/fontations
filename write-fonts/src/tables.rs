@@ -1,5 +1,6 @@
 //! A directory of all the font tables.
 
+pub mod avar;
 pub mod base;
 pub mod cmap;
 pub mod gdef;
