@@ -18,8 +18,6 @@ pub struct Fvar {
     pub axis_count: u16,
     /// The number of named instances defined in the font (the number of records in the instances array).
     pub instance_count: u16,
-    /// The size in bytes of each InstanceRecord — set to either axisCount * sizeof(Fixed) + 4, or to axisCount * sizeof(Fixed) + 6.
-    pub instance_size: u16,
 }
 
 impl Fvar {
@@ -29,14 +27,12 @@ impl Fvar {
         axis_instance_arrays: AxisInstanceArrays,
         axis_count: u16,
         instance_count: u16,
-        instance_size: u16,
     ) -> Self {
         Self {
             version,
             axis_instance_arrays: axis_instance_arrays.into(),
             axis_count,
             instance_count,
-            instance_size,
         }
     }
 }
@@ -50,7 +46,7 @@ impl FontWrite for Fvar {
         self.axis_count.write_into(writer);
         (20 as u16).write_into(writer);
         self.instance_count.write_into(writer);
-        self.instance_size.write_into(writer);
+        (self.instance_size() as u16).write_into(writer);
     }
 }
 
@@ -75,7 +71,6 @@ impl<'a> FromObjRef<read_fonts::tables::fvar::Fvar<'a>> for Fvar {
             axis_instance_arrays: obj.axis_instance_arrays().to_owned_table(),
             axis_count: obj.axis_count(),
             instance_count: obj.instance_count(),
-            instance_size: obj.instance_size(),
         }
     }
 }

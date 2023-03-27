@@ -3,9 +3,6 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-// spec: If the value is 0xFFFF, then the value is ignored
-const PS_NAME_IGNORED: NameId = NameId::new(0xFFFF);
-
 /// The [InstanceRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar#instancerecord)
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct InstanceRecord {
@@ -24,9 +21,9 @@ impl FontWrite for InstanceRecord {
         self.subfamily_name_id.write_into(writer);
         self.flags.write_into(writer);
         self.coordinates.write_into(writer);
-        self.post_script_name_id
-            .unwrap_or(PS_NAME_IGNORED)
-            .write_into(writer);
+        if let Some(name_id) = self.post_script_name_id {
+            name_id.write_into(writer);
+        }
     }
 }
 

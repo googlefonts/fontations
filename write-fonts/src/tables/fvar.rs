@@ -8,17 +8,18 @@ pub use instance_record::InstanceRecord;
 include!("../../generated/generated_fvar.rs");
 
 impl Fvar {
-    pub fn set_instance_size(&mut self) {
+    pub fn instance_size(&self) -> u16 {
         // https://learn.microsoft.com/en-us/typography/opentype/spec/fvar#fvar-header
-        self.instance_size = self.axis_count * Fixed::RAW_BYTE_LEN as u16 + 4;
+        let mut instance_size = self.axis_count * Fixed::RAW_BYTE_LEN as u16 + 4;
         if self
             .axis_instance_arrays
             .instances
             .iter()
             .any(|i| i.post_script_name_id.is_some())
         {
-            self.instance_size += 2;
+            instance_size += 2;
         }
+        instance_size
     }
 }
 
@@ -49,7 +50,6 @@ mod tests {
             ..Default::default()
         });
         fvar.axis_count = fvar.axis_instance_arrays.axes.len().try_into().unwrap();
-        fvar.set_instance_size();
 
         fvar
     }
@@ -107,13 +107,12 @@ mod tests {
             .len()
             .try_into()
             .unwrap();
-        fvar.set_instance_size();
-        assert_eq!(2 * 4 + 4, fvar.instance_size);
+        assert_eq!(2 * 4 + 4, fvar.instance_size());
 
         let bytes = crate::write::dump_table(&fvar).unwrap();
         let loaded = read_fonts::tables::fvar::Fvar::read(FontData::new(&bytes)).unwrap();
         assert_wdth_wght_test_values(&loaded);
-        assert_eq!(fvar.instance_size, loaded.instance_size());
+        assert_eq!(fvar.instance_size(), loaded.instance_size());
 
         let instance = get_only_instance(loaded);
         assert_eq!(None, instance.post_script_name_id);
@@ -143,13 +142,12 @@ mod tests {
             .len()
             .try_into()
             .unwrap();
-        fvar.set_instance_size();
-        assert_eq!(2 * 4 + 6, fvar.instance_size);
+        assert_eq!(2 * 4 + 6, fvar.instance_size());
 
         let bytes = crate::write::dump_table(&fvar).unwrap();
         let loaded = read_fonts::tables::fvar::Fvar::read(FontData::new(&bytes)).unwrap();
         assert_wdth_wght_test_values(&loaded);
-        assert_eq!(fvar.instance_size, loaded.instance_size());
+        assert_eq!(fvar.instance_size(), loaded.instance_size());
 
         let instance = get_only_instance(loaded);
         assert_eq!(Some(NameId::new(256)), instance.post_script_name_id);
