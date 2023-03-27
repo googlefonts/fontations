@@ -8,6 +8,19 @@ pub use instance_record::InstanceRecord;
 include!("../../generated/generated_fvar.rs");
 
 impl Fvar {
+    /// We need everyone to have, or not have, post_script name so we can have a single record size.
+    pub fn check_instance_size(&self, ctx: &mut ValidationCtx) {
+        let sum: i32 = self
+            .axis_instance_arrays
+            .instances
+            .iter()
+            .map(|ir| ir.post_script_name_id.map(|_| 1).unwrap_or(-1))
+            .sum();
+        if sum.abs() as usize != self.axis_instance_arrays.instances.len() {
+            ctx.report("All or none of the instances must have post_script_name_id set. Use Some(0xFFFF) if you need to set it where you have no value.");
+        }
+    }
+
     pub fn instance_size(&self) -> u16 {
         // https://learn.microsoft.com/en-us/typography/opentype/spec/fvar#fvar-header
         let mut instance_size = self.axis_count * Fixed::RAW_BYTE_LEN as u16 + 4;
@@ -84,6 +97,20 @@ mod tests {
         instances.get(0).unwrap()
     }
 
+    fn nameless_instance_record(coordinates: Vec<Fixed>) -> InstanceRecord {
+        InstanceRecord {
+            subfamily_name_id: NameId::TYPOGRAPHIC_SUBFAMILY_NAME,
+            coordinates,
+            ..Default::default()
+        }
+    }
+
+    fn named_instance_record(coordinates: Vec<Fixed>, name_id: u16) -> InstanceRecord {
+        let mut rec = nameless_instance_record(coordinates);
+        rec.post_script_name_id = Some(NameId::new(name_id));
+        rec
+    }
+
     #[test]
     fn write_read_no_instances() {
         let fvar = wdth_wght_fvar();
@@ -96,11 +123,9 @@ mod tests {
     fn write_read_short_instance() {
         let mut fvar = wdth_wght_fvar();
         let coordinates = vec![Fixed::from_i32(420), Fixed::from_f64(101.5)];
-        fvar.axis_instance_arrays.instances.push(InstanceRecord {
-            subfamily_name_id: NameId::TYPOGRAPHIC_SUBFAMILY_NAME,
-            coordinates: coordinates.clone(),
-            ..Default::default()
-        });
+        fvar.axis_instance_arrays
+            .instances
+            .push(nameless_instance_record(coordinates.clone()));
         fvar.instance_count = fvar
             .axis_instance_arrays
             .instances
@@ -130,12 +155,9 @@ mod tests {
     fn write_read_long_instance() {
         let mut fvar = wdth_wght_fvar();
         let coordinates = vec![Fixed::from_i32(650), Fixed::from_i32(420)];
-        fvar.axis_instance_arrays.instances.push(InstanceRecord {
-            subfamily_name_id: NameId::TYPOGRAPHIC_SUBFAMILY_NAME,
-            coordinates: coordinates.clone(),
-            post_script_name_id: Some(NameId::new(256)),
-            ..Default::default()
-        });
+        fvar.axis_instance_arrays
+            .instances
+            .push(named_instance_record(coordinates.clone(), 256));
         fvar.instance_count = fvar
             .axis_instance_arrays
             .instances
@@ -172,5 +194,25 @@ mod tests {
 
         assert_eq!(read_testdata.version(), loaded.version());
         assert_eq!(read_testdata.axis_count(), loaded.axis_count());
+    }
+
+    #[test]
+    fn inconsistent_instance_size_fails() {
+        let mut fvar = wdth_wght_fvar();
+        let coordinates = vec![Fixed::from_i32(650), Fixed::from_i32(420)];
+        // OMG no, inconsistent sizing!
+        fvar.axis_instance_arrays
+            .instances
+            .push(nameless_instance_record(coordinates.clone()));
+        fvar.axis_instance_arrays
+            .instances
+            .push(named_instance_record(coordinates.clone(), 256));
+        fvar.instance_count = fvar
+            .axis_instance_arrays
+            .instances
+            .len()
+            .try_into()
+            .unwrap();
+        assert!(fvar.validate().is_err());
     }
 }

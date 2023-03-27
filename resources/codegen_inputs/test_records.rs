@@ -6,6 +6,7 @@
 
 #![parse_module(read_fonts::codegen_test::records)]
 
+#[validate(my_custom_validate)]
 table BasicTable {
     #[compile(array_len($simple_records))]
     simple_count: u16,

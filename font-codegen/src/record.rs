@@ -191,7 +191,12 @@ pub(crate) fn generate_compile_impl(
     let validate_impl_params = generic_param.map(|t| quote! { <#t: Validate> });
 
     let name_string = name.to_string();
-    let validation_stmts = fields.compilation_validation_stmts();
+    let mut validation_stmts = fields.compilation_validation_stmts();
+    if let Some(validation_ident) = attrs.validate.as_ref() {
+        validation_stmts.push(quote!(
+            self.#validation_ident(ctx);
+        ));
+    }
     let validation_fn = if validation_stmts.is_empty() {
         quote!(
             fn validate_impl(&self, _ctx: &mut ValidationCtx) {}

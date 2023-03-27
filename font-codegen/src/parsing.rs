@@ -64,6 +64,8 @@ pub(crate) struct TableAttrs {
     pub(crate) read_args: Option<Attr<TableReadArgs>>,
     pub(crate) generic_offset: Option<Attr<syn::Ident>>,
     pub(crate) tag: Option<Attr<syn::LitStr>>,
+    /// Custom validation behaviour, must be a fn(&self, &mut ValidationCtx) for the type
+    pub(crate) validate: Option<Attr<syn::Ident>>,
 }
 
 #[derive(Debug, Clone)]
@@ -199,7 +201,7 @@ pub(crate) struct FieldAttrs {
     pub(crate) traverse_with: Option<Attr<syn::Ident>>,
     pub(crate) to_owned: Option<Attr<InlineExpr>>,
     /// Custom validation behaviour
-    pub(crate) validation: Option<Attr<FieldValidation>>,
+    pub(crate) validate: Option<Attr<FieldValidation>>,
 }
 
 #[derive(Debug, Clone)]
@@ -980,7 +982,7 @@ impl Parse for FieldAttrs {
             } else if ident == DEFAULT {
                 this.default = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == VALIDATE {
-                this.validation = Some(Attr::new(ident.clone(), attr.parse_args()?));
+                this.validate = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == TO_OWNED {
                 this.to_owned = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == SINCE_VERSION {
@@ -1039,6 +1041,8 @@ impl Parse for TableAttrs {
                     return Err(logged_syn_error(tag.span(), format!("invalid tag: '{e}'")));
                 }
                 this.tag = Some(Attr::new(ident.clone(), tag))
+            } else if ident == VALIDATE {
+                this.validate = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else {
                 return Err(logged_syn_error(
                     ident.span(),

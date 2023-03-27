@@ -4,6 +4,7 @@ extern record InstanceRecord;
 
 /// The [fvar (Font Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/fvar) table
 #[tag = "fvar"]
+#[validate(check_instance_size)]
 table Fvar {
     /// Major version number of the font variations table — set to 1.
     /// Minor version number of the font variations table — set to 0.
