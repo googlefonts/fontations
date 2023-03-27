@@ -16,7 +16,7 @@ impl Fvar {
             .iter()
             .map(|ir| ir.post_script_name_id.map(|_| 1).unwrap_or(-1))
             .sum();
-        if sum.abs() as usize != self.axis_instance_arrays.instances.len() {
+        if sum.unsigned_abs() as usize != self.axis_instance_arrays.instances.len() {
             ctx.report("All or none of the instances must have post_script_name_id set. Use Some(0xFFFF) if you need to set it where you have no value.");
         }
     }
@@ -206,7 +206,7 @@ mod tests {
             .push(nameless_instance_record(coordinates.clone()));
         fvar.axis_instance_arrays
             .instances
-            .push(named_instance_record(coordinates.clone(), 256));
+            .push(named_instance_record(coordinates, 256));
         fvar.instance_count = fvar
             .axis_instance_arrays
             .instances
