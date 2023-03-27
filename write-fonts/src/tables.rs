@@ -3,6 +3,7 @@
 pub mod avar;
 pub mod base;
 pub mod cmap;
+pub mod fvar;
 pub mod gdef;
 pub mod glyf;
 pub mod gpos;

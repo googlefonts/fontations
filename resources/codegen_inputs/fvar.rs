@@ -24,6 +24,7 @@ table Fvar {
     /// The number of named instances defined in the font (the number of records in the instances array).
     instance_count: u16,
     /// The size in bytes of each InstanceRecord — set to either axisCount * sizeof(Fixed) + 4, or to axisCount * sizeof(Fixed) + 6.
+    #[compile(self.instance_size())]
     instance_size: u16,
 }
 
