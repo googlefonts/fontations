@@ -377,6 +377,8 @@ pub mod test_fonts {
     pub static VAZIRMATN_VAR: &[u8] =
         include_bytes!(concat!(env!("OUT_DIR"), "/vazirmatn_var_trimmed.ttf"));
 
+    pub static NAMES_ONLY: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/names_only.ttf"));
+
     pub static VAZIRMATN_VAR_GLYPHS: &str = include_str!(concat!(
         env!("OUT_DIR"),
         "/vazirmatn_var_trimmed-glyphs.txt"
