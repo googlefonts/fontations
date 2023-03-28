@@ -47,6 +47,7 @@ impl Validate for BasicTable {
                 }
                 self.array_records.validate_impl(ctx);
             });
+            self.my_custom_validate(ctx);
         })
     }
 }

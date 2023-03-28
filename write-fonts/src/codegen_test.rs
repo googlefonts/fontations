@@ -18,6 +18,10 @@ mod records {
                 .map(|x| x.scalars.len().try_into().unwrap())
                 .unwrap_or_default()
         }
+
+        fn my_custom_validate(&self, _: &mut ValidationCtx) {
+            // Wowee, I can validate the entire table!
+        }
     }
 
     impl SimpleRecord {

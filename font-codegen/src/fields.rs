@@ -165,7 +165,7 @@ impl Fields {
             }
             let name = field.name_for_compile();
             let name_str = name.to_string();
-            let validation_call = match field.attrs.validation.as_deref() {
+            let validation_call = match field.attrs.validate.as_deref() {
                 Some(FieldValidation::Skip) => continue,
                 Some(FieldValidation::Custom(ident)) => Some(quote!( self.#ident(ctx); )),
                 None if field.gets_recursive_validation() => {
