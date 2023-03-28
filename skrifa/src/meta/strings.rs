@@ -3,12 +3,12 @@
 //! This provides higher level interfaces for accessing the data in the
 //! OpenType [name](https://learn.microsoft.com/en-us/typography/opentype/spec/name)
 //! table.
-//! 
+//!
 //! # Example
 //! The following function will print all localized strings in a font:
 //! ```
 //! use skrifa::MetadataProvider;
-//! 
+//!
 //! fn print_all_strings<'a>(font: &impl MetadataProvider<'a>) {
 //!     for id in font.string_ids() {
 //!         println!("[{:?}]", id);
