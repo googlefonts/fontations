@@ -8,23 +8,26 @@
 
 use std::path::Path;
 
-static FILES_TO_MOVE: &[&str] = &[
-    "../resources/test_fonts/ttf/cmap14_font1.ttf",
-    "../resources/test_fonts/ttf/linear_gradient_rect_colr_1.ttf",
-    "../resources/test_fonts/ttf/simple_glyf.ttf",
-    "../resources/test_fonts/ttf/vazirmatn_var_trimmed.ttf",
-    "../resources/test_fonts/extracted/vazirmatn_var_trimmed-glyphs.txt",
-];
-
 fn main() {
+    println!("cargo:rerun-if-changed=../resources/test_fonts/");
+    copy_files();
+}
+
+fn copy_files() {
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let out_dir = Path::new(&out_dir);
-    for path in FILES_TO_MOVE.iter().map(Path::new) {
-        let out_path = out_dir.join(path.file_name().unwrap());
-        if path.exists() {
-            std::fs::copy(path, out_path).unwrap();
-        } else {
-            std::fs::write(out_path, []).unwrap();
+    for dir in [
+        "../resources/test_fonts/ttf",
+        "../resources/test_fonts/extracted",
+    ] {
+        for file in std::fs::read_dir(dir).unwrap() {
+            let path = file.unwrap().path();
+            let out_path = out_dir.join(path.file_name().unwrap());
+            if path.exists() {
+                std::fs::copy(path, out_path).unwrap();
+            } else {
+                std::fs::write(out_path, []).unwrap();
+            }
         }
     }
 }
