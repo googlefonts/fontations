@@ -9,7 +9,7 @@ include!("../../generated/generated_fvar.rs");
 
 impl Fvar {
     /// We need everyone to have, or not have, post_script name so we can have a single record size.
-    pub fn check_instance_size(&self, ctx: &mut ValidationCtx) {
+    fn check_instances(&self, ctx: &mut ValidationCtx) {
         let sum: i32 = self
             .axis_instance_arrays
             .instances
@@ -19,9 +19,22 @@ impl Fvar {
         if sum.unsigned_abs() as usize != self.axis_instance_arrays.instances.len() {
             ctx.report("All or none of the instances must have post_script_name_id set. Use Some(0xFFFF) if you need to set it where you have no value.");
         }
+
+        let uncoordinated_instances = self
+            .axis_instance_arrays
+            .instances
+            .iter()
+            .filter(|ir| ir.coordinates.len() != self.axis_count as usize)
+            .count();
+        if uncoordinated_instances > 0 {
+            ctx.report(format!(
+                "{uncoordinated_instances} instances do not axis_count ({}) coordinates",
+                self.axis_count
+            ));
+        }
     }
 
-    pub fn instance_size(&self) -> u16 {
+    fn instance_size(&self) -> u16 {
         // https://learn.microsoft.com/en-us/typography/opentype/spec/fvar#fvar-header
         let mut instance_size = self.axis_count * Fixed::RAW_BYTE_LEN as u16 + 4;
         if self
@@ -213,6 +226,16 @@ mod tests {
             .len()
             .try_into()
             .unwrap();
+        assert!(fvar.validate().is_err());
+    }
+
+    #[test]
+    fn wrong_number_of_coordinates_fails() {
+        let mut fvar = wdth_wght_fvar();
+        let coordinates = vec![Fixed::from_i32(650)];
+        fvar.axis_instance_arrays
+            .instances
+            .push(nameless_instance_record(coordinates));
         assert!(fvar.validate().is_err());
     }
 }

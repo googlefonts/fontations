@@ -56,7 +56,7 @@ impl Validate for Fvar {
             ctx.in_field("axis_instance_arrays", |ctx| {
                 self.axis_instance_arrays.validate_impl(ctx);
             });
-            self.check_instance_size(ctx);
+            self.check_instances(ctx);
         })
     }
 }
