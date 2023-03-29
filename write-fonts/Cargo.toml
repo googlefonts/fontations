@@ -20,3 +20,5 @@ kurbo = "0.9.1"
 diff = "0.1.12"
 ansi_term = "0.12.1"
 read-fonts = { version = "0.1.3", path = "../read-fonts", features = ["test_data"] }
+log = "0.4"
+env_logger = "0.10.0"
