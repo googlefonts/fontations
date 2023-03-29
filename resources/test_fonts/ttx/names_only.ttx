@@ -4,7 +4,7 @@
     <namerecord nameID="1" platformID="3" platEncID="1" langID="0x409">
       NameTest
     </namerecord>
-    <namerecord nameID="2" platformID="3" platEncID="1" langID="0x409">
+    <namerecord nameID="2" platformID="1" platEncID="0" langID="0x0">
       Regular
     </namerecord>
     <namerecord nameID="2" platformID="3" platEncID="1" langID="0x408">
@@ -15,6 +15,12 @@
     </namerecord>
     <namerecord nameID="2" platformID="3" platEncID="1" langID="0x42d">
       Arrunta
+    </namerecord>
+    <namerecord nameID="2" platformID="3" platEncID="1" langID="0x804">
+      正常
+    </namerecord>
+    <namerecord nameID="2" platformID="3" platEncID="1" langID="0x401">
+      عادي
     </namerecord>
   </name>
 </ttFont>
