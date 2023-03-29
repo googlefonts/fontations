@@ -3,6 +3,10 @@
 # Local check that we are likely to pass CI
 # CI is quite slow so it's nice to be able to run locally
 
+
+GITHOOKS_DIR=$(dirname "$(realpath "$0")")
+SCRIPTS_DIR="$GITHOOKS_DIR/../scripts"
+
 set -o errexit
 set -o xtrace
 
@@ -19,3 +23,22 @@ cargo clippy --all-features --all-targets -- -D warnings
 
 cargo test --all-features
 cargo test --no-default-features
+
+# shut up xtrace
+{ set +x; } 2>/dev/null
+
+# Check against println! or eprintln! in the Rust files about to be pushed.
+# The pre-push git hook receives info about what is to be pushed from stdin, see:
+# https://git-scm.com/docs/githooks#_pre_push
+# The `test` Unix command -t NUM option returns true if the given file descriptor (0 for stdin)
+# is open and associated with a terminal, and false if the input is piped.
+# When this is run as a regular script (input is a terminal), all the git-tracked *.rs files
+# are searched. When it's run as a hook (input is a pipe) only the added lines from the diff
+# between local and remote refs are searched.
+if [ -t 0 ]; then
+    "$SCRIPTS_DIR/check_no_println.sh"
+else
+    while read -r _local_ref local_sha _remote_ref remote_sha; do
+        "$SCRIPTS_DIR/check_no_println.sh" --from-ref "$remote_sha" --to-ref "$local_sha"
+    done
+fi
