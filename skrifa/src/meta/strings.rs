@@ -29,8 +29,8 @@ use core::fmt;
 #[doc(inline)]
 pub use read_fonts::types::NameId as StringId;
 
-#[derive(Clone)]
 /// Iterator over the characters of a string.
+#[derive(Clone)]
 pub struct Chars<'a> {
     inner: Option<CharIter<'a>>,
 }
