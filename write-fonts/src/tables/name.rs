@@ -162,6 +162,12 @@ impl PartialOrd for NameRecord {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use env_logger;
+    use log::debug;
+
+    fn init() {
+        let _ = env_logger::builder().is_test(true).try_init();
+    }
 
     #[test]
     fn encoding() {
@@ -227,6 +233,8 @@ mod tests {
 
     #[test]
     fn roundtrip() {
+        init();
+
         #[rustfmt::skip]
         static COLINS_BESPOKE_DATA: &[u8] = &[
             0x0, 0x0, // version
@@ -274,7 +282,7 @@ mod tests {
 
         for rec in raw_table.name_record() {
             let raw_str = rec.string(raw_table.string_data()).unwrap();
-            eprintln!("{raw_str}");
+            debug!("{raw_str}");
         }
 
         assert_eq!(raw_table.version(), reloaded.version());
@@ -292,11 +300,11 @@ mod tests {
             assert_eq!(old.language_id(), new.language_id());
             assert_eq!(old.name_id(), new.name_id());
             assert_eq!(old.length(), new.length());
-            eprintln!("{:?} {:?}", old.string_offset(), new.string_offset());
+            debug!("{:?} {:?}", old.string_offset(), new.string_offset());
             let old_str = old.string(raw_table.string_data()).unwrap();
             let new_str = new.string(reloaded.string_data()).unwrap();
             if old_str != new_str {
-                eprintln!("'{old_str}' != '{new_str}'");
+                debug!("'{old_str}' != '{new_str}'");
                 fail = true;
             }
         }
