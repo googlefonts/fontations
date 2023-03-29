@@ -202,8 +202,9 @@ impl Language {
         let language_id = record.language_id();
         // For version 1 name tables, prefer language tags:
         // https://learn.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1
-        if name.version() == 1 && language_id >= 0x8000 {
-            let index = (language_id - 0x8000) as usize;
+        const BASE_LANGUAGE_TAG_ID: u16 = 0x8000;
+        if name.version() == 1 && language_id >= BASE_LANGUAGE_TAG_ID {
+            let index = (language_id - BASE_LANGUAGE_TAG_ID) as usize;
             let language_string = name
                 .lang_tag_record()?
                 .get(index)?
@@ -649,10 +650,12 @@ mod tests {
             .collect::<Vec<_>>();
         subfamily_names.sort_by(|a, b| a.0.cmp(&b.0));
         let expected = [
+            (String::from("ar-SA"), String::from("عادي")),
             (String::from("el-GR"), String::from("Κανονικά")),
-            (String::from("en-US"), String::from("Regular")),
+            (String::from("en"), String::from("Regular")),
             (String::from("eu-ES"), String::from("Arrunta")),
             (String::from("pl-PL"), String::from("Normalny")),
+            (String::from("zh-Hans"), String::from("正常")),
         ];
         assert_eq!(subfamily_names.as_slice(), expected);
     }
