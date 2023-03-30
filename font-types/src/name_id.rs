@@ -158,6 +158,13 @@ impl NameId {
         Self(raw)
     }
 
+    /// Returns an iterator over the set of predefined identifiers according to the
+    /// specification.
+    pub fn predefined() -> impl Iterator<Item = Self> + Clone {
+        // Poor name id 15 got lost...
+        (0..15).chain(16..=25).map(Self)
+    }
+
     /// Return the identifier as a u16.
     pub const fn to_u16(self) -> u16 {
         self.0
