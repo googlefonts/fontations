@@ -369,7 +369,12 @@ pub mod test_fonts {
     //! To add new files, you will need to add the file in resources/test_fonts,
     //! and then update read-fonts/build.rs.
 
+    pub static CMAP12_FONT1: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/cmap12_font1.ttf"));
+
     pub static CMAP14_FONT1: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/cmap14_font1.ttf"));
+
+    pub static CMAP4_SYMBOL_PUA: &[u8] =
+        include_bytes!(concat!(env!("OUT_DIR"), "/cmap4_symbol_pua.ttf"));
 
     pub static COLR_GRADIENT_RECT: &[u8] =
         include_bytes!(concat!(env!("OUT_DIR"), "/linear_gradient_rect_colr_1.ttf"));
