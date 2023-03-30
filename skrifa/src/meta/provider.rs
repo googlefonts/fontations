@@ -1,4 +1,5 @@
 use super::{
+    charmap::Charmap,
     metrics::{GlyphMetrics, Metrics},
     strings::{LocalizedStrings, StringId},
 };
@@ -22,6 +23,11 @@ pub trait MetadataProvider<'a>: raw::TableProvider<'a> + Sized {
     /// coordinates.
     fn glyph_metrics(&self, size: Size, coords: NormalizedCoords<'a>) -> GlyphMetrics<'a> {
         GlyphMetrics::new(self, size, coords)
+    }
+
+    /// Returns the character to nominal glyph identifier mapping.
+    fn charmap(&self) -> Charmap<'a> {
+        Charmap::new(self)
     }
 }
 

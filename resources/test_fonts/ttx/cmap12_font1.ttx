@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ttFont sfntVersion="\x00\x01\x00\x00" ttLibVersion="4.37">
+
+  <GlyphOrder>
+    <!-- The 'id' attribute is only for humans; it is ignored when parsed. -->
+    <GlyphID id="0" name=".notdef"/>
+    <GlyphID id="1" name="g1"/>
+    <GlyphID id="2" name="g2"/>
+    <GlyphID id="3" name="g3"/>
+    <GlyphID id="4" name="g4"/>
+    <GlyphID id="5" name="g5"/>
+    <GlyphID id="6" name="g6"/>
+    <GlyphID id="7" name="g7"/>
+    <GlyphID id="8" name="g8"/>
+    <GlyphID id="9" name="g9"/>
+    <GlyphID id="10" name="g10"/>
+    <GlyphID id="11" name="g11"/>
+    <GlyphID id="12" name="g12"/>
+    <GlyphID id="13" name="g13"/>
+    <GlyphID id="14" name="g14"/>
+    <GlyphID id="15" name="g15"/>
+    <GlyphID id="16" name="g16"/>
+    <GlyphID id="17" name="g17"/>
+    <GlyphID id="18" name="g18"/>
+    <GlyphID id="19" name="g19"/>
+    <GlyphID id="20" name="g20"/>
+    <GlyphID id="21" name="g21"/>
+    <GlyphID id="22" name="g22"/>
+    <GlyphID id="23" name="g23"/>
+    <GlyphID id="24" name="g24"/>
+    <GlyphID id="25" name="g25"/>
+    <GlyphID id="26" name="g26"/>
+    <GlyphID id="27" name="g27"/>
+    <GlyphID id="28" name="g28"/>
+    <GlyphID id="29" name="g29"/>
+    <GlyphID id="30" name="g30"/>
+    <GlyphID id="31" name="g31"/>
+    <GlyphID id="32" name="g32"/>
+    <GlyphID id="33" name="g33"/>
+    <GlyphID id="34" name="g34"/>
+    <GlyphID id="35" name="g35"/>
+    <GlyphID id="36" name="g36"/>
+    <GlyphID id="37" name="g37"/>
+    <GlyphID id="38" name="g38"/>
+    <GlyphID id="39" name="g39"/>
+    <GlyphID id="40" name="g40"/>
+    <GlyphID id="41" name="g41"/>
+    <GlyphID id="42" name="g42"/>
+    <GlyphID id="43" name="g43"/>
+    <GlyphID id="44" name="g44"/>
+    <GlyphID id="45" name="g45"/>
+    <GlyphID id="46" name="g46"/>
+    <GlyphID id="47" name="g47"/>
+    <GlyphID id="48" name="g48"/>
+    <GlyphID id="49" name="g49"/>
+    <GlyphID id="50" name="g50"/>
+    <GlyphID id="51" name="g51"/>
+    <GlyphID id="52" name="g52"/>
+    <GlyphID id="53" name="g53"/>
+    <GlyphID id="54" name="g54"/>
+    <GlyphID id="55" name="g55"/>
+    <GlyphID id="56" name="g56"/>
+    <GlyphID id="57" name="g57"/>
+    <GlyphID id="58" name="g58"/>
+    <GlyphID id="59" name="g59"/>
+    <GlyphID id="60" name="g60"/>
+    <GlyphID id="61" name="g61"/>
+    <GlyphID id="62" name="g62"/>
+    <GlyphID id="63" name="g63"/>
+    <GlyphID id="64" name="g64"/>
+    <GlyphID id="65" name="g65"/>
+    <GlyphID id="66" name="g66"/>
+    <GlyphID id="67" name="g67"/>
+    <GlyphID id="68" name="g68"/>
+    <GlyphID id="69" name="g69"/>
+    <GlyphID id="70" name="g70"/>
+    <GlyphID id="71" name="g71"/>
+    <GlyphID id="72" name="g72"/>
+    <GlyphID id="73" name="g73"/>
+    <GlyphID id="74" name="g74"/>
+    <GlyphID id="75" name="g75"/>
+    <GlyphID id="76" name="g76"/>
+    <GlyphID id="77" name="g77"/>
+    <GlyphID id="78" name="g78"/>
+    <GlyphID id="79" name="g79"/>
+    <GlyphID id="80" name="g80"/>
+    <GlyphID id="81" name="g81"/>
+    <GlyphID id="82" name="g82"/>
+    <GlyphID id="83" name="g83"/>
+    <GlyphID id="84" name="g84"/>
+    <GlyphID id="85" name="g85"/>
+    <GlyphID id="86" name="g86"/>
+    <GlyphID id="87" name="g87"/>
+    <GlyphID id="88" name="g88"/>
+    <GlyphID id="89" name="g89"/>
+    <GlyphID id="90" name="g90"/>
+    <GlyphID id="91" name="g91"/>
+    <GlyphID id="92" name="g92"/>
+    <GlyphID id="93" name="g93"/>
+    <GlyphID id="94" name="g94"/>
+    <GlyphID id="95" name="g95"/>
+    <GlyphID id="96" name="g96"/>
+    <GlyphID id="97" name="g97"/>
+    <GlyphID id="98" name="g98"/>
+    <GlyphID id="99" name="g99"/>
+  </GlyphOrder>
+
+  <maxp>
+    <tableVersion value="0x5000"/>
+    <numGlyphs value="100"/>
+  </maxp>
+
+  <cmap>
+    <tableVersion version="0"/>
+    <cmap_format_12 platformID="3" platEncID="1" format="12" reserved="0" length="40" language="0" nGroups="2">
+      <map code="0x101723" name="g23"/><!-- ???? -->
+      <map code="0x101724" name="g24"/><!-- ???? -->
+      <map code="0x101725" name="g25"/><!-- ???? -->
+      <map code="0x101726" name="g26"/><!-- ???? -->
+      <map code="0x101727" name="g27"/><!-- ???? -->
+      <map code="0x102523" name="g53"/><!-- ???? -->
+      <map code="0x102524" name="g54"/><!-- ???? -->
+      <map code="0x102525" name="g55"/><!-- ???? -->
+      <map code="0x102526" name="g56"/><!-- ???? -->
+      <map code="0x102527" name="g57"/><!-- ???? -->
+    </cmap_format_12>
+  </cmap>
+
+</ttFont>
