@@ -71,21 +71,29 @@ impl Cmap {
 
         let mut prev = (u16::MAX - 1, u16::MAX - 1);
         for (cp, gid) in mappings.into_iter() {
+            let gid = gid.to_u16();
             let cp = (cp as u32).try_into().unwrap();
             let next_in_run = (
                 prev.0.checked_add(1).unwrap(),
                 prev.1.checked_add(1).unwrap(),
             );
-            let current = (cp, gid.to_u16());
+            let current = (cp, gid);
             // Codepoint and gid need to be continuous
             if current != next_in_run {
                 // Start a new run
                 start_code.push(cp);
                 end_code.push(cp);
 
-                // we might need to reach further than an i16 can take us
-                // using idRangeOffset ... but we're saving that for another day
-                id_deltas.push((gid.to_u16() as i32 - cp as i32).try_into().unwrap());
+                // TIL Python % 0x10000 and Rust % 0x10000 do not mean the same thing.
+                // rem_euclid is almost what we want, except as applied to small values
+                // ex -10 rem_euclid 0x10000 = 65526
+                let delta: i32 = gid as i32 - cp as i32;
+                let delta = if let Ok(delta) = TryInto::<i16>::try_into(delta) {
+                    delta
+                } else {
+                    delta.rem_euclid(0x10000).try_into().unwrap()
+                };
+                id_deltas.push(delta);
             } else {
                 // Continue the prior run
                 let last = end_code.last_mut().unwrap();
@@ -201,5 +209,21 @@ mod tests {
         }
         assert_ne!(ordered, disordered);
         assert_generates_simple_cmap(disordered);
+    }
+
+    #[test]
+    fn generate_cmap4_large_values() {
+        let mut mappings = simple_cmap_mappings();
+        // Example from Texturina.
+        let codepoint = char::from_u32(0xa78b).unwrap();
+        let gid = GlyphId::new(153);
+        mappings.push((codepoint, gid));
+
+        let cmap = write::Cmap::from_mappings(mappings);
+
+        let bytes = dump_table(&cmap).unwrap();
+        let font_data = FontData::new(&bytes);
+        let cmap = Cmap::read(font_data).unwrap();
+        assert_eq!(cmap.map_codepoint(codepoint), Some(gid));
     }
 }
