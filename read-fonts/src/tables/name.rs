@@ -153,8 +153,10 @@ impl<'a> Iterator for CharIter<'a> {
             Encoding::Utf16Be => {
                 let c1 = self.bump_u16()? as u32;
                 if (0xD800..0xDC00).contains(&c1) {
-                    let c2 = self.bump_u16()? as u32;
-                    ((c1 & 0x3FF) << 10) + (c2 & 0x3FF) + 0x10000
+                    let Some(c2) = self.bump_u16() else {
+                        return Some(rep);
+                    };
+                    ((c1 & 0x3FF) << 10) + (c2 as u32 & 0x3FF) + 0x10000
                 } else {
                     c1
                 }
@@ -285,5 +287,16 @@ mod tests {
             let enc = MacRomanMapping.encode(c).unwrap();
             assert_eq!(MacRomanMapping.decode(enc), c);
         }
+    }
+
+    #[test]
+    fn lone_surrogate_at_end() {
+        let chars = CharIter {
+            // DEVANAGARI LETTER SHORT A (U+0904), unpaired high surrogate (0xD800)
+            data: &[0x09, 0x04, 0xD8, 0x00],
+            encoding: Encoding::Utf16Be,
+            pos: 0,
+        };
+        assert!(chars.eq(['ऄ', std::char::REPLACEMENT_CHARACTER].into_iter()))
     }
 }
