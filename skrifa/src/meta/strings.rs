@@ -5,15 +5,19 @@
 //! table.
 //!
 //! # Example
-//! The following function will print all localized strings in a font:
+//! The following function will print all localized strings from the set
+//! of predefined identifiers in a font:
 //! ```
-//! use skrifa::MetadataProvider;
+//! use skrifa::meta::{strings::StringId, MetadataProvider};
 //!
-//! fn print_all_strings<'a>(font: &impl MetadataProvider<'a>) {
-//!     for id in font.string_ids() {
-//!         println!("[{:?}]", id);
-//!         for string in font.localized_strings(id) {
-//!             println!("{:?} {}", string.language(), string.to_string());
+//! fn print_well_known_strings<'a>(font: &impl MetadataProvider<'a>) {
+//!     for id in StringId::predefined() {
+//!         let strings = font.localized_strings(id);
+//!         if strings.clone().next().is_some() {
+//!             println!("[{:?}]", id);
+//!             for string in font.localized_strings(id) {
+//!                 println!("{:?} {}", string.language(), string.to_string());
+//!             }
 //!         }
 //!     }
 //! }
@@ -40,42 +44,6 @@ impl<'a> Iterator for Chars<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         self.inner.as_mut()?.next()
-    }
-}
-
-/// Iterator over the collection of available string identifiers in a font.
-pub struct StringIds<'a> {
-    records: core::slice::Iter<'a, NameRecord>,
-    last_id: Option<StringId>,
-}
-
-impl<'a> StringIds<'a> {
-    /// Creates a new string identifier iterator from the given font.
-    pub fn new(font: &impl TableProvider<'a>) -> Self {
-        let name = font.name().ok();
-        let records = name
-            .as_ref()
-            .map(|name| name.name_record().iter())
-            .unwrap_or([].iter());
-        Self {
-            records,
-            last_id: None,
-        }
-    }
-}
-
-impl<'a> Iterator for StringIds<'a> {
-    type Item = StringId;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        loop {
-            let record = self.records.next()?;
-            let id = Some(record.name_id());
-            if self.last_id < id {
-                self.last_id = id;
-                return id;
-            }
-        }
     }
 }
 
@@ -625,21 +593,6 @@ mod tests {
 
     use super::*;
     use read_fonts::FontRef;
-
-    #[test]
-    fn string_ids() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::VAZIRMATN_VAR).unwrap();
-        assert_eq!(
-            font.string_ids().collect::<Vec<_>>().as_slice(),
-            &[
-                StringId::SUBFAMILY_NAME,
-                StringId::new(257),
-                StringId::new(258),
-                StringId::new(261),
-                StringId::new(264),
-            ]
-        );
-    }
 
     #[test]
     fn localized() {
