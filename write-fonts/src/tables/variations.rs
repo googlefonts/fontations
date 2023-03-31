@@ -2,7 +2,52 @@
 
 include!("../../generated/generated_variations.rs");
 
-pub use read_fonts::tables::variations::TupleIndex;
+pub use read_fonts::tables::variations::{TupleIndex, TupleVariationCount};
+
+impl TupleVariationHeader {
+    pub fn new(
+        variation_data_size: u16,
+        shared_tuple_idx: Option<u16>,
+        peak_tuple: Option<Tuple>,
+        intermediate_region: Option<(Tuple, Tuple)>,
+        has_private_points: bool,
+    ) -> Self {
+        assert!(
+            shared_tuple_idx.is_some() != peak_tuple.is_some(),
+            "one and only one of peak_tuple or shared_tuple_idx must be present"
+        );
+        let mut idx = shared_tuple_idx.unwrap_or_default();
+        if peak_tuple.is_some() {
+            idx |= TupleIndex::EMBEDDED_PEAK_TUPLE;
+        }
+        if intermediate_region.is_some() {
+            idx |= TupleIndex::INTERMEDIATE_REGION;
+        }
+        if has_private_points {
+            idx |= TupleIndex::PRIVATE_POINT_NUMBERS;
+        }
+        let (intermediate_start_tuple, intermediate_end_tuple) = intermediate_region
+            .map(|(start, end)| (start.values, end.values))
+            .unwrap_or_default();
+
+        TupleVariationHeader {
+            variation_data_size,
+            tuple_index: TupleIndex::from_bits(idx),
+            peak_tuple: peak_tuple.map(|tup| tup.values).unwrap_or_default(),
+            intermediate_start_tuple,
+            intermediate_end_tuple,
+        }
+    }
+
+    /// Return the number of bytes required to encode this header
+    pub fn compute_size(&self) -> u16 {
+        let len: usize = 2 + 2 // variationDataSize, tupleIndex
+        + self.peak_tuple.len() * F2Dot14::RAW_BYTE_LEN
+        + self.intermediate_start_tuple.len()  * F2Dot14::RAW_BYTE_LEN
+        + self.intermediate_end_tuple.len()  * F2Dot14::RAW_BYTE_LEN;
+        len.try_into().unwrap()
+    }
+}
 
 impl VariationRegionList {
     fn compute_axis_count(&self) -> usize {
@@ -22,12 +67,15 @@ impl VariationRegionList {
 }
 
 /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-point-numbers>
+//FIXME: an enum with All and Packed variants
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
 pub struct PackedPointNumbers {
     is_all: bool,
     numbers: Vec<u16>,
 }
 
 /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas>
+#[derive(Clone, Debug, Default)]
 pub struct PackedDeltas {
     deltas: Vec<i16>,
 }
@@ -48,6 +96,13 @@ impl PackedDeltas {
     /// Construct a `PackedDeltas` from a vector of raw delta values.
     pub fn new(deltas: Vec<i16>) -> Self {
         Self { deltas }
+    }
+
+    /// Compute the number of bytes required to encode these deltas
+    pub(crate) fn compute_size(&self) -> u16 {
+        self.iter_runs().fold(0u16, |acc, run| {
+            acc.checked_add(run.compute_size()).unwrap()
+        })
     }
 
     fn iter_runs(&self) -> impl Iterator<Item = PackedDeltaRun> {
@@ -122,6 +177,14 @@ impl PackedDeltaRun<'_> {
             PackedDeltaRun::TwoBytes(deltas) => (deltas.len() as u8 - 1) | DELTAS_ARE_WORDS,
         }
     }
+
+    fn compute_size(&self) -> u16 {
+        match self {
+            PackedDeltaRun::Zeros(_) => 1,
+            PackedDeltaRun::OneByte(vals) => vals.len() as u16 + 1,
+            PackedDeltaRun::TwoBytes(vals) => vals.len() as u16 * 2 + 1,
+        }
+    }
 }
 
 impl FontWrite for PackedDeltaRun<'_> {
@@ -170,6 +233,20 @@ impl PackedPointNumbers {
     pub fn new(numbers: Vec<u16>, is_all: bool) -> Self {
         Self { is_all, numbers }
     }
+
+    /// Compute the number of bytes required to encode these points
+    pub(crate) fn compute_size(&self) -> u16 {
+        let mut count = match self.numbers.len() {
+            _ if self.is_all => return 1,
+            0..=127 => 1u16,
+            _ => 2,
+        };
+        for run in self.iter_runs() {
+            count = count.checked_add(run.compute_size()).unwrap();
+        }
+        count
+    }
+
     fn iter_runs(&self) -> impl Iterator<Item = PackedPointRun> {
         const U8_MAX: u16 = u8::MAX as u16;
         const MAX_POINTS_PER_RUN: usize = 128;
@@ -217,6 +294,14 @@ struct PackedPointRun<'a> {
     points: &'a [u16],
 }
 
+impl PackedPointRun<'_> {
+    fn compute_size(&self) -> u16 {
+        const LEN_BYTE: u16 = 1;
+        let per_point_len = if self.are_words { 2 } else { 1 };
+        self.points.len() as u16 * per_point_len + LEN_BYTE
+    }
+}
+
 impl FontWrite for PackedPointRun<'_> {
     fn write_into(&self, writer: &mut TableWriter) {
         assert!(!self.points.is_empty() && self.points.len() <= 128);
@@ -258,6 +343,31 @@ impl<'a> FromObjRef<Option<read_fonts::tables::variations::Tuple<'a>>> for Vec<F
     }
 }
 
+impl Tuple {
+    pub fn len(&self) -> u16 {
+        self.values.len().try_into().unwrap()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.values.is_empty()
+    }
+}
+
+//FIXME: get that "derive extra traits" stuff merged.
+impl std::hash::Hash for Tuple {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.values.hash(state);
+    }
+}
+
+impl std::cmp::PartialEq for Tuple {
+    fn eq(&self, other: &Self) -> bool {
+        self.values == other.values
+    }
+}
+
+impl std::cmp::Eq for Tuple {}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -284,6 +394,7 @@ mod tests {
         };
 
         let bytes = crate::dump_table(&thing).unwrap();
+        assert_eq!(thing.compute_size() as usize, bytes.len());
         let (read, _) = read_fonts::tables::variations::PackedPointNumbers::split_off_front(
             FontData::new(&bytes),
         );
@@ -340,6 +451,7 @@ mod tests {
         };
 
         let bytes = crate::dump_table(&thing).unwrap();
+        assert_eq!(thing.compute_size() as usize, bytes.len());
         let (read, _) = read_fonts::tables::variations::PackedPointNumbers::split_off_front(
             FontData::new(&bytes),
         );
