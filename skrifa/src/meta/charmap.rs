@@ -27,7 +27,7 @@ pub use read_fonts::tables::cmap::MapVariant;
 /// * Unicode characters: formats [4](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values)
 /// and [12](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage)
 /// * Unicode variation sequences: format [14](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences)
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Charmap<'a> {
     map: Option<Map<'a>>,
     variant_map: Option<Cmap14<'a>>,
@@ -155,7 +155,7 @@ impl<'a> Map<'a> {
     fn map(&self, codepoint: u32) -> Option<GlyphId> {
         self.map_impl(codepoint).or_else(|| {
             if self.is_symbol {
-                self.map_impl(self.adjust_symbol_pua(codepoint))
+                self.map_impl(Self::adjust_symbol_pua(codepoint)?)
             } else {
                 None
             }
@@ -169,7 +169,7 @@ impl<'a> Map<'a> {
         }
     }
 
-    fn adjust_symbol_pua(&self, codepoint: u32) -> u32 {
+    fn adjust_symbol_pua(codepoint: u32) -> Option<u32> {
         // From HarfBuzz:
         // For symbol-encoded OpenType fonts, we duplicate the
         // U+F000..F0FF range at U+0000..U+00FF.  That's what
@@ -178,9 +178,9 @@ impl<'a> Map<'a> {
         // under "Non-Standard (Symbol) Fonts".
         // See <https://github.com/harfbuzz/harfbuzz/blob/453ded05392af38bba9f89587edce465e86ffa6b/src/hb-ot-cmap-table.hh#L1595>
         if codepoint <= 0x00FF {
-            codepoint + 0xF000
+            Some(codepoint + 0xF000)
         } else {
-            0
+            None
         }
     }
 }
@@ -217,6 +217,10 @@ enum MapKind {
     Symbol = 3,
 }
 
+/// Searches the `cmap` table for the best Unicode subtables.
+///
+/// Returns the `MappingIndex` accelerator along with character and UVS
+/// subtables.
 fn find_best_mappings<'a>(
     cmap: &Cmap<'a>,
 ) -> (
