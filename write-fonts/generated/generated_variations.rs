@@ -28,28 +28,6 @@ pub struct TupleVariationHeader {
     pub intermediate_end_tuple: Vec<F2Dot14>,
 }
 
-impl TupleVariationHeader {
-    /// Construct a new `TupleVariationHeader`
-    pub fn new(
-        variation_data_size: u16,
-        tuple_index: TupleIndex,
-        peak_tuple: Vec<F2Dot14>,
-        intermediate_start_tuple: Vec<F2Dot14>,
-        intermediate_end_tuple: Vec<F2Dot14>,
-    ) -> Self {
-        Self {
-            variation_data_size,
-            tuple_index,
-            peak_tuple: peak_tuple.into_iter().map(Into::into).collect(),
-            intermediate_start_tuple: intermediate_start_tuple
-                .into_iter()
-                .map(Into::into)
-                .collect(),
-            intermediate_end_tuple: intermediate_end_tuple.into_iter().map(Into::into).collect(),
-        }
-    }
-}
-
 impl FontWrite for TupleVariationHeader {
     fn write_into(&self, writer: &mut TableWriter) {
         self.variation_data_size.write_into(writer);

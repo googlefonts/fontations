@@ -4,6 +4,7 @@ extern scalar TupleIndex;
 
 /// [TupleVariationHeader](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuplevariationheader)
 #[read_args(axis_count: u16)]
+#[skip_constructor]
 table TupleVariationHeader {
     /// The size in bytes of the serialized data for this tuple
     /// variation table.
