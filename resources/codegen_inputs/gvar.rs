@@ -5,8 +5,10 @@ extern record TupleVariationHeader;
 
 /// The ['gvar' header](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#gvar-header)
 #[tag = "gvar"]
+#[skip_from_obj]
 table Gvar {
     /// Major/minor version number of the glyph variations table — set to (1,0).
+    #[compile(MajorMinor::VERSION_1_0)]
     version: MajorMinor,
     /// The number of variation axes for this font. This must be the
     /// same number as axisCount in the 'fvar' table.
@@ -15,25 +17,31 @@ table Gvar {
     /// referenced within glyph variation data tables for multiple
     /// glyphs, as opposed to other tuple records stored directly
     /// within a glyph variation data table.
+    #[compile(array_len($shared_tuples_offset))]
     shared_tuple_count: u16,
     /// Offset from the start of this table to the shared tuple records.
     #[read_offset_with($shared_tuple_count, $axis_count)]
     shared_tuples_offset: Offset32<SharedTuples>,
     /// The number of glyphs in this font. This must match the number
     /// of glyphs stored elsewhere in the font.
+    #[compile(self.compute_glyph_count())]
     glyph_count: u16,
     /// Bit-field that gives the format of the offset array that
     /// follows. If bit 0 is clear, the offsets are uint16; if bit 0 is
     /// set, the offsets are uint32.
+    #[compile(self.compute_flags())]
     flags: GvarFlags,
     /// Offset from the start of this table to the array of
     /// GlyphVariationData tables.
+    #[compile(self.compute_data_array_offset())]
     glyph_variation_data_array_offset: u32,
     /// Offsets from the start of the GlyphVariationData array to each
     /// GlyphVariationData table.
     #[count(add($glyph_count, 1))]
     #[read_with($flags)]
     #[traverse_with(skip)]
+    #[compile_with(compile_variation_data)]
+    #[compile_type(Vec<GlyphVariationData>)]
     glyph_variation_data_offsets: ComputedArray<U16Or32>,
 }
 
@@ -51,6 +59,9 @@ table SharedTuples {
 }
 
 /// The [GlyphVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#the-glyphvariationdata-table-array) table
+#[skip_font_write]
+#[skip_from_obj]
+#[skip_constructor]
 table GlyphVariationDataHeader {
     /// A packed field. The high 4 bits are flags, and the low 12 bits
     /// are the number of tuple variation tables for this glyph. The
@@ -61,6 +72,7 @@ table GlyphVariationDataHeader {
     /// Offset from the start of the GlyphVariationData table to the
     /// serialized data
     #[traverse_with(skip)]
+    #[compile(skip)]
     serialized_data_offset: Offset16<FontData>,
     /// Array of tuple variation headers.
     #[count(..)]
