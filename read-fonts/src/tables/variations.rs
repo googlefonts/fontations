@@ -21,25 +21,25 @@ impl TupleIndex {
     /// If set, the low 12 bits of the tupleIndex value are ignored.
     ///
     /// Note that this must always be set within the 'cvar' table.
-    const EMBEDDED_PEAK_TUPLE: u16 = 0x8000;
+    pub const EMBEDDED_PEAK_TUPLE: u16 = 0x8000;
 
     /// Flag indicating that this tuple variation table applies to an
     /// intermediate region within the variation space.
     ///
     /// If set, the header includes the two intermediate-region, start and end
     /// tuple records, immediately after the peak tuple record (if present).
-    const INTERMEDIATE_REGION: u16 = 0x4000;
+    pub const INTERMEDIATE_REGION: u16 = 0x4000;
     /// Flag indicating that the serialized data for this tuple variation table
     /// includes packed “point” number data.
     ///
     /// If set, this tuple variation table uses that number data; if clear,
     /// this tuple variation table uses shared number data found at the start
     /// of the serialized data for this glyph variation data or 'cvar' table.
-    const PRIVATE_POINT_NUMBERS: u16 = 0x2000;
+    pub const PRIVATE_POINT_NUMBERS: u16 = 0x2000;
     //0x1000	Reserved	Reserved for future use — set to 0.
     //
     /// Mask for the low 12 bits to give the shared tuple records index.
-    const TUPLE_INDEX_MASK: u16 = 0x0FFF;
+    pub const TUPLE_INDEX_MASK: u16 = 0x0FFF;
 
     fn tuple_len(self, axis_count: u16, flag: usize) -> usize {
         match flag {
@@ -53,6 +53,10 @@ impl TupleIndex {
 
     pub fn bits(self) -> u16 {
         self.0
+    }
+
+    pub fn from_bits(bits: u16) -> Self {
+        TupleIndex(bits)
     }
 
     /// `true` if the header includes an embedded peak tuple.
@@ -101,13 +105,17 @@ impl TupleVariationCount {
     ///
     /// These shared numbers are represented as packed point number data at the
     /// start of the serialized data.
-    const SHARED_POINT_NUMBERS: u16 = 0x8000;
+    pub const SHARED_POINT_NUMBERS: u16 = 0x8000;
 
     /// Mask for the low 12 bits to give the shared tuple records index.
-    const COUNT_MASK: u16 = 0x0FFF;
+    pub const COUNT_MASK: u16 = 0x0FFF;
 
     pub fn bits(self) -> u16 {
         self.0
+    }
+
+    pub fn from_bits(bits: u16) -> Self {
+        Self(bits)
     }
 
     /// `true` if any tables reference a shared set of point numbers
