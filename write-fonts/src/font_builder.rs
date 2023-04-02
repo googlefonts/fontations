@@ -15,6 +15,35 @@ pub struct FontBuilder<'a> {
     tables: BTreeMap<Tag, Cow<'a, [u8]>>,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum BuildFontError {
+    TooManyTables,
+}
+
+impl TableDirectory {
+    pub fn from_table_records(
+        table_records: Vec<TableRecord>,
+    ) -> Result<TableDirectory, BuildFontError> {
+        if table_records.len() > u16::MAX as usize {
+            return Err(BuildFontError::TooManyTables);
+        }
+
+        // See https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-directory
+        // Computation works at the largest allowable num tables so don't stress the as u16's
+        let entry_selector = (table_records.len() as f64).log2().floor() as u16;
+        let search_range = (2.0_f64.powi(entry_selector as i32) * 16.0) as u16;
+        let range_shift = (table_records.len() * 16 - search_range as usize) as u16;
+
+        Ok(TableDirectory::new(
+            TT_SFNT_VERSION,
+            search_range,
+            entry_selector,
+            range_shift,
+            table_records,
+        ))
+    }
+}
+
 impl<'a> FontBuilder<'a> {
     pub fn add_table(&mut self, tag: Tag, data: impl Into<Cow<'a, [u8]>>) -> &mut Self {
         self.tables.insert(tag, data.into());
@@ -26,13 +55,13 @@ impl<'a> FontBuilder<'a> {
         self.tables.contains_key(&tag)
     }
 
-    pub fn build(&mut self) -> Vec<u8> {
+    pub fn build(&mut self) -> Result<Vec<u8>, BuildFontError> {
         let header_len = std::mem::size_of::<u32>() // sfnt
             + std::mem::size_of::<u16>() * 4 // num_tables to range_shift
             + self.tables.len() * TABLE_RECORD_LEN;
 
         let mut position = header_len as u32;
-        let table_records = self
+        let table_records: Vec<_> = self
             .tables
             .iter_mut()
             .map(|(tag, data)| {
@@ -45,7 +74,7 @@ impl<'a> FontBuilder<'a> {
             })
             .collect();
 
-        let directory = TableDirectory::new(TT_SFNT_VERSION, 0, 0, 0, table_records);
+        let directory = TableDirectory::from_table_records(table_records)?;
 
         let mut writer = TableWriter::default();
         directory.write_into(&mut writer);
@@ -56,7 +85,7 @@ impl<'a> FontBuilder<'a> {
             let padding = [0u8; 4];
             data.extend_from_slice(&padding[..rem]);
         }
-        data
+        Ok(data)
     }
 }
 
@@ -83,5 +112,40 @@ fn checksum_and_padding(table: &[u8]) -> (u32, u32) {
 impl TTCHeader {
     fn compute_version(&self) -> MajorMinor {
         panic!("TTCHeader writing not supported (yet)")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use font_types::Tag;
+    use read_fonts::FontRef;
+
+    use crate::{font_builder::BuildFontError, FontBuilder};
+
+    #[test]
+    fn sets_binary_search_assists() {
+        // Based on Roboto's num tables
+        let data = b"doesn't matter".to_vec();
+        let mut builder = FontBuilder::default();
+        (0..0x16u32).for_each(|i| {
+            builder.add_table(Tag::from_be_bytes(i.to_ne_bytes()), &data);
+        });
+        let bytes = builder.build().unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let td = font.table_directory;
+        assert_eq!(
+            (256, 4, 96),
+            (td.search_range(), td.entry_selector(), td.range_shift())
+        );
+    }
+
+    #[test]
+    fn rejects_too_many_tables() {
+        let data = b"doesn't matter".to_vec();
+        let mut builder = FontBuilder::default();
+        (0..=u16::MAX as u32).for_each(|i| {
+            builder.add_table(Tag::from_be_bytes(i.to_ne_bytes()), &data);
+        });
+        assert_eq!(Err(BuildFontError::TooManyTables), builder.build());
     }
 }
