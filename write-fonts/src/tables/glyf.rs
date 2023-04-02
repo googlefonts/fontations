@@ -202,59 +202,87 @@ impl SimpleGlyph {
     ///
     /// This does not do the final binary encoding, and it also does not handle
     /// repeating flags, which doesn't really work when we're an iterator.
-    ///
-    // this is adapted from simon's implementation at
-    // https://github.com/simoncozens/rust-font-tools/blob/105436d3a617ddbebd25f790b041ff506bd90d44/fonttools-rs/src/tables/glyf/glyph.rs#L268
     fn compute_point_deltas(
         &self,
     ) -> impl Iterator<Item = (SimpleGlyphFlags, CoordDelta, CoordDelta)> + '_ {
-        // reused for x & y by passing in the flags
-        fn flag_and_delta(
-            value: i16,
-            short_flag: SimpleGlyphFlags,
-            same_or_pos: SimpleGlyphFlags,
-        ) -> (SimpleGlyphFlags, CoordDelta) {
-            const SHORT_MAX: i16 = u8::MAX as i16;
-            const SHORT_MIN: i16 = -SHORT_MAX;
-            match value {
-                0 => (same_or_pos, CoordDelta::Skip),
-                SHORT_MIN..=-1 => (short_flag, CoordDelta::Short(value.unsigned_abs() as u8)),
-                1..=SHORT_MAX => (short_flag | same_or_pos, CoordDelta::Short(value as _)),
-                _other => (SimpleGlyphFlags::empty(), CoordDelta::Long(value)),
-            }
-        }
-
-        let (mut last_x, mut last_y) = (0, 0);
-        let mut iter = self.contours.iter().flat_map(|c| c.iter());
-        std::iter::from_fn(move || {
-            let point = iter.next()?;
-            let mut flag = SimpleGlyphFlags::empty();
-            let d_x = point.x - last_x;
-            let d_y = point.y - last_y;
-            last_x = point.x;
-            last_y = point.y;
-
-            if point.on_curve {
-                flag |= SimpleGlyphFlags::ON_CURVE_POINT;
-            }
-            let (x_flag, x_data) = flag_and_delta(
-                d_x,
-                SimpleGlyphFlags::X_SHORT_VECTOR,
-                SimpleGlyphFlags::X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR,
-            );
-            let (y_flag, y_data) = flag_and_delta(
-                d_y,
-                SimpleGlyphFlags::Y_SHORT_VECTOR,
-                SimpleGlyphFlags::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR,
-            );
-
-            flag |= x_flag | y_flag;
-            Some((flag, x_data, y_data))
-        })
+        PointDeltaIter::new(self.contours.iter().flat_map(|c| c.iter()))
     }
 
     pub fn contours(&self) -> &[Contour] {
         &self.contours
+    }
+}
+
+// this is adapted from simon's implementation at
+// https://github.com/simoncozens/rust-font-tools/blob/105436d3a617ddbebd25f790b041ff506bd90d44/fonttools-rs/src/tables/glyf/glyph.rs#L268
+struct PointDeltaIter<'a, I>
+where
+    I: Iterator<Item = &'a CurvePoint>,
+{
+    last_x: i16,
+    last_y: i16,
+    points: I,
+}
+
+impl<'a, I> PointDeltaIter<'a, I>
+where
+    I: Iterator<Item = &'a CurvePoint>,
+{
+    fn new(points: I) -> PointDeltaIter<'a, I> {
+        PointDeltaIter {
+            last_x: 0,
+            last_y: 0,
+            points,
+        }
+    }
+}
+
+impl<'a, I> Iterator for PointDeltaIter<'a, I>
+where
+    I: Iterator<Item = &'a CurvePoint>,
+{
+    type Item = (SimpleGlyphFlags, CoordDelta, CoordDelta);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let point = self.points.next()?;
+        let mut flag = SimpleGlyphFlags::empty();
+        let d_x = point.x - self.last_x;
+        let d_y = point.y - self.last_y;
+        self.last_x = point.x;
+        self.last_y = point.y;
+
+        if point.on_curve {
+            flag |= SimpleGlyphFlags::ON_CURVE_POINT;
+        }
+        let (x_flag, x_data) = flag_and_delta(
+            d_x,
+            SimpleGlyphFlags::X_SHORT_VECTOR,
+            SimpleGlyphFlags::X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR,
+        );
+        let (y_flag, y_data) = flag_and_delta(
+            d_y,
+            SimpleGlyphFlags::Y_SHORT_VECTOR,
+            SimpleGlyphFlags::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR,
+        );
+
+        flag |= x_flag | y_flag;
+        Some((flag, x_data, y_data))
+    }
+}
+
+// reused for x & y by passing in the flags
+fn flag_and_delta(
+    value: i16,
+    short_flag: SimpleGlyphFlags,
+    same_or_pos: SimpleGlyphFlags,
+) -> (SimpleGlyphFlags, CoordDelta) {
+    const SHORT_MAX: i16 = u8::MAX as i16;
+    const SHORT_MIN: i16 = -SHORT_MAX;
+    match value {
+        0 => (same_or_pos, CoordDelta::Skip),
+        SHORT_MIN..=-1 => (short_flag, CoordDelta::Short(value.unsigned_abs() as u8)),
+        1..=SHORT_MAX => (short_flag | same_or_pos, CoordDelta::Short(value as _)),
+        _other => (SimpleGlyphFlags::empty(), CoordDelta::Long(value)),
     }
 }
 
