@@ -15,6 +15,27 @@ pub struct FontBuilder<'a> {
     tables: BTreeMap<Tag, Cow<'a, [u8]>>,
 }
 
+impl TableDirectory {
+    pub fn from_table_records(table_records: Vec<TableRecord>) -> TableDirectory {
+        assert!(table_records.len() <= u16::MAX as usize);
+
+        // See https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-directory
+        // Computation works at the largest allowable num tables so don't stress the as u16's
+        let entry_selector = (table_records.len() as f64).log2().floor() as u16;
+        let search_range = (2.0_f64.powi(entry_selector as i32) * 16.0) as u16;
+        // The result doesn't really make sense with 0 tables but ... let's at least not fail
+        let range_shift = (table_records.len() * 16).saturating_sub(search_range as usize) as u16;
+
+        TableDirectory::new(
+            TT_SFNT_VERSION,
+            search_range,
+            entry_selector,
+            range_shift,
+            table_records,
+        )
+    }
+}
+
 impl<'a> FontBuilder<'a> {
     pub fn add_table(&mut self, tag: Tag, data: impl Into<Cow<'a, [u8]>>) -> &mut Self {
         self.tables.insert(tag, data.into());
@@ -32,7 +53,7 @@ impl<'a> FontBuilder<'a> {
             + self.tables.len() * TABLE_RECORD_LEN;
 
         let mut position = header_len as u32;
-        let table_records = self
+        let table_records: Vec<_> = self
             .tables
             .iter_mut()
             .map(|(tag, data)| {
@@ -45,7 +66,7 @@ impl<'a> FontBuilder<'a> {
             })
             .collect();
 
-        let directory = TableDirectory::new(TT_SFNT_VERSION, 0, 0, 0, table_records);
+        let directory = TableDirectory::from_table_records(table_records);
 
         let mut writer = TableWriter::default();
         directory.write_into(&mut writer);
@@ -83,5 +104,35 @@ fn checksum_and_padding(table: &[u8]) -> (u32, u32) {
 impl TTCHeader {
     fn compute_version(&self) -> MajorMinor {
         panic!("TTCHeader writing not supported (yet)")
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use font_types::Tag;
+    use read_fonts::FontRef;
+
+    use crate::FontBuilder;
+
+    #[test]
+    fn sets_binary_search_assists() {
+        // Based on Roboto's num tables
+        let data = b"doesn't matter".to_vec();
+        let mut builder = FontBuilder::default();
+        (0..0x16u32).for_each(|i| {
+            builder.add_table(Tag::from_be_bytes(i.to_ne_bytes()), &data);
+        });
+        let bytes = builder.build();
+        let font = FontRef::new(&bytes).unwrap();
+        let td = font.table_directory;
+        assert_eq!(
+            (256, 4, 96),
+            (td.search_range(), td.entry_selector(), td.range_shift())
+        );
+    }
+
+    #[test]
+    fn survives_no_tables() {
+        FontBuilder::default().build();
     }
 }
