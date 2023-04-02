@@ -225,7 +225,7 @@ impl SimpleGlyph {
         }
 
         let (mut last_x, mut last_y) = (0, 0);
-        let mut iter = self.contours.iter().flatten();
+        let mut iter = self.contours.iter().flat_map(|c| c.iter());
         std::iter::from_fn(move || {
             let point = iter.next()?;
             let mut flag = SimpleGlyphFlags::empty();
@@ -377,16 +377,6 @@ impl RepeatableFlag {
                 }
             }
         })
-    }
-}
-
-impl<'a> IntoIterator for &'a Contour {
-    type Item = &'a CurvePoint;
-
-    type IntoIter = std::slice::Iter<'a, CurvePoint>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.0.iter()
     }
 }
 
