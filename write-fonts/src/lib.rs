@@ -16,7 +16,7 @@ mod codegen_test;
 #[cfg(test)]
 mod hex_diff;
 
-pub use font_builder::{BuildFontError, FontBuilder};
+pub use font_builder::FontBuilder;
 pub use offsets::{NullableOffsetMarker, OffsetMarker};
 pub use round::OtRound;
 pub use write::{dump_table, FontWrite, TableWriter};
