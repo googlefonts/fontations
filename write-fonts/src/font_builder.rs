@@ -32,7 +32,8 @@ impl TableDirectory {
         // Computation works at the largest allowable num tables so don't stress the as u16's
         let entry_selector = (table_records.len() as f64).log2().floor() as u16;
         let search_range = (2.0_f64.powi(entry_selector as i32) * 16.0) as u16;
-        let range_shift = (table_records.len() * 16 - search_range as usize) as u16;
+        // The result doesn't really make sense with 0 tables but ... let's at least not fail
+        let range_shift = (table_records.len() * 16).saturating_sub(search_range as usize) as u16;
 
         Ok(TableDirectory::new(
             TT_SFNT_VERSION,
@@ -147,5 +148,10 @@ mod tests {
             builder.add_table(Tag::from_be_bytes(i.to_ne_bytes()), &data);
         });
         assert_eq!(Err(BuildFontError::TooManyTables), builder.build());
+    }
+
+    #[test]
+    fn survives_no_tables() {
+        FontBuilder::default().build().unwrap();
     }
 }
