@@ -135,6 +135,10 @@ impl Contour {
         self.0.push(CurvePoint::off_curve(x0, y0));
         self.0.push(CurvePoint::on_curve(x1, y1));
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = &CurvePoint> {
+        self.0.iter()
+    }
 }
 
 impl SimpleGlyph {
