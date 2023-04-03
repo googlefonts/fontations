@@ -19,15 +19,14 @@ pub struct GvarBuilder {
 /// Variation data for a single glyph, before it is compiled
 struct RawGlyphVariationData {
     gid: GlyphId,
-    variations: Vec<RawGlyphTupleVariation>,
+    variations: Vec<GlyphDeltas>,
 }
 
-/// Variation data for a single point in varspace, before it is compiled
-pub struct RawGlyphTupleVariation {
+/// Glyph deltas for one point in the design space.
+pub struct GlyphDeltas {
     peak_tuple: Tuple,
     intermediate_region: Option<(Tuple, Tuple)>,
-    x_deltas: Vec<i16>,
-    y_deltas: Vec<i16>,
+    deltas: Vec<(i16, i16)>,
 }
 
 impl GvarBuilder {
@@ -42,12 +41,12 @@ impl GvarBuilder {
     pub fn add(
         &mut self,
         gid: GlyphId,
-        variations: Vec<RawGlyphTupleVariation>,
+        variations: Vec<GlyphDeltas>,
     ) -> Result<(), GvarBuilderError> {
-        let n_deltas = variations.first().map(|x| x.x_deltas.len());
+        let n_deltas = variations.first().map(|x| x.deltas.len());
         if variations
             .iter()
-            .any(|var| Some(var.x_deltas.len()) != n_deltas)
+            .any(|var| Some(var.deltas.len()) != n_deltas)
         {
             return Err(GvarBuilderError::DeltaLengthMismatch(gid));
         }
@@ -142,19 +141,12 @@ impl RawGlyphVariationData {
 //  - x deltas
 //  - y deltas
 
-impl RawGlyphTupleVariation {
+impl GlyphDeltas {
     pub fn new(
         peak_tuple: Tuple,
-        x_deltas: Vec<i16>,
-        y_deltas: Vec<i16>,
+        deltas: Vec<(i16, i16)>,
         intermediate_region: Option<(Tuple, Tuple)>,
     ) -> Result<Self, BadTupleVariation> {
-        if x_deltas.len() != y_deltas.len() {
-            return Err(BadTupleVariation::DeltaLengthMismatch {
-                x: x_deltas.len(),
-                y: y_deltas.len(),
-            });
-        }
         match intermediate_region
             .as_ref()
             .map(|(start, end)| (start.len(), end.len()))
@@ -164,11 +156,10 @@ impl RawGlyphTupleVariation {
             Some(_) => return Err(BadTupleVariation::TupleLengthMismatch),
         };
 
-        Ok(RawGlyphTupleVariation {
+        Ok(GlyphDeltas {
             peak_tuple,
             intermediate_region,
-            x_deltas,
-            y_deltas,
+            deltas,
         })
     }
 
@@ -177,12 +168,12 @@ impl RawGlyphTupleVariation {
         shared_tuple_map: &HashMap<&Tuple, u16>,
         _shared_points: &PackedPointNumbers,
     ) -> (TupleVariationHeader, GlyphTupleVariationData) {
-        let RawGlyphTupleVariation {
+        let GlyphDeltas {
             peak_tuple,
             intermediate_region,
-            x_deltas,
-            y_deltas,
+            deltas,
         } = self;
+        let (x_deltas, y_deltas) = deltas.into_iter().unzip();
         let data = GlyphTupleVariationData {
             private_point_numbers: None,
             x_deltas: PackedDeltas::new(x_deltas),
@@ -432,10 +423,9 @@ mod tests {
         builder
             .add(
                 GlyphId::new(1),
-                vec![RawGlyphTupleVariation::new(
+                vec![GlyphDeltas::new(
                     Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
-                    vec![30, 40, -50, 101, 10],
-                    vec![31, 41, -49, 102, 11],
+                    vec![(30, 31), (40, 41), (-50, -49), (101, 102), (10, 11)],
                     None,
                 )
                 .unwrap()],
@@ -445,17 +435,15 @@ mod tests {
             .add(
                 GlyphId::new(2),
                 vec![
-                    RawGlyphTupleVariation::new(
+                    GlyphDeltas::new(
                         Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
-                        vec![11, 69, -69, 168, 1],
-                        vec![-20, -41, 49, 101, 2],
+                        vec![(11, -20), (69, -41), (-69, 49), (168, 101), (1, 2)],
                         None,
                     )
                     .unwrap(),
-                    RawGlyphTupleVariation::new(
+                    GlyphDeltas::new(
                         Tuple::new(vec![F2Dot14::from_f32(0.8), F2Dot14::from_f32(1.0)]),
-                        vec![3, 4, 5, 6, 7],
-                        vec![-200, -500, -800, -1200, -1500],
+                        vec![(3, -200), (4, -500), (5, -800), (6, -1200), (7, -1500)],
                         None,
                     )
                     .unwrap(),
