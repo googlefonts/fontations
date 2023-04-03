@@ -288,3 +288,12 @@ impl<T: FontWrite> FontWrite for Vec<T> {
         self.iter().for_each(|item| item.write_into(writer))
     }
 }
+
+impl<T: FontWrite> FontWrite for Option<T> {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Some(obj) => obj.write_into(writer),
+            None => (),
+        }
+    }
+}
