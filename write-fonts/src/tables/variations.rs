@@ -67,11 +67,13 @@ impl VariationRegionList {
 }
 
 /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-point-numbers>
-//FIXME: an enum with All and Packed variants
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
-pub struct PackedPointNumbers {
-    is_all: bool,
-    numbers: Vec<u16>,
+pub enum PackedPointNumbers {
+    /// Contains deltas for all point numbers
+    #[default]
+    All,
+    /// Contains deltas only for these specific point numbers
+    Some(Vec<u16>),
 }
 
 /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas>
@@ -202,8 +204,10 @@ impl FontWrite for PackedDeltaRun<'_> {
 
 impl crate::validate::Validate for PackedPointNumbers {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        if self.numbers.len() > 0x7FFF {
-            ctx.report("length cannot be stored in 15 bites");
+        if let PackedPointNumbers::Some(pts) = self {
+            if pts.len() > 0x7FFF {
+                ctx.report("length cannot be stored in 15 bites");
+            }
         }
     }
 }
@@ -211,14 +215,10 @@ impl crate::validate::Validate for PackedPointNumbers {
 impl FontWrite for PackedPointNumbers {
     fn write_into(&self, writer: &mut TableWriter) {
         // compute the actual count:
-        if self.is_all {
-            0u8.write_into(writer);
-        } else if self.numbers.len() <= 127 {
-            (self.numbers.len() as u8).write_into(writer);
-        } else {
-            (self.numbers.len() as u16).write_into(writer);
+        match self.as_slice().len() {
+            len @ 0..=127 => (len as u8).write_into(writer),
+            len => (len as u16).write_into(writer),
         }
-
         for run in self.iter_runs() {
             run.write_into(writer);
         }
@@ -226,20 +226,12 @@ impl FontWrite for PackedPointNumbers {
 }
 
 impl PackedPointNumbers {
-    /// Create new packed numbers from raw numbers.
-    ///
-    /// The `is_all` flag should be true if there is a number value for each
-    /// point in the corresponding glyph (or CVT value in the cvar table).
-    pub fn new(numbers: Vec<u16>, is_all: bool) -> Self {
-        Self { is_all, numbers }
-    }
-
     /// Compute the number of bytes required to encode these points
     pub(crate) fn compute_size(&self) -> u16 {
-        let mut count = match self.numbers.len() {
-            _ if self.is_all => return 1,
-            0..=127 => 1u16,
-            _ => 2,
+        let mut count = match self {
+            PackedPointNumbers::All => return 1,
+            PackedPointNumbers::Some(pts) if pts.len() < 128 => 1u16,
+            PackedPointNumbers::Some(_) => 2,
         };
         for run in self.iter_runs() {
             count = count.checked_add(run.compute_size()).unwrap();
@@ -247,11 +239,22 @@ impl PackedPointNumbers {
         count
     }
 
+    fn as_slice(&self) -> &[u16] {
+        match self {
+            PackedPointNumbers::All => &[],
+            PackedPointNumbers::Some(pts) => pts.as_slice(),
+        }
+    }
+
     fn iter_runs(&self) -> impl Iterator<Item = PackedPointRun> {
         const U8_MAX: u16 = u8::MAX as u16;
         const MAX_POINTS_PER_RUN: usize = 128;
 
-        let mut points = self.numbers.as_slice();
+        let mut points = match self {
+            PackedPointNumbers::Some(pts) => pts.as_slice(),
+            PackedPointNumbers::All => &[],
+        };
+
         let mut prev_point = 0u16;
 
         // split a run off the front of points:
@@ -374,10 +377,7 @@ mod tests {
 
     #[test]
     fn point_pack_words() {
-        let thing = PackedPointNumbers {
-            is_all: false,
-            numbers: vec![1002, 2002, 8408, 12228],
-        };
+        let thing = PackedPointNumbers::Some(vec![1002, 2002, 8408, 12228]);
 
         let runs = thing.iter_runs().collect::<Vec<_>>();
         assert_eq!(runs.len(), 1);
@@ -388,25 +388,19 @@ mod tests {
 
     #[test]
     fn serialize_packed_points() {
-        let thing = PackedPointNumbers {
-            is_all: false,
-            numbers: vec![1002, 2002, 8408, 12228],
-        };
+        let thing = PackedPointNumbers::Some(vec![1002, 2002, 8408, 12228]);
 
         let bytes = crate::dump_table(&thing).unwrap();
         assert_eq!(thing.compute_size() as usize, bytes.len());
         let (read, _) = read_fonts::tables::variations::PackedPointNumbers::split_off_front(
             FontData::new(&bytes),
         );
-        assert_eq!(thing.numbers, read.iter().collect::<Vec<_>>());
+        assert_eq!(thing.as_slice(), read.iter().collect::<Vec<_>>());
     }
 
     #[test]
     fn point_pack_runs() {
-        let thing = PackedPointNumbers {
-            is_all: false,
-            numbers: vec![5, 25, 225, 1002, 2002, 2008, 2228],
-        };
+        let thing = PackedPointNumbers::Some(vec![5, 25, 225, 1002, 2002, 2008, 2228]);
 
         let runs = thing.iter_runs().collect::<Vec<_>>();
         assert!(!runs[0].are_words);
@@ -428,10 +422,7 @@ mod tests {
     fn point_pack_long_runs() {
         let mut numbers = vec![0u16; 130];
         numbers.extend(1u16..=130u16);
-        let thing = PackedPointNumbers {
-            is_all: false,
-            numbers,
-        };
+        let thing = PackedPointNumbers::Some(numbers);
 
         let runs = thing.iter_runs().collect::<Vec<_>>();
         assert!(!runs[0].are_words);
@@ -445,17 +436,14 @@ mod tests {
 
     #[test]
     fn point_pack_write() {
-        let thing = PackedPointNumbers {
-            is_all: false,
-            numbers: vec![5, 25, 225, 1002, 2002, 2008, 2228],
-        };
+        let thing = PackedPointNumbers::Some(vec![5, 25, 225, 1002, 2002, 2008, 2228]);
 
         let bytes = crate::dump_table(&thing).unwrap();
         assert_eq!(thing.compute_size() as usize, bytes.len());
         let (read, _) = read_fonts::tables::variations::PackedPointNumbers::split_off_front(
             FontData::new(&bytes),
         );
-        assert_eq!(thing.numbers, read.iter().collect::<Vec<_>>());
+        assert_eq!(thing.as_slice(), read.iter().collect::<Vec<_>>());
     }
 
     static PACKED_DELTA_BYTES: &[u8] = &[

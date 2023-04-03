@@ -156,7 +156,7 @@ impl GlyphVariations {
     fn build(self, shared_tuple_map: &HashMap<&Tuple, u16>) -> GlyphVariationData {
         //FIXME: for now we are not doing fancy efficient point encodings,
         //and all tuples contain all points (and so all are stored)
-        let shared_points = PackedPointNumbers::new(Vec::new(), true);
+        let shared_points = PackedPointNumbers::All;
         let (tuple_headers, tuple_data): (Vec<_>, Vec<_>) = self
             .variations
             .into_iter()
