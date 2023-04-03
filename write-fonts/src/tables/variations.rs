@@ -60,7 +60,7 @@ impl PackedDeltas {
         }
 
         fn count_leading_zeros(slice: &[i16]) -> usize {
-            slice.iter().position(|x| *x != 0).unwrap_or(slice.len())
+            slice.iter().take_while(|v| **v == 0).count()
         }
 
         /// compute the number of deltas in the next run, and whether they are i8s or not
@@ -83,25 +83,20 @@ impl PackedDeltas {
         let mut deltas = self.deltas.as_slice();
 
         std::iter::from_fn(move || {
-            if deltas.is_empty() {
-                return None;
-            }
-            // first handle the zero case
-            let n_zeros = count_leading_zeros(deltas);
-            if n_zeros > 0 {
+            if *deltas.first()? == 0 {
+                let n_zeros = count_leading_zeros(deltas);
                 deltas = &deltas[n_zeros..];
-                return Some(PackedDeltaRun::Zeros(n_zeros as u8));
-            }
-
-            let (len, is_i8) = next_run_len(deltas);
-            let (head, tail) = deltas.split_at(len);
-            deltas = tail;
-            let result = if is_i8 {
-                PackedDeltaRun::OneByte(head)
+                Some(PackedDeltaRun::Zeros(n_zeros as u8))
             } else {
-                PackedDeltaRun::TwoBytes(head)
-            };
-            Some(result)
+                let (len, is_i8) = next_run_len(deltas);
+                let (head, tail) = deltas.split_at(len);
+                deltas = tail;
+                if is_i8 {
+                    Some(PackedDeltaRun::OneByte(head))
+                } else {
+                    Some(PackedDeltaRun::TwoBytes(head))
+                }
+            }
         })
     }
 }
@@ -186,29 +181,20 @@ impl PackedPointNumbers {
         // - if point is more than 255 away from prev, we're using words
         std::iter::from_fn(move || {
             let next = points.first()?;
-            let (run_len, are_words) = if (next - prev_point) > U8_MAX {
-                let count = points
-                    .iter()
-                    .take(MAX_POINTS_PER_RUN)
-                    .scan(prev_point, |prev, point| {
-                        let result = (point - *prev > U8_MAX).then_some(point);
-                        *prev = *point;
-                        result
-                    })
-                    .count();
-                (count, true)
-            } else {
-                let count = points
-                    .iter()
-                    .take(MAX_POINTS_PER_RUN)
-                    .scan(prev_point, |prev, point| {
-                        let result = (point - *prev <= U8_MAX).then_some(point);
-                        *prev = *point;
-                        result
-                    })
-                    .count();
-                (count, false)
-            };
+            let are_words = (next - prev_point) > U8_MAX;
+            let run_len = points
+                .iter()
+                .take(MAX_POINTS_PER_RUN)
+                .scan(prev_point, |prev, point| {
+                    let take_this = if are_words {
+                        (point - *prev) > U8_MAX
+                    } else {
+                        (point - *prev) <= U8_MAX
+                    };
+                    *prev = *point;
+                    take_this.then_some(point)
+                })
+                .count();
 
             let (head, tail) = points.split_at(run_len);
             points = tail;
@@ -224,6 +210,7 @@ impl PackedPointNumbers {
     }
 }
 
+#[derive(Debug, PartialEq, Eq)]
 struct PackedPointRun<'a> {
     last_point: u16,
     are_words: bool,
@@ -283,9 +270,18 @@ mod tests {
         };
 
         let runs = thing.iter_runs().collect::<Vec<_>>();
+        assert_eq!(runs.len(), 1);
         assert!(runs[0].are_words);
         assert_eq!(runs[0].last_point, 0);
         assert_eq!(runs[0].points, &[1002, 2002, 8408, 12228]);
+    }
+
+    #[test]
+    fn serialize_packed_points() {
+        let thing = PackedPointNumbers {
+            is_all: false,
+            numbers: vec![1002, 2002, 8408, 12228],
+        };
 
         let bytes = crate::dump_table(&thing).unwrap();
         let (read, _) = read_fonts::tables::variations::PackedPointNumbers::split_off_front(
@@ -295,7 +291,7 @@ mod tests {
     }
 
     #[test]
-    fn smoke_test_point_packing() {
+    fn point_pack_runs() {
         let thing = PackedPointNumbers {
             is_all: false,
             numbers: vec![5, 25, 225, 1002, 2002, 2008, 2228],
@@ -315,6 +311,15 @@ mod tests {
         assert_eq!(runs[2].points, &[2008, 2228]);
 
         assert_eq!(runs.len(), 3);
+    }
+
+    #[test]
+    fn point_pack_write() {
+        let thing = PackedPointNumbers {
+            is_all: false,
+            numbers: vec![5, 25, 225, 1002, 2002, 2008, 2228],
+        };
+
         let bytes = crate::dump_table(&thing).unwrap();
         let (read, _) = read_fonts::tables::variations::PackedPointNumbers::split_off_front(
             FontData::new(&bytes),
@@ -322,25 +327,30 @@ mod tests {
         assert_eq!(thing.numbers, read.iter().collect::<Vec<_>>());
     }
 
+    static PACKED_DELTA_BYTES: &[u8] = &[
+        0x03, 0x0A, 0x97, 0x00, 0xC6, 0x87, 0x41, 0x10, 0x22, 0xFB, 0x34,
+    ];
+
     // <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas>
     #[test]
-    fn packed_deltas_spec() {
-        static EXPECTED: &[u8] = &[
-            0x03, 0x0A, 0x97, 0x00, 0xC6, 0x87, 0x41, 0x10, 0x22, 0xFB, 0x34,
-        ];
-
+    fn packed_deltas_spec_runs() {
         let deltas = PackedDeltas::new(vec![10, -105, 0, -58, 0, 0, 0, 0, 0, 0, 0, 0, 4130, -1228]);
         let runs = deltas.iter_runs().collect::<Vec<_>>();
         assert_eq!(runs[0], PackedDeltaRun::OneByte(&[10, -105, 0, -58]));
         assert_eq!(runs[1], PackedDeltaRun::Zeros(8));
         assert_eq!(runs[2], PackedDeltaRun::TwoBytes(&[4130, -1228]));
+        assert!(runs.get(3).is_none());
+    }
 
+    #[test]
+    fn packed_deltas_spec_write() {
+        let deltas = PackedDeltas::new(vec![10, -105, 0, -58, 0, 0, 0, 0, 0, 0, 0, 0, 4130, -1228]);
         let bytes = crate::dump_table(&deltas).unwrap();
-        assert_eq!(bytes, EXPECTED);
+        assert_eq!(bytes, PACKED_DELTA_BYTES);
         let read = read_fonts::tables::variations::PackedDeltas::new(FontData::new(&bytes));
         let decoded = read.iter().collect::<Vec<_>>();
         assert_eq!(deltas.deltas.len(), decoded.len());
         assert_eq!(deltas.deltas, decoded);
-        assert_eq!(bytes, EXPECTED);
+        assert_eq!(bytes, PACKED_DELTA_BYTES);
     }
 }
