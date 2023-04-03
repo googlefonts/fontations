@@ -6,6 +6,7 @@ extern record TupleVariationHeader;
 /// The ['gvar' header](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#gvar-header)
 #[tag = "gvar"]
 #[skip_from_obj]
+#[skip_constructor]
 table Gvar {
     /// Major/minor version number of the glyph variations table — set to (1,0).
     #[compile(MajorMinor::VERSION_1_0)]

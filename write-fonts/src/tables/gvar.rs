@@ -2,7 +2,7 @@
 
 include!("../../generated/generated_gvar.rs");
 
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 use crate::{collections::HasLen, OffsetMarker};
 
@@ -10,14 +10,8 @@ use super::variations::{
     PackedDeltas, PackedPointNumbers, Tuple, TupleVariationCount, TupleVariationHeader,
 };
 
-pub struct GvarBuilder {
-    axis_count: u16,
-    seen_glyphs: HashSet<GlyphId>,
-    glyphs: Vec<RawGlyphVariationData>,
-}
-
 /// Variation data for a single glyph, before it is compiled
-struct RawGlyphVariationData {
+pub struct GlyphVariations {
     gid: GlyphId,
     variations: Vec<GlyphDeltas>,
 }
@@ -29,82 +23,130 @@ pub struct GlyphDeltas {
     deltas: Vec<(i16, i16)>,
 }
 
-impl GvarBuilder {
-    pub fn new(axis_count: u16) -> Self {
-        GvarBuilder {
-            axis_count,
-            glyphs: Default::default(),
-            seen_glyphs: Default::default(),
-        }
-    }
-
-    pub fn add(
-        &mut self,
-        gid: GlyphId,
-        variations: Vec<GlyphDeltas>,
-    ) -> Result<(), GvarBuilderError> {
-        let n_deltas = variations.first().map(|x| x.deltas.len());
-        if variations
+impl Gvar {
+    /// Construct a gvar table from a vector of per-glyph variations.
+    ///
+    /// Variations must be present for each glyph, but may be empty.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the axis count is not consistent between variations (excluding
+    /// empty variations)
+    pub fn new(mut variations: Vec<GlyphVariations>) -> Self {
+        let axis_count = variations
             .iter()
-            .any(|var| Some(var.deltas.len()) != n_deltas)
-        {
-            return Err(GvarBuilderError::DeltaLengthMismatch(gid));
-        }
-        if let Some(tuple_len) = variations.first().map(|var| var.peak_tuple.len()) {
-            if tuple_len != self.axis_count {
-                return Err(GvarBuilderError::TupleLengthMismatch {
-                    gid,
-                    expected: self.axis_count,
-                    found: tuple_len,
-                });
+            .find_map(GlyphVariations::axis_count)
+            .unwrap_or_default();
+        assert!(
+            variations
+                .iter()
+                .filter_map(GlyphVariations::axis_count)
+                .all(|x| x == axis_count),
+            "all glyphs must have same axis count"
+        );
+
+        fn compute_shared_peak_tuples(glyphs: &[GlyphVariations]) -> Vec<Tuple> {
+            const MAX_SHARED_TUPLES: usize = 4095;
+            let mut peak_tuple_counts = HashMap::new();
+            for glyph in glyphs {
+                glyph.count_peak_tuples(&mut peak_tuple_counts);
             }
-        }
-        if !self.seen_glyphs.insert(gid) {
-            return Err(GvarBuilderError::DuplicateGlyphId(gid));
+            let mut to_share = peak_tuple_counts
+                .into_iter()
+                .filter(|(_, n)| *n > 1)
+                .collect::<Vec<_>>();
+            to_share.sort_unstable_by_key(|(_, n)| std::cmp::Reverse(*n));
+            to_share.truncate(MAX_SHARED_TUPLES);
+            to_share.into_iter().map(|(t, _)| t.to_owned()).collect()
         }
 
-        self.glyphs.push(RawGlyphVariationData { gid, variations });
-        Ok(())
-    }
-
-    pub fn build(mut self) -> Gvar {
-        let shared = self.compute_shared_peak_tuples();
+        let shared = compute_shared_peak_tuples(&variations);
         let shared_idx_map = shared
             .iter()
             .enumerate()
             .map(|(i, x)| (x, i as u16))
             .collect();
-        self.glyphs.sort_unstable_by_key(|g| g.gid);
-        let glyphs = self
-            .glyphs
+        variations.sort_unstable_by_key(|g| g.gid);
+        let glyphs = variations
             .into_iter()
             .map(|raw_g| raw_g.build(&shared_idx_map))
             .collect();
 
         Gvar {
-            axis_count: self.axis_count,
+            axis_count,
             shared_tuples: SharedTuples::new(shared).into(),
             glyph_variation_data_offsets: glyphs,
         }
     }
 
-    fn compute_shared_peak_tuples(&mut self) -> Vec<Tuple> {
-        const MAX_SHARED_TUPLES: usize = 4095;
-        let mut peak_tuple_counts = HashMap::new();
-        for glyph in &self.glyphs {
-            glyph.count_peak_tuples(&mut peak_tuple_counts);
+    fn compute_flags(&self) -> GvarFlags {
+        //TODO: use short offsets sometimes
+        GvarFlags::LONG_OFFSETS
+    }
+
+    fn compute_glyph_count(&self) -> u16 {
+        self.glyph_variation_data_offsets.len().try_into().unwrap()
+    }
+
+    fn compute_data_array_offset(&self) -> u32 {
+        const BASE_OFFSET: usize = MajorMinor::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN // axis count
+            + u16::RAW_BYTE_LEN // shared tuples count
+            + Offset32::RAW_BYTE_LEN
+            + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN // glyph count, flags
+            + u32::RAW_BYTE_LEN; // glyph_variation_data_array_offset
+
+        let bytes_per_offset = if self.compute_flags() == GvarFlags::LONG_OFFSETS {
+            u32::RAW_BYTE_LEN
+        } else {
+            u16::RAW_BYTE_LEN
+        };
+
+        let offsets_len = (self.glyph_variation_data_offsets.len() + 1) * bytes_per_offset;
+
+        (BASE_OFFSET + offsets_len).try_into().unwrap()
+    }
+
+    fn compile_variation_data(&self) -> GlyphDataWriter {
+        GlyphDataWriter {
+            long_offsets: self.compute_flags() == GvarFlags::LONG_OFFSETS,
+            data: &self.glyph_variation_data_offsets,
         }
-        let mut to_share = peak_tuple_counts
-            .into_iter()
-            .filter(|(_, n)| *n > 1)
-            .collect::<Vec<_>>();
-        to_share.sort_unstable_by_key(|(_, n)| std::cmp::Reverse(*n));
-        to_share.truncate(MAX_SHARED_TUPLES);
-        to_share.into_iter().map(|(t, _)| t.to_owned()).collect()
     }
 }
 
-impl RawGlyphVariationData {
+impl GlyphVariations {
+    /// Construct a new set of variation deltas for a glyph.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the length of tuples or of deltas is not consistent
+    /// between variations.
+    pub fn new(gid: GlyphId, variations: Vec<GlyphDeltas>) -> Self {
+        let (axis_count, delta_len) = variations
+            .first()
+            .map(|var| (var.peak_tuple.len(), var.deltas.len()))
+            .unwrap_or_default();
+        for var in &variations {
+            assert_eq!(
+                var.peak_tuple.len(),
+                axis_count,
+                "all variations must have same dimensions"
+            );
+            assert_eq!(
+                var.deltas.len(),
+                delta_len,
+                "all variations must have same number of deltas"
+            );
+        }
+        Self { gid, variations }
+    }
+
+    /// Will be `None` if there are no variations for this glyph
+    pub fn axis_count(&self) -> Option<u16> {
+        self.variations.first().map(|var| var.peak_tuple.len())
+    }
+
     fn count_peak_tuples<'a>(&'a self, counter: &mut HashMap<&'a Tuple, usize>) {
         for tuple in &self.variations {
             *counter.entry(&tuple.peak_tuple).or_default() += 1;
@@ -129,38 +171,28 @@ impl RawGlyphVariationData {
     }
 }
 
-// GlyphVariationDataTable:
-// **header block**
-// u16 tupleVariationCount
-// u16 dataOffset: offset to the datablock THAT FOLLOWS IMMEDIATELY
-// [TupleVariationHeader]
-// **data block**
-// - shared point numbers
-// - per-tuple-var-data:
-//  - private point numbers
-//  - x deltas
-//  - y deltas
-
 impl GlyphDeltas {
+    /// Create a new set of deltas.
+    ///
+    /// # Panics
+    ///
+    /// Panics if the tuples do not have the same length.
     pub fn new(
         peak_tuple: Tuple,
         deltas: Vec<(i16, i16)>,
         intermediate_region: Option<(Tuple, Tuple)>,
-    ) -> Result<Self, BadTupleVariation> {
-        match intermediate_region
-            .as_ref()
-            .map(|(start, end)| (start.len(), end.len()))
-        {
-            None => (),
-            Some((start, end)) if start == peak_tuple.len() && start == end => (),
-            Some(_) => return Err(BadTupleVariation::TupleLengthMismatch),
-        };
-
-        Ok(GlyphDeltas {
+    ) -> Self {
+        if let Some((start, end)) = intermediate_region.as_ref() {
+            assert!(
+                start.len() == end.len() && start.len() == peak_tuple.len(),
+                "all tuples must have equal length"
+            );
+        }
+        GlyphDeltas {
             peak_tuple,
             intermediate_region,
             deltas,
-        })
+        }
     }
 
     fn build(
@@ -193,41 +225,18 @@ impl GlyphDeltas {
     }
 }
 
-/// An error representing malformed glyph tuple variation data.
-#[derive(Clone, Debug)]
-pub enum BadTupleVariation {
-    /// x and y deltas have different lengths
-    DeltaLengthMismatch { x: usize, y: usize },
-    /// Tuples for this variation have different lengths
-    TupleLengthMismatch,
-}
-
-#[derive(Clone, Debug)]
-pub enum GvarBuilderError {
-    /// The same GlyphId has been added twice
-    DuplicateGlyphId(GlyphId),
-    /// The tuples for this glyph do not match the expected axis count
-    TupleLengthMismatch {
-        gid: GlyphId,
-        expected: u16,
-        found: u16,
-    },
-    /// Delta length varies between different tuples for the same glyph
-    DeltaLengthMismatch(GlyphId),
-}
-
+/// The serializable representation of a glyph's variation data
 #[derive(Clone, Debug, Default)]
 pub struct GlyphVariationData {
-    // - tuple_variation_count goes here
-    // - offset to serialized data
-    tuple_variation_headers: Vec<TupleVariationHeader>, // includes the data, at this point
+    tuple_variation_headers: Vec<TupleVariationHeader>,
     // optional; present if multiple variations have the same point numbers
     shared_point_numbers: Option<PackedPointNumbers>,
     per_tuple_data: Vec<GlyphTupleVariationData>,
 }
 
+/// The serializable representation of a single glyph tuple variation data
 #[derive(Clone, Debug)]
-pub struct GlyphTupleVariationData {
+struct GlyphTupleVariationData {
     // this is possibly shared, if multiple are identical for a given glyph
     private_point_numbers: Option<PackedPointNumbers>,
     x_deltas: PackedDeltas,
@@ -276,43 +285,6 @@ impl FontWrite for GlyphDataWriter<'_> {
             if !glyph.is_empty() {
                 glyph.write_into(writer);
             }
-        }
-    }
-}
-
-impl Gvar {
-    fn compute_flags(&self) -> GvarFlags {
-        //TODO: use short offsets sometimes
-        GvarFlags::LONG_OFFSETS
-    }
-
-    fn compute_glyph_count(&self) -> u16 {
-        self.glyph_variation_data_offsets.len().try_into().unwrap()
-    }
-
-    fn compute_data_array_offset(&self) -> u32 {
-        const BASE_OFFSET: usize = MajorMinor::RAW_BYTE_LEN
-            + u16::RAW_BYTE_LEN // axis count
-            + u16::RAW_BYTE_LEN // shared tuples count
-            + Offset32::RAW_BYTE_LEN
-            + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN // glyph count, flags
-            + u32::RAW_BYTE_LEN; // glyph_variation_data_array_offset
-
-        let bytes_per_offset = if self.compute_flags() == GvarFlags::LONG_OFFSETS {
-            u32::RAW_BYTE_LEN
-        } else {
-            u16::RAW_BYTE_LEN
-        };
-
-        let offsets_len = (self.glyph_variation_data_offsets.len() + 1) * bytes_per_offset;
-
-        (BASE_OFFSET + offsets_len).try_into().unwrap()
-    }
-
-    fn compile_variation_data(&self) -> GlyphDataWriter {
-        GlyphDataWriter {
-            long_offsets: self.compute_flags() == GvarFlags::LONG_OFFSETS,
-            data: &self.glyph_variation_data_offsets,
         }
     }
 }
@@ -418,39 +390,32 @@ mod tests {
 
     #[test]
     fn smoke_test() {
-        let mut builder = GvarBuilder::new(2);
-        builder.add(GlyphId::new(0), vec![]).unwrap();
-        builder
-            .add(
+        let table = Gvar::new(vec![
+            GlyphVariations::new(GlyphId::new(0), vec![]),
+            GlyphVariations::new(
                 GlyphId::new(1),
                 vec![GlyphDeltas::new(
                     Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
                     vec![(30, 31), (40, 41), (-50, -49), (101, 102), (10, 11)],
                     None,
-                )
-                .unwrap()],
-            )
-            .unwrap();
-        builder
-            .add(
+                )],
+            ),
+            GlyphVariations::new(
                 GlyphId::new(2),
                 vec![
                     GlyphDeltas::new(
                         Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
                         vec![(11, -20), (69, -41), (-69, 49), (168, 101), (1, 2)],
                         None,
-                    )
-                    .unwrap(),
+                    ),
                     GlyphDeltas::new(
                         Tuple::new(vec![F2Dot14::from_f32(0.8), F2Dot14::from_f32(1.0)]),
                         vec![(3, -200), (4, -500), (5, -800), (6, -1200), (7, -1500)],
                         None,
-                    )
-                    .unwrap(),
+                    ),
                 ],
-            )
-            .unwrap();
-        let table = builder.build();
+            ),
+        ]);
         let g2 = &table.glyph_variation_data_offsets[1];
         let computed = g2.compute_size();
         let actual = crate::dump_table(g2).unwrap().len();
