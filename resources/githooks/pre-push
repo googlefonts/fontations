@@ -13,7 +13,7 @@ set -o xtrace
 # ensure rustfmt has been run
 cargo fmt --all -- --check
 # ensure we don't have broken links in docs
-cargo doc --all-features --document-private-items
+RUSTDOCFLAGS="-D warnings" cargo doc --all-features --document-private-items
 
 # ensure we at least compile without default features
 cargo check --manifest-path=font-types/Cargo.toml --no-default-features

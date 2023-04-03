@@ -24,6 +24,8 @@ jobs:
 
       - name: cargo doc
         run: cargo doc --all-features --document-private-items --no-deps
+        env:
+          RUSTDOCFLAGS: -D warnings
 
       - name: check no println! or eprintln! statements
         run: resources/scripts/check_no_println.sh
