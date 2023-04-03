@@ -88,8 +88,8 @@ pub struct MappingIndex {
     /// Index of Unicode or symbol mapping subtable.
     map: Option<u16>,
     /// True if the above is a symbol mapping.
-    is_symbol: bool,
-    /// Index of Unicode variation selector sutable.
+    map_is_symbol: bool,
+    /// Index of Unicode variation selector subtable.
     variant_map: Option<u16>,
 }
 
@@ -169,7 +169,7 @@ impl<'a> Map<'a> {
         }
     }
 
-    fn adjust_symbol_pua(codepoint: u32) -> Option<u32> {
+    fn shift_symbol_to_pua(codepoint: u32) -> Option<u32> {
         // From HarfBuzz:
         // For symbol-encoded OpenType fonts, we duplicate the
         // U+F000..F0FF range at U+0000..U+00FF.  That's what
@@ -247,7 +247,7 @@ fn find_best_mappings<'a>(
     };
     // This generally follows the same strategy as FreeType, searching the encoding
     // records in reverse and prioritizing UCS-4 subtables over UCS-2.
-    // See <https://github.com/freetype/freetype/blob/4d8db130ea4342317581bab65fc96365ce806b77/src/base/ftobjs.c#L1370>
+    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/ac5babe87629107c43f627e2cd17c6cf4f2ecd43/src/base/ftobjs.c#L1370>
     // The exception is that we prefer a symbol subtable over all others which matches the behavior
     // of HarfBuzz.
     // See <https://github.com/harfbuzz/harfbuzz/blob/453ded05392af38bba9f89587edce465e86ffa6b/src/hb-ot-cmap-table.hh#L1818>
