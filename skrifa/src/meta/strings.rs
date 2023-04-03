@@ -234,7 +234,7 @@ fn language_id_to_bcp47(language_id: u16) -> Option<&'static str> {
 }
 
 /// Mapping of OpenType name table language identifier to BCP-47 language tag.
-/// Borrowed from Skia: https://skia.googlesource.com/skia/+/refs/heads/main/src/sfnt/SkOTTable_name.cpp#98
+/// Borrowed from Skia: <https://skia.googlesource.com/skia/+/refs/heads/main/src/sfnt/SkOTTable_name.cpp#98>
 const LANGUAGE_ID_TO_BCP47: &[(u16, &str)] = &[
     /* A mapping from Mac Language Designators to BCP 47 codes.
      *  The following list was constructed more or less manually.
