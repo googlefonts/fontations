@@ -20,22 +20,6 @@ pub struct Gvar {
     pub glyph_variation_data_offsets: Vec<GlyphVariationData>,
 }
 
-impl Gvar {
-    /// Construct a new `Gvar`
-    #[allow(clippy::useless_conversion)]
-    pub fn new(
-        axis_count: u16,
-        shared_tuples: SharedTuples,
-        glyph_variation_data_offsets: Vec<GlyphVariationData>,
-    ) -> Self {
-        Self {
-            axis_count,
-            shared_tuples: shared_tuples.into(),
-            glyph_variation_data_offsets,
-        }
-    }
-}
-
 impl FontWrite for Gvar {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
