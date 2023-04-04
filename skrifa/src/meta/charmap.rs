@@ -12,7 +12,7 @@
 
 use read_fonts::{
     tables::cmap::{self, Cmap, Cmap12, Cmap14, Cmap4, CmapSubtable, EncodingRecord, PlatformId},
-    types::{GlyphId, Uint24},
+    types::GlyphId,
     FontData, TableProvider,
 };
 
@@ -23,10 +23,22 @@ pub use read_fonts::tables::cmap::MapVariant;
 /// The mappings are derived from the [cmap](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap)
 /// table.
 ///
-/// ## Supported formats
-/// * Unicode characters: formats [4](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values)
-/// and [12](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage)
-/// * Unicode variation sequences: format [14](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences)
+/// ## Selection strategy
+///
+/// Fonts may contain multiple subtables in various formats supporting different encodings. The selection
+/// strategy implemented here is designed to choose mappings that capture the broadest available Unicode
+/// coverage:
+///
+/// * Unicode characters: a symbol mapping subtable is selected if available. Otherwise, subtables supporting
+/// the Unicode full repertoire or Basic Multilingual Plane (BMP) are preferred, in that order. Formats
+/// [4](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values)
+/// and [12](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage) are
+/// supported.
+///
+/// * Unicode variation sequences: these are provided by a format
+/// [14](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences)
+/// subtable.
+///
 #[derive(Clone, Default)]
 pub struct Charmap<'a> {
     map: Option<Map<'a>>,
@@ -37,13 +49,13 @@ impl<'a> Charmap<'a> {
     /// Creates a new character map from the given font.
     pub fn new(font: &impl TableProvider<'a>) -> Self {
         if let Ok(cmap) = font.cmap() {
-            let (maps, map, variant_map) = find_best_mappings(&cmap);
+            let selection = MappingSelection::new(&cmap);
             Self {
-                map: map.map(|subtable| Map {
+                map: selection.map.map(|subtable| Map {
                     subtable,
-                    is_symbol: maps.is_symbol,
+                    is_symbol: selection.mapping_index.map_is_symbol,
                 }),
-                variant_map,
+                variant_map: selection.variant_map,
             }
         } else {
             Self::default()
@@ -71,7 +83,8 @@ impl<'a> Charmap<'a> {
         self.map.as_ref()?.map(ch.into())
     }
 
-    /// Maps a character and variation selector to a nominal glyph identifier.
+    /// Maps a character and variation selector to a nominal glyph identifier. Returns
+    /// `None` if a mapping does not exist.
     pub fn map_variant(&self, ch: impl Into<u32>, selector: impl Into<u32>) -> Option<MapVariant> {
         self.variant_map.as_ref()?.map_variant(ch, selector)
     }
@@ -98,7 +111,7 @@ impl MappingIndex {
     /// given font.
     pub fn new<'a>(font: &impl TableProvider<'a>) -> Self {
         if let Ok(cmap) = font.cmap() {
-            find_best_mappings(&cmap).0
+            MappingSelection::new(&cmap).mapping_index
         } else {
             Default::default()
         }
@@ -119,7 +132,7 @@ impl MappingIndex {
                     .and_then(UnicodeSubtable::new)
                     .map(|subtable| Map {
                         subtable,
-                        is_symbol: self.is_symbol,
+                        is_symbol: self.map_is_symbol,
                     }),
                 variant_map: self
                     .variant_map
@@ -155,7 +168,7 @@ impl<'a> Map<'a> {
     fn map(&self, codepoint: u32) -> Option<GlyphId> {
         self.map_impl(codepoint).or_else(|| {
             if self.is_symbol {
-                self.map_impl(Self::adjust_symbol_pua(codepoint)?)
+                self.map_impl(Self::shift_symbol_to_pua(codepoint)?)
             } else {
                 None
             }
@@ -185,7 +198,7 @@ impl<'a> Map<'a> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 enum UnicodeSubtable<'a> {
     Format4(Cmap4<'a>),
     Format12(Cmap12<'a>),
@@ -210,83 +223,99 @@ impl<'a> UnicodeSubtable<'a> {
 /// The ordering is significant and determines the priority of subtable
 /// selection (greater is better).
 #[derive(Copy, Clone, PartialEq, PartialOrd)]
-enum MapKind {
+enum MappingKind {
     None = 0,
     UnicodeBmp = 1,
     UnicodeFull = 2,
     Symbol = 3,
 }
 
-/// Searches the `cmap` table for the best Unicode subtables.
-///
-/// Returns the `MappingIndex` accelerator along with character and UVS
+/// The result of searching the cmap table for the "best" available
 /// subtables.
-fn find_best_mappings<'a>(
-    cmap: &Cmap<'a>,
-) -> (
-    MappingIndex,
-    Option<UnicodeSubtable<'a>>,
-    Option<Cmap14<'a>>,
-) {
-    const ENCODING_MS_SYMBOL: u16 = 0;
-    const ENCODING_MS_UNICODE_CS: u16 = 1;
-    const ENCODING_APPLE_ID_UNICODE_32: u16 = 4;
-    const ENCODING_APPLE_ID_VARIANT_SELECTOR: u16 = 5;
-    const ENCODING_MS_ID_UCS_4: u16 = 10;
-    let mut maps = MappingIndex::default();
-    let mut map_kind = MapKind::None;
-    let mut map = None;
-    let mut cmap14 = None;
-    let mut maybe_choose_subtable = |kind, index, subtable| {
-        if kind > map_kind {
-            map_kind = kind;
-            maps.is_symbol = kind == MapKind::Symbol;
-            maps.map = Some(index as u16);
-            map = Some(subtable);
-        }
-    };
-    // This generally follows the same strategy as FreeType, searching the encoding
-    // records in reverse and prioritizing UCS-4 subtables over UCS-2.
-    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/ac5babe87629107c43f627e2cd17c6cf4f2ecd43/src/base/ftobjs.c#L1370>
-    // The exception is that we prefer a symbol subtable over all others which matches the behavior
-    // of HarfBuzz.
-    // See <https://github.com/harfbuzz/harfbuzz/blob/453ded05392af38bba9f89587edce465e86ffa6b/src/hb-ot-cmap-table.hh#L1818>
-    for (i, record) in cmap.encoding_records().iter().enumerate().rev() {
-        match (record.platform_id(), record.encoding_id()) {
-            (PlatformId::Unicode, ENCODING_APPLE_ID_VARIANT_SELECTOR) => {
-                // Unicode variation sequences
-                if let Ok(CmapSubtable::Format14(subtable)) = record.subtable(cmap.offset_data()) {
-                    if cmap14.is_none() {
-                        maps.variant_map = Some(i as u16);
-                        cmap14 = Some(subtable);
+///
+/// For `map`, best means either symbol (which is preferred)
+/// or a Unicode subtable with the greatest coverage.
+///
+/// For `variant_map`, best means a format 14 subtable.
+struct MappingSelection<'a> {
+    /// The mapping index accelerator that holds indices of the following
+    /// subtables.
+    mapping_index: MappingIndex,
+    /// Either a symbol subtable or the Unicode subtable with the
+    /// greatest coverage.
+    map: Option<UnicodeSubtable<'a>>,
+    /// Subtable that supports mapping Unicode variation sequences.
+    variant_map: Option<Cmap14<'a>>,
+}
+
+impl<'a> MappingSelection<'a> {
+    fn new(cmap: &Cmap<'a>) -> Self {
+        const ENCODING_MS_SYMBOL: u16 = 0;
+        const ENCODING_MS_UNICODE_CS: u16 = 1;
+        const ENCODING_APPLE_ID_UNICODE_32: u16 = 4;
+        const ENCODING_APPLE_ID_VARIANT_SELECTOR: u16 = 5;
+        const ENCODING_MS_ID_UCS_4: u16 = 10;
+        let mut mapping_index = MappingIndex::default();
+        let mut mapping_kind = MappingKind::None;
+        let mut map = None;
+        let mut variant_map = None;
+        let mut maybe_choose_subtable = |kind, index, subtable| {
+            if kind > mapping_kind {
+                mapping_kind = kind;
+                mapping_index.map_is_symbol = kind == MappingKind::Symbol;
+                mapping_index.map = Some(index as u16);
+                map = Some(subtable);
+            }
+        };
+        // This generally follows the same strategy as FreeType, searching the encoding
+        // records in reverse and prioritizing UCS-4 subtables over UCS-2.
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/ac5babe87629107c43f627e2cd17c6cf4f2ecd43/src/base/ftobjs.c#L1370>
+        // The exception is that we prefer a symbol subtable over all others which matches the behavior
+        // of HarfBuzz.
+        // See <https://github.com/harfbuzz/harfbuzz/blob/453ded05392af38bba9f89587edce465e86ffa6b/src/hb-ot-cmap-table.hh#L1818>
+        for (i, record) in cmap.encoding_records().iter().enumerate().rev() {
+            match (record.platform_id(), record.encoding_id()) {
+                (PlatformId::Unicode, ENCODING_APPLE_ID_VARIANT_SELECTOR) => {
+                    // Unicode variation sequences
+                    if let Ok(CmapSubtable::Format14(subtable)) =
+                        record.subtable(cmap.offset_data())
+                    {
+                        if variant_map.is_none() {
+                            mapping_index.variant_map = Some(i as u16);
+                            variant_map = Some(subtable);
+                        }
                     }
                 }
-            }
-            (PlatformId::Windows, ENCODING_MS_SYMBOL) => {
-                // Symbol
-                if let Some(subtable) = UnicodeSubtable::from_cmap_record(cmap, record) {
-                    maybe_choose_subtable(MapKind::Symbol, i, subtable);
+                (PlatformId::Windows, ENCODING_MS_SYMBOL) => {
+                    // Symbol
+                    if let Some(subtable) = UnicodeSubtable::from_cmap_record(cmap, record) {
+                        maybe_choose_subtable(MappingKind::Symbol, i, subtable);
+                    }
                 }
-            }
-            (PlatformId::Windows, ENCODING_MS_ID_UCS_4)
-            | (PlatformId::Unicode, ENCODING_APPLE_ID_UNICODE_32) => {
-                // Unicode full repertoire
-                if let Some(subtable) = UnicodeSubtable::from_cmap_record(cmap, record) {
-                    maybe_choose_subtable(MapKind::UnicodeFull, i, subtable);
+                (PlatformId::Windows, ENCODING_MS_ID_UCS_4)
+                | (PlatformId::Unicode, ENCODING_APPLE_ID_UNICODE_32) => {
+                    // Unicode full repertoire
+                    if let Some(subtable) = UnicodeSubtable::from_cmap_record(cmap, record) {
+                        maybe_choose_subtable(MappingKind::UnicodeFull, i, subtable);
+                    }
                 }
-            }
-            (PlatformId::ISO, _)
-            | (PlatformId::Unicode, _)
-            | (PlatformId::Windows, ENCODING_MS_UNICODE_CS) => {
-                // Unicode BMP only
-                if let Some(subtable) = UnicodeSubtable::from_cmap_record(cmap, record) {
-                    maybe_choose_subtable(MapKind::UnicodeBmp, i, subtable);
+                (PlatformId::ISO, _)
+                | (PlatformId::Unicode, _)
+                | (PlatformId::Windows, ENCODING_MS_UNICODE_CS) => {
+                    // Unicode BMP only
+                    if let Some(subtable) = UnicodeSubtable::from_cmap_record(cmap, record) {
+                        maybe_choose_subtable(MappingKind::UnicodeBmp, i, subtable);
+                    }
                 }
+                _ => {}
             }
-            _ => {}
+        }
+        Self {
+            mapping_index,
+            map,
+            variant_map,
         }
     }
-    (maps, map, cmap14)
 }
 
 #[cfg(test)]
@@ -316,6 +345,17 @@ mod tests {
     }
 
     #[test]
+    fn choose_symbol() {
+        let font = FontRef::new(read_fonts::test_data::test_fonts::CMAP4_SYMBOL_PUA).unwrap();
+        let charmap = font.charmap();
+        assert!(charmap.is_symbol());
+        assert!(matches!(
+            charmap.map.unwrap().subtable,
+            UnicodeSubtable::Format4(..)
+        ));
+    }
+
+    #[test]
     fn map_format_4() {
         let font = FontRef::new(read_fonts::test_data::test_fonts::VAZIRMATN_VAR).unwrap();
         let charmap = font.charmap();
@@ -330,11 +370,11 @@ mod tests {
         let font = FontRef::new(read_fonts::test_data::test_fonts::CMAP12_FONT1).unwrap();
         let charmap = font.charmap();
         assert_eq!(charmap.map(' '), None);
-        assert_eq!(charmap.map(0x101723_u32), Some(GlyphId::new(23)));
-        assert_eq!(charmap.map(0x101725_u32), Some(GlyphId::new(25)));
-        assert_eq!(charmap.map(0x102523_u32), Some(GlyphId::new(53)));
-        assert_eq!(charmap.map(0x102526_u32), Some(GlyphId::new(56)));
-        assert_eq!(charmap.map(0x102527_u32), Some(GlyphId::new(57)));
+        assert_eq!(charmap.map(0x101723_u32), Some(GlyphId::new(1)));
+        assert_eq!(charmap.map(0x101725_u32), Some(GlyphId::new(3)));
+        assert_eq!(charmap.map(0x102523_u32), Some(GlyphId::new(6)));
+        assert_eq!(charmap.map(0x102526_u32), Some(GlyphId::new(9)));
+        assert_eq!(charmap.map(0x102527_u32), Some(GlyphId::new(10)));
     }
 
     #[test]
@@ -346,7 +386,8 @@ mod tests {
         assert_eq!(charmap.map(0xF002_u32), Some(GlyphId::new(2)));
         assert_eq!(charmap.map(0xF003_u32), Some(GlyphId::new(3)));
         assert_eq!(charmap.map(0xF0FE_u32), Some(GlyphId::new(4)));
-        // The following are remapped into the U+F000..F0FF range for a symbol font
+        // The following don't exist in the cmap table and are remapped into the U+F000..F0FF range
+        // due to the selection of a symbol mapping subtable.
         assert_eq!(charmap.map(0x1_u32), Some(GlyphId::new(1)));
         assert_eq!(charmap.map(0x2_u32), Some(GlyphId::new(2)));
         assert_eq!(charmap.map(0x3_u32), Some(GlyphId::new(3)));
