@@ -19,31 +19,50 @@ pub struct GlyphVariations {
 /// Glyph deltas for one point in the design space.
 pub struct GlyphDeltas {
     peak_tuple: Tuple,
+    // start and end tuples of optional intermediate region
     intermediate_region: Option<(Tuple, Tuple)>,
+    // array of (x, y) deltas, one foar each point in the glyph
     deltas: Vec<(i16, i16)>,
+}
+
+/// An error representing invalid input when building a gvar table
+#[derive(Clone, Debug)]
+pub enum GvarInputError {
+    /// Glyphs do not have a consistent axis count
+    InconsistentAxisCount,
+    /// A single glyph contains variations with inconsistent axis counts
+    InconsistentGlyphAxisCount(GlyphId),
+    /// A single glyph contains variations with different delta counts
+    InconsistentDeltaLength(GlyphId),
+    /// A variation in this glyph contains an intermediate region with a
+    /// different length than the peak.
+    InconsistentTupleLengths(GlyphId),
 }
 
 impl Gvar {
     /// Construct a gvar table from a vector of per-glyph variations.
     ///
     /// Variations must be present for each glyph, but may be empty.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the axis count is not consistent between variations (excluding
-    /// empty variations)
-    pub fn new(mut variations: Vec<GlyphVariations>) -> Self {
-        let axis_count = variations
-            .iter()
-            .find_map(GlyphVariations::axis_count)
-            .unwrap_or_default();
-        assert!(
-            variations
+    pub fn new(mut variations: Vec<GlyphVariations>) -> Result<Self, GvarInputError> {
+        // a helper that handles input validation, and returns axis count
+        fn validate_variations(variations: &[GlyphVariations]) -> Result<u16, GvarInputError> {
+            for var in variations {
+                var.validate()?;
+            }
+
+            let axis_count = variations
+                .iter()
+                .find_map(GlyphVariations::axis_count)
+                .unwrap_or_default();
+            if variations
                 .iter()
                 .filter_map(GlyphVariations::axis_count)
-                .all(|x| x == axis_count),
-            "all glyphs must have same axis count"
-        );
+                .any(|x| x != axis_count)
+            {
+                return Err(GvarInputError::InconsistentAxisCount);
+            }
+            Ok(axis_count)
+        }
 
         fn compute_shared_peak_tuples(glyphs: &[GlyphVariations]) -> Vec<Tuple> {
             const MAX_SHARED_TUPLES: usize = 4095;
@@ -60,6 +79,8 @@ impl Gvar {
             to_share.into_iter().map(|(t, _)| t.to_owned()).collect()
         }
 
+        let axis_count = validate_variations(&variations)?;
+
         let shared = compute_shared_peak_tuples(&variations);
         let shared_idx_map = shared
             .iter()
@@ -72,11 +93,11 @@ impl Gvar {
             .map(|raw_g| raw_g.build(&shared_idx_map))
             .collect();
 
-        Gvar {
+        Ok(Gvar {
             axis_count,
             shared_tuples: SharedTuples::new(shared).into(),
             glyph_variation_data_offsets: glyphs,
-        }
+        })
     }
 
     fn compute_flags(&self) -> GvarFlags {
@@ -117,29 +138,31 @@ impl Gvar {
 
 impl GlyphVariations {
     /// Construct a new set of variation deltas for a glyph.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the length of tuples or of deltas is not consistent
-    /// between variations.
     pub fn new(gid: GlyphId, variations: Vec<GlyphDeltas>) -> Self {
-        let (axis_count, delta_len) = variations
+        Self { gid, variations }
+    }
+
+    /// called when we build gvar, so we only return errors in one place
+    fn validate(&self) -> Result<(), GvarInputError> {
+        let (axis_count, delta_len) = self
+            .variations
             .first()
             .map(|var| (var.peak_tuple.len(), var.deltas.len()))
             .unwrap_or_default();
-        for var in &variations {
-            assert_eq!(
-                var.peak_tuple.len(),
-                axis_count,
-                "all variations must have same dimensions"
-            );
-            assert_eq!(
-                var.deltas.len(),
-                delta_len,
-                "all variations must have same number of deltas"
-            );
+        for var in &self.variations {
+            if var.peak_tuple.len() != axis_count {
+                return Err(GvarInputError::InconsistentGlyphAxisCount(self.gid));
+            }
+            if let Some((start, end)) = var.intermediate_region.as_ref() {
+                if start.len() != axis_count || end.len() != axis_count {
+                    return Err(GvarInputError::InconsistentTupleLengths(self.gid));
+                }
+            }
+            if var.deltas.len() != delta_len {
+                return Err(GvarInputError::InconsistentDeltaLength(self.gid));
+            }
         }
-        Self { gid, variations }
+        Ok(())
     }
 
     /// Will be `None` if there are no variations for this glyph
@@ -173,10 +196,6 @@ impl GlyphVariations {
 
 impl GlyphDeltas {
     /// Create a new set of deltas.
-    ///
-    /// # Panics
-    ///
-    /// Panics if the tuples do not have the same length.
     pub fn new(
         peak_tuple: Tuple,
         deltas: Vec<(i16, i16)>,
@@ -384,6 +403,29 @@ impl FontWrite for TupleVariationCount {
     }
 }
 
+impl std::fmt::Display for GvarInputError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            GvarInputError::InconsistentAxisCount => {
+                write!(f, "Glyphs do not have a consistent axis count")
+            }
+            GvarInputError::InconsistentGlyphAxisCount(gid) => write!(
+                f,
+                "Glyph {gid} contains variations with inconsistent axis counts"
+            ),
+            GvarInputError::InconsistentDeltaLength(gid) => write!(
+                f,
+                "Glyph {gid} contains variations with inconsistent delta counts"
+            ),
+            GvarInputError::InconsistentTupleLengths(gid) => write!(
+                f,
+                "Glyph {gid} contains variations with inconsistent intermediate region sizes"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for GvarInputError {}
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -415,7 +457,8 @@ mod tests {
                     ),
                 ],
             ),
-        ]);
+        ])
+        .unwrap();
         let g2 = &table.glyph_variation_data_offsets[1];
         let computed = g2.compute_size();
         let actual = crate::dump_table(g2).unwrap().len();
