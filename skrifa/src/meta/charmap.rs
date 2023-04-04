@@ -238,10 +238,10 @@ enum MappingKind {
 /// The result of searching the cmap table for the "best" available
 /// subtables.
 ///
-/// For `map`, best means either symbol (which is preferred)
+/// For `codepoint_subtable`, best means either symbol (which is preferred)
 /// or a Unicode subtable with the greatest coverage.
 ///
-/// For `variant_map`, best means a format 14 subtable.
+/// For `variant_subtable`, best means a format 14 subtable.
 struct MappingSelection<'a> {
     /// The mapping index accelerator that holds indices of the following
     /// subtables.
