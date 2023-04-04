@@ -314,6 +314,25 @@ mod tests {
     }
 
     #[test]
+    fn point_pack_long_runs() {
+        let mut numbers = vec![0u16; 130];
+        numbers.extend(1u16..=130u16);
+        let thing = PackedPointNumbers {
+            is_all: false,
+            numbers,
+        };
+
+        let runs = thing.iter_runs().collect::<Vec<_>>();
+        assert!(!runs[0].are_words);
+        assert_eq!(runs[0].points.len(), 128);
+        assert_eq!(runs[1].last_point, 0);
+        assert_eq!(runs[1].points.len(), 128);
+        assert_eq!(runs[2].last_point, 126);
+        assert_eq!(runs[2].points, &[127, 128, 129, 130]);
+        assert!(runs.get(3).is_none());
+    }
+
+    #[test]
     fn point_pack_write() {
         let thing = PackedPointNumbers {
             is_all: false,
@@ -352,5 +371,12 @@ mod tests {
         assert_eq!(deltas.deltas.len(), decoded.len());
         assert_eq!(deltas.deltas, decoded);
         assert_eq!(bytes, PACKED_DELTA_BYTES);
+    }
+
+    #[test]
+    fn empty_deltas() {
+        let deltas = PackedDeltas::new(vec![]);
+        let bytes = crate::dump_table(&deltas).unwrap();
+        assert!(bytes.is_empty());
     }
 }
