@@ -44,8 +44,11 @@ If you would like to have these run automatically when you commit or push
 changes, you can set this as your git hooksPath:
 
 ```sh
-git config core.hooksPath "./git_hooks"
+git config core.hooksPath "./resources/githooks"
 ```
+
+**note**: If you wish to use the hooks on macOS, install the gnu coreutils
+(`brew install coreutils`, via homebrew.)
 
 ## releasing
 
