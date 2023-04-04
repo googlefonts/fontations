@@ -23,6 +23,12 @@
       <map code="0xF003" name="g3"/>
       <map code="0xF0FE" name="g4"/>
     </cmap_format_4>
+    <cmap_format_12 platformID="3" platEncID="1" format="12" reserved="0" length="40" language="0" nGroups="2">
+      <map code="0x101723" name="g1"/>
+      <map code="0x101724" name="g2"/>
+      <map code="0x101725" name="g3"/>
+      <map code="0x101726" name="g4"/>
+    </cmap_format_12>
   </cmap>
 
 </ttFont>
