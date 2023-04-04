@@ -215,20 +215,14 @@ impl SimpleGlyph {
 
 // this is adapted from simon's implementation at
 // https://github.com/simoncozens/rust-font-tools/blob/105436d3a617ddbebd25f790b041ff506bd90d44/fonttools-rs/src/tables/glyf/glyph.rs#L268
-struct PointDeltaIter<'a, I>
-where
-    I: Iterator<Item = &'a CurvePoint>,
-{
+struct PointDeltaIter<I> {
     last_x: i16,
     last_y: i16,
     points: I,
 }
 
-impl<'a, I> PointDeltaIter<'a, I>
-where
-    I: Iterator<Item = &'a CurvePoint>,
-{
-    fn new(points: I) -> PointDeltaIter<'a, I> {
+impl<I> PointDeltaIter<I> {
+    fn new(points: I) -> PointDeltaIter<I> {
         PointDeltaIter {
             last_x: 0,
             last_y: 0,
@@ -237,7 +231,7 @@ where
     }
 }
 
-impl<'a, I> Iterator for PointDeltaIter<'a, I>
+impl<'a, I> Iterator for PointDeltaIter<I>
 where
     I: Iterator<Item = &'a CurvePoint>,
 {
