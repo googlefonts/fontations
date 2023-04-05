@@ -48,19 +48,16 @@ pub struct Charmap<'a> {
 impl<'a> Charmap<'a> {
     /// Creates a new character map from the given font.
     pub fn new(font: &impl TableProvider<'a>) -> Self {
-        if let Ok(cmap) = font.cmap() {
-            let selection = MappingSelection::new(&cmap);
-            Self {
-                codepoint_subtable: selection.codepoint_subtable.map(|subtable| {
-                    CodepointSubtable {
-                        subtable,
-                        is_symbol: selection.mapping_index.codepoint_subtable_is_symbol,
-                    }
+        let Ok(cmap) = font.cmap() else { return Default::default() };
+        let selection = MappingSelection::new(&cmap);
+        Self {
+            codepoint_subtable: selection
+                .codepoint_subtable
+                .map(|subtable| CodepointSubtable {
+                    subtable,
+                    is_symbol: selection.mapping_index.codepoint_subtable_is_symbol,
                 }),
-                variant_subtable: selection.variant_subtable,
-            }
-        } else {
-            Self::default()
+            variant_subtable: selection.variant_subtable,
         }
     }
 
@@ -115,11 +112,8 @@ impl MappingIndex {
     /// Finds the indices of the most suitable Unicode mapping tables in the
     /// given font.
     pub fn new<'a>(font: &impl TableProvider<'a>) -> Self {
-        if let Ok(cmap) = font.cmap() {
-            MappingSelection::new(&cmap).mapping_index
-        } else {
-            Default::default()
-        }
+        let Ok(cmap) = font.cmap() else { return Default::default() };
+        MappingSelection::new(&cmap).mapping_index
     }
 
     /// Creates a new character map for the given font using the tables referenced by
@@ -127,28 +121,25 @@ impl MappingIndex {
     ///
     /// The font should be the same as the one used to construct this object.
     pub fn charmap<'a>(&self, font: &impl TableProvider<'a>) -> Charmap<'a> {
-        if let Ok(cmap) = font.cmap() {
-            let records = cmap.encoding_records();
-            let data = cmap.offset_data();
-            Charmap {
-                codepoint_subtable: self
-                    .codepoint_subtable
-                    .and_then(|index| get_subtable(data, records, index))
-                    .and_then(SupportedSubtable::new)
-                    .map(|subtable| CodepointSubtable {
-                        subtable,
-                        is_symbol: self.codepoint_subtable_is_symbol,
-                    }),
-                variant_subtable: self
-                    .variant_subtable
-                    .and_then(|index| get_subtable(data, records, index))
-                    .and_then(|subtable| match subtable {
-                        CmapSubtable::Format14(cmap14) => Some(cmap14),
-                        _ => None,
-                    }),
-            }
-        } else {
-            Default::default()
+        let Ok(cmap) = font.cmap() else { return Default::default() };
+        let records = cmap.encoding_records();
+        let data = cmap.offset_data();
+        Charmap {
+            codepoint_subtable: self
+                .codepoint_subtable
+                .and_then(|index| get_subtable(data, records, index))
+                .and_then(SupportedSubtable::new)
+                .map(|subtable| CodepointSubtable {
+                    subtable,
+                    is_symbol: self.codepoint_subtable_is_symbol,
+                }),
+            variant_subtable: self
+                .variant_subtable
+                .and_then(|index| get_subtable(data, records, index))
+                .and_then(|subtable| match subtable {
+                    CmapSubtable::Format14(cmap14) => Some(cmap14),
+                    _ => None,
+                }),
         }
     }
 }
