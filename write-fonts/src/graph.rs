@@ -203,7 +203,8 @@ impl Graph {
         }
     }
 
-    pub(crate) fn topological_sort(&mut self) {
+    /// returns `true` if a solution is found, `false` otherwise
+    pub(crate) fn topological_sort(&mut self) -> bool {
         self.sort_kahn();
         if !self.find_overflows().is_empty() {
             self.sort_shortest_distance();
@@ -212,6 +213,7 @@ impl Graph {
             self.assign_32bit_spaces();
             self.sort_shortest_distance();
         }
+        self.find_overflows().is_empty()
     }
 
     fn find_overflows(&self) -> Vec<(ObjectId, ObjectId)> {
