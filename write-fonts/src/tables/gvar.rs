@@ -11,12 +11,14 @@ use super::variations::{
 };
 
 /// Variation data for a single glyph, before it is compiled
+#[derive(Clone, Debug)]
 pub struct GlyphVariations {
     gid: GlyphId,
     variations: Vec<GlyphDeltas>,
 }
 
 /// Glyph deltas for one point in the design space.
+#[derive(Clone, Debug)]
 pub struct GlyphDeltas {
     peak_tuple: Tuple,
     // start and end tuples of optional intermediate region
