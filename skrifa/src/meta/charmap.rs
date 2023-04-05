@@ -157,14 +157,22 @@ fn get_subtable<'a>(
 #[derive(Clone)]
 struct CodepointSubtable<'a> {
     subtable: SupportedSubtable<'a>,
+    /// True if the subtable is a symbol mapping.
     is_symbol: bool,
 }
 
 impl<'a> CodepointSubtable<'a> {
     fn map(&self, codepoint: u32) -> Option<GlyphId> {
         self.map_impl(codepoint).or_else(|| {
-            if self.is_symbol {
-                self.map_impl(Self::shift_symbol_to_pua(codepoint)?)
+            if self.is_symbol && codepoint <= 0x00FF {
+                // From HarfBuzz:
+                // For symbol-encoded OpenType fonts, we duplicate the
+                // U+F000..F0FF range at U+0000..U+00FF.  That's what
+                // Windows seems to do, and that's hinted about at:
+                // https://docs.microsoft.com/en-us/typography/opentype/spec/recom
+                // under "Non-Standard (Symbol) Fonts".
+                // See <https://github.com/harfbuzz/harfbuzz/blob/453ded05392af38bba9f89587edce465e86ffa6b/src/hb-ot-cmap-table.hh#L1595>
+                self.map_impl(codepoint + 0xF000)
             } else {
                 None
             }
@@ -175,21 +183,6 @@ impl<'a> CodepointSubtable<'a> {
         match &self.subtable {
             SupportedSubtable::Format4(subtable) => subtable.map_codepoint(codepoint),
             SupportedSubtable::Format12(subtable) => subtable.map_codepoint(codepoint),
-        }
-    }
-
-    fn shift_symbol_to_pua(codepoint: u32) -> Option<u32> {
-        // From HarfBuzz:
-        // For symbol-encoded OpenType fonts, we duplicate the
-        // U+F000..F0FF range at U+0000..U+00FF.  That's what
-        // Windows seems to do, and that's hinted about at:
-        // https://docs.microsoft.com/en-us/typography/opentype/spec/recom
-        // under "Non-Standard (Symbol) Fonts".
-        // See <https://github.com/harfbuzz/harfbuzz/blob/453ded05392af38bba9f89587edce465e86ffa6b/src/hb-ot-cmap-table.hh#L1595>
-        if codepoint <= 0x00FF {
-            Some(codepoint + 0xF000)
-        } else {
-            None
         }
     }
 }
