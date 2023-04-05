@@ -43,7 +43,10 @@ pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, Validat
     let mut writer = TableWriter::default();
     table.write_into(&mut writer);
     let mut graph = writer.finish();
-    graph.topological_sort();
+    if !graph.topological_sort() {
+        //TODO: implement extension promotion and table splitting
+        panic!("could not find a graph packing that handles all offsets, aborting");
+    }
     Ok(dump_impl(&graph.order, &graph.objects))
 }
 
@@ -65,36 +68,36 @@ fn dump_impl(order: &[ObjectId], nodes: &HashMap<ObjectId, TableData>) -> Vec<u8
     for id in order {
         let node = nodes.get(id).unwrap();
         for offset in &node.offsets {
-            let abs_off = *offsets.get(&offset.object).unwrap();
+            let abs_off = *offsets
+                .get(&offset.object)
+                .expect("all offsets visited in first pass");
             let rel_off = abs_off - (table_head + offset.adjustment);
             let buffer_pos = table_head + offset.pos;
             let write_over = out.get_mut(buffer_pos as usize..).unwrap();
-            write_offset(write_over, offset.len, rel_off).unwrap();
+            write_offset(write_over, offset.len, rel_off);
         }
         table_head += node.bytes.len() as u32;
     }
     out
 }
 
-//TODO: some kind of error if an offset is OOB?
-fn write_offset(at: &mut [u8], len: OffsetLen, resolved: u32) -> Result<(), ()> {
+fn write_offset(at: &mut [u8], len: OffsetLen, resolved: u32) {
     let at = &mut at[..len as u8 as usize];
     match len {
         OffsetLen::Offset16 => at.copy_from_slice(
             u16::try_from(resolved)
-                .map_err(|_| ())?
+                .expect("offset overflow should be checked before now")
                 .to_be_bytes()
                 .as_slice(),
         ),
         OffsetLen::Offset24 => at.copy_from_slice(
             Uint24::checked_new(resolved)
-                .ok_or(())?
+                .expect("offset overflow should be checked before now")
                 .to_be_bytes()
                 .as_slice(),
         ),
         OffsetLen::Offset32 => at.copy_from_slice(resolved.to_be_bytes().as_slice()),
     }
-    Ok(())
 }
 
 impl TableWriter {
