@@ -15,7 +15,7 @@ pub use read_fonts::types::Pen;
 pub use error::{Error, Result};
 pub use scaler::{Scaler, ScalerBuilder};
 
-use super::{GlyphId, NormalizedCoord, VariationSetting};
+use super::{GlyphId, NormalizedCoord, UniqueId, VariationSetting};
 use core::str::FromStr;
 use read_fonts::types::Tag;
 

@@ -1,5 +1,5 @@
 use super::{
-    super::{Error, NormalizedCoord, Result, GLYF_COMPOSITE_RECURSION_LIMIT},
+    super::{Error, NormalizedCoord, Result, UniqueId, GLYF_COMPOSITE_RECURSION_LIMIT},
     Context, Outline, Point,
 };
 
@@ -44,12 +44,12 @@ impl<'a> Scaler<'a> {
     pub fn new(
         context: &'a mut Context,
         font: &impl TableProvider<'a>,
-        font_id: Option<u64>,
+        unique_id: Option<UniqueId>,
         size: f32,
         #[cfg(feature = "hinting")] hinting: Option<Hinting>,
         coords: &'a [NormalizedCoord],
     ) -> Result<Self> {
-        let font = ScalerFont::new(font, font_id, size, coords)?;
+        let font = ScalerFont::new(font, unique_id, size, coords)?;
         Ok(Self {
             context,
             font,
@@ -545,7 +545,7 @@ impl<'a> Scaler<'a> {
 /// table references for loading, scaling and hinting a glyph outline.
 #[derive(Clone)]
 pub struct ScalerFont<'a> {
-    pub id: Option<u64>,
+    pub id: Option<UniqueId>,
     pub is_scaled: bool,
     pub ppem: u16,
     pub scale: F26Dot6,
@@ -572,7 +572,7 @@ pub struct ScalerFont<'a> {
 impl<'a> ScalerFont<'a> {
     fn new(
         font: &impl TableProvider<'a>,
-        id: Option<u64>,
+        id: Option<UniqueId>,
         size: f32,
         coords: &'a [NormalizedCoord],
     ) -> Result<Self> {
