@@ -187,7 +187,7 @@ impl SimpleGlyph {
                 kurbo::PathEl::ClosePath => {
                     // remove last point in closed path if has same coords as the move point
                     let contour = current.as_mut().ok_or(BadKurbo::MissingMove)?;
-                    if contour.len() > 1 && contour.last().unwrap() == contour.first().unwrap() {
+                    if contour.len() > 1 && contour.last() == contour.first() {
                         contour.pop();
                     }
                 }
