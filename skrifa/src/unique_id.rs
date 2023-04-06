@@ -16,10 +16,10 @@
 /// be used when configuring a glyph scaler.
 ///
 /// # Semantics
-/// Currently, the fields on this type carry no actual semantics. The `index`
-/// field, for example, is not required to match the index of a font in a collection.
-/// Types and names were chosen to accommodate the common representation of
-/// a pointer and index pair.
+/// Currently, the parameters used to construct this type carry no actual semantics.
+/// The `index` parameter, for example, is not required to match the index of a font
+/// in a collection. Types and names were chosen to accommodate the common representation
+/// of a pointer and index pair.
 ///
 /// The only requirement is that the 96 bits be unique for a given font.
 ///
@@ -31,9 +31,9 @@
 pub struct UniqueId {
     /// Unique identifier for the data blob containing the content of
     /// a font file.
-    pub data_id: u64,
+    data_id: u64,
     /// Index of a font in a font collection file.
-    pub index: u32,
+    index: u32,
 }
 
 impl UniqueId {
