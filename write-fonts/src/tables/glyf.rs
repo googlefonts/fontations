@@ -162,16 +162,16 @@ impl SimpleGlyph {
     ///
     /// Returns an error if the input path is malformed; that is, if it is empty,
     /// contains cubic segments, or does not begin with a 'move' instruction.
-    /// 
+    ///
     /// **Context**
-    /// 
+    ///
     /// * In the glyf table simple (contour based) glyph paths implicitly close when rendering.
     /// * In font sources, and svg, open and closed paths are distinct.
     ///    * In SVG closure matters due to influence on strokes, <https://www.w3.org/TR/SVG11/paths.html#PathDataClosePathCommand>.
     /// * An explicit closePath joins the first/last points of a contour
     ///    * This is not the same as ending with some other drawing command whose endpoint is the contour startpoint
     /// * In FontTools endPath says I'm done with this subpath, [BezPath] has no endPath.
-    /// 
+    ///
     /// Context courtesy of @anthrotype.
     pub fn from_kurbo(path: &BezPath) -> Result<Self, BadKurbo> {
         let mut contours = Vec::new();
