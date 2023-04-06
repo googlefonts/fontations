@@ -1,4 +1,4 @@
-use super::{glyf, Context, Error, NormalizedCoord, Pen, Result, Variation};
+use super::{glyf, Context, Error, NormalizedCoord, Pen, Result, VariationSetting};
 use crate::Size;
 
 #[cfg(feature = "hinting")]
@@ -61,7 +61,7 @@ impl<'a> ScalerBuilder<'a> {
     /// Specifies a variation with a set of normalized coordinates.
     ///
     /// This will clear any variations specified with the variations method.
-    pub fn coords<I>(self, coords: I) -> Self
+    pub fn normalized_coords<I>(self, coords: I) -> Self
     where
         I: IntoIterator,
         I::Item: Borrow<NormalizedCoord>,
@@ -76,15 +76,15 @@ impl<'a> ScalerBuilder<'a> {
 
     /// Adds the sequence of variation settings. This will clear any variations
     /// specified as normalized coordinates.
-    pub fn variations<I>(self, variations: I) -> Self
+    pub fn variation_settings<I>(self, settings: I) -> Self
     where
         I: IntoIterator,
-        I::Item: Into<Variation>,
+        I::Item: Into<VariationSetting>,
     {
         self.context.coords.clear();
         self.context
             .variations
-            .extend(variations.into_iter().map(|v| v.into()));
+            .extend(settings.into_iter().map(|v| v.into()));
         self
     }
 
@@ -137,7 +137,7 @@ impl<'a> ScalerBuilder<'a> {
             for (i, axis) in axes
                 .iter()
                 .enumerate()
-                .filter(|(_, axis)| axis.axis_tag() == variation.tag)
+                .filter(|(_, axis)| axis.axis_tag() == variation.selector)
             {
                 let coord = axis.normalize(Fixed::from_f64(variation.value as f64));
                 let coord = avar_mappings

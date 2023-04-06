@@ -15,7 +15,7 @@ pub use read_fonts::types::Pen;
 pub use error::{Error, Result};
 pub use scaler::{Scaler, ScalerBuilder};
 
-use super::{GlyphId, NormalizedCoord};
+use super::{GlyphId, NormalizedCoord, VariationSetting};
 use core::str::FromStr;
 use read_fonts::types::Tag;
 
@@ -42,42 +42,6 @@ pub enum Hinting {
     VerticalSubpixel,
 }
 
-/// Setting for specifying a variation by tag and value.
-#[derive(Copy, Clone, Debug)]
-pub struct Variation {
-    /// Tag for the variation.
-    pub tag: Tag,
-    /// Value for the variation.
-    pub value: f32,
-}
-
-impl From<(Tag, f32)> for Variation {
-    fn from(s: (Tag, f32)) -> Self {
-        Self {
-            tag: s.0,
-            value: s.1,
-        }
-    }
-}
-
-impl From<(&str, f32)> for Variation {
-    fn from(s: (&str, f32)) -> Self {
-        Self {
-            tag: Tag::from_str(s.0).unwrap_or_default(),
-            value: s.1,
-        }
-    }
-}
-
-impl From<([u8; 4], f32)> for Variation {
-    fn from(s: ([u8; 4], f32)) -> Self {
-        Self {
-            tag: Tag::new_checked(&s.0[..]).unwrap_or_default(),
-            value: s.1,
-        }
-    }
-}
-
 /// Context for loading glyphs.
 #[derive(Clone, Default, Debug)]
 pub struct Context {
@@ -88,7 +52,7 @@ pub struct Context {
     /// Storage for normalized variation coordinates.
     coords: Vec<NormalizedCoord>,
     /// Storage for variation settings.
-    variations: Vec<Variation>,
+    variations: Vec<VariationSetting>,
 }
 
 impl Context {
@@ -120,7 +84,7 @@ mod tests {
             let mut scaler = cx
                 .new_scaler()
                 .size(Size::new(expected_outline.size))
-                .coords(&expected_outline.coords)
+                .normalized_coords(&expected_outline.coords)
                 .build(&font);
             scaler
                 .outline(expected_outline.glyph_id, &mut path)
