@@ -15,6 +15,16 @@ pub enum Error {
     PackingFailed(PackingError),
 }
 
+impl PackingError {
+    /// Write a graphviz file representing the failed packing to the provided path.
+    ///
+    /// Has the same semantics as [`std::fs::write`].
+    #[cfg(feature = "dot2")]
+    pub fn write_graph_viz(&self, path: impl AsRef<std::path::Path>) -> std::io::Result<()> {
+        self.graph.write_graph_viz(path)
+    }
+}
+
 impl std::fmt::Display for Error {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {

@@ -6,10 +6,13 @@ use std::{
     sync::atomic::AtomicUsize,
 };
 
+#[cfg(feature = "dot2")]
+mod graphviz;
+
 static OBJECT_COUNTER: AtomicUsize = AtomicUsize::new(0);
 
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, Hash, PartialEq, Eq)]
-pub(crate) struct ObjectId(usize);
+pub struct ObjectId(usize);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
@@ -44,7 +47,7 @@ impl std::fmt::Display for OffsetLen {
 /// Nodes are assigned a space, and nodes in lower spaces are always
 /// packed before nodes in higher spaces.
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, Hash, PartialEq, Eq)]
-struct Space(u32);
+pub struct Space(u32);
 
 impl Space {
     /// A generic space for nodes reachable via 16-bit offsets.
@@ -687,6 +690,11 @@ impl Graph {
             }
         }
         result
+    }
+
+    #[cfg(feature = "dot2")]
+    pub(crate) fn write_graph_viz(&self, path: impl AsRef<std::path::Path>) -> std::io::Result<()> {
+        graphviz::GraphVizGraph::from_graph(self).write_to_file(path)
     }
 }
 

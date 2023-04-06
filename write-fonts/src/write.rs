@@ -109,7 +109,9 @@ impl TableWriter {
     fn add_table(&mut self, table: &dyn FontWrite) -> ObjectId {
         self.stack.push(TableData::default());
         table.write_into(self);
-        self.tables.add(self.stack.pop().unwrap())
+        let mut table_data = self.stack.pop().unwrap();
+        table_data.name = table.name();
+        self.tables.add(table_data)
     }
 
     /// Finish this table, returning an object graph.
@@ -183,11 +185,27 @@ impl Default for TableWriter {
 }
 
 /// The encoded data for a given table, along with info on included offsets
-#[derive(Debug, Default, Clone, Hash, PartialEq, Eq)]
+#[derive(Debug, Default, Clone)] // DO NOT DERIVE MORE TRAITS! we want to ignore name field
 pub(crate) struct TableData {
+    pub(crate) name: &'static str,
     pub(crate) bytes: Vec<u8>,
     pub(crate) offsets: Vec<OffsetRecord>,
 }
+
+impl std::hash::Hash for TableData {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.bytes.hash(state);
+        self.offsets.hash(state);
+    }
+}
+
+impl PartialEq for TableData {
+    fn eq(&self, other: &Self) -> bool {
+        self.bytes == other.bytes && self.offsets == other.offsets
+    }
+}
+
+impl Eq for TableData {}
 
 /// The position and type of an offset, along with the id of the pointed-to entity
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
@@ -231,6 +249,7 @@ impl TableData {
     #[cfg(test)]
     pub fn make_mock(size: usize) -> Self {
         TableData {
+            name: "",
             bytes: vec![0xca; size], // has no special meaning
             offsets: Vec::new(),
         }
