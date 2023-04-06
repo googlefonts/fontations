@@ -1,5 +1,5 @@
 use super::{glyf, Context, Error, NormalizedCoord, Pen, Result, VariationSetting};
-use crate::Size;
+use crate::{Size, UniqueId};
 
 #[cfg(feature = "hinting")]
 use super::Hinting;
@@ -13,7 +13,7 @@ use read_fonts::{
 /// Builder for configuring a glyph scaler.
 pub struct ScalerBuilder<'a> {
     context: &'a mut Context,
-    font_id: Option<u64>,
+    cache_key: Option<UniqueId>,
     size: Size,
     #[cfg(feature = "hinting")]
     hint: Option<Hinting>,
@@ -26,7 +26,7 @@ impl<'a> ScalerBuilder<'a> {
         context.variations.clear();
         Self {
             context,
-            font_id: None,
+            cache_key: None,
             size: Size::unscaled(),
             #[cfg(feature = "hinting")]
             hint: None,
@@ -35,8 +35,8 @@ impl<'a> ScalerBuilder<'a> {
 
     /// Sets a unique font identifier for hint state caching. Specifying `None` will
     /// disable caching.
-    pub fn font_id(mut self, font_id: Option<u64>) -> Self {
-        self.font_id = font_id;
+    pub fn cache_key(mut self, key: Option<UniqueId>) -> Self {
+        self.cache_key = key;
         self
     }
 
@@ -96,7 +96,7 @@ impl<'a> ScalerBuilder<'a> {
         let glyf = if let Ok(glyf) = glyf::Scaler::new(
             &mut self.context.glyf,
             font,
-            self.font_id,
+            self.cache_key,
             self.size.ppem().unwrap_or_default(),
             #[cfg(feature = "hinting")]
             self.hint,
