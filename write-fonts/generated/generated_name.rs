@@ -47,6 +47,9 @@ impl FontWrite for Name {
             });
         });
     }
+    fn name(&self) -> &'static str {
+        "Name"
+    }
 }
 
 impl Validate for Name {
@@ -119,6 +122,9 @@ impl FontWrite for LangTagRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         (self.compile_name_string()).write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "LangTagRecord"
+    }
 }
 
 impl Validate for LangTagRecord {
@@ -176,6 +182,9 @@ impl FontWrite for NameRecord {
         self.language_id.write_into(writer);
         self.name_id.write_into(writer);
         (self.compile_name_string()).write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "NameRecord"
     }
 }
 

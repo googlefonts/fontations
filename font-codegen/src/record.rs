@@ -230,6 +230,10 @@ pub(crate) fn generate_compile_impl(
                 fn write_into(&self, writer: &mut TableWriter) {
                     #( #write_stmts; )*
                 }
+
+                fn name(&self) -> &'static str {
+                    #name_string
+                }
             }
         }
     });

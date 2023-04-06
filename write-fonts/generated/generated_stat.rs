@@ -43,6 +43,9 @@ impl FontWrite for Stat {
                 .write_into(writer)
         });
     }
+    fn name(&self) -> &'static str {
+        "Stat"
+    }
 }
 
 impl Validate for Stat {
@@ -118,6 +121,9 @@ impl FontWrite for AxisRecord {
         self.axis_name_id.write_into(writer);
         self.axis_ordering.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "AxisRecord"
+    }
 }
 
 impl Validate for AxisRecord {
@@ -154,6 +160,9 @@ impl AxisValueArray {
 impl FontWrite for AxisValueArray {
     fn write_into(&self, writer: &mut TableWriter) {
         self.axis_values.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "AxisValueArray"
     }
 }
 
@@ -266,6 +275,14 @@ impl FontWrite for AxisValue {
             Self::Format4(item) => item.write_into(writer),
         }
     }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Format1(_) => "AxisValue.Format1",
+            Self::Format2(_) => "AxisValue.Format2",
+            Self::Format3(_) => "AxisValue.Format3",
+            Self::Format4(_) => "AxisValue.Format4",
+        }
+    }
 }
 
 impl Validate for AxisValue {
@@ -340,6 +357,9 @@ impl FontWrite for AxisValueFormat1 {
         self.flags.write_into(writer);
         self.value_name_id.write_into(writer);
         self.value.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "AxisValueFormat1"
     }
 }
 
@@ -421,6 +441,9 @@ impl FontWrite for AxisValueFormat2 {
         self.range_min_value.write_into(writer);
         self.range_max_value.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "AxisValueFormat2"
+    }
 }
 
 impl Validate for AxisValueFormat2 {
@@ -496,6 +519,9 @@ impl FontWrite for AxisValueFormat3 {
         self.value.write_into(writer);
         self.linked_value.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "AxisValueFormat3"
+    }
 }
 
 impl Validate for AxisValueFormat3 {
@@ -560,6 +586,9 @@ impl FontWrite for AxisValueFormat4 {
         self.value_name_id.write_into(writer);
         self.axis_values.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "AxisValueFormat4"
+    }
 }
 
 impl Validate for AxisValueFormat4 {
@@ -616,6 +645,9 @@ impl FontWrite for AxisValueRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.axis_index.write_into(writer);
         self.value.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "AxisValueRecord"
     }
 }
 

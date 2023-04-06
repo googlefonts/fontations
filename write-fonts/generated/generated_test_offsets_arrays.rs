@@ -63,6 +63,9 @@ impl FontWrite for KindsOfOffsets {
             .compatible((1, 1))
             .then(|| self.versioned_nullable.write_into(writer));
     }
+    fn name(&self) -> &'static str {
+        "KindsOfOffsets"
+    }
 }
 
 impl Validate for KindsOfOffsets {
@@ -161,6 +164,9 @@ impl FontWrite for KindsOfArraysOfOffsets {
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
+    }
+    fn name(&self) -> &'static str {
+        "KindsOfArraysOfOffsets"
     }
 }
 
@@ -284,6 +290,9 @@ impl FontWrite for KindsOfArrays {
                 .write_into(writer)
         });
     }
+    fn name(&self) -> &'static str {
+        "KindsOfArrays"
+    }
 }
 
 impl Validate for KindsOfArrays {
@@ -365,6 +374,9 @@ impl FontWrite for Dummy {
         self.value.write_into(writer);
         (0 as u16).write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "Dummy"
+    }
 }
 
 impl Validate for Dummy {
@@ -399,6 +411,9 @@ impl FontWrite for Shmecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.length.write_into(writer);
         self.breadth.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "Shmecord"
     }
 }
 

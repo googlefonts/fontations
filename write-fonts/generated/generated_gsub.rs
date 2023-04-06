@@ -47,6 +47,9 @@ impl FontWrite for Gsub {
             .compatible((1, 1))
             .then(|| self.feature_variations.write_into(writer));
     }
+    fn name(&self) -> &'static str {
+        "Gsub"
+    }
 }
 
 impl Validate for Gsub {
@@ -121,6 +124,18 @@ impl FontWrite for SubstitutionLookup {
             Self::ChainContextual(table) => table.write_into(writer),
             Self::Extension(table) => table.write_into(writer),
             Self::Reverse(table) => table.write_into(writer),
+        }
+    }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Single(_) => "SubstitutionLookup.Single",
+            Self::Multiple(_) => "SubstitutionLookup.Multiple",
+            Self::Alternate(_) => "SubstitutionLookup.Alternate",
+            Self::Ligature(_) => "SubstitutionLookup.Ligature",
+            Self::Contextual(_) => "SubstitutionLookup.Contextual",
+            Self::ChainContextual(_) => "SubstitutionLookup.ChainContextual",
+            Self::Extension(_) => "SubstitutionLookup.Extension",
+            Self::Reverse(_) => "SubstitutionLookup.Reverse",
         }
     }
 }
@@ -208,6 +223,12 @@ impl FontWrite for SingleSubst {
             Self::Format2(item) => item.write_into(writer),
         }
     }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Format1(_) => "SingleSubst.Format1",
+            Self::Format2(_) => "SingleSubst.Format2",
+        }
+    }
 }
 
 impl Validate for SingleSubst {
@@ -263,6 +284,9 @@ impl FontWrite for SingleSubstFormat1 {
         (1 as u16).write_into(writer);
         self.coverage.write_into(writer);
         self.delta_glyph_id.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "SingleSubstFormat1"
     }
 }
 
@@ -321,6 +345,9 @@ impl FontWrite for SingleSubstFormat2 {
         self.coverage.write_into(writer);
         (array_len(&self.substitute_glyph_ids).unwrap() as u16).write_into(writer);
         self.substitute_glyph_ids.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "SingleSubstFormat2"
     }
 }
 
@@ -387,6 +414,9 @@ impl FontWrite for MultipleSubstFormat1 {
         (array_len(&self.sequences).unwrap() as u16).write_into(writer);
         self.sequences.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "MultipleSubstFormat1"
+    }
 }
 
 impl Validate for MultipleSubstFormat1 {
@@ -444,6 +474,9 @@ impl FontWrite for Sequence {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.substitute_glyph_ids).unwrap() as u16).write_into(writer);
         self.substitute_glyph_ids.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "Sequence"
     }
 }
 
@@ -504,6 +537,9 @@ impl FontWrite for AlternateSubstFormat1 {
         self.coverage.write_into(writer);
         (array_len(&self.alternate_sets).unwrap() as u16).write_into(writer);
         self.alternate_sets.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "AlternateSubstFormat1"
     }
 }
 
@@ -569,6 +605,9 @@ impl FontWrite for AlternateSet {
         (array_len(&self.alternate_glyph_ids).unwrap() as u16).write_into(writer);
         self.alternate_glyph_ids.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "AlternateSet"
+    }
 }
 
 impl Validate for AlternateSet {
@@ -629,6 +668,9 @@ impl FontWrite for LigatureSubstFormat1 {
         (array_len(&self.ligature_sets).unwrap() as u16).write_into(writer);
         self.ligature_sets.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "LigatureSubstFormat1"
+    }
 }
 
 impl Validate for LigatureSubstFormat1 {
@@ -688,6 +730,9 @@ impl FontWrite for LigatureSet {
         (array_len(&self.ligatures).unwrap() as u16).write_into(writer);
         self.ligatures.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "LigatureSet"
+    }
 }
 
 impl Validate for LigatureSet {
@@ -745,6 +790,9 @@ impl FontWrite for Ligature {
         self.ligature_glyph.write_into(writer);
         (plus_one(&self.component_glyph_ids.len()).unwrap() as u16).write_into(writer);
         self.component_glyph_ids.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "Ligature"
     }
 }
 
@@ -857,6 +905,17 @@ impl FontWrite for ExtensionSubtable {
             Self::Reverse(table) => table.write_into(writer),
         }
     }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Single(_) => "ExtensionSubtable.Single",
+            Self::Multiple(_) => "ExtensionSubtable.Multiple",
+            Self::Alternate(_) => "ExtensionSubtable.Alternate",
+            Self::Ligature(_) => "ExtensionSubtable.Ligature",
+            Self::Contextual(_) => "ExtensionSubtable.Contextual",
+            Self::ChainContextual(_) => "ExtensionSubtable.ChainContextual",
+            Self::Reverse(_) => "ExtensionSubtable.Reverse",
+        }
+    }
 }
 
 impl Validate for ExtensionSubtable {
@@ -950,6 +1009,9 @@ impl FontWrite for ReverseChainSingleSubstFormat1 {
         self.lookahead_coverages.write_into(writer);
         (array_len(&self.substitute_glyph_ids).unwrap() as u16).write_into(writer);
         self.substitute_glyph_ids.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "ReverseChainSingleSubstFormat1"
     }
 }
 

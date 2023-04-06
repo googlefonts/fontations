@@ -137,6 +137,9 @@ impl FontWrite for Maxp {
                 .write_into(writer)
         });
     }
+    fn name(&self) -> &'static str {
+        "Maxp"
+    }
 }
 
 impl Validate for Maxp {

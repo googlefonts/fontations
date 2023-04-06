@@ -33,6 +33,9 @@ impl FontWrite for Avar {
         (array_len(&self.axis_segment_maps).unwrap() as u16).write_into(writer);
         self.axis_segment_maps.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "Avar"
+    }
 }
 
 impl Validate for Avar {
@@ -93,6 +96,9 @@ impl FontWrite for SegmentMaps {
         (array_len(&self.axis_value_maps).unwrap() as u16).write_into(writer);
         self.axis_value_maps.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "SegmentMaps"
+    }
 }
 
 impl Validate for SegmentMaps {
@@ -139,6 +145,9 @@ impl FontWrite for AxisValueMap {
     fn write_into(&self, writer: &mut TableWriter) {
         self.from_coordinate.write_into(writer);
         self.to_coordinate.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "AxisValueMap"
     }
 }
 

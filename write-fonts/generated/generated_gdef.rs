@@ -64,6 +64,9 @@ impl FontWrite for Gdef {
             .compatible((1, 3))
             .then(|| self.item_var_store.write_into(writer));
     }
+    fn name(&self) -> &'static str {
+        "Gdef"
+    }
 }
 
 impl Validate for Gdef {
@@ -150,6 +153,9 @@ impl FontWrite for AttachList {
         (array_len(&self.attach_points).unwrap() as u16).write_into(writer);
         self.attach_points.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "AttachList"
+    }
 }
 
 impl Validate for AttachList {
@@ -206,6 +212,9 @@ impl FontWrite for AttachPoint {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.point_indices).unwrap() as u16).write_into(writer);
         self.point_indices.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "AttachPoint"
     }
 }
 
@@ -265,6 +274,9 @@ impl FontWrite for LigCaretList {
         (array_len(&self.lig_glyphs).unwrap() as u16).write_into(writer);
         self.lig_glyphs.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "LigCaretList"
+    }
 }
 
 impl Validate for LigCaretList {
@@ -322,6 +334,9 @@ impl FontWrite for LigGlyph {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.caret_values).unwrap() as u16).write_into(writer);
         self.caret_values.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "LigGlyph"
     }
 }
 
@@ -393,6 +408,13 @@ impl FontWrite for CaretValue {
             Self::Format3(item) => item.write_into(writer),
         }
     }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Format1(_) => "CaretValue.Format1",
+            Self::Format2(_) => "CaretValue.Format2",
+            Self::Format3(_) => "CaretValue.Format3",
+        }
+    }
 }
 
 impl Validate for CaretValue {
@@ -444,6 +466,9 @@ impl FontWrite for CaretValueFormat1 {
         (1 as u16).write_into(writer);
         self.coordinate.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "CaretValueFormat1"
+    }
 }
 
 impl Validate for CaretValueFormat1 {
@@ -488,6 +513,9 @@ impl FontWrite for CaretValueFormat2 {
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u16).write_into(writer);
         self.caret_value_point_index.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "CaretValueFormat2"
     }
 }
 
@@ -539,6 +567,9 @@ impl FontWrite for CaretValueFormat3 {
         (3 as u16).write_into(writer);
         self.coordinate.write_into(writer);
         self.device.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "CaretValueFormat3"
     }
 }
 
@@ -593,6 +624,9 @@ impl FontWrite for MarkGlyphSets {
         (1 as u16).write_into(writer);
         (array_len(&self.coverages).unwrap() as u16).write_into(writer);
         self.coverages.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "MarkGlyphSets"
     }
 }
 
