@@ -162,8 +162,17 @@ impl SimpleGlyph {
     ///
     /// Returns an error if the input path is malformed; that is, if it is empty,
     /// contains cubic segments, or does not begin with a 'move' instruction.
-    //TODO: figure out a more general API? maybe a nested builder thing, where you
-    //build contours, and from those contours build a glyph? idk?
+    ///
+    /// **Context**
+    ///
+    /// * In the glyf table simple (contour based) glyph paths implicitly close when rendering.
+    /// * In font sources, and svg, open and closed paths are distinct.
+    ///    * In SVG closure matters due to influence on strokes, <https://www.w3.org/TR/SVG11/paths.html#PathDataClosePathCommand>.
+    /// * An explicit closePath joins the first/last points of a contour
+    ///    * This is not the same as ending with some other drawing command whose endpoint is the contour startpoint
+    /// * In FontTools endPath says I'm done with this subpath, [BezPath] has no endPath.
+    ///
+    /// Context courtesy of @anthrotype.
     pub fn from_kurbo(path: &BezPath) -> Result<Self, BadKurbo> {
         let mut contours = Vec::new();
         let mut current = None;
@@ -185,8 +194,10 @@ impl SimpleGlyph {
                     .quad_to(*p0, *p1),
                 kurbo::PathEl::CurveTo(_, _, _) => return Err(BadKurbo::HasCubic),
                 kurbo::PathEl::ClosePath => {
-                    // remove last point in closed path if has same coords as the move point
                     let contour = current.as_mut().ok_or(BadKurbo::MissingMove)?;
+                    // remove last point in closed path if has same coords as the move point
+                    // matches FontTools handling @ https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/pens/pointPen.py#L321-L323
+                    // FontTools has an else case to support UFO glif's choice to not include 'move' for closed paths that does not apply here.
                     if contour.len() > 1 && contour.last() == contour.first() {
                         contour.pop();
                     }
