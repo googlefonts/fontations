@@ -88,6 +88,27 @@ jobs:
       - name: cargo check read-fonts
         run: cargo check --manifest-path=read-fonts/Cargo.toml --no-default-features
 
+  cargo-package:
+    name: cargo package
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: cargo package font-types
+        run: cargo package --manifest-path=font-types/Cargo.toml
+
+      - name: cargo package read-fonts
+        run: cargo package --manifest-path=read-fonts/Cargo.toml
+
+      - name: cargo package write-fonts
+        run: cargo package --manifest-path=write-fonts/Cargo.toml
+
+      - name: cargo package skrifa
+        run: cargo package --manifest-path=skrifa/Cargo.toml
+
   check-wasm:
     name: cargo check wasm
     runs-on: ubuntu-latest
