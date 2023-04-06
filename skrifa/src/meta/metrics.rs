@@ -30,6 +30,7 @@ use read_fonts::{
 
 use crate::{NormalizedCoord, NormalizedCoords, Size};
 
+/// Type for a bounding box with single precision floating point coordinates.
 pub type BoundingBox = read_fonts::types::BoundingBox<f32>;
 
 /// Metrics for a text decoration.
