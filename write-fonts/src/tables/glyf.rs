@@ -139,6 +139,18 @@ impl Contour {
     pub fn iter(&self) -> impl Iterator<Item = &CurvePoint> {
         self.0.iter()
     }
+
+    pub fn first(&self) -> Option<&CurvePoint> {
+        self.0.first()
+    }
+
+    pub fn last(&self) -> Option<&CurvePoint> {
+        self.0.last()
+    }
+
+    pub fn pop(&mut self) -> Option<CurvePoint> {
+        self.0.pop()
+    }
 }
 
 impl SimpleGlyph {
@@ -172,23 +184,17 @@ impl SimpleGlyph {
                     .ok_or(BadKurbo::MissingMove)?
                     .quad_to(*p0, *p1),
                 kurbo::PathEl::CurveTo(_, _, _) => return Err(BadKurbo::HasCubic),
-                // I think we can just ignore this, and remove duplicate points
-                // at the end?
-                kurbo::PathEl::ClosePath => (),
+                kurbo::PathEl::ClosePath => {
+                    // remove last point in closed path if has same coords as the move point
+                    let contour = current.as_mut().ok_or(BadKurbo::MissingMove)?;
+                    if contour.len() > 1 && contour.last() == contour.first() {
+                        contour.pop();
+                    }
+                }
             }
         }
 
         contours.extend(current);
-
-        for contour in &mut contours {
-            //TODO: verify that single-point contours are actually meaningless?
-            if contour.len() < 2 {
-                return Err(BadKurbo::TooSmall);
-            }
-            if contour.0.first() == contour.0.last() {
-                contour.0.pop();
-            }
-        }
 
         let bbox = path.bounding_box();
         Ok(SimpleGlyph {
@@ -800,26 +806,95 @@ mod tests {
     }
 
     #[test]
-    fn very_simple_glyph() {
+    fn simple_glyph_open_path() {
         let mut path = BezPath::new();
         path.move_to((20., -100.));
         path.quad_to((1337., 1338.), (-50., -69.0));
         path.quad_to((13., 255.), (-255., 256.));
+        // even if the last point is on top of the first, the path was not deliberately closed
+        // hence there is going to be an extra point (6, not 5 in total)
         path.line_to((20., -100.));
 
         let glyph = SimpleGlyph::from_kurbo(&path).unwrap();
         let bytes = crate::dump_table(&glyph).unwrap();
         let read = read_fonts::tables::glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
         assert_eq!(read.number_of_contours(), 1);
-        assert_eq!(read.num_points(), 5);
-        assert_eq!(read.end_pts_of_contours(), &[4]);
+        assert_eq!(read.num_points(), 6);
+        assert_eq!(read.end_pts_of_contours(), &[5]);
         let points = read.points().collect::<Vec<_>>();
         assert_eq!(points[0].x, 20);
+        assert_eq!(points[0].y, -100);
+        assert!(points[0].on_curve);
+        assert_eq!(points[1].x, 1337);
         assert_eq!(points[1].y, 1338);
         assert!(!points[1].on_curve);
         assert_eq!(points[4].x, -255);
         assert_eq!(points[4].y, 256);
         assert!(points[4].on_curve);
+        assert_eq!(points[5].x, 20);
+        assert_eq!(points[5].y, -100);
+        assert!(points[5].on_curve);
+    }
+
+    #[test]
+    fn simple_glyph_closed_path_implicit_vs_explicit_closing_line() {
+        let mut path1 = BezPath::new();
+        path1.move_to((20., -100.));
+        path1.quad_to((1337., 1338.), (-50., -69.0));
+        path1.quad_to((13., 255.), (-255., 256.));
+        path1.close_path();
+
+        let mut path2 = BezPath::new();
+        path2.move_to((20., -100.));
+        path2.quad_to((1337., 1338.), (-50., -69.0));
+        path2.quad_to((13., 255.), (-255., 256.));
+        // this line_to (absent from path1) makes no difference since in both cases the
+        // path is closed with a close_path (5 points in total, not 6)
+        path2.line_to((20., -100.));
+        path2.close_path();
+
+        for path in &[path1, path2] {
+            let glyph = SimpleGlyph::from_kurbo(path).unwrap();
+            let bytes = crate::dump_table(&glyph).unwrap();
+            let read = read_fonts::tables::glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
+            assert_eq!(read.number_of_contours(), 1);
+            assert_eq!(read.num_points(), 5);
+            assert_eq!(read.end_pts_of_contours(), &[4]);
+            let points = read.points().collect::<Vec<_>>();
+            assert_eq!(points[0].x, 20);
+            assert_eq!(points[0].y, -100);
+            assert!(points[0].on_curve);
+            assert_eq!(points[1].x, 1337);
+            assert_eq!(points[1].y, 1338);
+            assert!(!points[1].on_curve);
+            assert_eq!(points[4].x, -255);
+            assert_eq!(points[4].y, 256);
+            assert!(points[4].on_curve);
+        }
+    }
+
+    #[test]
+    fn keep_single_point_contours() {
+        // single points may be meaningless, but are also harmless
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        // path.close_path();  // doesn't really matter if this is closed
+        path.move_to((1.0, 2.0));
+        path.close_path();
+
+        let glyph = SimpleGlyph::from_kurbo(&path).unwrap();
+        let bytes = crate::dump_table(&glyph).unwrap();
+        let read = read_fonts::tables::glyf::SimpleGlyph::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(read.number_of_contours(), 2);
+        assert_eq!(read.num_points(), 2);
+        assert_eq!(read.end_pts_of_contours(), &[0, 1]);
+        let points = read.points().collect::<Vec<_>>();
+        assert_eq!(points[0].x, 0);
+        assert_eq!(points[0].y, 0);
+        assert!(points[0].on_curve);
+        assert_eq!(points[1].x, 1);
+        assert_eq!(points[1].y, 2);
+        assert!(points[0].on_curve);
     }
 
     #[test]
