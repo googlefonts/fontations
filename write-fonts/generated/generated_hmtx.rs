@@ -31,6 +31,9 @@ impl FontWrite for Hmtx {
         self.h_metrics.write_into(writer);
         self.left_side_bearings.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "Hmtx"
+    }
 }
 
 impl Validate for Hmtx {
@@ -84,6 +87,9 @@ impl FontWrite for LongMetric {
     fn write_into(&self, writer: &mut TableWriter) {
         self.advance.write_into(writer);
         self.side_bearing.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "LongMetric"
     }
 }
 

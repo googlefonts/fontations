@@ -128,6 +128,9 @@ impl FontWrite for Post {
                 .write_into(writer)
         });
     }
+    fn name(&self) -> &'static str {
+        "Post"
+    }
 }
 
 impl Validate for Post {

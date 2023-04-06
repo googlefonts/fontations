@@ -39,6 +39,9 @@ impl FontWrite for MyRecord {
         self.my_enum1.write_into(writer);
         self.my_enum2.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "MyRecord"
+    }
 }
 
 impl Validate for MyRecord {

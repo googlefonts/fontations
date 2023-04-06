@@ -269,6 +269,9 @@ impl FontWrite for Os2 {
                 .write_into(writer)
         });
     }
+    fn name(&self) -> &'static str {
+        "Os2"
+    }
 }
 
 impl Validate for Os2 {

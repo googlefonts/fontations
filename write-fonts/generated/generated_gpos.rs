@@ -48,6 +48,9 @@ impl FontWrite for Gpos {
             .compatible((1, 1))
             .then(|| self.feature_variations.write_into(writer));
     }
+    fn name(&self) -> &'static str {
+        "Gpos"
+    }
 }
 
 impl Validate for Gpos {
@@ -124,6 +127,19 @@ impl FontWrite for PositionLookup {
             Self::Contextual(table) => table.write_into(writer),
             Self::ChainContextual(table) => table.write_into(writer),
             Self::Extension(table) => table.write_into(writer),
+        }
+    }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Single(_) => "PositionLookup.Single",
+            Self::Pair(_) => "PositionLookup.Pair",
+            Self::Cursive(_) => "PositionLookup.Cursive",
+            Self::MarkToBase(_) => "PositionLookup.MarkToBase",
+            Self::MarkToLig(_) => "PositionLookup.MarkToLig",
+            Self::MarkToMark(_) => "PositionLookup.MarkToMark",
+            Self::Contextual(_) => "PositionLookup.Contextual",
+            Self::ChainContextual(_) => "PositionLookup.ChainContextual",
+            Self::Extension(_) => "PositionLookup.Extension",
         }
     }
 }
@@ -236,6 +252,13 @@ impl FontWrite for AnchorTable {
             Self::Format3(item) => item.write_into(writer),
         }
     }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Format1(_) => "AnchorTable.Format1",
+            Self::Format2(_) => "AnchorTable.Format2",
+            Self::Format3(_) => "AnchorTable.Format3",
+        }
+    }
 }
 
 impl Validate for AnchorTable {
@@ -293,6 +316,9 @@ impl FontWrite for AnchorFormat1 {
         self.x_coordinate.write_into(writer);
         self.y_coordinate.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "AnchorFormat1"
+    }
 }
 
 impl Validate for AnchorFormat1 {
@@ -346,6 +372,9 @@ impl FontWrite for AnchorFormat2 {
         self.x_coordinate.write_into(writer);
         self.y_coordinate.write_into(writer);
         self.anchor_point.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "AnchorFormat2"
     }
 }
 
@@ -415,6 +444,9 @@ impl FontWrite for AnchorFormat3 {
         self.x_device.write_into(writer);
         self.y_device.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "AnchorFormat3"
+    }
 }
 
 impl Validate for AnchorFormat3 {
@@ -473,6 +505,9 @@ impl FontWrite for MarkArray {
         (array_len(&self.mark_records).unwrap() as u16).write_into(writer);
         self.mark_records.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "MarkArray"
+    }
 }
 
 impl Validate for MarkArray {
@@ -529,6 +564,9 @@ impl FontWrite for MarkRecord {
         self.mark_class.write_into(writer);
         self.mark_anchor.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "MarkRecord"
+    }
 }
 
 impl Validate for MarkRecord {
@@ -580,6 +618,12 @@ impl FontWrite for SinglePos {
         match self {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
+        }
+    }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Format1(_) => "SinglePos.Format1",
+            Self::Format2(_) => "SinglePos.Format2",
         }
     }
 }
@@ -639,6 +683,9 @@ impl FontWrite for SinglePosFormat1 {
         (self.compute_value_format() as ValueFormat).write_into(writer);
         self.value_record.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "SinglePosFormat1"
+    }
 }
 
 impl Validate for SinglePosFormat1 {
@@ -697,6 +744,9 @@ impl FontWrite for SinglePosFormat2 {
         (self.compute_value_format() as ValueFormat).write_into(writer);
         (array_len(&self.value_records).unwrap() as u16).write_into(writer);
         self.value_records.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "SinglePosFormat2"
     }
 }
 
@@ -781,6 +831,12 @@ impl FontWrite for PairPos {
             Self::Format2(item) => item.write_into(writer),
         }
     }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Format1(_) => "PairPos.Format1",
+            Self::Format2(_) => "PairPos.Format2",
+        }
+    }
 }
 
 impl Validate for PairPos {
@@ -840,6 +896,9 @@ impl FontWrite for PairPosFormat1 {
         (array_len(&self.pair_sets).unwrap() as u16).write_into(writer);
         self.pair_sets.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "PairPosFormat1"
+    }
 }
 
 impl Validate for PairPosFormat1 {
@@ -896,6 +955,9 @@ impl FontWrite for PairSet {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.pair_value_records).unwrap() as u16).write_into(writer);
         self.pair_value_records.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "PairSet"
     }
 }
 
@@ -960,6 +1022,9 @@ impl FontWrite for PairValueRecord {
         self.value_record1.write_into(writer);
         self.value_record2.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "PairValueRecord"
+    }
 }
 
 impl Validate for PairValueRecord {
@@ -1023,6 +1088,9 @@ impl FontWrite for PairPosFormat2 {
         (self.compute_class1_count() as u16).write_into(writer);
         (self.compute_class2_count() as u16).write_into(writer);
         self.class1_records.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "PairPosFormat2"
     }
 }
 
@@ -1091,6 +1159,9 @@ impl FontWrite for Class1Record {
     fn write_into(&self, writer: &mut TableWriter) {
         self.class2_records.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "Class1Record"
+    }
 }
 
 impl Validate for Class1Record {
@@ -1142,6 +1213,9 @@ impl FontWrite for Class2Record {
         self.value_record1.write_into(writer);
         self.value_record2.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "Class2Record"
+    }
 }
 
 impl Validate for Class2Record {
@@ -1183,6 +1257,9 @@ impl FontWrite for CursivePosFormat1 {
         self.coverage.write_into(writer);
         (array_len(&self.entry_exit_record).unwrap() as u16).write_into(writer);
         self.entry_exit_record.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "CursivePosFormat1"
     }
 }
 
@@ -1246,6 +1323,9 @@ impl FontWrite for EntryExitRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.entry_anchor.write_into(writer);
         self.exit_anchor.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "EntryExitRecord"
     }
 }
 
@@ -1318,6 +1398,9 @@ impl FontWrite for MarkBasePosFormat1 {
         self.mark_array.write_into(writer);
         self.base_array.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "MarkBasePosFormat1"
+    }
 }
 
 impl Validate for MarkBasePosFormat1 {
@@ -1379,6 +1462,9 @@ impl FontWrite for BaseArray {
         (array_len(&self.base_records).unwrap() as u16).write_into(writer);
         self.base_records.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "BaseArray"
+    }
 }
 
 impl Validate for BaseArray {
@@ -1430,6 +1516,9 @@ impl BaseRecord {
 impl FontWrite for BaseRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.base_anchors.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "BaseRecord"
     }
 }
 
@@ -1501,6 +1590,9 @@ impl FontWrite for MarkLigPosFormat1 {
         self.mark_array.write_into(writer);
         self.ligature_array.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "MarkLigPosFormat1"
+    }
 }
 
 impl Validate for MarkLigPosFormat1 {
@@ -1566,6 +1658,9 @@ impl FontWrite for LigatureArray {
         (array_len(&self.ligature_attaches).unwrap() as u16).write_into(writer);
         self.ligature_attaches.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "LigatureArray"
+    }
 }
 
 impl Validate for LigatureArray {
@@ -1613,6 +1708,9 @@ impl FontWrite for LigatureAttach {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.component_records).unwrap() as u16).write_into(writer);
         self.component_records.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "LigatureAttach"
     }
 }
 
@@ -1665,6 +1763,9 @@ impl ComponentRecord {
 impl FontWrite for ComponentRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.ligature_anchors.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "ComponentRecord"
     }
 }
 
@@ -1739,6 +1840,9 @@ impl FontWrite for MarkMarkPosFormat1 {
         self.mark1_array.write_into(writer);
         self.mark2_array.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "MarkMarkPosFormat1"
+    }
 }
 
 impl Validate for MarkMarkPosFormat1 {
@@ -1800,6 +1904,9 @@ impl FontWrite for Mark2Array {
         (array_len(&self.mark2_records).unwrap() as u16).write_into(writer);
         self.mark2_records.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "Mark2Array"
+    }
 }
 
 impl Validate for Mark2Array {
@@ -1851,6 +1958,9 @@ impl Mark2Record {
 impl FontWrite for Mark2Record {
     fn write_into(&self, writer: &mut TableWriter) {
         self.mark2_anchors.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "Mark2Record"
     }
 }
 
@@ -1965,6 +2075,18 @@ impl FontWrite for ExtensionSubtable {
             Self::MarkToMark(table) => table.write_into(writer),
             Self::Contextual(table) => table.write_into(writer),
             Self::ChainContextual(table) => table.write_into(writer),
+        }
+    }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Single(_) => "ExtensionSubtable.Single",
+            Self::Pair(_) => "ExtensionSubtable.Pair",
+            Self::Cursive(_) => "ExtensionSubtable.Cursive",
+            Self::MarkToBase(_) => "ExtensionSubtable.MarkToBase",
+            Self::MarkToLig(_) => "ExtensionSubtable.MarkToLig",
+            Self::MarkToMark(_) => "ExtensionSubtable.MarkToMark",
+            Self::Contextual(_) => "ExtensionSubtable.Contextual",
+            Self::ChainContextual(_) => "ExtensionSubtable.ChainContextual",
         }
     }
 }

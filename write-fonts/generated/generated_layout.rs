@@ -29,6 +29,9 @@ impl FontWrite for ScriptList {
         (array_len(&self.script_records).unwrap() as u16).write_into(writer);
         self.script_records.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "ScriptList"
+    }
 }
 
 impl Validate for ScriptList {
@@ -85,6 +88,9 @@ impl FontWrite for ScriptRecord {
         self.script_tag.write_into(writer);
         self.script.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "ScriptRecord"
+    }
 }
 
 impl Validate for ScriptRecord {
@@ -132,6 +138,9 @@ impl FontWrite for Script {
         self.default_lang_sys.write_into(writer);
         (array_len(&self.lang_sys_records).unwrap() as u16).write_into(writer);
         self.lang_sys_records.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "Script"
     }
 }
 
@@ -191,6 +200,9 @@ impl FontWrite for LangSysRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.lang_sys_tag.write_into(writer);
         self.lang_sys.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "LangSysRecord"
     }
 }
 
@@ -253,6 +265,9 @@ impl FontWrite for LangSys {
         (array_len(&self.feature_indices).unwrap() as u16).write_into(writer);
         self.feature_indices.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "LangSys"
+    }
 }
 
 impl Validate for LangSys {
@@ -307,6 +322,9 @@ impl FontWrite for FeatureList {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.feature_records).unwrap() as u16).write_into(writer);
         self.feature_records.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "FeatureList"
     }
 }
 
@@ -365,6 +383,9 @@ impl FontWrite for FeatureRecord {
         self.feature_tag.write_into(writer);
         self.feature.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "FeatureRecord"
+    }
 }
 
 impl Validate for FeatureRecord {
@@ -415,6 +436,9 @@ impl FontWrite for Feature {
         self.feature_params.write_into(writer);
         (array_len(&self.lookup_list_indices).unwrap() as u16).write_into(writer);
         self.lookup_list_indices.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "Feature"
     }
 }
 
@@ -467,6 +491,9 @@ impl<T: FontWrite> FontWrite for LookupList<T> {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.lookups).unwrap() as u16).write_into(writer);
         self.lookups.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "LookupList"
     }
 }
 
@@ -584,6 +611,9 @@ impl FontWrite for CoverageFormat1 {
         (array_len(&self.glyph_array).unwrap() as u16).write_into(writer);
         self.glyph_array.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "CoverageFormat1"
+    }
 }
 
 impl Validate for CoverageFormat1 {
@@ -638,6 +668,9 @@ impl FontWrite for CoverageFormat2 {
         (2 as u16).write_into(writer);
         (array_len(&self.range_records).unwrap() as u16).write_into(writer);
         self.range_records.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "CoverageFormat2"
     }
 }
 
@@ -700,6 +733,9 @@ impl FontWrite for RangeRecord {
         self.end_glyph_id.write_into(writer);
         self.start_coverage_index.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "RangeRecord"
+    }
 }
 
 impl Validate for RangeRecord {
@@ -746,6 +782,12 @@ impl FontWrite for CoverageTable {
         match self {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
+        }
+    }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Format1(_) => "CoverageTable.Format1",
+            Self::Format2(_) => "CoverageTable.Format2",
         }
     }
 }
@@ -805,6 +847,9 @@ impl FontWrite for ClassDefFormat1 {
         (array_len(&self.class_value_array).unwrap() as u16).write_into(writer);
         self.class_value_array.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "ClassDefFormat1"
+    }
 }
 
 impl Validate for ClassDefFormat1 {
@@ -860,6 +905,9 @@ impl FontWrite for ClassDefFormat2 {
         (2 as u16).write_into(writer);
         (array_len(&self.class_range_records).unwrap() as u16).write_into(writer);
         self.class_range_records.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "ClassDefFormat2"
     }
 }
 
@@ -922,6 +970,9 @@ impl FontWrite for ClassRangeRecord {
         self.end_glyph_id.write_into(writer);
         self.class.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "ClassRangeRecord"
+    }
 }
 
 impl Validate for ClassRangeRecord {
@@ -974,6 +1025,12 @@ impl FontWrite for ClassDef {
         match self {
             Self::Format1(item) => item.write_into(writer),
             Self::Format2(item) => item.write_into(writer),
+        }
+    }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Format1(_) => "ClassDef.Format1",
+            Self::Format2(_) => "ClassDef.Format2",
         }
     }
 }
@@ -1029,6 +1086,9 @@ impl FontWrite for SequenceLookupRecord {
         self.sequence_index.write_into(writer);
         self.lookup_list_index.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "SequenceLookupRecord"
+    }
 }
 
 impl Validate for SequenceLookupRecord {
@@ -1072,6 +1132,9 @@ impl FontWrite for SequenceContextFormat1 {
         self.coverage.write_into(writer);
         (array_len(&self.seq_rule_sets).unwrap() as u16).write_into(writer);
         self.seq_rule_sets.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "SequenceContextFormat1"
     }
 }
 
@@ -1140,6 +1203,9 @@ impl FontWrite for SequenceRuleSet {
         (array_len(&self.seq_rules).unwrap() as u16).write_into(writer);
         self.seq_rules.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "SequenceRuleSet"
+    }
 }
 
 impl Validate for SequenceRuleSet {
@@ -1201,6 +1267,9 @@ impl FontWrite for SequenceRule {
         (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.input_sequence.write_into(writer);
         self.seq_lookup_records.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "SequenceRule"
     }
 }
 
@@ -1273,6 +1342,9 @@ impl FontWrite for SequenceContextFormat2 {
         self.class_def.write_into(writer);
         (array_len(&self.class_seq_rule_sets).unwrap() as u16).write_into(writer);
         self.class_seq_rule_sets.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "SequenceContextFormat2"
     }
 }
 
@@ -1348,6 +1420,9 @@ impl FontWrite for ClassSequenceRuleSet {
         (array_len(&self.class_seq_rules).unwrap() as u16).write_into(writer);
         self.class_seq_rules.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "ClassSequenceRuleSet"
+    }
 }
 
 impl Validate for ClassSequenceRuleSet {
@@ -1414,6 +1489,9 @@ impl FontWrite for ClassSequenceRule {
         self.input_sequence.write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "ClassSequenceRule"
+    }
 }
 
 impl Validate for ClassSequenceRule {
@@ -1479,6 +1557,9 @@ impl FontWrite for SequenceContextFormat3 {
         (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.coverages.write_into(writer);
         self.seq_lookup_records.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "SequenceContextFormat3"
     }
 }
 
@@ -1577,6 +1658,13 @@ impl FontWrite for SequenceContext {
             Self::Format3(item) => item.write_into(writer),
         }
     }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Format1(_) => "SequenceContext.Format1",
+            Self::Format2(_) => "SequenceContext.Format2",
+            Self::Format3(_) => "SequenceContext.Format3",
+        }
+    }
 }
 
 impl Validate for SequenceContext {
@@ -1640,6 +1728,9 @@ impl FontWrite for ChainedSequenceContextFormat1 {
         self.coverage.write_into(writer);
         (array_len(&self.chained_seq_rule_sets).unwrap() as u16).write_into(writer);
         self.chained_seq_rule_sets.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "ChainedSequenceContextFormat1"
     }
 }
 
@@ -1710,6 +1801,9 @@ impl FontWrite for ChainedSequenceRuleSet {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.chained_seq_rules).unwrap() as u16).write_into(writer);
         self.chained_seq_rules.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "ChainedSequenceRuleSet"
     }
 }
 
@@ -1795,6 +1889,9 @@ impl FontWrite for ChainedSequenceRule {
         self.lookahead_sequence.write_into(writer);
         (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.seq_lookup_records.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "ChainedSequenceRule"
     }
 }
 
@@ -1898,6 +1995,9 @@ impl FontWrite for ChainedSequenceContextFormat2 {
         (array_len(&self.chained_class_seq_rule_sets).unwrap() as u16).write_into(writer);
         self.chained_class_seq_rule_sets.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "ChainedSequenceContextFormat2"
+    }
 }
 
 impl Validate for ChainedSequenceContextFormat2 {
@@ -1982,6 +2082,9 @@ impl FontWrite for ChainedClassSequenceRuleSet {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.chained_class_seq_rules).unwrap() as u16).write_into(writer);
         self.chained_class_seq_rules.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "ChainedClassSequenceRuleSet"
     }
 }
 
@@ -2068,6 +2171,9 @@ impl FontWrite for ChainedClassSequenceRule {
         self.lookahead_sequence.write_into(writer);
         (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.seq_lookup_records.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "ChainedClassSequenceRule"
     }
 }
 
@@ -2165,6 +2271,9 @@ impl FontWrite for ChainedSequenceContextFormat3 {
         self.lookahead_coverages.write_into(writer);
         (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.seq_lookup_records.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "ChainedSequenceContextFormat3"
     }
 }
 
@@ -2300,6 +2409,13 @@ impl FontWrite for ChainedSequenceContext {
             Self::Format3(item) => item.write_into(writer),
         }
     }
+    fn name(&self) -> &'static str {
+        match self {
+            Self::Format1(_) => "ChainedSequenceContext.Format1",
+            Self::Format2(_) => "ChainedSequenceContext.Format2",
+            Self::Format3(_) => "ChainedSequenceContext.Format3",
+        }
+    }
 }
 
 impl Validate for ChainedSequenceContext {
@@ -2362,6 +2478,9 @@ impl FontWrite for Device {
         self.delta_format.write_into(writer);
         self.delta_value.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "Device"
+    }
 }
 
 impl Validate for Device {
@@ -2418,6 +2537,9 @@ impl FontWrite for VariationIndex {
         self.delta_set_inner_index.write_into(writer);
         self.delta_format.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "VariationIndex"
+    }
 }
 
 impl Validate for VariationIndex {
@@ -2468,6 +2590,9 @@ impl FontWrite for FeatureVariations {
         (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
         (array_len(&self.feature_variation_records).unwrap() as u32).write_into(writer);
         self.feature_variation_records.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "FeatureVariations"
     }
 }
 
@@ -2531,6 +2656,9 @@ impl FontWrite for FeatureVariationRecord {
         self.condition_set.write_into(writer);
         self.feature_table_substitution.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "FeatureVariationRecord"
+    }
 }
 
 impl Validate for FeatureVariationRecord {
@@ -2582,6 +2710,9 @@ impl FontWrite for ConditionSet {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.conditions).unwrap() as u16).write_into(writer);
         self.conditions.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "ConditionSet"
     }
 }
 
@@ -2652,6 +2783,9 @@ impl FontWrite for ConditionFormat1 {
         self.filter_range_min_value.write_into(writer);
         self.filter_range_max_value.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "ConditionFormat1"
+    }
 }
 
 impl Validate for ConditionFormat1 {
@@ -2699,6 +2833,9 @@ impl FontWrite for FeatureTableSubstitution {
         (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
         (array_len(&self.substitutions).unwrap() as u16).write_into(writer);
         self.substitutions.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "FeatureTableSubstitution"
     }
 }
 
@@ -2765,6 +2902,9 @@ impl FontWrite for FeatureTableSubstitutionRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.feature_index.write_into(writer);
         self.alternate_feature.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "FeatureTableSubstitutionRecord"
     }
 }
 
@@ -2853,6 +2993,9 @@ impl FontWrite for SizeParams {
         self.range_start.write_into(writer);
         self.range_end.write_into(writer);
     }
+    fn name(&self) -> &'static str {
+        "SizeParams"
+    }
 }
 
 impl Validate for SizeParams {
@@ -2905,6 +3048,9 @@ impl FontWrite for StylisticSetParams {
     fn write_into(&self, writer: &mut TableWriter) {
         (0 as u16).write_into(writer);
         self.ui_name_id.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "StylisticSetParams"
     }
 }
 
@@ -2986,6 +3132,9 @@ impl FontWrite for CharacterVariantParams {
         self.first_param_ui_label_name_id.write_into(writer);
         (array_len(&self.character).unwrap() as u16).write_into(writer);
         self.character.write_into(writer);
+    }
+    fn name(&self) -> &'static str {
+        "CharacterVariantParams"
     }
 }
 

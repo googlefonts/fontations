@@ -12,6 +12,9 @@ use types::Uint24;
 pub trait FontWrite {
     /// Write our data and information about offsets into this [TableWriter].
     fn write_into(&self, writer: &mut TableWriter);
+    fn name(&self) -> &'static str {
+        "Unknown"
+    }
 }
 
 /// An object that manages a collection of serialized tables.
