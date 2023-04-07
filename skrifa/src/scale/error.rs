@@ -2,7 +2,7 @@ use read_fonts::{tables::glyf::ToPathError, types::GlyphId, ReadError};
 
 use std::fmt;
 
-/// Errors that may occur when loading glyphs.
+/// Errors that may occur when scaling glyphs.
 #[derive(Clone, Debug)]
 pub enum Error {
     /// No viable sources were available.

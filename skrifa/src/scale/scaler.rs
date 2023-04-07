@@ -74,8 +74,9 @@ impl<'a> ScalerBuilder<'a> {
         self
     }
 
-    /// Adds the sequence of variation settings. This will clear any variations
-    /// specified as normalized coordinates.
+    /// Adds the sequence of variation settings.
+    ///
+    /// This will clear any variations specified as normalized coordinates.
     pub fn variation_settings<I>(self, settings: I) -> Self
     where
         I: IntoIterator,
