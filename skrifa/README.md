@@ -1,22 +1,40 @@
 # skrifa
 
-This is a library for high level loading of glyph outlines (and eventually color outlines and bitmaps)
-from font files. The intention is fully featured (e.g. variations and hinting) support for all glyph sources
-except for the SVG table.
-
-This is part of the [oxidize](https://github.com/googlefonts/oxidize) project.
+This crate aims to be a robust, ergonomic, high performance library for reading OpenType fonts. It
+is built on top of the [read-fonts](https://github.com/googlefonts/fontations/tree/main/read-fonts) low level
+parsing library and is also part of the [oxidize](https://github.com/googlefonts/oxidize) project.
 
 ## Features
 
+### Metadata
+
+The following information is currently exposed:
+
+* Global font metrics with variation support (units per em, ascender, descender, etc)
+* Glyph metrics with variation support (advance width, left side-bearing, etc)
+* Codepoint to nominal glyph identifier mapping
+    * Unicode variation sequences
+* Localized strings
+
+Future goals include:
+
+* Attributes (stretch, style and weight)
+* Variation axes and named instances
+    * Conversion from user coordinates to normalized design coordinates
+* Color palettes
+* Embedded bitmap strikes
+
+### Glyph scaling
+
 Current (✔️), near term (🔜) and planned (⌛) feature matrix:
 
-| Source | Loading | Variations | Hinting |
+| Source | Decoding | Variations | Hinting |
 |--------|---------|------------|---------|
 | glyf   | ✔️     |  ✔️        | ⌛*    |
 | CFF    | ⌛     | ⌛         | ⌛     |
 | CFF2   | ⌛     | ⌛         | ⌛     |
-| COLRv0 | 🔜     | 🔜         | *      |
-| COLRv1 | 🔜     | 🔜         | *      |
+| COLRv0 | 🔜     | 🔜         | **      |
+| COLRv1 | 🔜     | 🔜         | **      |
 | EBDT   | 🔜     | -          | -      |
 | CBDT   | 🔜     | -          | -      |
 | sbix   | 🔜     | -          | -      |

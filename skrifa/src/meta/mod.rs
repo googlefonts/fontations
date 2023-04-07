@@ -1,4 +1,4 @@
-//! High level interface to font metadata.
+//! Accessors for various types of font metadata.
 
 pub mod charmap;
 pub mod metrics;

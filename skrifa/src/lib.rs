@@ -1,3 +1,16 @@
+//! A robust, ergonomic, high performance crate for OpenType fonts.
+//!  
+//! Skrifa is a mid level library that provides access to various types
+//! of [`metadata`](meta) contained in a font as well as support for
+//! [`scaling`](scale) of glyph outlines.
+//!
+//! It is described as "mid level" because the library is designed to sit
+//! above low level font parsing (provided by [`read-fonts`](https://crates.io/crates/read-fonts))
+//! and below a higher level text layout engine.
+//!
+//! See the [readme](https://github.com/dfrg/fontations/blob/main/skrifa/README.md) for additional
+//! details.
+
 #![forbid(unsafe_code)]
 // TODO: this is temporary-- remove when hinting is added.
 #![allow(dead_code, unused_imports, unused_variables)]

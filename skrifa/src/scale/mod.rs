@@ -1,6 +1,118 @@
-/*!
-Glyph loading and scaling.
-*/
+//! Extraction of glyph outlines.
+//!
+//! Scaling is the process of decoding an outline, applying variation deltas,
+//! and executing [hinting](https://en.wikipedia.org/wiki/Font_hinting) instructions
+//! for a glyph of a particular size.
+//!
+//! The process starts with construction of a [`Context`] that can be used to build
+//! and configure a [`Scaler`] which can generate scaled paths for glyphs.
+//!
+//! Read on for more detail.
+//!
+//! ## Building a scaler
+//!
+//! Scaling requires temporary memory allocations and, in the case of hinting,
+//! also benefits from caching the state of the hinting setup programs. To amortize the
+//! cost of heap allocations and support caching, the [`Context`] type is provided.
+//! This type is opaque and offers a single method called [`new_scaler`](Context::new_scaler)
+//! that produces a [`ScalerBuilder`] to configure and builder a [`Scaler`].
+//!
+//! Assuming you have some `font` (any type that implements [`TableProvider`](read_fonts::TableProvider)),
+//! this will build a scaler for a size of 16px:
+//!
+//! ```
+//! # use skrifa::{scale::*, Size};
+//! # fn build_scaler(font: read_fonts::FontRef) {
+//! let mut context = Context::new();
+//! let mut scaler = context.new_scaler()
+//!     .size(Size::new(16.0))
+//!     .build(&font);
+//! # }
+//! ```
+//!
+//! For variable fonts, the [`variation_settings`](ScalerBuilder::variation_settings) method can
+//! be used to specify user coordinates for selecting an instance:
+//!
+//! ```
+//! # use skrifa::{scale::*, Size};
+//! # fn build_scaler(font: read_fonts::FontRef) {
+//! let mut context = Context::new();
+//! let mut scaler = context.new_scaler()
+//!     .size(Size::new(16.0))
+//!     .variation_settings(&[("wght", 720.0), ("wdth", 75.0)])
+//!     .build(&font);
+//! # }
+//! ```
+//!
+//! If you already have coordinates in normalized design space, you can specify those directly
+//! with the [`normalized_coords`](ScalerBuilder::normalized_coords) method.
+//!
+//! See the [`ScalerBuilder`] type for all available configuration options.
+//!
+//! ## Getting an outline
+//!
+//! Once we have a configured scaler, extracting an outline is fairly simple. The
+//! [`outline`](Scaler::outline) method on scaler uses a callback approach where the user
+//! provides an implementation of the [`Pen`] trait and the appropriate methods are invoked for
+//! each resulting path element of the scaled outline.
+//!
+//! Assuming we constructed a scaler as above, let's load a glyph and convert it into an SVG path:
+//!
+//! ```
+//! # use skrifa::{scale::*, GlyphId, Size};
+//! # fn build_scaler(font: read_fonts::FontRef) {
+//! # let mut context = Context::new();
+//! # let mut scaler = context.new_scaler()
+//! #    .size(Size::new(16.0))
+//! #    .build(&font);
+//! // Create a type for holding our SVG path.
+//! #[derive(Default)]
+//! struct SvgPath(String);
+//!
+//! // Implement the Pen trait for this type. This emits the appropriate
+//! // SVG path commands for each element type.
+//! impl Pen for SvgPath {
+//!     fn move_to(&mut self, x: f32, y: f32) {
+//!         self.0.push_str(&format!("M{x:.1},{y:.1} "));
+//!     }
+//!
+//!     fn line_to(&mut self, x: f32, y: f32) {
+//!         self.0.push_str(&format!("L{x:.1},{y:.1} "));
+//!     }
+//!
+//!     fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
+//!         self.0
+//!             .push_str(&format!("Q{cx0:.1},{cy0:.1} {x:.1},{y:.1} "));
+//!     }
+//!
+//!     fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+//!         self.0.push_str(&format!(
+//!             "C{cx0:.1},{cy0:.1} {cx1:.1},{cy1:.1} {x:.1},{y:.1} "
+//!         ));
+//!     }
+//!
+//!     fn close(&mut self) {
+//!         self.0.push_str("z ");
+//!     }
+//! }
+//!
+//! let mut path = SvgPath::default();
+//!
+//! // Scale an outline for glyph 20 and invoke the appropriate methods
+//! // to build an SVG path.
+//! scaler.outline(GlyphId::new(20), &mut path);
+//!
+//! // Print our pretty new path.
+//! println!("{}", path.0);
+//! # }
+//! ```
+//!
+//! The pen based interface is designed to be flexible. Output can be sent directly to a
+//! software rasterizer for scan conversion, converted to an owned path representation (such as
+//! a kurbo [`BezPath`](https://docs.rs/kurbo/latest/kurbo/struct.BezPath.html)) for further
+//! analysis and transformation, or fed into other crates like [vello](https://github.com/linebender/vello),
+//! [lyon](https://github.com/nical/lyon) or [pathfinder](https://github.com/servo/pathfinder)
+//! for GPU rendering.
 
 mod error;
 mod scaler;
@@ -8,6 +120,9 @@ mod scaler;
 #[cfg(test)]
 mod test;
 
+// This will go away in the future when we add tracing support. Hide it
+// for now.
+#[doc(hidden)]
 pub mod glyf;
 
 pub use read_fonts::types::Pen;
@@ -42,7 +157,12 @@ pub enum Hinting {
     VerticalSubpixel,
 }
 
-/// Context for loading glyphs.
+/// Context for scaling glyphs.
+///
+/// This type contains temporary memory buffers and various internal caches to
+/// accelerate the glyph scaling process. You'll generally want to keep one
+/// (or more, in the multi-threaded case) of these around and reuse them for
+/// scaling batches of glyphs.
 #[derive(Clone, Default, Debug)]
 pub struct Context {
     /// Inner context for loading TrueType outlines.
@@ -56,12 +176,12 @@ pub struct Context {
 }
 
 impl Context {
-    /// Creates a new glyph loading context.
+    /// Creates a new glyph scaling context.
     pub fn new() -> Self {
         Self::default()
     }
 
-    /// Returns a builder for configuring a scaler.
+    /// Returns a builder for configuring a glyph scaler.
     pub fn new_scaler(&mut self) -> ScalerBuilder {
         ScalerBuilder::new(self)
     }
