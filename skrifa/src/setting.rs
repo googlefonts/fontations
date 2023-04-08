@@ -34,6 +34,14 @@ impl<T> Setting<T> {
     }
 }
 
+// This is provided so that &[VariationSetting] can be passed to the
+// variation_settings() method of ScalerBuilder.
+impl<T: Copy> From<&'_ Setting<T>> for Setting<T> {
+    fn from(value: &'_ Setting<T>) -> Self {
+        *value
+    }
+}
+
 impl<T> From<(Tag, T)> for Setting<T> {
     fn from(s: (Tag, T)) -> Self {
         Self {
@@ -65,24 +73,6 @@ impl<T: Copy> From<&(&str, T)> for Setting<T> {
     fn from(s: &(&str, T)) -> Self {
         Self {
             selector: Tag::from_str(s.0).unwrap_or_default(),
-            value: s.1,
-        }
-    }
-}
-
-impl<T> From<([u8; 4], T)> for Setting<T> {
-    fn from(s: ([u8; 4], T)) -> Self {
-        Self {
-            selector: Tag::new_checked(&s.0[..]).unwrap_or_default(),
-            value: s.1,
-        }
-    }
-}
-
-impl<T: Copy> From<&([u8; 4], T)> for Setting<T> {
-    fn from(s: &([u8; 4], T)) -> Self {
-        Self {
-            selector: Tag::new_checked(&s.0[..]).unwrap_or_default(),
             value: s.1,
         }
     }
