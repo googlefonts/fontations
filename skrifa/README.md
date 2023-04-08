@@ -5,10 +5,17 @@
 [![MIT/Apache 2.0](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](#license)
 
 This crate aims to be a robust, ergonomic, high performance library for reading
-OpenType fonts. It is built on top of the
+OpenType fonts. It is meant to be used to interrogate a font for shaping and to acquire
+outlines for rasterization.
+
+It is built on top of the
 [read-fonts](https://github.com/googlefonts/fontations/tree/main/read-fonts)
 low level parsing library and is also part of the
 [oxidize](https://github.com/googlefonts/oxidize) project.
+
+## Usage
+
+See https://docs.rs/skrifa/latest/skrifa/ for examples.
 
 ## Features
 
