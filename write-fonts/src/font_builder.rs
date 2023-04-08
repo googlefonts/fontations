@@ -73,7 +73,7 @@ impl<'a> FontBuilder<'a> {
         let mut data = writer.into_data();
         for table in self.tables.values() {
             data.extend_from_slice(table);
-            let rem = table.len() % 4;
+            let rem = round4(table.len()) - table.len();
             let padding = [0u8; 4];
             data.extend_from_slice(&padding[..rem]);
         }
