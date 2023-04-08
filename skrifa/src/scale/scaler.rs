@@ -11,6 +11,9 @@ use read_fonts::{
 };
 
 /// Builder for configuring a glyph scaler.
+///
+/// See the [module level documentation](crate::scale#building-a-scaler)
+/// for more detail.
 pub struct ScalerBuilder<'a> {
     context: &'a mut Context,
     cache_key: Option<UniqueId>,
@@ -74,9 +77,35 @@ impl<'a> ScalerBuilder<'a> {
         self
     }
 
-    /// Adds the sequence of variation settings.
+    /// Appends the given sequence of variation settings. This will clear any
+    /// variations specified as normalized coordinates.
     ///
-    /// This will clear any variations specified as normalized coordinates.
+    /// This methods accepts any type which can be converted into an iterator
+    /// that yields a sequence of values that are convertible to
+    /// [`VariationSetting`]. Various conversions from tuples are provided.
+    ///
+    /// The following are all equivalent:
+    ///
+    /// ```
+    /// # use skrifa::{scale::*, Tag, VariationSetting};
+    /// # let mut context = Context::new();
+    /// # let builder = context.new_scaler();
+    /// // slice of VariationSetting
+    /// builder.variation_settings(&[
+    ///     VariationSetting::new(Tag::new(b"wgth"), 720.0),
+    ///     VariationSetting::new(Tag::new(b"wdth"), 50.0),
+    /// ])
+    /// # ; let builder = context.new_scaler();
+    /// // slice of (Tag, f32)
+    /// builder.variation_settings(&[(Tag::new(b"wght"), 720.0), (Tag::new(b"wdth"), 50.0)])
+    /// # ; let builder = context.new_scaler();
+    /// // slice of (&str, f32)
+    /// builder.variation_settings(&[("wght", 720.0), ("wdth", 50.0)])
+    /// # ;
+    ///
+    /// ```
+    ///
+    /// Iterators that yield the above types are also accepted.
     pub fn variation_settings<I>(self, settings: I) -> Self
     where
         I: IntoIterator,
@@ -154,6 +183,9 @@ impl<'a> ScalerBuilder<'a> {
 }
 
 /// Glyph scaler for a specific font and configuration.
+///
+/// See the [module level documentation](crate::scale#getting-an-outline)
+/// for more detail.
 pub struct Scaler<'a> {
     coords: &'a [NormalizedCoord],
     outlines: Outlines<'a>,
