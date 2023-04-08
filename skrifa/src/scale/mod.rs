@@ -15,7 +15,7 @@
 //! also benefits from caching the state of the hinting setup programs. To amortize the
 //! cost of heap allocations and support caching, the [`Context`] type is provided.
 //! This type is opaque and offers a single method called [`new_scaler`](Context::new_scaler)
-//! that produces a [`ScalerBuilder`] to configure and builder a [`Scaler`].
+//! that produces a [`ScalerBuilder`] to configure and build a [`Scaler`].
 //!
 //! Assuming you have some `font` (any type that implements [`TableProvider`](read_fonts::TableProvider)),
 //! this will build a scaler for a size of 16px:
@@ -52,7 +52,7 @@
 //! ## Getting an outline
 //!
 //! Once we have a configured scaler, extracting an outline is fairly simple. The
-//! [`outline`](Scaler::outline) method on scaler uses a callback approach where the user
+//! [`Scaler::outline`] method uses a callback approach where the user
 //! provides an implementation of the [`Pen`] trait and the appropriate methods are invoked for
 //! each resulting path element of the scaled outline.
 //!
