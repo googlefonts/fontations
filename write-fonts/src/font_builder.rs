@@ -81,8 +81,13 @@ impl<'a> FontBuilder<'a> {
     }
 }
 
+/// <https://github.com/google/woff2/blob/a0d0ed7da27b708c0a4e96ad7a998bddc933c06e/src/round.h#L19>
+fn round4(sz: usize) -> usize {
+    (sz + 3) & !3
+}
+
 fn checksum_and_padding(table: &[u8]) -> (u32, u32) {
-    let padding = table.len() % 4;
+    let padding = round4(table.len()) - table.len();
     let mut sum = 0u32;
     let mut iter = table.chunks_exact(4);
     for quad in &mut iter {
@@ -112,7 +117,7 @@ mod tests {
     use font_types::Tag;
     use read_fonts::FontRef;
 
-    use crate::FontBuilder;
+    use crate::{font_builder::checksum_and_padding, FontBuilder};
 
     #[test]
     fn sets_binary_search_assists() {
@@ -134,5 +139,14 @@ mod tests {
     #[test]
     fn survives_no_tables() {
         FontBuilder::default().build();
+    }
+
+    #[test]
+    fn pad4() {
+        for i in 0..10 {
+            let pad = checksum_and_padding(&vec![0; i]).1;
+            assert!(pad < 4);
+            assert!((i + pad as usize) % 4 == 0, "pad {i} +{pad} bytes");
+        }
     }
 }
