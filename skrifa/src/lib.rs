@@ -43,3 +43,5 @@ pub type NormalizedCoord = read_fonts::types::F2Dot14;
 
 #[doc(inline)]
 pub use meta::MetadataProvider;
+
+pub use read_fonts::FontRef;
