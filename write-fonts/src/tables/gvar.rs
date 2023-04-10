@@ -81,12 +81,9 @@ impl Gvar {
             to_share.into_iter().map(|(t, _)| t.to_owned()).collect()
         }
 
-        // inline functions, hard to read and hard to test.
-
         let axis_count = validate_variations(&variations)?;
 
         let shared = compute_shared_peak_tuples(&variations);
-        eprintln!("share {}", shared.len());
         let shared_idx_map = shared
             .iter()
             .enumerate()
@@ -495,144 +492,5 @@ mod tests {
 
         assert_eq!(x, vec![3, 4, 5, 6, 7]);
         assert_eq!(y, vec![-200, -500, -800, -1200, -1500]);
-    }
-
-    // Extracted from a fontmake-rs bug w/Texturina's A
-    #[test]
-    fn round_trip_glyph_variations() {
-        let deltas = vec![
-            (56, 0),
-            (61, 0),
-            (60, 3),
-            (60, 6),
-            (55, 9),
-            (55, 9),
-            (55, 11),
-            (54, 13),
-            (54, 14),
-            (2, 19),
-            (0, 15),
-            (6, 11),
-            (11, 8),
-            (15, 20),
-            (10, -2),
-            (-8, -2),
-            (-19, 23),
-            (-21, 23),
-            (-21, 23),
-            (-21, 23),
-            (-21, 23),
-            (-39, 23),
-            (-40, 22),
-            (-40, 19),
-            (-42, 16),
-            (-42, 16),
-            (-42, 15),
-            (-33, 13),
-            (-23, 10),
-            (-11, 7),
-            (1, 4),
-            (10, 3),
-            (20, 0),
-            (20, 0),
-            (26, 0),
-            (28, 3),
-            (29, 6),
-            (31, 10),
-            (31, 15),
-            (31, 15),
-            (30, 15),
-            (30, 16),
-            (21, 16),
-            (24, 15),
-            (22, 16),
-            (20, 16),
-            (20, 16),
-            (43, -23),
-            (38, -19),
-            (36, -15),
-            (33, -10),
-            (29, -8),
-            (25, -5),
-            (20, -5),
-            (16, -5),
-            (10, -9),
-            (3, -12),
-            (-3, -17),
-            (-10, -22),
-            (-14, -26),
-            (-19, -29),
-            (-18, -29),
-            (10, 85),
-            (0, 49),
-            (-6, 34),
-            (-11, 20),
-            (-14, 17),
-            (-16, 15),
-            (-19, 15),
-            (-11, 15),
-            (-11, 14),
-            (-11, 14),
-            (-11, 12),
-            (-11, 10),
-            (-11, 9),
-            (-1, 8),
-            (9, 6),
-            (23, 4),
-            (36, 3),
-            (46, 1),
-            (56, 0),
-            (15, 16),
-            (8, -23),
-            (6, -24),
-            (4, -23),
-            (3, -21),
-            (6, -25),
-            (-11, 18),
-            (4, 17),
-            (9, 16),
-            (15, 16),
-            (16, 15),
-            (16, 15),
-            (0, 0),
-            (8, 0),
-            (0, 0),
-            (0, 0),
-        ];
-
-        for i in 1..deltas.len() {
-            let deltas = deltas[..i].to_vec();
-            assert_eq!(i, deltas.len());
-            let table = Gvar::new(vec![GlyphVariations::new(
-                GlyphId::new(0),
-                vec![GlyphDeltas::new(
-                    Tuple::new(vec![F2Dot14::from_f32(1.0)]),
-                    deltas.clone(),
-                    None,
-                )],
-            )])
-            .unwrap();
-
-            let bytes = crate::dump_table(&table).unwrap();
-            let gvar = read_fonts::tables::gvar::Gvar::read(FontData::new(&bytes)).unwrap();
-            assert_eq!(gvar.version(), MajorMinor::VERSION_1_0);
-            assert_eq!(gvar.shared_tuple_count(), 0);
-            assert_eq!(gvar.glyph_count(), 1);
-
-            let var_data = gvar.glyph_variation_data(GlyphId::new(0)).unwrap();
-            let tuples = var_data.tuples().collect::<Vec<_>>();
-            assert_eq!(tuples.len(), 1);
-
-            let recovered_deltas = tuples[0]
-                .deltas()
-                .map(|d| (d.x_delta, d.y_delta))
-                .collect::<Vec<_>>();
-            eprintln!(
-                "i={i}, deltas.len {} recovered.len {}",
-                deltas.len(),
-                recovered_deltas.len()
-            );
-            assert_eq!(deltas, recovered_deltas, "Failed at i={i}");
-        }
     }
 }

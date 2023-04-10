@@ -126,7 +126,7 @@ impl PackedDeltas {
 
         /// compute the number of deltas in the next run, and whether they are i8s or not
         fn next_run_len(slice: &[i16]) -> (usize, bool) {
-            let first = *slice.get(0).expect("bounds checked before here");
+            let first = *slice.first().expect("bounds checked before here");
             debug_assert!(first != 0);
             let is_1_byte = in_i8_range(first);
 
@@ -158,10 +158,8 @@ impl PackedDeltas {
                 let (head, tail) = deltas.split_at(len);
                 deltas = tail;
                 if is_i8 {
-                    eprintln!("pack {} one-byte entries", head.len());
                     Some(PackedDeltaRun::OneByte(head))
                 } else {
-                    eprintln!("pack {} two-byte entries", head.len());
                     Some(PackedDeltaRun::TwoBytes(head))
                 }
             };
@@ -505,8 +503,9 @@ mod tests {
     #[test]
     fn respect_my_run_length_authority() {
         let values = (1..201).collect::<Vec<_>>();
-        let deltas = PackedDeltas::new(values);        
-        assert_eq!(vec![
+        let deltas = PackedDeltas::new(values);
+        assert_eq!(
+            vec![
                 // 64 entries per run please and thank you
                 PackedDeltaRun::OneByte(&(1..65).collect::<Vec<i16>>()),
                 // 63 entries this time because at 128 we switch to 2 bytes
