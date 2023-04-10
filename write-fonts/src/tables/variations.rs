@@ -116,8 +116,15 @@ impl PackedDeltas {
             (MIN..=MAX).contains(&val)
         }
 
-        fn count_leading_zeros(slice: &[i16]) -> usize {
-            slice.iter().take_while(|v| **v == 0).count()
+        fn count_leading_zeros(slice: &[i16]) -> u8 {
+            let mut limit = u8::MAX as i32;
+            slice
+                .iter()
+                .take_while(|v| {
+                    limit -= 1;
+                    **v == 0 && limit >= 0
+                })
+                .count() as u8
         }
 
         /// compute the number of deltas in the next run, and whether they are i8s or not
@@ -142,8 +149,8 @@ impl PackedDeltas {
         std::iter::from_fn(move || {
             if *deltas.first()? == 0 {
                 let n_zeros = count_leading_zeros(deltas);
-                deltas = &deltas[n_zeros..];
-                Some(PackedDeltaRun::Zeros(n_zeros as u8))
+                deltas = &deltas[n_zeros as usize..];
+                Some(PackedDeltaRun::Zeros(n_zeros))
             } else {
                 let (len, is_i8) = next_run_len(deltas);
                 let (head, tail) = deltas.split_at(len);
@@ -478,5 +485,15 @@ mod tests {
         let deltas = PackedDeltas::new(vec![]);
         let bytes = crate::dump_table(&deltas).unwrap();
         assert!(bytes.is_empty());
+    }
+
+    #[test]
+    fn lots_of_zero() {
+        let num_zeroes = u8::MAX as usize + 1;
+        let deltas = PackedDeltas::new(vec![0; num_zeroes]);
+        assert_eq!(
+            vec![PackedDeltaRun::Zeros(u8::MAX), PackedDeltaRun::Zeros(1)],
+            deltas.iter_runs().collect::<Vec<_>>()
+        );
     }
 }
