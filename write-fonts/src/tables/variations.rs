@@ -126,19 +126,24 @@ impl PackedDeltas {
 
         /// compute the number of deltas in the next run, and whether they are i8s or not
         fn next_run_len(slice: &[i16]) -> (usize, bool) {
-            let (first, rest) = slice.split_first().expect("bounds checked before here");
-            debug_assert!(*first != 0);
-            let is_1_byte = in_i8_range(*first);
+            let first = *slice.first().expect("bounds checked before here");
+            debug_assert!(first != 0);
+            let is_1_byte = in_i8_range(first);
 
-            for (i, raw) in rest.iter().copied().enumerate().take(MAX_POINTS_PER_RUN) {
-                let two_zeros = raw == 0 && rest.get(i + 1) == Some(&0);
-                let different_enc_len = in_i8_range(raw) != is_1_byte;
+            let mut idx = 1;
+            while idx < MAX_POINTS_PER_RUN && idx < slice.len() {
+                let cur = slice[idx];
+
+                // Any reason to stop?
+                let two_zeros = cur == 0 && slice.get(idx + 1) == Some(&0);
+                let different_enc_len = in_i8_range(cur) != is_1_byte;
                 if two_zeros || different_enc_len {
-                    return (i + 1, is_1_byte);
+                    break;
                 }
-            }
 
-            (slice.len(), is_1_byte)
+                idx += 1;
+            }
+            (idx, is_1_byte)
         }
 
         let mut deltas = self.deltas.as_slice();
@@ -492,5 +497,24 @@ mod tests {
             vec![PackedDeltaRun::Zeros(u8::MAX), PackedDeltaRun::Zeros(1)],
             deltas.iter_runs().collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn respect_my_run_length_authority() {
+        let values = (1..201).collect::<Vec<_>>();
+        let deltas = PackedDeltas::new(values);
+        assert_eq!(
+            vec![
+                // 64 entries per run please and thank you
+                PackedDeltaRun::OneByte(&(1..65).collect::<Vec<i16>>()),
+                // 63 entries this time because at 128 we switch to 2 bytes
+                PackedDeltaRun::OneByte(&(65..128).collect::<Vec<i16>>()),
+                // 64 per run again
+                PackedDeltaRun::TwoBytes(&(128..192).collect::<Vec<i16>>()),
+                // tail
+                PackedDeltaRun::TwoBytes(&(192..=200).collect::<Vec<i16>>()),
+            ],
+            deltas.iter_runs().collect::<Vec<_>>()
+        )
     }
 }
