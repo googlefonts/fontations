@@ -108,6 +108,7 @@ impl PackedDeltas {
     }
 
     fn iter_runs(&self) -> impl Iterator<Item = PackedDeltaRun> {
+        // 6 bits for length per https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas
         const MAX_POINTS_PER_RUN: usize = 64;
 
         fn in_i8_range(val: i16) -> bool {
