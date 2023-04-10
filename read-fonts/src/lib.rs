@@ -166,18 +166,50 @@ impl<'a> CollectionRef<'a> {
     }
 }
 
+/// Reference to an in-memory font.
+///
+/// This is a simple implementation of the [`TableProvider`] trait backed
+/// by a borrowed slice containing font data.
 #[derive(Clone)]
-/// A temporary type for accessing tables
 pub struct FontRef<'a> {
     data: FontData<'a>,
     pub table_directory: TableDirectory<'a>,
 }
 
 impl<'a> FontRef<'a> {
-    /// Creates a new reference to a font.
+    /// Creates a new reference to an in-memory font backed by the given data.
+    ///
+    /// The data slice must begin with a
+    /// [table directory](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
+    /// to be considered valid.
     pub fn new(data: &'a [u8]) -> Result<Self, ReadError> {
         let data = FontData::new(data);
         Self::with_table_directory(data, TableDirectory::read(data)?)
+    }
+
+    /// Creates a new reference to an in-memory font at the specified index
+    /// backed by the given data.
+    ///
+    /// The data slice must begin with either a
+    /// [table directory](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
+    /// or a [ttc header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
+    /// to be considered valid.
+    ///
+    /// In other words, this accepts either font collection (ttc) or single
+    /// font (ttf/otf) files. If a single font file is provided, the index
+    /// parameter must be 0.
+    pub fn from_index(data: &'a [u8], index: u32) -> Result<Self, ReadError> {
+        let file = FileRef::new(data)?;
+        match file {
+            FileRef::Font(font) => {
+                if index == 0 {
+                    Ok(font)
+                } else {
+                    Err(ReadError::InvalidCollectionIndex(index))
+                }
+            }
+            FileRef::Collection(collection) => collection.get(index),
+        }
     }
 
     /// Returns the data for the table with the specified tag, if present.
