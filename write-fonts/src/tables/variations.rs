@@ -108,6 +108,7 @@ impl PackedDeltas {
     }
 
     fn iter_runs(&self) -> impl Iterator<Item = PackedDeltaRun> {
+        // 6 bits for length per https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas
         const MAX_POINTS_PER_RUN: usize = 64;
 
         fn in_i8_range(val: i16) -> bool {
@@ -119,7 +120,7 @@ impl PackedDeltas {
         fn count_leading_zeros(slice: &[i16]) -> u8 {
             slice
                 .iter()
-                .take(u8::MAX.into())
+                .take(MAX_POINTS_PER_RUN)
                 .take_while(|v| **v == 0)
                 .count() as u8
         }
@@ -491,10 +492,10 @@ mod tests {
 
     #[test]
     fn lots_of_zero() {
-        let num_zeroes = u8::MAX as usize + 1;
+        let num_zeroes = 65;
         let deltas = PackedDeltas::new(vec![0; num_zeroes]);
         assert_eq!(
-            vec![PackedDeltaRun::Zeros(u8::MAX), PackedDeltaRun::Zeros(1)],
+            vec![PackedDeltaRun::Zeros(64), PackedDeltaRun::Zeros(1)],
             deltas.iter_runs().collect::<Vec<_>>()
         );
     }
