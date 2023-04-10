@@ -117,13 +117,10 @@ impl PackedDeltas {
         }
 
         fn count_leading_zeros(slice: &[i16]) -> u8 {
-            let mut limit = u8::MAX as i32;
             slice
                 .iter()
-                .take_while(|v| {
-                    limit -= 1;
-                    **v == 0 && limit >= 0
-                })
+                .take(u8::MAX.into())
+                .take_while(|v| **v == 0)
                 .count() as u8
         }
 
