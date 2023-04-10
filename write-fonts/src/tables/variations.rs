@@ -149,7 +149,7 @@ impl PackedDeltas {
         let mut deltas = self.deltas.as_slice();
 
         std::iter::from_fn(move || {
-            let run = if *deltas.first()? == 0 {
+            if *deltas.first()? == 0 {
                 let n_zeros = count_leading_zeros(deltas);
                 deltas = &deltas[n_zeros as usize..];
                 Some(PackedDeltaRun::Zeros(n_zeros))
@@ -162,8 +162,7 @@ impl PackedDeltas {
                 } else {
                     Some(PackedDeltaRun::TwoBytes(head))
                 }
-            };
-            run
+            }
         })
     }
 }
