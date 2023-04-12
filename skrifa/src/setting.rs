@@ -1,4 +1,4 @@
-//! Generic type for selecting variations and features.
+//! Definitions for specifying variations and typographic features.
 
 use super::Tag;
 use core::str::FromStr;
@@ -87,7 +87,7 @@ impl<T: Copy> From<&(&str, T)> for Setting<T> {
 ///
 /// # Example
 /// ```
-/// use skrifa::{Tag, VariationSetting};
+/// use skrifa::{Tag, setting::VariationSetting};
 ///
 /// // For convenience, a conversion from (&str, f32) is provided.
 /// let slightly_bolder: VariationSetting = ("wght", 720.0).into();

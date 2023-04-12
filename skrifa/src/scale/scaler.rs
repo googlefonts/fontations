@@ -1,5 +1,4 @@
-use super::{glyf, Context, Error, NormalizedCoord, Pen, Result, VariationSetting};
-use crate::{Size, UniqueId};
+use super::{glyf, Context, Error, NormalizedCoord, Pen, Result, Size, UniqueId, VariationSetting};
 
 #[cfg(feature = "hinting")]
 use super::Hinting;
@@ -87,7 +86,7 @@ impl<'a> ScalerBuilder<'a> {
     /// The following are all equivalent:
     ///
     /// ```
-    /// # use skrifa::{scale::*, Tag, VariationSetting};
+    /// # use skrifa::{scale::*, setting::VariationSetting, Tag};
     /// # let mut context = Context::new();
     /// # let builder = context.new_scaler();
     /// // slice of VariationSetting

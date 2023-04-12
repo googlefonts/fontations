@@ -1,4 +1,6 @@
-//! Unique identifier to support internal caching.
+//! Basic representation of an in-memory font resource.
+
+pub use read_fonts::FontRef;
 
 /// Identifier used as a key for internal caches.
 ///
