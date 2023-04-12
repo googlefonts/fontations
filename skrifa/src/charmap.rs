@@ -1,4 +1,4 @@
-//! Mapping characters to nominal glyph identifiers.
+//! Mapping of characters to nominal glyph identifiers.
 //!
 //! The functionality in this module provides a 1-to-1 mapping from Unicode
 //! characters (or [Unicode variation sequences](http://unicode.org/faq/vs.html)) to

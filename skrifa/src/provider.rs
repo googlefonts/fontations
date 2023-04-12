@@ -1,0 +1,36 @@
+use super::{
+    charmap::Charmap,
+    instance::{LocationRef, NormalizedCoord, Size},
+    metrics::{GlyphMetrics, Metrics},
+    string::{LocalizedStrings, StringId},
+};
+
+/// Interface for types that can provide font metadata.
+pub trait MetadataProvider<'a>: raw::TableProvider<'a> + Sized {
+    /// Returns an iterator over the collection of localized strings for the
+    /// given informational string identifier.
+    fn localized_strings(&self, id: StringId) -> LocalizedStrings<'a> {
+        LocalizedStrings::new(self, id)
+    }
+
+    /// Returns the global font metrics for the specified size and location in
+    /// normalized variation space.
+    fn metrics(&self, size: Size, location: impl Into<LocationRef<'a>>) -> Metrics {
+        Metrics::new(self, size, location)
+    }
+
+    /// Returns the glyph specific metrics for the specified size and location
+    /// in normalized variation space.
+    fn glyph_metrics(&self, size: Size, location: impl Into<LocationRef<'a>>) -> GlyphMetrics<'a> {
+        GlyphMetrics::new(self, size, location)
+    }
+
+    /// Returns the character to nominal glyph identifier mapping.
+    fn charmap(&self) -> Charmap<'a> {
+        Charmap::new(self)
+    }
+}
+
+/// Blanket implementation of `MetadataProvider` for any type that implements
+/// `TableProvider`.
+impl<'a, T> MetadataProvider<'a> for T where T: raw::TableProvider<'a> {}

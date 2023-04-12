@@ -1,4 +1,4 @@
-//! Extraction of glyph outlines.
+//! Loading, scaling and hinting of glyph outlines.
 //!
 //! Scaling is the process of decoding an outline, applying variation deltas,
 //! and executing [hinting](https://en.wikipedia.org/wiki/Font_hinting)
@@ -46,7 +46,7 @@
 //! a size of 16px:
 //!
 //! ```
-//! # use skrifa::{scale::*, Size};
+//! # use skrifa::{scale::*, instance::Size};
 //! # fn build_scaler(font: read_fonts::FontRef) {
 //! let mut context = Context::new();
 //! let mut scaler = context.new_scaler()
@@ -60,7 +60,7 @@
 //! be used to specify user coordinates for selecting an instance:
 //!
 //! ```
-//! # use skrifa::{scale::*, Size};
+//! # use skrifa::{scale::*, instance::Size};
 //! # fn build_scaler(font: read_fonts::FontRef) {
 //! let mut context = Context::new();
 //! let mut scaler = context.new_scaler()
@@ -87,7 +87,7 @@
 //! it into an SVG path:
 //!
 //! ```
-//! # use skrifa::{scale::*, GlyphId, Size};
+//! # use skrifa::{scale::*, GlyphId, instance::Size};
 //! # fn build_scaler(font: read_fonts::FontRef) {
 //! # let mut context = Context::new();
 //! # let mut scaler = context.new_scaler()
@@ -160,9 +160,14 @@ pub use read_fonts::types::Pen;
 pub use error::{Error, Result};
 pub use scaler::{Scaler, ScalerBuilder};
 
-use super::{GlyphId, NormalizedCoord, UniqueId, VariationSetting};
+use super::{
+    font::UniqueId,
+    instance::{NormalizedCoord, Size},
+    setting::VariationSetting,
+    GlyphId, Tag,
+};
+
 use core::str::FromStr;
-use read_fonts::types::Tag;
 
 /// Limit for recursion when loading TrueType composite glyphs.
 const GLYF_COMPOSITE_RECURSION_LIMIT: usize = 32;
@@ -221,8 +226,7 @@ impl Context {
 
 #[cfg(test)]
 mod tests {
-    use super::{test, Context, GlyphId, Pen, Scaler};
-    use crate::Size;
+    use super::{test, Context, GlyphId, Pen, Scaler, Size};
     use read_fonts::{test_data::test_fonts, FontRef};
 
     #[test]

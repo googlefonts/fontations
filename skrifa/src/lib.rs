@@ -1,15 +1,15 @@
 //! A robust, ergonomic, high performance crate for OpenType fonts.
 //!  
 //! Skrifa is a mid level library that provides access to various types
-//! of [`metadata`](meta) contained in a font as well as support for
-//! [`scaling`](scale) of glyph outlines.
+//! of [`metadata`](MetadataProvider) contained in a font as well as support
+//! for [`scaling`](scale) (extraction) of glyph outlines.
 //!
 //! It is described as "mid level" because the library is designed to sit
 //! above low level font parsing (provided by [`read-fonts`](https://crates.io/crates/read-fonts))
 //! and below a higher level text layout engine.
 //!
-//! See the [readme](https://github.com/dfrg/fontations/blob/main/skrifa/README.md) for additional
-//! details.
+//! See the [readme](https://github.com/dfrg/fontations/blob/main/skrifa/README.md)
+//! for additional details.
 
 #![forbid(unsafe_code)]
 // TODO: this is temporary-- remove when hinting is added.
@@ -18,30 +18,28 @@
 /// Expose our "raw" underlying parser crate.
 pub extern crate read_fonts as raw;
 
-pub mod meta;
+pub mod charmap;
+pub mod font;
+pub mod instance;
+pub mod metrics;
 #[cfg(feature = "scale")]
 pub mod scale;
+pub mod setting;
+pub mod string;
 
-mod coords;
-mod setting;
-mod size;
-mod unique_id;
+mod provider;
 
-pub use coords::NormalizedCoords;
-pub use setting::{Setting, VariationSetting};
-pub use size::Size;
-pub use unique_id::UniqueId;
+/// Useful collection of common types suitable for glob importing.
+pub mod prelude {
+    #[doc(no_inline)]
+    pub use super::{
+        font::{FontRef, UniqueId},
+        instance::{LocationRef, NormalizedCoord, Size},
+        GlyphId, MetadataProvider, Tag,
+    };
+}
 
-/// Type for a glyph identifier.
-pub type GlyphId = read_fonts::types::GlyphId;
-
-/// Type for a 4-byte tag used to identify font tables and other resources.
-pub type Tag = read_fonts::types::Tag;
-
-/// Type for a normalized variation coordinate.
-pub type NormalizedCoord = read_fonts::types::F2Dot14;
+pub use read_fonts::types::{GlyphId, Tag};
 
 #[doc(inline)]
-pub use meta::MetadataProvider;
-
-pub use read_fonts::FontRef;
+pub use provider::MetadataProvider;

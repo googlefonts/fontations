@@ -1,4 +1,4 @@
-//! Strings describing font names and other metadata in multiple languages.
+//! Localized strings describing font names and other metadata.
 //!
 //! This provides higher level interfaces for accessing the data in the
 //! OpenType [name](https://learn.microsoft.com/en-us/typography/opentype/spec/name)
@@ -8,7 +8,7 @@
 //! The following function will print all localized strings from the set
 //! of predefined identifiers in a font:
 //! ```
-//! use skrifa::meta::{strings::StringId, MetadataProvider};
+//! use skrifa::{string::StringId, MetadataProvider};
 //!
 //! fn print_well_known_strings<'a>(font: &impl MetadataProvider<'a>) {
 //!     for id in StringId::predefined() {

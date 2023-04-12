@@ -16,9 +16,9 @@
 //! to select the desired instance of a font:
 //! * Size: represented by the [Size] type, this determines the scaling factor that is
 //! applied to all metrics.
-//! * Normalized variation coordinates: respresented by the [NormalizedCoords] type,
+//! * Normalized variation coordinates: respresented by the [LocationRef] type,
 //! these define the position in design space for a variable font. For a non-variable
-//! font, these coordinates are ignored and you can pass [NormalizedCoords::default()]
+//! font, these coordinates are ignored and you can pass [LocationRef::default()]
 //! as an argument for this parameter.
 //!
 
@@ -28,7 +28,7 @@ use read_fonts::{
     TableProvider,
 };
 
-use crate::{NormalizedCoord, NormalizedCoords, Size};
+use super::instance::{LocationRef, NormalizedCoord, Size};
 
 /// Type for a bounding box with single precision floating point coordinates.
 pub type BoundingBox = read_fonts::types::BoundingBox<f32>;
@@ -96,21 +96,19 @@ pub struct Metrics {
 }
 
 impl Metrics {
-    /// Creates new metrics for the given font, size, and
-    /// normalized variation coordinates.
-    ///
-    /// For details on these parameters, see [selecting an instance](crate::meta::metrics#selecting-an-instance).
+    /// Creates new metrics for the given font, size, and location in
+    /// normalized variation space.
     pub fn new<'a>(
         font: &impl TableProvider<'a>,
         size: Size,
-        coords: NormalizedCoords<'a>,
+        location: impl Into<LocationRef<'a>>,
     ) -> Self {
         let head = font.head();
         let mut metrics = Metrics {
             units_per_em: head.map(|head| head.units_per_em()).unwrap_or_default(),
             ..Default::default()
         };
-        let coords = coords.inner();
+        let coords = location.into().coords();
         let scale = size.linear_scale(metrics.units_per_em);
         if let Ok(head) = font.head() {
             metrics.bounds = Some(BoundingBox {
@@ -226,11 +224,13 @@ pub struct GlyphMetrics<'a> {
 }
 
 impl<'a> GlyphMetrics<'a> {
-    /// Creates new glyph metrics from the given font, size, and normalized
-    /// variation coordinates.
-    ///
-    /// For details on these parameters, see [selecting an instance](crate::meta::metrics#selecting-an-instance).
-    pub fn new(font: &impl TableProvider<'a>, size: Size, coords: NormalizedCoords<'a>) -> Self {
+    /// Creates new glyph metrics from the given font, size, and location in
+    /// normalized variation space.
+    pub fn new(
+        font: &impl TableProvider<'a>,
+        size: Size,
+        location: impl Into<LocationRef<'a>>,
+    ) -> Self {
         let glyph_count = font
             .maxp()
             .map(|maxp| maxp.num_glyphs())
@@ -240,7 +240,7 @@ impl<'a> GlyphMetrics<'a> {
             .map(|head| head.units_per_em())
             .unwrap_or_default();
         let scale = size.linear_scale(upem);
-        let coords = coords.inner();
+        let coords = location.into().coords();
         let (h_metrics, default_advance_width, lsbs) = font
             .hmtx()
             .map(|hmtx| {
@@ -356,7 +356,7 @@ mod tests {
     #[test]
     fn metrics() {
         let font = FontRef::new(SIMPLE_GLYF).unwrap();
-        let metrics = font.metrics(Size::unscaled(), NormalizedCoords::default());
+        let metrics = font.metrics(Size::unscaled(), LocationRef::default());
         let expected = Metrics {
             units_per_em: 1024,
             glyph_count: 3,
@@ -387,7 +387,7 @@ mod tests {
     #[test]
     fn metrics_missing_os2() {
         let font = FontRef::new(VAZIRMATN_VAR).unwrap();
-        let metrics = font.metrics(Size::unscaled(), NormalizedCoords::default());
+        let metrics = font.metrics(Size::unscaled(), LocationRef::default());
         let expected = Metrics {
             units_per_em: 2048,
             glyph_count: 4,
@@ -415,7 +415,7 @@ mod tests {
     #[test]
     fn glyph_metrics() {
         let font = FontRef::new(VAZIRMATN_VAR).unwrap();
-        let glyph_metrics = font.glyph_metrics(Size::unscaled(), NormalizedCoords::default());
+        let glyph_metrics = font.glyph_metrics(Size::unscaled(), LocationRef::default());
         // (advance_width, lsb) in glyph order
         let expected = &[
             (908.0, 100.0),
@@ -438,7 +438,7 @@ mod tests {
     fn glyph_metrics_var() {
         let font = FontRef::new(VAZIRMATN_VAR).unwrap();
         let coords = &[NormalizedCoord::from_f32(-0.8)];
-        let glyph_metrics = font.glyph_metrics(Size::unscaled(), NormalizedCoords::new(coords));
+        let glyph_metrics = font.glyph_metrics(Size::unscaled(), LocationRef::new(coords));
         // (advance_width, lsb) in glyph order
         let expected = &[
             (908.0, 100.0),
