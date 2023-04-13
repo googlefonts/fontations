@@ -1,4 +1,5 @@
 use super::{
+    attribute::Attributes,
     charmap::Charmap,
     instance::{LocationRef, NormalizedCoord, Size},
     metrics::{GlyphMetrics, Metrics},
@@ -7,6 +8,12 @@ use super::{
 
 /// Interface for types that can provide font metadata.
 pub trait MetadataProvider<'a>: raw::TableProvider<'a> + Sized {
+    /// Returns the primary attributes for font classification-- stretch,
+    /// style and weight.
+    fn attributes(&self) -> Attributes {
+        Attributes::new(self)
+    }
+
     /// Returns an iterator over the collection of localized strings for the
     /// given informational string identifier.
     fn localized_strings(&self, id: StringId) -> LocalizedStrings<'a> {

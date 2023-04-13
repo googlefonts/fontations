@@ -154,10 +154,10 @@
   <OS_2>
     <!-- The fields 'usFirstCharIndex' and 'usLastCharIndex'
          will be recalculated by the compiler -->
-    <version value="2"/>
+    <version value="4"/>
     <xAvgCharWidth value="2500"/>
-    <usWeightClass value="400"/>
-    <usWidthClass value="5"/>
+    <usWeightClass value="800"/>
+    <usWidthClass value="4"/>
     <fsType value="00000000 00001100"/>
     <ySubscriptXSize value="500"/>
     <ySubscriptYSize value="500"/>
@@ -187,7 +187,7 @@
     <ulUnicodeRange3 value="00000000 00000000 00000000 00000000"/>
     <ulUnicodeRange4 value="00000000 00000000 00000000 00000000"/>
     <achVendID value="ADBE"/>
-    <fsSelection value="00000000 01000000"/>
+    <fsSelection value="00000010 01000000"/>
     <usFirstCharIndex value="19968"/>
     <usLastCharIndex value="19977"/>
     <sTypoAscender value="2500"/>
@@ -252,7 +252,7 @@
 
   <post>
     <formatType value="3.0"/>
-    <italicAngle value="0.0"/>
+    <italicAngle value="-14.0"/>
     <underlinePosition value="-100"/>
     <underlineThickness value="50"/>
     <isFixedPitch value="0"/>
