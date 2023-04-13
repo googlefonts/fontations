@@ -5,7 +5,16 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// <https://docs.microsoft.com/en-us/typography/opentype/spec/head>
+pub use read_fonts::tables::head::MacStyle;
+
+impl FontWrite for MacStyle {
+    fn write_into(&self, writer: &mut TableWriter) {
+        writer.write_slice(&self.bits().to_be_bytes())
+    }
+}
+
+/// The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head)
+/// (font header) table.
 #[derive(Clone, Debug)]
 pub struct Head {
     /// Set by font manufacturer.
@@ -40,7 +49,7 @@ pub struct Head {
     /// Maximum y coordinate across all glyph bounding boxes.
     pub y_max: i16,
     /// see somewhere else
-    pub mac_style: u16,
+    pub mac_style: MacStyle,
     /// Smallest readable size in pixels.
     pub lowest_rec_ppem: u16,
     /// Deprecated (Set to 2).
@@ -85,7 +94,7 @@ impl Head {
         y_min: i16,
         x_max: i16,
         y_max: i16,
-        mac_style: u16,
+        mac_style: MacStyle,
         lowest_rec_ppem: u16,
         index_to_loc_format: i16,
     ) -> Self {

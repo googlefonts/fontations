@@ -23,7 +23,7 @@
 //!
 
 use read_fonts::{
-    tables::{glyf::Glyf, hmtx::LongMetric, hvar::Hvar, loca::Loca},
+    tables::{glyf::Glyf, hmtx::LongMetric, hvar::Hvar, loca::Loca, os2::SelectionFlags},
     types::{BigEndian, GlyphId},
     TableProvider,
 };
@@ -148,8 +148,10 @@ impl Metrics {
         let os2 = font.os2().ok();
         let mut used_typo_metrics = false;
         if let Some(os2) = &os2 {
-            const USE_TYPO_METRICS: u16 = 1 << 7;
-            if os2.fs_selection() & USE_TYPO_METRICS != 0 {
+            if os2
+                .fs_selection()
+                .contains(SelectionFlags::USE_TYPO_METRICS)
+            {
                 metrics.ascent = os2.s_typo_ascender() as f32 * scale;
                 metrics.descent = os2.s_typo_descender() as f32 * scale;
                 metrics.leading = os2.s_typo_line_gap() as f32 * scale;
