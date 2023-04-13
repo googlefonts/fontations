@@ -51,7 +51,7 @@ impl Fvar {
 
 #[cfg(test)]
 mod tests {
-    use read::{test_data, FontRef, TableProvider};
+    use read::{FontRef, TableProvider};
 
     use super::*;
 
@@ -198,7 +198,7 @@ mod tests {
 
     #[test]
     fn round_trip() {
-        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let read_testdata = font.fvar().unwrap();
 
         let fvar = Fvar::from_table_ref(&read_testdata);

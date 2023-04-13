@@ -53,12 +53,12 @@ impl<'a> FontRead<'a> for SegmentMaps<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{test_data, FontRef, TableProvider};
+    use crate::{FontRef, TableProvider};
     use types::{F2Dot14, Fixed};
 
     #[test]
     fn segment_maps() {
-        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let avar = font.avar().unwrap();
         assert_eq!(avar.axis_count(), 1);
         fn from_to(from: f32, to: f32) -> (F2Dot14, F2Dot14) {
@@ -97,7 +97,7 @@ mod tests {
 
     #[test]
     fn piecewise_linear() {
-        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let avar = font.avar().unwrap();
         let segment_map = avar.axis_segment_maps().get(0).unwrap().unwrap();
         let coords = [-1.0, -0.5, 0.0, 0.5, 1.0];

@@ -4,11 +4,13 @@ include!("../../generated/generated_cpal.rs");
 
 #[cfg(test)]
 mod tests {
-    use crate::test_data;
+
+    use crate::{FontRef, TableProvider};
 
     #[test]
     fn read_sample() {
-        let table = test_data::cpal::sample();
+        let font = FontRef::new(font_test_data::COLR_GRADIENT_RECT).unwrap();
+        let table = font.cpal().unwrap();
         assert_eq!(table.version(), 0);
         assert_eq!(table.num_palette_entries(), 2);
         assert_eq!(table.num_palettes(), 2);

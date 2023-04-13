@@ -1,51 +1,51 @@
 use super::*;
 use crate::assert_hex_eq;
-use read_fonts::test_data::gpos as test_data;
+use font_test_data::gpos as test_data;
 
 #[test]
 fn singleposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-2-singleposformat1-subtable
 
-    let table = SinglePosFormat1::read(test_data::SINGLEPOSFORMAT1).unwrap();
+    let table = SinglePosFormat1::read(test_data::SINGLEPOSFORMAT1.into()).unwrap();
     let dumped = crate::write::dump_table(&table).unwrap();
-    assert_hex_eq!(test_data::SINGLEPOSFORMAT1.as_ref(), &dumped);
+    assert_hex_eq!(test_data::SINGLEPOSFORMAT1, &dumped);
 }
 
 #[test]
 fn singleposformat2() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-3-singleposformat2-subtable
 
-    let table = SinglePosFormat2::read(test_data::SINGLEPOSFORMAT2).unwrap();
+    let table = SinglePosFormat2::read(test_data::SINGLEPOSFORMAT2.into()).unwrap();
     let dumped = crate::write::dump_table(&table).unwrap();
-    assert_hex_eq!(test_data::SINGLEPOSFORMAT2.as_ref(), &dumped);
+    assert_hex_eq!(test_data::SINGLEPOSFORMAT2, &dumped);
 }
 
 #[test]
 fn pairposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-4-pairposformat1-subtable
 
-    let table = PairPosFormat1::read(test_data::PAIRPOSFORMAT1).unwrap();
+    let table = PairPosFormat1::read(test_data::PAIRPOSFORMAT1.into()).unwrap();
     let _dumped = crate::write::dump_table(&table).unwrap();
 
     // we order the coverage table before the pairsets
-    //assert_hex_eq!(test_data::PAIRPOSFORMAT1.as_ref(), &dumped);
+    //assert_hex_eq!(test_data::PAIRPOSFORMAT1, &dumped);
 }
 
 #[test]
 fn pairposformat2() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-5-pairposformat2-subtable
 
-    let table = PairPosFormat2::read(test_data::PAIRPOSFORMAT2).unwrap();
+    let table = PairPosFormat2::read(test_data::PAIRPOSFORMAT2.into()).unwrap();
     let dumped = crate::write::dump_table(&table).unwrap();
 
     // we order the coverage table before the pairsets
-    assert_hex_eq!(test_data::PAIRPOSFORMAT2.as_ref(), &dumped);
+    assert_hex_eq!(test_data::PAIRPOSFORMAT2, &dumped);
 }
 
 #[test]
 fn cursiveposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-6-cursiveposformat1-subtable
-    let table = CursivePosFormat1::read(test_data::CURSIVEPOSFORMAT1).unwrap();
+    let table = CursivePosFormat1::read(test_data::CURSIVEPOSFORMAT1.into()).unwrap();
     let _dumped = crate::write::dump_table(&table).unwrap();
 
     // hex is not equal because we deduplicate a table
@@ -57,29 +57,29 @@ fn cursiveposformat1() {
 fn markbaseposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-7-markbaseposformat1-subtable
 
-    let table = MarkBasePosFormat1::read(test_data::MARKBASEPOSFORMAT1).unwrap();
+    let table = MarkBasePosFormat1::read(test_data::MARKBASEPOSFORMAT1.into()).unwrap();
     assert_eq!(table.mark_array.mark_records.len(), 2);
     let dumped = crate::write::dump_table(&table).unwrap();
 
-    assert_hex_eq!(test_data::MARKBASEPOSFORMAT1.as_ref(), &dumped);
+    assert_hex_eq!(test_data::MARKBASEPOSFORMAT1, &dumped);
 }
 
 #[test]
 fn markligposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-8-markligposformat1-subtable
 
-    let table = MarkLigPosFormat1::read(test_data::MARKLIGPOSFORMAT1).unwrap();
+    let table = MarkLigPosFormat1::read(test_data::MARKLIGPOSFORMAT1.into()).unwrap();
     assert_eq!(table.mark_array.mark_records.len(), 2);
     let dumped = crate::write::dump_table(&table).unwrap();
 
-    assert_hex_eq!(test_data::MARKLIGPOSFORMAT1.as_ref(), &dumped);
+    assert_hex_eq!(test_data::MARKLIGPOSFORMAT1, &dumped);
 }
 
 #[test]
 fn markmarkposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-9-markmarkposformat1-subtable
 
-    let table = MarkMarkPosFormat1::read(test_data::MARKMARKPOSFORMAT1).unwrap();
+    let table = MarkMarkPosFormat1::read(test_data::MARKMARKPOSFORMAT1.into()).unwrap();
     assert_eq!(table.mark2_array.mark2_records.len(), 1);
     let record = &table.mark2_array.mark2_records[0];
     assert_eq!(record.mark2_anchors.len(), 1);
@@ -92,7 +92,7 @@ fn markmarkposformat1() {
     assert_eq!(anchor.y_coordinate, 301);
     let dumped = crate::write::dump_table(&table).unwrap();
 
-    assert_hex_eq!(test_data::MARKMARKPOSFORMAT1.as_ref(), &dumped);
+    assert_hex_eq!(test_data::MARKMARKPOSFORMAT1, &dumped);
 }
 
 #[test]
@@ -100,11 +100,11 @@ fn contextualposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-10-contextual-positioning-format-1
 
     let table =
-        crate::tables::layout::SequenceContextFormat1::read(test_data::CONTEXTUALPOSFORMAT1)
+        crate::tables::layout::SequenceContextFormat1::read(test_data::CONTEXTUALPOSFORMAT1.into())
             .unwrap();
     let dumped = crate::write::dump_table(&table).unwrap();
 
-    assert_hex_eq!(test_data::CONTEXTUALPOSFORMAT1.as_ref(), &dumped);
+    assert_hex_eq!(test_data::CONTEXTUALPOSFORMAT1, &dumped);
 }
 
 #[test]
@@ -112,11 +112,11 @@ fn contextualposformat2() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-11-contextual-positioning-format-1
 
     let table =
-        crate::tables::layout::SequenceContextFormat2::read(test_data::CONTEXTUALPOSFORMAT2)
+        crate::tables::layout::SequenceContextFormat2::read(test_data::CONTEXTUALPOSFORMAT2.into())
             .unwrap();
     let dumped = crate::write::dump_table(&table).unwrap();
 
-    assert_hex_eq!(test_data::CONTEXTUALPOSFORMAT2.as_ref(), &dumped);
+    assert_hex_eq!(test_data::CONTEXTUALPOSFORMAT2, &dumped);
 }
 
 #[test]
@@ -124,11 +124,11 @@ fn contextualposformat3() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-12-contextual-positioning-format-3
 
     let table =
-        crate::tables::layout::SequenceContextFormat3::read(test_data::CONTEXTUALPOSFORMAT3)
+        crate::tables::layout::SequenceContextFormat3::read(test_data::CONTEXTUALPOSFORMAT3.into())
             .unwrap();
     let dumped = crate::write::dump_table(&table).unwrap();
 
-    assert_hex_eq!(test_data::CONTEXTUALPOSFORMAT3.as_ref(), &dumped);
+    assert_hex_eq!(test_data::CONTEXTUALPOSFORMAT3, &dumped);
 }
 
 //FIXME: turn this back on when we support device records
@@ -155,23 +155,23 @@ fn contextualposformat3() {
 fn anchorformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-15-anchorformat1-table
 
-    let table = AnchorFormat1::read(test_data::ANCHORFORMAT1).unwrap();
+    let table = AnchorFormat1::read(test_data::ANCHORFORMAT1.into()).unwrap();
 
     assert_eq!(table.x_coordinate, 189);
     assert_eq!(table.y_coordinate, -103);
     let dumped = crate::write::dump_table(&table).unwrap();
 
-    assert_hex_eq!(test_data::ANCHORFORMAT1.as_ref(), &dumped);
+    assert_hex_eq!(test_data::ANCHORFORMAT1, &dumped);
 }
 
 #[test]
 fn anchorformat2() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-16-anchorformat2-table
 
-    let table = AnchorFormat2::read(test_data::ANCHORFORMAT2).unwrap();
+    let table = AnchorFormat2::read(test_data::ANCHORFORMAT2.into()).unwrap();
     let dumped = crate::write::dump_table(&table).unwrap();
 
-    assert_hex_eq!(test_data::ANCHORFORMAT2.as_ref(), &dumped);
+    assert_hex_eq!(test_data::ANCHORFORMAT2, &dumped);
 }
 
 //FIXME: enable when we have device tables working

@@ -6,12 +6,14 @@ include!("../../generated/generated_stat.rs");
 mod tests {
     use types::{Fixed, NameId};
 
+    use crate::{table_provider::TableProvider, FontRef};
+
     use super::*;
-    use crate::test_data::stat as test_data;
 
     #[test]
     fn smoke_test() {
-        let table = test_data::vazirmatn();
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+        let table = font.stat().unwrap();
         assert_eq!(table.design_axis_count(), 1);
         let axis_record = &table.design_axes().unwrap()[0];
         assert_eq!(axis_record.axis_tag(), Tag::new(b"wght"));

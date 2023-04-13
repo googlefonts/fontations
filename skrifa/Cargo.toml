@@ -17,4 +17,4 @@ hinting = []
 read-fonts = { version = "0.1.4", path = "../read-fonts" }
 
 [dev-dependencies]
-read-fonts = { version = "0.1.4", path = "../read-fonts", features = ["test_data"] }
+font-test-data= { path = "../font-test-data" }

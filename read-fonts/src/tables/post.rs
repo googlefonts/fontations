@@ -122,11 +122,11 @@ pub static DEFAULT_GLYPH_NAMES: [&str; 258] = [
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_data::post as test_data;
+    use font_test_data::post as test_data;
 
     #[test]
     fn test_post() {
-        let table = Post::read(test_data::SIMPLE).unwrap();
+        let table = Post::read(test_data::SIMPLE.into()).unwrap();
         assert_eq!(table.version(), Version16Dot16::VERSION_2_0);
         assert_eq!(table.underline_position(), FWord::new(-75));
         assert_eq!(table.glyph_name(GlyphId::new(1)), Some(".notdef"));

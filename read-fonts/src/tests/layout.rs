@@ -1,11 +1,11 @@
 use super::*;
-use crate::test_data::layout as test_data;
+use font_test_data::layout as test_data;
 
 #[test]
 fn example_1_scripts() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#example-1-scriptlist-table-and-scriptrecords
 
-    let table = ScriptList::read(test_data::SCRIPTS).unwrap();
+    let table = ScriptList::read(test_data::SCRIPTS.into()).unwrap();
     assert_eq!(table.script_count(), 3);
     assert_eq!(table.script_records()[0].script_tag(), Tag::new(b"hani"));
     assert_eq!(table.script_records()[1].script_tag(), Tag::new(b"kana"));
@@ -16,7 +16,7 @@ fn example_1_scripts() {
 fn example_2_scripts_and_langs() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#example-2-script-table-langsysrecord-and-langsys-table
 
-    let table = Script::read(test_data::SCRIPTS_AND_LANGUAGES).unwrap();
+    let table = Script::read(test_data::SCRIPTS_AND_LANGUAGES.into()).unwrap();
     let def_sys = table.default_lang_sys().unwrap().unwrap();
     assert_eq!(def_sys.required_feature_index(), 0xffff);
     assert_eq!(def_sys.feature_index_count(), 3);
@@ -32,7 +32,7 @@ fn example_2_scripts_and_langs() {
 #[test]
 fn example_3_featurelist_and_feature() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#example-3-featurelist-table-and-feature-table
-    let table = FeatureList::read(test_data::FEATURELIST_AND_FEATURE).unwrap();
+    let table = FeatureList::read(test_data::FEATURELIST_AND_FEATURE.into()).unwrap();
     assert_eq!(table.feature_count(), 3);
     let turkish_liga_record = &table.feature_records()[0];
     let feature = turkish_liga_record.feature(table.offset_data()).unwrap();

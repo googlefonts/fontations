@@ -4,11 +4,12 @@ include!("../../generated/generated_os2.rs");
 
 #[cfg(test)]
 mod tests {
-    use crate::test_data;
+    use crate::{table_provider::TableProvider, FontRef};
 
     #[test]
     fn read_sample() {
-        let table = test_data::os2::sample();
+        let font = FontRef::new(font_test_data::SIMPLE_GLYF).unwrap();
+        let table = font.os2().unwrap();
         assert_eq!(table.version(), 4);
     }
 }

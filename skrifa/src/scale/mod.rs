@@ -227,12 +227,13 @@ impl Context {
 #[cfg(test)]
 mod tests {
     use super::{test, Context, GlyphId, Pen, Scaler, Size};
-    use read_fonts::{test_data::test_fonts, FontRef};
+    use font_test_data::{VAZIRMATN_VAR, VAZIRMATN_VAR_GLYPHS};
+    use read_fonts::FontRef;
 
     #[test]
     fn vazirmatin_var() {
-        let font = FontRef::new(test_fonts::VAZIRMATN_VAR).unwrap();
-        let outlines = test::parse_glyph_outlines(test_fonts::VAZIRMATN_VAR_GLYPHS);
+        let font = FontRef::new(VAZIRMATN_VAR).unwrap();
+        let outlines = test::parse_glyph_outlines(VAZIRMATN_VAR_GLYPHS);
         let mut cx = Context::new();
         let mut path = test::Path::default();
         for expected_outline in &outlines {

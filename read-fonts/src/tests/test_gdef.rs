@@ -2,18 +2,18 @@ use types::{GlyphId, MajorMinor};
 
 use super::*;
 use crate::tables::layout::{ClassDefFormat2, DeltaFormat};
-use crate::test_data::gdef as test_data;
+use font_test_data::gdef as test_data;
 
 #[test]
 fn gdef_header() {
-    let table = Gdef::read(test_data::GDEF_HEADER).unwrap();
+    let table = Gdef::read(test_data::GDEF_HEADER.into()).unwrap();
     assert_eq!(table.version(), MajorMinor::VERSION_1_0);
     assert_eq!(table.mark_attach_class_def_offset(), 0x5a);
 }
 
 #[test]
 fn glyph_class_def_table() {
-    let table = ClassDefFormat2::read(test_data::GLYPHCLASSDEF_TABLE).unwrap();
+    let table = ClassDefFormat2::read(test_data::GLYPHCLASSDEF_TABLE.into()).unwrap();
     assert_eq!(table.class_range_count(), 4);
     let last_record = &table.class_range_records()[3];
     assert_eq!(last_record.start_glyph_id(), GlyphId::new(0x18f));
@@ -22,7 +22,7 @@ fn glyph_class_def_table() {
 
 #[test]
 fn attach_list_table() {
-    let table = AttachList::read(test_data::ATTACHLIST_TABLE).unwrap();
+    let table = AttachList::read(test_data::ATTACHLIST_TABLE.into()).unwrap();
     assert_eq!(table.glyph_count(), 2);
     assert_eq!(table.attach_point_offsets().len(), 2);
     let attach_point = table.attach_points().nth(1).unwrap().unwrap();
@@ -32,7 +32,7 @@ fn attach_list_table() {
 
 #[test]
 fn lig_caret_list() {
-    let table = LigCaretList::read(test_data::LIGCARETLIST_TABLE).unwrap();
+    let table = LigCaretList::read(test_data::LIGCARETLIST_TABLE.into()).unwrap();
     let glyph1 = table.lig_glyphs().next().unwrap().unwrap();
     let glyph2 = table.lig_glyphs().nth(1).unwrap().unwrap();
     assert_eq!(glyph1.caret_value_offsets().len(), 1);
@@ -52,7 +52,7 @@ fn lig_caret_list() {
 
 #[test]
 fn caretvalueformat3() {
-    let table = CaretValueFormat3::read(test_data::CARETVALUEFORMAT3_TABLE).unwrap();
+    let table = CaretValueFormat3::read(test_data::CARETVALUEFORMAT3_TABLE.into()).unwrap();
     assert_eq!(table.coordinate(), 1206);
     let device = table.device().unwrap();
     assert_eq!(device.start_size(), 12);

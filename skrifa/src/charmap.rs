@@ -315,7 +315,7 @@ mod tests {
 
     #[test]
     fn choose_format_12_over_4() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::CMAP12_FONT1).unwrap();
+        let font = FontRef::new(font_test_data::CMAP12_FONT1).unwrap();
         let charmap = font.charmap();
         assert!(matches!(
             charmap.codepoint_subtable.unwrap().subtable,
@@ -325,7 +325,7 @@ mod tests {
 
     #[test]
     fn choose_format_4() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let charmap = font.charmap();
         assert!(matches!(
             charmap.codepoint_subtable.unwrap().subtable,
@@ -335,7 +335,7 @@ mod tests {
 
     #[test]
     fn choose_symbol() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::CMAP4_SYMBOL_PUA).unwrap();
+        let font = FontRef::new(font_test_data::CMAP4_SYMBOL_PUA).unwrap();
         let charmap = font.charmap();
         assert!(charmap.is_symbol());
         assert!(matches!(
@@ -346,7 +346,7 @@ mod tests {
 
     #[test]
     fn map_format_4() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let charmap = font.charmap();
         assert_eq!(charmap.map('A'), Some(GlyphId::new(1)));
         assert_eq!(charmap.map('À'), Some(GlyphId::new(2)));
@@ -356,7 +356,7 @@ mod tests {
 
     #[test]
     fn map_format_12() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::CMAP12_FONT1).unwrap();
+        let font = FontRef::new(font_test_data::CMAP12_FONT1).unwrap();
         let charmap = font.charmap();
         assert_eq!(charmap.map(' '), None);
         assert_eq!(charmap.map(0x101723_u32), Some(GlyphId::new(1)));
@@ -368,7 +368,7 @@ mod tests {
 
     #[test]
     fn map_symbol_pua() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::CMAP4_SYMBOL_PUA).unwrap();
+        let font = FontRef::new(font_test_data::CMAP4_SYMBOL_PUA).unwrap();
         let charmap = font.charmap();
         assert!(charmap.codepoint_subtable.as_ref().unwrap().is_symbol);
         assert_eq!(charmap.map(0xF001_u32), Some(GlyphId::new(1)));
@@ -386,7 +386,7 @@ mod tests {
     #[test]
     fn map_variants() {
         use super::{CmapSubtable, MapVariant::*};
-        let font = FontRef::new(read_fonts::test_data::test_fonts::CMAP14_FONT1).unwrap();
+        let font = FontRef::new(font_test_data::CMAP14_FONT1).unwrap();
         let charmap = font.charmap();
         let selector = '\u{e0100}';
         assert_eq!(charmap.map_variant('a', selector), None);
