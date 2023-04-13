@@ -18,6 +18,7 @@
 /// Expose our "raw" underlying parser crate.
 pub extern crate read_fonts as raw;
 
+pub mod attribute;
 pub mod charmap;
 pub mod font;
 pub mod instance;
