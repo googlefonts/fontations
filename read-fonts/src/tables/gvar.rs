@@ -459,8 +459,7 @@ mod tests {
 
     #[test]
     fn vazirmatn_var() {
-        use crate::test_data::test_fonts;
-        let gvar = FontRef::new(test_fonts::VAZIRMATN_VAR)
+        let gvar = FontRef::new(font_test_data::VAZIRMATN_VAR)
             .unwrap()
             .gvar()
             .unwrap();

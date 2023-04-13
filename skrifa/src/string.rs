@@ -596,7 +596,7 @@ mod tests {
 
     #[test]
     fn localized() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::NAMES_ONLY).unwrap();
+        let font = FontRef::new(font_test_data::NAMES_ONLY).unwrap();
         let mut subfamily_names = font
             .localized_strings(StringId::SUBFAMILY_NAME)
             .map(|s| (s.language().unwrap().to_string(), s.to_string()))
@@ -615,7 +615,7 @@ mod tests {
 
     #[test]
     fn find_by_language() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::NAMES_ONLY).unwrap();
+        let font = FontRef::new(font_test_data::NAMES_ONLY).unwrap();
         assert_eq!(
             font.localized_strings(StringId::SUBFAMILY_NAME)
                 .find(|s| s.language() == Some("pl-PL"))
@@ -627,7 +627,7 @@ mod tests {
 
     #[test]
     fn english_or_first() {
-        let font = FontRef::new(read_fonts::test_data::test_fonts::NAMES_ONLY).unwrap();
+        let font = FontRef::new(font_test_data::NAMES_ONLY).unwrap();
         assert_eq!(
             font.localized_strings(StringId::SUBFAMILY_NAME)
                 .english_or_first()

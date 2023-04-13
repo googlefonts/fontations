@@ -278,6 +278,12 @@ impl AsRef<[u8]> for FontData<'_> {
     }
 }
 
+impl<'a> From<&'a [u8]> for FontData<'a> {
+    fn from(src: &'a [u8]) -> FontData<'a> {
+        FontData::new(src)
+    }
+}
+
 //kind of ugly, but makes FontData work with FontBuilder. If FontBuilder stops using
 //Cow in its API, we can probably get rid of this?
 #[cfg(feature = "std")]

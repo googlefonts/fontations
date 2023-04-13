@@ -809,7 +809,7 @@ impl Transform {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::test_data;
+
     use crate::{FontRef, GlyphId, TableProvider};
 
     #[test]
@@ -855,7 +855,7 @@ mod tests {
 
     #[test]
     fn simple_glyph() {
-        let font = FontRef::new(test_data::test_fonts::COLR_GRADIENT_RECT).unwrap();
+        let font = FontRef::new(font_test_data::COLR_GRADIENT_RECT).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
         let glyph = loca.get_glyf(GlyphId::new(0), &glyf).unwrap().unwrap();

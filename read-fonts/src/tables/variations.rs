@@ -685,11 +685,11 @@ pub(crate) fn item_delta(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{test_data, FontRef, TableProvider};
+    use crate::{FontRef, TableProvider};
 
     #[test]
     fn ivs_regions() {
-        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let hvar = font.hvar().expect("missing HVAR table");
         let ivs = hvar
             .item_variation_store()

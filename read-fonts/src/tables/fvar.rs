@@ -39,12 +39,12 @@ impl VariationAxisRecord {
 
 #[cfg(test)]
 mod tests {
-    use crate::{test_data, FontRef, TableProvider};
+    use crate::{FontRef, TableProvider};
     use types::{Fixed, NameId, Tag};
 
     #[test]
     fn axes() {
-        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let fvar = font.fvar().unwrap();
         assert_eq!(fvar.axis_count(), 1);
         let wght = &fvar.axes().unwrap().get(0).unwrap();
@@ -58,7 +58,7 @@ mod tests {
 
     #[test]
     fn instances() {
-        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let fvar = font.fvar().unwrap();
         assert_eq!(fvar.instance_count(), 9);
         // There are 9 instances equally spaced from 100.0 to 900.0
@@ -80,7 +80,7 @@ mod tests {
 
     #[test]
     fn normalize() {
-        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let fvar = font.fvar().unwrap();
         let axis = fvar.axes().unwrap().get(0).unwrap();
         let values = [100.0, 220.0, 250.0, 400.0, 650.0, 900.0];

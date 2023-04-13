@@ -675,7 +675,6 @@ mod tests {
     };
 
     use super::*;
-    use crate::read::test_data;
 
     #[test]
     #[should_panic(expected = "HasCubic")]
@@ -750,7 +749,7 @@ mod tests {
 
     #[test]
     fn read_write_simple() {
-        let font = FontRef::new(test_data::test_fonts::SIMPLE_GLYF).unwrap();
+        let font = FontRef::new(font_test_data::SIMPLE_GLYF).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
         let read_glyf::Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(0), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
@@ -770,7 +769,7 @@ mod tests {
 
     #[test]
     fn round_trip_simple() {
-        let font = FontRef::new(test_data::test_fonts::SIMPLE_GLYF).unwrap();
+        let font = FontRef::new(font_test_data::SIMPLE_GLYF).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
         let read_glyf::Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
@@ -792,7 +791,7 @@ mod tests {
 
     #[test]
     fn round_trip_multi_contour() {
-        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
         let read_glyf::Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(1), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
@@ -991,7 +990,7 @@ mod tests {
 
     #[test]
     fn roundtrip_composite() {
-        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
         let read_glyf::Glyph::Composite(orig) = loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap() else { panic!("not a composite glyph") };

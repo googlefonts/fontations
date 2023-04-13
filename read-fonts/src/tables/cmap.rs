@@ -161,19 +161,18 @@ impl<'a> Cmap14<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::test_data;
     use crate::{FontRef, GlyphId, TableProvider};
 
     #[test]
     fn map_codepoints() {
-        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let cmap = font.cmap().unwrap();
         assert_eq!(cmap.map_codepoint('A'), Some(GlyphId::new(1)));
         assert_eq!(cmap.map_codepoint('À'), Some(GlyphId::new(2)));
         assert_eq!(cmap.map_codepoint('`'), Some(GlyphId::new(3)));
         assert_eq!(cmap.map_codepoint('B'), None);
 
-        let font = FontRef::new(test_data::test_fonts::SIMPLE_GLYF).unwrap();
+        let font = FontRef::new(font_test_data::SIMPLE_GLYF).unwrap();
         let cmap = font.cmap().unwrap();
         assert_eq!(cmap.map_codepoint(' '), Some(GlyphId::new(1)));
         assert_eq!(cmap.map_codepoint(0xE_u32), Some(GlyphId::new(2)));
@@ -183,7 +182,7 @@ mod tests {
     #[test]
     fn map_variants() {
         use super::{CmapSubtable, MapVariant::*};
-        let font = FontRef::new(test_data::test_fonts::CMAP14_FONT1).unwrap();
+        let font = FontRef::new(font_test_data::CMAP14_FONT1).unwrap();
         let cmap = font.cmap().unwrap();
         let cmap14 = cmap
             .encoding_records()

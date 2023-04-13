@@ -1,11 +1,11 @@
 use super::*;
-use crate::test_data::gpos as test_data;
+use font_test_data::gpos as test_data;
 
 #[test]
 fn singleposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-2-singleposformat1-subtable
 
-    let table = SinglePosFormat1::read(test_data::SINGLEPOSFORMAT1).unwrap();
+    let table = SinglePosFormat1::read(test_data::SINGLEPOSFORMAT1.into()).unwrap();
     assert_eq!(table.value_format(), ValueFormat::Y_PLACEMENT);
     assert_eq!(table.value_record().y_placement.unwrap().get(), -80);
     let coverage = table.coverage().unwrap();
@@ -15,7 +15,7 @@ fn singleposformat1() {
 #[test]
 fn singleposformat2() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-3-singleposformat2-subtable
-    let table = SinglePosFormat2::read(test_data::SINGLEPOSFORMAT2).unwrap();
+    let table = SinglePosFormat2::read(test_data::SINGLEPOSFORMAT2.into()).unwrap();
     assert_eq!(
         table.value_format(),
         ValueFormat::X_PLACEMENT | ValueFormat::X_ADVANCE
@@ -38,7 +38,7 @@ fn singleposformat2() {
 fn pairposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-4-pairposformat1-subtable
 
-    let table = PairPosFormat1::read(test_data::PAIRPOSFORMAT1).unwrap();
+    let table = PairPosFormat1::read(test_data::PAIRPOSFORMAT1.into()).unwrap();
     assert_eq!(table.value_format1(), ValueFormat::X_ADVANCE);
     assert_eq!(table.value_format2(), ValueFormat::X_PLACEMENT);
     assert_eq!(table.pair_set_count(), 2);
@@ -65,7 +65,7 @@ fn pairposformat1() {
 fn pairposformat2() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-5-pairposformat2-subtable
 
-    let table = PairPosFormat2::read(test_data::PAIRPOSFORMAT2).unwrap();
+    let table = PairPosFormat2::read(test_data::PAIRPOSFORMAT2.into()).unwrap();
     assert_eq!(table.value_format1().record_byte_len(), 2);
     assert_eq!(table.value_format2().record_byte_len(), 0);
     assert_eq!(table.class1_count(), 2);
@@ -87,7 +87,7 @@ fn pairposformat2() {
 fn cursiveposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-6-cursiveposformat1-subtable
 
-    let table = CursivePosFormat1::read(test_data::CURSIVEPOSFORMAT1).unwrap();
+    let table = CursivePosFormat1::read(test_data::CURSIVEPOSFORMAT1.into()).unwrap();
     assert_eq!(table.entry_exit_count(), 2);
     assert_eq!(table.entry_exit_record().len(), 2);
 
@@ -104,7 +104,7 @@ fn cursiveposformat1() {
 #[test]
 fn markbaseposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-7-markbaseposformat1-subtable
-    let table = MarkBasePosFormat1::read(test_data::MARKBASEPOSFORMAT1).unwrap();
+    let table = MarkBasePosFormat1::read(test_data::MARKBASEPOSFORMAT1.into()).unwrap();
     let base_array = table.base_array().unwrap();
     assert_eq!(base_array.base_records().iter().count(), 1);
     let record = base_array.base_records().get(0).unwrap();
@@ -121,7 +121,7 @@ fn markbaseposformat1() {
 fn markligposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-8-markligposformat1-subtable
 
-    let table = MarkLigPosFormat1::read(test_data::MARKLIGPOSFORMAT1).unwrap();
+    let table = MarkLigPosFormat1::read(test_data::MARKLIGPOSFORMAT1.into()).unwrap();
     let lig_array = table.ligature_array().unwrap();
     assert_eq!(lig_array.ligature_count(), 1);
     let lig_attach = lig_array.ligature_attaches().next().unwrap().unwrap();
@@ -140,7 +140,7 @@ fn markligposformat1() {
 fn markmarkposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-9-markmarkposformat1-subtable
 
-    let table = MarkMarkPosFormat1::read(test_data::MARKMARKPOSFORMAT1).unwrap();
+    let table = MarkMarkPosFormat1::read(test_data::MARKMARKPOSFORMAT1.into()).unwrap();
     assert_eq!(table.mark_class_count(), 1);
     let mark2array = table.mark2_array().unwrap();
     dbg!(mark2array.offset_data());
@@ -162,7 +162,7 @@ fn contextualposformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-10-contextual-positioning-format-1
 
     let _table =
-        crate::tables::layout::SequenceContextFormat1::read(test_data::CONTEXTUALPOSFORMAT1)
+        crate::tables::layout::SequenceContextFormat1::read(test_data::CONTEXTUALPOSFORMAT1.into())
             .unwrap();
 }
 
@@ -170,7 +170,7 @@ fn contextualposformat1() {
 fn contextualposformat2() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-11-contextual-positioning-format-1
     let _table =
-        crate::tables::layout::SequenceContextFormat2::read(test_data::CONTEXTUALPOSFORMAT2)
+        crate::tables::layout::SequenceContextFormat2::read(test_data::CONTEXTUALPOSFORMAT2.into())
             .unwrap();
 }
 
@@ -179,7 +179,7 @@ fn contextualposformat3() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-12-contextual-positioning-format-3
 
     let _table =
-        crate::tables::layout::SequenceContextFormat3::read(test_data::CONTEXTUALPOSFORMAT3)
+        crate::tables::layout::SequenceContextFormat3::read(test_data::CONTEXTUALPOSFORMAT3.into())
             .unwrap();
 }
 
@@ -187,7 +187,7 @@ fn contextualposformat3() {
 #[test]
 fn sequencelookuprecord() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-13-sequencelookuprecord
-    let record = test_data::SEQUENCELOOKUPRECORD
+    let record = FontData::new(test_data::SEQUENCELOOKUPRECORD)
         .read_ref_at::<crate::tables::layout::SequenceLookupRecord>(0)
         .unwrap();
     assert_eq!(record.sequence_index(), 1);
@@ -218,7 +218,7 @@ fn sequencelookuprecord() {
 fn anchorformat1() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-15-anchorformat1-table
 
-    let table = AnchorFormat1::read(test_data::ANCHORFORMAT1).unwrap();
+    let table = AnchorFormat1::read(test_data::ANCHORFORMAT1.into()).unwrap();
     assert_eq!(table.x_coordinate(), 189);
     assert_eq!(table.y_coordinate(), -103);
 }
@@ -227,7 +227,7 @@ fn anchorformat1() {
 fn anchorformat2() {
     // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-16-anchorformat2-table
 
-    let table = AnchorFormat2::read(test_data::ANCHORFORMAT2).unwrap();
+    let table = AnchorFormat2::read(test_data::ANCHORFORMAT2.into()).unwrap();
     assert_eq!(table.x_coordinate(), 322);
     assert_eq!(table.anchor_point(), 13);
 }

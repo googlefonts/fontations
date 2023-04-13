@@ -21,14 +21,12 @@ pub mod tables;
 #[cfg(feature = "traversal")]
 pub mod traversal;
 
-#[cfg(any(test, feature = "test_data"))]
+#[cfg(any(test, feature = "codegen_test"))]
 pub mod codegen_test;
-#[cfg(any(test, feature = "test_data"))]
-#[path = "tests/test_data.rs"]
-pub mod test_data;
-#[cfg(any(test, feature = "test_data"))]
+
+#[cfg(test)]
 #[path = "tests/test_helpers.rs"]
-pub mod test_helpers;
+mod test_helpers;
 
 pub use font_data::FontData;
 pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};

@@ -81,11 +81,11 @@ mod tests {
 
     #[test]
     fn roundtrip() {
-        use read_fonts::test_data::post as test_data;
+        use font_test_data::post as test_data;
 
-        let table = Post::read(test_data::SIMPLE).unwrap();
+        let table = Post::read(test_data::SIMPLE.into()).unwrap();
         let dumped = crate::dump_table(&table).unwrap();
-        assert_eq!(test_data::SIMPLE.as_ref(), &dumped);
+        assert_eq!(test_data::SIMPLE, &dumped);
     }
 
     #[test]

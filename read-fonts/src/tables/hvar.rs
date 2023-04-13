@@ -45,12 +45,12 @@ impl<'a> Hvar<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{test_data, FontRef, TableProvider};
+    use crate::{FontRef, TableProvider};
     use types::{F2Dot14, Fixed, GlyphId};
 
     #[test]
     fn advance_deltas() {
-        let font = FontRef::new(test_data::test_fonts::VAZIRMATN_VAR).unwrap();
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let hvar = font.hvar().unwrap();
         let gid_a = GlyphId::new(1);
         assert_eq!(

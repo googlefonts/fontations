@@ -352,7 +352,7 @@ impl<'a> GlyphMetrics<'a> {
 mod tests {
     use super::*;
     use crate::MetadataProvider as _;
-    use read_fonts::test_data::test_fonts::{SIMPLE_GLYF, VAZIRMATN_VAR};
+    use font_test_data::{SIMPLE_GLYF, VAZIRMATN_VAR};
     use read_fonts::FontRef;
 
     #[test]

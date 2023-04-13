@@ -4,6 +4,7 @@ members = [
     "read-fonts",
     "font-types",
     "font-codegen",
+    "font-test-data",
     "write-fonts",
     "otexplorer",
     "skrifa",
