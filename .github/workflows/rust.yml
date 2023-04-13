@@ -53,8 +53,17 @@ jobs:
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@stable
 
-      - name: cargo test
-        run: cargo test --all-targets --all-features
+      - name: cargo test font-types
+        run: cargo test -p font-types --all-targest --all-features
+
+      - name: cargo test read-fonts
+        run: cargo test -p read-fonts --all-targest --all-features
+
+      - name: cargo test write-fonts
+        run: cargo test -p write-fonts --all-targest --all-features
+
+      - name: cargo test skrifa
+        run: cargo test -p skrifa --all-targest --all-features
 
   ensure-clean-codegen:
     name: check codegen is up-to-date
