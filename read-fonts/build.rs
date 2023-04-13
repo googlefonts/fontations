@@ -17,9 +17,16 @@ static FILES_TO_MOVE: &[&str] = &[
     "../resources/test_fonts/ttf/simple_glyf.ttf",
     "../resources/test_fonts/ttf/vazirmatn_var_trimmed.ttf",
     "../resources/test_fonts/extracted/vazirmatn_var_trimmed-glyphs.txt",
+    // if you have added a new test file, add it to the list here
 ];
 
 fn main() {
+    println!("cargo:rerun-if-changed=../resources/test_fonts/");
+    //NOTE: IMPORTANT: ATTN: EXTREME DANGER
+    //
+    // Please do not change this code unless you know why it is how it is,
+    // which is explained in more detail here:
+    // <https://github.com/googlefonts/fontations/issues/345#issuecomment-1499624835>
     let out_dir = std::env::var("OUT_DIR").unwrap();
     let out_dir = Path::new(&out_dir);
     for path in FILES_TO_MOVE.iter().map(Path::new) {
