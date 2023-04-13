@@ -53,6 +53,9 @@ jobs:
       - name: install stable toolchain
         uses: dtolnay/rust-toolchain@stable
 
+      # test all packages individually to ensure deterministic resolution
+      # of dependencies for each package
+      
       - name: cargo test font-types
         run: cargo test -p font-types --all-targets --all-features
 
