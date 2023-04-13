@@ -1,6 +1,10 @@
 //! Primary attributes typically used for font classification and selection.
 
-use read_fonts::{types::Tag, TableProvider};
+use read_fonts::{
+    tables::{head::Head, os2::Os2, post::Post},
+    types::Tag,
+    TableProvider,
+};
 
 /// Stretch, style and weight attributes of a font.
 ///
@@ -24,62 +28,58 @@ impl Attributes {
     /// Extracts the stretch, style and weight attributes for the default
     /// instance of the given font.
     pub fn new<'a>(font: &impl TableProvider<'a>) -> Self {
-        let mut stretch = Stretch::default();
-        let mut style = Style::default();
-        let mut weight = Weight::default();
         if let Ok(os2) = font.os2() {
-            // The usWeightClass field is specified with a 1-1000 range, but
-            // we don't clamp here because variable fonts could potentially
-            // have a value outside of that range.
-            // See <https://learn.microsoft.com/en-us/typography/opentype/spec/os2#usweightclass>
-            weight = Weight(os2.us_weight_class() as f32);
-            // Stretch values are discrete and are mapped according to the table of
-            // usWidthClass values:
-            // <https://learn.microsoft.com/en-us/typography/opentype/spec/os2#uswidthclass>
-            // The specified range is 1-9 and Skia simply clamps out of range values. We follow.
-            // See <https://skia.googlesource.com/skia/+/21b7538fe0757d8cda31598bc9e5a6d0b4b54629/include/core/SkFontStyle.h#52>
-            stretch = match os2.us_width_class() {
-                0..=1 => Stretch::ULTRA_CONDENSED,
-                2 => Stretch::EXTRA_CONDENSED,
-                3 => Stretch::CONDENSED,
-                4 => Stretch::SEMI_CONDENSED,
-                5 => Stretch::NORMAL,
-                6 => Stretch::SEMI_EXPANDED,
-                7 => Stretch::EXPANDED,
-                8 => Stretch::EXTRA_EXPANDED,
-                _ => Stretch::ULTRA_EXPANDED,
-            };
-            // Bits 1 and 9 of the fsSelection field signify italic and
-            // oblique, respectively.
-            // See: <https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fsselection>
-            const FS_SELECTION_ITALIC: u16 = 1;
-            const FS_SELECTION_OBLIQUE: u16 = 1 << 9;
-            let fs_selection = os2.fs_selection();
-            if fs_selection & FS_SELECTION_ITALIC != 0 {
-                style = Style::Italic;
-            } else if fs_selection & FS_SELECTION_OBLIQUE != 0 {
-                let angle = font
-                    .post()
-                    .map(|post| post.italic_angle().to_f64() as f32)
-                    .ok();
-                style = Style::Oblique(angle);
-            }
+            // Prefer values from the OS/2 table if it exists. We also use
+            // the post table to extract the angle for oblique styles.
+            Self::from_os2_post(os2, font.post().ok())
         } else if let Ok(head) = font.head() {
-            // If we're missing an OS/2 table, fallback to the macStyle field
-            // of the head table:
-            // <https://learn.microsoft.com/en-us/typography/opentype/spec/head>
-            const MAC_STYLE_BOLD: u16 = 1;
-            const MAC_STYLE_ITALIC: u16 = 1 << 1;
-            let mac_style = head.mac_style();
-            if mac_style & MAC_STYLE_BOLD != 0 {
-                weight = Weight::BOLD;
-            }
-            if mac_style & MAC_STYLE_ITALIC != 0 {
-                style = Style::Italic;
-            }
+            // Otherwise, fall back to the macStyle field of the head table.
+            Self::from_head(head)
+        } else {
+            Self::default()
         }
+    }
+
+    fn from_os2_post(os2: Os2, post: Option<Post>) -> Self {
+        let stretch = Stretch::from_width_class(os2.us_width_class());
+        // Bits 1 and 9 of the fsSelection field signify italic and
+        // oblique, respectively.
+        // See: <https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fsselection>
+        const FS_SELECTION_ITALIC: u16 = 1;
+        const FS_SELECTION_OBLIQUE: u16 = 1 << 9;
+        let fs_selection = os2.fs_selection();
+        let style = if fs_selection & FS_SELECTION_ITALIC != 0 {
+            Style::Italic
+        } else if fs_selection & FS_SELECTION_OBLIQUE != 0 {
+            let angle = post.map(|post| post.italic_angle().to_f64() as f32);
+            Style::Oblique(angle)
+        } else {
+            Style::Normal
+        };
+        // The usWeightClass field is specified with a 1-1000 range, but
+        // we don't clamp here because variable fonts could potentially
+        // have a value outside of that range.
+        // See <https://learn.microsoft.com/en-us/typography/opentype/spec/os2#usweightclass>
+        let weight = Weight(os2.us_weight_class() as f32);
         Self {
             stretch,
+            style,
+            weight,
+        }
+    }
+
+    fn from_head(head: Head) -> Self {
+        const MAC_STYLE_BOLD: u16 = 1;
+        const MAC_STYLE_ITALIC: u16 = 1 << 1;
+        let mac_style = head.mac_style();
+        let style = (mac_style & MAC_STYLE_ITALIC != 0)
+            .then_some(Style::Italic)
+            .unwrap_or_default();
+        let weight = (mac_style & MAC_STYLE_BOLD != 0)
+            .then_some(Weight::BOLD)
+            .unwrap_or_default();
+        Self {
+            stretch: Stretch::default(),
             style,
             weight,
         }
@@ -128,6 +128,26 @@ impl Stretch {
     /// Creates a new stretch attribute with the given ratio.
     pub fn new(ratio: f32) -> Self {
         Self(ratio)
+    }
+
+    /// Creates a new stretch attribute from the
+    /// [usWidthClass](<https://learn.microsoft.com/en-us/typography/opentype/spec/os2#uswidthclass>)
+    /// field of the OS/2 table.
+    fn from_width_class(width_class: u16) -> Self {
+        // The specified range is 1-9 and Skia simply clamps out of range
+        // values. We follow.
+        // See <https://skia.googlesource.com/skia/+/21b7538fe0757d8cda31598bc9e5a6d0b4b54629/include/core/SkFontStyle.h#52>
+        match width_class {
+            0..=1 => Stretch::ULTRA_CONDENSED,
+            2 => Stretch::EXTRA_CONDENSED,
+            3 => Stretch::CONDENSED,
+            4 => Stretch::SEMI_CONDENSED,
+            5 => Stretch::NORMAL,
+            6 => Stretch::SEMI_EXPANDED,
+            7 => Stretch::EXPANDED,
+            8 => Stretch::EXTRA_EXPANDED,
+            _ => Stretch::ULTRA_EXPANDED,
+        }
     }
 
     /// Returns the stretch attribute as a ratio.
