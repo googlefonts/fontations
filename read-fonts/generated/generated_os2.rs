@@ -5,6 +5,357 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+/// OS/2 [selection flags](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fsselection)
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct SelectionFlags {
+    bits: u16,
+}
+
+impl SelectionFlags {
+    /// Bit 0: Font contains italic or oblique glyphs, otherwise they are
+    /// upright.
+    pub const ITALIC: Self = Self { bits: 0x0001 };
+
+    /// Bit 1: Glyphs are underscored.
+    pub const UNDERSCORE: Self = Self { bits: 0x0002 };
+
+    /// Bit 2: Glyphs have their foreground and background reversed.
+    pub const NEGATIVE: Self = Self { bits: 0x0004 };
+
+    /// Bit 3: Outline (hollow) glyphs, otherwise they are solid.
+    pub const OUTLINED: Self = Self { bits: 0x0008 };
+
+    /// Bit 4: Glyphs are overstruck.
+    pub const STRIKEOUT: Self = Self { bits: 0x0010 };
+
+    /// Bit 5: Glyphs are emboldened.
+    pub const BOLD: Self = Self { bits: 0x0020 };
+
+    /// Bit 6: Glyphs are in the standard weight/style for the font.
+    pub const REGULAR: Self = Self { bits: 0x0040 };
+
+    /// Bit 7: If set, it is strongly recommended that applications use
+    /// OS/2.sTypoAscender - OS/2.sTypoDescender + OS/2.sTypoLineGap as
+    /// the default line spacing for this font.
+    pub const USE_TYPO_METRICS: Self = Self { bits: 0x0080 };
+
+    /// Bit 8: The font has 'name' table strings consistent with a
+    /// weight/width/slope family without requiring use of name IDs 21 and 22.
+    pub const WWS: Self = Self { bits: 0x0100 };
+
+    /// Bit 9: Font contains oblique glyphs.
+    pub const OBLIQUE: Self = Self { bits: 0x0200 };
+}
+
+impl SelectionFlags {
+    ///  Returns an empty set of flags.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self { bits: 0 }
+    }
+
+    /// Returns the set containing all flags.
+    #[inline]
+    pub const fn all() -> Self {
+        Self {
+            bits: Self::ITALIC.bits
+                | Self::UNDERSCORE.bits
+                | Self::NEGATIVE.bits
+                | Self::OUTLINED.bits
+                | Self::STRIKEOUT.bits
+                | Self::BOLD.bits
+                | Self::REGULAR.bits
+                | Self::USE_TYPO_METRICS.bits
+                | Self::WWS.bits
+                | Self::OBLIQUE.bits,
+        }
+    }
+
+    /// Returns the raw value of the flags currently stored.
+    #[inline]
+    pub const fn bits(&self) -> u16 {
+        self.bits
+    }
+
+    /// Convert from underlying bit representation, unless that
+    /// representation contains bits that do not correspond to a flag.
+    #[inline]
+    pub const fn from_bits(bits: u16) -> Option<Self> {
+        if (bits & !Self::all().bits()) == 0 {
+            Some(Self { bits })
+        } else {
+            None
+        }
+    }
+
+    /// Convert from underlying bit representation, dropping any bits
+    /// that do not correspond to flags.
+    #[inline]
+    pub const fn from_bits_truncate(bits: u16) -> Self {
+        Self {
+            bits: bits & Self::all().bits,
+        }
+    }
+
+    /// Returns `true` if no flags are currently stored.
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.bits() == Self::empty().bits()
+    }
+
+    /// Returns `true` if there are flags common to both `self` and `other`.
+    #[inline]
+    pub const fn intersects(&self, other: Self) -> bool {
+        !(Self {
+            bits: self.bits & other.bits,
+        })
+        .is_empty()
+    }
+
+    /// Returns `true` if all of the flags in `other` are contained within `self`.
+    #[inline]
+    pub const fn contains(&self, other: Self) -> bool {
+        (self.bits & other.bits) == other.bits
+    }
+
+    /// Inserts the specified flags in-place.
+    #[inline]
+    pub fn insert(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+
+    /// Removes the specified flags in-place.
+    #[inline]
+    pub fn remove(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+
+    /// Toggles the specified flags in-place.
+    #[inline]
+    pub fn toggle(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+
+    /// Returns the intersection between the flags in `self` and
+    /// `other`.
+    ///
+    /// Specifically, the returned set contains only the flags which are
+    /// present in *both* `self` *and* `other`.
+    ///
+    /// This is equivalent to using the `&` operator (e.g.
+    /// [`ops::BitAnd`]), as in `flags & other`.
+    ///
+    /// [`ops::BitAnd`]: https://doc.rust-lang.org/std/ops/trait.BitAnd.html
+    #[inline]
+    #[must_use]
+    pub const fn intersection(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+
+    /// Returns the union of between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags which are
+    /// present in *either* `self` *or* `other`, including any which are
+    /// present in both.
+    ///
+    /// This is equivalent to using the `|` operator (e.g.
+    /// [`ops::BitOr`]), as in `flags | other`.
+    ///
+    /// [`ops::BitOr`]: https://doc.rust-lang.org/std/ops/trait.BitOr.html
+    #[inline]
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+
+    /// Returns the difference between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags present in
+    /// `self`, except for the ones present in `other`.
+    ///
+    /// It is also conceptually equivalent to the "bit-clear" operation:
+    /// `flags & !other` (and this syntax is also supported).
+    ///
+    /// This is equivalent to using the `-` operator (e.g.
+    /// [`ops::Sub`]), as in `flags - other`.
+    ///
+    /// [`ops::Sub`]: https://doc.rust-lang.org/std/ops/trait.Sub.html
+    #[inline]
+    #[must_use]
+    pub const fn difference(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOr for SelectionFlags {
+    type Output = Self;
+
+    /// Returns the union of the two sets of flags.
+    #[inline]
+    fn bitor(self, other: SelectionFlags) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOrAssign for SelectionFlags {
+    /// Adds the set of flags.
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+}
+
+impl std::ops::BitXor for SelectionFlags {
+    type Output = Self;
+
+    /// Returns the left flags, but with all the right flags toggled.
+    #[inline]
+    fn bitxor(self, other: Self) -> Self {
+        Self {
+            bits: self.bits ^ other.bits,
+        }
+    }
+}
+
+impl std::ops::BitXorAssign for SelectionFlags {
+    /// Toggles the set of flags.
+    #[inline]
+    fn bitxor_assign(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+}
+
+impl std::ops::BitAnd for SelectionFlags {
+    type Output = Self;
+
+    /// Returns the intersection between the two sets of flags.
+    #[inline]
+    fn bitand(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+}
+
+impl std::ops::BitAndAssign for SelectionFlags {
+    /// Disables all flags disabled in the set.
+    #[inline]
+    fn bitand_assign(&mut self, other: Self) {
+        self.bits &= other.bits;
+    }
+}
+
+impl std::ops::Sub for SelectionFlags {
+    type Output = Self;
+
+    /// Returns the set difference of the two sets of flags.
+    #[inline]
+    fn sub(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::SubAssign for SelectionFlags {
+    /// Disables all flags enabled in the set.
+    #[inline]
+    fn sub_assign(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+}
+
+impl std::ops::Not for SelectionFlags {
+    type Output = Self;
+
+    /// Returns the complement of this set of flags.
+    #[inline]
+    fn not(self) -> Self {
+        Self { bits: !self.bits } & Self::all()
+    }
+}
+
+impl std::fmt::Debug for SelectionFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let members: &[(&str, Self)] = &[
+            ("ITALIC", Self::ITALIC),
+            ("UNDERSCORE", Self::UNDERSCORE),
+            ("NEGATIVE", Self::NEGATIVE),
+            ("OUTLINED", Self::OUTLINED),
+            ("STRIKEOUT", Self::STRIKEOUT),
+            ("BOLD", Self::BOLD),
+            ("REGULAR", Self::REGULAR),
+            ("USE_TYPO_METRICS", Self::USE_TYPO_METRICS),
+            ("WWS", Self::WWS),
+            ("OBLIQUE", Self::OBLIQUE),
+        ];
+        let mut first = true;
+        for (name, value) in members {
+            if self.contains(*value) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str(name)?;
+            }
+        }
+        if first {
+            f.write_str("(empty)")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Binary for SelectionFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Binary::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::Octal for SelectionFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Octal::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::LowerHex for SelectionFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::LowerHex::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::UpperHex for SelectionFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::UpperHex::fmt(&self.bits, f)
+    }
+}
+
+impl font_types::Scalar for SelectionFlags {
+    type Raw = <u16 as font_types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        self.bits().to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u16>::from_raw(raw);
+        Self::from_bits_truncate(t)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> From<SelectionFlags> for FieldType<'a> {
+    fn from(src: SelectionFlags) -> FieldType<'a> {
+        src.bits().into()
+    }
+}
+
 /// [`OS/2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
@@ -112,7 +463,7 @@ impl Os2Marker {
     }
     fn fs_selection_byte_range(&self) -> Range<usize> {
         let start = self.ach_vend_id_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + SelectionFlags::RAW_BYTE_LEN
     }
     fn us_first_char_index_byte_range(&self) -> Range<usize> {
         let start = self.fs_selection_byte_range().end;
@@ -211,7 +562,7 @@ impl<'a> FontRead<'a> for Os2<'a> {
         cursor.advance::<u32>();
         cursor.advance::<u32>();
         cursor.advance::<Tag>();
-        cursor.advance::<u16>();
+        cursor.advance::<SelectionFlags>();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<i16>();
@@ -445,7 +796,7 @@ impl<'a> Os2<'a> {
     /// [Font selection flags](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fsselection).
     ///
     /// Contains information concerning the nature of the font patterns.
-    pub fn fs_selection(&self) -> u16 {
+    pub fn fs_selection(&self) -> SelectionFlags {
         let range = self.shape.fs_selection_byte_range();
         self.data.read_at(range.start).unwrap()
     }

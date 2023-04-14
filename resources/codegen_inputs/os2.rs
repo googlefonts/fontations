@@ -1,5 +1,34 @@
 #![parse_module(read_fonts::tables::os2)]
 
+/// OS/2 [selection flags](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fsselection)
+flags u16 SelectionFlags {
+    /// Bit 0: Font contains italic or oblique glyphs, otherwise they are
+    /// upright. 
+    ITALIC = 0x0001,
+    /// Bit 1: Glyphs are underscored.
+    UNDERSCORE = 0x0002,
+    /// Bit 2: Glyphs have their foreground and background reversed.
+    NEGATIVE = 0x0004,
+    /// Bit 3: Outline (hollow) glyphs, otherwise they are solid.
+    OUTLINED = 0x0008,
+    /// Bit 4: Glyphs are overstruck.
+    STRIKEOUT = 0x0010,
+    /// Bit 5: Glyphs are emboldened.
+    BOLD = 0x0020,
+    /// Bit 6: Glyphs are in the standard weight/style for the font.
+    REGULAR = 0x0040,
+    /// Bit 7: If set, it is strongly recommended that applications use
+    /// OS/2.sTypoAscender - OS/2.sTypoDescender + OS/2.sTypoLineGap as
+    /// the default line spacing for this font.
+    USE_TYPO_METRICS = 0x0080,
+    /// Bit 8: The font has 'name' table strings consistent with a
+    /// weight/width/slope family without requiring use of name IDs 21 and 22.
+    WWS = 0x0100,
+    /// Bit 9: Font contains oblique glyphs.
+    OBLIQUE = 0x0200,
+    // Bits 10-15 are reserved. Set to 0.
+}
+
 /// [`OS/2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
 #[tag = "OS/2"]
 #[skip_constructor]
@@ -85,7 +114,7 @@ table Os2 {
     /// [Font selection flags](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fsselection).
     ///
     /// Contains information concerning the nature of the font patterns.
-    fs_selection: u16,
+    fs_selection: SelectionFlags,
     /// The minimum Unicode index (character code) in this font.
     us_first_char_index: u16,
     /// The maximum Unicode index (character code) in this font.

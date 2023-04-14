@@ -5,7 +5,340 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// <https://docs.microsoft.com/en-us/typography/opentype/spec/head>
+/// The `macStyle` field for the head table.
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct MacStyle {
+    bits: u16,
+}
+
+impl MacStyle {
+    /// Bit 0: Bold (if set to 1)
+    pub const BOLD: Self = Self { bits: 0x0001 };
+
+    /// Bit 1: Italic (if set to 1)
+    pub const ITALIC: Self = Self { bits: 0x0002 };
+
+    /// Bit 2: Underline (if set to 1)
+    pub const UNDERLINE: Self = Self { bits: 0x0004 };
+
+    /// Bit 3: Outline (if set to 1)
+    pub const OUTLINE: Self = Self { bits: 0x0008 };
+
+    /// Bit 4: Shadow (if set to 1)
+    pub const SHADOW: Self = Self { bits: 0x0010 };
+
+    /// Bit 5: Condensed (if set to 1)
+    pub const CONDENSED: Self = Self { bits: 0x0020 };
+
+    /// Bit 6: Extended (if set to 1)
+    pub const EXTENDED: Self = Self { bits: 0x0040 };
+}
+
+impl MacStyle {
+    ///  Returns an empty set of flags.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self { bits: 0 }
+    }
+
+    /// Returns the set containing all flags.
+    #[inline]
+    pub const fn all() -> Self {
+        Self {
+            bits: Self::BOLD.bits
+                | Self::ITALIC.bits
+                | Self::UNDERLINE.bits
+                | Self::OUTLINE.bits
+                | Self::SHADOW.bits
+                | Self::CONDENSED.bits
+                | Self::EXTENDED.bits,
+        }
+    }
+
+    /// Returns the raw value of the flags currently stored.
+    #[inline]
+    pub const fn bits(&self) -> u16 {
+        self.bits
+    }
+
+    /// Convert from underlying bit representation, unless that
+    /// representation contains bits that do not correspond to a flag.
+    #[inline]
+    pub const fn from_bits(bits: u16) -> Option<Self> {
+        if (bits & !Self::all().bits()) == 0 {
+            Some(Self { bits })
+        } else {
+            None
+        }
+    }
+
+    /// Convert from underlying bit representation, dropping any bits
+    /// that do not correspond to flags.
+    #[inline]
+    pub const fn from_bits_truncate(bits: u16) -> Self {
+        Self {
+            bits: bits & Self::all().bits,
+        }
+    }
+
+    /// Returns `true` if no flags are currently stored.
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.bits() == Self::empty().bits()
+    }
+
+    /// Returns `true` if there are flags common to both `self` and `other`.
+    #[inline]
+    pub const fn intersects(&self, other: Self) -> bool {
+        !(Self {
+            bits: self.bits & other.bits,
+        })
+        .is_empty()
+    }
+
+    /// Returns `true` if all of the flags in `other` are contained within `self`.
+    #[inline]
+    pub const fn contains(&self, other: Self) -> bool {
+        (self.bits & other.bits) == other.bits
+    }
+
+    /// Inserts the specified flags in-place.
+    #[inline]
+    pub fn insert(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+
+    /// Removes the specified flags in-place.
+    #[inline]
+    pub fn remove(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+
+    /// Toggles the specified flags in-place.
+    #[inline]
+    pub fn toggle(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+
+    /// Returns the intersection between the flags in `self` and
+    /// `other`.
+    ///
+    /// Specifically, the returned set contains only the flags which are
+    /// present in *both* `self` *and* `other`.
+    ///
+    /// This is equivalent to using the `&` operator (e.g.
+    /// [`ops::BitAnd`]), as in `flags & other`.
+    ///
+    /// [`ops::BitAnd`]: https://doc.rust-lang.org/std/ops/trait.BitAnd.html
+    #[inline]
+    #[must_use]
+    pub const fn intersection(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+
+    /// Returns the union of between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags which are
+    /// present in *either* `self` *or* `other`, including any which are
+    /// present in both.
+    ///
+    /// This is equivalent to using the `|` operator (e.g.
+    /// [`ops::BitOr`]), as in `flags | other`.
+    ///
+    /// [`ops::BitOr`]: https://doc.rust-lang.org/std/ops/trait.BitOr.html
+    #[inline]
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+
+    /// Returns the difference between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags present in
+    /// `self`, except for the ones present in `other`.
+    ///
+    /// It is also conceptually equivalent to the "bit-clear" operation:
+    /// `flags & !other` (and this syntax is also supported).
+    ///
+    /// This is equivalent to using the `-` operator (e.g.
+    /// [`ops::Sub`]), as in `flags - other`.
+    ///
+    /// [`ops::Sub`]: https://doc.rust-lang.org/std/ops/trait.Sub.html
+    #[inline]
+    #[must_use]
+    pub const fn difference(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOr for MacStyle {
+    type Output = Self;
+
+    /// Returns the union of the two sets of flags.
+    #[inline]
+    fn bitor(self, other: MacStyle) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOrAssign for MacStyle {
+    /// Adds the set of flags.
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+}
+
+impl std::ops::BitXor for MacStyle {
+    type Output = Self;
+
+    /// Returns the left flags, but with all the right flags toggled.
+    #[inline]
+    fn bitxor(self, other: Self) -> Self {
+        Self {
+            bits: self.bits ^ other.bits,
+        }
+    }
+}
+
+impl std::ops::BitXorAssign for MacStyle {
+    /// Toggles the set of flags.
+    #[inline]
+    fn bitxor_assign(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+}
+
+impl std::ops::BitAnd for MacStyle {
+    type Output = Self;
+
+    /// Returns the intersection between the two sets of flags.
+    #[inline]
+    fn bitand(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+}
+
+impl std::ops::BitAndAssign for MacStyle {
+    /// Disables all flags disabled in the set.
+    #[inline]
+    fn bitand_assign(&mut self, other: Self) {
+        self.bits &= other.bits;
+    }
+}
+
+impl std::ops::Sub for MacStyle {
+    type Output = Self;
+
+    /// Returns the set difference of the two sets of flags.
+    #[inline]
+    fn sub(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::SubAssign for MacStyle {
+    /// Disables all flags enabled in the set.
+    #[inline]
+    fn sub_assign(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+}
+
+impl std::ops::Not for MacStyle {
+    type Output = Self;
+
+    /// Returns the complement of this set of flags.
+    #[inline]
+    fn not(self) -> Self {
+        Self { bits: !self.bits } & Self::all()
+    }
+}
+
+impl std::fmt::Debug for MacStyle {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let members: &[(&str, Self)] = &[
+            ("BOLD", Self::BOLD),
+            ("ITALIC", Self::ITALIC),
+            ("UNDERLINE", Self::UNDERLINE),
+            ("OUTLINE", Self::OUTLINE),
+            ("SHADOW", Self::SHADOW),
+            ("CONDENSED", Self::CONDENSED),
+            ("EXTENDED", Self::EXTENDED),
+        ];
+        let mut first = true;
+        for (name, value) in members {
+            if self.contains(*value) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str(name)?;
+            }
+        }
+        if first {
+            f.write_str("(empty)")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Binary for MacStyle {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Binary::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::Octal for MacStyle {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Octal::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::LowerHex for MacStyle {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::LowerHex::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::UpperHex for MacStyle {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::UpperHex::fmt(&self.bits, f)
+    }
+}
+
+impl font_types::Scalar for MacStyle {
+    type Raw = <u16 as font_types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        self.bits().to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u16>::from_raw(raw);
+        Self::from_bits_truncate(t)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> From<MacStyle> for FieldType<'a> {
+    fn from(src: MacStyle) -> FieldType<'a> {
+        src.bits().into()
+    }
+}
+
+/// The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head)
+/// (font header) table.
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
 pub struct HeadMarker {}
@@ -61,7 +394,7 @@ impl HeadMarker {
     }
     fn mac_style_byte_range(&self) -> Range<usize> {
         let start = self.y_max_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + MacStyle::RAW_BYTE_LEN
     }
     fn lowest_rec_ppem_byte_range(&self) -> Range<usize> {
         let start = self.mac_style_byte_range().end;
@@ -101,7 +434,7 @@ impl<'a> FontRead<'a> for Head<'a> {
         cursor.advance::<i16>();
         cursor.advance::<i16>();
         cursor.advance::<i16>();
-        cursor.advance::<u16>();
+        cursor.advance::<MacStyle>();
         cursor.advance::<u16>();
         cursor.advance::<i16>();
         cursor.advance::<i16>();
@@ -110,7 +443,8 @@ impl<'a> FontRead<'a> for Head<'a> {
     }
 }
 
-/// <https://docs.microsoft.com/en-us/typography/opentype/spec/head>
+/// The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head)
+/// (font header) table.
 pub type Head<'a> = TableRef<'a, HeadMarker>;
 
 impl<'a> Head<'a> {
@@ -196,7 +530,7 @@ impl<'a> Head<'a> {
     }
 
     /// see somewhere else
-    pub fn mac_style(&self) -> u16 {
+    pub fn mac_style(&self) -> MacStyle {
         let range = self.shape.mac_style_byte_range();
         self.data.read_at(range.start).unwrap()
     }

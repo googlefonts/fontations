@@ -5,6 +5,14 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+pub use read_fonts::tables::os2::SelectionFlags;
+
+impl FontWrite for SelectionFlags {
+    fn write_into(&self, writer: &mut TableWriter) {
+        writer.write_slice(&self.bits().to_be_bytes())
+    }
+}
+
 /// [`OS/2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
 #[derive(Clone, Debug)]
 pub struct Os2 {
@@ -81,7 +89,7 @@ pub struct Os2 {
     /// [Font selection flags](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fsselection).
     ///
     /// Contains information concerning the nature of the font patterns.
-    pub fs_selection: u16,
+    pub fs_selection: SelectionFlags,
     /// The minimum Unicode index (character code) in this font.
     pub us_first_char_index: u16,
     /// The maximum Unicode index (character code) in this font.

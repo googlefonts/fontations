@@ -1,6 +1,26 @@
 #![parse_module(read_fonts::tables::head)]
 
-/// <https://docs.microsoft.com/en-us/typography/opentype/spec/head>
+/// The `macStyle` field for the head table.
+flags u16 MacStyle {
+    /// Bit 0: Bold (if set to 1)
+    BOLD = 0x0001,
+    /// Bit 1: Italic (if set to 1)
+    ITALIC = 0x0002,
+    /// Bit 2: Underline (if set to 1)
+    UNDERLINE = 0x0004,
+    /// Bit 3: Outline (if set to 1)
+    OUTLINE = 0x0008,
+    /// Bit 4: Shadow (if set to 1)
+    SHADOW = 0x0010,
+    /// Bit 5: Condensed (if set to 1)
+    CONDENSED = 0x0020,
+    /// Bit 6: Extended (if set to 1)
+    EXTENDED = 0x0040,
+    // Bits 7-15: Reserved (set to 0)    
+}
+
+/// The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head) 
+/// (font header) table.
 #[tag = "head"]
 table Head {
     /// Version number of the font header table, set to (1, 0)
@@ -39,7 +59,7 @@ table Head {
     /// Maximum y coordinate across all glyph bounding boxes.
     y_max: i16,
     /// see somewhere else
-    mac_style: u16,
+    mac_style: MacStyle,
     /// Smallest readable size in pixels.
     lowest_rec_ppem: u16,
     /// Deprecated (Set to 2).

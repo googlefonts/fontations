@@ -1,7 +1,11 @@
 //! Primary attributes typically used for font classification and selection.
 
 use read_fonts::{
-    tables::{head::Head, os2::Os2, post::Post},
+    tables::{
+        head::{Head, MacStyle},
+        os2::{Os2, SelectionFlags},
+        post::Post,
+    },
     types::Tag,
     TableProvider,
 };
@@ -45,12 +49,10 @@ impl Attributes {
         // Bits 1 and 9 of the fsSelection field signify italic and
         // oblique, respectively.
         // See: <https://learn.microsoft.com/en-us/typography/opentype/spec/os2#fsselection>
-        const FS_SELECTION_ITALIC: u16 = 1;
-        const FS_SELECTION_OBLIQUE: u16 = 1 << 9;
         let fs_selection = os2.fs_selection();
-        let style = if fs_selection & FS_SELECTION_ITALIC != 0 {
+        let style = if fs_selection.contains(SelectionFlags::ITALIC) {
             Style::Italic
-        } else if fs_selection & FS_SELECTION_OBLIQUE != 0 {
+        } else if fs_selection.contains(SelectionFlags::OBLIQUE) {
             let angle = post.map(|post| post.italic_angle().to_f64() as f32);
             Style::Oblique(angle)
         } else {
@@ -69,13 +71,13 @@ impl Attributes {
     }
 
     fn from_head(head: Head) -> Self {
-        const MAC_STYLE_BOLD: u16 = 1;
-        const MAC_STYLE_ITALIC: u16 = 1 << 1;
         let mac_style = head.mac_style();
-        let style = (mac_style & MAC_STYLE_ITALIC != 0)
+        let style = mac_style
+            .contains(MacStyle::ITALIC)
             .then_some(Style::Italic)
             .unwrap_or_default();
-        let weight = (mac_style & MAC_STYLE_BOLD != 0)
+        let weight = mac_style
+            .contains(MacStyle::BOLD)
             .then_some(Weight::BOLD)
             .unwrap_or_default();
         Self {
