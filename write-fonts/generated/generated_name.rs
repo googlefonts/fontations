@@ -134,7 +134,7 @@ impl FromObjRef<read_fonts::tables::name::LangTagRecord> for LangTagRecord {
 }
 
 ///[Name Records](https://docs.microsoft.com/en-us/typography/opentype/spec/name#name-records)
-#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq)]
 pub struct NameRecord {
     /// Platform ID.
     pub platform_id: u16,

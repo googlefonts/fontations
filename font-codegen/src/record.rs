@@ -43,10 +43,11 @@ pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
         }
     });
     let maybe_impl_read_with_args = (has_read_args).then(|| generate_read_with_args(item));
-    let maybe_extra_traits = item.attrs.extra_traits.as_ref().map(|args| {
-        let traits = &args.traits;
-        quote!( #( #traits, )* )
-    });
+    let maybe_extra_traits = item
+        .attrs
+        .capabilities
+        .as_ref()
+        .map(|cap| cap.extra_traits());
 
     Ok(quote! {
     #( #docs )*
@@ -248,11 +249,8 @@ pub(crate) fn generate_compile_impl(
         }
         }
     });
-    let maybe_extra_traits = attrs.extra_traits.as_ref().map(|args| {
-        let traits = &args.traits;
-        quote!( #( #traits, )* )
-    });
 
+    let maybe_extra_traits = attrs.capabilities.as_ref().map(|cap| cap.extra_traits());
     let constructor_args_raw = fields.iter_constructor_info().collect::<Vec<_>>();
     let constructor_args = constructor_args_raw.iter().map(
         |FieldConstructorInfo {
