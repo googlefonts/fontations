@@ -123,7 +123,7 @@ impl<'a> std::fmt::Debug for TupleVariationHeader<'a> {
 /// The tuple variation store formats reference regions within the font’s
 /// variation space using tuple records. A tuple record identifies a position
 /// in terms of normalized coordinates, which use F2DOT14 values.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct Tuple<'a> {
     /// Coordinate array specifying a position within the font’s variation space.
     ///

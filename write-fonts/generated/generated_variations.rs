@@ -70,7 +70,7 @@ impl<'a> FromTableRef<read_fonts::tables::variations::TupleVariationHeader<'a>>
 /// The tuple variation store formats reference regions within the font’s
 /// variation space using tuple records. A tuple record identifies a position
 /// in terms of normalized coordinates, which use F2DOT14 values.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct Tuple {
     /// Coordinate array specifying a position within the font’s variation space.
     ///

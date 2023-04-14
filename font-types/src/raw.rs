@@ -47,7 +47,7 @@ pub trait ReadScalar: FixedSize {
 }
 
 /// A wrapper around raw big-endian bytes for some type.
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(transparent)]
 pub struct BigEndian<T: Scalar>(pub(crate) T::Raw);
 

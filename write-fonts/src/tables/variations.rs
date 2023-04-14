@@ -366,21 +366,6 @@ impl Tuple {
     }
 }
 
-//FIXME: get that "derive extra traits" stuff merged.
-impl std::hash::Hash for Tuple {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        self.values.hash(state);
-    }
-}
-
-impl std::cmp::PartialEq for Tuple {
-    fn eq(&self, other: &Self) -> bool {
-        self.values == other.values
-    }
-}
-
-impl std::cmp::Eq for Tuple {}
-
 #[cfg(test)]
 mod tests {
     use super::*;
