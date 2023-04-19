@@ -1,5 +1,7 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
+use std::collections::HashSet;
+
 use crate::OtRound;
 use kurbo::{BezPath, Rect, Shape};
 
@@ -105,6 +107,84 @@ impl OtPoint for (i16, i16) {
     }
 }
 
+struct ContourBuilder(Vec<(kurbo::Point, bool)>);
+
+impl ContourBuilder {
+    /// Create a new contour begining at the provided point
+    pub fn new(pt: kurbo::Point) -> Self {
+        Self(vec![(pt, true)])
+    }
+
+    /// The total number of points in this contour
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    /// Add a line segment
+    pub fn line_to(&mut self, pt: kurbo::Point) {
+        self.0.push((pt, true));
+    }
+
+    /// Add a quadratic curve segment
+    pub fn quad_to(&mut self, p0: kurbo::Point, p1: kurbo::Point) {
+        self.0.push((p0, false));
+        self.0.push((p1, true));
+    }
+
+    pub fn first(&self) -> Option<&(kurbo::Point, bool)> {
+        self.0.first()
+    }
+
+    pub fn last(&self) -> Option<&(kurbo::Point, bool)> {
+        self.0.last()
+    }
+
+    pub fn pop(&mut self) -> Option<(kurbo::Point, bool)> {
+        self.0.pop()
+    }
+
+    /// Create a [`Contour`] with points rounded to integer and without implied on-curves
+    pub fn build(self) -> Contour {
+        let points = self.0;
+        let epsilon = 0.01; // should we make it a parameter?
+        let mut drop = HashSet::new();
+        for (i, (p1, on_curve)) in points.iter().enumerate() {
+            if !*on_curve {
+                continue;
+            }
+            let prv = if i > 0 { i - 1 } else { points.len() - 1 };
+            let nxt = if i < points.len() - 1 { i + 1 } else { 0 };
+            let (p0, p0_on_curve) = &points[prv];
+            let (p2, p2_on_curve) = &points[nxt];
+            if *p0_on_curve || *p0_on_curve != *p2_on_curve {
+                continue;
+            }
+            // if the distance between p1 and p0 is approximately the same as the distance
+            // between p2 and p1, then we can drop p1
+            let p1p0 = p1.distance(*p0);
+            let p2p1 = p2.distance(*p1);
+            if (p1p0 - p2p1).abs() < epsilon {
+                drop.insert(i);
+            }
+        }
+
+        Contour(
+            points
+                .into_iter()
+                .enumerate()
+                .filter_map(move |(i, (pt, on))| {
+                    if drop.contains(&i) {
+                        None
+                    } else {
+                        let (x, y) = pt.get();
+                        Some(CurvePoint::new(x, y, on))
+                    }
+                })
+                .collect(),
+        )
+    }
+}
+
 impl Contour {
     /// Create a new contour begining at the provided point
     pub fn new(pt: impl OtPoint) -> Self {
@@ -175,15 +255,15 @@ impl SimpleGlyph {
     /// Context courtesy of @anthrotype.
     pub fn from_kurbo(path: &BezPath) -> Result<Self, BadKurbo> {
         let mut contours = Vec::new();
-        let mut current = None;
+        let mut current: Option<ContourBuilder> = None;
 
         for el in path.elements() {
             match el {
                 kurbo::PathEl::MoveTo(pt) => {
                     if let Some(prev) = current.take() {
-                        contours.push(prev);
+                        contours.push(prev.build());
                     }
-                    current = Some(Contour::new(*pt));
+                    current = Some(ContourBuilder::new(*pt));
                 }
                 kurbo::PathEl::LineTo(pt) => {
                     current.as_mut().ok_or(BadKurbo::MissingMove)?.line_to(*pt)
@@ -205,7 +285,7 @@ impl SimpleGlyph {
             }
         }
 
-        contours.extend(current);
+        contours.extend(current.map(|c| c.build()));
 
         let bbox = path.bounding_box();
         Ok(SimpleGlyph {
