@@ -107,82 +107,212 @@ impl OtPoint for (i16, i16) {
     }
 }
 
-struct ContourBuilder(Vec<(kurbo::Point, bool)>);
+struct InterpolatableContourBuilder(Vec<Vec<(kurbo::Point, bool)>>);
 
-impl ContourBuilder {
-    /// Create a new contour begining at the provided point
-    pub fn new(pt: kurbo::Point) -> Self {
-        Self(vec![(pt, true)])
+impl InterpolatableContourBuilder {
+    /// Create new set of interpolatable contours beginning at the provided points (one per glyph)
+    pub fn new(move_pts: Vec<kurbo::Point>) -> Self {
+        assert!(!move_pts.is_empty());
+        Self(move_pts.into_iter().map(|pt| vec![(pt, true)]).collect())
     }
 
-    /// The total number of points in this contour
+    /// Number of interpolatable contours (one per glyph)
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
-    /// Add a line segment
-    pub fn line_to(&mut self, pt: kurbo::Point) {
-        self.0.push((pt, true));
+    /// Add a line segment to all contours
+    pub fn line_to(&mut self, pts: Vec<kurbo::Point>) {
+        assert_eq!(pts.len(), self.len());
+        for (i, pt) in pts.into_iter().enumerate() {
+            self.0[i].push((pt, true))
+        }
     }
 
-    /// Add a quadratic curve segment
-    pub fn quad_to(&mut self, p0: kurbo::Point, p1: kurbo::Point) {
-        self.0.push((p0, false));
-        self.0.push((p1, true));
+    /// Add a quadratic curve segment to all contours
+    pub fn quad_to(&mut self, p0s: Vec<kurbo::Point>, p1s: Vec<kurbo::Point>) {
+        assert_eq!(p0s.len(), self.len());
+        assert_eq!(p1s.len(), self.len());
+        for (i, (p0, p1)) in p0s.into_iter().zip(p1s.into_iter()).enumerate() {
+            self.0[i].push((p0, false));
+            self.0[i].push((p1, true));
+        }
     }
 
-    pub fn first(&self) -> Option<&(kurbo::Point, bool)> {
-        self.0.first()
+    /// The total number of points in the set of interpolatable contours
+    pub fn num_points(&self) -> usize {
+        let n = self.0[0].len();
+        assert!(self.0.iter().all(|c| c.len() == n));
+        n
     }
 
-    pub fn last(&self) -> Option<&(kurbo::Point, bool)> {
-        self.0.last()
+    /// The first point in each contour (if any)
+    pub fn first_points(&self) -> Vec<Option<&(kurbo::Point, bool)>> {
+        self.0.iter().map(|v| v.first()).collect()
     }
 
-    pub fn pop(&mut self) -> Option<(kurbo::Point, bool)> {
-        self.0.pop()
+    /// The last point in each contour (if any)
+    pub fn last_points(&self) -> Vec<Option<&(kurbo::Point, bool)>> {
+        self.0.iter().map(|v| v.last()).collect()
     }
 
-    /// Create a [`Contour`] with points rounded to integer and without implied on-curves
-    pub fn build(self) -> Contour {
-        let points = self.0;
-        let epsilon = 0.01; // should we make it a parameter?
+    /// Remove the last point from each contour
+    pub fn remove_last_points(&mut self) {
+        self.0.iter_mut().for_each(|c| {
+            c.pop().unwrap();
+        });
+    }
+
+    pub fn build(self) -> Vec<Contour> {
+        // compute the intersection of all implied on-curve point indices
         let mut drop = HashSet::new();
-        for (i, (p1, on_curve)) in points.iter().enumerate() {
-            if !*on_curve {
-                continue;
-            }
-            let prv = if i > 0 { i - 1 } else { points.len() - 1 };
-            let nxt = if i < points.len() - 1 { i + 1 } else { 0 };
-            let (p0, p0_on_curve) = &points[prv];
-            let (p2, p2_on_curve) = &points[nxt];
-            if *p0_on_curve || *p0_on_curve != *p2_on_curve {
-                continue;
-            }
-            // if the distance between p1 and p0 is approximately the same as the distance
-            // between p2 and p1, then we can drop p1
-            let p1p0 = p1.distance(*p0);
-            let p2p1 = p2.distance(*p1);
-            if (p1p0 - p2p1).abs() < epsilon {
-                drop.insert(i);
+        let epsilon = 0.01; // should we make it a parameter?
+        for points in &self.0 {
+            let implied = implied_oncurve_points(points, epsilon);
+            if drop.is_empty() {
+                drop = implied;
+            } else {
+                drop = drop.intersection(&implied).copied().collect();
             }
         }
-
-        Contour(
-            points
-                .into_iter()
-                .enumerate()
-                .filter_map(move |(i, (pt, on))| {
-                    if drop.contains(&i) {
-                        None
-                    } else {
-                        let (x, y) = pt.get();
-                        Some(CurvePoint::new(x, y, on))
-                    }
-                })
-                .collect(),
-        )
+        // drop implied on-curve points before building the contours
+        let mut contours = Vec::with_capacity(self.len());
+        for points in self.0 {
+            contours.push(Contour(
+                points
+                    .into_iter()
+                    .enumerate()
+                    .filter_map(|(i, (pt, on))| {
+                        if drop.contains(&i) {
+                            None
+                        } else {
+                            let (x, y) = pt.get();
+                            Some(CurvePoint::new(x, y, on))
+                        }
+                    })
+                    .collect(),
+            ))
+        }
+        contours
     }
+}
+
+fn implied_oncurve_points(points: &[(kurbo::Point, bool)], epsilon: f64) -> HashSet<usize> {
+    let mut result = HashSet::new();
+    for (i, (p1, on_curve)) in points.iter().enumerate() {
+        if !*on_curve {
+            continue;
+        }
+        let prv = if i > 0 { i - 1 } else { points.len() - 1 };
+        let nxt = if i < points.len() - 1 { i + 1 } else { 0 };
+        let (p0, p0_on_curve) = &points[prv];
+        let (p2, p2_on_curve) = &points[nxt];
+        if *p0_on_curve || *p0_on_curve != *p2_on_curve {
+            continue;
+        }
+        // if the distance between p1 and p0 is approximately the same as the distance
+        // between p2 and p1, then we can drop p1
+        let p1p0 = p1.distance(*p0);
+        let p2p1 = p2.distance(*p1);
+        if (p1p0 - p2p1).abs() < epsilon {
+            result.insert(i);
+        }
+    }
+    result
+}
+
+pub fn simple_glyphs_from_kurbo(paths: &[&BezPath]) -> Result<Vec<SimpleGlyph>, BadKurbo> {
+    // put all the path iters into a vec so we can zip them together
+    let mut path_iters: Vec<_> = paths.iter().map(|path| path.iter()).collect();
+    let mut builders: Vec<InterpolatableContourBuilder> = Vec::new();
+    let mut current: Option<InterpolatableContourBuilder> = None;
+    loop {
+        let elements: Vec<_> = path_iters
+            .iter_mut()
+            .filter_map(|iter| iter.next())
+            .collect();
+        if elements.is_empty() {
+            break; // normal termination, we exhausted all the element iterators
+        }
+
+        let (first_el, other_els) = elements.split_first().unwrap();
+        match first_el {
+            kurbo::PathEl::MoveTo(pt) => {
+                // we have a new contour, flush the current one
+                if let Some(prev) = current.take() {
+                    builders.push(prev);
+                }
+                let mut pts = vec![*pt];
+                for el in other_els {
+                    if let kurbo::PathEl::MoveTo(pt) = el {
+                        pts.push(*pt);
+                    } else {
+                        panic!("expected PathEl::MoveTo, got {:?}", el);
+                    }
+                }
+                current = Some(InterpolatableContourBuilder::new(pts));
+            }
+            kurbo::PathEl::LineTo(pt) => {
+                let mut pts = vec![*pt];
+                for el in other_els {
+                    if let kurbo::PathEl::LineTo(pt) = el {
+                        pts.push(*pt);
+                    } else {
+                        panic!("expected PathEl::LineTo, got {:?}", el);
+                    }
+                }
+                current.as_mut().ok_or(BadKurbo::MissingMove)?.line_to(pts)
+            }
+            kurbo::PathEl::QuadTo(p0, p1) => {
+                let mut p0s = vec![*p0];
+                let mut p1s = vec![*p1];
+                for el in other_els {
+                    if let kurbo::PathEl::QuadTo(p0, p1) = el {
+                        p0s.push(*p0);
+                        p1s.push(*p1);
+                    } else {
+                        panic!("expected PathEl::QuadTo, got {:?}", el);
+                    }
+                }
+                current
+                    .as_mut()
+                    .ok_or(BadKurbo::MissingMove)?
+                    .quad_to(p0s, p1s)
+            }
+            kurbo::PathEl::CurveTo(_, _, _) => return Err(BadKurbo::HasCubic),
+            kurbo::PathEl::ClosePath => {
+                let builder = current.as_mut().ok_or(BadKurbo::MissingMove)?;
+                // remove last point in closed path if has same coords as the move point
+                // matches FontTools handling @ https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/pens/pointPen.py#L321-L323
+                // FontTools has an else case to support UFO glif's choice to not include 'move' for closed paths that does not apply here.
+                if builder.num_points() > 1 && builder.last_points() == builder.first_points() {
+                    builder.remove_last_points();
+                }
+            }
+        }
+    }
+    builders.extend(current);
+
+    let num_glyphs = paths.len();
+    let mut glyph_contours = vec![Vec::new(); num_glyphs];
+    for builder in builders {
+        assert_eq!(builder.len(), num_glyphs);
+        for (i, contour) in builder.build().into_iter().enumerate() {
+            glyph_contours[i].push(contour);
+        }
+    }
+
+    let mut glyphs = Vec::new();
+    for (contours, path) in glyph_contours.into_iter().zip(paths.iter()) {
+        let bbox = path.bounding_box();
+        glyphs.push(SimpleGlyph {
+            bbox: bbox.into(),
+            contours,
+            _instructions: Default::default(),
+        })
+    }
+
+    Ok(glyphs)
 }
 
 impl Contour {
@@ -254,45 +384,7 @@ impl SimpleGlyph {
     ///
     /// Context courtesy of @anthrotype.
     pub fn from_kurbo(path: &BezPath) -> Result<Self, BadKurbo> {
-        let mut contours = Vec::new();
-        let mut current: Option<ContourBuilder> = None;
-
-        for el in path.elements() {
-            match el {
-                kurbo::PathEl::MoveTo(pt) => {
-                    if let Some(prev) = current.take() {
-                        contours.push(prev.build());
-                    }
-                    current = Some(ContourBuilder::new(*pt));
-                }
-                kurbo::PathEl::LineTo(pt) => {
-                    current.as_mut().ok_or(BadKurbo::MissingMove)?.line_to(*pt)
-                }
-                kurbo::PathEl::QuadTo(p0, p1) => current
-                    .as_mut()
-                    .ok_or(BadKurbo::MissingMove)?
-                    .quad_to(*p0, *p1),
-                kurbo::PathEl::CurveTo(_, _, _) => return Err(BadKurbo::HasCubic),
-                kurbo::PathEl::ClosePath => {
-                    let contour = current.as_mut().ok_or(BadKurbo::MissingMove)?;
-                    // remove last point in closed path if has same coords as the move point
-                    // matches FontTools handling @ https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/pens/pointPen.py#L321-L323
-                    // FontTools has an else case to support UFO glif's choice to not include 'move' for closed paths that does not apply here.
-                    if contour.len() > 1 && contour.last() == contour.first() {
-                        contour.pop();
-                    }
-                }
-            }
-        }
-
-        contours.extend(current.map(|c| c.build()));
-
-        let bbox = path.bounding_box();
-        Ok(SimpleGlyph {
-            bbox: bbox.into(),
-            contours,
-            _instructions: Default::default(),
-        })
+        Ok(simple_glyphs_from_kurbo(&[path])?.pop().unwrap())
     }
 
     /// Compute the flags and deltas for this glyph's points.
