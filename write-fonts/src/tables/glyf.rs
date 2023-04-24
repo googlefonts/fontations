@@ -88,6 +88,8 @@ pub enum BadKurbo {
     HasCubic,
     TooSmall,
     MissingMove,
+    UnequalNumberOfElements(Vec<usize>),
+    InconsistentPathElements(usize, Vec<&'static str>),
 }
 
 /// A helper trait for converting other point types to open-type compatible reprs
@@ -111,18 +113,18 @@ struct InterpolatableContourBuilder(Vec<Vec<(kurbo::Point, bool)>>);
 
 impl InterpolatableContourBuilder {
     /// Create new set of interpolatable contours beginning at the provided points (one per glyph)
-    pub fn new(move_pts: Vec<kurbo::Point>) -> Self {
+    fn new(move_pts: Vec<kurbo::Point>) -> Self {
         assert!(!move_pts.is_empty());
         Self(move_pts.into_iter().map(|pt| vec![(pt, true)]).collect())
     }
 
     /// Number of interpolatable contours (one per glyph)
-    pub fn len(&self) -> usize {
+    fn len(&self) -> usize {
         self.0.len()
     }
 
     /// Add a line segment to all contours
-    pub fn line_to(&mut self, pts: Vec<kurbo::Point>) {
+    fn line_to(&mut self, pts: Vec<kurbo::Point>) {
         assert_eq!(pts.len(), self.len());
         for (i, pt) in pts.into_iter().enumerate() {
             self.0[i].push((pt, true))
@@ -130,7 +132,7 @@ impl InterpolatableContourBuilder {
     }
 
     /// Add a quadratic curve segment to all contours
-    pub fn quad_to(&mut self, p0s: Vec<kurbo::Point>, p1s: Vec<kurbo::Point>) {
+    fn quad_to(&mut self, p0s: Vec<kurbo::Point>, p1s: Vec<kurbo::Point>) {
         assert_eq!(p0s.len(), self.len());
         assert_eq!(p1s.len(), self.len());
         for (i, (p0, p1)) in p0s.into_iter().zip(p1s.into_iter()).enumerate() {
@@ -140,30 +142,30 @@ impl InterpolatableContourBuilder {
     }
 
     /// The total number of points in the set of interpolatable contours
-    pub fn num_points(&self) -> usize {
+    fn num_points(&self) -> usize {
         let n = self.0[0].len();
         assert!(self.0.iter().all(|c| c.len() == n));
         n
     }
 
     /// The first point in each contour (if any)
-    pub fn first_points(&self) -> Vec<Option<&(kurbo::Point, bool)>> {
+    fn first_points(&self) -> Vec<Option<&(kurbo::Point, bool)>> {
         self.0.iter().map(|v| v.first()).collect()
     }
 
     /// The last point in each contour (if any)
-    pub fn last_points(&self) -> Vec<Option<&(kurbo::Point, bool)>> {
+    fn last_points(&self) -> Vec<Option<&(kurbo::Point, bool)>> {
         self.0.iter().map(|v| v.last()).collect()
     }
 
     /// Remove the last point from each contour
-    pub fn remove_last_points(&mut self) {
+    fn remove_last_points(&mut self) {
         self.0.iter_mut().for_each(|c| {
             c.pop().unwrap();
         });
     }
 
-    pub fn build(self) -> Vec<Contour> {
+    fn build(self) -> Vec<Contour> {
         // compute the intersection of all implied on-curve point indices
         let mut drop = HashSet::new();
         let epsilon = 0.01; // should we make it a parameter?
@@ -221,57 +223,79 @@ fn implied_oncurve_points(points: &[(kurbo::Point, bool)], epsilon: f64) -> Hash
     result
 }
 
+// The MultiZip is adapted from https://stackoverflow.com/a/55292215
+
+/// Iterator that iterates over a vector of iterators simultaneously
+struct MultiZip<T>(Vec<T>);
+
+impl<T> Iterator for MultiZip<T>
+where
+    T: Iterator,
+{
+    type Item = Vec<T::Item>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.iter_mut().map(Iterator::next).collect()
+    }
+}
+
 pub fn simple_glyphs_from_kurbo(paths: &[&BezPath]) -> Result<Vec<SimpleGlyph>, BadKurbo> {
-    // put all the path iters into a vec so we can zip them together
-    let mut path_iters: Vec<_> = paths.iter().map(|path| path.iter()).collect();
+    // check that all paths have the same number of elements so we can zip them together
+    let num_elements: Vec<usize> = paths.iter().map(|path| path.elements().len()).collect();
+    if num_elements.iter().any(|n| *n != num_elements[0]) {
+        return Err(BadKurbo::UnequalNumberOfElements(num_elements));
+    }
+    let path_iters = MultiZip(paths.iter().map(|path| path.iter()).collect());
     let mut builders: Vec<InterpolatableContourBuilder> = Vec::new();
     let mut current: Option<InterpolatableContourBuilder> = None;
-    loop {
-        let elements: Vec<_> = path_iters
-            .iter_mut()
-            .filter_map(|iter| iter.next())
-            .collect();
-        if elements.is_empty() {
-            break; // normal termination, we exhausted all the element iterators
+    let num_paths = paths.len();
+    for (i, elements) in path_iters.enumerate() {
+        // check that all i-th path elements have the same types
+        let mut el_types: Vec<&str> = Vec::with_capacity(num_paths);
+        el_types.extend(elements.iter().map(|el| match el {
+            kurbo::PathEl::MoveTo(_) => "M",
+            kurbo::PathEl::LineTo(_) => "L",
+            kurbo::PathEl::QuadTo(_, _) => "Q",
+            kurbo::PathEl::CurveTo(_, _, _) => "C",
+            kurbo::PathEl::ClosePath => "Z",
+        }));
+        if el_types.iter().any(|t| *t != el_types[0]) {
+            return Err(BadKurbo::InconsistentPathElements(i, el_types));
         }
 
-        let (first_el, other_els) = elements.split_first().unwrap();
+        // elements is never empty (if it were, MultiZip would have stopped), hence the unwrap
+        let first_el = elements.first().unwrap();
         match first_el {
-            kurbo::PathEl::MoveTo(pt) => {
+            kurbo::PathEl::MoveTo(_) => {
                 // we have a new contour, flush the current one
                 if let Some(prev) = current.take() {
                     builders.push(prev);
                 }
-                let mut pts = vec![*pt];
-                for el in other_els {
-                    if let kurbo::PathEl::MoveTo(pt) = el {
-                        pts.push(*pt);
-                    } else {
-                        panic!("expected PathEl::MoveTo, got {:?}", el);
-                    }
-                }
+                let mut pts = Vec::with_capacity(num_paths);
+                pts.extend(elements.into_iter().map(|el| match el {
+                    kurbo::PathEl::MoveTo(pt) => pt,
+                    _ => unreachable!(),
+                }));
                 current = Some(InterpolatableContourBuilder::new(pts));
             }
-            kurbo::PathEl::LineTo(pt) => {
-                let mut pts = vec![*pt];
-                for el in other_els {
-                    if let kurbo::PathEl::LineTo(pt) = el {
-                        pts.push(*pt);
-                    } else {
-                        panic!("expected PathEl::LineTo, got {:?}", el);
-                    }
-                }
+            kurbo::PathEl::LineTo(_) => {
+                let mut pts = Vec::with_capacity(num_paths);
+                pts.extend(elements.into_iter().map(|el| match el {
+                    kurbo::PathEl::LineTo(pt) => pt,
+                    _ => unreachable!(),
+                }));
                 current.as_mut().ok_or(BadKurbo::MissingMove)?.line_to(pts)
             }
-            kurbo::PathEl::QuadTo(p0, p1) => {
-                let mut p0s = vec![*p0];
-                let mut p1s = vec![*p1];
-                for el in other_els {
-                    if let kurbo::PathEl::QuadTo(p0, p1) = el {
-                        p0s.push(*p0);
-                        p1s.push(*p1);
-                    } else {
-                        panic!("expected PathEl::QuadTo, got {:?}", el);
+            kurbo::PathEl::QuadTo(_, _) => {
+                let mut p0s = Vec::with_capacity(num_paths);
+                let mut p1s = Vec::with_capacity(num_paths);
+                for el in elements {
+                    match el {
+                        kurbo::PathEl::QuadTo(p0, p1) => {
+                            p0s.push(p0);
+                            p1s.push(p1);
+                        }
+                        _ => unreachable!(),
                     }
                 }
                 current
@@ -293,10 +317,9 @@ pub fn simple_glyphs_from_kurbo(paths: &[&BezPath]) -> Result<Vec<SimpleGlyph>, 
     }
     builders.extend(current);
 
-    let num_glyphs = paths.len();
-    let mut glyph_contours = vec![Vec::new(); num_glyphs];
+    let mut glyph_contours = vec![Vec::new(); num_paths];
     for builder in builders {
-        assert_eq!(builder.len(), num_glyphs);
+        assert_eq!(builder.len(), num_paths);
         for (i, contour) in builder.build().into_iter().enumerate() {
             glyph_contours[i].push(contour);
         }
