@@ -91,7 +91,7 @@ fn get_offset_width(font: &FontRef) -> usize {
 fn hex_width(val: u32) -> usize {
     match val {
         0..=0xffff => 4usize,
-        0x10000..=0xffff_ff => 6,
+        0x10000..=0xffffff => 6,
         0x1000000.. => 8,
     }
 }
