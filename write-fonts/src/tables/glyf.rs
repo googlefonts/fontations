@@ -141,7 +141,7 @@ impl InterpolatableContourBuilder {
         }
     }
 
-    /// The total number of points in the set of interpolatable contours
+    /// The total number of points in each interpolatable contour
     fn num_points(&self) -> usize {
         let n = self.0[0].len();
         assert!(self.0.iter().all(|c| c.len() == n));
@@ -165,10 +165,11 @@ impl InterpolatableContourBuilder {
         });
     }
 
+    /// Build the contours, dropping any on-curve points that can be implied in all contours
     fn build(self) -> Vec<Contour> {
         // compute the intersection of all implied on-curve point indices
         let mut drop = HashSet::new();
-        let epsilon = 0.01; // should we make it a parameter?
+        let epsilon = f32::EPSILON as f64; // should we make it a parameter?
         for points in &self.0 {
             let implied = implied_oncurve_points(points, epsilon);
             if drop.is_empty() {
