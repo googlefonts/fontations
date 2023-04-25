@@ -227,13 +227,10 @@ fn implied_oncurve_points(points: &[(kurbo::Point, bool)], epsilon: f64) -> Hash
 // The MultiZip is adapted from https://stackoverflow.com/a/55292215
 
 /// Iterator that iterates over a vector of iterators simultaneously
-struct MultiZip<T>(Vec<T>);
+struct MultiZip<I: Iterator>(Vec<I>);
 
-impl<T> Iterator for MultiZip<T>
-where
-    T: Iterator,
-{
-    type Item = Vec<T::Item>;
+impl<I: Iterator> Iterator for MultiZip<I> {
+    type Item = Vec<I::Item>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.0.iter_mut().map(Iterator::next).collect()
