@@ -244,12 +244,12 @@ pub fn simple_glyphs_from_kurbo(paths: &[&BezPath]) -> Result<Vec<SimpleGlyph>, 
         return Err(BadKurbo::UnequalNumberOfElements(num_elements));
     }
     let path_iters = MultiZip(paths.iter().map(|path| path.iter()).collect());
-    let mut builders: Vec<InterpolatableContourBuilder> = Vec::new();
+    let mut contours: Vec<InterpolatableContourBuilder> = Vec::new();
     let mut current: Option<InterpolatableContourBuilder> = None;
-    let num_paths = paths.len();
+    let num_glyphs = paths.len();
     for (i, elements) in path_iters.enumerate() {
         // check that all i-th path elements have the same types
-        let mut el_types: Vec<&str> = Vec::with_capacity(num_paths);
+        let mut el_types: Vec<&str> = Vec::with_capacity(num_glyphs);
         el_types.extend(elements.iter().map(|el| match el {
             kurbo::PathEl::MoveTo(_) => "M",
             kurbo::PathEl::LineTo(_) => "L",
@@ -267,9 +267,9 @@ pub fn simple_glyphs_from_kurbo(paths: &[&BezPath]) -> Result<Vec<SimpleGlyph>, 
             kurbo::PathEl::MoveTo(_) => {
                 // we have a new contour, flush the current one
                 if let Some(prev) = current.take() {
-                    builders.push(prev);
+                    contours.push(prev);
                 }
-                let mut pts = Vec::with_capacity(num_paths);
+                let mut pts = Vec::with_capacity(num_glyphs);
                 pts.extend(elements.into_iter().map(|el| match el {
                     kurbo::PathEl::MoveTo(pt) => pt,
                     _ => unreachable!(),
@@ -277,7 +277,7 @@ pub fn simple_glyphs_from_kurbo(paths: &[&BezPath]) -> Result<Vec<SimpleGlyph>, 
                 current = Some(InterpolatableContourBuilder::new(pts));
             }
             kurbo::PathEl::LineTo(_) => {
-                let mut pts = Vec::with_capacity(num_paths);
+                let mut pts = Vec::with_capacity(num_glyphs);
                 pts.extend(elements.into_iter().map(|el| match el {
                     kurbo::PathEl::LineTo(pt) => pt,
                     _ => unreachable!(),
@@ -285,8 +285,8 @@ pub fn simple_glyphs_from_kurbo(paths: &[&BezPath]) -> Result<Vec<SimpleGlyph>, 
                 current.as_mut().ok_or(BadKurbo::MissingMove)?.line_to(pts)
             }
             kurbo::PathEl::QuadTo(_, _) => {
-                let mut p0s = Vec::with_capacity(num_paths);
-                let mut p1s = Vec::with_capacity(num_paths);
+                let mut p0s = Vec::with_capacity(num_glyphs);
+                let mut p1s = Vec::with_capacity(num_glyphs);
                 for el in elements {
                     match el {
                         kurbo::PathEl::QuadTo(p0, p1) => {
@@ -303,21 +303,21 @@ pub fn simple_glyphs_from_kurbo(paths: &[&BezPath]) -> Result<Vec<SimpleGlyph>, 
             }
             kurbo::PathEl::CurveTo(_, _, _) => return Err(BadKurbo::HasCubic),
             kurbo::PathEl::ClosePath => {
-                let builder = current.as_mut().ok_or(BadKurbo::MissingMove)?;
+                let contour = current.as_mut().ok_or(BadKurbo::MissingMove)?;
                 // remove last point in closed path if has same coords as the move point
                 // matches FontTools handling @ https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/pens/pointPen.py#L321-L323
                 // FontTools has an else case to support UFO glif's choice to not include 'move' for closed paths that does not apply here.
-                if builder.num_points() > 1 && builder.last_points() == builder.first_points() {
-                    builder.remove_last_points();
+                if contour.num_points() > 1 && contour.last_points() == contour.first_points() {
+                    contour.remove_last_points();
                 }
             }
         }
     }
-    builders.extend(current);
+    contours.extend(current);
 
-    let mut glyph_contours = vec![Vec::new(); num_paths];
-    for builder in builders {
-        assert_eq!(builder.len(), num_paths);
+    let mut glyph_contours = vec![Vec::new(); num_glyphs];
+    for builder in contours {
+        assert_eq!(builder.len(), num_glyphs);
         for (i, contour) in builder.build().into_iter().enumerate() {
             glyph_contours[i].push(contour);
         }
