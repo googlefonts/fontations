@@ -109,13 +109,56 @@ impl OtPoint for (i16, i16) {
     }
 }
 
-struct InterpolatableContourBuilder(Vec<Vec<(kurbo::Point, bool)>>);
+/// Point with an associated on-curve flag.
+///
+/// Similar to read_fonts::tables::glyf::CurvePoint, but uses kurbo::Point directly
+/// thus it does not require (x, y) coordinates to be rounded to integers.
+#[derive(Clone, Copy, Debug, PartialEq)]
+struct ContourPoint {
+    point: kurbo::Point,
+    on_curve: bool,
+}
+
+impl ContourPoint {
+    fn new(point: kurbo::Point, on_curve: bool) -> Self {
+        Self { point, on_curve }
+    }
+
+    fn on_curve(point: kurbo::Point) -> Self {
+        Self::new(point, true)
+    }
+
+    fn off_curve(point: kurbo::Point) -> Self {
+        Self::new(point, false)
+    }
+
+    fn distance(&self, other: &Self) -> f64 {
+        self.point.distance(other.point)
+    }
+}
+
+impl From<ContourPoint> for CurvePoint {
+    fn from(pt: ContourPoint) -> Self {
+        let (x, y) = pt.point.get();
+        CurvePoint::new(x, y, pt.on_curve)
+    }
+}
+
+/// A helper struct for building interpolatable contours
+///
+/// Holds a vec of contour, one contour per glyph.
+struct InterpolatableContourBuilder(Vec<Vec<ContourPoint>>);
 
 impl InterpolatableContourBuilder {
-    /// Create new set of interpolatable contours beginning at the provided points (one per glyph)
+    /// Create new set of interpolatable contours beginning at the provided points
     fn new(move_pts: Vec<kurbo::Point>) -> Self {
         assert!(!move_pts.is_empty());
-        Self(move_pts.into_iter().map(|pt| vec![(pt, true)]).collect())
+        Self(
+            move_pts
+                .into_iter()
+                .map(|pt| vec![ContourPoint::on_curve(pt)])
+                .collect(),
+        )
     }
 
     /// Number of interpolatable contours (one per glyph)
@@ -127,7 +170,7 @@ impl InterpolatableContourBuilder {
     fn line_to(&mut self, pts: Vec<kurbo::Point>) {
         assert_eq!(pts.len(), self.len());
         for (i, pt) in pts.into_iter().enumerate() {
-            self.0[i].push((pt, true))
+            self.0[i].push(ContourPoint::on_curve(pt));
         }
     }
 
@@ -136,8 +179,8 @@ impl InterpolatableContourBuilder {
         assert_eq!(p0s.len(), self.len());
         assert_eq!(p1s.len(), self.len());
         for (i, (p0, p1)) in p0s.into_iter().zip(p1s.into_iter()).enumerate() {
-            self.0[i].push((p0, false));
-            self.0[i].push((p1, true));
+            self.0[i].push(ContourPoint::off_curve(p0));
+            self.0[i].push(ContourPoint::on_curve(p1));
         }
     }
 
@@ -148,49 +191,54 @@ impl InterpolatableContourBuilder {
         n
     }
 
-    /// The first point in each contour (if any)
-    fn first_points(&self) -> Vec<Option<&(kurbo::Point, bool)>> {
-        self.0.iter().map(|v| v.first()).collect()
+    /// The first point in each contour
+    fn first(&self) -> Vec<&ContourPoint> {
+        self.0.iter().map(|v| v.first().unwrap()).collect()
     }
 
-    /// The last point in each contour (if any)
-    fn last_points(&self) -> Vec<Option<&(kurbo::Point, bool)>> {
-        self.0.iter().map(|v| v.last()).collect()
+    /// The last point in each contour
+    fn last(&self) -> Vec<&ContourPoint> {
+        self.0.iter().map(|v| v.last().unwrap()).collect()
     }
 
     /// Remove the last point from each contour
-    fn remove_last_points(&mut self) {
+    fn remove_last(&mut self) {
         self.0.iter_mut().for_each(|c| {
             c.pop().unwrap();
         });
     }
 
-    /// Build the contours, dropping any on-curve points that can be implied in all contours
-    fn build(self) -> Vec<Contour> {
-        // compute the intersection of all implied on-curve point indices
-        let mut drop = HashSet::new();
+    /// Compute the intersection of all implied on-curve points and return their indices
+    fn impliable_oncurve_points(&self) -> HashSet<usize> {
         let epsilon = f32::EPSILON as f64; // should we make it a parameter?
-        for points in &self.0 {
-            let implied = implied_oncurve_points(points, epsilon);
-            if drop.is_empty() {
-                drop = implied;
-            } else {
-                drop = drop.intersection(&implied).copied().collect();
+        let mut result = HashSet::new();
+        if let Some((first, others)) = self.0.split_first() {
+            result = impliable_oncurve_points(first, epsilon);
+            for points in others {
+                result = result
+                    .intersection(&impliable_oncurve_points(points, epsilon))
+                    .copied()
+                    .collect();
             }
         }
-        // drop implied on-curve points before building the contours
+        result
+    }
+
+    /// Build the contours, dropping any on-curve points that can be implied in all contours
+    fn build(self) -> Vec<Contour> {
+        let drop = self.impliable_oncurve_points();
+        // Omit implied on-curve points when building the contours
         let mut contours = Vec::with_capacity(self.len());
         for points in self.0 {
             contours.push(Contour(
                 points
                     .into_iter()
                     .enumerate()
-                    .filter_map(|(i, (pt, on))| {
+                    .filter_map(|(i, pt)| {
                         if drop.contains(&i) {
                             None
                         } else {
-                            let (x, y) = pt.get();
-                            Some(CurvePoint::new(x, y, on))
+                            Some(CurvePoint::from(pt))
                         }
                     })
                     .collect(),
@@ -200,24 +248,25 @@ impl InterpolatableContourBuilder {
     }
 }
 
-fn implied_oncurve_points(points: &[(kurbo::Point, bool)], epsilon: f64) -> HashSet<usize> {
+/// Indices of on-curve points that are at equal distance between two off-curve points
+fn impliable_oncurve_points(points: &[ContourPoint], tolerance: f64) -> HashSet<usize> {
     let mut result = HashSet::new();
-    for (i, (p1, on_curve)) in points.iter().enumerate() {
-        if !*on_curve {
+    for (i, p1) in points.iter().enumerate() {
+        if !p1.on_curve {
             continue;
         }
         let prv = if i > 0 { i - 1 } else { points.len() - 1 };
         let nxt = if i < points.len() - 1 { i + 1 } else { 0 };
-        let (p0, p0_on_curve) = &points[prv];
-        let (p2, p2_on_curve) = &points[nxt];
-        if *p0_on_curve || *p0_on_curve != *p2_on_curve {
+        let p0 = &points[prv];
+        let p2 = &points[nxt];
+        if p0.on_curve || p0.on_curve != p2.on_curve {
             continue;
         }
         // if the distance between p1 and p0 is approximately the same as the distance
         // between p2 and p1, then we can drop p1
-        let p1p0 = p1.distance(*p0);
-        let p2p1 = p2.distance(*p1);
-        if (p1p0 - p2p1).abs() < epsilon {
+        let p1p0 = p1.distance(p0);
+        let p2p1 = p2.distance(p1);
+        if (p1p0 - p2p1).abs() < tolerance {
             result.insert(i);
         }
     }
@@ -307,8 +356,8 @@ pub fn simple_glyphs_from_kurbo(paths: &[&BezPath]) -> Result<Vec<SimpleGlyph>, 
                 // remove last point in closed path if has same coords as the move point
                 // matches FontTools handling @ https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/pens/pointPen.py#L321-L323
                 // FontTools has an else case to support UFO glif's choice to not include 'move' for closed paths that does not apply here.
-                if contour.num_points() > 1 && contour.last_points() == contour.first_points() {
-                    contour.remove_last_points();
+                if contour.num_points() > 1 && contour.last() == contour.first() {
+                    contour.remove_last();
                 }
             }
         }
