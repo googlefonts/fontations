@@ -147,6 +147,7 @@ impl From<ContourPoint> for CurvePoint {
 /// A helper struct for building interpolatable contours
 ///
 /// Holds a vec of contour, one contour per glyph.
+#[derive(Clone, Debug, PartialEq)]
 struct InterpolatableContourBuilder(Vec<Vec<ContourPoint>>);
 
 impl InterpolatableContourBuilder {
