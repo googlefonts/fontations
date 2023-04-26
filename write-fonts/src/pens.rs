@@ -419,7 +419,7 @@ impl Pen for ControlBoundsPen {
 #[cfg(test)]
 mod tests {
     use font_types::{Pen, PenCommand};
-    use kurbo::{Affine, BezPath, Rect, Shape};
+    use kurbo::{Affine, BezPath, PathEl, Rect, Shape};
 
     use super::{
         write_to_pen, BezPathPen, ControlBoundsPen, RecordingPen, ReverseContourPen, TransformPen,
@@ -547,5 +547,29 @@ mod tests {
 
         assert_eq!(Some(Rect::new(50.0, 50.0, 350.0, 300.0)), pen.bounds());
         assert!(pen.bounds().unwrap().area() > bez.bounding_box().area());
+    }
+
+    #[test]
+    fn test_reverse_curves() {
+        let contour = BezPath::from_vec(vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::CurveTo((1.0, 1.0).into(), (2.0, 2.0).into(), (3.0, 3.0).into()),
+            PathEl::CurveTo((4.0, 4.0).into(), (5.0, 5.0).into(), (0.0, 0.0).into()),
+            PathEl::ClosePath,
+        ]);
+        let mut bez_pen = BezPathPen::new();
+        let mut rev_pen = ReverseContourPen::new(&mut bez_pen);
+        write_to_pen(&contour, &mut rev_pen);
+        rev_pen.flush().unwrap();
+        let reversed = bez_pen.into_inner();
+        assert_eq!(
+            vec![
+                PathEl::MoveTo((0.0, 0.0).into()),
+                PathEl::CurveTo((5.0, 5.0).into(), (4.0, 4.0).into(), (3.0, 3.0).into()),
+                PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
+                PathEl::ClosePath,
+            ],
+            reversed.iter().collect::<Vec<_>>()
+        );
     }
 }
