@@ -54,6 +54,7 @@ impl Space {
     /// The first space used for assignment to specific subgraphs.
     const INIT: Space = Space(2);
 
+    #[cfg(test)]
     const fn is_custom(self) -> bool {
         self.0 >= Space::INIT.0
     }
@@ -223,7 +224,7 @@ impl Graph {
             return true;
         }
 
-        self.assign_32bit_spaces();
+        self.assign_spaces_hb();
         self.sort_shortest_distance();
 
         let n_overflows = self.find_overflows().len();
@@ -413,123 +414,200 @@ impl Graph {
         self.distance_invalid = false;
     }
 
-    /// Returns `true` if there were any 32bit subgraphs
-    fn assign_32bit_spaces(&mut self) -> bool {
+    /// isolate and assign spaces to subgraphs reachable via long offsets.
+    ///
+    /// This finds all subgraphs that are reachable via long offsets, and
+    /// isolates them (ensuring they are *only* reachable via long offsets),
+    /// assigning each unique space an identifier.
+    ///
+    /// Each space may have multiple roots; this works by finding the connected
+    /// components from each root (counting only nodes reachable via long offsets).
+    ///
+    /// This is a close port of the [assign_spaces] method used by the HarfBuzz
+    /// repacker.
+    ///
+    /// [assign_spaces]: https://github.com/harfbuzz/harfbuzz/blob/main/src/graph/graph.hh#L624
+    fn assign_spaces_hb(&mut self) -> bool {
         self.update_parents();
-        // find all the nodes that have incoming 32-bit edges
-        let mut roots = HashSet::new();
-        for (id, node) in &self.nodes {
-            if node
-                .parents
-                .iter()
-                .any(|(_, len)| *len == OffsetLen::Offset32)
-            {
-                roots.insert(*id);
-            }
-        }
+        let (visited, mut roots) = self.find_space_roots_hb();
 
         if roots.is_empty() {
             return false;
         }
 
-        // assign all nodes reachable from 16/24 bit edges to space 0.
-        self.assign_space_0();
+        log::debug!("found {} space roots to isolate", roots.len());
 
-        while !roots.is_empty() {
-            let root = *roots.iter().next().unwrap();
-            self.isolate_and_assign_space(root);
-            roots.remove(&root);
+        // we want to *invert* the visited set, but we don't have a fancy hb_set_t
+        let mut visited = self
+            .order
+            .iter()
+            .copied()
+            .collect::<HashSet<_>>()
+            .difference(&visited)
+            .copied()
+            .collect::<HashSet<_>>();
+
+        let mut connected_roots = HashSet::new(); // we can reuse this
+        while let Some(next) = roots.iter().copied().next() {
+            connected_roots.clear();
+            self.find_connected_nodes_hb(next, &mut roots, &mut visited, &mut connected_roots);
+            self.isolate_subgraph_hb(&mut connected_roots);
+
+            self.distance_invalid = true;
+            self.positions_invalid = true;
         }
-        self.update_parents();
         true
     }
 
-    /// Isolate the subgraph at root, deduplicating any nodes reachable from
-    /// 16-bit space. Assign the subgraph to a new space.
-    fn isolate_and_assign_space(&mut self, root: ObjectId) {
-        // - if root is already in a space, it means we're part of an existing
-        // subgraph, and can return.
-        if self.nodes.get(&root).unwrap().space.is_custom() {
+    /// Find the root nodes of 32 (and later 24?)-bit space.
+    ///
+    /// These are the set of nodes that have incoming long offsets, for which
+    /// no ancestor has an incoming long offset.
+    ///
+    /// Ported from the [find_space_roots] method in HarfBuzz.
+    ///
+    /// [find_space_roots]: https://github.com/harfbuzz/harfbuzz/blob/main/src/graph/graph.hh#L508
+    fn find_space_roots_hb(&self) -> (HashSet<ObjectId>, HashSet<ObjectId>) {
+        let mut visited = HashSet::new();
+        let mut roots = HashSet::new();
+
+        let mut queue = VecDeque::from([self.root]);
+
+        while let Some(id) = queue.pop_front() {
+            if visited.contains(&id) {
+                continue;
+            }
+            let obj = self.objects.get(&id).unwrap();
+            for link in &obj.offsets {
+                //FIXME: harfbuzz has a bunch of logic here for 24-bit offsets
+                if link.len == OffsetLen::Offset32 {
+                    roots.insert(link.object);
+                    self.find_subgraph_hb(link.object, &mut visited);
+                } else {
+                    queue.push_back(link.object);
+                }
+            }
+        }
+        (visited, roots)
+    }
+
+    fn find_subgraph_hb(&self, idx: ObjectId, nodes: &mut HashSet<ObjectId>) {
+        if !nodes.insert(idx) {
             return;
         }
+        for link in self.objects.get(&idx).unwrap().offsets.iter() {
+            self.find_subgraph_hb(link.object, nodes);
+        }
+    }
 
-        #[derive(Debug, Clone)]
-        enum Op {
-            Reprioritize(Space),
-            Duplicate(ObjectId),
-            JustChill,
+    fn find_subgraph_map_hb(&self, idx: ObjectId, graph: &mut HashMap<ObjectId, usize>) {
+        for link in &self.objects[&idx].offsets {
+            *graph.entry(link.object).or_default() += 1;
+            self.find_subgraph_map_hb(link.object, graph);
+        }
+    }
+    /// find all of the members of 'targets' that are reachable, skipping nodes in `visited`.
+    fn find_connected_nodes_hb(
+        &self,
+        id: ObjectId,
+        targets: &mut HashSet<ObjectId>,
+        visited: &mut HashSet<ObjectId>,
+        connected: &mut HashSet<ObjectId>,
+    ) {
+        if !visited.insert(id) {
+            return;
+        }
+        if targets.remove(&id) {
+            connected.insert(id);
+        }
+        // recurse to all children and parents
+        for (obj, _) in &self.nodes.get(&id).unwrap().parents {
+            self.find_connected_nodes_hb(*obj, targets, visited, connected);
+        }
+        for link in &self.objects.get(&id).unwrap().offsets {
+            self.find_connected_nodes_hb(link.object, targets, visited, connected);
+        }
+    }
+
+    /// Isolate the subgraph with the provided roots, moving it to a new space.
+    ///
+    /// This duplicates any nodes in this subgraph that are shared with
+    /// any other nodes in the graph.
+    ///
+    /// Based on the [isolate_subgraph] method in HarfBuzz.
+    ///
+    /// [isolate_subgraph]: https://github.com/harfbuzz/harfbuzz/blob/main/src/graph/graph.hh#L508
+    fn isolate_subgraph_hb(&mut self, roots: &mut HashSet<ObjectId>) -> bool {
+        self.update_parents();
+        log::debug!("isolating subgraph with {} roots", roots.len());
+
+        // map of object id -> number of incoming edges
+        let mut subgraph = HashMap::new();
+
+        for root in roots.iter() {
+            // for the roots, we set the edge count to the number of long
+            // incoming offsets; if this differs from the total number off
+            // incoming offsets it means we need to dupe the root as well.
+            let inbound_wide_offsets = self.nodes[root]
+                .parents
+                .iter()
+                .filter(|(_, len)| !matches!(len, OffsetLen::Offset16))
+                .count();
+            subgraph.insert(*root, inbound_wide_offsets);
+            self.find_subgraph_map_hb(*root, &mut subgraph);
         }
 
         let next_space = self.next_space();
-        let mut stack = VecDeque::from([root]);
-        let mut duplicated = HashMap::new();
-
-        // - do a directed traversal from root
-        // - if we encounter a node in space 0, duplicate that node (subgraph?)
-        // - if we encounter a node in *another* space:
-        //    - we want it ordered after us, somehow :thinking face:
-        //    - maybe we reassign all nodes in that space to space_next()?
-        while let Some(next) = stack.pop_front() {
-            // we do this with an enum so we can release the borrow
-            let op = match self.nodes.get_mut(&next) {
-                Some(node) => match node.space {
-                    // if this node is already in a space, we want to force that
-                    // space to be after the current one.
-                    Space::SHORT_REACHABLE => Op::Duplicate(next),
-                    Space::REACHABLE => Op::JustChill,
-                    prev_space if prev_space == next_space => continue,
-                    prev_space => Op::Reprioritize(prev_space),
-                },
-                None => unreachable!("ahem"),
-            };
-
-            let next = match op {
-                Op::Reprioritize(old_space) => {
-                    self.reprioritize_space(old_space);
-                    // no need to recurse
-                    continue;
-                }
-                Op::Duplicate(obj) => match duplicated.get(&obj) {
-                    // if we've already duplicated this node we can continue
-                    Some(_id) => continue,
-                    None => {
-                        let new_obj = self.duplicate_subgraph(obj, &mut duplicated);
-                        duplicated.insert(obj, new_obj);
-                        new_obj
-                    }
-                },
-                Op::JustChill => next,
-            };
-
-            self.nodes.get_mut(&next).unwrap().space = next_space;
-            for link in self
-                .objects
-                .get(&next)
-                .iter()
-                .flat_map(|obj| obj.offsets.iter())
-            {
-                stack.push_back(link.object);
+        let mut id_map = HashMap::new();
+        //let mut made_changes = false;
+        for (id, incoming_edges_in_subgraph) in &subgraph {
+            // there are edges to this object from outside the subgraph; dupe it.
+            if *incoming_edges_in_subgraph < self.nodes[id].parents.len() {
+                self.duplicate_subgraph(*id, &mut id_map, next_space);
             }
         }
 
-        // if we did any duplicates, do another traversal to update links
-        if !duplicated.is_empty() {
-            stack.push_back(root);
-            while let Some(next) = stack.pop_front() {
-                for link in self
-                    .objects
-                    .get_mut(&next)
-                    .iter_mut()
-                    .flat_map(|obj| obj.offsets.iter_mut())
-                {
-                    if let Some(new_id) = duplicated.get(&link.object) {
-                        link.object = *new_id;
-                    } else {
-                        stack.push_back(link.object);
+        // now remap any links in the subgraph from nodes that were not
+        // themselves duplicated (since they were not reachable from outside)
+        for id in subgraph.keys().filter(|k| !id_map.contains_key(k)) {
+            self.nodes.get_mut(id).unwrap().space = next_space;
+            let obj = self.objects.get_mut(id).unwrap();
+            for link in &mut obj.offsets {
+                if let Some(new_id) = id_map.get(&link.object) {
+                    link.object = *new_id;
+                }
+            }
+        }
+
+        if id_map.is_empty() {
+            return false;
+        }
+
+        // now everything but the links to the roots roots has been remapped;
+        // remap those, if needed
+        for root in roots.iter() {
+            let Some(new_id) = id_map.get(root) else { continue };
+            self.parents_invalid = true;
+            self.positions_invalid = true;
+            for (parent_id, len) in &self.nodes[new_id].parents {
+                if !matches!(len, OffsetLen::Offset16) {
+                    for link in &mut self.objects.get_mut(parent_id).unwrap().offsets {
+                        if link.object == *root {
+                            link.object = *new_id;
+                        }
                     }
                 }
             }
         }
+
+        // if any roots changed, we also rename them in the input set:
+        for (old, new) in id_map {
+            if roots.remove(&old) {
+                roots.insert(new);
+            }
+        }
+
+        true
     }
 
     fn next_space(&mut self) -> Space {
@@ -537,20 +615,11 @@ impl Graph {
         self.next_space
     }
 
-    /// moves all nodes in the 'old' space to the next space.
-    fn reprioritize_space(&mut self, old: Space) {
-        let space = self.next_space();
-        for node in self.nodes.values_mut() {
-            if node.space == old {
-                node.space = space;
-            }
-        }
-    }
-
     fn duplicate_subgraph(
         &mut self,
         root: ObjectId,
         dupes: &mut HashMap<ObjectId, ObjectId>,
+        space: Space,
     ) -> ObjectId {
         if let Some(existing) = dupes.get(&root) {
             return *existing;
@@ -558,12 +627,15 @@ impl Graph {
         self.parents_invalid = true;
         self.distance_invalid = true;
         let new_root = ObjectId::next();
+        log::debug!("duplicating node {root:?} to {new_root:?}");
+
         let mut obj = self.objects.get(&root).cloned().unwrap();
-        let node = Node::new(obj.bytes.len() as u32);
+        let mut node = Node::new(obj.bytes.len() as u32);
+        node.space = space;
 
         for link in &mut obj.offsets {
             // recursively duplicate the object
-            link.object = self.duplicate_subgraph(link.object, dupes);
+            link.object = self.duplicate_subgraph(link.object, dupes, space);
         }
         dupes.insert(root, new_root);
         self.objects.insert(new_root, obj);
@@ -760,6 +832,7 @@ mod tests {
 
     #[test]
     fn duplicate_subgraph() {
+        let _ = env_logger::builder().is_test(true).try_init();
         let ids = make_ids::<10>();
         let sizes = [10; 10];
 
@@ -769,7 +842,7 @@ mod tests {
         //
         //     before          after
         //      0                 0
-        //     / \            ┌───┘\
+        //     / ⑊            ┌───┘⑊
         //    1   2 ---+      1     2 ---+
         //    |\ / \   |     / \   / \   |
         //    | 3   4  5    9   3 3'  4  5
@@ -800,8 +873,7 @@ mod tests {
         let two = graph.find_descendents(ids[2]);
         assert_eq!(one.intersection(&two).count(), 3);
 
-        graph.sort_kahn();
-        graph.assign_32bit_spaces();
+        graph.assign_spaces_hb();
 
         // 3, 6, and 9 should be duplicated
         assert_eq!(graph.nodes.len(), 13);
@@ -810,12 +882,58 @@ mod tests {
         assert_eq!(one.intersection(&two).count(), 0);
 
         for id in &one {
-            assert_eq!(graph.nodes.get(id).unwrap().space, Space::SHORT_REACHABLE);
+            assert!(!graph.nodes.get(id).unwrap().space.is_custom());
         }
 
         for id in &two {
             assert!(graph.nodes.get(id).unwrap().space.is_custom());
         }
+    }
+
+    #[test]
+    fn two_roots_one_space() {
+        // If a subgraph is reachable from multiple long offsets, they are all
+        // initially placed in the same space.
+        //
+        //  ┌──0═══╗    ┌──0═══╗
+        //  │  ║   ║    │  ║   ║
+        //  │  ║   ║    │  ║   ║
+        //  1  2   3    1  2   3
+        //  │   \ /     │   \ /
+        //  └────4      4    4'
+        //       │      │    │
+        //       5      5    5'
+
+        let ids = make_ids::<6>();
+        let sizes = [10; 6];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset16)
+            .add_link(ids[0], ids[2], OffsetLen::Offset32)
+            .add_link(ids[0], ids[3], OffsetLen::Offset32)
+            .add_link(ids[1], ids[4], OffsetLen::Offset16)
+            .add_link(ids[2], ids[4], OffsetLen::Offset16)
+            .add_link(ids[3], ids[4], OffsetLen::Offset16)
+            .add_link(ids[4], ids[5], OffsetLen::Offset16)
+            .build();
+
+        assert_eq!(graph.nodes.len(), 6);
+        graph.assign_spaces_hb();
+        assert_eq!(graph.nodes.len(), 8);
+        let one = graph.find_descendents(ids[1]);
+        assert!(one.iter().all(|id| !graph.nodes[id].space.is_custom()));
+
+        let two = graph.find_descendents(ids[2]);
+        let three = graph.find_descendents(ids[3]);
+        assert_eq!(two.intersection(&three).count(), 2);
+        assert_eq!(two.union(&three).count(), 4);
+
+        assert_eq!(
+            two.union(&three)
+                .map(|id| graph.nodes[id].space)
+                .collect::<HashSet<_>>()
+                .len(),
+            1
+        );
     }
 
     #[test]
@@ -837,8 +955,32 @@ mod tests {
             .add_link(ids[0], ids[2], OffsetLen::Offset32)
             .add_link(ids[1], ids[2], OffsetLen::Offset16)
             .build();
-        graph.assign_32bit_spaces();
+        graph.assign_spaces_hb();
         assert_eq!(graph.nodes.len(), 4);
+    }
+
+    #[test]
+    fn assign_space_even_without_any_duplication() {
+        // the subgraph of the long offset (0->2) is already isolated, and
+        // so requires no duplication; but we should still correctly assign a
+        // space to the children.
+        //
+        //     0
+        //    / ⑊
+        //   1   2
+        //      /
+        //     3
+
+        let ids = make_ids::<4>();
+        let sizes = [10; 4];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset16)
+            .add_link(ids[0], ids[2], OffsetLen::Offset32)
+            .add_link(ids[2], ids[3], OffsetLen::Offset16)
+            .build();
+        graph.assign_spaces_hb();
+        let two = graph.find_descendents(ids[2]);
+        assert!(two.iter().all(|id| graph.nodes[id].space.is_custom()));
     }
 
     #[test]
@@ -856,14 +998,17 @@ mod tests {
 
     #[test]
     fn assign_32bit_spaces_if_needed() {
-        let ids = make_ids::<4>();
-        let sizes = [10, u16::MAX as usize, 10, 10];
+        let ids = make_ids::<3>();
+        let sizes = [10, u16::MAX as usize, 10];
         let mut graph = TestGraphBuilder::new(ids, sizes)
             .add_link(ids[0], ids[1], OffsetLen::Offset32)
             .add_link(ids[0], ids[2], OffsetLen::Offset16)
             .add_link(ids[1], ids[2], OffsetLen::Offset16)
             .build();
+        graph.basic_sort();
+        // this will overflow unless the 32-bit offset is put last.
+        assert!(graph.has_overflows());
         graph.pack_objects();
-        assert!(graph.find_overflows().is_empty());
+        assert!(!graph.has_overflows());
     }
 }
