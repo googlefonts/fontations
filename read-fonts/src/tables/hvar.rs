@@ -61,12 +61,12 @@ mod tests {
         assert_eq!(
             hvar.advance_width_delta(gid_a, &[F2Dot14::from_f32(-0.75)])
                 .unwrap(),
-            Fixed::from_f64(-84.75)
+            Fixed::from_f64(-85.0)
         );
         assert_eq!(
             hvar.advance_width_delta(gid_a, &[F2Dot14::from_f32(-0.5)])
                 .unwrap(),
-            Fixed::from_f64(-56.5)
+            Fixed::from_f64(-56.0)
         );
         assert_eq!(
             hvar.advance_width_delta(gid_a, &[F2Dot14::from_f32(0.0)])
@@ -76,7 +76,7 @@ mod tests {
         assert_eq!(
             hvar.advance_width_delta(gid_a, &[F2Dot14::from_f32(0.5)])
                 .unwrap(),
-            Fixed::from_f64(29.5)
+            Fixed::from_f64(30.0)
         );
         assert_eq!(
             hvar.advance_width_delta(gid_a, &[F2Dot14::from_f32(1.0)])

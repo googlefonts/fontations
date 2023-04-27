@@ -117,13 +117,13 @@ impl<'a> Mvar<'a> {
                 }
                 Ordering::Equal => {
                     let ivs = self.item_variation_store().ok_or(ReadError::NullOffset)??;
-                    return ivs.compute_delta(
+                    return Ok(Fixed::from_i32(ivs.compute_delta(
                         DeltaSetIndex {
                             outer: record.delta_set_outer_index(),
                             inner: record.delta_set_inner_index(),
                         },
                         coords,
-                    );
+                    )?));
                 }
             }
         }
