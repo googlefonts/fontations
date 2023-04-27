@@ -545,18 +545,20 @@ impl<'a> ItemVariationStore<'a> {
         &self,
         index: DeltaSetIndex,
         coords: &[F2Dot14],
-    ) -> Result<Fixed, ReadError> {
+    ) -> Result<i32, ReadError> {
         let data = match self
             .item_variation_datas()
             .nth(index.outer as usize)
             .flatten()
         {
             Some(data) => data?,
-            None => return Ok(Fixed::default()),
+            None => return Ok(0),
         };
         let regions = self.variation_region_list()?.variation_regions();
         let region_indices = data.region_indexes();
-        let mut delta = Fixed::ZERO;
+        // Compute deltas with 64-bit precision.
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/7ab541a2/src/truetype/ttgxvar.c#L1094>
+        let mut accum = 0i64;
         for (i, region_delta) in data.delta_set(index.inner).enumerate() {
             let region_index = region_indices
                 .get(i)
@@ -566,9 +568,9 @@ impl<'a> ItemVariationStore<'a> {
                 .get() as usize;
             let region = regions.get(region_index)?;
             let scalar = region.compute_scalar(coords);
-            delta += region_delta * scalar;
+            accum += region_delta as i64 * scalar.to_bits() as i64;
         }
-        Ok(delta)
+        Ok(((accum + 0x8000) >> 16) as i32)
     }
 }
 
@@ -590,10 +592,10 @@ impl<'a> VariationRegion<'a> {
             } else if coord == peak {
                 continue;
             } else if coord < peak {
-                scalar = scalar * (coord - start) / (peak - start)
+                scalar = scalar.mul_div(coord - start, peak - start);
             } else {
-                scalar = scalar * (end - coord) / (end - peak)
-            };
+                scalar = scalar.mul_div(end - coord, end - peak);
+            }
         }
         scalar
     }
@@ -602,7 +604,7 @@ impl<'a> VariationRegion<'a> {
 impl<'a> ItemVariationData<'a> {
     /// Returns an iterator over the per-region delta values for the specified
     /// inner index.
-    pub fn delta_set(&self, inner_index: u16) -> impl Iterator<Item = Fixed> + 'a + Clone {
+    pub fn delta_set(&self, inner_index: u16) -> impl Iterator<Item = i32> + 'a + Clone {
         let word_delta_count = self.word_delta_count();
         let long_words = word_delta_count & 0x8000 != 0;
         let (word_size, small_size) = if long_words { (4, 2) } else { (2, 1) };
@@ -634,7 +636,7 @@ struct ItemDeltas<'a> {
 }
 
 impl<'a> Iterator for ItemDeltas<'a> {
-    type Item = Fixed;
+    type Item = i32;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.pos >= self.len {
@@ -647,7 +649,7 @@ impl<'a> Iterator for ItemDeltas<'a> {
             (true, false) => self.cursor.read::<i8>().ok()? as i32,
             (false, true) => self.cursor.read::<i32>().ok()?,
         };
-        Some(Fixed::from_raw((value << 16).to_be_bytes()))
+        Some(value)
     }
 }
 
@@ -665,7 +667,7 @@ pub(crate) fn advance_delta(
             inner: gid,
         },
     };
-    ivs?.compute_delta(ix, coords)
+    Ok(Fixed::from_i32(ivs?.compute_delta(ix, coords)?))
 }
 
 pub(crate) fn item_delta(
@@ -679,7 +681,7 @@ pub(crate) fn item_delta(
         Some(Ok(dsim)) => dsim.get(gid as u32)?,
         _ => return Err(ReadError::NullOffset),
     };
-    ivs?.compute_delta(ix, coords)
+    Ok(Fixed::from_i32(ivs?.compute_delta(ix, coords)?))
 }
 
 #[cfg(test)]
