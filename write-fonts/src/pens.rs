@@ -420,6 +420,7 @@ impl Pen for ControlBoundsPen {
 mod tests {
     use font_types::{Pen, PenCommand};
     use kurbo::{Affine, BezPath, PathEl, Rect, Shape};
+    use rstest::rstest;
 
     use super::{
         write_to_pen, BezPathPen, ControlBoundsPen, RecordingPen, ReverseContourPen, TransformPen,
@@ -552,256 +553,255 @@ mod tests {
     // Direct port of fonttools' reverseContourPen_test.py::test_reverse_pen, adapted to rust,
     // excluding test cases that don't apply because we don't implement outputImpliedClosingLine=False.
     // https://github.com/fonttools/fonttools/blob/85c80be/Tests/pens/reverseContourPen_test.py#L6-L467
-    #[parameterized(
-        last_line_not_on_move = {
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((1.0, 1.0).into()),
-                PathEl::LineTo((2.0, 2.0).into()),
-                PathEl::LineTo((3.0, 3.0).into()),
-                PathEl::ClosePath,
-            ],
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((3.0, 3.0).into()),
-                PathEl::LineTo((2.0, 2.0).into()),
-                PathEl::LineTo((1.0, 1.0).into()),
-                PathEl::LineTo((0.0, 0.0).into()),  // closing line NOT implied
-                PathEl::ClosePath,
-            ],
-        },
-        last_line_overlaps_move = {
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((1.0, 1.0).into()),
-                PathEl::LineTo((2.0, 2.0).into()),
-                PathEl::LineTo((0.0, 0.0).into()),
-                PathEl::ClosePath,
-            ],
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((2.0, 2.0).into()),
-                PathEl::LineTo((1.0, 1.0).into()),
-                PathEl::LineTo((0.0, 0.0).into()),  // closing line NOT implied
-                PathEl::ClosePath,
-            ],
-        },
-        duplicate_line_following_move = {
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((0.0, 0.0).into()),
-                PathEl::LineTo((1.0, 1.0).into()),
-                PathEl::LineTo((2.0, 2.0).into()),
-                PathEl::ClosePath,
-            ],
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((2.0, 2.0).into()),
-                PathEl::LineTo((1.0, 1.0).into()),
-                PathEl::LineTo((0.0, 0.0).into()),  // duplicate line retained
-                PathEl::LineTo((0.0, 0.0).into()),
-                PathEl::ClosePath,
-            ],
-        },
-        closed_two_lines = {
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((1.0, 1.0).into()),
-                PathEl::ClosePath,
-            ],
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((1.0, 1.0).into()),
-                PathEl::LineTo((0.0, 0.0).into()),  // closing line NOT implied
-                PathEl::ClosePath,
-            ],
-        },
-        closed_last_curve_overlaps_move = {
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::CurveTo((1.0, 1.0).into(), (2.0, 2.0).into(), (3.0, 3.0).into()),
-                PathEl::CurveTo((4.0, 4.0).into(), (5.0, 5.0).into(), (0.0, 0.0).into()),
-                PathEl::ClosePath,
-            ],
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),  // no extra lineTo added here
-                PathEl::CurveTo((5.0, 5.0).into(), (4.0, 4.0).into(), (3.0, 3.0).into()),
-                PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
-                PathEl::ClosePath,
-            ],
-        },
-        closed_last_curve_not_on_move = {
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::CurveTo((1.0, 1.0).into(), (2.0, 2.0).into(), (3.0, 3.0).into()),
-                PathEl::CurveTo((4.0, 4.0).into(), (5.0, 5.0).into(), (6.0, 6.0).into()),
-                PathEl::ClosePath,
-            ],
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((6.0, 6.0).into()),  // the previously implied line
-                PathEl::CurveTo((5.0, 5.0).into(), (4.0, 4.0).into(), (3.0, 3.0).into()),
-                PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
-                PathEl::ClosePath,
-            ],
-        },
-        closed_line_curve_line = {
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((1.0, 1.0).into()),  // this line...
-                PathEl::CurveTo((2.0, 2.0).into(), (3.0, 3.0).into(), (4.0, 4.0).into()),
-                PathEl::CurveTo((5.0, 5.0).into(), (6.0, 6.0).into(), (7.0, 7.0).into()),
-                PathEl::ClosePath,
-            ],
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((7.0, 7.0).into()),
-                PathEl::CurveTo((6.0, 6.0).into(), (5.0, 5.0).into(), (4.0, 4.0).into()),
-                PathEl::CurveTo((3.0, 3.0).into(), (2.0, 2.0).into(), (1.0, 1.0).into()),
-                PathEl::LineTo((0.0, 0.0).into()),  // ... does NOT become implied
-                PathEl::ClosePath,
-            ],
-        },
-        closed_last_quad_overlaps_move = {
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::QuadTo((1.0, 1.0).into(), (2.0, 2.0).into()),
-                PathEl::QuadTo((3.0, 3.0).into(), (0.0, 0.0).into()),
-                PathEl::ClosePath,
-            ],
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),  // no extra lineTo added here
-                PathEl::QuadTo((3.0, 3.0).into(), (2.0, 2.0).into()),
-                PathEl::QuadTo((1.0, 1.0).into(), (0.0, 0.0).into()),
-                PathEl::ClosePath,
-            ],
-        },
-        closed_last_quad_not_on_move = {
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::QuadTo((1.0, 1.0).into(), (2.0, 2.0).into()),
-                PathEl::QuadTo((3.0, 3.0).into(), (4.0, 4.0).into()),
-                PathEl::ClosePath,
-            ],
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((4.0, 4.0).into()),  // the previously implied line
-                PathEl::QuadTo((3.0, 3.0).into(), (2.0, 2.0).into()),
-                PathEl::QuadTo((1.0, 1.0).into(), (0.0, 0.0).into()),
-                PathEl::ClosePath,
-            ],
-        },
-        closed_line_quad_line = {
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((1.0, 1.0).into()),  // this line...
-                PathEl::QuadTo((2.0, 2.0).into(), (3.0, 3.0).into()),
-                PathEl::ClosePath,
-            ],
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((3.0, 3.0).into()),
-                PathEl::QuadTo((2.0, 2.0).into(), (1.0, 1.0).into()),
-                PathEl::LineTo((0.0, 0.0).into()),  // ... does NOT become implied
-                PathEl::ClosePath,
-            ],
-        },
-        empty = { vec![], vec![] },
-        single_point = {
-            vec![PathEl::MoveTo((0.0, 0.0).into())],
-            vec![PathEl::MoveTo((0.0, 0.0).into())],
-        },
-        single_point_cannot_be_closed = {
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::ClosePath,
-            ],
-            // single-point paths are always open
-            vec![PathEl::MoveTo((0.0, 0.0).into())],
-        },
-        single_line_open = {
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((1.0, 1.0).into()),
-            ],
-            vec![
-                PathEl::MoveTo((1.0, 1.0).into()),
-                PathEl::LineTo((0.0, 0.0).into()),
-            ],
-        },
-        single_curve_open = {
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::CurveTo((1.0, 1.0).into(), (2.0, 2.0).into(), (3.0, 3.0).into()),
-            ],
-            vec![
-                PathEl::MoveTo((3.0, 3.0).into()),
-                PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
-            ],
-        },
-        curve_line_open = {
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::CurveTo((1.0, 1.0).into(), (2.0, 2.0).into(), (3.0, 3.0).into()),
-                PathEl::LineTo((4.0, 4.0).into()),
-            ],
-            vec![
-                PathEl::MoveTo((4.0, 4.0).into()),
-                PathEl::LineTo((3.0, 3.0).into()),
-                PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
-            ],
-        },
-        line_curve_open = {
-            vec![
-                PathEl::MoveTo((0.0, 0.0).into()),
-                PathEl::LineTo((1.0, 1.0).into()),
-                PathEl::CurveTo((2.0, 2.0).into(), (3.0, 3.0).into(), (4.0, 4.0).into()),
-            ],
-            vec![
-                PathEl::MoveTo((4.0, 4.0).into()),
-                PathEl::CurveTo((3.0, 3.0).into(), (2.0, 2.0).into(), (1.0, 1.0).into()),
-                PathEl::LineTo((0.0, 0.0).into()),
-            ],
-        },
-        // Test case from: https://github.com/googlei18n/cu2qu/issues/51#issue-179370514
-        // Simplified to only use atomic PathEl::QuadTo (no QuadSplines).
-        duplicate_point_after_move = {
-            vec![
-                PathEl::MoveTo((848.0, 348.0).into()),
-                PathEl::LineTo((848.0, 348.0).into()),
-                PathEl::QuadTo((848.0, 526.0).into(), (449.0, 704.0).into()),
-                PathEl::QuadTo((848.0, 171.0).into(), (848.0, 348.0).into()),
-                PathEl::ClosePath,
-            ],
-            vec![
-                PathEl::MoveTo((848.0, 348.0).into()),
-                PathEl::QuadTo((848.0, 171.0).into(), (449.0, 704.0).into()),
-                PathEl::QuadTo((848.0, 526.0).into(), (848.0, 348.0).into()),
-                PathEl::LineTo((848.0, 348.0).into()),
-                PathEl::ClosePath,
-            ],
-        },
-        // Test case from: https://github.com/googlefonts/fontmake/issues/572
-        duplicate_point_at_the_end = {
-            vec![
-                PathEl::MoveTo((0.0, 651.0).into()),
-                PathEl::LineTo((0.0, 101.0).into()),
-                PathEl::LineTo((0.0, 101.0).into()),
-                PathEl::LineTo((0.0, 651.0).into()),
-                PathEl::LineTo((0.0, 651.0).into()),
-                PathEl::ClosePath,
-            ],
-            vec![
-                PathEl::MoveTo((0.0, 651.0).into()),
-                PathEl::LineTo((0.0, 651.0).into()),
-                PathEl::LineTo((0.0, 101.0).into()),
-                PathEl::LineTo((0.0, 101.0).into()),
-                PathEl::LineTo((0.0, 651.0).into()),
-                PathEl::ClosePath,
-            ],
-        },
+    #[rstest]
+    #[case::closed_last_line_not_on_move(
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((1.0, 1.0).into()),
+            PathEl::LineTo((2.0, 2.0).into()),
+            PathEl::LineTo((3.0, 3.0).into()),
+            PathEl::ClosePath,
+        ],
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((3.0, 3.0).into()),
+            PathEl::LineTo((2.0, 2.0).into()),
+            PathEl::LineTo((1.0, 1.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),  // closing line NOT implied
+            PathEl::ClosePath,
+        ],
     )]
-    fn test_reverse_pen(contour: Vec<PathEl>, expected: Vec<PathEl>) {
+    #[case::closed_last_line_overlaps_move(
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((1.0, 1.0).into()),
+            PathEl::LineTo((2.0, 2.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),
+            PathEl::ClosePath,
+        ],
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((2.0, 2.0).into()),
+            PathEl::LineTo((1.0, 1.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),  // closing line NOT implied
+            PathEl::ClosePath,
+        ],
+    )]
+    #[case::closed_duplicate_line_following_move(
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),
+            PathEl::LineTo((1.0, 1.0).into()),
+            PathEl::LineTo((2.0, 2.0).into()),
+            PathEl::ClosePath,
+        ],
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((2.0, 2.0).into()),
+            PathEl::LineTo((1.0, 1.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),  // duplicate line retained
+            PathEl::LineTo((0.0, 0.0).into()),
+            PathEl::ClosePath,
+        ],
+    )]
+    #[case::closed_two_lines(
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((1.0, 1.0).into()),
+            PathEl::ClosePath,
+        ],
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((1.0, 1.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),  // closing line NOT implied
+            PathEl::ClosePath,
+        ],
+    )]
+    #[case::closed_last_curve_overlaps_move(
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::CurveTo((1.0, 1.0).into(), (2.0, 2.0).into(), (3.0, 3.0).into()),
+            PathEl::CurveTo((4.0, 4.0).into(), (5.0, 5.0).into(), (0.0, 0.0).into()),
+            PathEl::ClosePath,
+        ],
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),  // no extra lineTo added here
+            PathEl::CurveTo((5.0, 5.0).into(), (4.0, 4.0).into(), (3.0, 3.0).into()),
+            PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
+            PathEl::ClosePath,
+        ],
+    )]
+    #[case::closed_last_curve_not_on_move(
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::CurveTo((1.0, 1.0).into(), (2.0, 2.0).into(), (3.0, 3.0).into()),
+            PathEl::CurveTo((4.0, 4.0).into(), (5.0, 5.0).into(), (6.0, 6.0).into()),
+            PathEl::ClosePath,
+        ],
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((6.0, 6.0).into()),  // the previously implied line
+            PathEl::CurveTo((5.0, 5.0).into(), (4.0, 4.0).into(), (3.0, 3.0).into()),
+            PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
+            PathEl::ClosePath,
+        ],
+    )]
+    #[case::closed_line_curve_line(
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((1.0, 1.0).into()),  // this line...
+            PathEl::CurveTo((2.0, 2.0).into(), (3.0, 3.0).into(), (4.0, 4.0).into()),
+            PathEl::CurveTo((5.0, 5.0).into(), (6.0, 6.0).into(), (7.0, 7.0).into()),
+            PathEl::ClosePath,
+        ],
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((7.0, 7.0).into()),
+            PathEl::CurveTo((6.0, 6.0).into(), (5.0, 5.0).into(), (4.0, 4.0).into()),
+            PathEl::CurveTo((3.0, 3.0).into(), (2.0, 2.0).into(), (1.0, 1.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),  // ... does NOT become implied
+            PathEl::ClosePath,
+        ],
+    )]
+    #[case::closed_last_quad_overlaps_move(
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::QuadTo((1.0, 1.0).into(), (2.0, 2.0).into()),
+            PathEl::QuadTo((3.0, 3.0).into(), (0.0, 0.0).into()),
+            PathEl::ClosePath,
+        ],
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),  // no extra lineTo added here
+            PathEl::QuadTo((3.0, 3.0).into(), (2.0, 2.0).into()),
+            PathEl::QuadTo((1.0, 1.0).into(), (0.0, 0.0).into()),
+            PathEl::ClosePath,
+        ],
+    )]
+    #[case::closed_last_quad_not_on_move(
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::QuadTo((1.0, 1.0).into(), (2.0, 2.0).into()),
+            PathEl::QuadTo((3.0, 3.0).into(), (4.0, 4.0).into()),
+            PathEl::ClosePath,
+        ],
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((4.0, 4.0).into()),  // the previously implied line
+            PathEl::QuadTo((3.0, 3.0).into(), (2.0, 2.0).into()),
+            PathEl::QuadTo((1.0, 1.0).into(), (0.0, 0.0).into()),
+            PathEl::ClosePath,
+        ],
+    )]
+    #[case::closed_line_quad_line(
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((1.0, 1.0).into()),  // this line...
+            PathEl::QuadTo((2.0, 2.0).into(), (3.0, 3.0).into()),
+            PathEl::ClosePath,
+        ],
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((3.0, 3.0).into()),
+            PathEl::QuadTo((2.0, 2.0).into(), (1.0, 1.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),  // ... does NOT become implied
+            PathEl::ClosePath,
+        ],
+    )]
+    #[case::empty(vec![], vec![])]
+    #[case::single_point(
+        vec![PathEl::MoveTo((0.0, 0.0).into())],
+        vec![PathEl::MoveTo((0.0, 0.0).into())],
+    )]
+    #[case::single_point_cannot_be_closed(
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::ClosePath,
+        ],
+        // single-point paths are always open
+        vec![PathEl::MoveTo((0.0, 0.0).into())],
+    )]
+    #[case::single_line_open(
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((1.0, 1.0).into()),
+        ],
+        vec![
+            PathEl::MoveTo((1.0, 1.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),
+        ],
+    )]
+    #[case::single_curve_open(
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::CurveTo((1.0, 1.0).into(), (2.0, 2.0).into(), (3.0, 3.0).into()),
+        ],
+        vec![
+            PathEl::MoveTo((3.0, 3.0).into()),
+            PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
+        ],
+    )]
+    #[case::curve_line_open(
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::CurveTo((1.0, 1.0).into(), (2.0, 2.0).into(), (3.0, 3.0).into()),
+            PathEl::LineTo((4.0, 4.0).into()),
+        ],
+        vec![
+            PathEl::MoveTo((4.0, 4.0).into()),
+            PathEl::LineTo((3.0, 3.0).into()),
+            PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
+        ],
+    )]
+    #[case::line_curve_open(
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::LineTo((1.0, 1.0).into()),
+            PathEl::CurveTo((2.0, 2.0).into(), (3.0, 3.0).into(), (4.0, 4.0).into()),
+        ],
+        vec![
+            PathEl::MoveTo((4.0, 4.0).into()),
+            PathEl::CurveTo((3.0, 3.0).into(), (2.0, 2.0).into(), (1.0, 1.0).into()),
+            PathEl::LineTo((0.0, 0.0).into()),
+        ],
+    )]
+    // Test case from: https://github.com/googlei18n/cu2qu/issues/51#issue-179370514
+    // Simplified to only use atomic PathEl::QuadTo (no QuadSplines).
+    #[case::duplicate_point_after_move(
+        vec![
+            PathEl::MoveTo((848.0, 348.0).into()),
+            PathEl::LineTo((848.0, 348.0).into()),
+            PathEl::QuadTo((848.0, 526.0).into(), (449.0, 704.0).into()),
+            PathEl::QuadTo((848.0, 171.0).into(), (848.0, 348.0).into()),
+            PathEl::ClosePath,
+        ],
+        vec![
+            PathEl::MoveTo((848.0, 348.0).into()),
+            PathEl::QuadTo((848.0, 171.0).into(), (449.0, 704.0).into()),
+            PathEl::QuadTo((848.0, 526.0).into(), (848.0, 348.0).into()),
+            PathEl::LineTo((848.0, 348.0).into()),
+            PathEl::ClosePath,
+        ],
+    )]
+    // Test case from: https://github.com/googlefonts/fontmake/issues/572
+    #[case::duplicate_point_at_the_end(
+        vec![
+            PathEl::MoveTo((0.0, 651.0).into()),
+            PathEl::LineTo((0.0, 101.0).into()),
+            PathEl::LineTo((0.0, 101.0).into()),
+            PathEl::LineTo((0.0, 651.0).into()),
+            PathEl::LineTo((0.0, 651.0).into()),
+            PathEl::ClosePath,
+        ],
+        vec![
+            PathEl::MoveTo((0.0, 651.0).into()),
+            PathEl::LineTo((0.0, 651.0).into()),
+            PathEl::LineTo((0.0, 101.0).into()),
+            PathEl::LineTo((0.0, 101.0).into()),
+            PathEl::LineTo((0.0, 651.0).into()),
+            PathEl::ClosePath,
+        ],
+    )]
+    fn test_reverse_pen(#[case] contour: Vec<PathEl>, #[case] expected: Vec<PathEl>) {
         let contour = BezPath::from_vec(contour);
         let mut bez_pen = BezPathPen::new();
         let mut rev_pen = ReverseContourPen::new(&mut bez_pen);
