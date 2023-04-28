@@ -1,5 +1,7 @@
 //! 16-bit signed and unsigned font-units
 
+use super::Fixed;
+
 /// 16-bit signed quantity in font design units.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord)]
 pub struct FWord(i16);
@@ -17,6 +19,11 @@ impl FWord {
         self.0
     }
 
+    /// Converts this number to a 16.16 fixed point value.
+    pub const fn to_fixed(self) -> Fixed {
+        Fixed::from_i32(self.0 as i32)
+    }
+
     /// The representation of this number as a big-endian byte array.
     pub const fn to_be_bytes(self) -> [u8; 2] {
         self.0.to_be_bytes()
@@ -30,6 +37,11 @@ impl UfWord {
 
     pub const fn to_u16(self) -> u16 {
         self.0
+    }
+
+    /// Converts this number to a 16.16 fixed point value.
+    pub const fn to_fixed(self) -> Fixed {
+        Fixed::from_i32(self.0 as i32)
     }
 
     /// The representation of this number as a big-endian byte array.
