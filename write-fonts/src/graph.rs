@@ -57,7 +57,6 @@ impl Space {
     /// The first space used for assignment to specific subgraphs.
     const INIT: Space = Space(2);
 
-    #[cfg(test)]
     const fn is_custom(self) -> bool {
         self.0 >= Space::INIT.0
     }
@@ -90,6 +89,7 @@ pub struct Graph {
     distance_invalid: bool,
     positions_invalid: bool,
     next_space: Space,
+    num_roots_per_space: HashMap<Space, usize>,
 }
 
 #[derive(Debug)]
@@ -117,6 +117,14 @@ struct Distance {
 //TODO: remove me? maybe? not really used right now...
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 struct Priority(u8);
+
+/// A record of an overflowing offset
+pub(crate) struct Overflow {
+    parent: ObjectId,
+    child: ObjectId,
+    distance: u32,
+    offset_type: OffsetLen,
+}
 
 impl Priority {
     const ZERO: Priority = Priority(0);
@@ -206,6 +214,7 @@ impl Graph {
             distance_invalid: true,
             positions_invalid: true,
             next_space: Space::INIT,
+            num_roots_per_space: Default::default(),
         }
     }
 
@@ -232,11 +241,32 @@ impl Graph {
         self.assign_spaces_hb();
         self.sort_shortest_distance();
 
-        let n_overflows = self.find_overflows().len();
-        if n_overflows > 0 {
-            log::info!("packing failed with {n_overflows} overflows");
+        if !self.has_overflows() {
+            return true;
         }
-        n_overflows == 0
+
+        // now isolate spaces in a loop, until there are no more left:
+        let overflows = loop {
+            let overflows = self.find_overflows();
+            if overflows.is_empty() {
+                // we're done
+                return true;
+            }
+            log::info!(
+                "failed with {} overflows, current size {}",
+                overflows.len(),
+                self.debug_len()
+            );
+            if !self.try_splitting_subgraphs(&overflows) {
+                log::info!("finished isolating all subgraphs without solution");
+                break overflows;
+            }
+            self.sort_shortest_distance();
+        };
+
+        assert!(!overflows.is_empty());
+        self.debug_overflows(&overflows);
+        false
     }
 
     /// Initial sorting operation. Attempt Kahn, falling back to shortest distance.
@@ -272,7 +302,7 @@ impl Graph {
         false
     }
 
-    pub(crate) fn find_overflows(&self) -> Vec<(ObjectId, ObjectId)> {
+    pub(crate) fn find_overflows(&self) -> Vec<Overflow> {
         let mut result = Vec::new();
         for (parent_id, data) in &self.objects {
             let parent = &self.nodes[parent_id];
@@ -281,11 +311,45 @@ impl Graph {
                 //TODO: account for 'whence'
                 let rel_off = child.position - parent.position;
                 if link.len.max_value() < rel_off {
-                    result.push((*parent_id, link.object));
+                    result.push(Overflow {
+                        parent: *parent_id,
+                        child: link.object,
+                        distance: rel_off,
+                        offset_type: link.len,
+                    });
                 }
             }
         }
         result
+    }
+
+    fn debug_overflows(&self, overflows: &[Overflow]) {
+        let (parents, children): (HashSet<_>, HashSet<_>) =
+            overflows.iter().map(|x| (x.parent, x.child)).unzip();
+        log::debug!(
+            "found {} overflows from {} parents to {} children",
+            overflows.len(),
+            parents.len(),
+            children.len()
+        );
+
+        for overflow in overflows {
+            log::debug!(
+                "{:?} -> {:?} type {} dist {}",
+                overflow.parent,
+                overflow.child,
+                overflow.offset_type,
+                overflow.distance
+            );
+        }
+    }
+
+    // only valid if order is up to date. Returns total byte len of graph.
+    fn debug_len(&self) -> usize {
+        self.order
+            .iter()
+            .map(|id| self.objects.get(id).unwrap().bytes.len())
+            .sum()
     }
 
     fn update_parents(&mut self) {
@@ -563,6 +627,7 @@ impl Graph {
         }
 
         let next_space = self.next_space();
+        self.num_roots_per_space.insert(next_space, roots.len());
         let mut id_map = HashMap::new();
         //let mut made_changes = false;
         for (id, incoming_edges_in_subgraph) in &subgraph {
@@ -613,6 +678,63 @@ impl Graph {
         }
 
         true
+    }
+
+    /// for each space that has overflows and > 1 roots, select half the roots
+    /// and move them to a separate subgraph.
+    //
+    /// return `true` if any change was made.
+    ///
+    /// This is a port of the [_try_isolating_subgraphs] method in hb-repacker.
+    ///
+    /// [_try_isolating_subgraphs]: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-repacker.hh#L182
+    fn try_splitting_subgraphs(&mut self, overflows: &[Overflow]) -> bool {
+        let mut to_isolate = HashMap::new();
+        for overflow in overflows {
+            let child_space = self.nodes[&overflow.child].space;
+            // we only isolate subgraphs in wide-space
+            if !child_space.is_custom() || self.num_roots_per_space[&child_space] <= 1 {
+                continue;
+            }
+            let root = self.find_root_of_space(overflow.child);
+            debug_assert_eq!(self.nodes[&root].space, child_space);
+            to_isolate
+                .entry(child_space)
+                .or_insert_with(HashSet::new)
+                .insert(root);
+        }
+
+        if to_isolate.is_empty() {
+            return false;
+        }
+
+        for (space, mut roots) in to_isolate {
+            let max_to_move = self.num_roots_per_space[&space] / 2;
+            log::debug!(
+                "moving {} of {} candidate roots from {space:?} to new space",
+                max_to_move.min(roots.len()),
+                roots.len()
+            );
+            while roots.len() > max_to_move {
+                let next = *roots.iter().next().unwrap();
+                roots.remove(&next);
+            }
+            self.isolate_subgraph_hb(&mut roots);
+            *self.num_roots_per_space.get_mut(&space).unwrap() -= roots.len();
+        }
+
+        true
+    }
+
+    // invariant: obj must not be in space 0
+    fn find_root_of_space(&self, obj: ObjectId) -> ObjectId {
+        let space = self.nodes[&obj].space;
+        debug_assert!(space.is_custom());
+        let parent = self.nodes[&obj].parents[0].0;
+        if self.nodes[&parent].space != space {
+            return obj;
+        }
+        self.find_root_of_space(parent)
     }
 
     fn next_space(&mut self) -> Space {
@@ -837,7 +959,9 @@ mod tests {
             .add_link(ids[1], ids[2], OffsetLen::Offset16)
             .build();
         graph.sort_kahn();
-        assert_eq!(graph.find_overflows(), &[(ids[0], ids[2])]);
+        assert_eq!(graph.find_overflows().len(), 1);
+        assert_eq!(graph.find_overflows()[0].parent, ids[0]);
+        assert_eq!(graph.find_overflows()[0].child, ids[2]);
     }
 
     #[test]
@@ -898,6 +1022,66 @@ mod tests {
         for id in &two {
             assert!(graph.nodes.get(id).unwrap().space.is_custom());
         }
+    }
+
+    #[test]
+    fn split_overflowing_spaces() {
+        // this attempts to show a simplified version of a gsub table with extension
+        // subtables, before any isolation/deduplication has happened.
+        //
+        //    before                         after
+        //      0           (GSUB)             0
+        //      |                              |
+        //      1        (lookup List)         1
+        //      |                              |
+        //      2          (Lookup)            2
+        //     / \                            / \
+        //  ╔═3   4═╗   (ext subtables)    ╔═3   4═╗
+        //  ║       ║                      ║       ║   (long offsets)
+        //  5─┐   ┌─6    (subtables)       5       6
+        //  │ └─8─┘ │                     / \     / \
+        //  │       │    (cov tables)    7'  8'  7   8
+        //  └───7───┘
+        //
+
+        let _ = env_logger::builder().is_test(true).try_init();
+        let ids = make_ids::<9>();
+        // make the coverage tables big enough that overflow is unavoidable
+        let sizes = [10, 4, 12, 8, 8, 14, 14, 65520, 65520];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset16)
+            .add_link(ids[1], ids[2], OffsetLen::Offset16)
+            .add_link(ids[2], ids[3], OffsetLen::Offset16)
+            .add_link(ids[2], ids[4], OffsetLen::Offset16)
+            .add_link(ids[3], ids[5], OffsetLen::Offset32)
+            .add_link(ids[4], ids[6], OffsetLen::Offset32)
+            .add_link(ids[5], ids[7], OffsetLen::Offset16)
+            .add_link(ids[5], ids[8], OffsetLen::Offset16)
+            .add_link(ids[6], ids[7], OffsetLen::Offset16)
+            .add_link(ids[6], ids[8], OffsetLen::Offset16)
+            .build();
+        graph.sort_shortest_distance();
+
+        assert!(graph.has_overflows());
+        assert_eq!(graph.nodes.len(), 9);
+
+        graph.assign_spaces_hb();
+        graph.sort_shortest_distance();
+
+        // now spaces are assigned, but not isolated
+        assert_eq!(graph.nodes[&ids[5]].space, graph.nodes[&ids[6]].space);
+        assert_eq!(graph.nodes.len(), 9);
+
+        // now isolate space that overflows
+        let overflows = graph.find_overflows();
+        graph.try_splitting_subgraphs(&overflows);
+        graph.sort_shortest_distance();
+
+        assert_eq!(graph.nodes.len(), 11);
+        assert!(graph.find_overflows().is_empty());
+        // ensure we are correctly update the roots_per_space thing
+        assert_eq!(graph.num_roots_per_space[&graph.nodes[&ids[6]].space], 1);
+        assert_eq!(graph.num_roots_per_space[&graph.nodes[&ids[5]].space], 1);
     }
 
     #[test]
