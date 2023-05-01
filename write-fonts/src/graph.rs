@@ -203,24 +203,67 @@ impl Graph {
         }
     }
 
+    /// Attempt to pack the graph.
+    ///
+    /// This involves finding an order for objects such that all offsets are
+    /// resolveable.
+    ///
+    /// In the simple case, this just means finding a topological ordering.
+    /// In exceptional cases, however, this may require us to significantly
+    /// modify the graph.
+    ///
+    /// Our implementation is closely modeled on the implementation in the
+    /// HarfBuzz repacker; see the [repacker docs] for further detail.
+    ///
     /// returns `true` if a solution is found, `false` otherwise
-    pub(crate) fn topological_sort(&mut self) -> bool {
-        log::info!("attempting to pack {} objects", self.objects.len());
+    ///
+    /// [repacker docs]: https://github.com/harfbuzz/harfbuzz/blob/main/docs/repacker.md
+    pub(crate) fn pack_objects(&mut self) -> bool {
+        if self.basic_sort() {
+            return true;
+        }
 
-        self.sort_kahn();
-        if !self.find_overflows().is_empty() {
-            self.sort_shortest_distance();
-        }
-        if !self.find_overflows().is_empty() {
-            self.assign_32bit_spaces();
-            self.sort_shortest_distance();
-        }
+        self.assign_32bit_spaces();
+        self.sort_shortest_distance();
 
         let n_overflows = self.find_overflows().len();
         if n_overflows > 0 {
             log::info!("packing failed with {n_overflows} overflows");
         }
         n_overflows == 0
+    }
+
+    /// Initial sorting operation. Attempt Kahn, falling back to shortest distance.
+    ///
+    /// This has to be called first, since it establishes an initial order.
+    /// subsequent operations on the graph require this order.
+    ///
+    /// returns `true` if sort succeeds with no overflows
+    fn basic_sort(&mut self) -> bool {
+        log::info!("sorting {} objects", self.objects.len());
+
+        self.sort_kahn();
+        if !self.has_overflows() {
+            return true;
+        }
+        log::info!("kahn failed, trying shortest distance");
+        self.sort_shortest_distance();
+        !self.has_overflows()
+    }
+
+    fn has_overflows(&self) -> bool {
+        for (parent_id, data) in &self.objects {
+            let parent = &self.nodes[parent_id];
+            for link in &data.offsets {
+                let child = &self.nodes[&link.object];
+                //TODO: account for 'whence'
+                let rel_off = child.position - parent.position;
+                if link.len.max_value() < rel_off {
+                    return true;
+                }
+            }
+        }
+        false
     }
 
     fn find_overflows(&self) -> Vec<(ObjectId, ObjectId)> {
@@ -820,7 +863,7 @@ mod tests {
             .add_link(ids[0], ids[2], OffsetLen::Offset16)
             .add_link(ids[1], ids[2], OffsetLen::Offset16)
             .build();
-        graph.topological_sort();
+        graph.pack_objects();
         assert!(graph.find_overflows().is_empty());
     }
 }
