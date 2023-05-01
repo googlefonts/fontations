@@ -43,7 +43,7 @@ pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, Validat
     let mut writer = TableWriter::default();
     table.write_into(&mut writer);
     let mut graph = writer.finish();
-    if !graph.topological_sort() {
+    if !graph.pack_objects() {
         //TODO: implement extension promotion and table splitting
         panic!("could not find a graph packing that handles all offsets, aborting");
     }
