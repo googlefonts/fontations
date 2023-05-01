@@ -205,6 +205,8 @@ impl Graph {
 
     /// returns `true` if a solution is found, `false` otherwise
     pub(crate) fn topological_sort(&mut self) -> bool {
+        log::info!("attempting to pack {} objects", self.objects.len());
+
         self.sort_kahn();
         if !self.find_overflows().is_empty() {
             self.sort_shortest_distance();
@@ -213,7 +215,12 @@ impl Graph {
             self.assign_32bit_spaces();
             self.sort_shortest_distance();
         }
-        self.find_overflows().is_empty()
+
+        let n_overflows = self.find_overflows().len();
+        if n_overflows > 0 {
+            log::info!("packing failed with {n_overflows} overflows");
+        }
+        n_overflows == 0
     }
 
     fn find_overflows(&self) -> Vec<(ObjectId, ObjectId)> {
