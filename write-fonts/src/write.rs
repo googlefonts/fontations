@@ -3,6 +3,7 @@ use std::collections::{BTreeSet, HashMap};
 use crate::error::{Error, PackingError};
 use crate::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
 use crate::validate::Validate;
+use font_types::Scalar;
 use types::Uint24;
 
 /// A type that that can be written out as part of a font file.
@@ -44,9 +45,8 @@ pub struct TableWriter {
 /// otherwise it will return the bytes encoding the table.
 pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, Error> {
     table.validate().map_err(Error::ValidationFailed)?;
-    let mut writer = TableWriter::default();
-    table.write_into(&mut writer);
-    let mut graph = writer.finish();
+    let mut graph = TableWriter::make_graph(table);
+
     if !graph.pack_objects() {
         return Err(Error::PackingFailed(PackingError {
             graph: graph.into(),
@@ -106,18 +106,19 @@ fn write_offset(at: &mut [u8], len: OffsetLen, resolved: u32) {
 }
 
 impl TableWriter {
+    /// A convenience method for generating a graph with the provided root object.
+    fn make_graph(root: &impl FontWrite) -> Graph {
+        let mut writer = TableWriter::default();
+        let root_id = writer.add_table(root);
+        Graph::from_obj_store(writer.tables, root_id)
+    }
+
     fn add_table(&mut self, table: &dyn FontWrite) -> ObjectId {
         self.stack.push(TableData::default());
         table.write_into(self);
         let mut table_data = self.stack.pop().unwrap();
         table_data.name = table.name();
         self.tables.add(table_data)
-    }
-
-    /// Finish this table, returning an object graph.
-    fn finish(mut self) -> Graph {
-        let id = self.tables.add(self.stack.pop().unwrap());
-        Graph::from_obj_store(self.tables, id)
     }
 
     /// Call the provided closure, adjusting any written offsets by `adjustment`.
@@ -132,11 +133,7 @@ impl TableWriter {
     /// The caller is responsible for ensuring bytes are in big-endian order.
     #[inline]
     pub fn write_slice(&mut self, bytes: &[u8]) {
-        self.stack
-            .last_mut()
-            .unwrap()
-            .bytes
-            .extend_from_slice(bytes)
+        self.stack.last_mut().unwrap().write_bytes(bytes)
     }
 
     /// Create an offset to another table.
@@ -239,11 +236,16 @@ impl TableData {
         });
         let null_bytes = &[0u8, 0, 0, 0].get(..width.min(4)).unwrap();
 
-        self.write(null_bytes);
+        self.write_bytes(null_bytes);
     }
 
-    fn write(&mut self, bytes: &[u8]) {
-        self.bytes.extend(bytes)
+    #[allow(dead_code)] // this will be used when we do promotion/splitting
+    pub(crate) fn write<T: Scalar>(&mut self, value: T) {
+        self.write_bytes(value.to_raw().as_ref())
+    }
+
+    fn write_bytes(&mut self, bytes: &[u8]) {
+        self.bytes.extend_from_slice(bytes)
     }
 
     #[cfg(test)]
