@@ -30,6 +30,9 @@ impl FontWrite for Avar {
     fn name(&self) -> &'static str {
         "Avar"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Avar::TAG)
+    }
 }
 
 impl Validate for Avar {

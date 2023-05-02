@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 
 use crate::error::{Error, PackingError};
 use crate::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
+use crate::table_type::TableType;
 use crate::validate::Validate;
 use font_types::Scalar;
 
@@ -12,8 +13,18 @@ use font_types::Scalar;
 pub trait FontWrite {
     /// Write our data and information about offsets into this [TableWriter].
     fn write_into(&self, writer: &mut TableWriter);
+
+    /// The name of this table or record; used for debugging
     fn name(&self) -> &'static str {
         "Unknown"
+    }
+
+    /// The type of this table.
+    ///
+    /// This only matters in cases where a table may require additional processing
+    /// after initial compilation, such as with GPOS/GSUB lookups.
+    fn type_(&self) -> TableType {
+        TableType::Unknown
     }
 }
 
@@ -66,6 +77,7 @@ impl TableWriter {
         self.stack.push(TableData::default());
         table.write_into(self);
         let mut table_data = self.stack.pop().unwrap();
+        table_data.type_ = table.type_();
         table_data.name = table.name();
         self.tables.add(table_data)
     }
@@ -134,6 +146,7 @@ impl Default for TableWriter {
 #[derive(Debug, Default, Clone)] // DO NOT DERIVE MORE TRAITS! we want to ignore name field
 pub(crate) struct TableData {
     pub(crate) name: &'static str,
+    pub(crate) type_: TableType,
     pub(crate) bytes: Vec<u8>,
     pub(crate) offsets: Vec<OffsetRecord>,
 }
@@ -203,6 +216,7 @@ impl TableData {
             name: "",
             bytes: vec![0xca; size], // has no special meaning
             offsets: Vec::new(),
+            type_: TableType::Unknown,
         }
     }
 

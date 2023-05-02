@@ -8,6 +8,7 @@ mod graph;
 mod offsets;
 pub mod pens;
 mod round;
+mod table_type;
 pub mod tables;
 pub mod util;
 pub mod validate;
@@ -34,6 +35,7 @@ pub(crate) mod codegen_prelude {
 
     pub use super::from_obj::{FromObjRef, FromTableRef, ToOwnedObj, ToOwnedTable};
     pub use super::offsets::{NullableOffsetMarker, OffsetMarker, WIDTH_16, WIDTH_24, WIDTH_32};
+    pub use super::table_type::TableType;
     pub use super::validate::{Validate, ValidationCtx};
     pub use super::write::{FontWrite, TableWriter};
     pub use std::collections::BTreeSet;

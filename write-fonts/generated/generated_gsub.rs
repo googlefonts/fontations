@@ -50,6 +50,9 @@ impl FontWrite for Gsub {
     fn name(&self) -> &'static str {
         "Gsub"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Gsub::TAG)
+    }
 }
 
 impl Validate for Gsub {
@@ -136,6 +139,18 @@ impl FontWrite for SubstitutionLookup {
             Self::ChainContextual(_) => "SubstitutionLookup.ChainContextual",
             Self::Extension(_) => "SubstitutionLookup.Extension",
             Self::Reverse(_) => "SubstitutionLookup.Reverse",
+        }
+    }
+    fn type_(&self) -> TableType {
+        match self {
+            Self::Single(table) => table.type_(),
+            Self::Multiple(table) => table.type_(),
+            Self::Alternate(table) => table.type_(),
+            Self::Ligature(table) => table.type_(),
+            Self::Contextual(table) => table.type_(),
+            Self::ChainContextual(table) => table.type_(),
+            Self::Extension(table) => table.type_(),
+            Self::Reverse(table) => table.type_(),
         }
     }
 }
@@ -914,6 +929,17 @@ impl FontWrite for ExtensionSubtable {
             Self::Contextual(_) => "ExtensionSubtable.Contextual",
             Self::ChainContextual(_) => "ExtensionSubtable.ChainContextual",
             Self::Reverse(_) => "ExtensionSubtable.Reverse",
+        }
+    }
+    fn type_(&self) -> TableType {
+        match self {
+            Self::Single(table) => table.type_(),
+            Self::Multiple(table) => table.type_(),
+            Self::Alternate(table) => table.type_(),
+            Self::Ligature(table) => table.type_(),
+            Self::Contextual(table) => table.type_(),
+            Self::ChainContextual(table) => table.type_(),
+            Self::Reverse(table) => table.type_(),
         }
     }
 }

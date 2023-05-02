@@ -51,6 +51,9 @@ impl FontWrite for Hvar {
     fn name(&self) -> &'static str {
         "Hvar"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Hvar::TAG)
+    }
 }
 
 impl Validate for Hvar {

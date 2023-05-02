@@ -14,11 +14,17 @@ mod spec_tests;
 
 include!("../../generated/generated_layout.rs");
 
-/// A macro to implement the [LookupType] trait.
+/// A macro to implement the [LookupSubtable] trait.
 macro_rules! lookup_type {
-    ($ty:ty, $val:expr) => {
-        impl LookupType for $ty {
-            const TYPE: u16 = $val;
+    (gpos, $ty:ty, $val:expr) => {
+        impl LookupSubtable for $ty {
+            const TYPE: LookupType = LookupType::Gpos($val);
+        }
+    };
+
+    (gsub, $ty:ty, $val:expr) => {
+        impl LookupSubtable for $ty {
+            const TYPE: LookupType = LookupType::Gsub($val);
         }
     };
 }
@@ -49,6 +55,10 @@ macro_rules! table_newtype {
         impl FontWrite for $name {
             fn write_into(&self, writer: &mut TableWriter) {
                 self.0.write_into(writer)
+            }
+
+            fn type_(&self) -> crate::table_type::TableType {
+                self.0.type_()
             }
         }
 
@@ -83,7 +93,7 @@ impl FontWrite for LookupFlag {
     }
 }
 
-impl<T: LookupType + FontWrite> FontWrite for Lookup<T> {
+impl<T: LookupSubtable + FontWrite> FontWrite for Lookup<T> {
     fn write_into(&self, writer: &mut TableWriter) {
         T::TYPE.write_into(writer);
         self.lookup_flag.write_into(writer);
@@ -92,6 +102,10 @@ impl<T: LookupType + FontWrite> FontWrite for Lookup<T> {
             .write_into(writer);
         self.subtables.write_into(writer);
         self.mark_filtering_set.write_into(writer);
+    }
+
+    fn type_(&self) -> crate::table_type::TableType {
+        T::TYPE.into()
     }
 }
 
@@ -139,9 +153,41 @@ impl Lookup<ChainedSequenceContext> {
 ///
 /// This allows us to attach the numerical lookup type to the appropriate concrete
 /// types, so that we can write it as needed without passing it around.
-pub trait LookupType {
+pub trait LookupSubtable {
     /// The lookup type of this layout subtable.
-    const TYPE: u16;
+    const TYPE: LookupType;
+}
+
+/// Raw values for the different layout subtables
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LookupType {
+    Gpos(u16),
+    Gsub(u16),
+}
+
+impl LookupType {
+    pub(crate) const GSUB_EXT_TYPE: u16 = 7;
+    pub(crate) const GPOS_EXT_TYPE: u16 = 9;
+
+    pub(crate) fn to_raw(self) -> u16 {
+        match self {
+            LookupType::Gpos(val) => val,
+            LookupType::Gsub(val) => val,
+        }
+    }
+
+    pub(crate) fn promote(self) -> Self {
+        match self {
+            LookupType::Gpos(_) => LookupType::Gpos(Self::GPOS_EXT_TYPE),
+            LookupType::Gsub(_) => LookupType::Gsub(Self::GSUB_EXT_TYPE),
+        }
+    }
+}
+
+impl FontWrite for LookupType {
+    fn write_into(&self, writer: &mut TableWriter) {
+        self.to_raw().write_into(writer)
+    }
 }
 
 #[derive(Debug, Clone)]

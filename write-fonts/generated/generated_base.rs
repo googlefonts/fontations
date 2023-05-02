@@ -41,6 +41,9 @@ impl FontWrite for Base {
     fn name(&self) -> &'static str {
         "Base"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Base::TAG)
+    }
 }
 
 impl Validate for Base {

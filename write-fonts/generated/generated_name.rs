@@ -50,6 +50,9 @@ impl FontWrite for Name {
     fn name(&self) -> &'static str {
         "Name"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Name::TAG)
+    }
 }
 
 impl Validate for Name {

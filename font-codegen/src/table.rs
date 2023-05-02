@@ -389,6 +389,7 @@ pub(crate) fn generate_group_compile(
     let mut validate_match_arms = Vec::new();
     let mut from_obj_match_arms = Vec::new();
     let mut name_arms = Vec::new();
+    let mut type_arms = Vec::new();
     let from_type = quote!(#parse_module :: #name);
     for var in &item.variants {
         let var_name = &var.name;
@@ -402,6 +403,7 @@ pub(crate) fn generate_group_compile(
             quote! { #from_type :: #var_name(table) => Self :: #var_name(table.to_owned_obj(data)) },
         );
         name_arms.push(quote! { Self:: #var_name(_) => #var_name_string  });
+        type_arms.push(quote! { Self:: #var_name(table) => table.type_()  });
     }
     let first_var_name = &item.variants.first().unwrap().name;
 
@@ -428,6 +430,12 @@ pub(crate) fn generate_group_compile(
             fn name(&self) -> &'static str {
                 match self {
                     #( #name_arms, )*
+                }
+            }
+
+            fn type_(&self) -> TableType {
+                match self {
+                    #( #type_arms, )*
                 }
             }
         }
