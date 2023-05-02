@@ -6,7 +6,6 @@
 use std::fmt::Display;
 
 use font_types::Tag;
-#[cfg(test)] // just until we merge promotion
 use read::TopLevelTable;
 
 use crate::tables::layout::LookupType;
@@ -33,14 +32,28 @@ pub enum TableType {
 }
 
 impl TableType {
-    #[cfg(test)]
     pub(crate) const GSUB: TableType = TableType::TopLevel(crate::tables::gsub::Gsub::TAG);
-    #[cfg(test)]
     pub(crate) const GPOS: TableType = TableType::TopLevel(crate::tables::gpos::Gpos::TAG);
 
     #[cfg(feature = "dot2")]
     pub(crate) fn is_mock(&self) -> bool {
         *self == TableType::MockTable
+    }
+
+    pub(crate) fn is_promotable(self) -> bool {
+        match self {
+            TableType::GposLookup(type_) => type_ != LookupType::GPOS_EXT_TYPE,
+            TableType::GsubLookup(type_) => type_ != LookupType::GSUB_EXT_TYPE,
+            _ => false,
+        }
+    }
+
+    pub(crate) fn to_lookup_type(self) -> Option<LookupType> {
+        match self {
+            TableType::GposLookup(type_) => Some(LookupType::Gpos(type_)),
+            TableType::GsubLookup(type_) => Some(LookupType::Gsub(type_)),
+            _ => None,
+        }
     }
 }
 
