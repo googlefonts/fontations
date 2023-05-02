@@ -35,6 +35,9 @@ impl FontWrite for Gvar {
     fn name(&self) -> &'static str {
         "Gvar"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Gvar::TAG)
+    }
 }
 
 impl Validate for Gvar {

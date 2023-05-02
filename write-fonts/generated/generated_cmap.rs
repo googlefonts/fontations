@@ -32,6 +32,9 @@ impl FontWrite for Cmap {
     fn name(&self) -> &'static str {
         "Cmap"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Cmap::TAG)
+    }
 }
 
 impl Validate for Cmap {

@@ -131,6 +131,9 @@ impl FontWrite for Post {
     fn name(&self) -> &'static str {
         "Post"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Post::TAG)
+    }
 }
 
 impl Validate for Post {

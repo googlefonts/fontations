@@ -34,6 +34,9 @@ impl FontWrite for Hmtx {
     fn name(&self) -> &'static str {
         "Hmtx"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Hmtx::TAG)
+    }
 }
 
 impl Validate for Hmtx {

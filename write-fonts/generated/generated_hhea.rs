@@ -94,6 +94,9 @@ impl FontWrite for Hhea {
     fn name(&self) -> &'static str {
         "Hhea"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Hhea::TAG)
+    }
 }
 
 impl Validate for Hhea {

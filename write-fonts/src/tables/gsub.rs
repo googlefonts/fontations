@@ -6,7 +6,7 @@ include!("../../generated/generated_gsub.rs");
 
 use super::layout::{
     ChainedSequenceContext, CoverageTable, FeatureList, FeatureVariations, Lookup, LookupList,
-    LookupType, ScriptList, SequenceContext,
+    LookupSubtable, LookupType, ScriptList, SequenceContext,
 };
 
 #[cfg(test)]
@@ -38,16 +38,16 @@ impl Gsub {
     }
 }
 
-super::layout::lookup_type!(SingleSubst, 1);
-super::layout::lookup_type!(MultipleSubstFormat1, 2);
-super::layout::lookup_type!(AlternateSubstFormat1, 3);
-super::layout::lookup_type!(LigatureSubstFormat1, 4);
-super::layout::lookup_type!(SubstitutionSequenceContext, 5);
-super::layout::lookup_type!(SubstitutionChainContext, 6);
-super::layout::lookup_type!(ExtensionSubtable, 7);
-super::layout::lookup_type!(ReverseChainSingleSubstFormat1, 8);
+super::layout::lookup_type!(gsub, SingleSubst, 1);
+super::layout::lookup_type!(gsub, MultipleSubstFormat1, 2);
+super::layout::lookup_type!(gsub, AlternateSubstFormat1, 3);
+super::layout::lookup_type!(gsub, LigatureSubstFormat1, 4);
+super::layout::lookup_type!(gsub, SubstitutionSequenceContext, 5);
+super::layout::lookup_type!(gsub, SubstitutionChainContext, 6);
+super::layout::lookup_type!(gsub, ExtensionSubtable, 7);
+super::layout::lookup_type!(gsub, ReverseChainSingleSubstFormat1, 8);
 
-impl<T: LookupType + FontWrite> FontWrite for ExtensionSubstFormat1<T> {
+impl<T: LookupSubtable + FontWrite> FontWrite for ExtensionSubstFormat1<T> {
     fn write_into(&self, writer: &mut TableWriter) {
         1u16.write_into(writer);
         T::TYPE.write_into(writer);

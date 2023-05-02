@@ -93,6 +93,9 @@ impl FontWrite for Vhea {
     fn name(&self) -> &'static str {
         "Vhea"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Vhea::TAG)
+    }
 }
 
 impl Validate for Vhea {

@@ -141,6 +141,9 @@ impl FontWrite for Head {
     fn name(&self) -> &'static str {
         "Head"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Head::TAG)
+    }
 }
 
 impl Validate for Head {

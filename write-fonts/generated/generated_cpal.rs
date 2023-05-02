@@ -89,6 +89,9 @@ impl FontWrite for Cpal {
     fn name(&self) -> &'static str {
         "Cpal"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Cpal::TAG)
+    }
 }
 
 impl Validate for Cpal {

@@ -67,6 +67,9 @@ impl FontWrite for Gdef {
     fn name(&self) -> &'static str {
         "Gdef"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Gdef::TAG)
+    }
 }
 
 impl Validate for Gdef {

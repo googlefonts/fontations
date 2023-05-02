@@ -51,6 +51,9 @@ impl FontWrite for Gpos {
     fn name(&self) -> &'static str {
         "Gpos"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Gpos::TAG)
+    }
 }
 
 impl Validate for Gpos {
@@ -140,6 +143,19 @@ impl FontWrite for PositionLookup {
             Self::Contextual(_) => "PositionLookup.Contextual",
             Self::ChainContextual(_) => "PositionLookup.ChainContextual",
             Self::Extension(_) => "PositionLookup.Extension",
+        }
+    }
+    fn type_(&self) -> TableType {
+        match self {
+            Self::Single(table) => table.type_(),
+            Self::Pair(table) => table.type_(),
+            Self::Cursive(table) => table.type_(),
+            Self::MarkToBase(table) => table.type_(),
+            Self::MarkToLig(table) => table.type_(),
+            Self::MarkToMark(table) => table.type_(),
+            Self::Contextual(table) => table.type_(),
+            Self::ChainContextual(table) => table.type_(),
+            Self::Extension(table) => table.type_(),
         }
     }
 }
@@ -2087,6 +2103,18 @@ impl FontWrite for ExtensionSubtable {
             Self::MarkToMark(_) => "ExtensionSubtable.MarkToMark",
             Self::Contextual(_) => "ExtensionSubtable.Contextual",
             Self::ChainContextual(_) => "ExtensionSubtable.ChainContextual",
+        }
+    }
+    fn type_(&self) -> TableType {
+        match self {
+            Self::Single(table) => table.type_(),
+            Self::Pair(table) => table.type_(),
+            Self::Cursive(table) => table.type_(),
+            Self::MarkToBase(table) => table.type_(),
+            Self::MarkToLig(table) => table.type_(),
+            Self::MarkToMark(table) => table.type_(),
+            Self::Contextual(table) => table.type_(),
+            Self::ChainContextual(table) => table.type_(),
         }
     }
 }

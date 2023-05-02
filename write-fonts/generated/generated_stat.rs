@@ -46,6 +46,9 @@ impl FontWrite for Stat {
     fn name(&self) -> &'static str {
         "Stat"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Stat::TAG)
+    }
 }
 
 impl Validate for Stat {

@@ -51,6 +51,9 @@ impl FontWrite for Fvar {
     fn name(&self) -> &'static str {
         "Fvar"
     }
+    fn type_(&self) -> TableType {
+        TableType::TopLevel(Fvar::TAG)
+    }
 }
 
 impl Validate for Fvar {
