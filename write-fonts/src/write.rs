@@ -49,6 +49,7 @@ pub struct TableWriter {
 /// Returns an error if the table is malformed or cannot otherwise be serialized,
 /// otherwise it will return the bytes encoding the table.
 pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, Error> {
+    log::info!("writing table '{}'", table.table_type());
     table.validate().map_err(Error::ValidationFailed)?;
     let mut graph = TableWriter::make_graph(table);
 
@@ -178,7 +179,7 @@ pub(crate) struct OffsetRecord {
 
 impl TableData {
     /// the 'adjustment' param is used to modify the written position.
-    fn add_offset(&mut self, object: ObjectId, width: usize, adjustment: u32) {
+    pub(crate) fn add_offset(&mut self, object: ObjectId, width: usize, adjustment: u32) {
         self.offsets.push(OffsetRecord {
             pos: self.bytes.len() as u32,
             len: match width {
@@ -197,6 +198,16 @@ impl TableData {
     #[allow(dead_code)] // this will be used when we do promotion/splitting
     pub(crate) fn write<T: Scalar>(&mut self, value: T) {
         self.write_bytes(value.to_raw().as_ref())
+    }
+
+    /// Write the value over existing data at the provided position.
+    ///
+    /// Only used in very special cases. The caller is responsible for knowing
+    /// what they are doing.
+    pub(crate) fn write_over<T: Scalar>(&mut self, value: T, pos: usize) {
+        let raw = value.to_raw();
+        let len = raw.as_ref().len();
+        self.bytes[pos..pos + len].copy_from_slice(raw.as_ref());
     }
 
     fn write_bytes(&mut self, bytes: &[u8]) {

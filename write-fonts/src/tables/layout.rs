@@ -166,10 +166,20 @@ pub enum LookupType {
 }
 
 impl LookupType {
+    pub(crate) const GSUB_EXT_TYPE: u16 = 7;
+    pub(crate) const GPOS_EXT_TYPE: u16 = 9;
+
     pub(crate) fn to_raw(self) -> u16 {
         match self {
             LookupType::Gpos(val) => val,
             LookupType::Gsub(val) => val,
+        }
+    }
+
+    pub(crate) fn promote(self) -> Self {
+        match self {
+            LookupType::Gpos(_) => LookupType::Gpos(Self::GPOS_EXT_TYPE),
+            LookupType::Gsub(_) => LookupType::Gsub(Self::GSUB_EXT_TYPE),
         }
     }
 }
