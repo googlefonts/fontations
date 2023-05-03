@@ -287,7 +287,7 @@ impl<I: Iterator> Iterator for MultiZip<I> {
     }
 }
 
-pub fn simple_glyphs_from_kurbo(paths: &[&BezPath]) -> Result<Vec<SimpleGlyph>, BadKurbo> {
+pub fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, BadKurbo> {
     // check that all paths have the same number of elements so we can zip them together
     let num_elements: Vec<usize> = paths.iter().map(|path| path.elements().len()).collect();
     if num_elements.iter().any(|n| *n != num_elements[0]) {
@@ -455,7 +455,9 @@ impl SimpleGlyph {
     ///
     /// Context courtesy of @anthrotype.
     pub fn from_kurbo(path: &BezPath) -> Result<Self, BadKurbo> {
-        Ok(simple_glyphs_from_kurbo(&[path])?.pop().unwrap())
+        Ok(simple_glyphs_from_kurbo(std::slice::from_ref(path))?
+            .pop()
+            .unwrap())
     }
 
     /// Compute the flags and deltas for this glyph's points.
