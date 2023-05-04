@@ -915,6 +915,9 @@ impl FontWrite for Bbox {
 
 #[cfg(test)]
 mod tests {
+    use std::iter::from_fn;
+
+    use kurbo::Affine;
     use read::{
         tables::glyf as read_glyf, types::GlyphId, FontData, FontRead, FontRef, TableProvider,
     };
@@ -1182,6 +1185,469 @@ mod tests {
         assert_eq!(points[2].y, -69);
         assert_eq!(points[3].x, 80);
         assert_eq!(points[3].y, -20);
+    }
+
+    #[test]
+    #[should_panic(expected = "UnequalNumberOfElements")]
+    fn simple_glyphs_from_kurbo_unequal_number_of_elements() {
+        let mut path1 = BezPath::new();
+        path1.move_to((0., 0.));
+        path1.line_to((1., 1.));
+        path1.line_to((2., 2.));
+        path1.line_to((0., 0.));
+        path1.close_path();
+        assert_eq!(path1.elements().len(), 5);
+
+        let mut path2 = BezPath::new();
+        path2.move_to((3., 3.));
+        path2.line_to((4., 4.));
+        path2.line_to((5., 5.));
+        path2.line_to((6., 6.));
+        path2.line_to((3., 3.));
+        path2.close_path();
+        assert_eq!(path2.elements().len(), 6);
+
+        simple_glyphs_from_kurbo(&[path1, path2]).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "InconsistentPathElements")]
+    fn simple_glyphs_from_kurbo_inconsistent_path_elements() {
+        let mut path1 = BezPath::new();
+        path1.move_to((0., 0.));
+        path1.line_to((1., 1.));
+        path1.quad_to((2., 2.), (0., 0.));
+        path1.close_path();
+        let mut path2 = BezPath::new();
+        path2.move_to((3., 3.));
+        path2.quad_to((4., 4.), (5., 5.));
+        path2.line_to((3., 3.));
+        path2.close_path();
+
+        simple_glyphs_from_kurbo(&[path1, path2]).unwrap();
+    }
+
+    fn make_interpolatable_paths(
+        num_paths: usize,
+        el_types: &str,
+        last_pt_equal_move: bool,
+    ) -> Vec<BezPath> {
+        let mut paths = Vec::new();
+        // we don't care about the actual coordinate values, just use a counter
+        // that yields 0.0, 1.0, 2.0, 3.0, etc.
+        let mut start = 0.0;
+        let mut points = from_fn(move || {
+            let value = start;
+            start += 1.0;
+            Some((value, value))
+        });
+        let el_types = el_types.chars().collect::<Vec<_>>();
+        assert!(!el_types.is_empty());
+        for _ in 0..num_paths {
+            let mut path = BezPath::new();
+            let mut start_pt = None;
+            // use peekable iterator so we can look ahead to next el_type
+            let mut el_types_iter = el_types.iter().peekable();
+            while let Some(&el_type) = el_types_iter.next() {
+                let next_el_type = el_types_iter.peek().map(|x| **x).unwrap_or('M');
+                match el_type {
+                    'M' => {
+                        start_pt = points.next();
+                        path.move_to(start_pt.unwrap());
+                    }
+                    'L' => {
+                        if matches!(next_el_type, 'Z' | 'M') && last_pt_equal_move {
+                            path.line_to(start_pt.unwrap());
+                        } else {
+                            path.line_to(points.next().unwrap());
+                        }
+                    }
+                    'Q' => {
+                        let p1 = points.next().unwrap();
+                        let p2 = if matches!(next_el_type, 'Z' | 'M') && last_pt_equal_move {
+                            start_pt.unwrap()
+                        } else {
+                            points.next().unwrap()
+                        };
+                        path.quad_to(p1, p2);
+                    }
+                    'Z' => {
+                        path.close_path();
+                        start_pt = None;
+                    }
+                    _ => panic!("Usupported element type {:?}", el_type),
+                }
+            }
+            paths.push(path);
+        }
+        assert_eq!(paths.len(), num_paths);
+        paths
+    }
+
+    fn assert_contour_points(glyph: &SimpleGlyph, all_points: Vec<Vec<CurvePoint>>) {
+        let expected_num_contours = all_points.len();
+        assert_eq!(glyph.contours().len(), expected_num_contours);
+        for (contour, expected_points) in glyph.contours().iter().zip(all_points.iter()) {
+            let points = contour.iter().copied().collect::<Vec<_>>();
+            assert_eq!(points.len(), expected_points.len());
+            assert_eq!(points, *expected_points);
+        }
+    }
+
+    #[test]
+    fn simple_glyphs_from_kurbo_3_lines_closed() {
+        let paths = make_interpolatable_paths(2, "MLLLZ", true);
+        let glyphs = simple_glyphs_from_kurbo(&paths).unwrap();
+
+        assert_contour_points(
+            &glyphs[0],
+            vec![vec![
+                CurvePoint::on_curve(0, 0),
+                CurvePoint::on_curve(1, 1),
+                CurvePoint::on_curve(2, 2),
+            ]],
+        );
+        assert_contour_points(
+            &glyphs[1],
+            vec![vec![
+                CurvePoint::on_curve(3, 3),
+                CurvePoint::on_curve(4, 4),
+                CurvePoint::on_curve(5, 5),
+            ]],
+        );
+    }
+
+    #[test]
+    fn simple_glyphs_from_kurbo_3_lines_implicitly_closed() {
+        let paths = make_interpolatable_paths(2, "MLLZ", false);
+        let glyphs = simple_glyphs_from_kurbo(&paths).unwrap();
+
+        assert_contour_points(
+            &glyphs[0],
+            vec![vec![
+                CurvePoint::on_curve(0, 0),
+                CurvePoint::on_curve(1, 1),
+                CurvePoint::on_curve(2, 2),
+            ]],
+        );
+        assert_contour_points(
+            &glyphs[1],
+            vec![vec![
+                CurvePoint::on_curve(3, 3),
+                CurvePoint::on_curve(4, 4),
+                CurvePoint::on_curve(5, 5),
+            ]],
+        );
+    }
+
+    #[test]
+    fn simple_glyphs_from_kurbo_2_quads_closed() {
+        let paths = make_interpolatable_paths(2, "MQQZ", true);
+        let glyphs = simple_glyphs_from_kurbo(&paths).unwrap();
+
+        assert_contour_points(
+            &glyphs[0],
+            vec![vec![
+                CurvePoint::on_curve(0, 0),
+                CurvePoint::off_curve(1, 1),
+                // CurvePoint::on_curve(2, 2),  // implied oncurve point dropped
+                CurvePoint::off_curve(3, 3),
+            ]],
+        );
+        assert_contour_points(
+            &glyphs[1],
+            vec![vec![
+                CurvePoint::on_curve(4, 4),
+                CurvePoint::off_curve(5, 5),
+                // CurvePoint::on_curve(6, 6),  // implied
+                CurvePoint::off_curve(7, 7),
+            ]],
+        );
+    }
+
+    #[test]
+    fn simple_glyphs_from_kurbo_2_quads_1_line_implictly_closed() {
+        let paths = make_interpolatable_paths(2, "MQQZ", false);
+        let glyphs = simple_glyphs_from_kurbo(&paths).unwrap();
+
+        assert_contour_points(
+            &glyphs[0],
+            vec![vec![
+                CurvePoint::on_curve(0, 0),
+                CurvePoint::off_curve(1, 1),
+                // CurvePoint::on_curve(2, 2),
+                CurvePoint::off_curve(3, 3),
+                CurvePoint::on_curve(4, 4),
+            ]],
+        );
+        assert_contour_points(
+            &glyphs[1],
+            vec![vec![
+                CurvePoint::on_curve(5, 5),
+                CurvePoint::off_curve(6, 6),
+                // CurvePoint::on_curve(7, 7),
+                CurvePoint::off_curve(8, 8),
+                CurvePoint::on_curve(9, 9),
+            ]],
+        );
+    }
+
+    #[test]
+    fn simple_glyphs_from_kurbo_multiple_contours_mixed_segments() {
+        let paths = make_interpolatable_paths(4, "MLQQZMQLQLZ", true);
+        let glyphs = simple_glyphs_from_kurbo(&paths).unwrap();
+
+        assert_contour_points(
+            &glyphs[0],
+            vec![
+                vec![
+                    CurvePoint::on_curve(0, 0),
+                    CurvePoint::on_curve(1, 1),
+                    CurvePoint::off_curve(2, 2),
+                    // CurvePoint::on_curve(3, 3),
+                    CurvePoint::off_curve(4, 4),
+                ],
+                vec![
+                    CurvePoint::on_curve(5, 5),
+                    CurvePoint::off_curve(6, 6),
+                    CurvePoint::on_curve(7, 7),
+                    CurvePoint::on_curve(8, 8),
+                    CurvePoint::off_curve(9, 9),
+                    CurvePoint::on_curve(10, 10),
+                ],
+            ],
+        );
+    }
+
+    #[test]
+    fn simple_glyphs_from_kurbo_all_quad_off_curves() {
+        let mut path1 = BezPath::new();
+        path1.move_to((0.0, 1.0));
+        path1.quad_to((1.0, 1.0), (1.0, 0.0));
+        path1.quad_to((1.0, -1.0), (0.0, -1.0));
+        path1.quad_to((-1.0, -1.0), (-1.0, 0.0));
+        path1.quad_to((-1.0, 1.0), (0.0, 1.0));
+        path1.close_path();
+
+        let mut path2 = path1.clone();
+        path2.apply_affine(Affine::scale(2.0));
+
+        let glyphs = simple_glyphs_from_kurbo(&[path1, path2]).unwrap();
+
+        assert_contour_points(
+            &glyphs[0],
+            vec![vec![
+                CurvePoint::off_curve(1, 1),
+                CurvePoint::off_curve(1, -1),
+                CurvePoint::off_curve(-1, -1),
+                CurvePoint::off_curve(-1, 1),
+            ]],
+        );
+        assert_contour_points(
+            &glyphs[1],
+            vec![vec![
+                CurvePoint::off_curve(2, 2),
+                CurvePoint::off_curve(2, -2),
+                CurvePoint::off_curve(-2, -2),
+                CurvePoint::off_curve(-2, 2),
+            ]],
+        );
+    }
+
+    #[test]
+    fn simple_glyphs_from_kurbo_keep_on_curve_unless_impliable_for_all() {
+        let mut path1 = BezPath::new();
+        path1.move_to((0.0, 0.0));
+        path1.quad_to((0.0, 1.0), (1.0, 1.0)); // on-curve equidistant from prev/next off-curves
+        path1.quad_to((2.0, 1.0), (2.0, 0.0));
+        path1.line_to((0.0, 0.0));
+        path1.close_path();
+
+        assert_contour_points(
+            &SimpleGlyph::from_kurbo(&path1).unwrap(),
+            vec![vec![
+                CurvePoint::on_curve(0, 0),
+                CurvePoint::off_curve(0, 1),
+                // CurvePoint::on_curve(1, 1),  // implied
+                CurvePoint::off_curve(2, 1),
+                CurvePoint::on_curve(2, 0),
+            ]],
+        );
+
+        let mut path2 = BezPath::new();
+        path2.move_to((0.0, 0.0));
+        path2.quad_to((0.0, 2.0), (2.0, 2.0)); // on-curve NOT equidistant from prev/next off-curves
+        path2.quad_to((3.0, 2.0), (3.0, 0.0));
+        path2.line_to((0.0, 0.0));
+        path2.close_path();
+
+        let glyphs = simple_glyphs_from_kurbo(&[path1, path2]).unwrap();
+
+        assert_contour_points(
+            &glyphs[0],
+            vec![vec![
+                CurvePoint::on_curve(0, 0),
+                CurvePoint::off_curve(0, 1),
+                CurvePoint::on_curve(1, 1), // NOT implied
+                CurvePoint::off_curve(2, 1),
+                CurvePoint::on_curve(2, 0),
+            ]],
+        );
+        assert_contour_points(
+            &glyphs[1],
+            vec![vec![
+                CurvePoint::on_curve(0, 0),
+                CurvePoint::off_curve(0, 2),
+                CurvePoint::on_curve(2, 2), // NOT implied
+                CurvePoint::off_curve(3, 2),
+                CurvePoint::on_curve(3, 0),
+            ]],
+        );
+    }
+
+    #[test]
+    fn simple_glyphs_from_kurbo_2_lines_open() {
+        let paths = make_interpolatable_paths(2, "MLL", false);
+        let glyphs = simple_glyphs_from_kurbo(&paths).unwrap();
+
+        assert_contour_points(
+            &glyphs[0],
+            vec![vec![
+                CurvePoint::on_curve(0, 0),
+                CurvePoint::on_curve(1, 1),
+                CurvePoint::on_curve(2, 2),
+            ]],
+        );
+        assert_contour_points(
+            &glyphs[1],
+            vec![vec![
+                CurvePoint::on_curve(3, 3),
+                CurvePoint::on_curve(4, 4),
+                CurvePoint::on_curve(5, 5),
+            ]],
+        );
+    }
+
+    #[test]
+    fn simple_glyphs_from_kurbo_3_lines_open_duplicate_last_pt() {
+        let paths = make_interpolatable_paths(2, "MLLL", true);
+        let glyphs = simple_glyphs_from_kurbo(&paths).unwrap();
+
+        assert_contour_points(
+            &glyphs[0],
+            vec![vec![
+                CurvePoint::on_curve(0, 0),
+                CurvePoint::on_curve(1, 1),
+                CurvePoint::on_curve(2, 2),
+                CurvePoint::on_curve(0, 0),
+            ]],
+        );
+        assert_contour_points(
+            &glyphs[1],
+            vec![vec![
+                CurvePoint::on_curve(3, 3),
+                CurvePoint::on_curve(4, 4),
+                CurvePoint::on_curve(5, 5),
+                CurvePoint::on_curve(3, 3),
+            ]],
+        );
+    }
+
+    #[test]
+    fn simple_glyphs_from_kurbo_4_lines_closed_duplicate_last_pt() {
+        for implicit_closing_line in &[true, false] {
+            // both (closed) paths contain 4 line segments each, but the first path
+            // looks like a triangle because the last segment has zero length (i.e.
+            // last and first points are duplicates).
+            let mut path1 = BezPath::new();
+            path1.move_to((0.0, 0.0));
+            path1.line_to((0.0, 1.0));
+            path1.line_to((1.0, 1.0));
+            path1.line_to((0.0, 0.0));
+            if !*implicit_closing_line {
+                path1.line_to((0.0, 0.0));
+            }
+            path1.close_path();
+
+            let mut path2 = BezPath::new();
+            path2.move_to((0.0, 0.0));
+            path2.line_to((0.0, 2.0));
+            path2.line_to((2.0, 2.0));
+            path2.line_to((2.0, 0.0));
+            if !*implicit_closing_line {
+                path2.line_to((0.0, 0.0));
+            }
+            path2.close_path();
+
+            let glyphs = simple_glyphs_from_kurbo(&[path1, path2]).unwrap();
+
+            assert_contour_points(
+                &glyphs[0],
+                vec![vec![
+                    CurvePoint::on_curve(0, 0),
+                    CurvePoint::on_curve(0, 1),
+                    CurvePoint::on_curve(1, 1),
+                    CurvePoint::on_curve(0, 0), // duplicate last point retained
+                ]],
+            );
+            assert_contour_points(
+                &glyphs[1],
+                vec![vec![
+                    CurvePoint::on_curve(0, 0),
+                    CurvePoint::on_curve(0, 2),
+                    CurvePoint::on_curve(2, 2),
+                    CurvePoint::on_curve(2, 0),
+                ]],
+            );
+        }
+    }
+
+    #[test]
+    fn simple_glyphs_from_kurbo_2_quads_1_line_closed_duplicate_last_pt() {
+        for implicit_closing_line in &[true, false] {
+            // the closed paths contain 2 quads and 1 line segments, but in the first path
+            // the last segment has zero length (i.e. last and first points are duplicates).
+            let mut path1 = BezPath::new();
+            path1.move_to((0.0, 0.0));
+            path1.quad_to((0.0, 1.0), (1.0, 1.0));
+            path1.quad_to((1.0, 0.0), (0.0, 0.0));
+            if !*implicit_closing_line {
+                path1.line_to((0.0, 0.0));
+            }
+            path1.close_path();
+
+            let mut path2 = BezPath::new();
+            path2.move_to((0.0, 0.0));
+            path2.quad_to((0.0, 2.0), (2.0, 2.0));
+            path2.quad_to((2.0, 1.0), (1.0, 0.0));
+            if !*implicit_closing_line {
+                path2.line_to((0.0, 0.0));
+            }
+            path2.close_path();
+
+            let glyphs = simple_glyphs_from_kurbo(&[path1, path2]).unwrap();
+
+            assert_contour_points(
+                &glyphs[0],
+                vec![vec![
+                    CurvePoint::on_curve(0, 0),
+                    CurvePoint::off_curve(0, 1),
+                    CurvePoint::on_curve(1, 1),
+                    CurvePoint::off_curve(1, 0),
+                    CurvePoint::on_curve(0, 0), // duplicate last point retained
+                ]],
+            );
+            assert_contour_points(
+                &glyphs[1],
+                vec![vec![
+                    CurvePoint::on_curve(0, 0),
+                    CurvePoint::off_curve(0, 2),
+                    CurvePoint::on_curve(2, 2),
+                    CurvePoint::off_curve(2, 1),
+                    CurvePoint::on_curve(1, 0),
+                ]],
+            );
+        }
     }
 
     #[test]
