@@ -172,13 +172,13 @@ impl InterpolatableContourBuilder {
     }
 
     /// The first point in each contour
-    fn first(&self) -> Vec<&ContourPoint> {
-        self.0.iter().map(|v| v.first().unwrap()).collect()
+    fn first(&self) -> impl Iterator<Item = &ContourPoint> {
+        self.0.iter().map(|v| v.first().unwrap())
     }
 
     /// The last point in each contour
-    fn last(&self) -> Vec<&ContourPoint> {
-        self.0.iter().map(|v| v.last().unwrap()).collect()
+    fn last(&self) -> impl Iterator<Item = &ContourPoint> {
+        self.0.iter().map(|v| v.last().unwrap())
     }
 
     /// Remove the last point from each contour
@@ -287,6 +287,8 @@ pub fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, B
     let mut contours: Vec<InterpolatableContourBuilder> = Vec::new();
     let mut current: Option<InterpolatableContourBuilder> = None;
     let num_glyphs = paths.len();
+    let mut pts = Vec::with_capacity(num_glyphs);
+    let mut quad_pts = Vec::with_capacity(num_glyphs);
     for (i, elements) in path_iters.enumerate() {
         // All i-th path elements are expected to have the same types.
         // elements is never empty (if it were, MultiZip would have stopped), hence the unwrap
@@ -297,42 +299,49 @@ pub fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, B
                 if let Some(prev) = current.take() {
                     contours.push(prev);
                 }
-                let pts = elements
-                    .iter()
-                    .map(|el| match el {
-                        &kurbo::PathEl::MoveTo(pt) => Ok(pt),
-                        _ => {
-                            return Err(BadKurbo::InconsistentPathElements(i, el_types(&elements)))
-                        }
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                current = Some(InterpolatableContourBuilder::new(&pts));
-            }
-            kurbo::PathEl::LineTo(_) => {
-                let pts = elements
-                    .iter()
-                    .map(|el| match el {
-                        &kurbo::PathEl::LineTo(pt) => Ok(pt),
-                        _ => {
-                            return Err(BadKurbo::InconsistentPathElements(i, el_types(&elements)))
-                        }
-                    })
-                    .collect::<Result<Vec<_>, _>>()?;
-                current.as_mut().ok_or(BadKurbo::MissingMove)?.line_to(&pts)
-            }
-            kurbo::PathEl::QuadTo(_, _) => {
-                let mut pts = Vec::with_capacity(num_glyphs);
+                pts.clear();
                 for el in &elements {
                     match el {
-                        &kurbo::PathEl::QuadTo(p0, p1) => {
-                            pts.push((p0, p1));
+                        &kurbo::PathEl::MoveTo(pt) => {
+                            pts.push(pt);
                         }
                         _ => {
                             return Err(BadKurbo::InconsistentPathElements(i, el_types(&elements)))
                         }
                     }
                 }
-                current.as_mut().ok_or(BadKurbo::MissingMove)?.quad_to(&pts)
+                current = Some(InterpolatableContourBuilder::new(&pts));
+            }
+            kurbo::PathEl::LineTo(_) => {
+                pts.clear();
+                for el in &elements {
+                    match el {
+                        &kurbo::PathEl::LineTo(pt) => {
+                            pts.push(pt);
+                        }
+                        _ => {
+                            return Err(BadKurbo::InconsistentPathElements(i, el_types(&elements)))
+                        }
+                    }
+                }
+                current.as_mut().ok_or(BadKurbo::MissingMove)?.line_to(&pts)
+            }
+            kurbo::PathEl::QuadTo(_, _) => {
+                quad_pts.clear();
+                for el in &elements {
+                    match el {
+                        &kurbo::PathEl::QuadTo(p0, p1) => {
+                            quad_pts.push((p0, p1));
+                        }
+                        _ => {
+                            return Err(BadKurbo::InconsistentPathElements(i, el_types(&elements)))
+                        }
+                    }
+                }
+                current
+                    .as_mut()
+                    .ok_or(BadKurbo::MissingMove)?
+                    .quad_to(&quad_pts)
             }
             kurbo::PathEl::CurveTo(_, _, _) => return Err(BadKurbo::HasCubic),
             kurbo::PathEl::ClosePath => {
@@ -340,7 +349,7 @@ pub fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, B
                 // remove last point in closed path if has same coords as the move point
                 // matches FontTools handling @ https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/pens/pointPen.py#L321-L323
                 // FontTools has an else case to support UFO glif's choice to not include 'move' for closed paths that does not apply here.
-                if contour.num_points() > 1 && contour.last() == contour.first() {
+                if contour.num_points() > 1 && contour.last().eq(contour.first()) {
                     contour.remove_last();
                 }
             }
