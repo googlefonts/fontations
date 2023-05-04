@@ -1,7 +1,5 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
-use std::collections::HashSet;
-
 use crate::OtRound;
 use kurbo::{BezPath, Rect, Shape};
 
@@ -16,7 +14,7 @@ use crate::{
 };
 
 /// A single contour, comprising only line and quadratic bezier segments
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Default)]
 pub struct Contour(Vec<CurvePoint>);
 
 /// A Bounding box.
@@ -192,69 +190,66 @@ impl InterpolatableContourBuilder {
         });
     }
 
-    /// Compute the intersection of all implied on-curve points and return their indices
-    fn impliable_oncurve_points(&self) -> HashSet<usize> {
-        let epsilon = f32::EPSILON as f64; // should we make it a parameter?
-        let mut result = HashSet::new();
-        if let Some((first, others)) = self.0.split_first() {
-            result = impliable_oncurve_points(first, epsilon);
-            for points in others {
-                result = result
-                    .intersection(&impliable_oncurve_points(points, epsilon))
-                    .copied()
-                    .collect();
-            }
-        }
-        result
+    fn is_implicit_on_curve(&self, idx: usize) -> bool {
+        self.0
+            .iter()
+            .all(|points| is_implicit_on_curve(points, idx))
     }
 
     /// Build the contours, dropping any on-curve points that can be implied in all contours
     fn build(self) -> Vec<Contour> {
-        let drop = self.impliable_oncurve_points();
-        // Omit implied on-curve points when building the contours
-        let mut contours = Vec::with_capacity(self.len());
-        for points in self.0 {
-            contours.push(Contour(
-                points
-                    .into_iter()
-                    .enumerate()
-                    .filter_map(|(i, pt)| {
-                        if drop.contains(&i) {
-                            None
-                        } else {
-                            Some(CurvePoint::from(pt))
-                        }
-                    })
-                    .collect(),
-            ))
+        let num_contours = self.len();
+        let num_points = self.num_points();
+        let mut contours = vec![Contour::default(); num_contours];
+        contours.iter_mut().for_each(|c| c.0.reserve(num_points));
+        for point_idx in (0..num_points).filter(|point_idx| !self.is_implicit_on_curve(*point_idx))
+        {
+            for contour_idx in 0..num_contours {
+                contours[contour_idx]
+                    .0
+                    .push(CurvePoint::from(self.0[contour_idx][point_idx]));
+            }
         }
         contours
     }
 }
 
-/// Indices of on-curve points that are at equal distance between two off-curve points
-fn impliable_oncurve_points(points: &[ContourPoint], tolerance: f64) -> HashSet<usize> {
-    let mut result = HashSet::new();
-    for (i, p1) in points.iter().enumerate() {
-        if !p1.on_curve {
-            continue;
-        }
-        let prv = if i > 0 { i - 1 } else { points.len() - 1 };
-        let nxt = if i < points.len() - 1 { i + 1 } else { 0 };
-        let p0 = &points[prv];
-        let p2 = &points[nxt];
-        if p0.on_curve || p0.on_curve != p2.on_curve {
-            continue;
-        }
-        // if the distance between p1 and p0 is approximately the same as the distance
-        // between p2 and p1, then we can drop p1
-        let p1p0 = p1.distance(p0);
-        let p2p1 = p2.distance(p1);
-        if (p1p0 - p2p1).abs() < tolerance {
-            result.insert(i);
-        }
+enum Sibling {
+    Prev,
+    Next,
+}
+
+/// Read the adjacent (prev/next) point.
+///
+/// offset is presumed +/- 1 to signify direction.
+/// idx is presumed valid.
+/// value + offset is presumed to fit both isize and usize; # points tends to be small.
+fn wrapping_read_sibling(points: &[ContourPoint], idx: usize, sibling: Sibling) -> ContourPoint {
+    let max_valid_idx = points.len() - 1;
+    points[match (idx, sibling) {
+        (_, Sibling::Next) if idx == max_valid_idx => 0,
+        (_, Sibling::Prev) if idx == 0 => max_valid_idx,
+        (_, Sibling::Next) => idx + 1,
+        (_, Sibling::Prev) => idx - 1,
+    }]
+}
+
+fn is_implicit_on_curve(points: &[ContourPoint], idx: usize) -> bool {
+    let p1 = points[idx]; // user error if this is out of bounds
+    if !p1.on_curve {
+        return false;
     }
-    result
+    let p0 = wrapping_read_sibling(points, idx, Sibling::Prev);
+    let p2 = wrapping_read_sibling(points, idx, Sibling::Next);
+    if p0.on_curve || p0.on_curve != p2.on_curve {
+        return false;
+    }
+    // if the distance between p1 and p0 is approximately the same as the distance
+    // between p2 and p1, then we can drop p1
+    let p1p0 = p1.distance(&p0);
+    let p2p1 = p2.distance(&p1);
+    // should tolerance be a parameter?
+    (p1p0 - p2p1).abs() < f32::EPSILON as f64
 }
 
 // The MultiZip is adapted from https://stackoverflow.com/a/55292215
@@ -1272,7 +1267,6 @@ mod tests {
         assert_eq!(glyph.contours().len(), expected_num_contours);
         for (contour, expected_points) in glyph.contours().iter().zip(all_points.iter()) {
             let points = contour.iter().copied().collect::<Vec<_>>();
-            assert_eq!(points.len(), expected_points.len());
             assert_eq!(points, *expected_points);
         }
     }
