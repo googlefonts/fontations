@@ -133,12 +133,12 @@ struct InterpolatableContourBuilder(Vec<Vec<ContourPoint>>);
 
 impl InterpolatableContourBuilder {
     /// Create new set of interpolatable contours beginning at the provided points
-    fn new(move_pts: Vec<kurbo::Point>) -> Self {
+    fn new(move_pts: &[kurbo::Point]) -> Self {
         assert!(!move_pts.is_empty());
         Self(
             move_pts
-                .into_iter()
-                .map(|pt| vec![ContourPoint::on_curve(pt)])
+                .iter()
+                .map(|pt| vec![ContourPoint::on_curve(*pt)])
                 .collect(),
         )
     }
@@ -149,20 +149,18 @@ impl InterpolatableContourBuilder {
     }
 
     /// Add a line segment to all contours
-    fn line_to(&mut self, pts: Vec<kurbo::Point>) {
+    fn line_to(&mut self, pts: &[kurbo::Point]) {
         assert_eq!(pts.len(), self.len());
-        for (i, pt) in pts.into_iter().enumerate() {
-            self.0[i].push(ContourPoint::on_curve(pt));
+        for (i, pt) in pts.iter().enumerate() {
+            self.0[i].push(ContourPoint::on_curve(*pt));
         }
     }
 
     /// Add a quadratic curve segment to all contours
-    fn quad_to(&mut self, p0s: Vec<kurbo::Point>, p1s: Vec<kurbo::Point>) {
-        assert_eq!(p0s.len(), self.len());
-        assert_eq!(p1s.len(), self.len());
-        for (i, (p0, p1)) in p0s.into_iter().zip(p1s.into_iter()).enumerate() {
-            self.0[i].push(ContourPoint::off_curve(p0));
-            self.0[i].push(ContourPoint::on_curve(p1));
+    fn quad_to(&mut self, pts: &[(kurbo::Point, kurbo::Point)]) {
+        for (i, (p0, p1)) in pts.iter().enumerate() {
+            self.0[i].push(ContourPoint::off_curve(*p0));
+            self.0[i].push(ContourPoint::on_curve(*p1));
         }
     }
 
@@ -265,6 +263,20 @@ impl<I: Iterator> Iterator for MultiZip<I> {
     }
 }
 
+#[inline]
+fn el_types(elements: &[kurbo::PathEl]) -> Vec<&'static str> {
+    elements
+        .iter()
+        .map(|el| match el {
+            kurbo::PathEl::MoveTo(_) => "M",
+            kurbo::PathEl::LineTo(_) => "L",
+            kurbo::PathEl::QuadTo(_, _) => "Q",
+            kurbo::PathEl::CurveTo(_, _, _) => "C",
+            kurbo::PathEl::ClosePath => "Z",
+        })
+        .collect()
+}
+
 pub fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, BadKurbo> {
     // check that all paths have the same number of elements so we can zip them together
     let num_elements: Vec<usize> = paths.iter().map(|path| path.elements().len()).collect();
@@ -276,19 +288,7 @@ pub fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, B
     let mut current: Option<InterpolatableContourBuilder> = None;
     let num_glyphs = paths.len();
     for (i, elements) in path_iters.enumerate() {
-        // check that all i-th path elements have the same types
-        let mut el_types: Vec<&str> = Vec::with_capacity(num_glyphs);
-        el_types.extend(elements.iter().map(|el| match el {
-            kurbo::PathEl::MoveTo(_) => "M",
-            kurbo::PathEl::LineTo(_) => "L",
-            kurbo::PathEl::QuadTo(_, _) => "Q",
-            kurbo::PathEl::CurveTo(_, _, _) => "C",
-            kurbo::PathEl::ClosePath => "Z",
-        }));
-        if el_types.iter().any(|t| *t != el_types[0]) {
-            return Err(BadKurbo::InconsistentPathElements(i, el_types));
-        }
-
+        // All i-th path elements are expected to have the same types.
         // elements is never empty (if it were, MultiZip would have stopped), hence the unwrap
         let first_el = elements.first().unwrap();
         match first_el {
@@ -297,37 +297,42 @@ pub fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, B
                 if let Some(prev) = current.take() {
                     contours.push(prev);
                 }
-                let mut pts = Vec::with_capacity(num_glyphs);
-                pts.extend(elements.into_iter().map(|el| match el {
-                    kurbo::PathEl::MoveTo(pt) => pt,
-                    _ => unreachable!(),
-                }));
-                current = Some(InterpolatableContourBuilder::new(pts));
+                let pts = elements
+                    .iter()
+                    .map(|el| match el {
+                        &kurbo::PathEl::MoveTo(pt) => Ok(pt),
+                        _ => {
+                            return Err(BadKurbo::InconsistentPathElements(i, el_types(&elements)))
+                        }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                current = Some(InterpolatableContourBuilder::new(&pts));
             }
             kurbo::PathEl::LineTo(_) => {
-                let mut pts = Vec::with_capacity(num_glyphs);
-                pts.extend(elements.into_iter().map(|el| match el {
-                    kurbo::PathEl::LineTo(pt) => pt,
-                    _ => unreachable!(),
-                }));
-                current.as_mut().ok_or(BadKurbo::MissingMove)?.line_to(pts)
+                let pts = elements
+                    .iter()
+                    .map(|el| match el {
+                        &kurbo::PathEl::LineTo(pt) => Ok(pt),
+                        _ => {
+                            return Err(BadKurbo::InconsistentPathElements(i, el_types(&elements)))
+                        }
+                    })
+                    .collect::<Result<Vec<_>, _>>()?;
+                current.as_mut().ok_or(BadKurbo::MissingMove)?.line_to(&pts)
             }
             kurbo::PathEl::QuadTo(_, _) => {
-                let mut p0s = Vec::with_capacity(num_glyphs);
-                let mut p1s = Vec::with_capacity(num_glyphs);
-                for el in elements {
+                let mut pts = Vec::with_capacity(num_glyphs);
+                for el in &elements {
                     match el {
-                        kurbo::PathEl::QuadTo(p0, p1) => {
-                            p0s.push(p0);
-                            p1s.push(p1);
+                        &kurbo::PathEl::QuadTo(p0, p1) => {
+                            pts.push((p0, p1));
                         }
-                        _ => unreachable!(),
+                        _ => {
+                            return Err(BadKurbo::InconsistentPathElements(i, el_types(&elements)))
+                        }
                     }
                 }
-                current
-                    .as_mut()
-                    .ok_or(BadKurbo::MissingMove)?
-                    .quad_to(p0s, p1s)
+                current.as_mut().ok_or(BadKurbo::MissingMove)?.quad_to(&pts)
             }
             kurbo::PathEl::CurveTo(_, _, _) => return Err(BadKurbo::HasCubic),
             kurbo::PathEl::ClosePath => {
