@@ -1,10 +1,9 @@
-use std::collections::{BTreeSet, HashMap};
+use std::collections::BTreeSet;
 
 use crate::error::{Error, PackingError};
 use crate::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
 use crate::validate::Validate;
 use font_types::Scalar;
-use types::Uint24;
 
 /// A type that that can be written out as part of a font file.
 ///
@@ -52,57 +51,7 @@ pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, Error> 
             graph: graph.into(),
         }));
     }
-    Ok(dump_impl(&graph.order, &graph.objects))
-}
-
-fn dump_impl(order: &[ObjectId], nodes: &HashMap<ObjectId, TableData>) -> Vec<u8> {
-    let mut offsets = HashMap::new();
-    let mut out = Vec::new();
-    let mut off = 0;
-
-    // first pass: write out bytes, record positions of offsets
-    for id in order {
-        let node = nodes.get(id).unwrap();
-        offsets.insert(*id, off);
-        off += node.bytes.len() as u32;
-        out.extend_from_slice(&node.bytes);
-    }
-
-    // second pass: write offsets
-    let mut table_head = 0;
-    for id in order {
-        let node = nodes.get(id).unwrap();
-        for offset in &node.offsets {
-            let abs_off = *offsets
-                .get(&offset.object)
-                .expect("all offsets visited in first pass");
-            let rel_off = abs_off - (table_head + offset.adjustment);
-            let buffer_pos = table_head + offset.pos;
-            let write_over = out.get_mut(buffer_pos as usize..).unwrap();
-            write_offset(write_over, offset.len, rel_off);
-        }
-        table_head += node.bytes.len() as u32;
-    }
-    out
-}
-
-fn write_offset(at: &mut [u8], len: OffsetLen, resolved: u32) {
-    let at = &mut at[..len as u8 as usize];
-    match len {
-        OffsetLen::Offset16 => at.copy_from_slice(
-            u16::try_from(resolved)
-                .expect("offset overflow should be checked before now")
-                .to_be_bytes()
-                .as_slice(),
-        ),
-        OffsetLen::Offset24 => at.copy_from_slice(
-            Uint24::checked_new(resolved)
-                .expect("offset overflow should be checked before now")
-                .to_be_bytes()
-                .as_slice(),
-        ),
-        OffsetLen::Offset32 => at.copy_from_slice(resolved.to_be_bytes().as_slice()),
-    }
+    Ok(graph.serialize())
 }
 
 impl TableWriter {
@@ -208,7 +157,7 @@ impl Eq for TableData {}
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub(crate) struct OffsetRecord {
     /// the position of the offset within the parent table
-    pos: u32,
+    pub(crate) pos: u32,
     /// the offset length in bytes
     pub(crate) len: OffsetLen,
     /// The object pointed to by the offset
