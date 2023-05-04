@@ -204,8 +204,8 @@ impl InterpolatableContourBuilder {
         contours.iter_mut().for_each(|c| c.0.reserve(num_points));
         for point_idx in (0..num_points).filter(|point_idx| !self.is_implicit_on_curve(*point_idx))
         {
-            for contour_idx in 0..num_contours {
-                contours[contour_idx]
+            for (contour_idx, contour) in contours.iter_mut().enumerate() {
+                contour
                     .0
                     .push(CurvePoint::from(self.0[contour_idx][point_idx]));
             }
