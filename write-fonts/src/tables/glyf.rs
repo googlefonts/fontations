@@ -92,23 +92,6 @@ pub enum BadKurbo {
     InconsistentPathElements(usize, Vec<&'static str>),
 }
 
-/// A helper trait for converting other point types to open-type compatible reprs
-pub trait OtPoint {
-    fn get(self) -> (i16, i16);
-}
-
-impl OtPoint for kurbo::Point {
-    fn get(self) -> (i16, i16) {
-        (self.x.ot_round(), self.y.ot_round())
-    }
-}
-
-impl OtPoint for (i16, i16) {
-    fn get(self) -> (i16, i16) {
-        self
-    }
-}
-
 /// Point with an associated on-curve flag.
 ///
 /// Similar to read_fonts::tables::glyf::CurvePoint, but uses kurbo::Point directly
@@ -139,7 +122,7 @@ impl ContourPoint {
 
 impl From<ContourPoint> for CurvePoint {
     fn from(pt: ContourPoint) -> Self {
-        let (x, y) = pt.point.get();
+        let (x, y) = pt.point.ot_round();
         CurvePoint::new(x, y, pt.on_curve)
     }
 }
@@ -388,8 +371,8 @@ pub fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, B
 
 impl Contour {
     /// Create a new contour begining at the provided point
-    pub fn new(pt: impl OtPoint) -> Self {
-        let (x, y) = pt.get();
+    pub fn new(pt: impl OtRound<(i16, i16)>) -> Self {
+        let (x, y) = pt.ot_round();
         Self(vec![CurvePoint::on_curve(x, y)])
     }
 
@@ -404,15 +387,15 @@ impl Contour {
     }
 
     /// Add a line segment
-    pub fn line_to(&mut self, pt: impl OtPoint) {
-        let (x, y) = pt.get();
+    pub fn line_to(&mut self, pt: impl OtRound<(i16, i16)>) {
+        let (x, y) = pt.ot_round();
         self.0.push(CurvePoint::on_curve(x, y));
     }
 
     /// Add a quadratic curve segment
-    pub fn quad_to(&mut self, p0: impl OtPoint, p1: impl OtPoint) {
-        let (x0, y0) = p0.get();
-        let (x1, y1) = p1.get();
+    pub fn quad_to(&mut self, p0: impl OtRound<(i16, i16)>, p1: impl OtRound<(i16, i16)>) {
+        let (x0, y0) = p0.ot_round();
+        let (x1, y1) = p1.ot_round();
         self.0.push(CurvePoint::off_curve(x0, y0));
         self.0.push(CurvePoint::on_curve(x1, y1));
     }
