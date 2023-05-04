@@ -1,5 +1,7 @@
 //! A graph for resolving table offsets
 
+use font_types::Uint24;
+
 use super::write::TableData;
 use std::{
     collections::{BinaryHeap, HashMap, HashSet, VecDeque},
@@ -79,11 +81,17 @@ impl ObjectStore {
     }
 }
 
+/// A graph of subtables, starting at a single root.
+///
+/// This type is used during compilation, to determine the final write order
+/// for the various subtables.
 #[derive(Debug)]
 pub struct Graph {
-    pub(crate) objects: HashMap<ObjectId, TableData>,
+    /// the actual data for each table
+    objects: HashMap<ObjectId, TableData>,
+    /// graph-specific state used for sorting
     nodes: HashMap<ObjectId, Node>,
-    pub(crate) order: Vec<ObjectId>,
+    order: Vec<ObjectId>,
     root: ObjectId,
     parents_invalid: bool,
     distance_invalid: bool,
@@ -216,6 +224,65 @@ impl Graph {
             next_space: Space::INIT,
             num_roots_per_space: Default::default(),
         }
+    }
+
+    /// Write out the serialized graph.
+    ///
+    /// This is not public API, and you are responsible for ensuring that
+    /// the graph is sorted before calling (by calling `pack_objects`, and
+    /// checking that it has succeded).
+    pub(crate) fn serialize(&self) -> Vec<u8> {
+        fn write_offset(at: &mut [u8], len: OffsetLen, resolved: u32) {
+            let at = &mut at[..len as u8 as usize];
+            match len {
+                OffsetLen::Offset16 => at.copy_from_slice(
+                    u16::try_from(resolved)
+                        .expect("offset overflow should be checked before now")
+                        .to_be_bytes()
+                        .as_slice(),
+                ),
+                OffsetLen::Offset24 => at.copy_from_slice(
+                    Uint24::checked_new(resolved)
+                        .expect("offset overflow should be checked before now")
+                        .to_be_bytes()
+                        .as_slice(),
+                ),
+                OffsetLen::Offset32 => at.copy_from_slice(resolved.to_be_bytes().as_slice()),
+            }
+        }
+
+        assert!(
+            !self.order.is_empty(),
+            "graph must be sorted before serialization"
+        );
+        let mut offsets = HashMap::new();
+        let mut out = Vec::new();
+        let mut off = 0;
+
+        // first pass: write out bytes, record positions of offsets
+        for id in &self.order {
+            let node = self.objects.get(id).unwrap();
+            offsets.insert(*id, off);
+            off += node.bytes.len() as u32;
+            out.extend_from_slice(&node.bytes);
+        }
+
+        // second pass: write offsets
+        let mut table_head = 0;
+        for id in &self.order {
+            let node = self.objects.get(id).unwrap();
+            for offset in &node.offsets {
+                let abs_off = *offsets
+                    .get(&offset.object)
+                    .expect("all offsets visited in first pass");
+                let rel_off = abs_off - (table_head + offset.adjustment);
+                let buffer_pos = table_head + offset.pos;
+                let write_over = out.get_mut(buffer_pos as usize..).unwrap();
+                write_offset(write_over, offset.len, rel_off);
+            }
+            table_head += node.bytes.len() as u32;
+        }
+        out
     }
 
     /// Attempt to pack the graph.
