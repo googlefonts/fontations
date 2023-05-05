@@ -1,9 +1,9 @@
 //! A graph for resolving table offsets
 
-use crate::{table_type::TableType, tables::layout::LookupType};
 use font_types::Uint24;
 
-use super::write::TableData;
+use crate::{table_type::TableType, tables::layout::LookupType, write::TableData};
+
 use std::{
     collections::{BinaryHeap, HashMap, HashSet, VecDeque},
     sync::atomic::AtomicU64,
@@ -11,6 +11,7 @@ use std::{
 
 #[cfg(feature = "dot2")]
 mod graphviz;
+mod splitting;
 
 static OBJECT_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -313,6 +314,7 @@ impl Graph {
         }
 
         if self.can_potentially_promote_subtables() {
+            self.try_splitting_subtables();
             self.try_promoting_subtables();
         }
 
@@ -449,6 +451,24 @@ impl Graph {
             }
         }
         self.parents_invalid = false;
+    }
+
+    fn remove_orphans(&mut self) {
+        let mut visited = HashSet::with_capacity(self.nodes.len());
+        self.find_subgraph_hb(self.root, &mut visited);
+        if visited.len() != self.nodes.len() {
+            log::info!("removing {} orphan nodes", self.nodes.len() - visited.len());
+            for id in self
+                .nodes
+                .keys()
+                .copied()
+                .collect::<HashSet<_>>()
+                .difference(&visited)
+            {
+                self.nodes.remove(id);
+                self.objects.remove(id);
+            }
+        }
     }
 
     fn sort_kahn(&mut self) {
@@ -833,16 +853,13 @@ impl Graph {
     }
 
     fn actually_promote_subtables(&mut self, to_promote: &[ObjectId]) {
-        fn make_extension(type_: LookupType, subtable_id: ObjectId) -> (ObjectId, TableData) {
+        fn make_extension(type_: LookupType, subtable_id: ObjectId) -> TableData {
             const EXT_FORMAT: u16 = 1;
-            let mut data = TableData {
-                type_: type_.promote().into(),
-                ..Default::default()
-            };
+            let mut data = TableData::new(type_.promote().into());
             data.write(EXT_FORMAT);
             data.write(type_.to_raw());
             data.add_offset(subtable_id, 4, 0);
-            (ObjectId::next(), data)
+            data
         }
 
         for id in to_promote {
@@ -855,10 +872,8 @@ impl Graph {
             let mut lookup = self.objects.remove(id).unwrap();
             let lookup_type = lookup.type_.to_lookup_type().expect("validated before now");
             for subtable_ref in &mut lookup.offsets {
-                let (ext_id, ext_table) = make_extension(lookup_type, subtable_ref.object);
-                self.nodes
-                    .insert(ext_id, Node::new(ext_table.bytes.len() as _));
-                self.objects.insert(ext_id, ext_table);
+                let ext_table = make_extension(lookup_type, subtable_ref.object);
+                let ext_id = self.add_object(ext_table);
                 subtable_ref.object = ext_id;
             }
             lookup.write_over(lookup_type.promote().to_raw(), 0);
@@ -867,6 +882,23 @@ impl Graph {
         }
         self.parents_invalid = true;
         self.positions_invalid = true;
+    }
+
+    /// Manually add an object to the graph, after initial compilation.
+    ///
+    /// This can be used to perform edits to the graph during compilation, such
+    /// as for table splitting or promotion.
+    ///
+    /// This has drawbacks; in particular, at this stage we no longer deduplicate
+    /// objects.
+    fn add_object(&mut self, data: TableData) -> ObjectId {
+        self.parents_invalid = true;
+        self.distance_invalid = true;
+
+        let id = ObjectId::next();
+        self.nodes.insert(id, Node::new(data.bytes.len() as _));
+        self.objects.insert(id, data);
+        id
     }
 
     // get the list of tables that can be promoted, as well as the id of their parent table
@@ -991,6 +1023,39 @@ impl Graph {
             to_promote.push(lookup.id);
         }
         to_promote
+    }
+
+    /// See if we have any subtables that support splitting, and split them
+    /// if needed.
+    ///
+    /// Based on [`_presplit_subtables_if_needed`][presplit] in hb-repacker
+    ///
+    /// [presplit]: https://github.com/harfbuzz/harfbuzz/blob/5d543d64222c6ce45332d0c188790f90691ef112/src/hb-repacker.hh#LL72C22-L72C22
+    fn try_splitting_subtables(&mut self) {
+        let splittable = self
+            .objects
+            .iter()
+            .filter_map(|(id, obj)| obj.type_.is_splittable().then_some(*id))
+            .collect::<Vec<_>>();
+        for lookup in &splittable {
+            self.split_subtables_if_needed(*lookup);
+        }
+        if !splittable.is_empty() {
+            self.remove_orphans();
+        }
+    }
+
+    fn split_subtables_if_needed(&mut self, lookup: ObjectId) {
+        // So You Want to Split Subtables:
+        // - support PairPos and MarkBase.
+        let type_ = self.objects[&lookup].type_;
+        match type_ {
+            TableType::GposLookup(LookupType::PAIR_POS) => splitting::split_pair_pos(self, lookup),
+            TableType::GposLookup(LookupType::MARK_TO_BASE) => {
+                log::info!("table splitting not yet implemented for GPOS Type 4 (mark-to-base)");
+            }
+            _ => (),
+        }
     }
 
     /// the size only of children of this object, not the whole subgraph

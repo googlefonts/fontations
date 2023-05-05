@@ -48,6 +48,14 @@ impl TableType {
         }
     }
 
+    pub(crate) fn is_splittable(self) -> bool {
+        matches!(
+            self,
+            TableType::GposLookup(LookupType::PAIR_POS)
+                | TableType::GsubLookup(LookupType::MARK_TO_BASE)
+        )
+    }
+
     pub(crate) fn to_lookup_type(self) -> Option<LookupType> {
         match self {
             TableType::GposLookup(type_) => Some(LookupType::Gpos(type_)),
