@@ -5,3 +5,7 @@ edition = "2021"
 license = "MIT/Apache-2.0"
 description = "test data for the fontations crates"
 publish = false
+
+# cargo-release settings
+[package.metadata.release]
+release = false
