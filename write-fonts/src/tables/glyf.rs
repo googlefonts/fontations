@@ -379,12 +379,6 @@ pub fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, B
 }
 
 impl Contour {
-    /// Create a new contour begining at the provided point
-    pub fn new(pt: impl OtRound<(i16, i16)>) -> Self {
-        let (x, y) = pt.ot_round();
-        Self(vec![CurvePoint::on_curve(x, y)])
-    }
-
     /// The total number of points in this contour
     pub fn len(&self) -> usize {
         self.0.len()
@@ -395,34 +389,8 @@ impl Contour {
         self.0.is_empty()
     }
 
-    /// Add a line segment
-    pub fn line_to(&mut self, pt: impl OtRound<(i16, i16)>) {
-        let (x, y) = pt.ot_round();
-        self.0.push(CurvePoint::on_curve(x, y));
-    }
-
-    /// Add a quadratic curve segment
-    pub fn quad_to(&mut self, p0: impl OtRound<(i16, i16)>, p1: impl OtRound<(i16, i16)>) {
-        let (x0, y0) = p0.ot_round();
-        let (x1, y1) = p1.ot_round();
-        self.0.push(CurvePoint::off_curve(x0, y0));
-        self.0.push(CurvePoint::on_curve(x1, y1));
-    }
-
     pub fn iter(&self) -> impl Iterator<Item = &CurvePoint> {
         self.0.iter()
-    }
-
-    pub fn first(&self) -> Option<&CurvePoint> {
-        self.0.first()
-    }
-
-    pub fn last(&self) -> Option<&CurvePoint> {
-        self.0.last()
-    }
-
-    pub fn pop(&mut self) -> Option<CurvePoint> {
-        self.0.pop()
     }
 }
 
