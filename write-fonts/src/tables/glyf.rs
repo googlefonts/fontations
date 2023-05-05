@@ -1175,6 +1175,26 @@ mod tests {
         simple_glyphs_from_kurbo(&[path1, path2]).unwrap();
     }
 
+    /// Create a number of interpolatable BezPaths with the given element types.
+    /// The paths will be identical except for the point coordinates of the elements,
+    /// which will be (0.0, 0.0), (1.0, 1.0), (2.0, 2.0), etc. for each subsequent
+    /// element. If `last_pt_equal_move` is true, the last point of each sub-path
+    /// will be equal to the first (M) point of that sub-path.
+    /// E.g.:
+    /// ```
+    /// let paths = make_interpolatable_paths(2, "MLLZ", false);
+    /// println!("{:?}", paths[0].to_svg());
+    /// // "M0,0 L1,1 L2,2 Z"
+    /// println!("{:?}", paths[1].to_svg());
+    /// // "M3,3 L4,4 L5,5 Z"
+    /// let paths = make_interpolatable_paths(3, "MLLLZMQQZ", true);
+    /// println!("{:?}", paths[0].to_svg());
+    /// // "M0,0 L1,1 L2,2 L0,0 Z M3,3 Q4,4 5,5 Q6,6 3,3 Z"
+    /// println!("{:?}", paths[1].to_svg());
+    /// // "M7,7 L8,8 L9,9 L7,7 Z M10,10 Q11,11 12,12 Q13,13 10,10 Z"
+    /// println!("{:?}", paths[2].to_svg());
+    /// // "M14,14 L15,15 L16,16 L14,14 Z M17,17 Q18,18 19,19 Q20,20 17,17 Z"
+    /// ```
     fn make_interpolatable_paths(
         num_paths: usize,
         el_types: &str,
