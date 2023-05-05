@@ -113,6 +113,16 @@ impl<'a> Iterator for LocalizedStrings<'a> {
     }
 }
 
+impl Default for LocalizedStrings<'_> {
+    fn default() -> Self {
+        Self {
+            name: None,
+            records: [].iter(),
+            id: StringId::default(),
+        }
+    }
+}
+
 /// String containing a name or other font metadata in a specific language.
 #[derive(Clone, Debug)]
 pub struct LocalizedString<'a> {
