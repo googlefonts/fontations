@@ -10,6 +10,7 @@ use read_fonts::{
 
 use crate::{
     from_obj::{FromObjRef, FromTableRef},
+    util::MultiZip,
     FontWrite,
 };
 
@@ -250,19 +251,6 @@ fn is_implicit_on_curve(points: &[ContourPoint], idx: usize) -> bool {
     (p1p0 - p2p1).abs() < f32::EPSILON as f64
 }
 
-// The MultiZip is adapted from https://stackoverflow.com/a/55292215
-
-/// Iterator that iterates over a vector of iterators simultaneously
-struct MultiZip<I: Iterator>(Vec<I>);
-
-impl<I: Iterator> Iterator for MultiZip<I> {
-    type Item = Vec<I::Item>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.0.iter_mut().map(Iterator::next).collect()
-    }
-}
-
 #[inline]
 fn el_types(elements: &[kurbo::PathEl]) -> Vec<&'static str> {
     elements
@@ -283,7 +271,7 @@ pub fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, B
     if num_elements.iter().any(|n| *n != num_elements[0]) {
         return Err(BadKurbo::UnequalNumberOfElements(num_elements));
     }
-    let path_iters = MultiZip(paths.iter().map(|path| path.iter()).collect());
+    let path_iters = MultiZip::new(paths.iter().map(|path| path.iter()).collect());
     let mut contours: Vec<InterpolatableContourBuilder> = Vec::new();
     let mut current: Option<InterpolatableContourBuilder> = None;
     let num_glyphs = paths.len();

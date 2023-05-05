@@ -8,6 +8,7 @@ mod offsets;
 pub mod pens;
 mod round;
 pub mod tables;
+pub mod util;
 pub mod validate;
 mod write;
 
