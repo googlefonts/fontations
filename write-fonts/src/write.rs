@@ -4,7 +4,8 @@ use crate::error::{Error, PackingError};
 use crate::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
 use crate::table_type::TableType;
 use crate::validate::Validate;
-use font_types::Scalar;
+use font_types::{FixedSize, Scalar};
+use read_fonts::{FontData, FontRead, ReadError};
 
 /// A type that that can be written out as part of a font file.
 ///
@@ -186,6 +187,13 @@ pub(crate) struct OffsetRecord {
 }
 
 impl TableData {
+    pub(crate) fn new(type_: TableType) -> Self {
+        TableData {
+            type_,
+            ..Default::default()
+        }
+    }
+
     /// the 'adjustment' param is used to modify the written position.
     pub(crate) fn add_offset(&mut self, object: ObjectId, width: usize, adjustment: u32) {
         self.offsets.push(OffsetRecord {
@@ -220,6 +228,21 @@ impl TableData {
 
     fn write_bytes(&mut self, bytes: &[u8]) {
         self.bytes.extend_from_slice(bytes)
+    }
+
+    /// A helper function to reparse this table data as some type.
+    ///
+    /// Used internally when modifying the graph after initial compilation,
+    /// such as during table splitting.
+    pub(crate) fn reparse<'a, T: FontRead<'a>>(&'a self) -> Result<T, ReadError> {
+        let data = FontData::new(&self.bytes);
+        T::read(data)
+    }
+
+    /// A helper function to read a value out of this data.
+    pub(crate) fn read_at<T: Scalar>(&self, pos: usize) -> Option<T> {
+        let len = T::RAW_BYTE_LEN;
+        self.bytes.get(pos..pos + len).and_then(T::read)
     }
 
     #[cfg(test)]

@@ -181,6 +181,8 @@ pub enum LookupType {
 impl LookupType {
     pub(crate) const GSUB_EXT_TYPE: u16 = 7;
     pub(crate) const GPOS_EXT_TYPE: u16 = 9;
+    pub(crate) const PAIR_POS: u16 = 2;
+    pub(crate) const MARK_TO_BASE: u16 = 4;
 
     pub(crate) fn to_raw(self) -> u16 {
         match self {
