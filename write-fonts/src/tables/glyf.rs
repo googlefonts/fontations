@@ -873,14 +873,14 @@ mod tests {
     use super::*;
 
     #[test]
-    #[should_panic(expected = "HasCubic")]
     fn bad_path_input() {
         let mut path = BezPath::new();
         path.move_to((0., 0.));
         path.curve_to((10., 10.), (20., 20.), (30., 30.));
         path.line_to((50., 50.));
         path.line_to((10., 10.));
-        let _glyph = SimpleGlyph::from_kurbo(&path).unwrap();
+        let err = SimpleGlyph::from_kurbo(&path).unwrap_err();
+        assert!(matches!(err, BadKurbo::HasCubic));
     }
 
     fn simple_glyph_to_bezpath(glyph: &read::tables::glyf::SimpleGlyph) -> BezPath {
@@ -1136,7 +1136,6 @@ mod tests {
     }
 
     #[test]
-    #[should_panic(expected = "UnequalNumberOfElements")]
     fn simple_glyphs_from_kurbo_unequal_number_of_elements() {
         let mut path1 = BezPath::new();
         path1.move_to((0., 0.));
@@ -1155,11 +1154,12 @@ mod tests {
         path2.close_path();
         assert_eq!(path2.elements().len(), 6);
 
-        simple_glyphs_from_kurbo(&[path1, path2]).unwrap();
+        let err = simple_glyphs_from_kurbo(&[path1, path2]).unwrap_err();
+        assert!(matches!(err, BadKurbo::UnequalNumberOfElements(_)));
+        assert_eq!(format!("{:?}", err), "UnequalNumberOfElements([5, 6])");
     }
 
     #[test]
-    #[should_panic(expected = "InconsistentPathElements")]
     fn simple_glyphs_from_kurbo_inconsistent_path_elements() {
         let mut path1 = BezPath::new();
         path1.move_to((0., 0.));
@@ -1168,11 +1168,16 @@ mod tests {
         path1.close_path();
         let mut path2 = BezPath::new();
         path2.move_to((3., 3.));
-        path2.quad_to((4., 4.), (5., 5.));
+        path2.quad_to((4., 4.), (5., 5.)); // elements at index 1 are inconsistent
         path2.line_to((3., 3.));
         path2.close_path();
 
-        simple_glyphs_from_kurbo(&[path1, path2]).unwrap();
+        let err = simple_glyphs_from_kurbo(&[path1, path2]).unwrap_err();
+        assert!(matches!(err, BadKurbo::InconsistentPathElements(1, _)));
+        assert_eq!(
+            format!("{:?}", err),
+            "InconsistentPathElements(1, [\"L\", \"Q\"])"
+        );
     }
 
     /// Create a number of interpolatable BezPaths with the given element types.
