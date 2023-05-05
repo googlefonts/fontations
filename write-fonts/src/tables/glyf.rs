@@ -1268,6 +1268,7 @@ mod tests {
 
     #[test]
     fn simple_glyphs_from_kurbo_3_lines_closed() {
+        // two triangles, each with 3 lines, explicitly closed
         let paths = make_interpolatable_paths(2, "MLLLZ", true);
         let glyphs = simple_glyphs_from_kurbo(&paths).unwrap();
 
@@ -1291,6 +1292,7 @@ mod tests {
 
     #[test]
     fn simple_glyphs_from_kurbo_3_lines_implicitly_closed() {
+        // two triangles, each with 2 lines plus the last implicit closing line
         let paths = make_interpolatable_paths(2, "MLLZ", false);
         let glyphs = simple_glyphs_from_kurbo(&paths).unwrap();
 
@@ -1314,6 +1316,10 @@ mod tests {
 
     #[test]
     fn simple_glyphs_from_kurbo_2_quads_closed() {
+        // two compatible paths each containing 2 consecutive quadratic bezier curves,
+        // where the respective off-curves are placed at equal distance from the on-curve
+        // point joining them; the paths are closed and the last quad point is the same
+        // as the move point.
         let paths = make_interpolatable_paths(2, "MQQZ", true);
         let glyphs = simple_glyphs_from_kurbo(&paths).unwrap();
 
@@ -1339,6 +1345,9 @@ mod tests {
 
     #[test]
     fn simple_glyphs_from_kurbo_2_quads_1_line_implictly_closed() {
+        // same path elements as above 'MQQZ' but with the last_pt_equal_move=false
+        // thus this actually contains three segments: 2 quads plus the last implied
+        // closing line. There is an additional on-curve point at the end of the path.
         let paths = make_interpolatable_paths(2, "MQQZ", false);
         let glyphs = simple_glyphs_from_kurbo(&paths).unwrap();
 
@@ -1366,6 +1375,7 @@ mod tests {
 
     #[test]
     fn simple_glyphs_from_kurbo_multiple_contours_mixed_segments() {
+        // four paths, each containing two sub-paths, with a mix of line and quad segments
         let paths = make_interpolatable_paths(4, "MLQQZMQLQLZ", true);
         let glyphs = simple_glyphs_from_kurbo(&paths).unwrap();
 
@@ -1393,6 +1403,8 @@ mod tests {
 
     #[test]
     fn simple_glyphs_from_kurbo_all_quad_off_curves() {
+        // the following path contains only quadratic curves and all the on-curve points
+        // can be implied, thus the resulting glyf contours contain only off-curves.
         let mut path1 = BezPath::new();
         path1.move_to((0.0, 1.0));
         path1.quad_to((1.0, 1.0), (1.0, 0.0));
@@ -1435,6 +1447,8 @@ mod tests {
         path1.line_to((0.0, 0.0));
         path1.close_path();
 
+        // when making a SimpleGlyph from this path alone, the on-curve point at (1, 1)
+        // can be implied/dropped.
         assert_contour_points(
             &SimpleGlyph::from_kurbo(&path1).unwrap(),
             vec![vec![
@@ -1455,6 +1469,8 @@ mod tests {
 
         let glyphs = simple_glyphs_from_kurbo(&[path1, path2]).unwrap();
 
+        // However, when making interpolatable SimpleGlyphs from both paths, the on-curve
+        // can no longer be implied/dropped (for it is not impliable in the second path).
         assert_contour_points(
             &glyphs[0],
             vec![vec![
@@ -1479,6 +1495,8 @@ mod tests {
 
     #[test]
     fn simple_glyphs_from_kurbo_2_lines_open() {
+        // these contours contain two lines each and are not closed (no 'Z'); they still
+        // produce three points and are treated as closed for the sake of TrueType glyf.
         let paths = make_interpolatable_paths(2, "MLL", false);
         let glyphs = simple_glyphs_from_kurbo(&paths).unwrap();
 
@@ -1502,6 +1520,10 @@ mod tests {
 
     #[test]
     fn simple_glyphs_from_kurbo_3_lines_open_duplicate_last_pt() {
+        // two paths with one open contour, containing three line segments with the last
+        // point overlapping the first point; the last point gets duplicated (and not fused).
+        // The special treatment for the last point is only applied to Z-ending contours,
+        // not to open contours.
         let paths = make_interpolatable_paths(2, "MLLL", true);
         let glyphs = simple_glyphs_from_kurbo(&paths).unwrap();
 
