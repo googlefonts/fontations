@@ -109,7 +109,7 @@ pub struct ColrInstance<'a> {
 }
 
 impl<'a> ColrInstance<'a> {
-    /// Creates a new resolver for the given `COLR` table and normalized variation
+    /// Creates a new instance for the given `COLR` table and normalized variation
     /// coordinates.
     pub fn new(colr: Colr<'a>, coords: &'a [F2Dot14]) -> Self {
         let index_map = colr.var_index_map().and_then(|res| res.ok());
@@ -207,6 +207,10 @@ pub struct ResolvedColorStop {
 }
 
 /// Collection of [`ColorStop`] or [`VarColorStop`].
+// Note: only one of these fields is used at any given time, but this structure
+// was chosen over the obvious enum approach for simplicity in generating a
+// single concrete type for the `impl Iterator` return type of the `resolve`
+// method.
 pub struct ColorStops<'a> {
     stops: &'a [ColorStop],
     var_stops: &'a [VarColorStop],
