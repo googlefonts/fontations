@@ -1,7 +1,8 @@
 use std::collections::{BTreeSet, HashMap};
 
+use crate::error::{Error, PackingError};
 use crate::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
-use crate::validate::{Validate, ValidationReport};
+use crate::validate::Validate;
 use types::Uint24;
 
 /// A type that that can be written out as part of a font file.
@@ -36,16 +37,17 @@ pub struct TableWriter {
 
 /// Attempt to serialize a table.
 ///
-/// If the table is malformed, this will return an Err([`ValidationReport`]),
+/// Returns an error if the table is malformed or cannot otherwise be serialized,
 /// otherwise it will return the bytes encoding the table.
-pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, ValidationReport> {
-    table.validate()?;
+pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, Error> {
+    table.validate().map_err(Error::ValidationFailed)?;
     let mut writer = TableWriter::default();
     table.write_into(&mut writer);
     let mut graph = writer.finish();
     if !graph.pack_objects() {
-        //TODO: implement extension promotion and table splitting
-        panic!("could not find a graph packing that handles all offsets, aborting");
+        return Err(Error::PackingFailed(PackingError {
+            graph: graph.into(),
+        }));
     }
     Ok(dump_impl(&graph.order, &graph.objects))
 }

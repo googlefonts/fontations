@@ -77,6 +77,7 @@ impl ObjectStore {
     }
 }
 
+#[derive(Debug)]
 pub struct Graph {
     pub(crate) objects: HashMap<ObjectId, TableData>,
     nodes: HashMap<ObjectId, Node>,
@@ -88,6 +89,7 @@ pub struct Graph {
     next_space: Space,
 }
 
+#[derive(Debug)]
 struct Node {
     size: u32,
     distance: u32,
@@ -267,7 +269,7 @@ impl Graph {
         false
     }
 
-    fn find_overflows(&self) -> Vec<(ObjectId, ObjectId)> {
+    pub(crate) fn find_overflows(&self) -> Vec<(ObjectId, ObjectId)> {
         let mut result = Vec::new();
         for (parent_id, data) in &self.objects {
             let parent = &self.nodes[parent_id];
