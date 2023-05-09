@@ -43,6 +43,7 @@ macro_rules! table_newtype {
         ///
         /// You can access the inner type via `Deref` or the `as_inner` method.
         #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
         pub struct $name($inner);
 
         impl $name {
@@ -206,6 +207,7 @@ impl FontWrite for LookupType {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum FeatureParams {
     StylisticSet(StylisticSetParams),
     Size(SizeParams),

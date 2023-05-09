@@ -22,6 +22,7 @@ impl FontWrite for MyEnum2 {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MyRecord {
     pub my_enum1: MyEnum1,
     pub my_enum2: MyEnum2,

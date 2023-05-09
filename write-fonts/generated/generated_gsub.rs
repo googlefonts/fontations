@@ -7,6 +7,7 @@ use crate::codegen_prelude::*;
 
 /// [GSUB](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsub-header)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Gsub {
     /// Offset to ScriptList table, from beginning of GSUB table
     pub script_list: OffsetMarker<ScriptList>,
@@ -96,6 +97,7 @@ impl<'a> FontRead<'a> for Gsub {
 
 /// A [GSUB Lookup](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#gsubLookupTypeEnum) subtable.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SubstitutionLookup {
     Single(Lookup<SingleSubst>),
     Multiple(Lookup<MultipleSubstFormat1>),
@@ -193,6 +195,7 @@ impl FromTableRef<read_fonts::tables::gsub::SubstitutionLookup<'_>> for Substitu
 
 /// LookupType 1: [Single Substitution](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#lookuptype-1-single-substitution-subtable) Subtable
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum SingleSubst {
     Format1(SingleSubstFormat1),
     Format2(SingleSubstFormat2),
@@ -272,6 +275,7 @@ impl From<SingleSubstFormat2> for SingleSubst {
 
 /// [Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#11-single-substitution-format-1)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SingleSubstFormat1 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
@@ -332,6 +336,7 @@ impl<'a> FontRead<'a> for SingleSubstFormat1 {
 
 /// [Single Substitution Format 2](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#12-single-substitution-format-2)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SingleSubstFormat2 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
@@ -399,6 +404,7 @@ impl<'a> FontRead<'a> for SingleSubstFormat2 {
 
 /// [Multiple Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#21-multiple-substitution-format-1)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct MultipleSubstFormat1 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
@@ -467,6 +473,7 @@ impl<'a> FontRead<'a> for MultipleSubstFormat1 {
 
 /// Part of [MultipleSubstFormat1]
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Sequence {
     /// String of glyph IDs to substitute
     pub substitute_glyph_ids: Vec<GlyphId>,
@@ -523,6 +530,7 @@ impl<'a> FontRead<'a> for Sequence {
 
 /// [Alternate Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#31-alternate-substitution-format-1)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AlternateSubstFormat1 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
@@ -597,6 +605,7 @@ impl<'a> FontRead<'a> for AlternateSubstFormat1 {
 
 /// Part of [AlternateSubstFormat1]
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AlternateSet {
     /// Array of alternate glyph IDs, in arbitrary order
     pub alternate_glyph_ids: Vec<GlyphId>,
@@ -653,6 +662,7 @@ impl<'a> FontRead<'a> for AlternateSet {
 
 /// [Ligature Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#41-ligature-substitution-format-1)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LigatureSubstFormat1 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable
@@ -721,6 +731,7 @@ impl<'a> FontRead<'a> for LigatureSubstFormat1 {
 
 /// Part of [LigatureSubstFormat1]
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct LigatureSet {
     /// Array of offsets to Ligature tables. Offsets are from beginning
     /// of LigatureSet table, ordered by preference.
@@ -778,6 +789,7 @@ impl<'a> FontRead<'a> for LigatureSet {
 
 /// Part of [LigatureSubstFormat1]
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Ligature {
     /// glyph ID of ligature to substitute
     pub ligature_glyph: GlyphId,
@@ -832,6 +844,7 @@ impl<'a> FontRead<'a> for Ligature {
 
 /// [Extension Substitution Subtable Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#71-extension-substitution-subtable-format-1)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ExtensionSubstFormat1<T> {
     /// Lookup type of subtable referenced by extensionOffset (that is,
     /// the extension subtable).
@@ -889,6 +902,7 @@ where
 
 /// A [GSUB Extension Substitution](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#ES) subtable
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum ExtensionSubtable {
     Single(ExtensionSubstFormat1<SingleSubst>),
     Multiple(ExtensionSubstFormat1<MultipleSubstFormat1>),
@@ -979,6 +993,7 @@ impl FromTableRef<read_fonts::tables::gsub::ExtensionSubtable<'_>> for Extension
 
 /// [Reverse Chaining Contextual Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#81-reverse-chaining-contextual-single-substitution-format-1-coverage-based-glyph-contexts)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReverseChainSingleSubstFormat1 {
     /// Offset to Coverage table, from beginning of substitution
     /// subtable.

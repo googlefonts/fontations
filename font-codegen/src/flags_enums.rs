@@ -25,6 +25,7 @@ pub(crate) fn generate_flags(raw: &BitFlags) -> proc_macro2::TokenStream {
     quote! {
         #( #docs )*
         #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
         pub struct #name { bits: #typ }
         impl #name {
             #( #variant_decls )*
@@ -339,6 +340,7 @@ pub(crate) fn generate_raw_enum(raw: &RawEnum) -> TokenStream {
     quote! {
         #( #docs )*
         #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
         #[repr(#typ)]
         pub enum #name {
             #( #variants )*

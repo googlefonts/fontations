@@ -23,6 +23,7 @@ use crate::{
 /// VariationIndex table for each of the specified values.
 #[derive(Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ValueRecord {
     // Okay so... this demands some explanation.
     //

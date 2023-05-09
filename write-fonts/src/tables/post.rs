@@ -8,6 +8,7 @@ include!("../../generated/generated_post.rs");
 
 /// A string in the post table.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PString(String);
 
 impl Post {

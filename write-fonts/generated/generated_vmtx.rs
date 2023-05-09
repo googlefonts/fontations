@@ -7,6 +7,7 @@ use crate::codegen_prelude::*;
 
 /// The [vmtx (Vertical Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/vmtx) table
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Vmtx {
     /// Paired advance height and top side bearing values for each
     /// glyph. Records are indexed by glyph ID.

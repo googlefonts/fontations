@@ -7,6 +7,7 @@ use crate::codegen_prelude::*;
 
 /// The [fvar (Font Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/fvar) table
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Fvar {
     /// Offset in bytes from the beginning of the table to the start of the VariationAxisRecord array. The
     /// InstanceRecord array directly follows.
@@ -71,6 +72,7 @@ impl<'a> FontRead<'a> for Fvar {
 
 /// Shim table to handle combined axis and instance arrays.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AxisInstanceArrays {
     /// Variation axis record array.
     pub axes: Vec<VariationAxisRecord>,
@@ -135,6 +137,7 @@ impl<'a> FromTableRef<read_fonts::tables::fvar::AxisInstanceArrays<'a>> for Axis
 
 /// The [VariationAxisRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar#variationaxisrecord)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct VariationAxisRecord {
     /// Tag identifying the design variation for the axis.
     pub axis_tag: Tag,
