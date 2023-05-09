@@ -27,6 +27,7 @@ pub trait Pen {
 
 /// Captures commands to [Pen] to facilitate implementations that buffer commands.
 #[derive(Debug, Copy, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PenCommand {
     MoveTo {
         x: f32,

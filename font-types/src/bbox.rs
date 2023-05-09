@@ -1,5 +1,6 @@
 /// Minimum and maximum extents of a rectangular region.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BoundingBox<T> {
     /// Minimum extent in the x direction-- the left side of a region.
     pub x_min: T,
