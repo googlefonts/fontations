@@ -86,7 +86,7 @@ impl ObjectStore {
 ///
 /// This type is used during compilation, to determine the final write order
 /// for the various subtables.
-#[derive(Debug)]
+//NOTE: we don't derive Debug because it's way too verbose to be useful
 pub struct Graph {
     /// the actual data for each table
     objects: HashMap<ObjectId, TableData>,
