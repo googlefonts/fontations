@@ -5,8 +5,9 @@ use std::sync::Arc;
 use crate::{graph::Graph, validate::ValidationReport};
 
 /// A packing could not be found that satisfied all offsets
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct PackingError {
+    // this is Arc so that we can clone and still be sent between threads.
     pub(crate) graph: Arc<Graph>,
 }
 
@@ -43,6 +44,12 @@ impl std::fmt::Display for PackingError {
             "Table packing failed with {} overflows",
             self.graph.find_overflows().len()
         )
+    }
+}
+
+impl std::fmt::Debug for PackingError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{self}")
     }
 }
 
