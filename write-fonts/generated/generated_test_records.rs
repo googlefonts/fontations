@@ -6,6 +6,7 @@
 use crate::codegen_prelude::*;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct BasicTable {
     pub simple_records: Vec<SimpleRecord>,
     pub array_records: Vec<ContainsArrays>,
@@ -79,6 +80,7 @@ impl<'a> FontRead<'a> for BasicTable {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SimpleRecord {
     pub val1: u16,
     pub va2: u32,
@@ -115,6 +117,7 @@ impl FromObjRef<read_fonts::codegen_test::records::SimpleRecord> for SimpleRecor
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContainsArrays {
     pub scalars: Vec<u16>,
     pub records: Vec<SimpleRecord>,
@@ -171,6 +174,7 @@ impl FromObjRef<read_fonts::codegen_test::records::ContainsArrays<'_>> for Conta
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContainsOffests {
     pub array: OffsetMarker<Vec<SimpleRecord>>,
     pub other: OffsetMarker<BasicTable, WIDTH_32>,

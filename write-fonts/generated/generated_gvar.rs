@@ -9,6 +9,7 @@ pub use read_fonts::tables::gvar::GvarFlags;
 
 /// The ['gvar' header](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#gvar-header)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Gvar {
     /// The number of variation axes for this font. This must be the
     /// same number as axisCount in the 'fvar' table.
@@ -62,6 +63,7 @@ impl FontWrite for GvarFlags {
 
 /// Array of tuple records shared across all glyph variation data tables.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SharedTuples {
     pub tuples: Vec<Tuple>,
 }
@@ -112,6 +114,7 @@ impl<'a> FromTableRef<read_fonts::tables::gvar::SharedTuples<'a>> for SharedTupl
 
 /// The [GlyphVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#the-glyphvariationdata-table-array) table
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GlyphVariationDataHeader {
     /// A packed field. The high 4 bits are flags, and the low 12 bits
     /// are the number of tuple variation tables for this glyph. The

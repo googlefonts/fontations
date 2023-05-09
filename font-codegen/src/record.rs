@@ -323,6 +323,7 @@ pub(crate) fn generate_compile_impl(
     Ok(quote! {
         #( #docs )*
         #[derive(Clone, Debug, #maybe_derive_default PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
         pub struct #name <#generic_param> {
             #( #field_decls, )*
         }

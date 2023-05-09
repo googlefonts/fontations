@@ -12,6 +12,7 @@ pub struct DeltaSetIndex {
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TupleIndex(u16);
 
 impl TupleIndex {
@@ -97,6 +98,7 @@ impl types::Scalar for TupleIndex {
 ///
 /// [header]: https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuple-variation-store-header
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TupleVariationCount(u16);
 
 impl TupleVariationCount {

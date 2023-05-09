@@ -15,6 +15,7 @@ impl FontWrite for HeaderFlags {
 
 /// The [sbix (Standard Bitmap Graphics)](https://docs.microsoft.com/en-us/typography/opentype/spec/sbix) table
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Sbix {
     /// Bit 0: Set to 1.
     /// Bit 1: Draw outlines.
@@ -77,6 +78,7 @@ impl<'a> FromTableRef<read_fonts::tables::sbix::Sbix<'a>> for Sbix {}
 
 /// [Strike](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#strikes) header table
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Strike {
     /// The PPEM size for which this strike was designed.
     pub ppem: u16,
@@ -127,6 +129,7 @@ impl<'a> FromTableRef<read_fonts::tables::sbix::Strike<'a>> for Strike {}
 
 /// [Glyph data](https://learn.microsoft.com/en-us/typography/opentype/spec/sbix#glyph-data) table
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct GlyphData {
     /// The horizontal (x-axis) position of the left edge of the bitmap graphic in relation to the glyph design space origin.
     pub origin_offset_x: i16,

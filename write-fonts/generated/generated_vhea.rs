@@ -7,6 +7,7 @@ use crate::codegen_prelude::*;
 
 /// The [vhea](https://docs.microsoft.com/en-us/typography/opentype/spec/vhea) Vertical Header Table
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Vhea {
     /// Typographic ascent.
     pub ascender: FWord,

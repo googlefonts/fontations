@@ -15,6 +15,7 @@ impl FontWrite for SelectionFlags {
 
 /// [`OS/2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Os2 {
     /// [Average weighted escapement](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#xavgcharwidth).
     ///

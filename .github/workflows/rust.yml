@@ -55,7 +55,7 @@ jobs:
 
       # test all packages individually to ensure deterministic resolution
       # of dependencies for each package
-      
+
       - name: cargo test font-types
         run: cargo test -p font-types --all-targets --all-features
 
@@ -64,6 +64,9 @@ jobs:
 
       - name: cargo test write-fonts
         run: cargo test -p write-fonts --all-targets --all-features
+
+      - name: cargo test write-fonts default features
+        run: cargo test -p write-fonts --all-targets
 
       - name: cargo test skrifa
         run: cargo test -p skrifa --all-targets --all-features

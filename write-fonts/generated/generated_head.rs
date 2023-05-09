@@ -16,6 +16,7 @@ impl FontWrite for MacStyle {
 /// The [head](https://docs.microsoft.com/en-us/typography/opentype/spec/head)
 /// (font header) table.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Head {
     /// Set by font manufacturer.
     pub font_revision: Fixed,

@@ -13,6 +13,8 @@ use crate::{
 /// The [loca] table.
 ///
 /// [loca]: https://docs.microsoft.com/en-us/typography/opentype/spec/loca
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Loca {
     // we just store u32, and then convert to u16 if needed in the `FontWrite` impl
     pub(crate) offsets: Vec<u32>,
@@ -27,8 +29,10 @@ pub struct Loca {
 /// [locformat]: super::head::Head::index_to_loc_format
 /// [spec]: https://learn.microsoft.com/en-us/typography/opentype/spec/loca
 #[repr(u8)]
-#[derive(Copy, Clone, Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum LocaFormat {
+    #[default]
     Short = 0,
     Long = 1,
 }

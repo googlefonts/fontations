@@ -7,6 +7,7 @@ use crate::codegen_prelude::*;
 
 /// The OpenType [Table Directory](https://docs.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TableDirectory {
     /// 0x00010000 or 0x4F54544F
     pub sfnt_version: u32,
@@ -66,6 +67,7 @@ impl Validate for TableDirectory {
 
 /// Record for a table in a font.
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TableRecord {
     /// Table identifier.
     pub tag: Tag,
@@ -107,6 +109,7 @@ impl Validate for TableRecord {
 
 /// [TTC Header](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#ttc-header)
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct TTCHeader {
     /// Font Collection ID string: \"ttcf\"
     pub ttc_tag: Tag,

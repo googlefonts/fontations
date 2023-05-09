@@ -7,6 +7,7 @@ use crate::codegen_prelude::*;
 
 /// The [avar (Axis Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Avar {
     /// The segment maps array — one segment map for each axis, in the order of axes specified in the 'fvar' table.
     pub axis_segment_maps: Vec<SegmentMaps>,
@@ -69,6 +70,7 @@ impl<'a> FontRead<'a> for Avar {
 
 /// [SegmentMaps](https://learn.microsoft.com/en-us/typography/opentype/spec/avar#table-formats) record
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct SegmentMaps {
     /// The array of axis value map records for this axis.
     pub axis_value_maps: Vec<AxisValueMap>,
@@ -117,6 +119,7 @@ impl FromObjRef<read_fonts::tables::avar::SegmentMaps<'_>> for SegmentMaps {
 
 /// [AxisValueMap](https://learn.microsoft.com/en-us/typography/opentype/spec/avar#table-formats) record
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct AxisValueMap {
     /// A normalized coordinate value obtained using default normalization.
     pub from_coordinate: F2Dot14,

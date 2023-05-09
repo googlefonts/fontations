@@ -24,6 +24,8 @@ pub use simple::{Contour, MalformedPath, SimpleGlyph};
 /// the positions of each individual glyph stored in the ['loca' table][super::loca].
 /// As such, these two tables must be constructed together. The [`GlyfLocaBuilder`]
 /// type is provided to simplify this.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Glyf(Vec<u8>);
 
 impl TopLevelTable for Glyf {

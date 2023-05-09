@@ -6,6 +6,7 @@
 use crate::codegen_prelude::*;
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Table1 {
     pub heft: u32,
     pub flex: u16,
@@ -53,6 +54,7 @@ impl<'a> FontRead<'a> for Table1 {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Table2 {
     pub values: Vec<u16>,
 }
@@ -109,6 +111,7 @@ impl<'a> FontRead<'a> for Table2 {
 }
 
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Table3 {
     pub something: u16,
 }
@@ -146,6 +149,7 @@ impl<'a> FontRead<'a> for Table3 {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum MyTable {
     Format1(Table1),
     MyFormat22(Table2),

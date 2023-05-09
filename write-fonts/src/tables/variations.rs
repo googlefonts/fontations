@@ -68,6 +68,7 @@ impl VariationRegionList {
 
 /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-point-numbers>
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub enum PackedPointNumbers {
     /// Contains deltas for all point numbers
     #[default]
@@ -78,6 +79,7 @@ pub enum PackedPointNumbers {
 
 /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas>
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PackedDeltas {
     deltas: Vec<i16>,
 }
