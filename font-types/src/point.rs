@@ -2,6 +2,7 @@ use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssi
 
 /// Two dimensional point with a generic coordinate type.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Point<T> {
     /// X coordinate.
     pub x: T,

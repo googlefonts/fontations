@@ -9,6 +9,7 @@ use std::{
 /// A tag is a 4-byte array where each byte is in the printable ascii range
 /// (0x20..=0x7E).
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Tag([u8; 4]);
 
 impl Tag {

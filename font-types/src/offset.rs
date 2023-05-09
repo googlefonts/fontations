@@ -4,6 +4,7 @@ use crate::{Scalar, Uint24};
 
 /// An offset of a given width for which NULL (zero) is a valid value.
 #[derive(Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Nullable<T>(T);
 
 impl<T: Scalar> Scalar for Nullable<T> {
@@ -50,6 +51,7 @@ macro_rules! impl_offset {
         /// assume that errors are possible, and expect the caller to handle
         /// the `None` case.
         #[derive(Copy, Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
         pub struct $name($rawty);
 
         impl $name {

@@ -27,6 +27,9 @@ mod tag;
 mod uint24;
 mod version;
 
+#[cfg(all(test, feature = "serde"))]
+mod serde_test;
+
 pub use bbox::BoundingBox;
 pub use fixed::{F26Dot6, F2Dot14, Fixed};
 pub use fword::{FWord, UfWord};
