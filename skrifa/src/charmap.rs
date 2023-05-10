@@ -11,7 +11,10 @@
 //! shaping. For more detail, see: [Why do I need a shaping engine?](https://harfbuzz.github.io/why-do-i-need-a-shaping-engine.html)
 
 use read_fonts::{
-    tables::cmap::{self, Cmap, Cmap12, Cmap14, Cmap4, CmapSubtable, EncodingRecord, PlatformId},
+    tables::cmap::{
+        self, Cmap, Cmap12, Cmap12Iter, Cmap14, Cmap14Iter, Cmap4, Cmap4Iter, CmapSubtable,
+        EncodingRecord, PlatformId,
+    },
     types::GlyphId,
     FontData, TableProvider,
 };
@@ -79,24 +82,47 @@ impl<'a> Charmap<'a> {
         self.variant_subtable.is_some()
     }
 
-    /// Maps a character to a nominal glyph identifier. Returns `None` if a mapping does
-    /// not exist.
+    /// Maps a character to a nominal glyph identifier.
+    ///
+    /// Returns `None` if a mapping does not exist.
     pub fn map(&self, ch: impl Into<u32>) -> Option<GlyphId> {
         self.codepoint_subtable.as_ref()?.map(ch.into())
     }
 
-    /// Maps a character and variation selector to a nominal glyph identifier. Returns
-    /// `None` if a mapping does not exist.
+    /// Returns an iterator over all mappings of codepoint to nominal glyph
+    /// identifiers in the character map.
+    pub fn mappings(&self) -> Mappings<'a> {
+        self.codepoint_subtable
+            .as_ref()
+            .map(|subtable| {
+                Mappings(match &subtable.subtable {
+                    SupportedSubtable::Format4(cmap4) => MappingsInner::Format4(cmap4.iter()),
+                    SupportedSubtable::Format12(cmap12) => MappingsInner::Format12(cmap12.iter()),
+                })
+            })
+            .unwrap_or(Mappings(MappingsInner::None))
+    }
+
+    /// Maps a character and variation selector to a nominal glyph identifier.
+    ///
+    /// Returns `None` if a mapping does not exist.
     pub fn map_variant(&self, ch: impl Into<u32>, selector: impl Into<u32>) -> Option<MapVariant> {
         self.variant_subtable.as_ref()?.map_variant(ch, selector)
     }
+
+    /// Returns an iterator over all mappings of character and variation
+    /// selector to nominal glyph identifier in the character map.
+    pub fn variant_mappings(&self) -> VariantMappings<'a> {
+        VariantMappings(self.variant_subtable.clone().map(|cmap14| cmap14.iter()))
+    }
 }
 
-/// Cacheable indices of selected mapping tables for materializing a character map.
+/// Cacheable indices of selected mapping tables for materializing a character
+/// map.
 ///
-/// Since [`Charmap`] carries a lifetime, it is difficult to store in a cache. This
-/// type serves as an acceleration structure that allows for construction of
-/// a character map while skipping the search for the most suitable Unicode
+/// Since [`Charmap`] carries a lifetime, it is difficult to store in a cache.
+/// This type serves as an acceleration structure that allows for construction
+/// of a character map while skipping the search for the most suitable Unicode
 /// mappings.
 #[derive(Copy, Clone, Default, Debug)]
 pub struct MappingIndex {
@@ -141,6 +167,47 @@ impl MappingIndex {
                     _ => None,
                 }),
         }
+    }
+}
+
+/// Iterator over all mappings of character to nominal glyph identifier
+/// in a character map.
+///
+/// This is created with the [`Charmap::mappings`] method.
+#[derive(Clone)]
+pub struct Mappings<'a>(MappingsInner<'a>);
+
+impl<'a> Iterator for Mappings<'a> {
+    type Item = (u32, GlyphId);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match &mut self.0 {
+            MappingsInner::None => None,
+            MappingsInner::Format4(iter) => iter.next(),
+            MappingsInner::Format12(iter) => iter.next(),
+        }
+    }
+}
+
+#[derive(Clone)]
+enum MappingsInner<'a> {
+    None,
+    Format4(Cmap4Iter<'a>),
+    Format12(Cmap12Iter<'a>),
+}
+
+/// Iterator over all mappings of character and variation selector to
+/// nominal glyph identifier in a character map.
+///
+/// This is created with the [`Charmap::variant_mappings`] method.
+#[derive(Clone)]
+pub struct VariantMappings<'a>(Option<Cmap14Iter<'a>>);
+
+impl<'a> Iterator for VariantMappings<'a> {
+    type Item = (u32, u32, MapVariant);
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.as_mut()?.next()
     }
 }
 
@@ -400,5 +467,30 @@ mod tests {
             charmap.map_variant('\u{4e09}', selector),
             Some(Variant(GlyphId::new(26)))
         );
+    }
+
+    #[test]
+    fn mappings() {
+        for font_data in [
+            font_test_data::VAZIRMATN_VAR,
+            font_test_data::CMAP12_FONT1,
+            font_test_data::SIMPLE_GLYF,
+            font_test_data::CMAP4_SYMBOL_PUA,
+        ] {
+            let font = FontRef::new(font_data).unwrap();
+            let charmap = font.charmap();
+            for (codepoint, glyph_id) in charmap.mappings() {
+                assert_eq!(charmap.map(codepoint), Some(glyph_id));
+            }
+        }
+    }
+
+    #[test]
+    fn variant_mappings() {
+        let font = FontRef::new(font_test_data::CMAP14_FONT1).unwrap();
+        let charmap = font.charmap();
+        for (codepoint, selector, variant) in charmap.variant_mappings() {
+            assert_eq!(charmap.map_variant(codepoint, selector), Some(variant));
+        }
     }
 }
