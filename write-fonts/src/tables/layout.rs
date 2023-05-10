@@ -384,6 +384,13 @@ impl FromIterator<GlyphId> for CoverageTableBuilder {
     }
 }
 
+impl FromIterator<GlyphId> for CoverageTable {
+    fn from_iter<T: IntoIterator<Item = GlyphId>>(iter: T) -> Self {
+        let glyphs = iter.into_iter().collect::<Vec<_>>();
+        CoverageTableBuilder::from_glyphs(glyphs).build()
+    }
+}
+
 impl CoverageTableBuilder {
     /// Create a new builder from a vec of `GlyphId`.
     pub fn from_glyphs(mut glyphs: Vec<GlyphId>) -> Self {

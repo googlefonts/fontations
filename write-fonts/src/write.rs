@@ -63,7 +63,7 @@ pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, Error> 
 
 impl TableWriter {
     /// A convenience method for generating a graph with the provided root object.
-    fn make_graph(root: &impl FontWrite) -> Graph {
+    pub(crate) fn make_graph(root: &impl FontWrite) -> Graph {
         let mut writer = TableWriter::default();
         let root_id = writer.add_table(root);
         Graph::from_obj_store(writer.tables, root_id)

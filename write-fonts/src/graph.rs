@@ -129,6 +129,7 @@ struct Distance {
 struct Priority(u8);
 
 /// A record of an overflowing offset
+#[derive(Clone, Debug)]
 pub(crate) struct Overflow {
     parent: ObjectId,
     child: ObjectId,
@@ -911,7 +912,7 @@ impl Graph {
 
     /// select the tables to promote to extension, harfbuzz algorithm
     ///
-    /// Based on the logic in HarfBuzz's [`_promote_exetnsions_if_needed`][hb-promote] function.
+    /// Based on the logic in HarfBuzz's [`_promote_exetnsions_if_needed`][hb-promote][hb-promote] function.
     ///
     /// [hb-promote]: https://github.com/harfbuzz/harfbuzz/blob/5d543d64222c6ce45332d0c188790f90691ef112/src/hb-repacker.hh#L97
     fn select_promotions_hb(&self, candidates: &[ObjectId], parent_id: ObjectId) -> Vec<ObjectId> {
@@ -1108,6 +1109,12 @@ impl Default for Priority {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::Range;
+
+    use font_types::GlyphId;
+
+    use crate::TableWriter;
+
     use super::*;
 
     fn make_ids<const N: usize>() -> [ObjectId; N] {
@@ -1484,5 +1491,143 @@ mod tests {
         assert!(graph.has_overflows());
         graph.pack_objects();
         assert!(!graph.has_overflows());
+    }
+
+    /// Construct a real gsub table that cannot be packed unless we use extension
+    /// subtables
+    #[test]
+    fn pack_real_gsub_table_with_extension_promotion() {
+        use crate::tables::{gsub, layout};
+
+        // trial and error: a number that just triggers overflow.
+        const NUM_SUBTABLES: usize = 3279;
+
+        // make an rsub rule for each glyph.
+        let rsub_rules = (0u16..NUM_SUBTABLES as u16)
+            .map(|id| {
+                // Each rule will use unique coverage tables, so nothing is shared.
+                let coverage = std::iter::once(GlyphId::new(id)).collect();
+                let backtrack = [id + 1, id + 3].into_iter().map(GlyphId::new).collect();
+                gsub::ReverseChainSingleSubstFormat1::new(
+                    coverage,
+                    vec![backtrack],
+                    vec![],
+                    vec![GlyphId::new(id + 1)],
+                )
+            })
+            .collect();
+
+        let list = layout::LookupList::<gsub::SubstitutionLookup>::new(vec![
+            gsub::SubstitutionLookup::Reverse(layout::Lookup::new(
+                layout::LookupFlag::empty(),
+                rsub_rules,
+                0,
+            )),
+        ]);
+        let table = gsub::Gsub::new(Default::default(), Default::default(), list);
+
+        let mut graph = TableWriter::make_graph(&table);
+        assert!(
+            !graph.basic_sort(),
+            "simple sorting should not resovle this graph"
+        );
+
+        const BASE_LEN: usize = 10 // header len
+           + 2 // scriptlist table
+           + 2 // featurelist
+           + 4 // lookup list, one offset
+           + 6; // lookup table (no offsets)
+        const RSUB_LEN: usize = 16 // base table len
+            + 6 // one-glyph coverage table
+            + 8; // two-glyph backtrack coverage table
+
+        const EXTENSION_LEN: usize = 8;
+
+        assert_eq!(graph.debug_len(), BASE_LEN + NUM_SUBTABLES * RSUB_LEN);
+        assert!(graph.pack_objects());
+        assert_eq!(
+            graph.debug_len(),
+            BASE_LEN + NUM_SUBTABLES * RSUB_LEN + NUM_SUBTABLES * EXTENSION_LEN
+        );
+
+        const EXPECTED_N_TABLES: usize = 5 // header, script/feature/lookup lists, lookup
+            - 1 // because script/feature are both empty, thus identical
+            + NUM_SUBTABLES * 3 // subtable + coverage + backtrack
+            + NUM_SUBTABLES; // extension table for each subtable
+        assert_eq!(graph.order.len(), EXPECTED_N_TABLES);
+    }
+
+    #[test]
+    fn pack_real_gpos_table_with_extension_promotion() {
+        use crate::tables::{gpos, layout};
+
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        fn make_big_pair_pos(glyph_range: Range<u16>) -> gpos::PositionLookup {
+            let coverage = glyph_range.clone().map(GlyphId::new).collect();
+            let pair_sets = glyph_range
+                .map(|id| {
+                    let value_rec = gpos::ValueRecord {
+                        x_advance: Some(id as _),
+                        ..Default::default()
+                    };
+                    gpos::PairSet::new(
+                        (id..id + 165)
+                            .map(|id2| {
+                                gpos::PairValueRecord::new(
+                                    GlyphId::new(id2),
+                                    value_rec.clone(),
+                                    gpos::ValueRecord::default(),
+                                )
+                            })
+                            .collect(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            gpos::PositionLookup::Pair(layout::Lookup::new(
+                layout::LookupFlag::empty(),
+                vec![gpos::PairPos::format_1(coverage, pair_sets)],
+                0,
+            ))
+        }
+
+        // this is a shallow graph with large nodes, which makes it easier
+        // to visualize with graphviz.
+        let pp1 = make_big_pair_pos(1..20);
+        let pp2 = make_big_pair_pos(100..120);
+        let pp3 = make_big_pair_pos(200..221);
+        let pp4 = make_big_pair_pos(400..422);
+        let pp5 = make_big_pair_pos(500..523);
+        let pp6 = make_big_pair_pos(600..624);
+        let table = gpos::Gpos::new(
+            Default::default(),
+            Default::default(),
+            layout::LookupList::new(vec![pp1, pp2, pp3, pp4, pp5, pp6]),
+        );
+
+        // this constructs a graph where there are overflows in a single pairpos
+        // subtable.
+        let mut graph = TableWriter::make_graph(&table);
+        assert!(
+            !graph.basic_sort(),
+            "simple sorting should not resovle this graph",
+        );
+
+        // uncomment these two lines if you want to visualize the graph:
+
+        //graph.write_graph_viz("promote_gpos_before.dot");
+
+        let n_tables_before = graph.order.len();
+        assert!(graph.pack_objects());
+
+        //graph.write_graph_viz("promote_gpos_after.dot");
+
+        // we should have resolved this overflow by promoting a single lookup
+        // to be an extension, but our logic for determining when to promote
+        // is not quite perfect, so it promotes an extra.
+        //
+        // if our impl changes and this is failing because we're only promoting
+        // a single extension, then that's great
+        assert_eq!(n_tables_before + 2, graph.order.len());
     }
 }
