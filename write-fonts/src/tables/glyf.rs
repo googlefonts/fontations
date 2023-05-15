@@ -214,7 +214,7 @@ impl InterpolatableContourBuilder {
 }
 
 fn is_implicit_on_curve(points: &[ContourPoint], idx: usize) -> bool {
-    let p1 = points[idx]; // user error if this is out of bounds
+    let p1 = &points[idx]; // user error if this is out of bounds
     if !p1.on_curve {
         return false;
     }
@@ -226,7 +226,7 @@ fn is_implicit_on_curve(points: &[ContourPoint], idx: usize) -> bool {
     // if the distance between p1 and p0 is approximately the same as the distance
     // between p2 and p1, then we can drop p1
     let p1p0 = p1.distance(p0);
-    let p2p1 = p2.distance(&p1);
+    let p2p1 = p2.distance(p1);
     // should tolerance be a parameter?
     (p1p0 - p2p1).abs() < f32::EPSILON as f64
 }
