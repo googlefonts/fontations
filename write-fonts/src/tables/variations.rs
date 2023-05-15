@@ -2,6 +2,10 @@
 
 include!("../../generated/generated_variations.rs");
 
+use std::collections::HashSet;
+
+use crate::util::WrappingGet;
+use kurbo::{Point, Vec2};
 pub use read_fonts::tables::variations::{TupleIndex, TupleVariationCount};
 
 impl TupleVariationHeader {
@@ -366,6 +370,517 @@ impl Tuple {
     }
 }
 
+#[derive(Copy, Clone, Debug)]
+pub enum IupError {
+    DeltaCoordLengthMismatch {
+        num_deltas: usize,
+        num_coords: usize,
+    },
+    NotEnoughCoords(usize),
+    CoordEndsMismatch {
+        num_coords: usize,
+        expected_num_coords: usize,
+    },
+    AchievedInvalidState,
+}
+
+/// Check if IUP _might_ be possible. If not then we *must* encode the value at this index.
+///
+/// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L238-L290>
+fn must_encode_at(deltas: &[Vec2], coords: &[Point], tolerance: f64, at: usize) -> bool {
+    let ld = *deltas.wrapping_prev(at);
+    let d = deltas[at];
+    let nd = *deltas.wrapping_next(at);
+    let lc = *coords.wrapping_prev(at);
+    let c = coords[at];
+    let nc = *coords.wrapping_next(at);
+
+    for axis in [Axis2D::X, Axis2D::Y] {
+        let (ldj, lcj) = (ld.get(axis), lc.get(axis));
+        let (dj, cj) = (d.get(axis), c.get(axis));
+        let (ndj, ncj) = (nd.get(axis), nc.get(axis));
+        let (c1, c2, d1, d2) = if lcj <= ncj {
+            (lcj, ncj, ldj, ndj)
+        } else {
+            (ncj, lcj, ndj, ldj)
+        };
+        // If the two coordinates are the same, then the interpolation
+        // algorithm produces the same delta if both deltas are equal,
+        // and zero if they differ.
+        match (c1, c2) {
+            _ if c1 == c2 => {
+                if (d1 - d2).abs() > tolerance && dj.abs() > tolerance {
+                    return true;
+                }
+            }
+            _ if c1 <= cj && cj <= c2 => {
+                // and c1 != c2
+                // If coordinate for current point is between coordinate of adjacent
+                // points on the two sides, but the delta for current point is NOT
+                // between delta for those adjacent points (considering tolerance
+                // allowance), then there is no way that current point can be IUP-ed.
+                if !(d1.min(d2) - tolerance <= dj && dj <= d1.max(d2) + tolerance) {
+                    return true;
+                }
+            }
+            _ => {
+                // cj < c1 or c2 < cj
+                // Otherwise, the delta should either match the closest, or have the
+                // same sign as the interpolation of the two deltas.
+                if d1 != d2 && dj.abs() > tolerance {
+                    if cj < c1 {
+                        if ((dj - d1).abs() > tolerance) && (dj - tolerance < d1) != (d1 < d2) {
+                            return true;
+                        }
+                    } else if ((dj - d2).abs() > tolerance) && (d2 < dj + tolerance) != (d1 < d2) {
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    false
+}
+
+/// Indices of deltas that must be encoded explicitly because they can't be interpolated.
+///
+/// These deltas must be encoded explicitly. That allows us the dynamic
+/// programming solution clear stop points which speeds it up considerably.
+///
+/// Rust port of <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L218>
+fn iup_must_encode(
+    deltas: &[Vec2],
+    coords: &[Point],
+    tolerance: f64,
+) -> Result<HashSet<usize>, IupError> {
+    Ok((0..deltas.len())
+        .rev()
+        .filter(|i| must_encode_at(deltas, coords, tolerance, *i))
+        .collect())
+}
+
+// TODO: use for might_iup? - take point and vec and coord
+#[derive(Copy, Clone, Debug)]
+enum Axis2D {
+    X,
+    Y,
+}
+
+/// Some of the fonttools code loops over 0,1 to access x/y.
+///
+/// Attempt to provide a nice way to do the same in Rust.
+trait Coord {
+    fn get(&self, axis: Axis2D) -> f64;
+    fn set(&mut self, coord: Axis2D, value: f64);
+}
+
+impl Coord for Point {
+    fn get(&self, axis: Axis2D) -> f64 {
+        match axis {
+            Axis2D::X => self.x,
+            Axis2D::Y => self.y,
+        }
+    }
+
+    fn set(&mut self, axis: Axis2D, value: f64) {
+        match axis {
+            Axis2D::X => self.x = value,
+            Axis2D::Y => self.y = value,
+        }
+    }
+}
+
+impl Coord for Vec2 {
+    fn get(&self, axis: Axis2D) -> f64 {
+        match axis {
+            Axis2D::X => self.x,
+            Axis2D::Y => self.y,
+        }
+    }
+
+    fn set(&mut self, axis: Axis2D, value: f64) {
+        match axis {
+            Axis2D::X => self.x = value,
+            Axis2D::Y => self.y = value,
+        }
+    }
+}
+
+/// Given two reference coordinates `rc1` & `rc2` and their respective
+/// delta vectors `rd1` & `rd2`, returns interpolated deltas for the set of
+/// coordinates `coords`.
+///
+/// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L53>
+fn iup_segment(coords: &[Point], rc1: Point, rd1: Vec2, rc2: Point, rd2: Vec2) -> Vec<Vec2> {
+    // rc1 = reference coord 1
+    // rd1 = reference delta 1
+
+    let n = coords.len();
+    let mut result = vec![Vec2::default(); n];
+    for axis in [Axis2D::X, Axis2D::Y] {
+        let c1 = rc1.get(axis);
+        let c2 = rc2.get(axis);
+        let d1 = rd1.get(axis);
+        let d2 = rd2.get(axis);
+
+        if c1 == c2 {
+            let value = if d1 == d2 { d1 } else { 0.0 };
+            for r in result.iter_mut() {
+                r.set(axis, value);
+            }
+            continue;
+        }
+
+        let (x1, x2, d1, d2) = if c1 > c2 {
+            (c2, c1, d2, d1) // flip
+        } else {
+            (c1, c2, d1, d2) // nop
+        };
+
+        // # x1 < x2
+        let scale = (d2 - d1) / (x2 - x1);
+        for (idx, point) in coords.iter().enumerate() {
+            let c = point.get(axis);
+            let d = if c <= c1 {
+                d1
+            } else if c >= c2 {
+                d2
+            } else {
+                // Interpolate
+                d1 + (c - c1) * scale
+            };
+            result[idx].set(axis, d);
+        }
+    }
+    result
+}
+
+/// Checks if the deltas for points at `i` and `j` (`i < j`) be
+/// used to interpolate deltas for points in between them within
+/// provided error tolerance
+///
+/// See [iup_contour_optimize_dp] comments for context on from/to range restrictions.
+///
+///  <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L187>
+fn can_iup_in_between(
+    deltas: &[Vec2],
+    coords: &[Point],
+    tolerance: f64,
+    from: isize,
+    to: isize,
+) -> bool {
+    assert!(from >= -1, "bad from/to: {from}..{to}");
+    assert!(to > from && to - from >= 2, "bad from/to: {from}..{to}");
+    // from is >= -1 so from + 1 is a valid usize
+    // to > from so to is a valid usize
+    // from -1 is taken to mean the last entry
+    let (rc1, rd1) = if from < 0 {
+        (*coords.last().unwrap(), *deltas.last().unwrap())
+    } else {
+        (coords[from as usize], deltas[from as usize])
+    };
+    let to = to as usize;
+    let iup_values = iup_segment(
+        &coords[(from + 1) as usize..to],
+        rc1,
+        rd1,
+        coords[to],
+        deltas[to],
+    );
+    let real_values = &deltas[(from + 1) as usize..to];
+    real_values
+        .iter()
+        .zip(iup_values)
+        .all(|(d, i)| (d.x - i.x).abs() <= tolerance && (d.y - i.y).abs() <= tolerance)
+}
+
+fn copy_rotated_right<T: Clone>(things: &[T], mid: usize) -> Vec<T> {
+    let mut result = Vec::with_capacity(things.len());
+    let (lhs, rhs) = things.split_at(mid);
+    result.extend_from_slice(rhs);
+    result.extend_from_slice(lhs);
+    result
+}
+
+/// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L327>
+fn iup_initial_lookback(deltas: &[Vec2]) -> usize {
+    std::cmp::min(deltas.len(), 8usize) // no more than 8!
+}
+
+#[derive(Debug, PartialEq)]
+struct OptimizeDpResult {
+    costs: Vec<i32>,
+    chain: Vec<Option<usize>>,
+}
+
+/// Straightforward Dynamic-Programming.  For each index i, find least-costly encoding of
+/// points 0 to i where i is explicitly encoded.  We find this by considering all previous
+/// explicit points j and check whether interpolation can fill points between j and i.
+///
+/// Note that solution always encodes last point explicitly.  Higher-level is responsible
+/// for removing that restriction.
+///
+/// As major speedup, we stop looking further whenever we see a point we are certain requires explicit encoding.
+/// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L308>
+fn iup_contour_optimize_dp(
+    deltas: &[Vec2],
+    coords: &[Point],
+    tolerance: f64,
+    must_encode: &HashSet<usize>,
+    lookback: usize,
+) -> OptimizeDpResult {
+    let n = deltas.len();
+    let lookback = lookback as isize;
+    let mut costs: Vec<_> = (0..n).map(|i| i as i32 + 1).collect();
+    let mut chain: Vec<_> = (0..n)
+        .map(|i| if i > 0 { Some(i - 1) } else { None })
+        .collect();
+
+    // n < 2 is degenerate
+    if n < 2 {
+        return OptimizeDpResult { costs, chain };
+    }
+
+    for i in 0..n {
+        let mut best_cost = if i > 0 { costs[i - 1] + 1 } else { 0 };
+
+        // python inner loop is j in range(i - 2, max(i - lookback, -2), -1)
+        //      start at no less than -2, step -1 toward no less than -2
+        //      lookback is either deltas.len() or deltas.len()/2 (because we tried repeating the contour)
+        //          deltas must have more than 1 point to even try, so lookback at least 2
+        // how does this play out? - slightly non-obviously one might argue
+        // costs starts as {-1:0}
+        // at i=0
+        //      best_cost is set to costs[-1] + 1 which is 1
+        //      costs[0] = best_cost, costs is {-1:0, 0:1}
+        //      j in range(-2, max(0 - at least 2, -2), -1), so range(-2, -2, -1), which is empty
+        // at i=1
+        //      best_cost is set to costs[-1] + 1 which is 2
+        //      costs[i] = best_cost, costs is {-1:0, 0:1, 1:2}
+        //      j in range(-1, max(1 - at least 2, -2), -1), so it must be one of:
+        //          range(-1, -2, -1), range(-1, -1, -1)
+        //          only range(-1, -2, -1) has any values, -1
+        //          when j = -1
+        //              cost = costs[-1] + 1 will set cost to 1, which is < best_cost
+        //              call can_iup_in_between for -1, 1
+        // from i=2 onward we walk from >=0 to >=-2 non-inclusive, so can_iup_in_between
+        // will only see indices >= -1. In Python -1 reads the last point, which must be encoded.
+
+        // Python loops from high (inclusive) to low (exclusive) stepping -1
+        // To match, we loop from low+1 to high+1 to exclude low and include high
+        // and reverse to mimic the step
+        let j_min = std::cmp::max(i as isize - lookback, -2);
+        let j_max = i as isize - 2;
+        for j in (j_min + 1..j_max + 1).rev() {
+            let (cost, must_encode) = if j >= 0 {
+                (costs[j as usize] + 1, must_encode.contains(&(j as usize)))
+            } else {
+                (1, false)
+            };
+
+            if cost < best_cost && can_iup_in_between(deltas, coords, tolerance, j, i as isize) {
+                best_cost = cost;
+                costs[i] = best_cost;
+                chain[i] = if j >= 0 { Some(j as usize) } else { None };
+            }
+            if must_encode {
+                break;
+            }
+        }
+    }
+
+    OptimizeDpResult { costs, chain }
+}
+
+/// For contour with coordinates `coords`, optimize a set of delta values `deltas` within error `tolerance`.
+///
+/// Returns delta vector that has most number of None items instead of the input delta.
+/// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L369>
+fn iup_contour_optimize(
+    deltas: &[Vec2],
+    coords: &[Point],
+    tolerance: f64,
+) -> Result<Vec<Option<Vec2>>, IupError> {
+    if deltas.len() != coords.len() {
+        return Err(IupError::DeltaCoordLengthMismatch {
+            num_deltas: deltas.len(),
+            num_coords: coords.len(),
+        });
+    }
+
+    let n = deltas.len();
+
+    // Get the easy cases out of the way
+    // Easy: all points are the same or there are no points
+    // This covers the case when there is only one point
+    let Some(first_delta) = deltas.get(0) else {
+        return Ok(Vec::new());
+    };
+    if deltas.iter().all(|d| d == first_delta) {
+        let mut result = vec![None; n];
+        result[0] = Some(*first_delta);
+        return Ok(result);
+    }
+
+    // Solve the general problem using Dynamic Programming
+
+    let must_encode = iup_must_encode(deltas, coords, tolerance)?;
+
+    // The iup_contour_optimize_dp() routine returns the optimal encoding
+    // solution given the constraint that the last point is always encoded.
+    // To remove this constraint, we use two different methods, depending on
+    // whether forced set is non-empty or not:
+
+    // Debugging: Make the next if always take the second branch and observe
+    // if the font size changes (reduced); that would mean the forced-set
+    // has members it should not have.
+    let encode = if !must_encode.is_empty() {
+        // Setup for iup_contour_optimize_dp
+        // We know at least one point *must* be encoded so rotate such that last point is encoded
+        // rot must be > 0 so this is rightwards
+        let mid = n - 1 - must_encode.iter().max().unwrap();
+
+        let deltas = copy_rotated_right(deltas, mid);
+        let coords = copy_rotated_right(coords, mid);
+        let must_encode: HashSet<usize> = must_encode.iter().map(|idx| (idx + mid) % n).collect();
+
+        let dp_result = iup_contour_optimize_dp(
+            &deltas,
+            &coords,
+            tolerance,
+            &must_encode,
+            iup_initial_lookback(&deltas),
+        );
+
+        // Assemble solution
+        let mut encode = HashSet::new();
+
+        let mut i = n - 1;
+        while let Some(next) = dp_result.chain[i] {
+            encode.insert(i);
+            i = next;
+        }
+
+        encode
+    } else {
+        // Repeat the contour an extra time, solve the new case, then look for solutions of the
+        // circular n-length problem in the solution for new linear case.  I cannot prove that
+        // this always produces the optimal solution...
+        let mut deltas_twice = Vec::with_capacity(2 * n);
+        deltas_twice.extend_from_slice(deltas);
+        deltas_twice.extend_from_slice(deltas);
+        let mut coords_twice = Vec::with_capacity(2 * n);
+        coords_twice.extend_from_slice(coords);
+        coords_twice.extend_from_slice(coords);
+
+        let dp_result = iup_contour_optimize_dp(
+            &deltas_twice,
+            &coords_twice,
+            tolerance,
+            &must_encode,
+            iup_initial_lookback(deltas),
+        );
+
+        let mut best_sol = None;
+        let mut best_cost = (n + 1) as i32;
+
+        for start in n - 1..dp_result.costs.len() - 1 {
+            // Assemble solution
+            let mut solution = HashSet::new();
+            let mut i = Some(start);
+            while i > Some(start.saturating_sub(n)) {
+                let idx = i.unwrap();
+                solution.insert(idx % n);
+                i = dp_result.chain[idx];
+            }
+            if i == Some(start.saturating_sub(n)) {
+                // Python reads [-1] to get 0, usize doesn't like that
+                let cost = dp_result.costs[start]
+                    - if n < start {
+                        dp_result.costs[start - n]
+                    } else {
+                        0
+                    };
+                if cost <= best_cost {
+                    best_sol = Some(solution);
+                    best_cost = cost;
+                }
+            }
+        }
+
+        best_sol.ok_or(IupError::AchievedInvalidState)?
+    };
+
+    assert!(encode.is_superset(&must_encode));
+
+    Ok((0..n)
+        .map(|i| {
+            if encode.contains(&i) {
+                Some(deltas[i])
+            } else {
+                None
+            }
+        })
+        .collect())
+}
+
+/// For the outline given in `coords`, with contour endpoints given
+/// `ends`, optimize a set of delta values `deltas` within error `tolerance`.
+///
+/// Returns delta vector that has most number of None items instead of
+/// the input delta.
+///
+///  <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L470>
+pub fn iup_delta_optimize(
+    deltas: &[Vec2],
+    coords: &[Point],
+    tolerance: f64,
+    contour_ends: &[usize],
+) -> Result<Vec<Option<Vec2>>, IupError> {
+    let num_coords = coords.len();
+    if num_coords < 4 {
+        return Err(IupError::NotEnoughCoords(num_coords));
+    }
+    if deltas.len() != coords.len() {
+        return Err(IupError::DeltaCoordLengthMismatch {
+            num_deltas: deltas.len(),
+            num_coords: coords.len(),
+        });
+    }
+
+    let mut contour_ends = contour_ends.to_vec();
+    contour_ends.sort();
+
+    // +1 for 0-based indexing, +4 for phantom points
+    let expected_num_coords = contour_ends
+        .last()
+        .copied()
+        .map(|v| v + 1)
+        .unwrap_or_default()
+        + 4;
+    if num_coords != expected_num_coords {
+        return Err(IupError::CoordEndsMismatch {
+            num_coords,
+            expected_num_coords,
+        });
+    }
+
+    for offset in (1..=4).rev() {
+        contour_ends.push(num_coords.saturating_sub(offset));
+    }
+
+    let mut result = Vec::with_capacity(num_coords);
+    let mut start = 0;
+    for end in contour_ends {
+        let contour =
+            iup_contour_optimize(&deltas[start..end + 1], &coords[start..end + 1], tolerance)?;
+        result.extend_from_slice(&contour);
+        assert_eq!(contour.len(), end - start + 1);
+        start = end + 1;
+    }
+    Ok(result)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -502,5 +1017,301 @@ mod tests {
             ],
             deltas.iter_runs().collect::<Vec<_>>()
         )
+    }
+
+    struct IupScenario {
+        deltas: Vec<Vec2>,
+        coords: Vec<Point>,
+        expected_must_encode: HashSet<usize>,
+    }
+
+    impl IupScenario {
+        /// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Tests/varLib/iup_test.py#L113>
+        fn assert_must_encode(&self) {
+            assert_eq!(
+                self.expected_must_encode,
+                iup_must_encode(&self.deltas, &self.coords, f64::EPSILON).unwrap()
+            );
+        }
+
+        /// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Tests/varLib/iup_test.py#L116-L120>
+        fn assert_optimize_dp(&self) {
+            let must_encode = iup_must_encode(&self.deltas, &self.coords, f64::EPSILON).unwrap();
+            let lookback = iup_initial_lookback(&self.deltas);
+            let r1 = iup_contour_optimize_dp(
+                &self.deltas,
+                &self.coords,
+                f64::EPSILON,
+                &must_encode,
+                lookback,
+            );
+            let must_encode = HashSet::new();
+            let r2 = iup_contour_optimize_dp(
+                &self.deltas,
+                &self.coords,
+                f64::EPSILON,
+                &must_encode,
+                lookback,
+            );
+
+            assert_eq!(r1, r2);
+        }
+
+        /// No Python equivalent
+        fn assert_optimize_contour(&self) {
+            iup_contour_optimize(&self.deltas, &self.coords, f64::EPSILON).unwrap();
+        }
+    }
+
+    /// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Tests/varLib/iup_test.py#L15>
+    fn iup_scenario1() -> IupScenario {
+        IupScenario {
+            deltas: vec![(0.0, 0.0).into()],
+            coords: vec![(1.0, 2.0).into()],
+            expected_must_encode: HashSet::new(),
+        }
+    }
+
+    /// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Tests/varLib/iup_test.py#L16>
+    fn iup_scenario2() -> IupScenario {
+        IupScenario {
+            deltas: vec![(0.0, 0.0).into(), (0.0, 0.0).into(), (0.0, 0.0).into()],
+            coords: vec![(1.0, 2.0).into(), (3.0, 2.0).into(), (2.0, 3.0).into()],
+            expected_must_encode: HashSet::new(),
+        }
+    }
+
+    /// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Tests/varLib/iup_test.py#L17-L21>
+    fn iup_scenario3() -> IupScenario {
+        IupScenario {
+            deltas: vec![
+                (1.0, 1.0).into(),
+                (-1.0, 1.0).into(),
+                (-1.0, -1.0).into(),
+                (1.0, -1.0).into(),
+            ],
+            coords: vec![
+                (0.0, 0.0).into(),
+                (2.0, 0.0).into(),
+                (2.0, 2.0).into(),
+                (0.0, 2.0).into(),
+            ],
+            expected_must_encode: HashSet::new(),
+        }
+    }
+
+    /// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Tests/varLib/iup_test.py#L22-L52>
+    fn iup_scenario4() -> IupScenario {
+        IupScenario {
+            deltas: vec![
+                (-1.0, 0.0).into(),
+                (-1.0, 0.0).into(),
+                (-1.0, 0.0).into(),
+                (-1.0, 0.0).into(),
+                (-1.0, 0.0).into(),
+                (0.0, 0.0).into(),
+                (0.0, 0.0).into(),
+                (0.0, 0.0).into(),
+                (0.0, 0.0).into(),
+                (0.0, 0.0).into(),
+                (0.0, 0.0).into(),
+                (-1.0, 0.0).into(),
+            ],
+            coords: vec![
+                (-35.0, -152.0).into(),
+                (-86.0, -101.0).into(),
+                (-50.0, -65.0).into(),
+                (0.0, -116.0).into(),
+                (51.0, -65.0).into(),
+                (86.0, -99.0).into(),
+                (35.0, -151.0).into(),
+                (87.0, -202.0).into(),
+                (51.0, -238.0).into(),
+                (-1.0, -187.0).into(),
+                (-53.0, -239.0).into(),
+                (-88.0, -205.0).into(),
+            ],
+            expected_must_encode: HashSet::from([11]),
+        }
+    }
+
+    /// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Tests/varLib/iup_test.py#L53-L108>
+    fn iup_scenario5() -> IupScenario {
+        IupScenario {
+            deltas: vec![
+                (0.0, 0.0).into(),
+                (1.0, 0.0).into(),
+                (2.0, 0.0).into(),
+                (2.0, 0.0).into(),
+                (0.0, 0.0).into(),
+                (1.0, 0.0).into(),
+                (3.0, 0.0).into(),
+                (3.0, 0.0).into(),
+                (2.0, 0.0).into(),
+                (2.0, 0.0).into(),
+                (0.0, 0.0).into(),
+                (0.0, 0.0).into(),
+                (-1.0, 0.0).into(),
+                (-1.0, 0.0).into(),
+                (-1.0, 0.0).into(),
+                (-3.0, 0.0).into(),
+                (-1.0, 0.0).into(),
+                (0.0, 0.0).into(),
+                (0.0, 0.0).into(),
+                (-2.0, 0.0).into(),
+                (-2.0, 0.0).into(),
+                (-1.0, 0.0).into(),
+                (-1.0, 0.0).into(),
+                (-1.0, 0.0).into(),
+                (-4.0, 0.0).into(),
+            ],
+            coords: vec![
+                (330.0, 65.0).into(),
+                (401.0, 65.0).into(),
+                (499.0, 117.0).into(),
+                (549.0, 225.0).into(),
+                (549.0, 308.0).into(),
+                (549.0, 422.0).into(),
+                (549.0, 500.0).into(),
+                (497.0, 600.0).into(),
+                (397.0, 648.0).into(),
+                (324.0, 648.0).into(),
+                (271.0, 648.0).into(),
+                (200.0, 620.0).into(),
+                (165.0, 570.0).into(),
+                (165.0, 536.0).into(),
+                (165.0, 473.0).into(),
+                (252.0, 407.0).into(),
+                (355.0, 407.0).into(),
+                (396.0, 407.0).into(),
+                (396.0, 333.0).into(),
+                (354.0, 333.0).into(),
+                (249.0, 333.0).into(),
+                (141.0, 268.0).into(),
+                (141.0, 203.0).into(),
+                (141.0, 131.0).into(),
+                (247.0, 65.0).into(),
+            ],
+            expected_must_encode: HashSet::from([5, 15, 24]),
+        }
+    }
+
+    /// The Python tests do not take the must encode empty branch of iup_contour_optimize,
+    /// this test is meant to activate it by having enough points to be interesting and
+    /// none of them must_encode.
+    fn iup_scenario6() -> IupScenario {
+        IupScenario {
+            deltas: vec![
+                (0.0, 0.0).into(),
+                (1.0, 1.0).into(),
+                (2.0, 2.0).into(),
+                (3.0, 3.0).into(),
+                (4.0, 4.0).into(),
+                (5.0, 5.0).into(),
+                (6.0, 6.0).into(),
+                (7.0, 7.0).into(),
+            ],
+            coords: vec![
+                (0.0, 0.0).into(),
+                (10.0, 10.0).into(),
+                (20.0, 20.0).into(),
+                (30.0, 30.0).into(),
+                (40.0, 40.0).into(),
+                (50.0, 50.0).into(),
+                (60.0, 60.0).into(),
+                (70.0, 70.0).into(),
+            ],
+            expected_must_encode: HashSet::from([]),
+        }
+    }
+
+    #[test]
+    fn iup_test_scenario01_must_encode() {
+        iup_scenario1().assert_must_encode();
+    }
+
+    #[test]
+    fn iup_test_scenario02_must_encode() {
+        iup_scenario2().assert_must_encode();
+    }
+
+    #[test]
+    fn iup_test_scenario03_must_encode() {
+        iup_scenario3().assert_must_encode();
+    }
+
+    #[test]
+    fn iup_test_scenario04_must_encode() {
+        iup_scenario4().assert_must_encode();
+    }
+
+    #[test]
+    fn iup_test_scenario05_must_encode() {
+        iup_scenario5().assert_must_encode();
+    }
+
+    #[test]
+    fn iup_test_scenario06_must_encode() {
+        iup_scenario6().assert_must_encode();
+    }
+
+    #[test]
+    fn iup_test_scenario01_optimize() {
+        iup_scenario1().assert_optimize_dp();
+    }
+
+    #[test]
+    fn iup_test_scenario02_optimize() {
+        iup_scenario2().assert_optimize_dp();
+    }
+
+    #[test]
+    fn iup_test_scenario03_optimize() {
+        iup_scenario3().assert_optimize_dp();
+    }
+
+    #[test]
+    fn iup_test_scenario04_optimize() {
+        iup_scenario4().assert_optimize_dp();
+    }
+
+    #[test]
+    fn iup_test_scenario05_optimize() {
+        iup_scenario5().assert_optimize_dp();
+    }
+
+    #[test]
+    fn iup_test_scenario06_optimize() {
+        iup_scenario6().assert_optimize_dp();
+    }
+
+    #[test]
+    fn iup_test_scenario01_optimize_contour() {
+        iup_scenario1().assert_optimize_contour();
+    }
+
+    #[test]
+    fn iup_test_scenario02_optimize_contour() {
+        iup_scenario2().assert_optimize_contour();
+    }
+
+    #[test]
+    fn iup_test_scenario03_optimize_contour() {
+        iup_scenario3().assert_optimize_contour();
+    }
+
+    #[test]
+    fn iup_test_scenario04_optimize_contour() {
+        iup_scenario4().assert_optimize_contour();
+    }
+
+    #[test]
+    fn iup_test_scenario05_optimize_contour() {
+        iup_scenario5().assert_optimize_contour();
+    }
+
+    #[test]
+    fn iup_test_scenario06_optimize_contour() {
+        iup_scenario6().assert_optimize_contour();
     }
 }

@@ -19,3 +19,28 @@ impl<I: Iterator> Iterator for MultiZip<I> {
         self.0.iter_mut().map(Iterator::next).collect()
     }
 }
+
+/// Read next or previous, wrapping if we go out of bounds.
+///
+/// This is particularly useful when porting from Python where reading
+/// idx - 1, with -1 meaning last, is common.
+pub trait WrappingGet<T> {
+    fn wrapping_next(&self, idx: usize) -> &T;
+    fn wrapping_prev(&self, idx: usize) -> &T;
+}
+
+impl<T> WrappingGet<T> for &[T] {
+    fn wrapping_next(&self, idx: usize) -> &T {
+        &self[match idx {
+            _ if idx == self.len() - 1 => 0,
+            _ => idx + 1,
+        }]
+    }
+
+    fn wrapping_prev(&self, idx: usize) -> &T {
+        &self[match idx {
+            _ if idx == 0 => self.len() - 1,
+            _ => idx - 1,
+        }]
+    }
+}
