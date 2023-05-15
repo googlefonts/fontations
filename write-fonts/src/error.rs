@@ -1,11 +1,13 @@
 //! Errors that occur during writing
 
+use std::sync::Arc;
+
 use crate::{graph::Graph, validate::ValidationReport};
 
 /// A packing could not be found that satisfied all offsets
 #[derive(Clone, Debug)]
 pub struct PackingError {
-    pub(crate) graph: std::rc::Rc<Graph>,
+    pub(crate) graph: Arc<Graph>,
 }
 
 /// An error occured while writing this table
@@ -46,3 +48,15 @@ impl std::fmt::Display for PackingError {
 
 impl std::error::Error for PackingError {}
 impl std::error::Error for Error {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Some users, notably fontmake-rs, like Send errors.
+    #[test]
+    fn assert_compiler_error_is_send() {
+        fn send_me_baby<T: Send>() {}
+        send_me_baby::<Error>();
+    }
+}
