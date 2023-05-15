@@ -1,7 +1,7 @@
 //! Raw types for compiling opentype tables
 
 mod collections;
-mod error;
+pub mod error;
 mod font_builder;
 pub mod from_obj;
 mod graph;
