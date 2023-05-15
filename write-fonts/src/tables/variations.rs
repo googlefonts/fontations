@@ -594,7 +594,7 @@ fn can_iup_in_between(
         .all(|(d, i)| (d.x - i.x).abs() <= tolerance && (d.y - i.y).abs() <= tolerance)
 }
 
-fn rotated_right<T: Clone>(things: &[T], mid: usize) -> Vec<T> {
+fn copy_rotated_right<T: Clone>(things: &[T], mid: usize) -> Vec<T> {
     let mut result = Vec::with_capacity(things.len());
     let (lhs, rhs) = things.split_at(mid);
     result.extend_from_slice(rhs);
@@ -712,6 +712,7 @@ fn iup_contour_optimize(
 
     // Get the easy cases out of the way
     // Easy: all points are the same or there are no points
+    // This covers the case when there is only one point
     let Some(first_delta) = deltas.get(0) else {
         return Ok(Vec::new());
     };
@@ -739,9 +740,8 @@ fn iup_contour_optimize(
         // rot must be > 0 so this is rightwards
         let mid = n - 1 - must_encode.iter().max().unwrap();
 
-        let deltas = rotated_right(deltas, mid);
-        let coords = rotated_right(coords, mid);
-        // TODO: should this be rem_euclid?
+        let deltas = copy_rotated_right(deltas, mid);
+        let coords = copy_rotated_right(coords, mid);
         let must_encode: HashSet<usize> = must_encode.iter().map(|idx| (idx + mid) % n).collect();
 
         let dp_result = iup_contour_optimize_dp(
@@ -790,13 +790,13 @@ fn iup_contour_optimize(
             let mut i = Some(start);
             while i > Some(start.saturating_sub(n)) {
                 let idx = i.unwrap();
-                // TODO: should this be rem_euclid?
                 solution.insert(idx % n);
                 i = dp_result.chain[idx];
             }
             if i == Some(start.saturating_sub(n)) {
+                // Python reads [-1] to get 0, usize doesn't like that
                 let cost = dp_result.costs[start]
-                    - if n <= start {
+                    - if n < start {
                         dp_result.costs[start - n]
                     } else {
                         0
@@ -1022,14 +1022,14 @@ mod tests {
     struct IupScenario {
         deltas: Vec<Vec2>,
         coords: Vec<Point>,
-        must_encode: HashSet<usize>,
+        expected_must_encode: HashSet<usize>,
     }
 
     impl IupScenario {
         /// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Tests/varLib/iup_test.py#L113>
         fn assert_must_encode(&self) {
             assert_eq!(
-                self.must_encode,
+                self.expected_must_encode,
                 iup_must_encode(&self.deltas, &self.coords, f64::EPSILON).unwrap()
             );
         }
@@ -1068,7 +1068,7 @@ mod tests {
         IupScenario {
             deltas: vec![(0.0, 0.0).into()],
             coords: vec![(1.0, 2.0).into()],
-            must_encode: HashSet::new(),
+            expected_must_encode: HashSet::new(),
         }
     }
 
@@ -1077,7 +1077,7 @@ mod tests {
         IupScenario {
             deltas: vec![(0.0, 0.0).into(), (0.0, 0.0).into(), (0.0, 0.0).into()],
             coords: vec![(1.0, 2.0).into(), (3.0, 2.0).into(), (2.0, 3.0).into()],
-            must_encode: HashSet::new(),
+            expected_must_encode: HashSet::new(),
         }
     }
 
@@ -1096,7 +1096,7 @@ mod tests {
                 (2.0, 2.0).into(),
                 (0.0, 2.0).into(),
             ],
-            must_encode: HashSet::new(),
+            expected_must_encode: HashSet::new(),
         }
     }
 
@@ -1131,7 +1131,7 @@ mod tests {
                 (-53.0, -239.0).into(),
                 (-88.0, -205.0).into(),
             ],
-            must_encode: HashSet::from([11]),
+            expected_must_encode: HashSet::from([11]),
         }
     }
 
@@ -1192,7 +1192,7 @@ mod tests {
                 (141.0, 131.0).into(),
                 (247.0, 65.0).into(),
             ],
-            must_encode: HashSet::from([5, 15, 24]),
+            expected_must_encode: HashSet::from([5, 15, 24]),
         }
     }
 
@@ -1221,7 +1221,7 @@ mod tests {
                 (60.0, 60.0).into(),
                 (70.0, 70.0).into(),
             ],
-            must_encode: HashSet::from([]),
+            expected_must_encode: HashSet::from([]),
         }
     }
 
