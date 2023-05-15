@@ -4,6 +4,7 @@ include!("../../generated/generated_variations.rs");
 
 use std::collections::HashSet;
 
+use crate::util::WrappingGet;
 use kurbo::{Point, Vec2};
 pub use read_fonts::tables::variations::{TupleIndex, TupleVariationCount};
 
@@ -381,27 +382,6 @@ pub enum IupError {
         expected_num_coords: usize,
     },
     AchievedInvalidState,
-}
-
-trait WrappingGet<T> {
-    fn wrapping_next(&self, idx: usize) -> &T;
-    fn wrapping_prev(&self, idx: usize) -> &T;
-}
-
-impl<T> WrappingGet<T> for &[T] {
-    fn wrapping_next(&self, idx: usize) -> &T {
-        &self[match idx {
-            _ if idx == self.len() - 1 => 0,
-            _ => idx + 1,
-        }]
-    }
-
-    fn wrapping_prev(&self, idx: usize) -> &T {
-        &self[match idx {
-            _ if idx == 0 => self.len() - 1,
-            _ => idx - 1,
-        }]
-    }
 }
 
 /// Check if IUP _might_ be possible. If not then we *must* encode the value at this index.

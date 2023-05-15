@@ -1,6 +1,6 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
-use crate::OtRound;
+use crate::{util::WrappingGet, OtRound};
 use kurbo::{BezPath, Rect, Shape};
 
 use read_fonts::{
@@ -213,33 +213,13 @@ impl InterpolatableContourBuilder {
     }
 }
 
-enum Sibling {
-    Prev,
-    Next,
-}
-
-/// Read the adjacent (prev/next) point.
-///
-/// offset is presumed +/- 1 to signify direction.
-/// idx is presumed valid.
-/// value + offset is presumed to fit both isize and usize; # points tends to be small.
-fn wrapping_read_sibling(points: &[ContourPoint], idx: usize, sibling: Sibling) -> ContourPoint {
-    let max_valid_idx = points.len() - 1;
-    points[match (idx, sibling) {
-        (_, Sibling::Next) if idx == max_valid_idx => 0,
-        (_, Sibling::Prev) if idx == 0 => max_valid_idx,
-        (_, Sibling::Next) => idx + 1,
-        (_, Sibling::Prev) => idx - 1,
-    }]
-}
-
 fn is_implicit_on_curve(points: &[ContourPoint], idx: usize) -> bool {
     let p1 = points[idx]; // user error if this is out of bounds
     if !p1.on_curve {
         return false;
     }
-    let p0 = wrapping_read_sibling(points, idx, Sibling::Prev);
-    let p2 = wrapping_read_sibling(points, idx, Sibling::Next);
+    let p0 = points.wrapping_prev(idx);
+    let p2 = points.wrapping_next(idx);
     if p0.on_curve || p0.on_curve != p2.on_curve {
         return false;
     }
