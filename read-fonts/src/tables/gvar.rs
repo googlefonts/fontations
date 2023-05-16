@@ -3,6 +3,8 @@
 
 include!("../../generated/generated_gvar.rs");
 
+use core::iter::Skip;
+
 use super::variations::{
     DeltaRunIter, PackedDeltas, PackedPointNumbers, PackedPointNumbersIter, Tuple,
     TupleVariationCount, TupleVariationHeader, TupleVariationHeaderIter,
@@ -204,6 +206,10 @@ impl<'a> TupleVariation<'a> {
         self.point_numbers.count() == 0
     }
 
+    pub fn point_numbers(&'a self) -> PackedPointNumbersIter<'a> {
+        self.point_numbers.iter()
+    }
+
     /// Returns the 'peak' tuple for this variation
     pub fn peak(&self) -> Tuple<'a> {
         self.header
@@ -267,32 +273,37 @@ impl<'a> TupleVariation<'a> {
 
     /// Iterate over the deltas for this tuple.
     ///
-    /// This does not account for scaling.
-    pub fn deltas(&self) -> DeltaIter<'a> {
-        let total = self.packed_deltas.count() / 2;
-        let x_iter = self.packed_deltas.iter();
-        let mut y_iter = self.packed_deltas.iter();
-        for _ in 0..total {
-            y_iter.next();
-        }
-        DeltaIter {
-            cur: 0,
-            total,
-            points: self.point_numbers.iter(),
-            x_iter,
-            y_iter,
-        }
+    /// This does not account for scaling. Returns only explicitly encoded
+    /// deltas, e.g. an omission by IUP will not be present.
+    pub fn deltas(&'a self) -> DeltaIter<'a> {
+        DeltaIter::new(&self.point_numbers, &self.packed_deltas)
     }
 }
 
 /// An iterator over the deltas for a glyph.
 #[derive(Clone, Debug)]
 pub struct DeltaIter<'a> {
-    cur: usize,
-    total: usize,
-    points: PackedPointNumbersIter<'a>,
+    pub cur: usize,
+    // if None all points get deltas, if Some specifies subset of points that do
+    points: Option<PackedPointNumbersIter<'a>>,
+    next_point: usize,
     x_iter: DeltaRunIter<'a>,
-    y_iter: DeltaRunIter<'a>,
+    y_iter: Skip<DeltaRunIter<'a>>,
+}
+
+impl<'a> DeltaIter<'a> {
+    fn new(points: &'a PackedPointNumbers, deltas: &'a PackedDeltas) -> DeltaIter<'a> {
+        let mut points = points.iter();
+        let next_point = points.next();
+        let num_encoded_points = deltas.count() / 2; // x and y encoded independently
+        DeltaIter {
+            cur: 0,
+            points: next_point.map(|_| points),
+            next_point: next_point.unwrap_or_default() as usize,
+            x_iter: deltas.iter(),
+            y_iter: deltas.iter().skip(num_encoded_points),
+        }
+    }
 }
 
 /// Delta information for a single point or component in a glyph.
@@ -317,18 +328,27 @@ impl<'a> Iterator for DeltaIter<'a> {
     type Item = GlyphDelta;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.cur == self.total {
-            return None;
-        }
+        let (position, dx, dy) = loop {
+            let position = if let Some(points) = &mut self.points {
+                // if we have points then result is sparse; only some points have deltas
+                if self.cur > self.next_point {
+                    self.next_point = points.next()? as usize;
+                }
+                self.next_point
+            } else {
+                // no points, every point has a delta. Just take the next one.
+                self.cur
+            };
+            if position == self.cur {
+                break (position, self.x_iter.next()?, self.y_iter.next()?);
+            }
+            self.cur += 1;
+        };
         self.cur += 1;
-
-        let position = self.points.next()?;
-        let x_delta = self.x_iter.next()?;
-        let y_delta = self.y_iter.next()?;
         Some(GlyphDelta {
-            position,
-            x_delta,
-            y_delta,
+            position: position as u16,
+            x_delta: dx,
+            y_delta: dy,
         })
     }
 }
@@ -458,7 +478,7 @@ mod tests {
     }
 
     #[test]
-    fn vazirmatn_var() {
+    fn vazirmatn_var_a() {
         let gvar = FontRef::new(font_test_data::VAZIRMATN_VAR)
             .unwrap()
             .gvar()
@@ -487,7 +507,14 @@ mod tests {
         assert_eq!(tup2.deltas().map(|d| d.x_delta).collect::<Vec<_>>(), x_vals);
         assert_eq!(tup2.deltas().map(|d| d.y_delta).collect::<Vec<_>>(), y_vals);
         assert!(tuples.next().is_none());
+    }
 
+    #[test]
+    fn vazirmatn_var_agrave() {
+        let gvar = FontRef::new(font_test_data::VAZIRMATN_VAR)
+            .unwrap()
+            .gvar()
+            .unwrap();
         let agrave_glyph_var = gvar.glyph_variation_data(GlyphId::new(2)).unwrap();
         let mut tuples = agrave_glyph_var.tuples();
         let tup1 = tuples.next().unwrap();
@@ -504,6 +531,14 @@ mod tests {
                 .collect::<Vec<_>>(),
             &[(1, -54, -1), (3, 59, 0)]
         );
+    }
+
+    #[test]
+    fn vazirmatn_var_grave() {
+        let gvar = FontRef::new(font_test_data::VAZIRMATN_VAR)
+            .unwrap()
+            .gvar()
+            .unwrap();
         let grave_glyph_var = gvar.glyph_variation_data(GlyphId::new(3)).unwrap();
         let mut tuples = grave_glyph_var.tuples();
         let tup1 = tuples.next().unwrap();
