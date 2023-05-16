@@ -561,7 +561,7 @@ fn iup_segment(coords: &[Point], rc1: Point, rd1: Vec2, rc2: Point, rd2: Vec2) -
 ///
 /// See [iup_contour_optimize_dp] comments for context on from/to range restrictions.
 ///
-///  <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L187>
+/// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L187>
 fn can_iup_in_between(
     deltas: &[Vec2],
     coords: &[Point],
@@ -830,7 +830,9 @@ fn iup_contour_optimize(
 /// Returns delta vector that has most number of None items instead of
 /// the input delta.
 ///
-///  <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L470>
+/// See:
+/// * <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L470>
+/// * <https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#inferred-deltas-for-un-referenced-point-numbers>
 pub fn iup_delta_optimize(
     deltas: &[Vec2],
     coords: &[Point],
