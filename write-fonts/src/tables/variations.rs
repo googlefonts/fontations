@@ -766,6 +766,8 @@ fn iup_contour_optimize(
             )));
         }
 
+        deltas.rotate_left(mid);
+
         encode
     } else {
         // Repeat the contour an extra time, solve the new case, then look for solutions of the
@@ -849,8 +851,8 @@ const NUM_PHANTOM_POINTS: usize = 4;
 /// * <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L470>
 /// * <https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#inferred-deltas-for-un-referenced-point-numbers>
 pub fn iup_delta_optimize(
-    deltas: &mut [Vec2],
-    coords: &mut [Point],
+    deltas: Vec<Vec2>,
+    coords: Vec<Point>,
     tolerance: f64,
     contour_ends: &[usize],
 ) -> Result<Vec<Option<Vec2>>, IupError> {
@@ -887,6 +889,8 @@ pub fn iup_delta_optimize(
 
     let mut result = Vec::with_capacity(num_coords);
     let mut start = 0;
+    let mut deltas = deltas;
+    let mut coords = coords;
     for end in contour_ends {
         let contour = iup_contour_optimize(
             &mut deltas[start..=end],
