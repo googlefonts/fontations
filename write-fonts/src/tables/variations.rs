@@ -814,7 +814,7 @@ fn iup_contour_optimize(
         }
 
         let encode = best_sol.ok_or(IupError::AchievedInvalidState(
-            "No best solution identifier".to_string(),
+            "No best solution identified".to_string(),
         ))?;
 
         if !encode.is_superset(&must_encode) {
