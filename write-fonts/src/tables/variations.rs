@@ -370,7 +370,7 @@ impl Tuple {
     }
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum IupError {
     DeltaCoordLengthMismatch {
         num_deltas: usize,
@@ -381,7 +381,7 @@ pub enum IupError {
         num_coords: usize,
         expected_num_coords: usize,
     },
-    AchievedInvalidState,
+    AchievedInvalidState(String),
 }
 
 /// Check if IUP _might_ be possible. If not then we *must* encode the value at this index.
@@ -531,14 +531,14 @@ fn iup_segment(coords: &[Point], rc1: Point, rd1: Vec2, rc2: Point, rd2: Vec2) -
             continue;
         }
 
-        let (x1, x2, d1, d2) = if c1 > c2 {
+        let (c1, c2, d1, d2) = if c1 > c2 {
             (c2, c1, d2, d1) // flip
         } else {
             (c1, c2, d1, d2) // nop
         };
 
-        // # x1 < x2
-        let scale = (d2 - d1) / (x2 - x1);
+        // # c1 < c2
+        let scale = (d2 - d1) / (c2 - c1);
         for (idx, point) in coords.iter().enumerate() {
             let c = point.get(axis);
             let d = if c <= c1 {
@@ -568,18 +568,21 @@ fn can_iup_in_between(
     tolerance: f64,
     from: isize,
     to: isize,
-) -> bool {
-    assert!(from >= -1, "bad from/to: {from}..{to}");
-    assert!(to > from && to - from >= 2, "bad from/to: {from}..{to}");
+) -> Result<bool, IupError> {
+    if from < -1 || to <= from || to - from < 2 {
+        return Err(IupError::AchievedInvalidState(format!(
+            "bad from/to: {from}..{to}"
+        )));
+    }
     // from is >= -1 so from + 1 is a valid usize
     // to > from so to is a valid usize
     // from -1 is taken to mean the last entry
+    let to = to as usize;
     let (rc1, rd1) = if from < 0 {
         (*coords.last().unwrap(), *deltas.last().unwrap())
     } else {
         (coords[from as usize], deltas[from as usize])
     };
-    let to = to as usize;
     let iup_values = iup_segment(
         &coords[(from + 1) as usize..to],
         rc1,
@@ -587,19 +590,13 @@ fn can_iup_in_between(
         coords[to],
         deltas[to],
     );
+
     let real_values = &deltas[(from + 1) as usize..to];
-    real_values
+
+    Ok(real_values
         .iter()
         .zip(iup_values)
-        .all(|(d, i)| (d.x - i.x).abs() <= tolerance && (d.y - i.y).abs() <= tolerance)
-}
-
-fn copy_rotated_right<T: Clone>(things: &[T], mid: usize) -> Vec<T> {
-    let mut result = Vec::with_capacity(things.len());
-    let (lhs, rhs) = things.split_at(mid);
-    result.extend_from_slice(rhs);
-    result.extend_from_slice(lhs);
-    result
+        .all(|(d, i)| (d.x - i.x).abs() <= tolerance && (d.y - i.y).abs() <= tolerance))
 }
 
 /// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L327>
@@ -628,21 +625,26 @@ fn iup_contour_optimize_dp(
     tolerance: f64,
     must_encode: &HashSet<usize>,
     lookback: usize,
-) -> OptimizeDpResult {
+) -> Result<OptimizeDpResult, IupError> {
     let n = deltas.len();
     let lookback = lookback as isize;
-    let mut costs: Vec<_> = (0..n).map(|i| i as i32 + 1).collect();
+    let mut costs = Vec::with_capacity(n);
     let mut chain: Vec<_> = (0..n)
         .map(|i| if i > 0 { Some(i - 1) } else { None })
         .collect();
 
     // n < 2 is degenerate
     if n < 2 {
-        return OptimizeDpResult { costs, chain };
+        return Ok(OptimizeDpResult { costs, chain });
     }
 
     for i in 0..n {
-        let mut best_cost = if i > 0 { costs[i - 1] + 1 } else { 0 };
+        let mut best_cost = if i > 0 { costs[i - 1] } else { 0 } + 1;
+
+        costs.push(best_cost);
+        if i > 0 && must_encode.contains(&(i - 1)) {
+            continue;
+        }
 
         // python inner loop is j in range(i - 2, max(i - lookback, -2), -1)
         //      start at no less than -2, step -1 toward no less than -2
@@ -677,8 +679,7 @@ fn iup_contour_optimize_dp(
             } else {
                 (1, false)
             };
-
-            if cost < best_cost && can_iup_in_between(deltas, coords, tolerance, j, i as isize) {
+            if cost < best_cost && can_iup_in_between(deltas, coords, tolerance, j, i as isize)? {
                 best_cost = cost;
                 costs[i] = best_cost;
                 chain[i] = if j >= 0 { Some(j as usize) } else { None };
@@ -689,7 +690,7 @@ fn iup_contour_optimize_dp(
         }
     }
 
-    OptimizeDpResult { costs, chain }
+    Ok(OptimizeDpResult { costs, chain })
 }
 
 /// For contour with coordinates `coords`, optimize a set of delta values `deltas` within error `tolerance`.
@@ -697,8 +698,8 @@ fn iup_contour_optimize_dp(
 /// Returns delta vector that has most number of None items instead of the input delta.
 /// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L369>
 fn iup_contour_optimize(
-    deltas: &[Vec2],
-    coords: &[Point],
+    deltas: &mut [Vec2],
+    coords: &mut [Point],
     tolerance: f64,
 ) -> Result<Vec<Option<Vec2>>, IupError> {
     if deltas.len() != coords.len() {
@@ -723,7 +724,6 @@ fn iup_contour_optimize(
     }
 
     // Solve the general problem using Dynamic Programming
-
     let must_encode = iup_must_encode(deltas, coords, tolerance)?;
 
     // The iup_contour_optimize_dp() routine returns the optimal encoding
@@ -740,17 +740,16 @@ fn iup_contour_optimize(
         // rot must be > 0 so this is rightwards
         let mid = n - 1 - must_encode.iter().max().unwrap();
 
-        let deltas = copy_rotated_right(deltas, mid);
-        let coords = copy_rotated_right(coords, mid);
+        deltas.rotate_right(mid);
+        coords.rotate_right(mid);
         let must_encode: HashSet<usize> = must_encode.iter().map(|idx| (idx + mid) % n).collect();
-
         let dp_result = iup_contour_optimize_dp(
-            &deltas,
-            &coords,
+            deltas,
+            coords,
             tolerance,
             &must_encode,
-            iup_initial_lookback(&deltas),
-        );
+            iup_initial_lookback(deltas),
+        )?;
 
         // Assemble solution
         let mut encode = HashSet::new();
@@ -760,6 +759,14 @@ fn iup_contour_optimize(
             encode.insert(i);
             i = next;
         }
+
+        if !encode.is_superset(&must_encode) {
+            return Err(IupError::AchievedInvalidState(format!(
+                "{encode:?} should contain {must_encode:?}"
+            )));
+        }
+
+        deltas.rotate_left(mid);
 
         encode
     } else {
@@ -779,7 +786,7 @@ fn iup_contour_optimize(
             tolerance,
             &must_encode,
             iup_initial_lookback(deltas),
-        );
+        )?;
 
         let mut best_sol = None;
         let mut best_cost = (n + 1) as i32;
@@ -808,10 +815,18 @@ fn iup_contour_optimize(
             }
         }
 
-        best_sol.ok_or(IupError::AchievedInvalidState)?
-    };
+        let encode = best_sol.ok_or(IupError::AchievedInvalidState(
+            "No best solution identified".to_string(),
+        ))?;
 
-    assert!(encode.is_superset(&must_encode));
+        if !encode.is_superset(&must_encode) {
+            return Err(IupError::AchievedInvalidState(format!(
+                "{encode:?} should contain {must_encode:?}"
+            )));
+        }
+
+        encode
+    };
 
     Ok((0..n)
         .map(|i| {
@@ -824,6 +839,8 @@ fn iup_contour_optimize(
         .collect())
 }
 
+const NUM_PHANTOM_POINTS: usize = 4;
+
 /// For the outline given in `coords`, with contour endpoints given
 /// `ends`, optimize a set of delta values `deltas` within error `tolerance`.
 ///
@@ -834,13 +851,13 @@ fn iup_contour_optimize(
 /// * <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L470>
 /// * <https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#inferred-deltas-for-un-referenced-point-numbers>
 pub fn iup_delta_optimize(
-    deltas: &[Vec2],
-    coords: &[Point],
+    deltas: Vec<Vec2>,
+    coords: Vec<Point>,
     tolerance: f64,
     contour_ends: &[usize],
 ) -> Result<Vec<Option<Vec2>>, IupError> {
     let num_coords = coords.len();
-    if num_coords < 4 {
+    if num_coords < NUM_PHANTOM_POINTS {
         return Err(IupError::NotEnoughCoords(num_coords));
     }
     if deltas.len() != coords.len() {
@@ -853,13 +870,12 @@ pub fn iup_delta_optimize(
     let mut contour_ends = contour_ends.to_vec();
     contour_ends.sort();
 
-    // +1 for 0-based indexing, +4 for phantom points
     let expected_num_coords = contour_ends
         .last()
         .copied()
-        .map(|v| v + 1)
+        //.map(|v| v + 1)
         .unwrap_or_default()
-        + 4;
+        + NUM_PHANTOM_POINTS;
     if num_coords != expected_num_coords {
         return Err(IupError::CoordEndsMismatch {
             num_coords,
@@ -873,11 +889,16 @@ pub fn iup_delta_optimize(
 
     let mut result = Vec::with_capacity(num_coords);
     let mut start = 0;
+    let mut deltas = deltas;
+    let mut coords = coords;
     for end in contour_ends {
-        let contour =
-            iup_contour_optimize(&deltas[start..end + 1], &coords[start..end + 1], tolerance)?;
+        let contour = iup_contour_optimize(
+            &mut deltas[start..=end],
+            &mut coords[start..=end],
+            tolerance,
+        )?;
         result.extend_from_slice(&contour);
-        assert_eq!(contour.len(), end - start + 1);
+        assert_eq!(contour.len() + start, end + 1);
         start = end + 1;
     }
     Ok(result)
@@ -1046,7 +1067,8 @@ mod tests {
                 f64::EPSILON,
                 &must_encode,
                 lookback,
-            );
+            )
+            .unwrap();
             let must_encode = HashSet::new();
             let r2 = iup_contour_optimize_dp(
                 &self.deltas,
@@ -1054,14 +1076,17 @@ mod tests {
                 f64::EPSILON,
                 &must_encode,
                 lookback,
-            );
+            )
+            .unwrap();
 
             assert_eq!(r1, r2);
         }
 
         /// No Python equivalent
         fn assert_optimize_contour(&self) {
-            iup_contour_optimize(&self.deltas, &self.coords, f64::EPSILON).unwrap();
+            let mut deltas = self.deltas.clone();
+            let mut coords = self.coords.clone();
+            iup_contour_optimize(&mut deltas, &mut coords, f64::EPSILON).unwrap();
         }
     }
 
@@ -1227,6 +1252,56 @@ mod tests {
         }
     }
 
+    /// Another case with no must-encode items, this time a real one from a fontmake-rs test
+    /// that was failing
+    fn iup_scenario7() -> IupScenario {
+        IupScenario {
+            coords: vec![
+                (242.0, 111.0),
+                (314.0, 111.0),
+                (314.0, 317.0),
+                (513.0, 317.0),
+                (513.0, 388.0),
+                (314.0, 388.0),
+                (314.0, 595.0),
+                (242.0, 595.0),
+                (242.0, 388.0),
+                (43.0, 388.0),
+                (43.0, 317.0),
+                (242.0, 317.0),
+                (0.0, 0.0),
+                (557.0, 0.0),
+                (0.0, 0.0),
+                (0.0, 0.0),
+            ]
+            .into_iter()
+            .map(|c| c.into())
+            .collect(),
+            deltas: vec![
+                (-10.0, 0.0),
+                (25.0, 0.0),
+                (25.0, -18.0),
+                (15.0, -18.0),
+                (15.0, 18.0),
+                (25.0, 18.0),
+                (25.0, 1.0),
+                (-10.0, 1.0),
+                (-10.0, 18.0),
+                (0.0, 18.0),
+                (0.0, -18.0),
+                (-10.0, -18.0),
+                (0.0, 0.0),
+                (15.0, 0.0),
+                (0.0, 0.0),
+                (0.0, 0.0),
+            ]
+            .into_iter()
+            .map(|c| c.into())
+            .collect(),
+            expected_must_encode: HashSet::from([0]),
+        }
+    }
+
     #[test]
     fn iup_test_scenario01_must_encode() {
         iup_scenario1().assert_must_encode();
@@ -1255,6 +1330,11 @@ mod tests {
     #[test]
     fn iup_test_scenario06_must_encode() {
         iup_scenario6().assert_must_encode();
+    }
+
+    #[test]
+    fn iup_test_scenario07_must_encode() {
+        iup_scenario7().assert_must_encode();
     }
 
     #[test]
@@ -1288,6 +1368,11 @@ mod tests {
     }
 
     #[test]
+    fn iup_test_scenario07_optimize() {
+        iup_scenario7().assert_optimize_dp();
+    }
+
+    #[test]
     fn iup_test_scenario01_optimize_contour() {
         iup_scenario1().assert_optimize_contour();
     }
@@ -1315,5 +1400,10 @@ mod tests {
     #[test]
     fn iup_test_scenario06_optimize_contour() {
         iup_scenario6().assert_optimize_contour();
+    }
+
+    #[test]
+    fn iup_test_scenario07_optimize_contour() {
+        iup_scenario7().assert_optimize_contour();
     }
 }
