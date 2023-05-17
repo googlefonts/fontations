@@ -725,7 +725,6 @@ fn iup_contour_optimize(
 
     // Solve the general problem using Dynamic Programming
     let must_encode = iup_must_encode(deltas, coords, tolerance)?;
-
     // The iup_contour_optimize_dp() routine returns the optimal encoding
     // solution given the constraint that the last point is always encoded.
     // To remove this constraint, we use two different methods, depending on
@@ -739,7 +738,6 @@ fn iup_contour_optimize(
         // We know at least one point *must* be encoded so rotate such that last point is encoded
         // rot must be > 0 so this is rightwards
         let mid = n - 1 - must_encode.iter().max().unwrap();
-
         deltas.rotate_right(mid);
         coords.rotate_right(mid);
         let must_encode: HashSet<usize> = must_encode.iter().map(|idx| (idx + mid) % n).collect();
@@ -755,9 +753,12 @@ fn iup_contour_optimize(
         let mut encode = HashSet::new();
 
         let mut i = n - 1;
-        while let Some(next) = dp_result.chain[i] {
+        loop {
             encode.insert(i);
-            i = next;
+            i = match dp_result.chain[i] {
+                Some(v) => v,
+                None => break,
+            };
         }
 
         if !encode.is_superset(&must_encode) {
@@ -1302,6 +1303,33 @@ mod tests {
         }
     }
 
+    /// From a fontmake-rs test that was failing (achieved invalid state)
+    fn iup_scenario8() -> IupScenario {
+        IupScenario {
+            coords: vec![
+                (131.0, 430.0),
+                (131.0, 350.0),
+                (470.0, 350.0),
+                (470.0, 430.0),
+                (131.0, 330.0),
+            ]
+            .into_iter()
+            .map(|c| c.into())
+            .collect(),
+            deltas: vec![
+                (-15.0, 115.0),
+                (-15.0, 30.0),
+                (124.0, 30.0),
+                (124.0, 115.0),
+                (-39.0, 26.0),
+            ]
+            .into_iter()
+            .map(|c| c.into())
+            .collect(),
+            expected_must_encode: HashSet::from([0, 4]),
+        }
+    }
+
     #[test]
     fn iup_test_scenario01_must_encode() {
         iup_scenario1().assert_must_encode();
@@ -1335,6 +1363,11 @@ mod tests {
     #[test]
     fn iup_test_scenario07_must_encode() {
         iup_scenario7().assert_must_encode();
+    }
+
+    #[test]
+    fn iup_test_scenario08_must_encode() {
+        iup_scenario8().assert_must_encode();
     }
 
     #[test]
@@ -1373,6 +1406,11 @@ mod tests {
     }
 
     #[test]
+    fn iup_test_scenario08_optimize() {
+        iup_scenario8().assert_optimize_dp();
+    }
+
+    #[test]
     fn iup_test_scenario01_optimize_contour() {
         iup_scenario1().assert_optimize_contour();
     }
@@ -1405,5 +1443,10 @@ mod tests {
     #[test]
     fn iup_test_scenario07_optimize_contour() {
         iup_scenario7().assert_optimize_contour();
+    }
+
+    #[test]
+    fn iup_test_scenario08_optimize_contour() {
+        iup_scenario8().assert_optimize_contour();
     }
 }
