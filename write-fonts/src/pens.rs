@@ -1,7 +1,7 @@
 //! Pen implementations based on <https://github.com/fonttools/fonttools/tree/main/Lib/fontTools/pens>
 
 use font_types::{Pen, PenCommand};
-use kurbo::{Affine, BezPath, PathEl, Point};
+use kurbo::{Affine, BezPath, PathEl, Point, Rect};
 
 pub fn write_to_pen(path: &BezPath, pen: &mut impl Pen) {
     path.elements()
@@ -359,12 +359,71 @@ impl Pen for RecordingPen {
     }
 }
 
+/// Pen to calculate the "control bounds" of a shape. This is the
+/// bounding box of all control points, so may be larger than the
+/// actual bounding box if there are curves that don't have points
+/// on their extremes.
+///
+/// <https://github.com/fonttools/fonttools/blob/main/Lib/fontTools/pens/boundsPen.py>
+#[derive(Default)]
+pub struct ControlBoundsPen {
+    bounds: Option<Rect>,
+}
+
+impl ControlBoundsPen {
+    pub fn new() -> Self {
+        Self { bounds: None }
+    }
+
+    fn grow_to_include(&mut self, x: f32, y: f32) {
+        let (x, y) = (x as f64, y as f64);
+        self.bounds = Some(match self.bounds {
+            Some(rect) => rect.union_pt((x, y).into()),
+            None => Rect {
+                x0: x,
+                y0: y,
+                x1: x,
+                y1: y,
+            },
+        })
+    }
+
+    pub fn bounds(&self) -> Option<Rect> {
+        self.bounds
+    }
+}
+
+impl Pen for ControlBoundsPen {
+    fn move_to(&mut self, x: f32, y: f32) {
+        self.grow_to_include(x, y);
+    }
+
+    fn line_to(&mut self, x: f32, y: f32) {
+        self.grow_to_include(x, y);
+    }
+
+    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
+        self.grow_to_include(cx0, cy0);
+        self.grow_to_include(x, y);
+    }
+
+    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+        self.grow_to_include(cx0, cy0);
+        self.grow_to_include(cx1, cy1);
+        self.grow_to_include(x, y);
+    }
+
+    fn close(&mut self) {}
+}
+
 #[cfg(test)]
 mod tests {
     use font_types::{Pen, PenCommand};
-    use kurbo::Affine;
+    use kurbo::{Affine, BezPath, Rect, Shape};
 
-    use super::{BezPathPen, RecordingPen, ReverseContourPen, TransformPen};
+    use super::{
+        write_to_pen, BezPathPen, ControlBoundsPen, RecordingPen, ReverseContourPen, TransformPen,
+    };
 
     fn draw_open_test_shape(pen: &mut impl Pen) {
         pen.move_to(10.0, 10.0);
@@ -476,5 +535,17 @@ mod tests {
             ],
             rec.commands()
         );
+    }
+
+    #[test]
+    fn test_control_bounds() {
+        // a sort of map ping looking thing drawn with a single cubic
+        // cbox is wildly different than tight box
+        let bez = BezPath::from_svg("M200,300 C50,50 350,50 200,300").unwrap();
+        let mut pen = ControlBoundsPen::new();
+        write_to_pen(&bez, &mut pen);
+
+        assert_eq!(Some(Rect::new(50.0, 50.0, 350.0, 300.0)), pen.bounds());
+        assert!(pen.bounds().unwrap().area() > bez.bounding_box().area());
     }
 }
