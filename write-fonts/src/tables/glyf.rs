@@ -1,7 +1,11 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
-use crate::{util::WrappingGet, OtRound};
-use kurbo::{BezPath, Rect, Shape};
+use crate::{
+    pens::{write_to_pen, ControlBoundsPen},
+    util::WrappingGet,
+    OtRound,
+};
+use kurbo::{BezPath, Rect};
 
 use read_fonts::{
     tables::glyf::{Anchor, CompositeGlyphFlags, CurvePoint, SimpleGlyphFlags, Transform},
@@ -335,9 +339,12 @@ pub fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, B
 
     let mut glyphs = Vec::new();
     for (contours, path) in glyph_contours.into_iter().zip(paths.iter()) {
-        let bbox = path.bounding_box();
+        // https://github.com/googlefonts/fontmake-rs/issues/285 we want control point box, not tight bbox
+        // so don't call path.bounding_box
+        let mut cbox_pen = ControlBoundsPen::new();
+        write_to_pen(path, &mut cbox_pen);
         glyphs.push(SimpleGlyph {
-            bbox: bbox.into(),
+            bbox: cbox_pen.bounds().unwrap_or_default().into(),
             contours,
             _instructions: Default::default(),
         })
