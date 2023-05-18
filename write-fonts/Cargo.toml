@@ -12,7 +12,7 @@ categories = ["text-processing", "parsing", "graphics"]
 default = ["dot2"]
 
 [dependencies]
-font-types = { version = "0.1.5", path = "../font-types" }
+font-types = { version = "0.1.6", path = "../font-types" }
 read-fonts = { version = "0.2.0", path = "../read-fonts" }
 log = "0.4"
 bitflags = "1.3"
