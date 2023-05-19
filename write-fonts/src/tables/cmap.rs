@@ -7,6 +7,9 @@ include!("../../generated/generated_cmap.rs");
 // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#windows-platform-platform-id--3
 const WINDOWS_BMP_ENCODING: u16 = 1;
 
+// https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#unicode-platform-platform-id--0
+const UNICODE_BMP_ENCODING: u16 = 3;
+
 fn size_of_cmap4(seg_count: u16, gid_count: u16) -> u16 {
     8 * 2  // 8 uint16's
     + 2 * seg_count * 4  // 4 parallel arrays of len seg_count, 2 bytes per entry
@@ -107,14 +110,22 @@ impl Cmap {
         end_code.push(0xFFFF);
         id_deltas.push(1);
 
-        Cmap::new(vec![EncodingRecord::new(
+        // Absent a strong signal to do otherwise, match fontmake/fonttools
+        // Since both tables use the same format4 subtable they are almost entirely byte-shared
+        // See https://github.com/googlefonts/fontmake-rs/issues/251
+        let win_bmp = EncodingRecord::new(
             PlatformId::Windows,
             WINDOWS_BMP_ENCODING,
             CmapSubtable::create_format_4(
                 0, // set to zero for all 'cmap' subtables whose platform IDs are other than Macintosh
                 end_code, start_code, id_deltas,
             ),
-        )])
+        );
+        let mut unicode = win_bmp.clone();
+        unicode.platform_id = PlatformId::Unicode;
+        unicode.encoding_id = UNICODE_BMP_ENCODING;
+
+        Cmap::new(vec![unicode, win_bmp])
     }
 }
 
@@ -128,7 +139,7 @@ mod tests {
 
     use crate::{
         dump_table,
-        tables::cmap::{self as write, WINDOWS_BMP_ENCODING},
+        tables::cmap::{self as write, UNICODE_BMP_ENCODING, WINDOWS_BMP_ENCODING},
     };
 
     fn to_vec<T: Scalar>(bees: &[BigEndian<T>]) -> Vec<T> {
@@ -142,41 +153,49 @@ mod tests {
         let font_data = FontData::new(&bytes);
         let cmap = Cmap::read(font_data).unwrap();
 
-        assert_eq!(1, cmap.encoding_records().len(), "{cmap:?}");
-        let encoding_record = &cmap.encoding_records()[0];
+        assert_eq!(2, cmap.encoding_records().len(), "{cmap:?}");
         assert_eq!(
-            (PlatformId::Windows, WINDOWS_BMP_ENCODING),
-            (encoding_record.platform_id(), encoding_record.encoding_id())
+            vec![
+                (PlatformId::Unicode, UNICODE_BMP_ENCODING),
+                (PlatformId::Windows, WINDOWS_BMP_ENCODING)
+            ],
+            cmap.encoding_records()
+                .iter()
+                .map(|er| (er.platform_id(), er.encoding_id()))
+                .collect::<Vec<_>>(),
+            "{cmap:?}"
         );
 
-        let CmapSubtable::Format4(cmap4) = encoding_record.subtable(font_data).unwrap() else {
-            panic!("Expected a cmap4 in {encoding_record:?}");
-        };
+        for encoding_record in cmap.encoding_records() {
+            let CmapSubtable::Format4(cmap4) = encoding_record.subtable(font_data).unwrap() else {
+                panic!("Expected a cmap4 in {encoding_record:?}");
+            };
 
-        // The spec example says entry_selector 4 but the calculation it gives seems to yield 2 (?)
-        assert_eq!(
-            (8, 8, 2, 0),
-            (
-                cmap4.seg_count_x2(),
-                cmap4.search_range(),
-                cmap4.entry_selector(),
-                cmap4.range_shift()
-            )
-        );
-        assert_eq!(
-            vec![10u16, 30u16, 153u16, 0xffffu16],
-            to_vec(cmap4.start_code())
-        );
-        assert_eq!(
-            vec![20u16, 90u16, 480u16, 0xffffu16],
-            to_vec(cmap4.end_code())
-        );
-        // The example starts at gid 1, we're starting at 0
-        assert_eq!(vec![-10i16, -19i16, -81i16, 1i16], to_vec(cmap4.id_delta()));
-        assert_eq!(
-            vec![0u16, 0u16, 0u16, 0u16],
-            to_vec(cmap4.id_range_offsets())
-        );
+            // The spec example says entry_selector 4 but the calculation it gives seems to yield 2 (?)
+            assert_eq!(
+                (8, 8, 2, 0),
+                (
+                    cmap4.seg_count_x2(),
+                    cmap4.search_range(),
+                    cmap4.entry_selector(),
+                    cmap4.range_shift()
+                )
+            );
+            assert_eq!(
+                vec![10u16, 30u16, 153u16, 0xffffu16],
+                to_vec(cmap4.start_code())
+            );
+            assert_eq!(
+                vec![20u16, 90u16, 480u16, 0xffffu16],
+                to_vec(cmap4.end_code())
+            );
+            // The example starts at gid 1, we're starting at 0
+            assert_eq!(vec![-10i16, -19i16, -81i16, 1i16], to_vec(cmap4.id_delta()));
+            assert_eq!(
+                vec![0u16, 0u16, 0u16, 0u16],
+                to_vec(cmap4.id_range_offsets())
+            );
+        }
     }
 
     fn simple_cmap_mappings() -> Vec<(char, GlyphId)> {
@@ -225,5 +244,22 @@ mod tests {
         let font_data = FontData::new(&bytes);
         let cmap = Cmap::read(font_data).unwrap();
         assert_eq!(cmap.map_codepoint(codepoint), Some(gid));
+    }
+
+    #[test]
+    fn bytes_are_reused() {
+        // We emit extra encoding records assuming it's cheap. Make sure.
+        let mappings = simple_cmap_mappings();
+        let cmap_both = write::Cmap::from_mappings(mappings);
+        assert_eq!(2, cmap_both.encoding_records.len(), "{cmap_both:?}");
+
+        let bytes_for_both = dump_table(&cmap_both).unwrap().len();
+
+        for i in 0..cmap_both.encoding_records.len() {
+            let mut cmap = cmap_both.clone();
+            cmap.encoding_records.remove(i);
+            let bytes_for_one = dump_table(&cmap).unwrap().len();
+            assert_eq!(bytes_for_one + 8, bytes_for_both);
+        }
     }
 }
