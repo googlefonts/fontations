@@ -5,16 +5,17 @@ use font_types::Uint24;
 use super::write::TableData;
 use std::{
     collections::{BinaryHeap, HashMap, HashSet, VecDeque},
-    sync::atomic::AtomicUsize,
+    sync::atomic::AtomicU64,
 };
 
 #[cfg(feature = "dot2")]
 mod graphviz;
 
-static OBJECT_COUNTER: AtomicUsize = AtomicUsize::new(0);
+static OBJECT_COUNTER: AtomicU64 = AtomicU64::new(0);
 
+/// An identifier for an object in the compilation graph.
 #[derive(Debug, Clone, Copy, PartialOrd, Ord, Hash, PartialEq, Eq)]
-pub struct ObjectId(usize);
+pub struct ObjectId(u64);
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[repr(u8)]
