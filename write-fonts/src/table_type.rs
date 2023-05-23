@@ -3,7 +3,10 @@
 //! These are used to record the type of certain serialized tables & subtables
 //! that may require special attention while compiling the object graph.
 
+use std::fmt::Display;
+
 use font_types::Tag;
+#[cfg(test)] // just until we merge promotion
 use read::TopLevelTable;
 
 use crate::tables::layout::LookupType;
@@ -19,6 +22,8 @@ pub enum TableType {
     /// An unknown table
     #[default]
     Unknown,
+    /// An untyped table generated for testing
+    MockTable,
     /// A table with a given name (the name is used for debugging)
     Named(&'static str),
     /// A top-level table
@@ -28,8 +33,15 @@ pub enum TableType {
 }
 
 impl TableType {
+    #[cfg(test)]
     pub(crate) const GSUB: TableType = TableType::TopLevel(crate::tables::gsub::Gsub::TAG);
+    #[cfg(test)]
     pub(crate) const GPOS: TableType = TableType::TopLevel(crate::tables::gpos::Gpos::TAG);
+
+    #[cfg(feature = "dot2")]
+    pub(crate) fn is_mock(&self) -> bool {
+        *self == TableType::MockTable
+    }
 }
 
 impl From<LookupType> for TableType {
@@ -37,6 +49,42 @@ impl From<LookupType> for TableType {
         match src {
             LookupType::Gpos(type_) => TableType::GposLookup(type_),
             LookupType::Gsub(type_) => TableType::GsubLookup(type_),
+        }
+    }
+}
+
+impl Display for TableType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            TableType::Unknown => write!(f, "Unknown"),
+            TableType::MockTable => write!(f, "MockTable"),
+            TableType::Named(name) => name.fmt(f),
+            TableType::TopLevel(tag) => tag.fmt(f),
+            TableType::GposLookup(gpos) => match gpos {
+                1 => "GPOS1Single",
+                2 => "GPOS2Pair",
+                3 => "GPOS3Cursive",
+                4 => "GPOS4MarkToBase",
+                5 => "GPOS5MarkToLig",
+                6 => "GPOS6MarkToMark",
+                7 => "GPOS7Context",
+                8 => "GPOS8Chain",
+                9 => "GPOS9Extension",
+                _ => unreachable!("never instantiated"),
+            }
+            .fmt(f),
+            TableType::GsubLookup(gsub) => match gsub {
+                1 => "GSUB1Single",
+                2 => "GSUB2Multiple",
+                3 => "GSUB3ALternate",
+                4 => "GSUB4Ligature",
+                5 => "GSUB5Context",
+                6 => "GSUB6Chain",
+                7 => "GSUB7Extension",
+                8 => "GSUB8ReverseChain",
+                _ => unreachable!("never instantiated"),
+            }
+            .fmt(f),
         }
     }
 }

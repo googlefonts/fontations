@@ -86,9 +86,6 @@ impl FontWrite for Cpal {
             .compatible(1)
             .then(|| self.palette_entry_labels_array.write_into(writer));
     }
-    fn name(&self) -> &'static str {
-        "Cpal"
-    }
     fn table_type(&self) -> TableType {
         TableType::TopLevel(Cpal::TAG)
     }
@@ -168,9 +165,6 @@ impl FontWrite for ColorRecord {
         self.green.write_into(writer);
         self.red.write_into(writer);
         self.alpha.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "ColorRecord"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("ColorRecord")

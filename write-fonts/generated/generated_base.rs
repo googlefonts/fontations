@@ -38,9 +38,6 @@ impl FontWrite for Base {
             .compatible((1, 1))
             .then(|| self.item_var_store.write_into(writer));
     }
-    fn name(&self) -> &'static str {
-        "Base"
-    }
     fn table_type(&self) -> TableType {
         TableType::TopLevel(Base::TAG)
     }
@@ -109,9 +106,6 @@ impl FontWrite for Axis {
         self.base_tag_list.write_into(writer);
         self.base_script_list.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Axis"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("Axis")
     }
@@ -170,9 +164,6 @@ impl FontWrite for BaseTagList {
         (array_len(&self.baseline_tags).unwrap() as u16).write_into(writer);
         self.baseline_tags.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "BaseTagList"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("BaseTagList")
     }
@@ -229,9 +220,6 @@ impl FontWrite for BaseScriptList {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.base_script_records).unwrap() as u16).write_into(writer);
         self.base_script_records.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "BaseScriptList"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("BaseScriptList")
@@ -292,9 +280,6 @@ impl FontWrite for BaseScriptRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.base_script_tag.write_into(writer);
         self.base_script.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "BaseScriptRecord"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("BaseScriptRecord")
@@ -357,9 +342,6 @@ impl FontWrite for BaseScript {
         self.default_min_max.write_into(writer);
         (array_len(&self.base_lang_sys_records).unwrap() as u16).write_into(writer);
         self.base_lang_sys_records.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "BaseScript"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("BaseScript")
@@ -428,9 +410,6 @@ impl FontWrite for BaseLangSysRecord {
         self.base_lang_sys_tag.write_into(writer);
         self.min_max.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "BaseLangSysRecord"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("BaseLangSysRecord")
     }
@@ -487,9 +466,6 @@ impl FontWrite for BaseValues {
         self.default_baseline_index.write_into(writer);
         (array_len(&self.base_coords).unwrap() as u16).write_into(writer);
         self.base_coords.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "BaseValues"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("BaseValues")
@@ -562,9 +538,6 @@ impl FontWrite for MinMax {
         self.max_coord.write_into(writer);
         (array_len(&self.feat_min_max_records).unwrap() as u16).write_into(writer);
         self.feat_min_max_records.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "MinMax"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("MinMax")
@@ -644,9 +617,6 @@ impl FontWrite for FeatMinMaxRecord {
         self.min_coord.write_into(writer);
         self.max_coord.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "FeatMinMaxRecord"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("FeatMinMaxRecord")
     }
@@ -720,11 +690,11 @@ impl FontWrite for BaseCoord {
             Self::Format3(item) => item.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Format1(_) => "BaseCoord.Format1",
-            Self::Format2(_) => "BaseCoord.Format2",
-            Self::Format3(_) => "BaseCoord.Format3",
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+            Self::Format3(item) => item.table_type(),
         }
     }
 }
@@ -777,9 +747,6 @@ impl FontWrite for BaseCoordFormat1 {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.coordinate.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "BaseCoordFormat1"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("BaseCoordFormat1")
@@ -837,9 +804,6 @@ impl FontWrite for BaseCoordFormat2 {
         self.reference_glyph.write_into(writer);
         self.base_coord_point.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "BaseCoordFormat2"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("BaseCoordFormat2")
     }
@@ -895,9 +859,6 @@ impl FontWrite for BaseCoordFormat3 {
         (3 as u16).write_into(writer);
         self.coordinate.write_into(writer);
         self.device.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "BaseCoordFormat3"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("BaseCoordFormat3")

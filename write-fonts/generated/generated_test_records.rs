@@ -30,9 +30,6 @@ impl FontWrite for BasicTable {
         (array_len(&self.array_records).unwrap() as u32).write_into(writer);
         self.array_records.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "BasicTable"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("BasicTable")
     }
@@ -99,9 +96,6 @@ impl FontWrite for SimpleRecord {
         self.val1.write_into(writer);
         (self.compile_va2()).write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "SimpleRecord"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("SimpleRecord")
     }
@@ -140,9 +134,6 @@ impl FontWrite for ContainsArrays {
     fn write_into(&self, writer: &mut TableWriter) {
         self.scalars.write_into(writer);
         self.records.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "ContainsArrays"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("ContainsArrays")
@@ -201,9 +192,6 @@ impl FontWrite for ContainsOffests {
         (array_len(&self.array).unwrap() as u16).write_into(writer);
         self.array.write_into(writer);
         self.other.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "ContainsOffests"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("ContainsOffests")

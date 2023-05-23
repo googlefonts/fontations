@@ -14,11 +14,6 @@ pub trait FontWrite {
     /// Write our data and information about offsets into this [TableWriter].
     fn write_into(&self, writer: &mut TableWriter);
 
-    /// The name of this table or record; used for debugging
-    fn name(&self) -> &'static str {
-        "Unknown"
-    }
-
     /// The type of this table.
     ///
     /// This only matters in cases where a table may require additional processing
@@ -78,7 +73,6 @@ impl TableWriter {
         table.write_into(self);
         let mut table_data = self.stack.pop().unwrap();
         table_data.type_ = table.table_type();
-        table_data.name = table.name();
         self.tables.add(table_data)
     }
 
@@ -145,7 +139,6 @@ impl Default for TableWriter {
 /// The encoded data for a given table, along with info on included offsets
 #[derive(Debug, Default, Clone)] // DO NOT DERIVE MORE TRAITS! we want to ignore name field
 pub(crate) struct TableData {
-    pub(crate) name: &'static str,
     pub(crate) type_: TableType,
     pub(crate) bytes: Vec<u8>,
     pub(crate) offsets: Vec<OffsetRecord>,
@@ -213,7 +206,6 @@ impl TableData {
     #[cfg(test)]
     pub fn make_mock(size: usize) -> Self {
         TableData {
-            name: "",
             bytes: vec![0xca; size], // has no special meaning
             offsets: Vec::new(),
             type_: TableType::Unknown,

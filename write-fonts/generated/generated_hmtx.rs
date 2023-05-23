@@ -31,9 +31,6 @@ impl FontWrite for Hmtx {
         self.h_metrics.write_into(writer);
         self.left_side_bearings.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Hmtx"
-    }
     fn table_type(&self) -> TableType {
         TableType::TopLevel(Hmtx::TAG)
     }
@@ -90,9 +87,6 @@ impl FontWrite for LongMetric {
     fn write_into(&self, writer: &mut TableWriter) {
         self.advance.write_into(writer);
         self.side_bearing.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "LongMetric"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("LongMetric")

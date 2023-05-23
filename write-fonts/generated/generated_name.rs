@@ -47,9 +47,6 @@ impl FontWrite for Name {
             });
         });
     }
-    fn name(&self) -> &'static str {
-        "Name"
-    }
     fn table_type(&self) -> TableType {
         TableType::TopLevel(Name::TAG)
     }
@@ -125,9 +122,6 @@ impl FontWrite for LangTagRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         (self.compile_name_string()).write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "LangTagRecord"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("LangTagRecord")
     }
@@ -188,9 +182,6 @@ impl FontWrite for NameRecord {
         self.language_id.write_into(writer);
         self.name_id.write_into(writer);
         (self.compile_name_string()).write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "NameRecord"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("NameRecord")

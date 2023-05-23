@@ -32,9 +32,6 @@ impl FontWrite for Gvar {
         (self.compute_data_array_offset() as u32).write_into(writer);
         (self.compile_variation_data()).write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Gvar"
-    }
     fn table_type(&self) -> TableType {
         TableType::TopLevel(Gvar::TAG)
     }
@@ -79,9 +76,6 @@ impl SharedTuples {
 impl FontWrite for SharedTuples {
     fn write_into(&self, writer: &mut TableWriter) {
         self.tuples.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "SharedTuples"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("SharedTuples")

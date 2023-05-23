@@ -102,12 +102,12 @@ impl<'a> dot2::Labeller<'a> for GraphVizGraph<'a> {
         let obj = &self.graph.objects[n];
         let node = &self.graph.nodes[n];
 
-        let name = if obj.name.is_empty() {
+        let name = if obj.type_.is_mock() {
             // if we have no name (generally because this is a test) then use
             // the object id instead.
             format!("{n:?} ({}B, S{})", obj.bytes.len(), node.space.0)
         } else {
-            format!("{} ({}B, S{})", obj.name, obj.bytes.len(), node.space.0)
+            format!("{} ({}B, S{})", obj.type_, obj.bytes.len(), node.space.0)
         };
         Ok(dot2::label::Text::LabelStr(name.into()))
     }
