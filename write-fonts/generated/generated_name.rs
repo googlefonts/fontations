@@ -50,7 +50,7 @@ impl FontWrite for Name {
     fn name(&self) -> &'static str {
         "Name"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Name::TAG)
     }
 }
@@ -128,6 +128,9 @@ impl FontWrite for LangTagRecord {
     fn name(&self) -> &'static str {
         "LangTagRecord"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LangTagRecord")
+    }
 }
 
 impl Validate for LangTagRecord {
@@ -188,6 +191,9 @@ impl FontWrite for NameRecord {
     }
     fn name(&self) -> &'static str {
         "NameRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("NameRecord")
     }
 }
 

@@ -93,7 +93,7 @@ impl FontWrite for Vhea {
     fn name(&self) -> &'static str {
         "Vhea"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Vhea::TAG)
     }
 }

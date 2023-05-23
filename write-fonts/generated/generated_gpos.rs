@@ -51,7 +51,7 @@ impl FontWrite for Gpos {
     fn name(&self) -> &'static str {
         "Gpos"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Gpos::TAG)
     }
 }
@@ -145,17 +145,17 @@ impl FontWrite for PositionLookup {
             Self::Extension(_) => "PositionLookup.Extension",
         }
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Single(table) => table.type_(),
-            Self::Pair(table) => table.type_(),
-            Self::Cursive(table) => table.type_(),
-            Self::MarkToBase(table) => table.type_(),
-            Self::MarkToLig(table) => table.type_(),
-            Self::MarkToMark(table) => table.type_(),
-            Self::Contextual(table) => table.type_(),
-            Self::ChainContextual(table) => table.type_(),
-            Self::Extension(table) => table.type_(),
+            Self::Single(table) => table.table_type(),
+            Self::Pair(table) => table.table_type(),
+            Self::Cursive(table) => table.table_type(),
+            Self::MarkToBase(table) => table.table_type(),
+            Self::MarkToLig(table) => table.table_type(),
+            Self::MarkToMark(table) => table.table_type(),
+            Self::Contextual(table) => table.table_type(),
+            Self::ChainContextual(table) => table.table_type(),
+            Self::Extension(table) => table.table_type(),
         }
     }
 }
@@ -335,6 +335,9 @@ impl FontWrite for AnchorFormat1 {
     fn name(&self) -> &'static str {
         "AnchorFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AnchorFormat1")
+    }
 }
 
 impl Validate for AnchorFormat1 {
@@ -391,6 +394,9 @@ impl FontWrite for AnchorFormat2 {
     }
     fn name(&self) -> &'static str {
         "AnchorFormat2"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AnchorFormat2")
     }
 }
 
@@ -463,6 +469,9 @@ impl FontWrite for AnchorFormat3 {
     fn name(&self) -> &'static str {
         "AnchorFormat3"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AnchorFormat3")
+    }
 }
 
 impl Validate for AnchorFormat3 {
@@ -524,6 +533,9 @@ impl FontWrite for MarkArray {
     fn name(&self) -> &'static str {
         "MarkArray"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkArray")
+    }
 }
 
 impl Validate for MarkArray {
@@ -582,6 +594,9 @@ impl FontWrite for MarkRecord {
     }
     fn name(&self) -> &'static str {
         "MarkRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkRecord")
     }
 }
 
@@ -702,6 +717,9 @@ impl FontWrite for SinglePosFormat1 {
     fn name(&self) -> &'static str {
         "SinglePosFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SinglePosFormat1")
+    }
 }
 
 impl Validate for SinglePosFormat1 {
@@ -763,6 +781,9 @@ impl FontWrite for SinglePosFormat2 {
     }
     fn name(&self) -> &'static str {
         "SinglePosFormat2"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SinglePosFormat2")
     }
 }
 
@@ -915,6 +936,9 @@ impl FontWrite for PairPosFormat1 {
     fn name(&self) -> &'static str {
         "PairPosFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("PairPosFormat1")
+    }
 }
 
 impl Validate for PairPosFormat1 {
@@ -974,6 +998,9 @@ impl FontWrite for PairSet {
     }
     fn name(&self) -> &'static str {
         "PairSet"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("PairSet")
     }
 }
 
@@ -1041,6 +1068,9 @@ impl FontWrite for PairValueRecord {
     fn name(&self) -> &'static str {
         "PairValueRecord"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("PairValueRecord")
+    }
 }
 
 impl Validate for PairValueRecord {
@@ -1107,6 +1137,9 @@ impl FontWrite for PairPosFormat2 {
     }
     fn name(&self) -> &'static str {
         "PairPosFormat2"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("PairPosFormat2")
     }
 }
 
@@ -1178,6 +1211,9 @@ impl FontWrite for Class1Record {
     fn name(&self) -> &'static str {
         "Class1Record"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Class1Record")
+    }
 }
 
 impl Validate for Class1Record {
@@ -1232,6 +1268,9 @@ impl FontWrite for Class2Record {
     fn name(&self) -> &'static str {
         "Class2Record"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Class2Record")
+    }
 }
 
 impl Validate for Class2Record {
@@ -1276,6 +1315,9 @@ impl FontWrite for CursivePosFormat1 {
     }
     fn name(&self) -> &'static str {
         "CursivePosFormat1"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CursivePosFormat1")
     }
 }
 
@@ -1342,6 +1384,9 @@ impl FontWrite for EntryExitRecord {
     }
     fn name(&self) -> &'static str {
         "EntryExitRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("EntryExitRecord")
     }
 }
 
@@ -1417,6 +1462,9 @@ impl FontWrite for MarkBasePosFormat1 {
     fn name(&self) -> &'static str {
         "MarkBasePosFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkBasePosFormat1")
+    }
 }
 
 impl Validate for MarkBasePosFormat1 {
@@ -1481,6 +1529,9 @@ impl FontWrite for BaseArray {
     fn name(&self) -> &'static str {
         "BaseArray"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("BaseArray")
+    }
 }
 
 impl Validate for BaseArray {
@@ -1535,6 +1586,9 @@ impl FontWrite for BaseRecord {
     }
     fn name(&self) -> &'static str {
         "BaseRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("BaseRecord")
     }
 }
 
@@ -1609,6 +1663,9 @@ impl FontWrite for MarkLigPosFormat1 {
     fn name(&self) -> &'static str {
         "MarkLigPosFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkLigPosFormat1")
+    }
 }
 
 impl Validate for MarkLigPosFormat1 {
@@ -1677,6 +1734,9 @@ impl FontWrite for LigatureArray {
     fn name(&self) -> &'static str {
         "LigatureArray"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigatureArray")
+    }
 }
 
 impl Validate for LigatureArray {
@@ -1727,6 +1787,9 @@ impl FontWrite for LigatureAttach {
     }
     fn name(&self) -> &'static str {
         "LigatureAttach"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigatureAttach")
     }
 }
 
@@ -1782,6 +1845,9 @@ impl FontWrite for ComponentRecord {
     }
     fn name(&self) -> &'static str {
         "ComponentRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ComponentRecord")
     }
 }
 
@@ -1859,6 +1925,9 @@ impl FontWrite for MarkMarkPosFormat1 {
     fn name(&self) -> &'static str {
         "MarkMarkPosFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkMarkPosFormat1")
+    }
 }
 
 impl Validate for MarkMarkPosFormat1 {
@@ -1923,6 +1992,9 @@ impl FontWrite for Mark2Array {
     fn name(&self) -> &'static str {
         "Mark2Array"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Mark2Array")
+    }
 }
 
 impl Validate for Mark2Array {
@@ -1977,6 +2049,9 @@ impl FontWrite for Mark2Record {
     }
     fn name(&self) -> &'static str {
         "Mark2Record"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Mark2Record")
     }
 }
 
@@ -2105,16 +2180,16 @@ impl FontWrite for ExtensionSubtable {
             Self::ChainContextual(_) => "ExtensionSubtable.ChainContextual",
         }
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Single(table) => table.type_(),
-            Self::Pair(table) => table.type_(),
-            Self::Cursive(table) => table.type_(),
-            Self::MarkToBase(table) => table.type_(),
-            Self::MarkToLig(table) => table.type_(),
-            Self::MarkToMark(table) => table.type_(),
-            Self::Contextual(table) => table.type_(),
-            Self::ChainContextual(table) => table.type_(),
+            Self::Single(table) => table.table_type(),
+            Self::Pair(table) => table.table_type(),
+            Self::Cursive(table) => table.table_type(),
+            Self::MarkToBase(table) => table.table_type(),
+            Self::MarkToLig(table) => table.table_type(),
+            Self::MarkToMark(table) => table.table_type(),
+            Self::Contextual(table) => table.table_type(),
+            Self::ChainContextual(table) => table.table_type(),
         }
     }
 }

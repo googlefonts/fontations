@@ -67,7 +67,7 @@ impl FontWrite for Gdef {
     fn name(&self) -> &'static str {
         "Gdef"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Gdef::TAG)
     }
 }
@@ -159,6 +159,9 @@ impl FontWrite for AttachList {
     fn name(&self) -> &'static str {
         "AttachList"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AttachList")
+    }
 }
 
 impl Validate for AttachList {
@@ -218,6 +221,9 @@ impl FontWrite for AttachPoint {
     }
     fn name(&self) -> &'static str {
         "AttachPoint"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AttachPoint")
     }
 }
 
@@ -280,6 +286,9 @@ impl FontWrite for LigCaretList {
     fn name(&self) -> &'static str {
         "LigCaretList"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigCaretList")
+    }
 }
 
 impl Validate for LigCaretList {
@@ -340,6 +349,9 @@ impl FontWrite for LigGlyph {
     }
     fn name(&self) -> &'static str {
         "LigGlyph"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigGlyph")
     }
 }
 
@@ -472,6 +484,9 @@ impl FontWrite for CaretValueFormat1 {
     fn name(&self) -> &'static str {
         "CaretValueFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CaretValueFormat1")
+    }
 }
 
 impl Validate for CaretValueFormat1 {
@@ -519,6 +534,9 @@ impl FontWrite for CaretValueFormat2 {
     }
     fn name(&self) -> &'static str {
         "CaretValueFormat2"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CaretValueFormat2")
     }
 }
 
@@ -573,6 +591,9 @@ impl FontWrite for CaretValueFormat3 {
     }
     fn name(&self) -> &'static str {
         "CaretValueFormat3"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CaretValueFormat3")
     }
 }
 
@@ -630,6 +651,9 @@ impl FontWrite for MarkGlyphSets {
     }
     fn name(&self) -> &'static str {
         "MarkGlyphSets"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkGlyphSets")
     }
 }
 

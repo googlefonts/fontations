@@ -36,7 +36,7 @@ impl FontWrite for Avar {
     fn name(&self) -> &'static str {
         "Avar"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Avar::TAG)
     }
 }
@@ -102,6 +102,9 @@ impl FontWrite for SegmentMaps {
     fn name(&self) -> &'static str {
         "SegmentMaps"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SegmentMaps")
+    }
 }
 
 impl Validate for SegmentMaps {
@@ -151,6 +154,9 @@ impl FontWrite for AxisValueMap {
     }
     fn name(&self) -> &'static str {
         "AxisValueMap"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisValueMap")
     }
 }
 

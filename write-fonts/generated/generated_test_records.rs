@@ -33,6 +33,9 @@ impl FontWrite for BasicTable {
     fn name(&self) -> &'static str {
         "BasicTable"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("BasicTable")
+    }
 }
 
 impl Validate for BasicTable {
@@ -99,6 +102,9 @@ impl FontWrite for SimpleRecord {
     fn name(&self) -> &'static str {
         "SimpleRecord"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SimpleRecord")
+    }
 }
 
 impl Validate for SimpleRecord {
@@ -137,6 +143,9 @@ impl FontWrite for ContainsArrays {
     }
     fn name(&self) -> &'static str {
         "ContainsArrays"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ContainsArrays")
     }
 }
 
@@ -195,6 +204,9 @@ impl FontWrite for ContainsOffests {
     }
     fn name(&self) -> &'static str {
         "ContainsOffests"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ContainsOffests")
     }
 }
 

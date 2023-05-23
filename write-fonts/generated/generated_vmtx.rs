@@ -33,7 +33,7 @@ impl FontWrite for Vmtx {
     fn name(&self) -> &'static str {
         "Vmtx"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Vmtx::TAG)
     }
 }

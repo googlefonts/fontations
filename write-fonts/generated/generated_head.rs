@@ -141,7 +141,7 @@ impl FontWrite for Head {
     fn name(&self) -> &'static str {
         "Head"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Head::TAG)
     }
 }

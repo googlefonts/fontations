@@ -51,7 +51,7 @@ impl FontWrite for Fvar {
     fn name(&self) -> &'static str {
         "Fvar"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Fvar::TAG)
     }
 }
@@ -116,6 +116,9 @@ impl FontWrite for AxisInstanceArrays {
     }
     fn name(&self) -> &'static str {
         "AxisInstanceArrays"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisInstanceArrays")
     }
 }
 
@@ -203,6 +206,9 @@ impl FontWrite for VariationAxisRecord {
     }
     fn name(&self) -> &'static str {
         "VariationAxisRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("VariationAxisRecord")
     }
 }
 

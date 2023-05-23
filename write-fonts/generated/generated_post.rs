@@ -131,7 +131,7 @@ impl FontWrite for Post {
     fn name(&self) -> &'static str {
         "Post"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Post::TAG)
     }
 }
