@@ -8,7 +8,7 @@
 //! above low level font parsing (provided by [`read-fonts`](https://crates.io/crates/read-fonts))
 //! and below a higher level text layout engine.
 //!
-//! See the [readme](https://github.com/dfrg/fontations/blob/main/skrifa/README.md)
+//! See the [readme](https://github.com/googlefonts/fontations/blob/main/skrifa/README.md)
 //! for additional details.
 
 #![forbid(unsafe_code)]
