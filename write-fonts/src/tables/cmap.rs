@@ -131,7 +131,7 @@ impl Cmap {
 
 #[cfg(test)]
 mod tests {
-    use font_types::{BigEndian, GlyphId, Scalar};
+    use font_types::GlyphId;
     use read::{
         tables::cmap::{Cmap, CmapSubtable, PlatformId},
         FontData, FontRead,
@@ -141,10 +141,6 @@ mod tests {
         dump_table,
         tables::cmap::{self as write, UNICODE_BMP_ENCODING, WINDOWS_BMP_ENCODING},
     };
-
-    fn to_vec<T: Scalar>(bees: &[BigEndian<T>]) -> Vec<T> {
-        bees.iter().map(|be| be.get()).collect()
-    }
 
     fn assert_generates_simple_cmap(mappings: Vec<(char, GlyphId)>) {
         let cmap = write::Cmap::from_mappings(mappings);
@@ -181,20 +177,11 @@ mod tests {
                     cmap4.range_shift()
                 )
             );
-            assert_eq!(
-                vec![10u16, 30u16, 153u16, 0xffffu16],
-                to_vec(cmap4.start_code())
-            );
-            assert_eq!(
-                vec![20u16, 90u16, 480u16, 0xffffu16],
-                to_vec(cmap4.end_code())
-            );
+            assert_eq!(cmap4.start_code(), &[10u16, 30u16, 153u16, 0xffffu16]);
+            assert_eq!(cmap4.end_code(), &[20u16, 90u16, 480u16, 0xffffu16]);
             // The example starts at gid 1, we're starting at 0
-            assert_eq!(vec![-10i16, -19i16, -81i16, 1i16], to_vec(cmap4.id_delta()));
-            assert_eq!(
-                vec![0u16, 0u16, 0u16, 0u16],
-                to_vec(cmap4.id_range_offsets())
-            );
+            assert_eq!(cmap4.id_delta(), &[-10i16, -19i16, -81i16, 1i16]);
+            assert_eq!(cmap4.id_range_offsets(), &[0u16, 0u16, 0u16, 0u16]);
         }
     }
 
