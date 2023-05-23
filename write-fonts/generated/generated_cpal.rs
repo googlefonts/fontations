@@ -89,7 +89,7 @@ impl FontWrite for Cpal {
     fn name(&self) -> &'static str {
         "Cpal"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Cpal::TAG)
     }
 }
@@ -171,6 +171,9 @@ impl FontWrite for ColorRecord {
     }
     fn name(&self) -> &'static str {
         "ColorRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ColorRecord")
     }
 }
 

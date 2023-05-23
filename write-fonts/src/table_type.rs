@@ -16,9 +16,11 @@ use crate::tables::layout::LookupType;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum TableType {
-    // a lookup with no special behaviour
+    /// An unknown table
     #[default]
     Unknown,
+    /// A table with a given name (the name is used for debugging)
+    Named(&'static str),
     /// A top-level table
     TopLevel(Tag),
     GposLookup(u16),
@@ -30,6 +32,15 @@ impl TableType {
     pub(crate) const GPOS: TableType = TableType::TopLevel(crate::tables::gpos::Gpos::TAG);
 }
 
+impl From<LookupType> for TableType {
+    fn from(src: LookupType) -> TableType {
+        match src {
+            LookupType::Gpos(type_) => TableType::GposLookup(type_),
+            LookupType::Gsub(type_) => TableType::GsubLookup(type_),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use crate::tables::{gpos, gsub};
@@ -39,11 +50,11 @@ mod tests {
 
     #[test]
     fn tagged_table_type() {
-        assert_eq!(gsub::Gsub::default().type_(), TableType::GSUB);
-        assert_eq!(gpos::Gpos::default().type_(), TableType::GPOS);
+        assert_eq!(gsub::Gsub::default().table_type(), TableType::GSUB);
+        assert_eq!(gpos::Gpos::default().table_type(), TableType::GPOS);
 
         assert_eq!(
-            crate::tables::name::Name::default().type_(),
+            crate::tables::name::Name::default().table_type(),
             TableType::TopLevel(Tag::new(b"name"))
         );
     }
@@ -51,11 +62,11 @@ mod tests {
     #[test]
     fn promotable() {
         assert_eq!(
-            gsub::SubstitutionLookup::Single(Default::default()).type_(),
+            gsub::SubstitutionLookup::Single(Default::default()).table_type(),
             TableType::GsubLookup(1)
         );
         assert_eq!(
-            gsub::SubstitutionLookup::Extension(Default::default()).type_(),
+            gsub::SubstitutionLookup::Extension(Default::default()).table_type(),
             TableType::GsubLookup(7)
         );
     }

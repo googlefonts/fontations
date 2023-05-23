@@ -39,6 +39,9 @@ impl FontWrite for TupleVariationHeader {
     fn name(&self) -> &'static str {
         "TupleVariationHeader"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("TupleVariationHeader")
+    }
 }
 
 impl Validate for TupleVariationHeader {
@@ -98,6 +101,9 @@ impl FontWrite for Tuple {
     fn name(&self) -> &'static str {
         "Tuple"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Tuple")
+    }
 }
 
 impl Validate for Tuple {
@@ -153,6 +159,9 @@ impl FontWrite for DeltaSetIndexMapFormat0 {
     }
     fn name(&self) -> &'static str {
         "DeltaSetIndexMapFormat0"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("DeltaSetIndexMapFormat0")
     }
 }
 
@@ -221,6 +230,9 @@ impl FontWrite for DeltaSetIndexMapFormat1 {
     }
     fn name(&self) -> &'static str {
         "DeltaSetIndexMapFormat1"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("DeltaSetIndexMapFormat1")
     }
 }
 
@@ -362,6 +374,9 @@ impl FontWrite for VariationRegionList {
     fn name(&self) -> &'static str {
         "VariationRegionList"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("VariationRegionList")
+    }
 }
 
 impl Validate for VariationRegionList {
@@ -431,6 +446,9 @@ impl FontWrite for VariationRegion {
     fn name(&self) -> &'static str {
         "VariationRegion"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("VariationRegion")
+    }
 }
 
 impl Validate for VariationRegion {
@@ -487,6 +505,9 @@ impl FontWrite for RegionAxisCoordinates {
     }
     fn name(&self) -> &'static str {
         "RegionAxisCoordinates"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("RegionAxisCoordinates")
     }
 }
 
@@ -545,6 +566,9 @@ impl FontWrite for ItemVariationStore {
     }
     fn name(&self) -> &'static str {
         "ItemVariationStore"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ItemVariationStore")
     }
 }
 
@@ -634,6 +658,9 @@ impl FontWrite for ItemVariationData {
     }
     fn name(&self) -> &'static str {
         "ItemVariationData"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ItemVariationData")
     }
 }
 

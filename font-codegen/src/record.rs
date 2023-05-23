@@ -217,13 +217,11 @@ pub(crate) fn generate_compile_impl(
         }
     };
 
-    let maybe_table_type = attrs.tag.is_some().then(|| {
-        quote! {
-            fn type_(&self) -> TableType {
-                TableType::TopLevel( #name::TAG )
-            }
-        }
-    });
+    let table_type = if attrs.tag.is_some() {
+        quote!(TableType::TopLevel( #name::TAG ))
+    } else {
+        quote!( TableType::Named( #name_string ) )
+    };
 
     let validation_impl = quote! {
         impl #validate_impl_params Validate for #name <#generic_param> {
@@ -243,7 +241,9 @@ pub(crate) fn generate_compile_impl(
                     #name_string
                 }
 
-                #maybe_table_type
+                fn table_type(&self) -> TableType {
+                    #table_type
+                }
             }
         }
     });

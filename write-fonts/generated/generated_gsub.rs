@@ -50,7 +50,7 @@ impl FontWrite for Gsub {
     fn name(&self) -> &'static str {
         "Gsub"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Gsub::TAG)
     }
 }
@@ -141,16 +141,16 @@ impl FontWrite for SubstitutionLookup {
             Self::Reverse(_) => "SubstitutionLookup.Reverse",
         }
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Single(table) => table.type_(),
-            Self::Multiple(table) => table.type_(),
-            Self::Alternate(table) => table.type_(),
-            Self::Ligature(table) => table.type_(),
-            Self::Contextual(table) => table.type_(),
-            Self::ChainContextual(table) => table.type_(),
-            Self::Extension(table) => table.type_(),
-            Self::Reverse(table) => table.type_(),
+            Self::Single(table) => table.table_type(),
+            Self::Multiple(table) => table.table_type(),
+            Self::Alternate(table) => table.table_type(),
+            Self::Ligature(table) => table.table_type(),
+            Self::Contextual(table) => table.table_type(),
+            Self::ChainContextual(table) => table.table_type(),
+            Self::Extension(table) => table.table_type(),
+            Self::Reverse(table) => table.table_type(),
         }
     }
 }
@@ -303,6 +303,9 @@ impl FontWrite for SingleSubstFormat1 {
     fn name(&self) -> &'static str {
         "SingleSubstFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SingleSubstFormat1")
+    }
 }
 
 impl Validate for SingleSubstFormat1 {
@@ -363,6 +366,9 @@ impl FontWrite for SingleSubstFormat2 {
     }
     fn name(&self) -> &'static str {
         "SingleSubstFormat2"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SingleSubstFormat2")
     }
 }
 
@@ -432,6 +438,9 @@ impl FontWrite for MultipleSubstFormat1 {
     fn name(&self) -> &'static str {
         "MultipleSubstFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MultipleSubstFormat1")
+    }
 }
 
 impl Validate for MultipleSubstFormat1 {
@@ -492,6 +501,9 @@ impl FontWrite for Sequence {
     }
     fn name(&self) -> &'static str {
         "Sequence"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Sequence")
     }
 }
 
@@ -555,6 +567,9 @@ impl FontWrite for AlternateSubstFormat1 {
     }
     fn name(&self) -> &'static str {
         "AlternateSubstFormat1"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AlternateSubstFormat1")
     }
 }
 
@@ -623,6 +638,9 @@ impl FontWrite for AlternateSet {
     fn name(&self) -> &'static str {
         "AlternateSet"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AlternateSet")
+    }
 }
 
 impl Validate for AlternateSet {
@@ -686,6 +704,9 @@ impl FontWrite for LigatureSubstFormat1 {
     fn name(&self) -> &'static str {
         "LigatureSubstFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigatureSubstFormat1")
+    }
 }
 
 impl Validate for LigatureSubstFormat1 {
@@ -748,6 +769,9 @@ impl FontWrite for LigatureSet {
     fn name(&self) -> &'static str {
         "LigatureSet"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigatureSet")
+    }
 }
 
 impl Validate for LigatureSet {
@@ -808,6 +832,9 @@ impl FontWrite for Ligature {
     }
     fn name(&self) -> &'static str {
         "Ligature"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Ligature")
     }
 }
 
@@ -931,15 +958,15 @@ impl FontWrite for ExtensionSubtable {
             Self::Reverse(_) => "ExtensionSubtable.Reverse",
         }
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Single(table) => table.type_(),
-            Self::Multiple(table) => table.type_(),
-            Self::Alternate(table) => table.type_(),
-            Self::Ligature(table) => table.type_(),
-            Self::Contextual(table) => table.type_(),
-            Self::ChainContextual(table) => table.type_(),
-            Self::Reverse(table) => table.type_(),
+            Self::Single(table) => table.table_type(),
+            Self::Multiple(table) => table.table_type(),
+            Self::Alternate(table) => table.table_type(),
+            Self::Ligature(table) => table.table_type(),
+            Self::Contextual(table) => table.table_type(),
+            Self::ChainContextual(table) => table.table_type(),
+            Self::Reverse(table) => table.table_type(),
         }
     }
 }
@@ -1038,6 +1065,9 @@ impl FontWrite for ReverseChainSingleSubstFormat1 {
     }
     fn name(&self) -> &'static str {
         "ReverseChainSingleSubstFormat1"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ReverseChainSingleSubstFormat1")
     }
 }
 

@@ -42,6 +42,9 @@ impl FontWrite for MyRecord {
     fn name(&self) -> &'static str {
         "MyRecord"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MyRecord")
+    }
 }
 
 impl Validate for MyRecord {

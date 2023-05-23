@@ -32,6 +32,9 @@ impl FontWrite for ScriptList {
     fn name(&self) -> &'static str {
         "ScriptList"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ScriptList")
+    }
 }
 
 impl Validate for ScriptList {
@@ -91,6 +94,9 @@ impl FontWrite for ScriptRecord {
     fn name(&self) -> &'static str {
         "ScriptRecord"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ScriptRecord")
+    }
 }
 
 impl Validate for ScriptRecord {
@@ -141,6 +147,9 @@ impl FontWrite for Script {
     }
     fn name(&self) -> &'static str {
         "Script"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Script")
     }
 }
 
@@ -203,6 +212,9 @@ impl FontWrite for LangSysRecord {
     }
     fn name(&self) -> &'static str {
         "LangSysRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LangSysRecord")
     }
 }
 
@@ -268,6 +280,9 @@ impl FontWrite for LangSys {
     fn name(&self) -> &'static str {
         "LangSys"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LangSys")
+    }
 }
 
 impl Validate for LangSys {
@@ -325,6 +340,9 @@ impl FontWrite for FeatureList {
     }
     fn name(&self) -> &'static str {
         "FeatureList"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("FeatureList")
     }
 }
 
@@ -386,6 +404,9 @@ impl FontWrite for FeatureRecord {
     fn name(&self) -> &'static str {
         "FeatureRecord"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("FeatureRecord")
+    }
 }
 
 impl Validate for FeatureRecord {
@@ -439,6 +460,9 @@ impl FontWrite for Feature {
     }
     fn name(&self) -> &'static str {
         "Feature"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Feature")
     }
 }
 
@@ -494,6 +518,9 @@ impl<T: FontWrite> FontWrite for LookupList<T> {
     }
     fn name(&self) -> &'static str {
         "LookupList"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LookupList")
     }
 }
 
@@ -614,6 +641,9 @@ impl FontWrite for CoverageFormat1 {
     fn name(&self) -> &'static str {
         "CoverageFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CoverageFormat1")
+    }
 }
 
 impl Validate for CoverageFormat1 {
@@ -671,6 +701,9 @@ impl FontWrite for CoverageFormat2 {
     }
     fn name(&self) -> &'static str {
         "CoverageFormat2"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CoverageFormat2")
     }
 }
 
@@ -735,6 +768,9 @@ impl FontWrite for RangeRecord {
     }
     fn name(&self) -> &'static str {
         "RangeRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("RangeRecord")
     }
 }
 
@@ -850,6 +886,9 @@ impl FontWrite for ClassDefFormat1 {
     fn name(&self) -> &'static str {
         "ClassDefFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ClassDefFormat1")
+    }
 }
 
 impl Validate for ClassDefFormat1 {
@@ -908,6 +947,9 @@ impl FontWrite for ClassDefFormat2 {
     }
     fn name(&self) -> &'static str {
         "ClassDefFormat2"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ClassDefFormat2")
     }
 }
 
@@ -972,6 +1014,9 @@ impl FontWrite for ClassRangeRecord {
     }
     fn name(&self) -> &'static str {
         "ClassRangeRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ClassRangeRecord")
     }
 }
 
@@ -1089,6 +1134,9 @@ impl FontWrite for SequenceLookupRecord {
     fn name(&self) -> &'static str {
         "SequenceLookupRecord"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SequenceLookupRecord")
+    }
 }
 
 impl Validate for SequenceLookupRecord {
@@ -1135,6 +1183,9 @@ impl FontWrite for SequenceContextFormat1 {
     }
     fn name(&self) -> &'static str {
         "SequenceContextFormat1"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SequenceContextFormat1")
     }
 }
 
@@ -1206,6 +1257,9 @@ impl FontWrite for SequenceRuleSet {
     fn name(&self) -> &'static str {
         "SequenceRuleSet"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SequenceRuleSet")
+    }
 }
 
 impl Validate for SequenceRuleSet {
@@ -1270,6 +1324,9 @@ impl FontWrite for SequenceRule {
     }
     fn name(&self) -> &'static str {
         "SequenceRule"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SequenceRule")
     }
 }
 
@@ -1345,6 +1402,9 @@ impl FontWrite for SequenceContextFormat2 {
     }
     fn name(&self) -> &'static str {
         "SequenceContextFormat2"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SequenceContextFormat2")
     }
 }
 
@@ -1423,6 +1483,9 @@ impl FontWrite for ClassSequenceRuleSet {
     fn name(&self) -> &'static str {
         "ClassSequenceRuleSet"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ClassSequenceRuleSet")
+    }
 }
 
 impl Validate for ClassSequenceRuleSet {
@@ -1492,6 +1555,9 @@ impl FontWrite for ClassSequenceRule {
     fn name(&self) -> &'static str {
         "ClassSequenceRule"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ClassSequenceRule")
+    }
 }
 
 impl Validate for ClassSequenceRule {
@@ -1560,6 +1626,9 @@ impl FontWrite for SequenceContextFormat3 {
     }
     fn name(&self) -> &'static str {
         "SequenceContextFormat3"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SequenceContextFormat3")
     }
 }
 
@@ -1732,6 +1801,9 @@ impl FontWrite for ChainedSequenceContextFormat1 {
     fn name(&self) -> &'static str {
         "ChainedSequenceContextFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ChainedSequenceContextFormat1")
+    }
 }
 
 impl Validate for ChainedSequenceContextFormat1 {
@@ -1804,6 +1876,9 @@ impl FontWrite for ChainedSequenceRuleSet {
     }
     fn name(&self) -> &'static str {
         "ChainedSequenceRuleSet"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ChainedSequenceRuleSet")
     }
 }
 
@@ -1892,6 +1967,9 @@ impl FontWrite for ChainedSequenceRule {
     }
     fn name(&self) -> &'static str {
         "ChainedSequenceRule"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ChainedSequenceRule")
     }
 }
 
@@ -1998,6 +2076,9 @@ impl FontWrite for ChainedSequenceContextFormat2 {
     fn name(&self) -> &'static str {
         "ChainedSequenceContextFormat2"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ChainedSequenceContextFormat2")
+    }
 }
 
 impl Validate for ChainedSequenceContextFormat2 {
@@ -2085,6 +2166,9 @@ impl FontWrite for ChainedClassSequenceRuleSet {
     }
     fn name(&self) -> &'static str {
         "ChainedClassSequenceRuleSet"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ChainedClassSequenceRuleSet")
     }
 }
 
@@ -2174,6 +2258,9 @@ impl FontWrite for ChainedClassSequenceRule {
     }
     fn name(&self) -> &'static str {
         "ChainedClassSequenceRule"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ChainedClassSequenceRule")
     }
 }
 
@@ -2274,6 +2361,9 @@ impl FontWrite for ChainedSequenceContextFormat3 {
     }
     fn name(&self) -> &'static str {
         "ChainedSequenceContextFormat3"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ChainedSequenceContextFormat3")
     }
 }
 
@@ -2481,6 +2571,9 @@ impl FontWrite for Device {
     fn name(&self) -> &'static str {
         "Device"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Device")
+    }
 }
 
 impl Validate for Device {
@@ -2540,6 +2633,9 @@ impl FontWrite for VariationIndex {
     fn name(&self) -> &'static str {
         "VariationIndex"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("VariationIndex")
+    }
 }
 
 impl Validate for VariationIndex {
@@ -2593,6 +2689,9 @@ impl FontWrite for FeatureVariations {
     }
     fn name(&self) -> &'static str {
         "FeatureVariations"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("FeatureVariations")
     }
 }
 
@@ -2659,6 +2758,9 @@ impl FontWrite for FeatureVariationRecord {
     fn name(&self) -> &'static str {
         "FeatureVariationRecord"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("FeatureVariationRecord")
+    }
 }
 
 impl Validate for FeatureVariationRecord {
@@ -2713,6 +2815,9 @@ impl FontWrite for ConditionSet {
     }
     fn name(&self) -> &'static str {
         "ConditionSet"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ConditionSet")
     }
 }
 
@@ -2786,6 +2891,9 @@ impl FontWrite for ConditionFormat1 {
     fn name(&self) -> &'static str {
         "ConditionFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ConditionFormat1")
+    }
 }
 
 impl Validate for ConditionFormat1 {
@@ -2836,6 +2944,9 @@ impl FontWrite for FeatureTableSubstitution {
     }
     fn name(&self) -> &'static str {
         "FeatureTableSubstitution"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("FeatureTableSubstitution")
     }
 }
 
@@ -2905,6 +3016,9 @@ impl FontWrite for FeatureTableSubstitutionRecord {
     }
     fn name(&self) -> &'static str {
         "FeatureTableSubstitutionRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("FeatureTableSubstitutionRecord")
     }
 }
 
@@ -2996,6 +3110,9 @@ impl FontWrite for SizeParams {
     fn name(&self) -> &'static str {
         "SizeParams"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SizeParams")
+    }
 }
 
 impl Validate for SizeParams {
@@ -3051,6 +3168,9 @@ impl FontWrite for StylisticSetParams {
     }
     fn name(&self) -> &'static str {
         "StylisticSetParams"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("StylisticSetParams")
     }
 }
 
@@ -3135,6 +3255,9 @@ impl FontWrite for CharacterVariantParams {
     }
     fn name(&self) -> &'static str {
         "CharacterVariantParams"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("CharacterVariantParams")
     }
 }
 

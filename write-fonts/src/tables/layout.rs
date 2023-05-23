@@ -57,8 +57,8 @@ macro_rules! table_newtype {
                 self.0.write_into(writer)
             }
 
-            fn type_(&self) -> crate::table_type::TableType {
-                self.0.type_()
+            fn table_type(&self) -> crate::table_type::TableType {
+                self.0.table_type()
             }
         }
 
@@ -104,7 +104,7 @@ impl<T: LookupSubtable + FontWrite> FontWrite for Lookup<T> {
         self.mark_filtering_set.write_into(writer);
     }
 
-    fn type_(&self) -> crate::table_type::TableType {
+    fn table_type(&self) -> crate::table_type::TableType {
         T::TYPE.into()
     }
 }

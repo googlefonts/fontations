@@ -403,7 +403,7 @@ pub(crate) fn generate_group_compile(
             quote! { #from_type :: #var_name(table) => Self :: #var_name(table.to_owned_obj(data)) },
         );
         name_arms.push(quote! { Self:: #var_name(_) => #var_name_string  });
-        type_arms.push(quote! { Self:: #var_name(table) => table.type_()  });
+        type_arms.push(quote! { Self:: #var_name(table) => table.table_type()  });
     }
     let first_var_name = &item.variants.first().unwrap().name;
 
@@ -433,7 +433,7 @@ pub(crate) fn generate_group_compile(
                 }
             }
 
-            fn type_(&self) -> TableType {
+            fn table_type(&self) -> TableType {
                 match self {
                     #( #type_arms, )*
                 }

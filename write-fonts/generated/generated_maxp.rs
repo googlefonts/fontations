@@ -140,7 +140,7 @@ impl FontWrite for Maxp {
     fn name(&self) -> &'static str {
         "Maxp"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Maxp::TAG)
     }
 }

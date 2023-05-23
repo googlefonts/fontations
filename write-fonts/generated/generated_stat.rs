@@ -46,7 +46,7 @@ impl FontWrite for Stat {
     fn name(&self) -> &'static str {
         "Stat"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Stat::TAG)
     }
 }
@@ -127,6 +127,9 @@ impl FontWrite for AxisRecord {
     fn name(&self) -> &'static str {
         "AxisRecord"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisRecord")
+    }
 }
 
 impl Validate for AxisRecord {
@@ -166,6 +169,9 @@ impl FontWrite for AxisValueArray {
     }
     fn name(&self) -> &'static str {
         "AxisValueArray"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisValueArray")
     }
 }
 
@@ -364,6 +370,9 @@ impl FontWrite for AxisValueFormat1 {
     fn name(&self) -> &'static str {
         "AxisValueFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisValueFormat1")
+    }
 }
 
 impl Validate for AxisValueFormat1 {
@@ -447,6 +456,9 @@ impl FontWrite for AxisValueFormat2 {
     fn name(&self) -> &'static str {
         "AxisValueFormat2"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisValueFormat2")
+    }
 }
 
 impl Validate for AxisValueFormat2 {
@@ -525,6 +537,9 @@ impl FontWrite for AxisValueFormat3 {
     fn name(&self) -> &'static str {
         "AxisValueFormat3"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisValueFormat3")
+    }
 }
 
 impl Validate for AxisValueFormat3 {
@@ -592,6 +607,9 @@ impl FontWrite for AxisValueFormat4 {
     fn name(&self) -> &'static str {
         "AxisValueFormat4"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisValueFormat4")
+    }
 }
 
 impl Validate for AxisValueFormat4 {
@@ -651,6 +669,9 @@ impl FontWrite for AxisValueRecord {
     }
     fn name(&self) -> &'static str {
         "AxisValueRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisValueRecord")
     }
 }
 

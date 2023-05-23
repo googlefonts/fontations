@@ -32,7 +32,7 @@ impl FontWrite for Cmap {
     fn name(&self) -> &'static str {
         "Cmap"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Cmap::TAG)
     }
 }
@@ -102,6 +102,9 @@ impl FontWrite for EncodingRecord {
     }
     fn name(&self) -> &'static str {
         "EncodingRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("EncodingRecord")
     }
 }
 
@@ -369,6 +372,9 @@ impl FontWrite for Cmap0 {
     fn name(&self) -> &'static str {
         "Cmap0"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap0")
+    }
 }
 
 impl Validate for Cmap0 {
@@ -427,6 +433,9 @@ impl FontWrite for Cmap2 {
     }
     fn name(&self) -> &'static str {
         "Cmap2"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap2")
     }
 }
 
@@ -487,6 +496,9 @@ impl FontWrite for SubHeader {
     }
     fn name(&self) -> &'static str {
         "SubHeader"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SubHeader")
     }
 }
 
@@ -589,6 +601,9 @@ impl FontWrite for Cmap4 {
     fn name(&self) -> &'static str {
         "Cmap4"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap4")
+    }
 }
 
 impl Validate for Cmap4 {
@@ -669,6 +684,9 @@ impl FontWrite for Cmap6 {
     }
     fn name(&self) -> &'static str {
         "Cmap6"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap6")
     }
 }
 
@@ -756,6 +774,9 @@ impl FontWrite for Cmap8 {
     fn name(&self) -> &'static str {
         "Cmap8"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap8")
+    }
 }
 
 impl Validate for Cmap8 {
@@ -827,6 +848,9 @@ impl FontWrite for SequentialMapGroup {
     fn name(&self) -> &'static str {
         "SequentialMapGroup"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SequentialMapGroup")
+    }
 }
 
 impl Validate for SequentialMapGroup {
@@ -891,6 +915,9 @@ impl FontWrite for Cmap10 {
     }
     fn name(&self) -> &'static str {
         "Cmap10"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap10")
     }
 }
 
@@ -962,6 +989,9 @@ impl FontWrite for Cmap12 {
     }
     fn name(&self) -> &'static str {
         "Cmap12"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap12")
     }
 }
 
@@ -1037,6 +1067,9 @@ impl FontWrite for Cmap13 {
     fn name(&self) -> &'static str {
         "Cmap13"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap13")
+    }
 }
 
 impl Validate for Cmap13 {
@@ -1104,6 +1137,9 @@ impl FontWrite for ConstantMapGroup {
     fn name(&self) -> &'static str {
         "ConstantMapGroup"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ConstantMapGroup")
+    }
 }
 
 impl Validate for ConstantMapGroup {
@@ -1156,6 +1192,9 @@ impl FontWrite for Cmap14 {
     }
     fn name(&self) -> &'static str {
         "Cmap14"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap14")
     }
 }
 
@@ -1228,6 +1267,9 @@ impl FontWrite for VariationSelector {
     fn name(&self) -> &'static str {
         "VariationSelector"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("VariationSelector")
+    }
 }
 
 impl Validate for VariationSelector {
@@ -1282,6 +1324,9 @@ impl FontWrite for DefaultUvs {
     }
     fn name(&self) -> &'static str {
         "DefaultUvs"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("DefaultUvs")
     }
 }
 
@@ -1340,6 +1385,9 @@ impl FontWrite for NonDefaultUvs {
     }
     fn name(&self) -> &'static str {
         "NonDefaultUvs"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("NonDefaultUvs")
     }
 }
 
@@ -1402,6 +1450,9 @@ impl FontWrite for UvsMapping {
     fn name(&self) -> &'static str {
         "UvsMapping"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("UvsMapping")
+    }
 }
 
 impl Validate for UvsMapping {
@@ -1443,6 +1494,9 @@ impl FontWrite for UnicodeRange {
     }
     fn name(&self) -> &'static str {
         "UnicodeRange"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("UnicodeRange")
     }
 }
 

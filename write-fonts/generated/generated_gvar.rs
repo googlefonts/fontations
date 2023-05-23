@@ -35,7 +35,7 @@ impl FontWrite for Gvar {
     fn name(&self) -> &'static str {
         "Gvar"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Gvar::TAG)
     }
 }
@@ -82,6 +82,9 @@ impl FontWrite for SharedTuples {
     }
     fn name(&self) -> &'static str {
         "SharedTuples"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("SharedTuples")
     }
 }
 

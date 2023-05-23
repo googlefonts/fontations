@@ -23,7 +23,7 @@ pub trait FontWrite {
     ///
     /// This only matters in cases where a table may require additional processing
     /// after initial compilation, such as with GPOS/GSUB lookups.
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::Unknown
     }
 }
@@ -77,7 +77,7 @@ impl TableWriter {
         self.stack.push(TableData::default());
         table.write_into(self);
         let mut table_data = self.stack.pop().unwrap();
-        table_data.type_ = table.type_();
+        table_data.type_ = table.table_type();
         table_data.name = table.name();
         self.tables.add(table_data)
     }

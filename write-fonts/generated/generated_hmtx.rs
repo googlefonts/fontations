@@ -34,7 +34,7 @@ impl FontWrite for Hmtx {
     fn name(&self) -> &'static str {
         "Hmtx"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Hmtx::TAG)
     }
 }
@@ -93,6 +93,9 @@ impl FontWrite for LongMetric {
     }
     fn name(&self) -> &'static str {
         "LongMetric"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("LongMetric")
     }
 }
 

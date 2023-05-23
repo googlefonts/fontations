@@ -272,7 +272,7 @@ impl FontWrite for Os2 {
     fn name(&self) -> &'static str {
         "Os2"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Os2::TAG)
     }
 }

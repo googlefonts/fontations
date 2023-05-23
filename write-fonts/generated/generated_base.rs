@@ -41,7 +41,7 @@ impl FontWrite for Base {
     fn name(&self) -> &'static str {
         "Base"
     }
-    fn type_(&self) -> TableType {
+    fn table_type(&self) -> TableType {
         TableType::TopLevel(Base::TAG)
     }
 }
@@ -112,6 +112,9 @@ impl FontWrite for Axis {
     fn name(&self) -> &'static str {
         "Axis"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Axis")
+    }
 }
 
 impl Validate for Axis {
@@ -170,6 +173,9 @@ impl FontWrite for BaseTagList {
     fn name(&self) -> &'static str {
         "BaseTagList"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("BaseTagList")
+    }
 }
 
 impl Validate for BaseTagList {
@@ -226,6 +232,9 @@ impl FontWrite for BaseScriptList {
     }
     fn name(&self) -> &'static str {
         "BaseScriptList"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("BaseScriptList")
     }
 }
 
@@ -286,6 +295,9 @@ impl FontWrite for BaseScriptRecord {
     }
     fn name(&self) -> &'static str {
         "BaseScriptRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("BaseScriptRecord")
     }
 }
 
@@ -348,6 +360,9 @@ impl FontWrite for BaseScript {
     }
     fn name(&self) -> &'static str {
         "BaseScript"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("BaseScript")
     }
 }
 
@@ -416,6 +431,9 @@ impl FontWrite for BaseLangSysRecord {
     fn name(&self) -> &'static str {
         "BaseLangSysRecord"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("BaseLangSysRecord")
+    }
 }
 
 impl Validate for BaseLangSysRecord {
@@ -472,6 +490,9 @@ impl FontWrite for BaseValues {
     }
     fn name(&self) -> &'static str {
         "BaseValues"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("BaseValues")
     }
 }
 
@@ -544,6 +565,9 @@ impl FontWrite for MinMax {
     }
     fn name(&self) -> &'static str {
         "MinMax"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("MinMax")
     }
 }
 
@@ -622,6 +646,9 @@ impl FontWrite for FeatMinMaxRecord {
     }
     fn name(&self) -> &'static str {
         "FeatMinMaxRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("FeatMinMaxRecord")
     }
 }
 
@@ -754,6 +781,9 @@ impl FontWrite for BaseCoordFormat1 {
     fn name(&self) -> &'static str {
         "BaseCoordFormat1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("BaseCoordFormat1")
+    }
 }
 
 impl Validate for BaseCoordFormat1 {
@@ -810,6 +840,9 @@ impl FontWrite for BaseCoordFormat2 {
     fn name(&self) -> &'static str {
         "BaseCoordFormat2"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("BaseCoordFormat2")
+    }
 }
 
 impl Validate for BaseCoordFormat2 {
@@ -865,6 +898,9 @@ impl FontWrite for BaseCoordFormat3 {
     }
     fn name(&self) -> &'static str {
         "BaseCoordFormat3"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("BaseCoordFormat3")
     }
 }
 

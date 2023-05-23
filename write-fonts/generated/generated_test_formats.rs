@@ -28,6 +28,9 @@ impl FontWrite for Table1 {
     fn name(&self) -> &'static str {
         "Table1"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Table1")
+    }
 }
 
 impl Validate for Table1 {
@@ -76,6 +79,9 @@ impl FontWrite for Table2 {
     fn name(&self) -> &'static str {
         "Table2"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Table2")
+    }
 }
 
 impl Validate for Table2 {
@@ -121,6 +127,9 @@ impl FontWrite for Table3 {
     }
     fn name(&self) -> &'static str {
         "Table3"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Table3")
     }
 }
 

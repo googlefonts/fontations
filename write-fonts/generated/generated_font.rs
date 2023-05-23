@@ -49,6 +49,9 @@ impl FontWrite for TableDirectory {
     fn name(&self) -> &'static str {
         "TableDirectory"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("TableDirectory")
+    }
 }
 
 impl Validate for TableDirectory {
@@ -98,6 +101,9 @@ impl FontWrite for TableRecord {
     }
     fn name(&self) -> &'static str {
         "TableRecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("TableRecord")
     }
 }
 

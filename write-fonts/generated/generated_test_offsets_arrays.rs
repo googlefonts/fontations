@@ -66,6 +66,9 @@ impl FontWrite for KindsOfOffsets {
     fn name(&self) -> &'static str {
         "KindsOfOffsets"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("KindsOfOffsets")
+    }
 }
 
 impl Validate for KindsOfOffsets {
@@ -167,6 +170,9 @@ impl FontWrite for KindsOfArraysOfOffsets {
     }
     fn name(&self) -> &'static str {
         "KindsOfArraysOfOffsets"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("KindsOfArraysOfOffsets")
     }
 }
 
@@ -293,6 +299,9 @@ impl FontWrite for KindsOfArrays {
     fn name(&self) -> &'static str {
         "KindsOfArrays"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("KindsOfArrays")
+    }
 }
 
 impl Validate for KindsOfArrays {
@@ -377,6 +386,9 @@ impl FontWrite for Dummy {
     fn name(&self) -> &'static str {
         "Dummy"
     }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Dummy")
+    }
 }
 
 impl Validate for Dummy {
@@ -414,6 +426,9 @@ impl FontWrite for Shmecord {
     }
     fn name(&self) -> &'static str {
         "Shmecord"
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("Shmecord")
     }
 }
 
