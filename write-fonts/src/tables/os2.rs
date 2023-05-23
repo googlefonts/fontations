@@ -14,7 +14,10 @@ impl Os2 {
                 .or(self.us_max_context)
                 .is_some()
         {
-            2
+            // https://learn.microsoft.com/en-us/typography/opentype/spec/os2
+            // "All versions are supported, but use of version 4 or later is strongly recommended"
+            // Fields for v2, v3, and v4 are the same. Choice of 4 matches behavior of python tooling.
+            4
         } else {
             u16::from(
                 self.ul_code_page_range_1
