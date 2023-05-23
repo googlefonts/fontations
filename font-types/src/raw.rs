@@ -86,6 +86,8 @@ impl<T: Scalar + Default> Default for BigEndian<T> {
     }
 }
 
+//NOTE: do to the orphan rules, we cannot impl the inverse of this, e.g.
+// impl<T> PartialEq<BigEndian<T>> for T (<https://doc.rust-lang.org/error_codes/E0210.html>)
 impl<T: Scalar + Copy + PartialEq> PartialEq<T> for BigEndian<T> {
     fn eq(&self, other: &T) -> bool {
         self.get() == *other
