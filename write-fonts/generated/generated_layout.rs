@@ -29,9 +29,6 @@ impl FontWrite for ScriptList {
         (array_len(&self.script_records).unwrap() as u16).write_into(writer);
         self.script_records.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "ScriptList"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("ScriptList")
     }
@@ -91,9 +88,6 @@ impl FontWrite for ScriptRecord {
         self.script_tag.write_into(writer);
         self.script.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "ScriptRecord"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("ScriptRecord")
     }
@@ -144,9 +138,6 @@ impl FontWrite for Script {
         self.default_lang_sys.write_into(writer);
         (array_len(&self.lang_sys_records).unwrap() as u16).write_into(writer);
         self.lang_sys_records.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "Script"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("Script")
@@ -209,9 +200,6 @@ impl FontWrite for LangSysRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.lang_sys_tag.write_into(writer);
         self.lang_sys.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "LangSysRecord"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("LangSysRecord")
@@ -277,9 +265,6 @@ impl FontWrite for LangSys {
         (array_len(&self.feature_indices).unwrap() as u16).write_into(writer);
         self.feature_indices.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "LangSys"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("LangSys")
     }
@@ -337,9 +322,6 @@ impl FontWrite for FeatureList {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.feature_records).unwrap() as u16).write_into(writer);
         self.feature_records.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "FeatureList"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("FeatureList")
@@ -401,9 +383,6 @@ impl FontWrite for FeatureRecord {
         self.feature_tag.write_into(writer);
         self.feature.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "FeatureRecord"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("FeatureRecord")
     }
@@ -457,9 +436,6 @@ impl FontWrite for Feature {
         self.feature_params.write_into(writer);
         (array_len(&self.lookup_list_indices).unwrap() as u16).write_into(writer);
         self.lookup_list_indices.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "Feature"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("Feature")
@@ -515,9 +491,6 @@ impl<T: FontWrite> FontWrite for LookupList<T> {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.lookups).unwrap() as u16).write_into(writer);
         self.lookups.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "LookupList"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("LookupList")
@@ -638,9 +611,6 @@ impl FontWrite for CoverageFormat1 {
         (array_len(&self.glyph_array).unwrap() as u16).write_into(writer);
         self.glyph_array.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "CoverageFormat1"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("CoverageFormat1")
     }
@@ -698,9 +668,6 @@ impl FontWrite for CoverageFormat2 {
         (2 as u16).write_into(writer);
         (array_len(&self.range_records).unwrap() as u16).write_into(writer);
         self.range_records.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "CoverageFormat2"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("CoverageFormat2")
@@ -766,9 +733,6 @@ impl FontWrite for RangeRecord {
         self.end_glyph_id.write_into(writer);
         self.start_coverage_index.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "RangeRecord"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("RangeRecord")
     }
@@ -820,10 +784,10 @@ impl FontWrite for CoverageTable {
             Self::Format2(item) => item.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Format1(_) => "CoverageTable.Format1",
-            Self::Format2(_) => "CoverageTable.Format2",
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
         }
     }
 }
@@ -883,9 +847,6 @@ impl FontWrite for ClassDefFormat1 {
         (array_len(&self.class_value_array).unwrap() as u16).write_into(writer);
         self.class_value_array.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "ClassDefFormat1"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("ClassDefFormat1")
     }
@@ -944,9 +905,6 @@ impl FontWrite for ClassDefFormat2 {
         (2 as u16).write_into(writer);
         (array_len(&self.class_range_records).unwrap() as u16).write_into(writer);
         self.class_range_records.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "ClassDefFormat2"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("ClassDefFormat2")
@@ -1012,9 +970,6 @@ impl FontWrite for ClassRangeRecord {
         self.end_glyph_id.write_into(writer);
         self.class.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "ClassRangeRecord"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("ClassRangeRecord")
     }
@@ -1072,10 +1027,10 @@ impl FontWrite for ClassDef {
             Self::Format2(item) => item.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Format1(_) => "ClassDef.Format1",
-            Self::Format2(_) => "ClassDef.Format2",
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
         }
     }
 }
@@ -1131,9 +1086,6 @@ impl FontWrite for SequenceLookupRecord {
         self.sequence_index.write_into(writer);
         self.lookup_list_index.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "SequenceLookupRecord"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("SequenceLookupRecord")
     }
@@ -1180,9 +1132,6 @@ impl FontWrite for SequenceContextFormat1 {
         self.coverage.write_into(writer);
         (array_len(&self.seq_rule_sets).unwrap() as u16).write_into(writer);
         self.seq_rule_sets.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "SequenceContextFormat1"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("SequenceContextFormat1")
@@ -1254,9 +1203,6 @@ impl FontWrite for SequenceRuleSet {
         (array_len(&self.seq_rules).unwrap() as u16).write_into(writer);
         self.seq_rules.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "SequenceRuleSet"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("SequenceRuleSet")
     }
@@ -1321,9 +1267,6 @@ impl FontWrite for SequenceRule {
         (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.input_sequence.write_into(writer);
         self.seq_lookup_records.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "SequenceRule"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("SequenceRule")
@@ -1399,9 +1342,6 @@ impl FontWrite for SequenceContextFormat2 {
         self.class_def.write_into(writer);
         (array_len(&self.class_seq_rule_sets).unwrap() as u16).write_into(writer);
         self.class_seq_rule_sets.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "SequenceContextFormat2"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("SequenceContextFormat2")
@@ -1480,9 +1420,6 @@ impl FontWrite for ClassSequenceRuleSet {
         (array_len(&self.class_seq_rules).unwrap() as u16).write_into(writer);
         self.class_seq_rules.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "ClassSequenceRuleSet"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("ClassSequenceRuleSet")
     }
@@ -1552,9 +1489,6 @@ impl FontWrite for ClassSequenceRule {
         self.input_sequence.write_into(writer);
         self.seq_lookup_records.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "ClassSequenceRule"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("ClassSequenceRule")
     }
@@ -1623,9 +1557,6 @@ impl FontWrite for SequenceContextFormat3 {
         (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.coverages.write_into(writer);
         self.seq_lookup_records.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "SequenceContextFormat3"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("SequenceContextFormat3")
@@ -1727,11 +1658,11 @@ impl FontWrite for SequenceContext {
             Self::Format3(item) => item.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Format1(_) => "SequenceContext.Format1",
-            Self::Format2(_) => "SequenceContext.Format2",
-            Self::Format3(_) => "SequenceContext.Format3",
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+            Self::Format3(item) => item.table_type(),
         }
     }
 }
@@ -1797,9 +1728,6 @@ impl FontWrite for ChainedSequenceContextFormat1 {
         self.coverage.write_into(writer);
         (array_len(&self.chained_seq_rule_sets).unwrap() as u16).write_into(writer);
         self.chained_seq_rule_sets.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "ChainedSequenceContextFormat1"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("ChainedSequenceContextFormat1")
@@ -1873,9 +1801,6 @@ impl FontWrite for ChainedSequenceRuleSet {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.chained_seq_rules).unwrap() as u16).write_into(writer);
         self.chained_seq_rules.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "ChainedSequenceRuleSet"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("ChainedSequenceRuleSet")
@@ -1964,9 +1889,6 @@ impl FontWrite for ChainedSequenceRule {
         self.lookahead_sequence.write_into(writer);
         (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.seq_lookup_records.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "ChainedSequenceRule"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("ChainedSequenceRule")
@@ -2073,9 +1995,6 @@ impl FontWrite for ChainedSequenceContextFormat2 {
         (array_len(&self.chained_class_seq_rule_sets).unwrap() as u16).write_into(writer);
         self.chained_class_seq_rule_sets.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "ChainedSequenceContextFormat2"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("ChainedSequenceContextFormat2")
     }
@@ -2163,9 +2082,6 @@ impl FontWrite for ChainedClassSequenceRuleSet {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.chained_class_seq_rules).unwrap() as u16).write_into(writer);
         self.chained_class_seq_rules.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "ChainedClassSequenceRuleSet"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("ChainedClassSequenceRuleSet")
@@ -2255,9 +2171,6 @@ impl FontWrite for ChainedClassSequenceRule {
         self.lookahead_sequence.write_into(writer);
         (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.seq_lookup_records.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "ChainedClassSequenceRule"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("ChainedClassSequenceRule")
@@ -2358,9 +2271,6 @@ impl FontWrite for ChainedSequenceContextFormat3 {
         self.lookahead_coverages.write_into(writer);
         (array_len(&self.seq_lookup_records).unwrap() as u16).write_into(writer);
         self.seq_lookup_records.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "ChainedSequenceContextFormat3"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("ChainedSequenceContextFormat3")
@@ -2499,11 +2409,11 @@ impl FontWrite for ChainedSequenceContext {
             Self::Format3(item) => item.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Format1(_) => "ChainedSequenceContext.Format1",
-            Self::Format2(_) => "ChainedSequenceContext.Format2",
-            Self::Format3(_) => "ChainedSequenceContext.Format3",
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+            Self::Format3(item) => item.table_type(),
         }
     }
 }
@@ -2568,9 +2478,6 @@ impl FontWrite for Device {
         self.delta_format.write_into(writer);
         self.delta_value.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Device"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("Device")
     }
@@ -2630,9 +2537,6 @@ impl FontWrite for VariationIndex {
         self.delta_set_inner_index.write_into(writer);
         self.delta_format.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "VariationIndex"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("VariationIndex")
     }
@@ -2686,9 +2590,6 @@ impl FontWrite for FeatureVariations {
         (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
         (array_len(&self.feature_variation_records).unwrap() as u32).write_into(writer);
         self.feature_variation_records.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "FeatureVariations"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("FeatureVariations")
@@ -2755,9 +2656,6 @@ impl FontWrite for FeatureVariationRecord {
         self.condition_set.write_into(writer);
         self.feature_table_substitution.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "FeatureVariationRecord"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("FeatureVariationRecord")
     }
@@ -2812,9 +2710,6 @@ impl FontWrite for ConditionSet {
     fn write_into(&self, writer: &mut TableWriter) {
         (array_len(&self.conditions).unwrap() as u16).write_into(writer);
         self.conditions.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "ConditionSet"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("ConditionSet")
@@ -2888,9 +2783,6 @@ impl FontWrite for ConditionFormat1 {
         self.filter_range_min_value.write_into(writer);
         self.filter_range_max_value.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "ConditionFormat1"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("ConditionFormat1")
     }
@@ -2941,9 +2833,6 @@ impl FontWrite for FeatureTableSubstitution {
         (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
         (array_len(&self.substitutions).unwrap() as u16).write_into(writer);
         self.substitutions.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "FeatureTableSubstitution"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("FeatureTableSubstitution")
@@ -3013,9 +2902,6 @@ impl FontWrite for FeatureTableSubstitutionRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.feature_index.write_into(writer);
         self.alternate_feature.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "FeatureTableSubstitutionRecord"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("FeatureTableSubstitutionRecord")
@@ -3107,9 +2993,6 @@ impl FontWrite for SizeParams {
         self.range_start.write_into(writer);
         self.range_end.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "SizeParams"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("SizeParams")
     }
@@ -3165,9 +3048,6 @@ impl FontWrite for StylisticSetParams {
     fn write_into(&self, writer: &mut TableWriter) {
         (0 as u16).write_into(writer);
         self.ui_name_id.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "StylisticSetParams"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("StylisticSetParams")
@@ -3252,9 +3132,6 @@ impl FontWrite for CharacterVariantParams {
         self.first_param_ui_label_name_id.write_into(writer);
         (array_len(&self.character).unwrap() as u16).write_into(writer);
         self.character.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "CharacterVariantParams"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("CharacterVariantParams")

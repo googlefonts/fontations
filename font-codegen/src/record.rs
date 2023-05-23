@@ -237,10 +237,6 @@ pub(crate) fn generate_compile_impl(
                     #( #write_stmts; )*
                 }
 
-                fn name(&self) -> &'static str {
-                    #name_string
-                }
-
                 fn table_type(&self) -> TableType {
                     #table_type
                 }

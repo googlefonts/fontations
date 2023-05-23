@@ -91,9 +91,6 @@ impl FontWrite for Hhea {
         (0 as i16).write_into(writer);
         self.number_of_long_metrics.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Hhea"
-    }
     fn table_type(&self) -> TableType {
         TableType::TopLevel(Hhea::TAG)
     }

@@ -25,9 +25,6 @@ impl FontWrite for Table1 {
         self.heft.write_into(writer);
         self.flex.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Table1"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("Table1")
     }
@@ -76,9 +73,6 @@ impl FontWrite for Table2 {
         (array_len(&self.values).unwrap() as u16).write_into(writer);
         self.values.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Table2"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("Table2")
     }
@@ -124,9 +118,6 @@ impl FontWrite for Table3 {
     fn write_into(&self, writer: &mut TableWriter) {
         (3 as u16).write_into(writer);
         self.something.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "Table3"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("Table3")
@@ -187,11 +178,11 @@ impl FontWrite for MyTable {
             Self::Format3(item) => item.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Format1(_) => "MyTable.Format1",
-            Self::MyFormat22(_) => "MyTable.MyFormat22",
-            Self::Format3(_) => "MyTable.Format3",
+            Self::Format1(item) => item.table_type(),
+            Self::MyFormat22(item) => item.table_type(),
+            Self::Format3(item) => item.table_type(),
         }
     }
 }

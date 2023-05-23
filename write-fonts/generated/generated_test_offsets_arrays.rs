@@ -63,9 +63,6 @@ impl FontWrite for KindsOfOffsets {
             .compatible((1, 1))
             .then(|| self.versioned_nullable.write_into(writer));
     }
-    fn name(&self) -> &'static str {
-        "KindsOfOffsets"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("KindsOfOffsets")
     }
@@ -167,9 +164,6 @@ impl FontWrite for KindsOfArraysOfOffsets {
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-    }
-    fn name(&self) -> &'static str {
-        "KindsOfArraysOfOffsets"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("KindsOfArraysOfOffsets")
@@ -296,9 +290,6 @@ impl FontWrite for KindsOfArrays {
                 .write_into(writer)
         });
     }
-    fn name(&self) -> &'static str {
-        "KindsOfArrays"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("KindsOfArrays")
     }
@@ -383,9 +374,6 @@ impl FontWrite for Dummy {
         self.value.write_into(writer);
         (0 as u16).write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Dummy"
-    }
     fn table_type(&self) -> TableType {
         TableType::Named("Dummy")
     }
@@ -423,9 +411,6 @@ impl FontWrite for Shmecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.length.write_into(writer);
         self.breadth.write_into(writer);
-    }
-    fn name(&self) -> &'static str {
-        "Shmecord"
     }
     fn table_type(&self) -> TableType {
         TableType::Named("Shmecord")

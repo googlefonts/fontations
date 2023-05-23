@@ -30,9 +30,6 @@ impl FontWrite for Vmtx {
         self.v_metrics.write_into(writer);
         self.top_side_bearings.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Vmtx"
-    }
     fn table_type(&self) -> TableType {
         TableType::TopLevel(Vmtx::TAG)
     }
