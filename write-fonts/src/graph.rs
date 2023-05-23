@@ -320,13 +320,13 @@ impl Graph {
                 // we're done
                 return true;
             }
-            log::info!(
+            log::trace!(
                 "failed with {} overflows, current size {}",
                 overflows.len(),
                 self.debug_len()
             );
             if !self.try_splitting_subgraphs(&overflows) {
-                log::info!("finished isolating all subgraphs without solution");
+                log::debug!("finished isolating all subgraphs without solution");
                 break overflows;
             }
             self.sort_shortest_distance();
@@ -344,13 +344,13 @@ impl Graph {
     ///
     /// returns `true` if sort succeeds with no overflows
     fn basic_sort(&mut self) -> bool {
-        log::info!("sorting {} objects", self.objects.len());
+        log::trace!("sorting {} objects", self.objects.len());
 
         self.sort_kahn();
         if !self.has_overflows() {
             return true;
         }
-        log::info!("kahn failed, trying shortest distance");
+        log::trace!("kahn failed, trying shortest distance");
         self.sort_shortest_distance();
         !self.has_overflows()
     }
@@ -572,7 +572,7 @@ impl Graph {
             return false;
         }
 
-        log::debug!("found {} space roots to isolate", roots.len());
+        log::trace!("found {} space roots to isolate", roots.len());
 
         // we want to *invert* the visited set, but we don't have a fancy hb_set_t
         let mut visited = self
@@ -676,7 +676,7 @@ impl Graph {
     /// [isolate_subgraph]: https://github.com/harfbuzz/harfbuzz/blob/main/src/graph/graph.hh#L508
     fn isolate_subgraph_hb(&mut self, roots: &mut HashSet<ObjectId>) -> bool {
         self.update_parents();
-        log::debug!("isolating subgraph with {} roots", roots.len());
+        log::trace!("isolating subgraph with {} roots", roots.len());
 
         // map of object id -> number of incoming edges
         let mut subgraph = HashMap::new();
@@ -778,7 +778,7 @@ impl Graph {
 
         for (space, mut roots) in to_isolate {
             let max_to_move = self.num_roots_per_space[&space] / 2;
-            log::debug!(
+            log::trace!(
                 "moving {} of {} candidate roots from {space:?} to new space",
                 max_to_move.min(roots.len()),
                 roots.len()
@@ -822,7 +822,7 @@ impl Graph {
         self.parents_invalid = true;
         self.distance_invalid = true;
         let new_root = ObjectId::next();
-        log::debug!("duplicating node {root:?} to {new_root:?}");
+        log::trace!("duplicating node {root:?} to {new_root:?}");
 
         let mut obj = self.objects.get(&root).cloned().unwrap();
         let mut node = Node::new(obj.bytes.len() as u32);
