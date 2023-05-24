@@ -5,6 +5,7 @@
 table Avar {
     /// Major version number of the axis variations table — set to 1.
     /// Minor version number of the axis variations table — set to 0.
+    #[compile(MajorMinor::VERSION_1_0)]
     version: MajorMinor,
     /// Permanently reserved; set to zero.
     #[skip_getter]

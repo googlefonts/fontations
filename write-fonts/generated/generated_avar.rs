@@ -8,27 +8,21 @@ use crate::codegen_prelude::*;
 /// The [avar (Axis Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/avar) table
 #[derive(Clone, Debug, Default)]
 pub struct Avar {
-    /// Major version number of the axis variations table — set to 1.
-    /// Minor version number of the axis variations table — set to 0.
-    pub version: MajorMinor,
     /// The segment maps array — one segment map for each axis, in the order of axes specified in the 'fvar' table.
     pub axis_segment_maps: Vec<SegmentMaps>,
 }
 
 impl Avar {
     /// Construct a new `Avar`
-    pub fn new(version: MajorMinor, axis_segment_maps: Vec<SegmentMaps>) -> Self {
-        Self {
-            version,
-            axis_segment_maps,
-        }
+    pub fn new(axis_segment_maps: Vec<SegmentMaps>) -> Self {
+        Self { axis_segment_maps }
     }
 }
 
 impl FontWrite for Avar {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        self.version.write_into(writer);
+        (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
         (0 as u16).write_into(writer);
         (array_len(&self.axis_segment_maps).unwrap() as u16).write_into(writer);
         self.axis_segment_maps.write_into(writer);
@@ -56,7 +50,6 @@ impl<'a> FromObjRef<read_fonts::tables::avar::Avar<'a>> for Avar {
     fn from_obj_ref(obj: &read_fonts::tables::avar::Avar<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
         Avar {
-            version: obj.version(),
             axis_segment_maps: obj
                 .axis_segment_maps()
                 .iter()
