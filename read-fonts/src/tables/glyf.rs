@@ -782,7 +782,7 @@ impl Transform {
     pub fn compute_flags(&self) -> CompositeGlyphFlags {
         if self.yx != F2Dot14::ZERO || self.xy != F2Dot14::ZERO {
             CompositeGlyphFlags::WE_HAVE_A_TWO_BY_TWO
-        } else if (self.xx - self.yy) != F2Dot14::ZERO {
+        } else if self.xx != self.yy {
             CompositeGlyphFlags::WE_HAVE_AN_X_AND_Y_SCALE
         } else if self.xx != F2Dot14::ONE {
             CompositeGlyphFlags::WE_HAVE_A_SCALE
