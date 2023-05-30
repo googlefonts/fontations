@@ -1,5 +1,7 @@
 //! Helpers for selecting a font size and location in variation space.
 
+use crate::util::SmallArray;
+
 /// Type for a normalized variation coordinate.
 pub type NormalizedCoord = read_fonts::types::F2Dot14;
 
@@ -103,5 +105,66 @@ impl<'a> IntoIterator for &'_ LocationRef<'a> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.0.iter()
+    }
+}
+
+/// Maximum number of coords to store inline in a `Location` object.
+///
+/// This value was chosen to maximize use of space in the underlying
+/// `SmallArray` storage.
+const MAX_INLINE_COORDS: usize = 8;
+
+/// Ordered sequence of normalized variation coordinates.
+///
+/// This is an owned version of [`LocationRef`]. See the documentation on that
+/// type for more detail.
+#[derive(Clone, Debug)]
+pub struct Location {
+    coords: SmallArray<NormalizedCoord, MAX_INLINE_COORDS>,
+}
+
+impl Location {
+    /// Creates a new location with the given number of normalized coordinates.
+    ///
+    /// Each element will be initialized to the default value (0.0).
+    pub fn new(len: usize) -> Self {
+        Self {
+            coords: SmallArray::new(NormalizedCoord::default(), len),
+        }
+    }
+
+    /// Returns the underlying slice of normalized coordinates.
+    pub fn coords(&self) -> &[NormalizedCoord] {
+        self.coords.as_slice()
+    }
+
+    /// Returns a mutable reference to the underlying slice of normalized
+    /// coordinates.
+    pub fn coords_mut(&mut self) -> &mut [NormalizedCoord] {
+        self.coords.as_mut_slice()
+    }
+}
+
+impl<'a> From<&'a Location> for LocationRef<'a> {
+    fn from(value: &'a Location) -> Self {
+        LocationRef(value.coords())
+    }
+}
+
+impl<'a> IntoIterator for &'a Location {
+    type IntoIter = core::slice::Iter<'a, NormalizedCoord>;
+    type Item = &'a NormalizedCoord;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.coords().iter()
+    }
+}
+
+impl<'a> IntoIterator for &'a mut Location {
+    type IntoIter = core::slice::IterMut<'a, NormalizedCoord>;
+    type Item = &'a mut NormalizedCoord;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.coords_mut().iter_mut()
     }
 }

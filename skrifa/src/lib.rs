@@ -29,6 +29,7 @@ pub mod setting;
 pub mod string;
 
 mod provider;
+mod util;
 
 /// Useful collection of common types suitable for glob importing.
 pub mod prelude {
