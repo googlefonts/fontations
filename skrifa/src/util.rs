@@ -98,7 +98,7 @@ mod test {
         }
         let expected = [0, 2, 4, 6, 8, 10, 12, 14];
         assert_eq!(arr.as_slice(), &expected);
-        assert_eq!(format!("{arr:?}"), "[0, 2, 4, 6, 8, 10, 12, 14]");
+        assert_eq!(format!("{arr:?}"), format!("{expected:?}"));
     }
 
     #[test]
@@ -109,6 +109,6 @@ mod test {
         }
         let expected = [0, 2, 4, 6, 8, 10, 12, 14];
         assert_eq!(arr.as_slice(), &expected);
-        assert_eq!(format!("{arr:?}"), "[0, 2, 4, 6, 8, 10, 12, 14]");
+        assert_eq!(format!("{arr:?}"), format!("{expected:?}"));
     }
 }
