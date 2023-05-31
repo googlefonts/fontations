@@ -5,6 +5,7 @@
 //! with functionality only added when needed.
 
 use core::fmt;
+use std::ops::{Deref, DerefMut};
 
 /// Internal SmallVec like implementation but for fixed sized arrays whose
 /// size is only known at runtime.
@@ -59,12 +60,23 @@ where
     }
 }
 
-impl<T, const N: usize> fmt::Debug for SmallArray<T, N>
+impl<T, const N: usize> Deref for SmallArray<T, N>
 where
-    T: Copy + fmt::Debug,
+    T: Copy,
 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_list().entries(self.as_slice().iter()).finish()
+    type Target = [T];
+
+    fn deref(&self) -> &Self::Target {
+        self.as_slice()
+    }
+}
+
+impl<T, const N: usize> DerefMut for SmallArray<T, N>
+where
+    T: Copy,
+{
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        self.as_mut_slice()
     }
 }
 
@@ -78,6 +90,15 @@ where
 }
 
 impl<T, const N: usize> Eq for SmallArray<T, N> where T: Copy + Eq {}
+
+impl<T, const N: usize> fmt::Debug for SmallArray<T, N>
+where
+    T: Copy + fmt::Debug,
+{
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_list().entries(self.as_slice().iter()).finish()
+    }
+}
 
 #[derive(Clone)]
 enum SmallStorage<T, const N: usize> {
