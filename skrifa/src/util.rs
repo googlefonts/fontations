@@ -72,6 +72,43 @@ enum SmallStorage<T, const N: usize> {
     Heap(Vec<T>),
 }
 
+#[derive(Clone)]
+pub struct SmallArrayIter<T, const N: usize>
+where
+    T: Copy,
+{
+    array: SmallArray<T, N>,
+    pos: usize,
+}
+
+impl<T, const N: usize> Iterator for SmallArrayIter<T, N>
+where
+    T: Copy,
+{
+    type Item = T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let pos = self.pos;
+        self.pos += 1;
+        self.array.as_slice().get(pos).copied()
+    }
+}
+
+impl<T, const N: usize> IntoIterator for SmallArray<T, N>
+where
+    T: Copy,
+{
+    type Item = T;
+    type IntoIter = SmallArrayIter<T, N>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        Self::IntoIter {
+            array: self,
+            pos: 0,
+        }
+    }
+}
+
 #[cfg(test)]
 mod test {
     use super::{SmallArray, SmallStorage};
