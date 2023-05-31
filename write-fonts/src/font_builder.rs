@@ -1,18 +1,40 @@
 //!  A builder for top-level font objects
 
-use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::{borrow::Cow, sync::Arc};
 
 use types::{Tag, TT_SFNT_VERSION};
+
+use crate::dump_table;
 
 include!("../generated/generated_font.rs");
 
 const TABLE_RECORD_LEN: usize = 16;
 
 /// Build a font from some set of tables.
-#[derive(Debug, Clone, Default)]
+#[derive(Clone, Default)]
 pub struct FontBuilder<'a> {
-    tables: BTreeMap<Tag, Cow<'a, [u8]>>,
+    tables: BTreeMap<Tag, Table<'a>>,
+}
+
+/// A trait for types that represent compilable top-level tables.
+///
+/// (We need a new trait for this so that we can use dyn Trait)
+trait TopLevelWriteTable: FontWrite + Validate {
+    fn compile(&self) -> Result<Vec<u8>, crate::error::Error>;
+}
+
+impl<T: TopLevelTable + FontWrite + Validate> TopLevelWriteTable for T {
+    fn compile(&self) -> Result<Vec<u8>, crate::error::Error> {
+        dump_table(self)
+    }
+}
+
+/// An internal type representing a table that may or may not be precompiled.
+#[derive(Clone)]
+enum Table<'a> {
+    Raw(Arc<dyn TopLevelWriteTable>),
+    Precompiled(Cow<'a, [u8]>),
 }
 
 impl TableDirectory {
@@ -37,8 +59,21 @@ impl TableDirectory {
 }
 
 impl<'a> FontBuilder<'a> {
-    pub fn add_table(&mut self, tag: Tag, data: impl Into<Cow<'a, [u8]>>) -> &mut Self {
-        self.tables.insert(tag, data.into());
+    /// Add a table to the font.
+    pub fn add_table<T: TopLevelTable + FontWrite + Validate + 'static>(
+        &mut self,
+        table: T,
+    ) -> &mut Self {
+        let tag = T::TAG;
+        self.tables.insert(tag, Table::Raw(Arc::new(table)));
+        self
+    }
+
+    /// Add a pre-compiled table to the font.
+    ///
+    /// This data can be either a borrowed slice or a vec.
+    pub fn add_bytes(&mut self, tag: Tag, data: impl Into<Cow<'a, [u8]>>) -> &mut Self {
+        self.tables.insert(tag, Table::Precompiled(data.into()));
         self
     }
 
@@ -47,15 +82,22 @@ impl<'a> FontBuilder<'a> {
         self.tables.contains_key(&tag)
     }
 
-    pub fn build(&mut self) -> Vec<u8> {
+    pub fn build(&mut self) -> Result<Vec<u8>, crate::error::Error> {
         let header_len = std::mem::size_of::<u32>() // sfnt
             + std::mem::size_of::<u16>() * 4 // num_tables to range_shift
             + self.tables.len() * TABLE_RECORD_LEN;
 
-        let mut position = header_len as u32;
-        let table_records: Vec<_> = self
+        // first compile everything, as needed
+        //TODO rayon me
+        let compiled = self
             .tables
-            .iter_mut()
+            .iter()
+            .map(|(tag, table)| table.to_bytes().map(|table| (*tag, table)))
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let mut position = header_len as u32;
+        let table_records: Vec<_> = compiled
+            .iter()
             .map(|(tag, data)| {
                 let offset = position;
                 let length = data.len() as u32;
@@ -71,13 +113,23 @@ impl<'a> FontBuilder<'a> {
         let mut writer = TableWriter::default();
         directory.write_into(&mut writer);
         let mut data = writer.into_data();
-        for table in self.tables.values() {
+        for (_, table) in &compiled {
             data.extend_from_slice(table);
             let rem = round4(table.len()) - table.len();
             let padding = [0u8; 4];
             data.extend_from_slice(&padding[..rem]);
         }
-        data
+        Ok(data)
+    }
+}
+
+impl<'a> Table<'a> {
+    /// Compile the table if necessary, returning the final bytes
+    fn to_bytes(&self) -> Result<Cow<[u8]>, crate::error::Error> {
+        match self {
+            Table::Raw(table) => table.compile().map(Cow::Owned),
+            Table::Precompiled(bytes) => Ok(Cow::Borrowed(bytes)),
+        }
     }
 }
 
@@ -125,9 +177,9 @@ mod tests {
         let data = b"doesn't matter".to_vec();
         let mut builder = FontBuilder::default();
         (0..0x16u32).for_each(|i| {
-            builder.add_table(Tag::from_be_bytes(i.to_ne_bytes()), &data);
+            builder.add_bytes(Tag::from_be_bytes(i.to_ne_bytes()), &data);
         });
-        let bytes = builder.build();
+        let bytes = builder.build().unwrap();
         let font = FontRef::new(&bytes).unwrap();
         let td = font.table_directory;
         assert_eq!(
@@ -138,7 +190,7 @@ mod tests {
 
     #[test]
     fn survives_no_tables() {
-        FontBuilder::default().build();
+        FontBuilder::default().build().unwrap();
     }
 
     #[test]
