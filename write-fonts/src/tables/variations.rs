@@ -231,7 +231,7 @@ impl FontWrite for PackedPointNumbers {
         // compute the actual count:
         match self.as_slice().len() {
             len @ 0..=127 => (len as u8).write_into(writer),
-            len => (len as u16).write_into(writer),
+            len => (len as u16 | 0x8000u16).write_into(writer),
         }
         for run in self.iter_runs() {
             run.write_into(writer);
@@ -969,8 +969,20 @@ mod tests {
     }
 
     #[test]
-    fn point_pack_write() {
-        let thing = PackedPointNumbers::Some(vec![5, 25, 225, 1002, 2002, 2008, 2228]);
+    fn point_pack_write_one_byte() {
+        let thing = PackedPointNumbers::Some(vec![5, 25, 225, 1002, 2002, 2008, 2228, 10000]);
+
+        let bytes = crate::dump_table(&thing).unwrap();
+        assert_eq!(thing.compute_size() as usize, bytes.len());
+        let (read, _) = read_fonts::tables::variations::PackedPointNumbers::split_off_front(
+            FontData::new(&bytes),
+        );
+        assert_eq!(thing.as_slice(), read.iter().collect::<Vec<_>>());
+    }
+
+    #[test]
+    fn point_pack_write_two_byte() {
+        let thing = PackedPointNumbers::Some(vec![0; 200]);
 
         let bytes = crate::dump_table(&thing).unwrap();
         assert_eq!(thing.compute_size() as usize, bytes.len());
