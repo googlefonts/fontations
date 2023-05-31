@@ -1,6 +1,6 @@
 //! Helpers for selecting a font size and location in variation space.
 
-use crate::util::SmallArray;
+use crate::small_array::SmallArray;
 
 /// Type for a normalized variation coordinate.
 pub type NormalizedCoord = read_fonts::types::F2Dot14;

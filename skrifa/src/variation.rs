@@ -10,8 +10,8 @@ use read_fonts::{
 use crate::{
     instance::{Location, NormalizedCoord},
     setting::VariationSetting,
+    small_array::SmallArray,
     string::StringId,
-    util::SmallArray,
 };
 
 /// Axis of variation in a variable font.
@@ -65,8 +65,8 @@ impl Axis {
 
     /// Returns a normalized coordinate for the given user coordinate.
     ///
-    /// The value will be clamped to the range specified by the minimum 
-    ///  and maximum values.
+    /// The value will be clamped to the range specified by the minimum
+    /// and maximum values.
     ///    
     /// This does not apply any axis variation remapping.
     pub fn normalize(&self, coord: f32) -> NormalizedCoord {
@@ -143,13 +143,12 @@ impl<'a> AxisCollection<'a> {
     /// ```rust
     /// # use skrifa::prelude::*;
     /// # fn wrapper(font: &FontRef) {
-    /// let location = font.axes().location(&[("wght", 250.0), ("wdth", 75.0)]);
+    /// let location = font.axes().location([("wght", 250.0), ("wdth", 75.0)]);
     /// # }
     /// ```
     pub fn location<I>(&self, settings: I) -> Location
     where
         I: IntoIterator,
-        I::IntoIter: 'a + Clone,
         I::Item: Into<VariationSetting>,
     {
         let mut location = Location::new(self.len());
@@ -180,13 +179,12 @@ impl<'a> AxisCollection<'a> {
     /// # fn wrapper(font: &FontRef) {
     /// let axes = font.axes();
     /// let mut location = vec![NormalizedCoord::default(); axes.len()];
-    /// axes.location_to_slice(&[("wght", 250.0), ("wdth", 75.0)], &mut location);
+    /// axes.location_to_slice([("wght", 250.0), ("wdth", 75.0)], &mut location);
     /// # }
     /// ```
     pub fn location_to_slice<I>(&self, settings: I, location: &mut [NormalizedCoord])
     where
         I: IntoIterator,
-        I::IntoIter: 'a + Clone,
         I::Item: Into<VariationSetting>,
     {
         for coord in location.iter_mut() {
@@ -235,7 +233,7 @@ impl<'a> AxisCollection<'a> {
     /// // 100-900:
     /// let axes = font.axes();
     /// let filtered: Vec<_> = axes
-    ///     .filter(&[("wght", 400.0), ("opsz", 100.0), ("wght", 1200.0)])
+    ///     .filter([("wght", 400.0), ("opsz", 100.0), ("wght", 1200.0)])
     ///     .collect();
     /// // The first "wght" and "opsz" settings are dropped and the final
     /// // "wght" axis is clamped to the maximum value of 900.
@@ -245,7 +243,6 @@ impl<'a> AxisCollection<'a> {
     pub fn filter<I>(&self, settings: I) -> impl Iterator<Item = VariationSetting> + Clone
     where
         I: IntoIterator,
-        I::IntoIter: 'a + Clone,
         I::Item: Into<VariationSetting>,
     {
         #[derive(Copy, Clone, Default)]
@@ -482,19 +479,19 @@ mod tests {
         let axes = font.axes();
         let axis = axes.get_by_tag(Tag::from_str("wght").unwrap()).unwrap();
         assert_eq!(
-            axes.location(&[("wght", -1000.0)]).coords(),
+            axes.location([("wght", -1000.0)]).coords(),
             &[NormalizedCoord::from_f32(-1.0)]
         );
         assert_eq!(
-            axes.location(&[("wght", 100.0)]).coords(),
+            axes.location([("wght", 100.0)]).coords(),
             &[NormalizedCoord::from_f32(-1.0)]
         );
         assert_eq!(
-            axes.location(&[("wght", 200.0)]).coords(),
+            axes.location([("wght", 200.0)]).coords(),
             &[NormalizedCoord::from_f32(-0.5)]
         );
         assert_eq!(
-            axes.location(&[("wght", 400.0)]).coords(),
+            axes.location([("wght", 400.0)]).coords(),
             &[NormalizedCoord::from_f32(0.0)]
         );
         // avar table maps 0.8 to 0.83875
@@ -507,11 +504,11 @@ mod tests {
             &[NormalizedCoord::from_f32(0.83875)]
         );
         assert_eq!(
-            axes.location(&[("wght", 900.0)]).coords(),
+            axes.location([("wght", 900.0)]).coords(),
             &[NormalizedCoord::from_f32(1.0)]
         );
         assert_eq!(
-            axes.location(&[("wght", 1251.5)]).coords(),
+            axes.location([("wght", 1251.5)]).coords(),
             &[NormalizedCoord::from_f32(1.0)]
         );
     }
