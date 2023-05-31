@@ -63,9 +63,11 @@ impl Axis {
         self.record.max_value().to_f64() as _
     }
 
-    /// Returns a normalized coordinate for the given user coordinate. The value will be
-    /// clamped to the range specified by the minimum and maximum values.
+    /// Returns a normalized coordinate for the given user coordinate.
     ///
+    /// The value will be clamped to the range specified by the minimum 
+    ///  and maximum values.
+    ///    
     /// This does not apply any axis variation remapping.
     pub fn normalize(&self, coord: f32) -> NormalizedCoord {
         self.record
