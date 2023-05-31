@@ -29,6 +29,7 @@ pub mod setting;
 pub mod string;
 
 mod provider;
+mod small_array;
 
 /// Useful collection of common types suitable for glob importing.
 pub mod prelude {
