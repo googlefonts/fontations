@@ -64,8 +64,8 @@ impl FontWrite for Gdef {
             .compatible((1, 3))
             .then(|| self.item_var_store.write_into(writer));
     }
-    fn name(&self) -> &'static str {
-        "Gdef"
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(Gdef::TAG)
     }
 }
 
@@ -153,8 +153,8 @@ impl FontWrite for AttachList {
         (array_len(&self.attach_points).unwrap() as u16).write_into(writer);
         self.attach_points.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AttachList"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AttachList")
     }
 }
 
@@ -178,7 +178,7 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::AttachList<'a>> for AttachList {
     fn from_obj_ref(obj: &read_fonts::tables::gdef::AttachList<'a>, _: FontData) -> Self {
         AttachList {
             coverage: obj.coverage().to_owned_table(),
-            attach_points: obj.attach_points().map(|x| x.to_owned_table()).collect(),
+            attach_points: obj.attach_points().to_owned_table(),
         }
     }
 }
@@ -213,8 +213,8 @@ impl FontWrite for AttachPoint {
         (array_len(&self.point_indices).unwrap() as u16).write_into(writer);
         self.point_indices.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AttachPoint"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AttachPoint")
     }
 }
 
@@ -274,8 +274,8 @@ impl FontWrite for LigCaretList {
         (array_len(&self.lig_glyphs).unwrap() as u16).write_into(writer);
         self.lig_glyphs.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "LigCaretList"
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigCaretList")
     }
 }
 
@@ -299,7 +299,7 @@ impl<'a> FromObjRef<read_fonts::tables::gdef::LigCaretList<'a>> for LigCaretList
     fn from_obj_ref(obj: &read_fonts::tables::gdef::LigCaretList<'a>, _: FontData) -> Self {
         LigCaretList {
             coverage: obj.coverage().to_owned_table(),
-            lig_glyphs: obj.lig_glyphs().map(|x| x.to_owned_table()).collect(),
+            lig_glyphs: obj.lig_glyphs().to_owned_table(),
         }
     }
 }
@@ -335,8 +335,8 @@ impl FontWrite for LigGlyph {
         (array_len(&self.caret_values).unwrap() as u16).write_into(writer);
         self.caret_values.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "LigGlyph"
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigGlyph")
     }
 }
 
@@ -356,7 +356,7 @@ impl Validate for LigGlyph {
 impl<'a> FromObjRef<read_fonts::tables::gdef::LigGlyph<'a>> for LigGlyph {
     fn from_obj_ref(obj: &read_fonts::tables::gdef::LigGlyph<'a>, _: FontData) -> Self {
         LigGlyph {
-            caret_values: obj.caret_values().map(|x| x.to_owned_table()).collect(),
+            caret_values: obj.caret_values().to_owned_table(),
         }
     }
 }
@@ -408,11 +408,11 @@ impl FontWrite for CaretValue {
             Self::Format3(item) => item.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Format1(_) => "CaretValue.Format1",
-            Self::Format2(_) => "CaretValue.Format2",
-            Self::Format3(_) => "CaretValue.Format3",
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+            Self::Format3(item) => item.table_type(),
         }
     }
 }
@@ -466,8 +466,8 @@ impl FontWrite for CaretValueFormat1 {
         (1 as u16).write_into(writer);
         self.coordinate.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "CaretValueFormat1"
+    fn table_type(&self) -> TableType {
+        TableType::Named("CaretValueFormat1")
     }
 }
 
@@ -514,8 +514,8 @@ impl FontWrite for CaretValueFormat2 {
         (2 as u16).write_into(writer);
         self.caret_value_point_index.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "CaretValueFormat2"
+    fn table_type(&self) -> TableType {
+        TableType::Named("CaretValueFormat2")
     }
 }
 
@@ -568,8 +568,8 @@ impl FontWrite for CaretValueFormat3 {
         self.coordinate.write_into(writer);
         self.device.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "CaretValueFormat3"
+    fn table_type(&self) -> TableType {
+        TableType::Named("CaretValueFormat3")
     }
 }
 
@@ -625,8 +625,8 @@ impl FontWrite for MarkGlyphSets {
         (array_len(&self.coverages).unwrap() as u16).write_into(writer);
         self.coverages.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "MarkGlyphSets"
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkGlyphSets")
     }
 }
 
@@ -646,7 +646,7 @@ impl Validate for MarkGlyphSets {
 impl<'a> FromObjRef<read_fonts::tables::gdef::MarkGlyphSets<'a>> for MarkGlyphSets {
     fn from_obj_ref(obj: &read_fonts::tables::gdef::MarkGlyphSets<'a>, _: FontData) -> Self {
         MarkGlyphSets {
-            coverages: obj.coverages().map(|x| x.to_owned_table()).collect(),
+            coverages: obj.coverages().to_owned_table(),
         }
     }
 }

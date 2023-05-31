@@ -1,5 +1,6 @@
 //! A graph for resolving table offsets
 
+use crate::{table_type::TableType, tables::layout::LookupType};
 use font_types::Uint24;
 
 use super::write::TableData;
@@ -128,6 +129,7 @@ struct Distance {
 struct Priority(u8);
 
 /// A record of an overflowing offset
+#[derive(Clone, Debug)]
 pub(crate) struct Overflow {
     parent: ObjectId,
     child: ObjectId,
@@ -286,6 +288,10 @@ impl Graph {
         out
     }
 
+    fn can_potentially_promote_subtables(&self) -> bool {
+        [TableType::GSUB, TableType::GPOS].contains(&self.objects[&self.root].type_)
+    }
+
     /// Attempt to pack the graph.
     ///
     /// This involves finding an order for objects such that all offsets are
@@ -306,6 +312,11 @@ impl Graph {
             return true;
         }
 
+        if self.can_potentially_promote_subtables() {
+            self.try_promoting_subtables();
+        }
+
+        log::info!("assigning spaces");
         self.assign_spaces_hb();
         self.sort_shortest_distance();
 
@@ -810,6 +821,208 @@ impl Graph {
         self.next_space
     }
 
+    fn try_promoting_subtables(&mut self) {
+        let Some((can_promote, parent_id)) = self.get_promotable_subtables() else { return };
+        let to_promote = self.select_promotions_hb(&can_promote, parent_id);
+        log::info!(
+            "promoting {} of {} eligible subtables",
+            to_promote.len(),
+            can_promote.len()
+        );
+        self.actually_promote_subtables(&to_promote);
+    }
+
+    fn actually_promote_subtables(&mut self, to_promote: &[ObjectId]) {
+        fn make_extension(type_: LookupType, subtable_id: ObjectId) -> (ObjectId, TableData) {
+            const EXT_FORMAT: u16 = 1;
+            let mut data = TableData {
+                type_: type_.promote().into(),
+                ..Default::default()
+            };
+            data.write(EXT_FORMAT);
+            data.write(type_.to_raw());
+            data.add_offset(subtable_id, 4, 0);
+            (ObjectId::next(), data)
+        }
+
+        for id in to_promote {
+            // 'id' is a lookup table.
+            // we need to:
+            // - change the subtable type
+            // - create a new extension table for each subtable
+            // - update the object ids
+
+            let mut lookup = self.objects.remove(id).unwrap();
+            let lookup_type = lookup.type_.to_lookup_type().expect("validated before now");
+            for subtable_ref in &mut lookup.offsets {
+                let (ext_id, ext_table) = make_extension(lookup_type, subtable_ref.object);
+                self.nodes
+                    .insert(ext_id, Node::new(ext_table.bytes.len() as _));
+                self.objects.insert(ext_id, ext_table);
+                subtable_ref.object = ext_id;
+            }
+            lookup.write_over(lookup_type.promote().to_raw(), 0);
+            lookup.type_ = lookup_type.promote().into();
+            self.objects.insert(*id, lookup);
+        }
+        self.parents_invalid = true;
+        self.positions_invalid = true;
+    }
+
+    // get the list of tables that can be promoted, as well as the id of their parent table
+    fn get_promotable_subtables(&self) -> Option<(Vec<ObjectId>, ObjectId)> {
+        let can_promote = self
+            .objects
+            .iter()
+            .filter_map(|(id, obj)| (obj.type_.is_promotable()).then_some(*id))
+            .collect::<Vec<_>>();
+
+        if can_promote.is_empty() {
+            return None;
+        }
+
+        // sanity check: ensure that all promotable tables have a common root.
+        let parents = can_promote
+            .iter()
+            .flat_map(|id| {
+                self.nodes
+                    .get(id)
+                    .expect("all nodes exist")
+                    .parents
+                    .iter()
+                    .map(|x| x.0)
+            })
+            .collect::<HashSet<_>>();
+
+        // the only promotable subtables should be lookups, and there should
+        // be a single LookupList that is their parent; if there is more than
+        // one parent then something weird is going on.
+        if parents.len() > 1 {
+            if cfg!(debug_assertions) {
+                panic!("Promotable subtables exist with multiple parents");
+            } else {
+                log::warn!("Promotable subtables exist with multiple parents");
+                return None;
+            }
+        }
+
+        let parent_id = *parents.iter().next().unwrap();
+        Some((can_promote, parent_id))
+    }
+
+    /// select the tables to promote to extension, harfbuzz algorithm
+    ///
+    /// Based on the logic in HarfBuzz's [`_promote_exetnsions_if_needed`][hb-promote][hb-promote] function.
+    ///
+    /// [hb-promote]: https://github.com/harfbuzz/harfbuzz/blob/5d543d64222c6ce45332d0c188790f90691ef112/src/hb-repacker.hh#L97
+    fn select_promotions_hb(&self, candidates: &[ObjectId], parent_id: ObjectId) -> Vec<ObjectId> {
+        struct LookupSize {
+            id: ObjectId,
+            subgraph_size: usize,
+            subtable_count: usize,
+        }
+
+        impl LookupSize {
+            // I could impl Ord but then I need to impl PartialEq and it ends
+            // up being way more code
+            fn sort_key(&self) -> impl Ord {
+                let bytes_per_subtable = self.subtable_count as f64 / self.subgraph_size as f64;
+                // f64 isn't ord, so we turn it into an integer,
+                // then reverse, because we want bigger things first
+                std::cmp::Reverse((bytes_per_subtable * 1e9) as u64)
+            }
+        }
+
+        let mut lookup_sizes = Vec::with_capacity(candidates.len());
+        let mut reusable_buffer = HashSet::new();
+        let mut queue = VecDeque::new();
+        for id in candidates {
+            // get the subgraph size
+            queue.clear();
+            queue.push_back(*id);
+            let subgraph_size = self.find_subgraph_size(&mut queue, &mut reusable_buffer);
+            let subtable_count = self.objects.get(id).unwrap().offsets.len();
+            lookup_sizes.push(LookupSize {
+                id: *id,
+                subgraph_size,
+                subtable_count,
+            });
+        }
+
+        lookup_sizes.sort_by_key(LookupSize::sort_key);
+        const EXTENSION_SIZE: usize = 8; // number of bytes added by an extension subtable
+        const MAX_LAYER_SIZE: usize = u16::MAX as usize;
+
+        let lookup_list_size = self.objects.get(&parent_id).unwrap().bytes.len();
+        let mut l2_l3_size = lookup_list_size; // size of LookupList + lookups
+        let mut l3_l4_size = 0; // Lookups + lookup subtables
+        let mut l4_plus_size = 0; // subtables and anything below that
+
+        // start by assuming all lookups are extensions; we will adjust this later
+        // if we do not promote.
+        for lookup in &lookup_sizes {
+            let subtables_size = lookup.subtable_count * EXTENSION_SIZE;
+            l3_l4_size += subtables_size;
+            l4_plus_size += subtables_size;
+        }
+
+        let mut layers_full = false;
+        let mut to_promote = Vec::new();
+        for lookup in &lookup_sizes {
+            if !layers_full {
+                let lookup_size = self.objects.get(&lookup.id).unwrap().bytes.len();
+                let subtables_size = self.find_children_size(lookup.id);
+                let remaining_size = lookup.subgraph_size - lookup_size - subtables_size;
+                l2_l3_size += lookup_size;
+                l3_l4_size += lookup_size + subtables_size;
+                // adjust down, because we are demoting out of extension space
+                l3_l4_size -= lookup.subtable_count * EXTENSION_SIZE;
+                l4_plus_size += subtables_size + remaining_size;
+
+                if l2_l3_size < MAX_LAYER_SIZE
+                    && l3_l4_size < MAX_LAYER_SIZE
+                    && l4_plus_size < MAX_LAYER_SIZE
+                {
+                    // this lookup fits in the 16-bit space, great
+                    continue;
+                }
+                layers_full = true;
+            }
+            to_promote.push(lookup.id);
+        }
+        to_promote
+    }
+
+    /// the size only of children of this object, not the whole subgraph
+    fn find_children_size(&self, id: ObjectId) -> usize {
+        self.objects[&id]
+            .offsets
+            .iter()
+            .map(|off| self.objects.get(&off.object).unwrap().bytes.len())
+            .sum()
+    }
+
+    fn find_subgraph_size(
+        &self,
+        queue: &mut VecDeque<ObjectId>,
+        visited: &mut HashSet<ObjectId>,
+    ) -> usize {
+        let mut size = 0;
+        visited.clear();
+        while !queue.is_empty() {
+            let next = queue.pop_front().unwrap();
+            visited.insert(next);
+            let obj = self.objects.get(&next).unwrap();
+            size += obj.bytes.len();
+            queue.extend(
+                obj.offsets
+                    .iter()
+                    .filter_map(|obj| (!visited.contains(&obj.object)).then_some(obj.object)),
+            );
+        }
+        size
+    }
+
     fn duplicate_subgraph(
         &mut self,
         root: ObjectId,
@@ -896,6 +1109,12 @@ impl Default for Priority {
 
 #[cfg(test)]
 mod tests {
+    use std::ops::Range;
+
+    use font_types::GlyphId;
+
+    use crate::TableWriter;
+
     use super::*;
 
     fn make_ids<const N: usize>() -> [ObjectId; N] {
@@ -1272,5 +1491,143 @@ mod tests {
         assert!(graph.has_overflows());
         graph.pack_objects();
         assert!(!graph.has_overflows());
+    }
+
+    /// Construct a real gsub table that cannot be packed unless we use extension
+    /// subtables
+    #[test]
+    fn pack_real_gsub_table_with_extension_promotion() {
+        use crate::tables::{gsub, layout};
+
+        // trial and error: a number that just triggers overflow.
+        const NUM_SUBTABLES: usize = 3279;
+
+        // make an rsub rule for each glyph.
+        let rsub_rules = (0u16..NUM_SUBTABLES as u16)
+            .map(|id| {
+                // Each rule will use unique coverage tables, so nothing is shared.
+                let coverage = std::iter::once(GlyphId::new(id)).collect();
+                let backtrack = [id + 1, id + 3].into_iter().map(GlyphId::new).collect();
+                gsub::ReverseChainSingleSubstFormat1::new(
+                    coverage,
+                    vec![backtrack],
+                    vec![],
+                    vec![GlyphId::new(id + 1)],
+                )
+            })
+            .collect();
+
+        let list = layout::LookupList::<gsub::SubstitutionLookup>::new(vec![
+            gsub::SubstitutionLookup::Reverse(layout::Lookup::new(
+                layout::LookupFlag::empty(),
+                rsub_rules,
+                0,
+            )),
+        ]);
+        let table = gsub::Gsub::new(Default::default(), Default::default(), list);
+
+        let mut graph = TableWriter::make_graph(&table);
+        assert!(
+            !graph.basic_sort(),
+            "simple sorting should not resovle this graph"
+        );
+
+        const BASE_LEN: usize = 10 // header len
+           + 2 // scriptlist table
+           + 2 // featurelist
+           + 4 // lookup list, one offset
+           + 6; // lookup table (no offsets)
+        const RSUB_LEN: usize = 16 // base table len
+            + 6 // one-glyph coverage table
+            + 8; // two-glyph backtrack coverage table
+
+        const EXTENSION_LEN: usize = 8;
+
+        assert_eq!(graph.debug_len(), BASE_LEN + NUM_SUBTABLES * RSUB_LEN);
+        assert!(graph.pack_objects());
+        assert_eq!(
+            graph.debug_len(),
+            BASE_LEN + NUM_SUBTABLES * RSUB_LEN + NUM_SUBTABLES * EXTENSION_LEN
+        );
+
+        const EXPECTED_N_TABLES: usize = 5 // header, script/feature/lookup lists, lookup
+            - 1 // because script/feature are both empty, thus identical
+            + NUM_SUBTABLES * 3 // subtable + coverage + backtrack
+            + NUM_SUBTABLES; // extension table for each subtable
+        assert_eq!(graph.order.len(), EXPECTED_N_TABLES);
+    }
+
+    #[test]
+    fn pack_real_gpos_table_with_extension_promotion() {
+        use crate::tables::{gpos, layout};
+
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        fn make_big_pair_pos(glyph_range: Range<u16>) -> gpos::PositionLookup {
+            let coverage = glyph_range.clone().map(GlyphId::new).collect();
+            let pair_sets = glyph_range
+                .map(|id| {
+                    let value_rec = gpos::ValueRecord {
+                        x_advance: Some(id as _),
+                        ..Default::default()
+                    };
+                    gpos::PairSet::new(
+                        (id..id + 165)
+                            .map(|id2| {
+                                gpos::PairValueRecord::new(
+                                    GlyphId::new(id2),
+                                    value_rec.clone(),
+                                    gpos::ValueRecord::default(),
+                                )
+                            })
+                            .collect(),
+                    )
+                })
+                .collect::<Vec<_>>();
+            gpos::PositionLookup::Pair(layout::Lookup::new(
+                layout::LookupFlag::empty(),
+                vec![gpos::PairPos::format_1(coverage, pair_sets)],
+                0,
+            ))
+        }
+
+        // this is a shallow graph with large nodes, which makes it easier
+        // to visualize with graphviz.
+        let pp1 = make_big_pair_pos(1..20);
+        let pp2 = make_big_pair_pos(100..120);
+        let pp3 = make_big_pair_pos(200..221);
+        let pp4 = make_big_pair_pos(400..422);
+        let pp5 = make_big_pair_pos(500..523);
+        let pp6 = make_big_pair_pos(600..624);
+        let table = gpos::Gpos::new(
+            Default::default(),
+            Default::default(),
+            layout::LookupList::new(vec![pp1, pp2, pp3, pp4, pp5, pp6]),
+        );
+
+        // this constructs a graph where there are overflows in a single pairpos
+        // subtable.
+        let mut graph = TableWriter::make_graph(&table);
+        assert!(
+            !graph.basic_sort(),
+            "simple sorting should not resovle this graph",
+        );
+
+        // uncomment these two lines if you want to visualize the graph:
+
+        //graph.write_graph_viz("promote_gpos_before.dot");
+
+        let n_tables_before = graph.order.len();
+        assert!(graph.pack_objects());
+
+        //graph.write_graph_viz("promote_gpos_after.dot");
+
+        // we should have resolved this overflow by promoting a single lookup
+        // to be an extension, but our logic for determining when to promote
+        // is not quite perfect, so it promotes an extra.
+        //
+        // if our impl changes and this is failing because we're only promoting
+        // a single extension, then that's great
+        assert_eq!(n_tables_before + 2, graph.order.len());
     }
 }

@@ -47,8 +47,8 @@ impl FontWrite for Gsub {
             .compatible((1, 1))
             .then(|| self.feature_variations.write_into(writer));
     }
-    fn name(&self) -> &'static str {
-        "Gsub"
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(Gsub::TAG)
     }
 }
 
@@ -126,16 +126,16 @@ impl FontWrite for SubstitutionLookup {
             Self::Reverse(table) => table.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Single(_) => "SubstitutionLookup.Single",
-            Self::Multiple(_) => "SubstitutionLookup.Multiple",
-            Self::Alternate(_) => "SubstitutionLookup.Alternate",
-            Self::Ligature(_) => "SubstitutionLookup.Ligature",
-            Self::Contextual(_) => "SubstitutionLookup.Contextual",
-            Self::ChainContextual(_) => "SubstitutionLookup.ChainContextual",
-            Self::Extension(_) => "SubstitutionLookup.Extension",
-            Self::Reverse(_) => "SubstitutionLookup.Reverse",
+            Self::Single(table) => table.table_type(),
+            Self::Multiple(table) => table.table_type(),
+            Self::Alternate(table) => table.table_type(),
+            Self::Ligature(table) => table.table_type(),
+            Self::Contextual(table) => table.table_type(),
+            Self::ChainContextual(table) => table.table_type(),
+            Self::Extension(table) => table.table_type(),
+            Self::Reverse(table) => table.table_type(),
         }
     }
 }
@@ -223,10 +223,10 @@ impl FontWrite for SingleSubst {
             Self::Format2(item) => item.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Format1(_) => "SingleSubst.Format1",
-            Self::Format2(_) => "SingleSubst.Format2",
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
         }
     }
 }
@@ -285,8 +285,8 @@ impl FontWrite for SingleSubstFormat1 {
         self.coverage.write_into(writer);
         self.delta_glyph_id.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "SingleSubstFormat1"
+    fn table_type(&self) -> TableType {
+        TableType::Named("SingleSubstFormat1")
     }
 }
 
@@ -346,8 +346,8 @@ impl FontWrite for SingleSubstFormat2 {
         (array_len(&self.substitute_glyph_ids).unwrap() as u16).write_into(writer);
         self.substitute_glyph_ids.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "SingleSubstFormat2"
+    fn table_type(&self) -> TableType {
+        TableType::Named("SingleSubstFormat2")
     }
 }
 
@@ -414,8 +414,8 @@ impl FontWrite for MultipleSubstFormat1 {
         (array_len(&self.sequences).unwrap() as u16).write_into(writer);
         self.sequences.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "MultipleSubstFormat1"
+    fn table_type(&self) -> TableType {
+        TableType::Named("MultipleSubstFormat1")
     }
 }
 
@@ -439,7 +439,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::MultipleSubstFormat1<'a>> for Mult
     fn from_obj_ref(obj: &read_fonts::tables::gsub::MultipleSubstFormat1<'a>, _: FontData) -> Self {
         MultipleSubstFormat1 {
             coverage: obj.coverage().to_owned_table(),
-            sequences: obj.sequences().map(|x| x.to_owned_table()).collect(),
+            sequences: obj.sequences().to_owned_table(),
         }
     }
 }
@@ -475,8 +475,8 @@ impl FontWrite for Sequence {
         (array_len(&self.substitute_glyph_ids).unwrap() as u16).write_into(writer);
         self.substitute_glyph_ids.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Sequence"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Sequence")
     }
 }
 
@@ -538,8 +538,8 @@ impl FontWrite for AlternateSubstFormat1 {
         (array_len(&self.alternate_sets).unwrap() as u16).write_into(writer);
         self.alternate_sets.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AlternateSubstFormat1"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AlternateSubstFormat1")
     }
 }
 
@@ -566,7 +566,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::AlternateSubstFormat1<'a>> for Alt
     ) -> Self {
         AlternateSubstFormat1 {
             coverage: obj.coverage().to_owned_table(),
-            alternate_sets: obj.alternate_sets().map(|x| x.to_owned_table()).collect(),
+            alternate_sets: obj.alternate_sets().to_owned_table(),
         }
     }
 }
@@ -605,8 +605,8 @@ impl FontWrite for AlternateSet {
         (array_len(&self.alternate_glyph_ids).unwrap() as u16).write_into(writer);
         self.alternate_glyph_ids.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AlternateSet"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AlternateSet")
     }
 }
 
@@ -668,8 +668,8 @@ impl FontWrite for LigatureSubstFormat1 {
         (array_len(&self.ligature_sets).unwrap() as u16).write_into(writer);
         self.ligature_sets.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "LigatureSubstFormat1"
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigatureSubstFormat1")
     }
 }
 
@@ -693,7 +693,7 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::LigatureSubstFormat1<'a>> for Liga
     fn from_obj_ref(obj: &read_fonts::tables::gsub::LigatureSubstFormat1<'a>, _: FontData) -> Self {
         LigatureSubstFormat1 {
             coverage: obj.coverage().to_owned_table(),
-            ligature_sets: obj.ligature_sets().map(|x| x.to_owned_table()).collect(),
+            ligature_sets: obj.ligature_sets().to_owned_table(),
         }
     }
 }
@@ -730,8 +730,8 @@ impl FontWrite for LigatureSet {
         (array_len(&self.ligatures).unwrap() as u16).write_into(writer);
         self.ligatures.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "LigatureSet"
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigatureSet")
     }
 }
 
@@ -751,7 +751,7 @@ impl Validate for LigatureSet {
 impl<'a> FromObjRef<read_fonts::tables::gsub::LigatureSet<'a>> for LigatureSet {
     fn from_obj_ref(obj: &read_fonts::tables::gsub::LigatureSet<'a>, _: FontData) -> Self {
         LigatureSet {
-            ligatures: obj.ligatures().map(|x| x.to_owned_table()).collect(),
+            ligatures: obj.ligatures().to_owned_table(),
         }
     }
 }
@@ -791,8 +791,8 @@ impl FontWrite for Ligature {
         (plus_one(&self.component_glyph_ids.len()).unwrap() as u16).write_into(writer);
         self.component_glyph_ids.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Ligature"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Ligature")
     }
 }
 
@@ -905,15 +905,15 @@ impl FontWrite for ExtensionSubtable {
             Self::Reverse(table) => table.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Single(_) => "ExtensionSubtable.Single",
-            Self::Multiple(_) => "ExtensionSubtable.Multiple",
-            Self::Alternate(_) => "ExtensionSubtable.Alternate",
-            Self::Ligature(_) => "ExtensionSubtable.Ligature",
-            Self::Contextual(_) => "ExtensionSubtable.Contextual",
-            Self::ChainContextual(_) => "ExtensionSubtable.ChainContextual",
-            Self::Reverse(_) => "ExtensionSubtable.Reverse",
+            Self::Single(table) => table.table_type(),
+            Self::Multiple(table) => table.table_type(),
+            Self::Alternate(table) => table.table_type(),
+            Self::Ligature(table) => table.table_type(),
+            Self::Contextual(table) => table.table_type(),
+            Self::ChainContextual(table) => table.table_type(),
+            Self::Reverse(table) => table.table_type(),
         }
     }
 }
@@ -1010,8 +1010,8 @@ impl FontWrite for ReverseChainSingleSubstFormat1 {
         (array_len(&self.substitute_glyph_ids).unwrap() as u16).write_into(writer);
         self.substitute_glyph_ids.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "ReverseChainSingleSubstFormat1"
+    fn table_type(&self) -> TableType {
+        TableType::Named("ReverseChainSingleSubstFormat1")
     }
 }
 
@@ -1052,14 +1052,8 @@ impl<'a> FromObjRef<read_fonts::tables::gsub::ReverseChainSingleSubstFormat1<'a>
         let offset_data = obj.offset_data();
         ReverseChainSingleSubstFormat1 {
             coverage: obj.coverage().to_owned_table(),
-            backtrack_coverages: obj
-                .backtrack_coverages()
-                .map(|x| x.to_owned_table())
-                .collect(),
-            lookahead_coverages: obj
-                .lookahead_coverages()
-                .map(|x| x.to_owned_table())
-                .collect(),
+            backtrack_coverages: obj.backtrack_coverages().to_owned_table(),
+            lookahead_coverages: obj.lookahead_coverages().to_owned_table(),
             substitute_glyph_ids: obj.substitute_glyph_ids().to_owned_obj(offset_data),
         }
     }

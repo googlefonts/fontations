@@ -9,7 +9,7 @@ use std::collections::HashSet;
 //use super::layout::value_record::ValueRecord;
 use super::layout::{
     ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
-    Lookup, LookupList, LookupType, ScriptList, SequenceContext,
+    Lookup, LookupList, LookupSubtable, LookupType, ScriptList, SequenceContext,
 };
 
 #[cfg(test)]
@@ -45,17 +45,17 @@ impl Gpos {
     }
 }
 
-super::layout::lookup_type!(SinglePos, 1);
-super::layout::lookup_type!(PairPos, 2);
-super::layout::lookup_type!(CursivePosFormat1, 3);
-super::layout::lookup_type!(MarkBasePosFormat1, 4);
-super::layout::lookup_type!(MarkLigPosFormat1, 5);
-super::layout::lookup_type!(MarkMarkPosFormat1, 6);
-super::layout::lookup_type!(PositionSequenceContext, 7);
-super::layout::lookup_type!(PositionChainContext, 8);
-super::layout::lookup_type!(ExtensionSubtable, 9);
+super::layout::lookup_type!(gpos, SinglePos, 1);
+super::layout::lookup_type!(gpos, PairPos, 2);
+super::layout::lookup_type!(gpos, CursivePosFormat1, 3);
+super::layout::lookup_type!(gpos, MarkBasePosFormat1, 4);
+super::layout::lookup_type!(gpos, MarkLigPosFormat1, 5);
+super::layout::lookup_type!(gpos, MarkMarkPosFormat1, 6);
+super::layout::lookup_type!(gpos, PositionSequenceContext, 7);
+super::layout::lookup_type!(gpos, PositionChainContext, 8);
+super::layout::lookup_type!(gpos, ExtensionSubtable, 9);
 
-impl<T: LookupType + FontWrite> FontWrite for ExtensionPosFormat1<T> {
+impl<T: LookupSubtable + FontWrite> FontWrite for ExtensionPosFormat1<T> {
     fn write_into(&self, writer: &mut TableWriter) {
         1u16.write_into(writer);
         T::TYPE.write_into(writer);
@@ -193,10 +193,10 @@ mod tests {
 
         assert_eq!(table.lookup_flag(), LookupFlag::empty());
         assert_eq!(table.sub_table_count(), 2);
-        let read_gpos::SinglePos::Format1(sub1) = table.subtables().next().unwrap().unwrap() else {
+        let read_gpos::SinglePos::Format1(sub1) = table.subtables().get(0).unwrap() else {
             panic!("wrong table type");
         };
-        let read_gpos::SinglePos::Format1(sub2) = table.subtables().nth(1).unwrap().unwrap() else {
+        let read_gpos::SinglePos::Format1(sub2) = table.subtables().get(1).unwrap() else {
             panic!("wrong table type");
         };
 

@@ -138,8 +138,8 @@ impl FontWrite for Head {
         self.index_to_loc_format.write_into(writer);
         (0 as i16).write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Head"
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(Head::TAG)
     }
 }
 

@@ -29,8 +29,8 @@ impl FontWrite for Cmap {
         (array_len(&self.encoding_records).unwrap() as u16).write_into(writer);
         self.encoding_records.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Cmap"
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(Cmap::TAG)
     }
 }
 
@@ -97,8 +97,8 @@ impl FontWrite for EncodingRecord {
         self.encoding_id.write_into(writer);
         self.subtable.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "EncodingRecord"
+    fn table_type(&self) -> TableType {
+        TableType::Named("EncodingRecord")
     }
 }
 
@@ -279,17 +279,17 @@ impl FontWrite for CmapSubtable {
             Self::Format14(item) => item.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Format0(_) => "CmapSubtable.Format0",
-            Self::Format2(_) => "CmapSubtable.Format2",
-            Self::Format4(_) => "CmapSubtable.Format4",
-            Self::Format6(_) => "CmapSubtable.Format6",
-            Self::Format8(_) => "CmapSubtable.Format8",
-            Self::Format10(_) => "CmapSubtable.Format10",
-            Self::Format12(_) => "CmapSubtable.Format12",
-            Self::Format13(_) => "CmapSubtable.Format13",
-            Self::Format14(_) => "CmapSubtable.Format14",
+            Self::Format0(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+            Self::Format4(item) => item.table_type(),
+            Self::Format6(item) => item.table_type(),
+            Self::Format8(item) => item.table_type(),
+            Self::Format10(item) => item.table_type(),
+            Self::Format12(item) => item.table_type(),
+            Self::Format13(item) => item.table_type(),
+            Self::Format14(item) => item.table_type(),
         }
     }
 }
@@ -363,8 +363,8 @@ impl FontWrite for Cmap0 {
         self.language.write_into(writer);
         self.glyph_id_array.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Cmap0"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap0")
     }
 }
 
@@ -422,8 +422,8 @@ impl FontWrite for Cmap2 {
         self.language.write_into(writer);
         self.sub_header_keys.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Cmap2"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap2")
     }
 }
 
@@ -482,8 +482,8 @@ impl FontWrite for SubHeader {
         self.id_delta.write_into(writer);
         self.id_range_offset.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "SubHeader"
+    fn table_type(&self) -> TableType {
+        TableType::Named("SubHeader")
     }
 }
 
@@ -583,8 +583,8 @@ impl FontWrite for Cmap4 {
         self.id_range_offsets.write_into(writer);
         self.glyph_id_array.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Cmap4"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap4")
     }
 }
 
@@ -664,8 +664,8 @@ impl FontWrite for Cmap6 {
         self.entry_count.write_into(writer);
         self.glyph_id_array.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Cmap6"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap6")
     }
 }
 
@@ -750,8 +750,8 @@ impl FontWrite for Cmap8 {
         self.num_groups.write_into(writer);
         self.groups.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Cmap8"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap8")
     }
 }
 
@@ -821,8 +821,8 @@ impl FontWrite for SequentialMapGroup {
         self.end_char_code.write_into(writer);
         self.start_glyph_id.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "SequentialMapGroup"
+    fn table_type(&self) -> TableType {
+        TableType::Named("SequentialMapGroup")
     }
 }
 
@@ -886,8 +886,8 @@ impl FontWrite for Cmap10 {
         self.num_chars.write_into(writer);
         self.glyph_id_array.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Cmap10"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap10")
     }
 }
 
@@ -957,8 +957,8 @@ impl FontWrite for Cmap12 {
         self.num_groups.write_into(writer);
         self.groups.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Cmap12"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap12")
     }
 }
 
@@ -1031,8 +1031,8 @@ impl FontWrite for Cmap13 {
         self.num_groups.write_into(writer);
         self.groups.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Cmap13"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap13")
     }
 }
 
@@ -1098,8 +1098,8 @@ impl FontWrite for ConstantMapGroup {
         self.end_char_code.write_into(writer);
         self.glyph_id.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "ConstantMapGroup"
+    fn table_type(&self) -> TableType {
+        TableType::Named("ConstantMapGroup")
     }
 }
 
@@ -1151,8 +1151,8 @@ impl FontWrite for Cmap14 {
         self.num_var_selector_records.write_into(writer);
         self.var_selector.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Cmap14"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Cmap14")
     }
 }
 
@@ -1222,8 +1222,8 @@ impl FontWrite for VariationSelector {
         self.default_uvs.write_into(writer);
         self.non_default_uvs.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "VariationSelector"
+    fn table_type(&self) -> TableType {
+        TableType::Named("VariationSelector")
     }
 }
 
@@ -1277,8 +1277,8 @@ impl FontWrite for DefaultUvs {
         self.num_unicode_value_ranges.write_into(writer);
         self.ranges.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "DefaultUvs"
+    fn table_type(&self) -> TableType {
+        TableType::Named("DefaultUvs")
     }
 }
 
@@ -1335,8 +1335,8 @@ impl FontWrite for NonDefaultUvs {
         self.num_uvs_mappings.write_into(writer);
         self.uvs_mapping.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "NonDefaultUvs"
+    fn table_type(&self) -> TableType {
+        TableType::Named("NonDefaultUvs")
     }
 }
 
@@ -1396,8 +1396,8 @@ impl FontWrite for UvsMapping {
         self.unicode_value.write_into(writer);
         self.glyph_id.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "UvsMapping"
+    fn table_type(&self) -> TableType {
+        TableType::Named("UvsMapping")
     }
 }
 
@@ -1438,8 +1438,8 @@ impl FontWrite for UnicodeRange {
         self.start_unicode_value.write_into(writer);
         self.additional_count.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "UnicodeRange"
+    fn table_type(&self) -> TableType {
+        TableType::Named("UnicodeRange")
     }
 }
 

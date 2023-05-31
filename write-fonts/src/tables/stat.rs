@@ -26,13 +26,8 @@ fn convert_axis_value_offsets(
     from: Result<read_fonts::tables::stat::AxisValueArray, ReadError>,
 ) -> OffsetMarker<Vec<OffsetMarker<AxisValue>>, WIDTH_32> {
     from.ok()
-        .map(|array| {
-            array
-                .axis_values()
-                .map(|val| val.to_owned_obj(array.offset_data()))
-                .collect::<Vec<_>>()
-        })
-        .unwrap_or_default()
+        .map(|array| array.axis_values().to_owned_obj(array.offset_data()))
+        .unwrap_or_else(Vec::new)
         .into()
 }
 
@@ -71,7 +66,7 @@ mod tests {
         assert_eq!(read.axis_value_count(), 2);
         let axis_values = read.offset_to_axis_values().unwrap();
         assert_eq!(axis_values.axis_value_offsets().len(), 2);
-        let value2 = axis_values.axis_values().nth(1).unwrap().unwrap();
+        let value2 = axis_values.axis_values().get(1).unwrap();
         let read_stat::AxisValue::Format1(value2) = value2 else { panic!("wrong format"); };
         assert_eq!(value2.value_name_id(), NameId::new(261));
     }

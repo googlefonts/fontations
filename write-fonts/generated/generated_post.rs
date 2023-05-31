@@ -128,8 +128,8 @@ impl FontWrite for Post {
                 .write_into(writer)
         });
     }
-    fn name(&self) -> &'static str {
-        "Post"
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(Post::TAG)
     }
 }
 

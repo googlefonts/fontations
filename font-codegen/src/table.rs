@@ -388,11 +388,10 @@ pub(crate) fn generate_group_compile(
     let mut write_match_arms = Vec::new();
     let mut validate_match_arms = Vec::new();
     let mut from_obj_match_arms = Vec::new();
-    let mut name_arms = Vec::new();
+    let mut type_arms = Vec::new();
     let from_type = quote!(#parse_module :: #name);
     for var in &item.variants {
         let var_name = &var.name;
-        let var_name_string = format!("{name}.{var_name}");
         let typ = &var.typ;
 
         variant_decls.push(quote! { #var_name ( #inner <#typ> ) });
@@ -401,7 +400,7 @@ pub(crate) fn generate_group_compile(
         from_obj_match_arms.push(
             quote! { #from_type :: #var_name(table) => Self :: #var_name(table.to_owned_obj(data)) },
         );
-        name_arms.push(quote! { Self:: #var_name(_) => #var_name_string  });
+        type_arms.push(quote! { Self:: #var_name(table) => table.table_type()  });
     }
     let first_var_name = &item.variants.first().unwrap().name;
 
@@ -425,9 +424,9 @@ pub(crate) fn generate_group_compile(
                 }
             }
 
-            fn name(&self) -> &'static str {
+            fn table_type(&self) -> TableType {
                 match self {
-                    #( #name_arms, )*
+                    #( #type_arms, )*
                 }
             }
         }
@@ -478,10 +477,9 @@ pub(crate) fn generate_format_compile(
         quote!( Self::#var_name(item) => item.validate_impl(ctx), )
     });
 
-    let name_arms = item.variants.iter().map(|variant| {
+    let table_type_arms = item.variants.iter().map(|variant| {
         let var_name = &variant.name;
-        let var_name_str = format!("{name}.{var_name}");
-        quote!( Self::#var_name(_) => #var_name_str, )
+        quote!( Self::#var_name(item) => item.table_type(), )
     });
 
     let from_obj_impl = item
@@ -514,9 +512,9 @@ pub(crate) fn generate_format_compile(
                 }
             }
 
-            fn name(&self) -> &'static str {
+            fn table_type(&self) -> TableType {
                 match self {
-                    #( #name_arms )*
+                    #( #table_type_arms )*
                 }
             }
         }

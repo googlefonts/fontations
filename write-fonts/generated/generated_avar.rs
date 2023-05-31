@@ -27,8 +27,8 @@ impl FontWrite for Avar {
         (array_len(&self.axis_segment_maps).unwrap() as u16).write_into(writer);
         self.axis_segment_maps.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Avar"
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(Avar::TAG)
     }
 }
 
@@ -89,8 +89,8 @@ impl FontWrite for SegmentMaps {
         (array_len(&self.axis_value_maps).unwrap() as u16).write_into(writer);
         self.axis_value_maps.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "SegmentMaps"
+    fn table_type(&self) -> TableType {
+        TableType::Named("SegmentMaps")
     }
 }
 
@@ -139,8 +139,8 @@ impl FontWrite for AxisValueMap {
         self.from_coordinate.write_into(writer);
         self.to_coordinate.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AxisValueMap"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisValueMap")
     }
 }
 

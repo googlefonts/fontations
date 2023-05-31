@@ -48,8 +48,8 @@ impl FontWrite for Hvar {
         self.lsb_mapping.write_into(writer);
         self.rsb_mapping.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Hvar"
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(Hvar::TAG)
     }
 }
 

@@ -778,7 +778,7 @@ impl Field {
         generic: Option<&syn::Ident>,
         record: Option<&Record>,
     ) -> Option<TokenStream> {
-        let (_, target) = match &self.typ {
+        let (offset_type, target) = match &self.typ {
             _ if self.attrs.offset_getter.is_some() => return None,
             FieldType::Offset { typ, target } => (typ, target),
             FieldType::Array { inner_typ, .. } => match inner_typ.as_ref() {
@@ -793,28 +793,6 @@ impl Field {
         let target_is_generic =
             matches!(target, OffsetTarget::Table(ident) if Some(ident) == generic);
         let where_read_clause = target_is_generic.then(|| quote!(where T: FontRead<'a>));
-        let mut return_type = target.getter_return_type(target_is_generic);
-
-        if self.is_nullable() || (self.attrs.since_version.is_some() && !self.is_array()) {
-            return_type = quote!(Option<#return_type>);
-        }
-        if self.is_array() {
-            return_type = quote!(impl Iterator<Item=#return_type> + 'a);
-            if self.attrs.since_version.is_some() {
-                return_type = quote!(Option<#return_type>);
-            }
-        }
-
-        let resolve = match self.attrs.read_offset_args.as_deref() {
-            None => quote!(resolve(data)),
-            Some(_) => quote!(resolve_with_args(data, &args)),
-        };
-
-        let args_if_needed = self.attrs.read_offset_args.as_ref().map(|args| {
-            let args = args.to_tokens_for_table_getter();
-            quote!(let args = #args;)
-        });
-
         // if a record, data is passed in
         let input_data_if_needed = record.is_some().then(|| quote!(, data: FontData<'a>));
         let decl_lifetime_if_needed =
@@ -823,33 +801,73 @@ impl Field {
         // if a table, data is self.data, else it is passed as an argument
         let data_alias_if_needed = record.is_none().then(|| quote!(let data = self.data;));
 
-        let docs = format!(" Attempt to resolve [`{raw_name}`][Self::{raw_name}].");
-        let (base_method, convert_impl) = if self.is_array() {
-            (
-                &self.name,
-                quote!( .iter().map(move |off| off.get().#resolve) ),
-            )
-        } else {
-            (raw_name, quote!( .#resolve))
-        };
+        let args_if_needed = self.attrs.read_offset_args.as_ref().map(|args| {
+            let args = args.to_tokens_for_table_getter();
+            quote!(let args = #args;)
+        });
 
-        let getter_impl = if self.is_version_dependent() {
-            // if this is not an array and *is* nullable we need to add an extra ?
-            // to avoid returning Option<Option<_>>
-            let try_op = (self.is_nullable() && !self.is_array()).then(|| quote!(?));
-            quote!( self.#base_method().map(|x| x #convert_impl) #try_op )
-        } else {
-            quote!( self.#base_method() #convert_impl )
-        };
+        if self.is_array() {
+            let OffsetTarget::Table(target_ident) = target else {
+                panic!("I don't think arrays of offsets to arrays are in the spec?");
+            };
+            let array_type = if self.is_nullable() {
+                quote!(ArrayOfNullableOffsets)
+            } else {
+                quote!(ArrayOfOffsets)
+            };
 
-        Some(quote! {
-            #[doc = #docs]
-            pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type #where_read_clause {
-                #data_alias_if_needed
-                #args_if_needed
-                #getter_impl
+            let args_token = if self.attrs.read_offset_args.is_some() {
+                quote!(args)
+            } else {
+                quote!(())
+            };
+            let mut return_type = quote!( #array_type<'a, #target_ident, #offset_type> );
+            let mut body = quote!(#array_type::new(offsets, data, #args_token));
+            if self.is_version_dependent() {
+                return_type = quote!( Option< #return_type > );
+                body = quote!( offsets.map(|offsets| #body ) );
             }
-        })
+
+            let bind_offsets = quote!( let offsets = self.#raw_name(); );
+            let docs =
+                format!(" A dynamically resolving wrapper for [`{raw_name}`][Self::{raw_name}].");
+
+            Some(quote! {
+                #[doc = #docs]
+                pub fn #getter_name (&self #input_data_if_needed) -> #return_type #where_read_clause  {
+                    #data_alias_if_needed
+                    #bind_offsets
+                    #args_if_needed
+                    #body
+                }
+            })
+        } else {
+            let mut return_type = target.getter_return_type(target_is_generic);
+            if self.is_nullable() || self.attrs.since_version.is_some() {
+                return_type = quote!(Option<#return_type>);
+            }
+            let resolve = match self.attrs.read_offset_args.as_deref() {
+                None => quote!(resolve(data)),
+                Some(_) => quote!(resolve_with_args(data, &args)),
+            };
+            let docs = format!(" Attempt to resolve [`{raw_name}`][Self::{raw_name}].");
+            let getter_impl = if self.is_version_dependent() {
+                // if this is nullable *and* version dependent we add a `?`
+                // to avoid returning Option<Option<_>>
+                let try_op = self.is_nullable().then(|| quote!(?));
+                quote!( self. #raw_name ().map(|x| x. #resolve) #try_op )
+            } else {
+                quote!( self. #raw_name () .#resolve )
+            };
+            Some(quote! {
+                #[doc = #docs]
+                pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type #where_read_clause {
+                    #data_alias_if_needed
+                    #args_if_needed
+                    #getter_impl
+                }
+            })
+        }
     }
 
     fn is_count(&self) -> bool {
@@ -1247,7 +1265,7 @@ impl Field {
                 FieldType::Offset { .. } => {
                     let offset_getter = self.offset_getter_name().unwrap();
                     let getter = quote!(obj.#offset_getter(#pass_offset_data));
-                    let converter = quote!(.map(|x| x.to_owned_table()).collect());
+                    let converter = quote!( .to_owned_table() );
                     if self.attrs.since_version.is_some() {
                         quote!(#getter.map(|obj| obj #converter))
                     } else {

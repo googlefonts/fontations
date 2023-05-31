@@ -651,12 +651,11 @@ impl<'a> BaseValues<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`base_coord_offsets`][Self::base_coord_offsets].
-    pub fn base_coords(&self) -> impl Iterator<Item = Result<BaseCoord<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`base_coord_offsets`][Self::base_coord_offsets].
+    pub fn base_coords(&self) -> ArrayOfOffsets<'a, BaseCoord, Offset16> {
         let data = self.data;
-        self.base_coord_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.base_coord_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 

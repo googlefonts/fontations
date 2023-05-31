@@ -295,12 +295,11 @@ impl<'a> AxisValueArray<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`axis_value_offsets`][Self::axis_value_offsets].
-    pub fn axis_values(&self) -> impl Iterator<Item = Result<AxisValue<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`axis_value_offsets`][Self::axis_value_offsets].
+    pub fn axis_values(&self) -> ArrayOfOffsets<'a, AxisValue, Offset16> {
         let data = self.data;
-        self.axis_value_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.axis_value_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 

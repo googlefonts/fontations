@@ -1018,14 +1018,11 @@ impl<'a> ItemVariationStore<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`item_variation_data_offsets`][Self::item_variation_data_offsets].
-    pub fn item_variation_datas(
-        &self,
-    ) -> impl Iterator<Item = Option<Result<ItemVariationData<'a>, ReadError>>> + 'a {
+    /// A dynamically resolving wrapper for [`item_variation_data_offsets`][Self::item_variation_data_offsets].
+    pub fn item_variation_datas(&self) -> ArrayOfNullableOffsets<'a, ItemVariationData, Offset32> {
         let data = self.data;
-        self.item_variation_data_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.item_variation_data_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
     }
 }
 

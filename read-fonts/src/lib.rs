@@ -14,6 +14,7 @@ extern crate core as std;
 pub mod array;
 mod font_data;
 mod offset;
+mod offset_array;
 mod read;
 mod table_provider;
 mod table_ref;
@@ -30,6 +31,7 @@ mod test_helpers;
 
 pub use font_data::FontData;
 pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
+pub use offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
 pub use read::{ComputeSize, FontRead, FontReadWithArgs, ReadArgs, ReadError, VarSize};
 pub use table_provider::{TableProvider, TopLevelTable};
 pub use table_ref::TableRef;
@@ -43,6 +45,7 @@ pub(crate) mod codegen_prelude {
     pub use crate::array::{ComputedArray, VarLenArray};
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
+    pub use crate::offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
     pub use crate::read::{
         ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError, VarSize,
     };

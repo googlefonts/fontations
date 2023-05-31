@@ -63,8 +63,8 @@ impl FontWrite for KindsOfOffsets {
             .compatible((1, 1))
             .then(|| self.versioned_nullable.write_into(writer));
     }
-    fn name(&self) -> &'static str {
-        "KindsOfOffsets"
+    fn table_type(&self) -> TableType {
+        TableType::Named("KindsOfOffsets")
     }
 }
 
@@ -165,8 +165,8 @@ impl FontWrite for KindsOfArraysOfOffsets {
                 .write_into(writer)
         });
     }
-    fn name(&self) -> &'static str {
-        "KindsOfArraysOfOffsets"
+    fn table_type(&self) -> TableType {
+        TableType::Named("KindsOfArraysOfOffsets")
     }
 }
 
@@ -220,14 +220,10 @@ impl<'a> FromObjRef<read_fonts::codegen_test::offsets_arrays::KindsOfArraysOfOff
         _: FontData,
     ) -> Self {
         KindsOfArraysOfOffsets {
-            nonnullables: obj.nonnullables().map(|x| x.to_owned_table()).collect(),
-            nullables: obj.nullables().map(|x| x.to_owned_table()).collect(),
-            versioned_nonnullables: obj
-                .versioned_nonnullables()
-                .map(|obj| obj.map(|x| x.to_owned_table()).collect()),
-            versioned_nullables: obj
-                .versioned_nullables()
-                .map(|obj| obj.map(|x| x.to_owned_table()).collect()),
+            nonnullables: obj.nonnullables().to_owned_table(),
+            nullables: obj.nullables().to_owned_table(),
+            versioned_nonnullables: obj.versioned_nonnullables().map(|obj| obj.to_owned_table()),
+            versioned_nullables: obj.versioned_nullables().map(|obj| obj.to_owned_table()),
         }
     }
 }
@@ -290,8 +286,8 @@ impl FontWrite for KindsOfArrays {
                 .write_into(writer)
         });
     }
-    fn name(&self) -> &'static str {
-        "KindsOfArrays"
+    fn table_type(&self) -> TableType {
+        TableType::Named("KindsOfArrays")
     }
 }
 
@@ -374,8 +370,8 @@ impl FontWrite for Dummy {
         self.value.write_into(writer);
         (0 as u16).write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Dummy"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Dummy")
     }
 }
 
@@ -412,8 +408,8 @@ impl FontWrite for Shmecord {
         self.length.write_into(writer);
         self.breadth.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Shmecord"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Shmecord")
     }
 }
 

@@ -361,12 +361,11 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`nonnullable_offsets`][Self::nonnullable_offsets].
-    pub fn nonnullables(&self) -> impl Iterator<Item = Result<Dummy<'a>, ReadError>> + 'a {
+    /// A dynamically resolving wrapper for [`nonnullable_offsets`][Self::nonnullable_offsets].
+    pub fn nonnullables(&self) -> ArrayOfOffsets<'a, Dummy, Offset16> {
         let data = self.data;
-        self.nonnullable_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.nonnullable_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
     }
 
     /// An offset that is nullable, but always present
@@ -375,12 +374,11 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
         self.data.read_array(range).unwrap()
     }
 
-    /// Attempt to resolve [`nullable_offsets`][Self::nullable_offsets].
-    pub fn nullables(&self) -> impl Iterator<Item = Option<Result<Dummy<'a>, ReadError>>> + 'a {
+    /// A dynamically resolving wrapper for [`nullable_offsets`][Self::nullable_offsets].
+    pub fn nullables(&self) -> ArrayOfNullableOffsets<'a, Dummy, Offset16> {
         let data = self.data;
-        self.nullable_offsets()
-            .iter()
-            .map(move |off| off.get().resolve(data))
+        let offsets = self.nullable_offsets();
+        ArrayOfNullableOffsets::new(offsets, data, ())
     }
 
     /// A normal offset that is versioned
@@ -389,13 +387,11 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
         Some(self.data.read_array(range).unwrap())
     }
 
-    /// Attempt to resolve [`versioned_nonnullable_offsets`][Self::versioned_nonnullable_offsets].
-    pub fn versioned_nonnullables(
-        &self,
-    ) -> Option<impl Iterator<Item = Result<Dummy<'a>, ReadError>> + 'a> {
+    /// A dynamically resolving wrapper for [`versioned_nonnullable_offsets`][Self::versioned_nonnullable_offsets].
+    pub fn versioned_nonnullables(&self) -> Option<ArrayOfOffsets<'a, Dummy, Offset16>> {
         let data = self.data;
-        self.versioned_nonnullable_offsets()
-            .map(|x| x.iter().map(move |off| off.get().resolve(data)))
+        let offsets = self.versioned_nonnullable_offsets();
+        offsets.map(|offsets| ArrayOfOffsets::new(offsets, data, ()))
     }
 
     /// An offset that is nullable and versioned
@@ -404,13 +400,11 @@ impl<'a> KindsOfArraysOfOffsets<'a> {
         Some(self.data.read_array(range).unwrap())
     }
 
-    /// Attempt to resolve [`versioned_nullable_offsets`][Self::versioned_nullable_offsets].
-    pub fn versioned_nullables(
-        &self,
-    ) -> Option<impl Iterator<Item = Option<Result<Dummy<'a>, ReadError>>> + 'a> {
+    /// A dynamically resolving wrapper for [`versioned_nullable_offsets`][Self::versioned_nullable_offsets].
+    pub fn versioned_nullables(&self) -> Option<ArrayOfNullableOffsets<'a, Dummy, Offset16>> {
         let data = self.data;
-        self.versioned_nullable_offsets()
-            .map(|x| x.iter().map(move |off| off.get().resolve(data)))
+        let offsets = self.versioned_nullable_offsets();
+        offsets.map(|offsets| ArrayOfNullableOffsets::new(offsets, data, ()))
     }
 }
 

@@ -217,6 +217,12 @@ pub(crate) fn generate_compile_impl(
         }
     };
 
+    let table_type = if attrs.tag.is_some() {
+        quote!(TableType::TopLevel( #name::TAG ))
+    } else {
+        quote!( TableType::Named( #name_string ) )
+    };
+
     let validation_impl = quote! {
         impl #validate_impl_params Validate for #name <#generic_param> {
             #validation_fn
@@ -231,8 +237,8 @@ pub(crate) fn generate_compile_impl(
                     #( #write_stmts; )*
                 }
 
-                fn name(&self) -> &'static str {
-                    #name_string
+                fn table_type(&self) -> TableType {
+                    #table_type
                 }
             }
         }

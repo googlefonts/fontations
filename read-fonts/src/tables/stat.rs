@@ -22,6 +22,7 @@ mod tests {
         let axis_values = table.offset_to_axis_values().unwrap();
         let axis_values = axis_values
             .axis_values()
+            .iter()
             .map(|x| x.unwrap())
             .collect::<Vec<_>>();
 

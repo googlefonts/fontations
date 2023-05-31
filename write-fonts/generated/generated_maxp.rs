@@ -137,8 +137,8 @@ impl FontWrite for Maxp {
                 .write_into(writer)
         });
     }
-    fn name(&self) -> &'static str {
-        "Maxp"
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(Maxp::TAG)
     }
 }
 

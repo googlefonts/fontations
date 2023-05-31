@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 
 use crate::error::{Error, PackingError};
 use crate::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
+use crate::table_type::TableType;
 use crate::validate::Validate;
 use font_types::Scalar;
 
@@ -12,8 +13,13 @@ use font_types::Scalar;
 pub trait FontWrite {
     /// Write our data and information about offsets into this [TableWriter].
     fn write_into(&self, writer: &mut TableWriter);
-    fn name(&self) -> &'static str {
-        "Unknown"
+
+    /// The type of this table.
+    ///
+    /// This only matters in cases where a table may require additional processing
+    /// after initial compilation, such as with GPOS/GSUB lookups.
+    fn table_type(&self) -> TableType {
+        TableType::Unknown
     }
 }
 
@@ -43,6 +49,7 @@ pub struct TableWriter {
 /// Returns an error if the table is malformed or cannot otherwise be serialized,
 /// otherwise it will return the bytes encoding the table.
 pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, Error> {
+    log::info!("writing table '{}'", table.table_type());
     table.validate().map_err(Error::ValidationFailed)?;
     let mut graph = TableWriter::make_graph(table);
 
@@ -56,7 +63,7 @@ pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, Error> 
 
 impl TableWriter {
     /// A convenience method for generating a graph with the provided root object.
-    fn make_graph(root: &impl FontWrite) -> Graph {
+    pub(crate) fn make_graph(root: &impl FontWrite) -> Graph {
         let mut writer = TableWriter::default();
         let root_id = writer.add_table(root);
         Graph::from_obj_store(writer.tables, root_id)
@@ -66,7 +73,7 @@ impl TableWriter {
         self.stack.push(TableData::default());
         table.write_into(self);
         let mut table_data = self.stack.pop().unwrap();
-        table_data.name = table.name();
+        table_data.type_ = table.table_type();
         self.tables.add(table_data)
     }
 
@@ -133,7 +140,7 @@ impl Default for TableWriter {
 /// The encoded data for a given table, along with info on included offsets
 #[derive(Debug, Default, Clone)] // DO NOT DERIVE MORE TRAITS! we want to ignore name field
 pub(crate) struct TableData {
-    pub(crate) name: &'static str,
+    pub(crate) type_: TableType,
     pub(crate) bytes: Vec<u8>,
     pub(crate) offsets: Vec<OffsetRecord>,
 }
@@ -172,7 +179,7 @@ pub(crate) struct OffsetRecord {
 
 impl TableData {
     /// the 'adjustment' param is used to modify the written position.
-    fn add_offset(&mut self, object: ObjectId, width: usize, adjustment: u32) {
+    pub(crate) fn add_offset(&mut self, object: ObjectId, width: usize, adjustment: u32) {
         self.offsets.push(OffsetRecord {
             pos: self.bytes.len() as u32,
             len: match width {
@@ -193,6 +200,16 @@ impl TableData {
         self.write_bytes(value.to_raw().as_ref())
     }
 
+    /// Write the value over existing data at the provided position.
+    ///
+    /// Only used in very special cases. The caller is responsible for knowing
+    /// what they are doing.
+    pub(crate) fn write_over<T: Scalar>(&mut self, value: T, pos: usize) {
+        let raw = value.to_raw();
+        let len = raw.as_ref().len();
+        self.bytes[pos..pos + len].copy_from_slice(raw.as_ref());
+    }
+
     fn write_bytes(&mut self, bytes: &[u8]) {
         self.bytes.extend_from_slice(bytes)
     }
@@ -200,9 +217,9 @@ impl TableData {
     #[cfg(test)]
     pub fn make_mock(size: usize) -> Self {
         TableData {
-            name: "",
             bytes: vec![0xca; size], // has no special meaning
             offsets: Vec::new(),
+            type_: TableType::Unknown,
         }
     }
 

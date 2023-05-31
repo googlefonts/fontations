@@ -46,8 +46,8 @@ impl FontWrite for TableDirectory {
         self.range_shift.write_into(writer);
         self.table_records.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "TableDirectory"
+    fn table_type(&self) -> TableType {
+        TableType::Named("TableDirectory")
     }
 }
 
@@ -96,8 +96,8 @@ impl FontWrite for TableRecord {
         self.offset.write_into(writer);
         self.length.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "TableRecord"
+    fn table_type(&self) -> TableType {
+        TableType::Named("TableRecord")
     }
 }
 

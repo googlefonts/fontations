@@ -36,8 +36,8 @@ impl FontWrite for TupleVariationHeader {
         self.intermediate_start_tuple.write_into(writer);
         self.intermediate_end_tuple.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "TupleVariationHeader"
+    fn table_type(&self) -> TableType {
+        TableType::Named("TupleVariationHeader")
     }
 }
 
@@ -95,8 +95,8 @@ impl FontWrite for Tuple {
     fn write_into(&self, writer: &mut TableWriter) {
         self.values.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Tuple"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Tuple")
     }
 }
 
@@ -151,8 +151,8 @@ impl FontWrite for DeltaSetIndexMapFormat0 {
         self.map_count.write_into(writer);
         self.map_data.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "DeltaSetIndexMapFormat0"
+    fn table_type(&self) -> TableType {
+        TableType::Named("DeltaSetIndexMapFormat0")
     }
 }
 
@@ -219,8 +219,8 @@ impl FontWrite for DeltaSetIndexMapFormat1 {
         self.map_count.write_into(writer);
         self.map_data.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "DeltaSetIndexMapFormat1"
+    fn table_type(&self) -> TableType {
+        TableType::Named("DeltaSetIndexMapFormat1")
     }
 }
 
@@ -296,10 +296,10 @@ impl FontWrite for DeltaSetIndexMap {
             Self::Format1(item) => item.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Format0(_) => "DeltaSetIndexMap.Format0",
-            Self::Format1(_) => "DeltaSetIndexMap.Format1",
+            Self::Format0(item) => item.table_type(),
+            Self::Format1(item) => item.table_type(),
         }
     }
 }
@@ -359,8 +359,8 @@ impl FontWrite for VariationRegionList {
         (array_len(&self.variation_regions).unwrap() as u16).write_into(writer);
         self.variation_regions.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "VariationRegionList"
+    fn table_type(&self) -> TableType {
+        TableType::Named("VariationRegionList")
     }
 }
 
@@ -428,8 +428,8 @@ impl FontWrite for VariationRegion {
     fn write_into(&self, writer: &mut TableWriter) {
         self.region_axes.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "VariationRegion"
+    fn table_type(&self) -> TableType {
+        TableType::Named("VariationRegion")
     }
 }
 
@@ -485,8 +485,8 @@ impl FontWrite for RegionAxisCoordinates {
         self.peak_coord.write_into(writer);
         self.end_coord.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "RegionAxisCoordinates"
+    fn table_type(&self) -> TableType {
+        TableType::Named("RegionAxisCoordinates")
     }
 }
 
@@ -543,8 +543,8 @@ impl FontWrite for ItemVariationStore {
         (array_len(&self.item_variation_datas).unwrap() as u16).write_into(writer);
         self.item_variation_datas.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "ItemVariationStore"
+    fn table_type(&self) -> TableType {
+        TableType::Named("ItemVariationStore")
     }
 }
 
@@ -572,10 +572,7 @@ impl<'a> FromObjRef<read_fonts::tables::variations::ItemVariationStore<'a>> for 
         ItemVariationStore {
             format: obj.format(),
             variation_region_list: obj.variation_region_list().to_owned_table(),
-            item_variation_datas: obj
-                .item_variation_datas()
-                .map(|x| x.to_owned_table())
-                .collect(),
+            item_variation_datas: obj.item_variation_datas().to_owned_table(),
         }
     }
 }
@@ -632,8 +629,8 @@ impl FontWrite for ItemVariationData {
         self.region_indexes.write_into(writer);
         self.delta_sets.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "ItemVariationData"
+    fn table_type(&self) -> TableType {
+        TableType::Named("ItemVariationData")
     }
 }
 

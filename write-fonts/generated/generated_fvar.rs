@@ -48,8 +48,8 @@ impl FontWrite for Fvar {
         self.instance_count.write_into(writer);
         (self.instance_size() as u16).write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Fvar"
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(Fvar::TAG)
     }
 }
 
@@ -111,8 +111,8 @@ impl FontWrite for AxisInstanceArrays {
         self.axes.write_into(writer);
         self.instances.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AxisInstanceArrays"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisInstanceArrays")
     }
 }
 
@@ -198,8 +198,8 @@ impl FontWrite for VariationAxisRecord {
         self.flags.write_into(writer);
         self.axis_name_id.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "VariationAxisRecord"
+    fn table_type(&self) -> TableType {
+        TableType::Named("VariationAxisRecord")
     }
 }
 

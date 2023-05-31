@@ -90,8 +90,8 @@ impl FontWrite for Vhea {
         (0 as i16).write_into(writer);
         self.number_of_long_ver_metrics.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Vhea"
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(Vhea::TAG)
     }
 }
 

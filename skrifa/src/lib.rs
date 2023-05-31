@@ -29,7 +29,7 @@ pub mod setting;
 pub mod string;
 
 mod provider;
-mod util;
+mod small_array;
 mod variation;
 
 pub use variation::{Axis, AxisCollection, NamedInstance, NamedInstanceCollection};

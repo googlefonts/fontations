@@ -48,8 +48,8 @@ impl FontWrite for Gpos {
             .compatible((1, 1))
             .then(|| self.feature_variations.write_into(writer));
     }
-    fn name(&self) -> &'static str {
-        "Gpos"
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(Gpos::TAG)
     }
 }
 
@@ -129,17 +129,17 @@ impl FontWrite for PositionLookup {
             Self::Extension(table) => table.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Single(_) => "PositionLookup.Single",
-            Self::Pair(_) => "PositionLookup.Pair",
-            Self::Cursive(_) => "PositionLookup.Cursive",
-            Self::MarkToBase(_) => "PositionLookup.MarkToBase",
-            Self::MarkToLig(_) => "PositionLookup.MarkToLig",
-            Self::MarkToMark(_) => "PositionLookup.MarkToMark",
-            Self::Contextual(_) => "PositionLookup.Contextual",
-            Self::ChainContextual(_) => "PositionLookup.ChainContextual",
-            Self::Extension(_) => "PositionLookup.Extension",
+            Self::Single(table) => table.table_type(),
+            Self::Pair(table) => table.table_type(),
+            Self::Cursive(table) => table.table_type(),
+            Self::MarkToBase(table) => table.table_type(),
+            Self::MarkToLig(table) => table.table_type(),
+            Self::MarkToMark(table) => table.table_type(),
+            Self::Contextual(table) => table.table_type(),
+            Self::ChainContextual(table) => table.table_type(),
+            Self::Extension(table) => table.table_type(),
         }
     }
 }
@@ -252,11 +252,11 @@ impl FontWrite for AnchorTable {
             Self::Format3(item) => item.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Format1(_) => "AnchorTable.Format1",
-            Self::Format2(_) => "AnchorTable.Format2",
-            Self::Format3(_) => "AnchorTable.Format3",
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+            Self::Format3(item) => item.table_type(),
         }
     }
 }
@@ -316,8 +316,8 @@ impl FontWrite for AnchorFormat1 {
         self.x_coordinate.write_into(writer);
         self.y_coordinate.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AnchorFormat1"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AnchorFormat1")
     }
 }
 
@@ -373,8 +373,8 @@ impl FontWrite for AnchorFormat2 {
         self.y_coordinate.write_into(writer);
         self.anchor_point.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AnchorFormat2"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AnchorFormat2")
     }
 }
 
@@ -444,8 +444,8 @@ impl FontWrite for AnchorFormat3 {
         self.x_device.write_into(writer);
         self.y_device.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AnchorFormat3"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AnchorFormat3")
     }
 }
 
@@ -505,8 +505,8 @@ impl FontWrite for MarkArray {
         (array_len(&self.mark_records).unwrap() as u16).write_into(writer);
         self.mark_records.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "MarkArray"
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkArray")
     }
 }
 
@@ -564,8 +564,8 @@ impl FontWrite for MarkRecord {
         self.mark_class.write_into(writer);
         self.mark_anchor.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "MarkRecord"
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkRecord")
     }
 }
 
@@ -620,10 +620,10 @@ impl FontWrite for SinglePos {
             Self::Format2(item) => item.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Format1(_) => "SinglePos.Format1",
-            Self::Format2(_) => "SinglePos.Format2",
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
         }
     }
 }
@@ -683,8 +683,8 @@ impl FontWrite for SinglePosFormat1 {
         (self.compute_value_format() as ValueFormat).write_into(writer);
         self.value_record.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "SinglePosFormat1"
+    fn table_type(&self) -> TableType {
+        TableType::Named("SinglePosFormat1")
     }
 }
 
@@ -745,8 +745,8 @@ impl FontWrite for SinglePosFormat2 {
         (array_len(&self.value_records).unwrap() as u16).write_into(writer);
         self.value_records.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "SinglePosFormat2"
+    fn table_type(&self) -> TableType {
+        TableType::Named("SinglePosFormat2")
     }
 }
 
@@ -831,10 +831,10 @@ impl FontWrite for PairPos {
             Self::Format2(item) => item.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Format1(_) => "PairPos.Format1",
-            Self::Format2(_) => "PairPos.Format2",
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
         }
     }
 }
@@ -896,8 +896,8 @@ impl FontWrite for PairPosFormat1 {
         (array_len(&self.pair_sets).unwrap() as u16).write_into(writer);
         self.pair_sets.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "PairPosFormat1"
+    fn table_type(&self) -> TableType {
+        TableType::Named("PairPosFormat1")
     }
 }
 
@@ -921,7 +921,7 @@ impl<'a> FromObjRef<read_fonts::tables::gpos::PairPosFormat1<'a>> for PairPosFor
     fn from_obj_ref(obj: &read_fonts::tables::gpos::PairPosFormat1<'a>, _: FontData) -> Self {
         PairPosFormat1 {
             coverage: obj.coverage().to_owned_table(),
-            pair_sets: obj.pair_sets().map(|x| x.to_owned_table()).collect(),
+            pair_sets: obj.pair_sets().to_owned_table(),
         }
     }
 }
@@ -956,8 +956,8 @@ impl FontWrite for PairSet {
         (array_len(&self.pair_value_records).unwrap() as u16).write_into(writer);
         self.pair_value_records.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "PairSet"
+    fn table_type(&self) -> TableType {
+        TableType::Named("PairSet")
     }
 }
 
@@ -1022,8 +1022,8 @@ impl FontWrite for PairValueRecord {
         self.value_record1.write_into(writer);
         self.value_record2.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "PairValueRecord"
+    fn table_type(&self) -> TableType {
+        TableType::Named("PairValueRecord")
     }
 }
 
@@ -1089,8 +1089,8 @@ impl FontWrite for PairPosFormat2 {
         (self.compute_class2_count() as u16).write_into(writer);
         self.class1_records.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "PairPosFormat2"
+    fn table_type(&self) -> TableType {
+        TableType::Named("PairPosFormat2")
     }
 }
 
@@ -1159,8 +1159,8 @@ impl FontWrite for Class1Record {
     fn write_into(&self, writer: &mut TableWriter) {
         self.class2_records.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Class1Record"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Class1Record")
     }
 }
 
@@ -1213,8 +1213,8 @@ impl FontWrite for Class2Record {
         self.value_record1.write_into(writer);
         self.value_record2.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Class2Record"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Class2Record")
     }
 }
 
@@ -1258,8 +1258,8 @@ impl FontWrite for CursivePosFormat1 {
         (array_len(&self.entry_exit_record).unwrap() as u16).write_into(writer);
         self.entry_exit_record.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "CursivePosFormat1"
+    fn table_type(&self) -> TableType {
+        TableType::Named("CursivePosFormat1")
     }
 }
 
@@ -1324,8 +1324,8 @@ impl FontWrite for EntryExitRecord {
         self.entry_anchor.write_into(writer);
         self.exit_anchor.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "EntryExitRecord"
+    fn table_type(&self) -> TableType {
+        TableType::Named("EntryExitRecord")
     }
 }
 
@@ -1398,8 +1398,8 @@ impl FontWrite for MarkBasePosFormat1 {
         self.mark_array.write_into(writer);
         self.base_array.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "MarkBasePosFormat1"
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkBasePosFormat1")
     }
 }
 
@@ -1462,8 +1462,8 @@ impl FontWrite for BaseArray {
         (array_len(&self.base_records).unwrap() as u16).write_into(writer);
         self.base_records.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "BaseArray"
+    fn table_type(&self) -> TableType {
+        TableType::Named("BaseArray")
     }
 }
 
@@ -1517,8 +1517,8 @@ impl FontWrite for BaseRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.base_anchors.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "BaseRecord"
+    fn table_type(&self) -> TableType {
+        TableType::Named("BaseRecord")
     }
 }
 
@@ -1538,10 +1538,7 @@ impl Validate for BaseRecord {
 impl FromObjRef<read_fonts::tables::gpos::BaseRecord<'_>> for BaseRecord {
     fn from_obj_ref(obj: &read_fonts::tables::gpos::BaseRecord, offset_data: FontData) -> Self {
         BaseRecord {
-            base_anchors: obj
-                .base_anchors(offset_data)
-                .map(|x| x.to_owned_table())
-                .collect(),
+            base_anchors: obj.base_anchors(offset_data).to_owned_table(),
         }
     }
 }
@@ -1590,8 +1587,8 @@ impl FontWrite for MarkLigPosFormat1 {
         self.mark_array.write_into(writer);
         self.ligature_array.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "MarkLigPosFormat1"
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkLigPosFormat1")
     }
 }
 
@@ -1658,8 +1655,8 @@ impl FontWrite for LigatureArray {
         (array_len(&self.ligature_attaches).unwrap() as u16).write_into(writer);
         self.ligature_attaches.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "LigatureArray"
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigatureArray")
     }
 }
 
@@ -1679,10 +1676,7 @@ impl Validate for LigatureArray {
 impl<'a> FromObjRef<read_fonts::tables::gpos::LigatureArray<'a>> for LigatureArray {
     fn from_obj_ref(obj: &read_fonts::tables::gpos::LigatureArray<'a>, _: FontData) -> Self {
         LigatureArray {
-            ligature_attaches: obj
-                .ligature_attaches()
-                .map(|x| x.to_owned_table())
-                .collect(),
+            ligature_attaches: obj.ligature_attaches().to_owned_table(),
         }
     }
 }
@@ -1709,8 +1703,8 @@ impl FontWrite for LigatureAttach {
         (array_len(&self.component_records).unwrap() as u16).write_into(writer);
         self.component_records.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "LigatureAttach"
+    fn table_type(&self) -> TableType {
+        TableType::Named("LigatureAttach")
     }
 }
 
@@ -1764,8 +1758,8 @@ impl FontWrite for ComponentRecord {
     fn write_into(&self, writer: &mut TableWriter) {
         self.ligature_anchors.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "ComponentRecord"
+    fn table_type(&self) -> TableType {
+        TableType::Named("ComponentRecord")
     }
 }
 
@@ -1788,10 +1782,7 @@ impl FromObjRef<read_fonts::tables::gpos::ComponentRecord<'_>> for ComponentReco
         offset_data: FontData,
     ) -> Self {
         ComponentRecord {
-            ligature_anchors: obj
-                .ligature_anchors(offset_data)
-                .map(|x| x.to_owned_table())
-                .collect(),
+            ligature_anchors: obj.ligature_anchors(offset_data).to_owned_table(),
         }
     }
 }
@@ -1840,8 +1831,8 @@ impl FontWrite for MarkMarkPosFormat1 {
         self.mark1_array.write_into(writer);
         self.mark2_array.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "MarkMarkPosFormat1"
+    fn table_type(&self) -> TableType {
+        TableType::Named("MarkMarkPosFormat1")
     }
 }
 
@@ -1904,8 +1895,8 @@ impl FontWrite for Mark2Array {
         (array_len(&self.mark2_records).unwrap() as u16).write_into(writer);
         self.mark2_records.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Mark2Array"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Mark2Array")
     }
 }
 
@@ -1959,8 +1950,8 @@ impl FontWrite for Mark2Record {
     fn write_into(&self, writer: &mut TableWriter) {
         self.mark2_anchors.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "Mark2Record"
+    fn table_type(&self) -> TableType {
+        TableType::Named("Mark2Record")
     }
 }
 
@@ -1980,10 +1971,7 @@ impl Validate for Mark2Record {
 impl FromObjRef<read_fonts::tables::gpos::Mark2Record<'_>> for Mark2Record {
     fn from_obj_ref(obj: &read_fonts::tables::gpos::Mark2Record, offset_data: FontData) -> Self {
         Mark2Record {
-            mark2_anchors: obj
-                .mark2_anchors(offset_data)
-                .map(|x| x.to_owned_table())
-                .collect(),
+            mark2_anchors: obj.mark2_anchors(offset_data).to_owned_table(),
         }
     }
 }
@@ -2077,16 +2065,16 @@ impl FontWrite for ExtensionSubtable {
             Self::ChainContextual(table) => table.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Single(_) => "ExtensionSubtable.Single",
-            Self::Pair(_) => "ExtensionSubtable.Pair",
-            Self::Cursive(_) => "ExtensionSubtable.Cursive",
-            Self::MarkToBase(_) => "ExtensionSubtable.MarkToBase",
-            Self::MarkToLig(_) => "ExtensionSubtable.MarkToLig",
-            Self::MarkToMark(_) => "ExtensionSubtable.MarkToMark",
-            Self::Contextual(_) => "ExtensionSubtable.Contextual",
-            Self::ChainContextual(_) => "ExtensionSubtable.ChainContextual",
+            Self::Single(table) => table.table_type(),
+            Self::Pair(table) => table.table_type(),
+            Self::Cursive(table) => table.table_type(),
+            Self::MarkToBase(table) => table.table_type(),
+            Self::MarkToLig(table) => table.table_type(),
+            Self::MarkToMark(table) => table.table_type(),
+            Self::Contextual(table) => table.table_type(),
+            Self::ChainContextual(table) => table.table_type(),
         }
     }
 }

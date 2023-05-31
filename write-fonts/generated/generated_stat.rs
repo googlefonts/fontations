@@ -43,8 +43,8 @@ impl FontWrite for Stat {
                 .write_into(writer)
         });
     }
-    fn name(&self) -> &'static str {
-        "Stat"
+    fn table_type(&self) -> TableType {
+        TableType::TopLevel(Stat::TAG)
     }
 }
 
@@ -121,8 +121,8 @@ impl FontWrite for AxisRecord {
         self.axis_name_id.write_into(writer);
         self.axis_ordering.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AxisRecord"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisRecord")
     }
 }
 
@@ -161,8 +161,8 @@ impl FontWrite for AxisValueArray {
     fn write_into(&self, writer: &mut TableWriter) {
         self.axis_values.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AxisValueArray"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisValueArray")
     }
 }
 
@@ -182,7 +182,7 @@ impl Validate for AxisValueArray {
 impl<'a> FromObjRef<read_fonts::tables::stat::AxisValueArray<'a>> for AxisValueArray {
     fn from_obj_ref(obj: &read_fonts::tables::stat::AxisValueArray<'a>, _: FontData) -> Self {
         AxisValueArray {
-            axis_values: obj.axis_values().map(|x| x.to_owned_table()).collect(),
+            axis_values: obj.axis_values().to_owned_table(),
         }
     }
 }
@@ -275,12 +275,12 @@ impl FontWrite for AxisValue {
             Self::Format4(item) => item.write_into(writer),
         }
     }
-    fn name(&self) -> &'static str {
+    fn table_type(&self) -> TableType {
         match self {
-            Self::Format1(_) => "AxisValue.Format1",
-            Self::Format2(_) => "AxisValue.Format2",
-            Self::Format3(_) => "AxisValue.Format3",
-            Self::Format4(_) => "AxisValue.Format4",
+            Self::Format1(item) => item.table_type(),
+            Self::Format2(item) => item.table_type(),
+            Self::Format3(item) => item.table_type(),
+            Self::Format4(item) => item.table_type(),
         }
     }
 }
@@ -358,8 +358,8 @@ impl FontWrite for AxisValueFormat1 {
         self.value_name_id.write_into(writer);
         self.value.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AxisValueFormat1"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisValueFormat1")
     }
 }
 
@@ -441,8 +441,8 @@ impl FontWrite for AxisValueFormat2 {
         self.range_min_value.write_into(writer);
         self.range_max_value.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AxisValueFormat2"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisValueFormat2")
     }
 }
 
@@ -519,8 +519,8 @@ impl FontWrite for AxisValueFormat3 {
         self.value.write_into(writer);
         self.linked_value.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AxisValueFormat3"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisValueFormat3")
     }
 }
 
@@ -586,8 +586,8 @@ impl FontWrite for AxisValueFormat4 {
         self.value_name_id.write_into(writer);
         self.axis_values.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AxisValueFormat4"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisValueFormat4")
     }
 }
 
@@ -646,8 +646,8 @@ impl FontWrite for AxisValueRecord {
         self.axis_index.write_into(writer);
         self.value.write_into(writer);
     }
-    fn name(&self) -> &'static str {
-        "AxisValueRecord"
+    fn table_type(&self) -> TableType {
+        TableType::Named("AxisValueRecord")
     }
 }
 

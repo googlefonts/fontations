@@ -45,6 +45,20 @@ pub trait FontReadWithArgs<'a>: Sized + ReadArgs {
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError>;
 }
 
+// a blanket impl of ReadArgs/FontReadWithArgs for general FontRead types.
+//
+// This is used by ArrayOfOffsets/ArrayOfNullableOffsets to provide a common
+// interface for regardless of whether a type has args.
+impl<'a, T: FontRead<'a>> ReadArgs for T {
+    type Args = ();
+}
+
+impl<'a, T: FontRead<'a>> FontReadWithArgs<'a> for T {
+    fn read_with_args(data: FontData<'a>, _: &Self::Args) -> Result<Self, ReadError> {
+        Self::read(data)
+    }
+}
+
 /// A trait for tables that have multiple possible formats.
 pub trait Format<T> {
     /// The format value for this table.
