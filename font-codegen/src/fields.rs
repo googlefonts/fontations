@@ -816,12 +816,15 @@ impl Field {
                 quote!(ArrayOfOffsets)
             };
 
+            let target_lifetime = (!target_is_generic).then(|| quote!(<'a>));
+
             let args_token = if self.attrs.read_offset_args.is_some() {
                 quote!(args)
             } else {
                 quote!(())
             };
-            let mut return_type = quote!( #array_type<'a, #target_ident, #offset_type> );
+            let mut return_type =
+                quote!( #array_type<'a, #target_ident #target_lifetime, #offset_type> );
             let mut body = quote!(#array_type::new(offsets, data, #args_token));
             if self.is_version_dependent() {
                 return_type = quote!( Option< #return_type > );

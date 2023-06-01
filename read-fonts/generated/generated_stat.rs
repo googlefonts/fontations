@@ -296,7 +296,7 @@ impl<'a> AxisValueArray<'a> {
     }
 
     /// A dynamically resolving wrapper for [`axis_value_offsets`][Self::axis_value_offsets].
-    pub fn axis_values(&self) -> ArrayOfOffsets<'a, AxisValue, Offset16> {
+    pub fn axis_values(&self) -> ArrayOfOffsets<'a, AxisValue<'a>, Offset16> {
         let data = self.data;
         let offsets = self.axis_value_offsets();
         ArrayOfOffsets::new(offsets, data, ())

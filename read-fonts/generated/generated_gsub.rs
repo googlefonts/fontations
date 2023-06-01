@@ -538,7 +538,7 @@ impl<'a> MultipleSubstFormat1<'a> {
     }
 
     /// A dynamically resolving wrapper for [`sequence_offsets`][Self::sequence_offsets].
-    pub fn sequences(&self) -> ArrayOfOffsets<'a, Sequence, Offset16> {
+    pub fn sequences(&self) -> ArrayOfOffsets<'a, Sequence<'a>, Offset16> {
         let data = self.data;
         let offsets = self.sequence_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -737,7 +737,7 @@ impl<'a> AlternateSubstFormat1<'a> {
     }
 
     /// A dynamically resolving wrapper for [`alternate_set_offsets`][Self::alternate_set_offsets].
-    pub fn alternate_sets(&self) -> ArrayOfOffsets<'a, AlternateSet, Offset16> {
+    pub fn alternate_sets(&self) -> ArrayOfOffsets<'a, AlternateSet<'a>, Offset16> {
         let data = self.data;
         let offsets = self.alternate_set_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -938,7 +938,7 @@ impl<'a> LigatureSubstFormat1<'a> {
     }
 
     /// A dynamically resolving wrapper for [`ligature_set_offsets`][Self::ligature_set_offsets].
-    pub fn ligature_sets(&self) -> ArrayOfOffsets<'a, LigatureSet, Offset16> {
+    pub fn ligature_sets(&self) -> ArrayOfOffsets<'a, LigatureSet<'a>, Offset16> {
         let data = self.data;
         let offsets = self.ligature_set_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -1032,7 +1032,7 @@ impl<'a> LigatureSet<'a> {
     }
 
     /// A dynamically resolving wrapper for [`ligature_offsets`][Self::ligature_offsets].
-    pub fn ligatures(&self) -> ArrayOfOffsets<'a, Ligature, Offset16> {
+    pub fn ligatures(&self) -> ArrayOfOffsets<'a, Ligature<'a>, Offset16> {
         let data = self.data;
         let offsets = self.ligature_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -1443,7 +1443,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     }
 
     /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
-    pub fn backtrack_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable, Offset16> {
+    pub fn backtrack_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.backtrack_coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -1463,7 +1463,7 @@ impl<'a> ReverseChainSingleSubstFormat1<'a> {
     }
 
     /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
-    pub fn lookahead_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable, Offset16> {
+    pub fn lookahead_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.lookahead_coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
