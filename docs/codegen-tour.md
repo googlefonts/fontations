@@ -735,9 +735,9 @@ the size and contents of the array:
 ### <a id="flags-and-enums"></a> flags and enums
 
 On top of tables and records, we also generate code for various defined flags
-and enums. In the case of flags, this is on top of the [`bitflags`][] crate, and
-in the case of enums, we generate a rust enum. These code paths are not
-currently very heavily used.
+and enums. In the case of flags, we generate implementations based on the
+[`bitflags`][] crate, and in the case of enums, we generate a rust enum.
+These code paths are not currently very heavily used.
 
 ### <a id="traversal"></a> traversal
 

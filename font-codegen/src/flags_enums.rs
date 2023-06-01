@@ -31,7 +31,7 @@ pub(crate) fn generate_flags(raw: &BitFlags) -> proc_macro2::TokenStream {
         }
 
         // most of this impl is taken from the bitflags crate, under the MIT/Apache license
-        // https://docs.rs/bitflags/1.3.2/src/bitflags/lib.rs.html
+        // https://docs.rs/bitflags/latest/bitflags/
         impl #name {
             ///  Returns an empty set of flags.
             #[inline]
