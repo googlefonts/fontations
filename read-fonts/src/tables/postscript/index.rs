@@ -19,17 +19,17 @@ impl<'a> Index<'a> {
     pub fn new(data: &'a [u8], is_cff2: bool) -> Result<Self, Error> {
         let data = FontData::new(data);
         Ok(if is_cff2 {
-            Index2::read(data).map(|index| index.into())?
+            Index2::read(data).map(|ix| ix.into())?
         } else {
-            Index1::read(data).map(|index| index.into())?
+            Index1::read(data).map(|ix| ix.into())?
         })
     }
 
     /// Returns the number of objects in the index.
     pub fn count(&self) -> u32 {
         match self {
-            Self::Format1(v1) => v1.count() as u32,
-            Self::Format2(v2) => v2.count(),
+            Self::Format1(ix) => ix.count() as u32,
+            Self::Format2(ix) => ix.count(),
         }
     }
 
@@ -51,24 +51,24 @@ impl<'a> Index<'a> {
     /// Returns the total size in bytes of the index table.
     pub fn size_in_bytes(&self) -> Result<usize, Error> {
         match self {
-            Self::Format1(v1) => v1.size_in_bytes(),
-            Self::Format2(index) => index.size_in_bytes(),
+            Self::Format1(ix) => ix.size_in_bytes(),
+            Self::Format2(ix) => ix.size_in_bytes(),
         }
     }
 
     /// Returns the offset at the given index.
     pub fn get_offset(&self, index: usize) -> Result<usize, Error> {
         match self {
-            Self::Format1(v1) => v1.get_offset(index),
-            Self::Format2(v2) => v2.get_offset(index),
+            Self::Format1(ix) => ix.get_offset(index),
+            Self::Format2(ix) => ix.get_offset(index),
         }
     }
 
     /// Returns the data for the object at the given index.
     pub fn get(&self, index: usize) -> Result<&'a [u8], Error> {
         match self {
-            Self::Format1(v1) => v1.get(index),
-            Self::Format2(v2) => v2.get(index),
+            Self::Format1(ix) => ix.get(index),
+            Self::Format2(ix) => ix.get(index),
         }
     }
 }
@@ -101,7 +101,7 @@ impl<'a> Index1<'a> {
 
     /// Returns the offset of the object at the given index.
     pub fn get_offset(&self, index: usize) -> Result<usize, Error> {
-        read_index_offset(
+        read_offset(
             index,
             self.count() as usize,
             self.off_size(),
@@ -133,7 +133,7 @@ impl<'a> Index2<'a> {
 
     /// Returns the offset of the object at the given index.
     pub fn get_offset(&self, index: usize) -> Result<usize, Error> {
-        read_index_offset(
+        read_offset(
             index,
             self.count() as usize,
             self.off_size(),
@@ -150,7 +150,7 @@ impl<'a> Index2<'a> {
 }
 
 /// Reads an offset which is encoded as a variable sized integer.
-fn read_index_offset(
+fn read_offset(
     index: usize,
     count: usize,
     offset_size: u8,
