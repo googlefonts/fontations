@@ -559,7 +559,7 @@ impl<'a> LayerList<'a> {
     }
 
     /// A dynamically resolving wrapper for [`paint_offsets`][Self::paint_offsets].
-    pub fn paints(&self) -> ArrayOfOffsets<'a, Paint, Offset32> {
+    pub fn paints(&self) -> ArrayOfOffsets<'a, Paint<'a>, Offset32> {
         let data = self.data;
         let offsets = self.paint_offsets();
         ArrayOfOffsets::new(offsets, data, ())

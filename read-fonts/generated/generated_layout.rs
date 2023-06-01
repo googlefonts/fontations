@@ -1566,7 +1566,7 @@ impl<'a> SequenceContextFormat1<'a> {
     }
 
     /// A dynamically resolving wrapper for [`seq_rule_set_offsets`][Self::seq_rule_set_offsets].
-    pub fn seq_rule_sets(&self) -> ArrayOfNullableOffsets<'a, SequenceRuleSet, Offset16> {
+    pub fn seq_rule_sets(&self) -> ArrayOfNullableOffsets<'a, SequenceRuleSet<'a>, Offset16> {
         let data = self.data;
         let offsets = self.seq_rule_set_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
@@ -1660,7 +1660,7 @@ impl<'a> SequenceRuleSet<'a> {
     }
 
     /// A dynamically resolving wrapper for [`seq_rule_offsets`][Self::seq_rule_offsets].
-    pub fn seq_rules(&self) -> ArrayOfOffsets<'a, SequenceRule, Offset16> {
+    pub fn seq_rules(&self) -> ArrayOfOffsets<'a, SequenceRule<'a>, Offset16> {
         let data = self.data;
         let offsets = self.seq_rule_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -1907,7 +1907,7 @@ impl<'a> SequenceContextFormat2<'a> {
     /// A dynamically resolving wrapper for [`class_seq_rule_set_offsets`][Self::class_seq_rule_set_offsets].
     pub fn class_seq_rule_sets(
         &self,
-    ) -> ArrayOfNullableOffsets<'a, ClassSequenceRuleSet, Offset16> {
+    ) -> ArrayOfNullableOffsets<'a, ClassSequenceRuleSet<'a>, Offset16> {
         let data = self.data;
         let offsets = self.class_seq_rule_set_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
@@ -2009,7 +2009,7 @@ impl<'a> ClassSequenceRuleSet<'a> {
     }
 
     /// A dynamically resolving wrapper for [`class_seq_rule_offsets`][Self::class_seq_rule_offsets].
-    pub fn class_seq_rules(&self) -> ArrayOfOffsets<'a, ClassSequenceRule, Offset16> {
+    pub fn class_seq_rules(&self) -> ArrayOfOffsets<'a, ClassSequenceRule<'a>, Offset16> {
         let data = self.data;
         let offsets = self.class_seq_rule_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -2241,7 +2241,7 @@ impl<'a> SequenceContextFormat3<'a> {
     }
 
     /// A dynamically resolving wrapper for [`coverage_offsets`][Self::coverage_offsets].
-    pub fn coverages(&self) -> ArrayOfOffsets<'a, CoverageTable, Offset16> {
+    pub fn coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -2428,7 +2428,7 @@ impl<'a> ChainedSequenceContextFormat1<'a> {
     /// A dynamically resolving wrapper for [`chained_seq_rule_set_offsets`][Self::chained_seq_rule_set_offsets].
     pub fn chained_seq_rule_sets(
         &self,
-    ) -> ArrayOfNullableOffsets<'a, ChainedSequenceRuleSet, Offset16> {
+    ) -> ArrayOfNullableOffsets<'a, ChainedSequenceRuleSet<'a>, Offset16> {
         let data = self.data;
         let offsets = self.chained_seq_rule_set_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
@@ -2526,7 +2526,7 @@ impl<'a> ChainedSequenceRuleSet<'a> {
     }
 
     /// A dynamically resolving wrapper for [`chained_seq_rule_offsets`][Self::chained_seq_rule_offsets].
-    pub fn chained_seq_rules(&self) -> ArrayOfOffsets<'a, ChainedSequenceRule, Offset16> {
+    pub fn chained_seq_rules(&self) -> ArrayOfOffsets<'a, ChainedSequenceRule<'a>, Offset16> {
         let data = self.data;
         let offsets = self.chained_seq_rule_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -2872,7 +2872,7 @@ impl<'a> ChainedSequenceContextFormat2<'a> {
     /// A dynamically resolving wrapper for [`chained_class_seq_rule_set_offsets`][Self::chained_class_seq_rule_set_offsets].
     pub fn chained_class_seq_rule_sets(
         &self,
-    ) -> ArrayOfNullableOffsets<'a, ChainedClassSequenceRuleSet, Offset16> {
+    ) -> ArrayOfNullableOffsets<'a, ChainedClassSequenceRuleSet<'a>, Offset16> {
         let data = self.data;
         let offsets = self.chained_class_seq_rule_set_offsets();
         ArrayOfNullableOffsets::new(offsets, data, ())
@@ -2990,7 +2990,7 @@ impl<'a> ChainedClassSequenceRuleSet<'a> {
     /// A dynamically resolving wrapper for [`chained_class_seq_rule_offsets`][Self::chained_class_seq_rule_offsets].
     pub fn chained_class_seq_rules(
         &self,
-    ) -> ArrayOfOffsets<'a, ChainedClassSequenceRule, Offset16> {
+    ) -> ArrayOfOffsets<'a, ChainedClassSequenceRule<'a>, Offset16> {
         let data = self.data;
         let offsets = self.chained_class_seq_rule_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -3303,7 +3303,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 
     /// A dynamically resolving wrapper for [`backtrack_coverage_offsets`][Self::backtrack_coverage_offsets].
-    pub fn backtrack_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable, Offset16> {
+    pub fn backtrack_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.backtrack_coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -3322,7 +3322,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 
     /// A dynamically resolving wrapper for [`input_coverage_offsets`][Self::input_coverage_offsets].
-    pub fn input_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable, Offset16> {
+    pub fn input_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.input_coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -3341,7 +3341,7 @@ impl<'a> ChainedSequenceContextFormat3<'a> {
     }
 
     /// A dynamically resolving wrapper for [`lookahead_coverage_offsets`][Self::lookahead_coverage_offsets].
-    pub fn lookahead_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable, Offset16> {
+    pub fn lookahead_coverages(&self) -> ArrayOfOffsets<'a, CoverageTable<'a>, Offset16> {
         let data = self.data;
         let offsets = self.lookahead_coverage_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -3919,7 +3919,7 @@ impl<'a> ConditionSet<'a> {
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
-    pub fn conditions(&self) -> ArrayOfOffsets<'a, ConditionFormat1, Offset32> {
+    pub fn conditions(&self) -> ArrayOfOffsets<'a, ConditionFormat1<'a>, Offset32> {
         let data = self.data;
         let offsets = self.condition_offsets();
         ArrayOfOffsets::new(offsets, data, ())
