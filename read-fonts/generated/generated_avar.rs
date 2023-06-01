@@ -173,6 +173,10 @@ impl FixedSize for AxisValueMap {
     const RAW_BYTE_LEN: usize = F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for AxisValueMap {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for AxisValueMap {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {

@@ -138,6 +138,10 @@ impl FixedSize for EncodingRecord {
         PlatformId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for EncodingRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for EncodingRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -505,6 +509,10 @@ impl SubHeader {
 impl FixedSize for SubHeader {
     const RAW_BYTE_LEN: usize =
         u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for SubHeader {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1039,6 +1047,10 @@ impl FixedSize for SequentialMapGroup {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for SequentialMapGroup {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for SequentialMapGroup {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1455,6 +1467,10 @@ impl FixedSize for ConstantMapGroup {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for ConstantMapGroup {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for ConstantMapGroup {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1628,6 +1644,10 @@ impl VariationSelector {
 impl FixedSize for VariationSelector {
     const RAW_BYTE_LEN: usize =
         Uint24::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for VariationSelector {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1828,6 +1848,10 @@ impl FixedSize for UvsMapping {
     const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for UvsMapping {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for UvsMapping {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1868,6 +1892,10 @@ impl UnicodeRange {
 
 impl FixedSize for UnicodeRange {
     const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for UnicodeRange {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

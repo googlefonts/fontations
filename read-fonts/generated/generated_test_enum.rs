@@ -112,6 +112,10 @@ impl FixedSize for MyRecord {
     const RAW_BYTE_LEN: usize = MyEnum1::RAW_BYTE_LEN + MyEnum2::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for MyRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for MyRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {

@@ -40,6 +40,10 @@ pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
             impl FixedSize for #name {
                 const RAW_BYTE_LEN: usize = #( #inner_types::RAW_BYTE_LEN )+*;
             }
+
+            unsafe impl JustBytes for #name {
+                fn this_trait_should_only_be_implemented_in_generated_code() {}
+            }
         }
     });
     let maybe_impl_read_with_args = (has_read_args).then(|| generate_read_with_args(item));

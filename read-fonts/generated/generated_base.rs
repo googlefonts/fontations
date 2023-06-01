@@ -399,6 +399,10 @@ impl FixedSize for BaseScriptRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for BaseScriptRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for BaseScriptRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -569,6 +573,10 @@ impl BaseLangSysRecord {
 
 impl FixedSize for BaseLangSysRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for BaseLangSysRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -866,6 +874,10 @@ impl FeatMinMaxRecord {
 
 impl FixedSize for FeatMinMaxRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for FeatMinMaxRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

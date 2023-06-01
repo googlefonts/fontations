@@ -1,6 +1,6 @@
 //! Traits for interpreting font data
 
-use font_types::{FixedSize, Scalar, Tag};
+use types::{FixedSize, Scalar, Tag};
 
 use crate::font_data::FontData;
 
@@ -92,6 +92,32 @@ pub trait VarSize {
         let asu32 = data.read_at::<Self::Size>(pos).ok()?.into();
         Some(asu32 as usize + Self::Size::RAW_BYTE_LEN)
     }
+}
+
+/// A marker trait for types that can read from a big-endian buffer without copying.
+///
+/// This trait should only be implemented by generated code, and only under the
+/// following conditions:
+///
+/// - the type contains only fields that are also `JustBytes`
+/// - the type is marked #[repr(C)] and #[repr(packed)]
+pub unsafe trait JustBytes: FixedSize {
+    /// You should not be implementing this trait!
+    #[doc(hidden)]
+    fn this_trait_should_only_be_implemented_in_generated_code();
+}
+
+unsafe impl JustBytes for u8 {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+unsafe impl<const N: usize> JustBytes for [u8; N] {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+unsafe impl<T: Scalar> JustBytes for BigEndian<T>
+where
+    T::Raw: FixedSize,
+{
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 /// An error that occurs when reading font data
