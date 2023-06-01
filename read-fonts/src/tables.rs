@@ -2,6 +2,8 @@
 
 pub mod avar;
 pub mod base;
+pub mod cff;
+pub mod cff2;
 pub mod cmap;
 pub mod colr;
 pub mod cpal;
@@ -22,6 +24,7 @@ pub mod mvar;
 pub mod name;
 pub mod os2;
 pub mod post;
+pub mod postscript;
 pub mod stat;
 pub mod variations;
 pub mod vhea;
