@@ -36,8 +36,21 @@ macro_rules! lookup_type {
 /// lookups) can be given different lookup ids for each of GSUB/GPOS.
 macro_rules! table_newtype {
     ($name:ident, $inner:ident, $read_type:path) => {
+        /// A typed wrapper around a shared table.
+        ///
+        /// This is used so that we can associate the correct lookup ids for
+        /// lookups that are shared between GPOS/GSUB.
+        ///
+        /// You can access the inner type via `Deref` or the `as_inner` method.
         #[derive(Clone, Debug, Default)]
         pub struct $name($inner);
+
+        impl $name {
+            /// Return a reference to the inner type.
+            pub fn as_inner(&self) -> &$inner {
+                &self.0
+            }
+        }
 
         impl std::ops::Deref for $name {
             type Target = $inner;
