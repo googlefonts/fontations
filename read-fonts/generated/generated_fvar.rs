@@ -327,6 +327,10 @@ impl FixedSize for VariationAxisRecord {
         + NameId::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for VariationAxisRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for VariationAxisRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {

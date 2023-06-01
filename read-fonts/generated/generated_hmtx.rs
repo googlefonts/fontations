@@ -137,6 +137,10 @@ impl FixedSize for LongMetric {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for LongMetric {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for LongMetric {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {

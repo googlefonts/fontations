@@ -1010,6 +1010,10 @@ impl FixedSize for MarkRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for MarkRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for MarkRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -2243,6 +2247,10 @@ impl EntryExitRecord {
 
 impl FixedSize for EntryExitRecord {
     const RAW_BYTE_LEN: usize = Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for EntryExitRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

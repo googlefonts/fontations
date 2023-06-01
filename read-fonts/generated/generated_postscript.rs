@@ -442,6 +442,10 @@ impl FixedSize for FdSelectRange3 {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for FdSelectRange3 {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for FdSelectRange3 {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -583,6 +587,10 @@ impl FdSelectRange4 {
 
 impl FixedSize for FdSelectRange4 {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for FdSelectRange4 {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

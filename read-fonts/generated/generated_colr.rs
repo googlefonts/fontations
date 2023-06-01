@@ -328,6 +328,10 @@ impl FixedSize for BaseGlyph {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for BaseGlyph {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for BaseGlyph {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -369,6 +373,10 @@ impl Layer {
 
 impl FixedSize for Layer {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for Layer {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -493,6 +501,10 @@ impl BaseGlyphPaint {
 
 impl FixedSize for BaseGlyphPaint {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for BaseGlyphPaint {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -723,6 +735,10 @@ impl Clip {
 impl FixedSize for Clip {
     const RAW_BYTE_LEN: usize =
         GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for Clip {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1033,6 +1049,10 @@ impl FixedSize for ColorIndex {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for ColorIndex {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for ColorIndex {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1080,6 +1100,10 @@ impl VarColorIndex {
 
 impl FixedSize for VarColorIndex {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for VarColorIndex {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1130,6 +1154,10 @@ impl ColorStop {
 
 impl FixedSize for ColorStop {
     const RAW_BYTE_LEN: usize = F2Dot14::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for ColorStop {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1188,6 +1216,10 @@ impl VarColorStop {
 impl FixedSize for VarColorStop {
     const RAW_BYTE_LEN: usize =
         F2Dot14::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for VarColorStop {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

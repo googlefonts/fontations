@@ -112,6 +112,10 @@ impl FixedSize for ScriptRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for ScriptRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for ScriptRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -257,6 +261,10 @@ impl LangSysRecord {
 
 impl FixedSize for LangSysRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for LangSysRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -477,6 +485,10 @@ impl FeatureRecord {
 
 impl FixedSize for FeatureRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for FeatureRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1098,6 +1110,10 @@ impl FixedSize for RangeRecord {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for RangeRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for RangeRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1383,6 +1399,10 @@ impl FixedSize for ClassRangeRecord {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for ClassRangeRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for ClassRangeRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1468,6 +1488,10 @@ impl SequenceLookupRecord {
 
 impl FixedSize for SequenceLookupRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for SequenceLookupRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -3847,6 +3871,10 @@ impl FixedSize for FeatureVariationRecord {
     const RAW_BYTE_LEN: usize = Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for FeatureVariationRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for FeatureVariationRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -4175,6 +4203,10 @@ impl FeatureTableSubstitutionRecord {
 
 impl FixedSize for FeatureTableSubstitutionRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for FeatureTableSubstitutionRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

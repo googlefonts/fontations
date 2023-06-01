@@ -721,6 +721,10 @@ impl FixedSize for Shmecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for Shmecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for Shmecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {

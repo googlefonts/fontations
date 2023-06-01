@@ -195,6 +195,10 @@ impl FixedSize for LangTagRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
+unsafe impl JustBytes for LangTagRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for LangTagRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -268,6 +272,10 @@ impl FixedSize for NameRecord {
         + NameId::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN;
+}
+
+unsafe impl JustBytes for NameRecord {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
