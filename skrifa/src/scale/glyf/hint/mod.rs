@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 use super::scaler::ScalerFont;
 use crate::scale::Hinting;
 
@@ -67,7 +69,7 @@ pub struct HintContext {
 }
 
 impl HintContext {
-    pub fn hint(&mut self, glyph: HintGlyph) -> bool {
+    pub fn hint(&mut self, _glyph: HintGlyph) -> bool {
         true
     }
 }

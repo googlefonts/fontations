@@ -1,7 +1,7 @@
 use super::{
     attribute::Attributes,
     charmap::Charmap,
-    instance::{LocationRef, NormalizedCoord, Size},
+    instance::{LocationRef, Size},
     metrics::{GlyphMetrics, Metrics},
     string::{LocalizedStrings, StringId},
     variation::{AxisCollection, NamedInstanceCollection},

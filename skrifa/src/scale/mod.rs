@@ -164,10 +164,7 @@ use super::{
     font::UniqueId,
     instance::{NormalizedCoord, Size},
     setting::VariationSetting,
-    GlyphId, Tag,
 };
-
-use core::str::FromStr;
 
 /// Limit for recursion when loading TrueType composite glyphs.
 const GLYF_COMPOSITE_RECURSION_LIMIT: usize = 32;
@@ -226,7 +223,7 @@ impl Context {
 
 #[cfg(test)]
 mod tests {
-    use super::{test, Context, GlyphId, Pen, Scaler, Size};
+    use super::{test, Context, Size};
     use font_test_data::{VAZIRMATN_VAR, VAZIRMATN_VAR_GLYPHS};
     use read_fonts::FontRef;
 

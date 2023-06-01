@@ -6,7 +6,6 @@ use read_fonts::{
         os2::{Os2, SelectionFlags},
         post::Post,
     },
-    types::Tag,
     TableProvider,
 };
 

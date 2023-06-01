@@ -452,7 +452,7 @@ mod tests {
 
     #[test]
     fn map_variants() {
-        use super::{CmapSubtable, MapVariant::*};
+        use super::MapVariant::*;
         let font = FontRef::new(font_test_data::CMAP14_FONT1).unwrap();
         let charmap = font.charmap();
         let selector = '\u{e0100}';

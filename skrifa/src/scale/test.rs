@@ -1,11 +1,10 @@
 //! Helpers for unit testing
 
-use super::{Context, GlyphId, Pen, Scaler};
+use super::Pen;
 use core::str::FromStr;
 use read_fonts::{
     tables::glyf::PointFlags,
-    types::{F26Dot6, F2Dot14, Point},
-    FontRef,
+    types::{F26Dot6, F2Dot14, GlyphId, Point},
 };
 
 #[derive(Copy, Clone, PartialEq, Debug)]
@@ -17,8 +16,6 @@ pub enum PathElement {
     QuadTo([f32; 4]),
     CurveTo([f32; 6]),
 }
-
-use PathElement::*;
 
 #[derive(Default)]
 pub struct Path(pub Vec<PathElement>);
