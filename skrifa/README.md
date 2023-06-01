@@ -1,6 +1,6 @@
 # skrifa
 
-[![Crates.io](https://img.shields.io/crates/v/skrifa.svg?maxAge=2592000)](https://crates.io/crates/skrifa)
+[![Crates.io](https://img.shields.io/crates/v/skrifa.svg)](https://crates.io/crates/skrifa)
 [![Docs](https://docs.rs/skrifa/badge.svg)](https://docs.rs/skrifa)
 [![MIT/Apache 2.0](https://img.shields.io/badge/license-MIT%2FApache-blue.svg)](#license)
 
@@ -22,12 +22,12 @@ descender, etc)
 * Codepoint to nominal glyph identifier mapping
     * Unicode variation sequences
 * Localized strings
-
-Future goals include:
-
 * Attributes (stretch, style and weight)
 * Variation axes and named instances
     * Conversion from user coordinates to normalized design coordinates
+
+Future goals include:
+
 * Color palettes
 * Embedded bitmap strikes
 
