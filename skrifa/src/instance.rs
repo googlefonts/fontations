@@ -145,6 +145,14 @@ impl Location {
     }
 }
 
+impl Default for Location {
+    fn default() -> Self {
+        Self {
+            coords: SmallArray::new(NormalizedCoord::default(), 0),
+        }
+    }
+}
+
 impl<'a> From<&'a Location> for LocationRef<'a> {
     fn from(value: &'a Location) -> Self {
         LocationRef(value.coords())
