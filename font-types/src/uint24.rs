@@ -26,6 +26,11 @@ impl Uint24 {
         }
     }
 
+    /// Returns this value as an unsigned 32-bit integer.
+    pub const fn to_u32(self) -> u32 {
+        self.0
+    }
+
     pub const fn to_be_bytes(self) -> [u8; 3] {
         let bytes = self.0.to_be_bytes();
         [bytes[1], bytes[2], bytes[3]]
