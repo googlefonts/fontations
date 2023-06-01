@@ -3,9 +3,9 @@ use super::{glyf, Context, Error, NormalizedCoord, Pen, Result, Size, UniqueId, 
 #[cfg(feature = "hinting")]
 use super::Hinting;
 
-use core::{borrow::Borrow, str::FromStr};
+use core::borrow::Borrow;
 use read_fonts::{
-    types::{Fixed, GlyphId, Tag},
+    types::{Fixed, GlyphId},
     TableProvider,
 };
 

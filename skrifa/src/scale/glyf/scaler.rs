@@ -140,6 +140,7 @@ impl<'a> Scaler<'a> {
             &mut self.context.unscaled[..],
             &mut outline.flags[point_base..],
         )?;
+        #[cfg(feature = "hinting")]
         let ins = simple.instructions();
         for point in &self.phantom {
             self.context
@@ -269,6 +270,7 @@ impl<'a> Scaler<'a> {
     ) -> Result<()> {
         // The base indices of the points and contours for the current glyph.
         let point_base = outline.points.len();
+        #[cfg(feature = "hinting")]
         let contour_base = outline.contours.len();
         let scale = self.font.scale;
         if self.font.is_scaled {
@@ -491,6 +493,7 @@ impl<'a> Scaler<'a> {
         self.phantom[3].y = self.phantom[2].y - F26Dot6::from_bits(vadvance);
     }
 
+    #[cfg(feature = "hinting")]
     fn push_phantom(&mut self, outline: &mut Outline) {
         for i in 0..4 {
             outline.points.push(self.phantom[i]);
@@ -693,6 +696,7 @@ impl<'a> ScalerFont<'a> {
     }
 
     #[cfg(feature = "hinting")]
+    #[allow(dead_code)]
     pub(crate) fn scale_cvt(&self, scale: Option<i32>, scaled_cvt: &mut Vec<i32>) {
         if scaled_cvt.len() < self.cvt.len() {
             scaled_cvt.resize(self.cvt.len(), 0);

@@ -34,17 +34,6 @@ where
         }
     }
 
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
-    pub fn len(&self) -> usize {
-        match &self.storage {
-            SmallStorage::Inline(_, len) => *len,
-            SmallStorage::Heap(vec) => vec.len(),
-        }
-    }
-
     pub fn as_slice(&self) -> &[T] {
         match &self.storage {
             SmallStorage::Inline(array, len) => &array[..*len],

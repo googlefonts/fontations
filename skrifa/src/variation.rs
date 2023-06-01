@@ -253,7 +253,6 @@ impl<'a> AxisCollection<'a> {
             value: f32,
             present: bool,
         }
-        let len = self.len();
         let mut results = SmallArray::<_, 8>::new(Entry::default(), self.len());
         for (axis, result) in self.iter().zip(results.as_mut_slice()) {
             result.tag = axis.tag();
@@ -408,7 +407,7 @@ impl<'a> NamedInstanceCollection<'a> {
 mod tests {
     use super::*;
     use crate::MetadataProvider as _;
-    use font_test_data::{SIMPLE_GLYF, VAZIRMATN_VAR};
+    use font_test_data::VAZIRMATN_VAR;
     use read_fonts::FontRef;
     use std::str::FromStr;
 

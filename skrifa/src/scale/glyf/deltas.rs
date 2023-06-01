@@ -2,8 +2,8 @@ use core::ops::RangeInclusive;
 
 use read_fonts::{
     tables::glyf::{PointFlags, PointMarker},
-    tables::gvar::{GlyphDelta, Gvar, TupleVariation},
-    types::{F26Dot6, F2Dot14, Fixed, GlyphId, Point},
+    tables::gvar::{Gvar, TupleVariation},
+    types::{F2Dot14, Fixed, GlyphId, Point},
     ReadError,
 };
 
@@ -54,7 +54,7 @@ pub fn simple_glyph(
     for delta in deltas.iter_mut() {
         *delta = Default::default();
     }
-    let Ok(var_data) = gvar.glyph_variation_data(glyph_id) else {
+    if gvar.glyph_variation_data(glyph_id).is_err() {
         // Empty variation data for a glyph is not an error.
         return Ok(());
     };
