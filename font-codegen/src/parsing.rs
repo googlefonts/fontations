@@ -285,6 +285,8 @@ pub(crate) enum CountTransform {
     Sub,
     /// requires exactly two args, defined as $arg1 + $arg2
     Add,
+    /// requires exactly three args, defined as ($arg1 + $arg2) * $arg3
+    AddMul,
     /// requires exactly one arg. defined as $arg1 / 2
     Half,
     DeltaValueCount,
@@ -1370,6 +1372,7 @@ impl Parse for CountTransform {
 static TRANSFORM_IDENTS: &[(CountTransform, &str)] = &[
     (CountTransform::Sub, "subtract"),
     (CountTransform::Add, "add"),
+    (CountTransform::AddMul, "add_multiply"),
     (CountTransform::Half, "half"),
     (CountTransform::DeltaValueCount, "delta_value_count"),
     (CountTransform::DeltaSetIndexData, "delta_set_index_data"),
@@ -1401,6 +1404,7 @@ impl CountTransform {
         match self {
             CountTransform::Sub => 2,
             CountTransform::Add => 2,
+            CountTransform::AddMul => 3,
             CountTransform::Half => 1,
             CountTransform::DeltaValueCount => 3,
             CountTransform::DeltaSetIndexData => 2,
@@ -1522,6 +1526,9 @@ impl Count {
                 }
                 (CountTransform::Add, [a, b]) => {
                     quote!(transforms::add(#a, #b))
+                }
+                (CountTransform::AddMul, [a, b, c]) => {
+                    quote!(transforms::add_multiply(#a, #b, #c))
                 }
                 (CountTransform::Half, [a]) => {
                     quote!(transforms::half(#a))
