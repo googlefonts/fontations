@@ -3,6 +3,7 @@
 use std::fmt;
 
 mod blend;
+mod fd_select;
 mod index;
 
 include!("../../generated/generated_postscript.rs");
