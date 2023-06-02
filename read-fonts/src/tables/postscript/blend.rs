@@ -6,6 +6,11 @@ use super::Error;
 use crate::tables::variations::{ItemVariationData, ItemVariationStore};
 
 /// The maximum number of region scalars that we precompute.
+///
+/// Completely made up number chosen to balance size with trying to capture as
+/// many precomputed regions as possible.
+///
+/// TODO: measure with a larger set of CFF2 fonts and adjust accordingly.
 const MAX_PRECOMPUTED_SCALARS: usize = 16;
 
 /// State for processing the blend operator for DICTs and charstrings.
