@@ -5,7 +5,7 @@ use std::ops::{Range, RangeBounds};
 use types::{BigEndian, FixedSize, Scalar};
 
 use crate::array::ComputedArray;
-use crate::read::{ComputeSize, FontReadWithArgs, JustBytes, ReadError};
+use crate::read::{ComputeSize, FontReadWithArgs, FromBytes, ReadError};
 use crate::table_ref::TableRef;
 use crate::FontRead;
 
@@ -102,19 +102,29 @@ impl<'a> FontData<'a> {
             .map(|_| ())
     }
 
-    //NOTE: this is definitely unsound, since FixedSized isn't private,
-    // and we don't enforce all soundness requirements: for instance, you could
-    // use this to create an enum with an invalid discriminant, which is UB.
-    //
-    // In practice I believe my *current* use is correct, as it is all in auto-generated
-    // code, and I know the invariants, but this should be revisited.
-    pub fn read_ref_at<T: JustBytes>(&self, offset: usize) -> Result<&'a T, ReadError> {
+    /// Interpret the bytes at the provided offset as a reference to `T`.
+    ///
+    /// Returns an error if the slice `offset..` is shorter than `T::RAW_BYTE_LEN`.
+    ///
+    /// This is a wrapper around [`read_ref_unchecked`][], which panics if
+    /// the type does not uphold the required invariants.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if `T` is zero-sized, has an alignment
+    /// other than one, or has any internal padding.
+    ///
+    /// [`read_ref_unchecked`]: [Self::read_ref_unchecked]
+    pub fn read_ref_at<T: FromBytes>(&self, offset: usize) -> Result<&'a T, ReadError> {
         assert_ne!(std::mem::size_of::<T>(), 0);
+        assert_eq!(std::mem::size_of::<T>(), T::RAW_BYTE_LEN); // padding check
         assert_eq!(std::mem::align_of::<T>(), 1);
         self.bytes
             .get(offset..offset + T::RAW_BYTE_LEN)
             .ok_or(ReadError::OutOfBounds)?;
 
+        // SAFETY: if we have reached this point without hitting an assert or
+        // returning an error, our invariants are met.
         unsafe { Ok(self.read_ref_unchecked(offset)) }
     }
 
@@ -125,14 +135,28 @@ impl<'a> FontData<'a> {
     /// `T` must be a struct or scalar that has alignment of 1, a non-zero size,
     /// and no internal padding, and offset must point to a slice of bytes that
     /// has length >= `size_of::<T>()`.
-    unsafe fn read_ref_unchecked<T: JustBytes>(&self, offset: usize) -> &'a T {
+    unsafe fn read_ref_unchecked<T: FromBytes>(&self, offset: usize) -> &'a T {
         let bytes = self.bytes.get_unchecked(offset..offset + T::RAW_BYTE_LEN);
         &*(bytes.as_ptr() as *const T)
     }
 
-    //NOTE: unsound, see the note on read_ref_at
-    pub fn read_array<T: JustBytes>(&self, range: Range<usize>) -> Result<&'a [T], ReadError> {
+    /// Interpret the bytes at the provided offset as a slice of `T`.
+    ///
+    /// Returns an error if `range` is out of bounds for the underlying data,
+    /// or if the length of the range is not a multiple of `T::RAW_BYTE_LEN`.
+    ///
+    /// This is a wrapper around [`read_array_unchecked`][], which panics if
+    /// the type does not uphold the required invariants.
+    ///
+    /// # Panics
+    ///
+    /// This function will panic if `T` is zero-sized, has an alignment
+    /// other than one, or has any internal padding.
+    ///
+    /// [`read_array_unchecked`]: [Self::read_array_unchecked]
+    pub fn read_array<T: FromBytes>(&self, range: Range<usize>) -> Result<&'a [T], ReadError> {
         assert_ne!(std::mem::size_of::<T>(), 0);
+        assert_eq!(std::mem::size_of::<T>(), T::RAW_BYTE_LEN); // padding check
         assert_eq!(std::mem::align_of::<T>(), 1);
         let bytes = self
             .bytes
@@ -141,6 +165,8 @@ impl<'a> FontData<'a> {
         if bytes.len() % std::mem::size_of::<T>() != 0 {
             return Err(ReadError::InvalidArrayLen);
         };
+        // SAFETY: if we have reached this point without hitting an assert or
+        // returning an error, our invariants are met.
         unsafe { Ok(self.read_array_unchecked(range)) }
     }
 
@@ -151,18 +177,11 @@ impl<'a> FontData<'a> {
     /// `T` must be a struct or scalar that has alignment of 1, a non-zero size,
     /// and no internal padding, and `range` must have a length that is non-zero
     /// and is a multiple of `size_of::<T>()`.
-    pub unsafe fn read_array_unchecked<T: JustBytes>(&self, range: Range<usize>) -> &'a [T] {
+    pub unsafe fn read_array_unchecked<T: FromBytes>(&self, range: Range<usize>) -> &'a [T] {
         let bytes = self.bytes.get_unchecked(range);
         let elems = bytes.len() / std::mem::size_of::<T>();
         std::slice::from_raw_parts(bytes.as_ptr() as *const _, elems)
     }
-
-    //pub fn resolve_offset<T: FontRead<'a>, O: Offset>(&self, off: O) -> Result<T, ReadError> {
-    //let off = off.non_null().ok_or(ReadError::NullOffset)?;
-    //self.split_off(off)
-    //.ok_or(ReadError::OutOfBounds)
-    //.and_then(|data| T::read(data))
-    //}
 
     pub(crate) fn cursor(&self) -> Cursor<'a> {
         Cursor {
@@ -224,7 +243,7 @@ impl<'a> Cursor<'a> {
         temp
     }
 
-    pub(crate) fn read_array<T: JustBytes>(&mut self, n_elem: usize) -> Result<&'a [T], ReadError> {
+    pub(crate) fn read_array<T: FromBytes>(&mut self, n_elem: usize) -> Result<&'a [T], ReadError> {
         let len = n_elem * T::RAW_BYTE_LEN;
         let temp = self.data.read_array(self.pos..self.pos + len);
         self.pos += len;

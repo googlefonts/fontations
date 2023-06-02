@@ -399,7 +399,8 @@ impl FixedSize for BaseScriptRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
-unsafe impl JustBytes for BaseScriptRecord {
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for BaseScriptRecord {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
@@ -575,7 +576,8 @@ impl FixedSize for BaseLangSysRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
-unsafe impl JustBytes for BaseLangSysRecord {
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for BaseLangSysRecord {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
@@ -876,7 +878,8 @@ impl FixedSize for FeatMinMaxRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
-unsafe impl JustBytes for FeatMinMaxRecord {
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for FeatMinMaxRecord {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 

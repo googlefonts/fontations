@@ -195,7 +195,8 @@ impl FixedSize for LangTagRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
-unsafe impl JustBytes for LangTagRecord {
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for LangTagRecord {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
@@ -274,7 +275,8 @@ impl FixedSize for NameRecord {
         + Offset16::RAW_BYTE_LEN;
 }
 
-unsafe impl JustBytes for NameRecord {
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for NameRecord {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
