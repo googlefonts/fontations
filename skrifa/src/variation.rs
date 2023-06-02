@@ -165,11 +165,9 @@ impl<'a> AxisCollection<'a> {
     ///     before normalization.
     /// * If more than one setting for an axis is provided, the last one is
     ///     used.
-    /// * Omitted settings are set to 0.0, representing the default position
+    /// * If no setting for an axis is provided, the associated coordinate is
+    ///     set to the normalized value 0.0, representing the default position
     ///     in variation space.
-    ///
-    /// If `location.len() < self.len()`, the omitted coordinates will assume
-    /// their default positions.
     ///
     /// # Examples
     ///
@@ -333,9 +331,6 @@ impl<'a> NamedInstance<'a> {
 
     /// Computes a location in normalized variation space for this instance and
     /// stores the result in the given slice.
-    ///
-    /// If `location.len() < self.user_coords().count()`, the omitted
-    /// coordinates will assume their default positions.
     ///
     /// # Examples
     ///
