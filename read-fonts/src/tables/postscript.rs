@@ -5,22 +5,24 @@ use std::fmt;
 mod blend;
 mod fd_select;
 mod index;
+mod stack;
 
 include!("../../generated/generated_postscript.rs");
 
 pub use blend::BlendState;
 pub use index::Index;
+pub use stack::Stack;
 
 /// Errors that are specific to PostScript processing.
 #[derive(Clone, Debug)]
 pub enum Error {
-    /// The `off_size` field in an INDEX contained an invalid value.
     InvalidIndexOffsetSize(u8),
-    /// An INDEX contained a zero offset.
     ZeroOffsetInIndex,
-    /// Variation store index referenced an invalid variation region.
     InvalidVariationStoreIndex(u16),
-    /// Underlying parsing error.
+    StackOverflow,
+    StackUnderflow,
+    InvalidStackAccess(usize),
+    ExpectedI32StackEntry(usize),
     Read(ReadError),
 }
 
@@ -44,6 +46,18 @@ impl fmt::Display for Error {
                     f,
                     "variation store index {index} referenced an invalid variation region"
                 )
+            }
+            Self::StackOverflow => {
+                write!(f, "attempted to push a value to a full stack")
+            }
+            Self::StackUnderflow => {
+                write!(f, "attempted to pop a value from an empty stack")
+            }
+            Self::InvalidStackAccess(index) => {
+                write!(f, "invalid stack access for index {index}")
+            }
+            Self::ExpectedI32StackEntry(index) => {
+                write!(f, "attempted to read an integer at stack index {index}, but found a fixed point value")
             }
             Self::Read(err) => write!(f, "{err}"),
         }
