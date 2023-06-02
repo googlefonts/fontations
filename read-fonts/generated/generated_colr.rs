@@ -328,7 +328,8 @@ impl FixedSize for BaseGlyph {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-unsafe impl JustBytes for BaseGlyph {
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for BaseGlyph {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
@@ -375,7 +376,8 @@ impl FixedSize for Layer {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-unsafe impl JustBytes for Layer {
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for Layer {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
@@ -503,7 +505,8 @@ impl FixedSize for BaseGlyphPaint {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
-unsafe impl JustBytes for BaseGlyphPaint {
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for BaseGlyphPaint {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
@@ -737,7 +740,8 @@ impl FixedSize for Clip {
         GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
 }
 
-unsafe impl JustBytes for Clip {
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for Clip {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
@@ -1049,7 +1053,8 @@ impl FixedSize for ColorIndex {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
-unsafe impl JustBytes for ColorIndex {
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for ColorIndex {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
@@ -1102,7 +1107,8 @@ impl FixedSize for VarColorIndex {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
-unsafe impl JustBytes for VarColorIndex {
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for VarColorIndex {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
@@ -1156,7 +1162,8 @@ impl FixedSize for ColorStop {
     const RAW_BYTE_LEN: usize = F2Dot14::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
-unsafe impl JustBytes for ColorStop {
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for ColorStop {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
@@ -1218,7 +1225,8 @@ impl FixedSize for VarColorStop {
         F2Dot14::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
-unsafe impl JustBytes for VarColorStop {
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for VarColorStop {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 

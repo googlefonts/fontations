@@ -1010,7 +1010,8 @@ impl FixedSize for MarkRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
-unsafe impl JustBytes for MarkRecord {
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for MarkRecord {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
@@ -2249,7 +2250,8 @@ impl FixedSize for EntryExitRecord {
     const RAW_BYTE_LEN: usize = Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
-unsafe impl JustBytes for EntryExitRecord {
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for EntryExitRecord {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
