@@ -45,28 +45,28 @@ impl ValueRecord {
         let mut cursor = data.cursor();
 
         if format.contains(ValueFormat::X_PLACEMENT) {
-            this.x_placement = Some(cursor.read()?);
+            this.x_placement = Some(cursor.read_be()?);
         }
         if format.contains(ValueFormat::Y_PLACEMENT) {
-            this.y_placement = Some(cursor.read()?);
+            this.y_placement = Some(cursor.read_be()?);
         }
         if format.contains(ValueFormat::X_ADVANCE) {
-            this.x_advance = Some(cursor.read()?);
+            this.x_advance = Some(cursor.read_be()?);
         }
         if format.contains(ValueFormat::Y_ADVANCE) {
-            this.y_advance = Some(cursor.read()?);
+            this.y_advance = Some(cursor.read_be()?);
         }
         if format.contains(ValueFormat::X_PLACEMENT_DEVICE) {
-            this.x_placement_device = Some(cursor.read()?);
+            this.x_placement_device = Some(cursor.read_be()?);
         }
         if format.contains(ValueFormat::Y_PLACEMENT_DEVICE) {
-            this.y_placement_device = Some(cursor.read()?);
+            this.y_placement_device = Some(cursor.read_be()?);
         }
         if format.contains(ValueFormat::X_ADVANCE_DEVICE) {
-            this.x_advance_device = Some(cursor.read()?);
+            this.x_advance_device = Some(cursor.read_be()?);
         }
         if format.contains(ValueFormat::Y_ADVANCE_DEVICE) {
-            this.y_advance_device = Some(cursor.read()?);
+            this.y_advance_device = Some(cursor.read_be()?);
         }
         Ok(this)
     }

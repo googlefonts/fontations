@@ -6,14 +6,23 @@
 ///
 /// You do not need to implement this trait directly; it is an implemention
 /// detail of the [`BigEndian`] wrapper.
-pub trait Scalar {
+pub trait Scalar: Sized {
     /// The raw byte representation of this type.
-    type Raw: Copy + AsRef<[u8]>;
+    type Raw: sealed::BeByteArray;
 
     /// Create an instance of this type from raw big-endian bytes
     fn from_raw(raw: Self::Raw) -> Self;
+
     /// Encode this type as raw big-endian bytes
     fn to_raw(self) -> Self::Raw;
+
+    /// Attempt to read a scalar from a slice.
+    ///
+    /// This will always succeed if `slice.len() == Self::RAW_BYTE_LEN`, and will
+    /// always return `None` otherwise.
+    fn read(slice: &[u8]) -> Option<Self> {
+        sealed::BeByteArray::from_slice(slice).map(Self::from_raw)
+    }
 }
 
 /// A trait for types that have a known, constant size.
@@ -32,18 +41,23 @@ pub trait FixedSize: Sized {
     const RAW_BYTE_LEN: usize;
 }
 
-/// A trait for types that can be read from raw bytes.
-///
-/// This is a generalization that gives us a failable read method for all our
-/// `Scalar` types, as well as their `BigEndian` representations.
-///
-/// You should not need to implement this trait; it is provided automatically
-/// when you implement [`Scalar`].
-pub trait ReadScalar: FixedSize {
-    /// Interpret the provided bytes as `Self`, if they are the right length.
+/// we hide this trait; it isn't part of the public API, and this clarifies
+/// the guarantee that it is only implemented for [u8; N]
+mod sealed {
+    /// A trait representing any fixed-size big-endian byte array.
     ///
-    /// This should use all the provided bytes; bounds checking is performed upstream.
-    fn read(bytes: &[u8]) -> Option<Self>;
+    /// This is only used in `Scalar`, as a way of expressing the condition that the
+    /// `Raw` type is always a fixed-size byte array.
+    pub trait BeByteArray: Copy + AsRef<[u8]> {
+        /// Must always succeed for [u8; N] if slice.len() == N, must fail otherwise
+        fn from_slice(slice: &[u8]) -> Option<Self>;
+    }
+
+    impl<const N: usize> BeByteArray for [u8; N] {
+        fn from_slice(slice: &[u8]) -> Option<Self> {
+            slice.try_into().ok()
+        }
+    }
 }
 
 /// A wrapper around raw big-endian bytes for some type.
@@ -57,7 +71,15 @@ impl<T: Scalar> BigEndian<T> {
     pub fn new(raw: T::Raw) -> BigEndian<T> {
         BigEndian(raw)
     }
-    /// Read a copy of this type from raw bytes.
+
+    /// Attempt to construct a new raw value from this slice.
+    ///
+    /// This will fail if `slice.len() != T::RAW_BYTE_LEN`.
+    pub fn from_slice(slice: &[u8]) -> Option<Self> {
+        sealed::BeByteArray::from_slice(slice).map(Self)
+    }
+
+    /// Convert this raw type to its native representation.
     pub fn get(&self) -> T {
         T::from_raw(self.0)
     }
@@ -112,52 +134,11 @@ where
     }
 }
 
-// these following impls are an elaborate way to impl ReadScalar for BigEndian<T>
-impl<const N: usize> FixedSize for [u8; N] {
-    const RAW_BYTE_LEN: usize = N;
+impl<T: Scalar> FixedSize for T {
+    const RAW_BYTE_LEN: usize = std::mem::size_of::<T::Raw>();
 }
 
-impl<const N: usize> ReadScalar for [u8; N] {
-    #[inline]
-    fn read(bytes: &[u8]) -> Option<Self> {
-        bytes.try_into().ok()
-    }
-}
-
-impl<T> ReadScalar for BigEndian<T>
-where
-    T: Scalar + FixedSize,
-    <T as Scalar>::Raw: ReadScalar,
-{
-    #[inline]
-    fn read(bytes: &[u8]) -> Option<Self> {
-        T::Raw::read(bytes).map(BigEndian)
-    }
-}
-
-// and then we can impl ReadScalar for T based on the impl for BigEndian<T>
-impl<T> ReadScalar for T
-where
-    T: Scalar + FixedSize,
-    <T as Scalar>::Raw: ReadScalar,
-{
-    #[inline]
-    fn read(bytes: &[u8]) -> Option<Self> {
-        BigEndian::<T>::read(bytes).as_ref().map(BigEndian::get)
-    }
-}
-
-// and impl FixedSized for T based on the impl for the arrays
-impl<T> FixedSize for T
-where
-    T: Scalar,
-    <T as Scalar>::Raw: FixedSize,
-{
-    const RAW_BYTE_LEN: usize = <T as Scalar>::Raw::RAW_BYTE_LEN;
-}
-
-// and impl FixedSized for BigEndian<T> based on the impl forr T
-impl<T: Scalar + FixedSize> FixedSize for BigEndian<T> {
+impl<T: Scalar> FixedSize for BigEndian<T> {
     const RAW_BYTE_LEN: usize = T::RAW_BYTE_LEN;
 }
 
