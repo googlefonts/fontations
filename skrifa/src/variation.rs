@@ -168,9 +168,8 @@ impl<'a> AxisCollection<'a> {
     /// * Omitted settings are set to 0.0, representing the default position
     ///     in variation space.
     ///
-    /// # Panics
-    ///
-    /// Panics if `location.len() < self.len()`.
+    /// If `location.len() < self.len()`, the omitted coordinates will assume
+    /// their default positions.
     ///
     /// # Examples
     ///
@@ -203,14 +202,16 @@ impl<'a> AxisCollection<'a> {
                 .enumerate()
                 .filter(|v| v.1.tag() == setting.selector)
             {
-                let coord = axis.record.normalize(Fixed::from_f64(setting.value as f64));
-                let coord = avar_mappings
-                    .as_ref()
-                    .and_then(|mappings| mappings.get(i).transpose().ok())
-                    .flatten()
-                    .map(|mapping| mapping.apply(coord))
-                    .unwrap_or(coord);
-                location[i] = coord.to_f2dot14();
+                if let Some(target_coord) = location.get_mut(i) {
+                    let coord = axis.record.normalize(Fixed::from_f64(setting.value as f64));
+                    *target_coord = avar_mappings
+                        .as_ref()
+                        .and_then(|mappings| mappings.get(i).transpose().ok())
+                        .flatten()
+                        .map(|mapping| mapping.apply(coord))
+                        .unwrap_or(coord)
+                        .to_f2dot14();
+                }
             }
         }
     }
@@ -333,9 +334,8 @@ impl<'a> NamedInstance<'a> {
     /// Computes a location in normalized variation space for this instance and
     /// stores the result in the given slice.
     ///
-    /// # Panics
-    ///
-    /// Panics if `location.len() < self.user_coords().count()`.
+    /// If `location.len() < self.user_coords().count()`, the omitted
+    /// coordinates will assume their default positions.
     ///
     /// # Examples
     ///
