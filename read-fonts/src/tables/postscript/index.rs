@@ -179,7 +179,7 @@ fn read_offset(
     }
     // As above, subtract one to get the actual offset.
     .checked_sub(1)
-    .ok_or(Error::ZeroOffset)
+    .ok_or(Error::ZeroOffsetInIndex)
 }
 
 #[cfg(test)]
