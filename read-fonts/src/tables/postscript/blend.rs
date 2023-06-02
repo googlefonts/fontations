@@ -3,7 +3,7 @@
 use font_types::{BigEndian, F2Dot14, Fixed};
 
 use super::Error;
-use crate::tables::variations::{ItemVariationData, ItemVariationStore, VariationRegionList};
+use crate::tables::variations::{ItemVariationData, ItemVariationStore};
 
 /// The maximum number of region scalars that we precompute.
 const MAX_PRECOMPUTED_SCALARS: usize = 16;
@@ -18,11 +18,12 @@ const MAX_PRECOMPUTED_SCALARS: usize = 16;
 ///
 /// The `MAX_PRECOMPUTED_SCALARS` constant determines the size of the
 /// internal buffer (currently 16).
+///
+/// See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2charstr#45-variation-data-operators>
 pub struct BlendState<'a> {
     store: ItemVariationStore<'a>,
-    regions: VariationRegionList<'a>,
     coords: &'a [F2Dot14],
-    vs_index: u16,
+    store_index: u16,
     needs_update: bool,
     // The following need to be updated when `needs_update` is true:
     data: Option<ItemVariationData<'a>>,
@@ -36,41 +37,40 @@ impl<'a> BlendState<'a> {
         coords: &'a [F2Dot14],
         vs_index: u16,
     ) -> Result<Self, Error> {
-        let regions = store.variation_region_list()?;
-        Ok(Self {
+        let mut state = Self {
             store,
-            regions,
             coords,
-            vs_index,
+            store_index: vs_index,
             needs_update: true,
             data: None,
             region_indices: &[],
             scalars: Default::default(),
-        })
+        };
+        state.update_precomputed_scalars()?;
+        Ok(state)
     }
 
     /// Sets the active variation store index.
     ///
     /// This should be called with the operand of the `vsindex` operator
     /// for both DICTs and charstrings.
-    pub fn set_vs_index(&mut self, vs_index: u16) {
-        if vs_index != self.vs_index {
-            self.vs_index = vs_index;
-            self.needs_update = true;
+    pub fn set_store_index(&mut self, store_index: u16) -> Result<(), Error> {
+        if self.store_index != store_index {
+            self.store_index = store_index;
+            self.update_precomputed_scalars()?;
         }
+        Ok(())
     }
 
     /// Returns the number of variation regions for the currently active
     /// variation store index.
-    pub fn region_count(&mut self) -> Result<usize, Error> {
-        self.update_if_needed()?;
+    pub fn region_count(&self) -> Result<usize, Error> {
         Ok(self.region_indices.len())
     }
 
     /// Returns an iterator yielding scalars for each variation region of
     /// the currently active variation store index.
-    pub fn scalars(&mut self) -> Result<impl Iterator<Item = Result<Fixed, Error>> + '_, Error> {
-        self.update_if_needed()?;
+    pub fn scalars(&self) -> Result<impl Iterator<Item = Result<Fixed, Error>> + '_, Error> {
         let total_count = self.region_indices.len();
         let cached = &self.scalars[..MAX_PRECOMPUTED_SCALARS.min(total_count)];
         let remaining_regions = if total_count > MAX_PRECOMPUTED_SCALARS {
@@ -85,20 +85,17 @@ impl<'a> BlendState<'a> {
         ))
     }
 
-    fn update_if_needed(&mut self) -> Result<(), Error> {
-        if !self.needs_update {
-            return Ok(());
-        }
+    fn update_precomputed_scalars(&mut self) -> Result<(), Error> {
         self.needs_update = false;
         self.data = None;
         self.region_indices = &[];
         let store = &self.store;
         let varation_datas = store.item_variation_datas();
         let data = varation_datas
-            .get(self.vs_index as usize)
-            .ok_or(Error::InvalidVsIndex(self.vs_index))??;
+            .get(self.store_index as usize)
+            .ok_or(Error::InvalidVariationStoreIndex(self.store_index))??;
         let region_indices = data.region_indexes();
-        let regions = self.regions.variation_regions();
+        let regions = self.store.variation_region_list()?.variation_regions();
         // Precompute scalars for all regions up to MAX_PRECOMPUTED_SCALARS
         for (region_ix, scalar) in region_indices
             .iter()
@@ -117,7 +114,8 @@ impl<'a> BlendState<'a> {
 
     fn region_scalar(&self, index: u16) -> Result<Fixed, Error> {
         Ok(self
-            .regions
+            .store
+            .variation_region_list()?
             .variation_regions()
             .get(index as usize)
             .map_err(Error::Read)?
@@ -154,7 +152,7 @@ mod test {
             .iter()
             .map(|coord| F2Dot14::from_f32(*coord))
             .collect();
-        let mut blender = BlendState::new(ivs, &coords, 0).unwrap();
+        let blender = BlendState::new(ivs, &coords, 0).unwrap();
         blender.scalars().unwrap().map(|res| res.unwrap()).collect()
     }
 
