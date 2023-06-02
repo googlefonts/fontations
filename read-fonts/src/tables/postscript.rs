@@ -2,10 +2,12 @@
 
 use std::fmt;
 
+mod blend;
 mod index;
 
 include!("../../generated/generated_postscript.rs");
 
+pub use blend::BlendState;
 pub use index::Index;
 
 /// Errors that are specific to PostScript processing.
@@ -14,7 +16,9 @@ pub enum Error {
     /// The `off_size` field in an INDEX contained an invalid value.
     InvalidIndexOffsetSize(u8),
     /// An INDEX contained a zero offset.
-    ZeroOffset,
+    ZeroOffsetInIndex,
+    /// Variation store index referenced an invalid variation region.
+    InvalidVsIndex(u16),
     /// Underlying parsing error.
     Read(ReadError),
 }
@@ -31,8 +35,14 @@ impl fmt::Display for Error {
             Self::InvalidIndexOffsetSize(size) => {
                 write!(f, "invalid offset size of {size} for INDEX (expected 1-4)")
             }
-            Self::ZeroOffset => {
+            Self::ZeroOffsetInIndex => {
                 write!(f, "invalid offset of 0 in INDEX (must be >= 1)")
+            }
+            Self::InvalidVsIndex(index) => {
+                write!(
+                    f,
+                    "variation store index {index} referenced an invalid variation region"
+                )
             }
             Self::Read(err) => write!(f, "{err}"),
         }
