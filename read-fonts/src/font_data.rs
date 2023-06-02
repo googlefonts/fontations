@@ -2,7 +2,7 @@
 
 use std::ops::{Range, RangeBounds};
 
-use types::{FixedSize, ReadScalar};
+use types::{BigEndian, FixedSize, Scalar};
 
 use crate::array::ComputedArray;
 use crate::read::{ComputeSize, FontReadWithArgs, ReadError};
@@ -70,10 +70,19 @@ impl<'a> FontData<'a> {
         self.bytes.get(bounds).map(|bytes| FontData { bytes })
     }
 
-    pub fn read_at<T: ReadScalar>(&self, offset: usize) -> Result<T, ReadError> {
+    /// Read a scalar at the provided location in the data.
+    pub fn read_at<T: Scalar>(&self, offset: usize) -> Result<T, ReadError> {
         self.bytes
             .get(offset..offset + T::RAW_BYTE_LEN)
             .and_then(T::read)
+            .ok_or(ReadError::OutOfBounds)
+    }
+
+    /// Read a big-endian value at the provided location in the data.
+    pub fn read_be_at<T: Scalar>(&self, offset: usize) -> Result<BigEndian<T>, ReadError> {
+        self.bytes
+            .get(offset..offset + T::RAW_BYTE_LEN)
+            .and_then(BigEndian::from_slice)
             .ok_or(ReadError::OutOfBounds)
     }
 
@@ -84,15 +93,6 @@ impl<'a> FontData<'a> {
         self.slice(range)
             .ok_or(ReadError::OutOfBounds)
             .and_then(|data| T::read_with_args(data, args))
-    }
-
-    /// Read a scalar value out of the buffer at `offset`, elliding bounds checks
-    ///
-    /// # Safety
-    ///
-    /// The range `offset..offset + T::RAW_BYTE_LEN` must be in bounds.
-    pub unsafe fn read_at_unchecked<T: ReadScalar>(&self, offset: usize) -> T {
-        T::read(self.bytes.get_unchecked(offset..offset + T::RAW_BYTE_LEN)).unwrap_unchecked()
     }
 
     fn check_in_bounds(&self, offset: usize) -> Result<(), ReadError> {
@@ -177,7 +177,7 @@ impl<'a> FontData<'a> {
 }
 
 impl<'a> Cursor<'a> {
-    pub(crate) fn advance<T: ReadScalar>(&mut self) {
+    pub(crate) fn advance<T: Scalar>(&mut self) {
         self.pos += T::RAW_BYTE_LEN
     }
 
@@ -185,8 +185,16 @@ impl<'a> Cursor<'a> {
         self.pos += n_bytes;
     }
 
-    pub(crate) fn read<T: ReadScalar>(&mut self) -> Result<T, ReadError> {
+    /// Read a scalar and advance the cursor.
+    pub(crate) fn read<T: Scalar>(&mut self) -> Result<T, ReadError> {
         let temp = self.data.read_at(self.pos);
+        self.pos += T::RAW_BYTE_LEN;
+        temp
+    }
+
+    /// Read a big-endian value and advance the cursor.
+    pub(crate) fn read_be<T: Scalar>(&mut self) -> Result<BigEndian<T>, ReadError> {
+        let temp = self.data.read_be_at(self.pos);
         self.pos += T::RAW_BYTE_LEN;
         temp
     }

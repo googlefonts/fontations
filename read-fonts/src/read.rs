@@ -1,6 +1,6 @@
 //! Traits for interpreting font data
 
-use types::{FixedSize, ReadScalar, Tag};
+use font_types::{FixedSize, Scalar, Tag};
 
 use crate::font_data::FontData;
 
@@ -85,7 +85,7 @@ pub trait VarSize {
     ///
     /// When reading this type, we will read this value first, and use it to
     /// determine the total length.
-    type Size: ReadScalar + FixedSize + Into<u32>;
+    type Size: Scalar + Into<u32>;
 
     #[doc(hidden)]
     fn read_len_at(data: FontData, pos: usize) -> Option<usize> {

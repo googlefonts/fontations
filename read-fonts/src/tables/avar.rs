@@ -45,7 +45,7 @@ impl<'a> VarSize for SegmentMaps<'a> {
 impl<'a> FontRead<'a> for SegmentMaps<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let position_map_count: BigEndian<u16> = cursor.read()?;
+        let position_map_count: BigEndian<u16> = cursor.read_be()?;
         let axis_value_maps = cursor.read_array(position_map_count.get() as _)?;
         Ok(SegmentMaps {
             position_map_count,

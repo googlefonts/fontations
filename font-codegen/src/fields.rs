@@ -1051,7 +1051,7 @@ impl Field {
                 .map(FieldReadArgs::to_tokens_for_validation)
             {
                 Some(args) => quote!(cursor.read_with_args(&#args)?),
-                None => quote!(cursor.read()?),
+                None => quote!(cursor.read_be()?),
             },
         };
         quote!( #name : #rhs )

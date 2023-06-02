@@ -1674,7 +1674,7 @@ impl<'a> FontReadWithArgs<'a> for PairValueRecord {
         let mut cursor = data.cursor();
         let (value_format1, value_format2) = *args;
         Ok(Self {
-            second_glyph: cursor.read()?,
+            second_glyph: cursor.read_be()?,
             value_record1: cursor.read_with_args(&value_format1)?,
             value_record2: cursor.read_with_args(&value_format2)?,
         })
