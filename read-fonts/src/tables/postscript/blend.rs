@@ -29,8 +29,7 @@ pub struct BlendState<'a> {
     store: ItemVariationStore<'a>,
     coords: &'a [F2Dot14],
     store_index: u16,
-    needs_update: bool,
-    // The following need to be updated when `needs_update` is true:
+    // The following are dependent on the current `store_index`
     data: Option<ItemVariationData<'a>>,
     region_indices: &'a [BigEndian<u16>],
     scalars: [Fixed; MAX_PRECOMPUTED_SCALARS],
@@ -40,13 +39,12 @@ impl<'a> BlendState<'a> {
     pub fn new(
         store: ItemVariationStore<'a>,
         coords: &'a [F2Dot14],
-        vs_index: u16,
+        store_index: u16,
     ) -> Result<Self, Error> {
         let mut state = Self {
             store,
             coords,
-            store_index: vs_index,
-            needs_update: true,
+            store_index,
             data: None,
             region_indices: &[],
             scalars: Default::default(),
@@ -91,7 +89,6 @@ impl<'a> BlendState<'a> {
     }
 
     fn update_precomputed_scalars(&mut self) -> Result<(), Error> {
-        self.needs_update = false;
         self.data = None;
         self.region_indices = &[];
         let store = &self.store;
@@ -162,7 +159,7 @@ mod test {
     }
 
     fn example_ivs() -> ItemVariationStore<'static> {
-        // ItemVariationStore is at offset 18 in the CFF example font
+        // ItemVariationStore is at offset 18 in the CFF example table
         let ivs_data = &font_test_data::cff2::EXAMPLE[18..];
         ItemVariationStore::read(FontData::new(ivs_data)).unwrap()
     }
