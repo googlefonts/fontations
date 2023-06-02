@@ -61,7 +61,7 @@ pub mod post {
 }
 
 pub mod cff2 {
-    /// CFF2 example font
+    /// CFF2 example table
     /// <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#appendix-a-example-cff2-font>
     pub static EXAMPLE: &[u8] = &[
         0x02, 0x00, 0x05, 0x00, 0x07, 0xCF, 0x0C, 0x24, 0xC3, 0x11, 0x9B, 0x18, 0x00, 0x00, 0x00,

@@ -18,7 +18,7 @@ pub enum Error {
     /// An INDEX contained a zero offset.
     ZeroOffsetInIndex,
     /// Variation store index referenced an invalid variation region.
-    InvalidVsIndex(u16),
+    InvalidVariationStoreIndex(u16),
     /// Underlying parsing error.
     Read(ReadError),
 }
@@ -38,7 +38,7 @@ impl fmt::Display for Error {
             Self::ZeroOffsetInIndex => {
                 write!(f, "invalid offset of 0 in INDEX (must be >= 1)")
             }
-            Self::InvalidVsIndex(index) => {
+            Self::InvalidVariationStoreIndex(index) => {
                 write!(
                     f,
                     "variation store index {index} referenced an invalid variation region"
