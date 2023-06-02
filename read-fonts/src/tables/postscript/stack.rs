@@ -20,9 +20,9 @@ const MAX_STACK: usize = 513;
 /// conversion is performed on demand at read time.
 ///
 /// Storing the entries as an enum would require 8 bytes each and since these
-/// objects are created on the _stack_, the entries are instead stored in
-/// parallel arrays holding the raw 32-bit value and a flag that tracks which
-/// values are fixed point.
+/// objects are created on the _stack_, we reduce the required size by storing
+/// the entries in parallel arrays holding the raw 32-bit value and a flag that
+/// tracks which values are fixed point.
 pub struct Stack {
     values: [i32; MAX_STACK],
     value_is_fixed: [bool; MAX_STACK],
@@ -229,13 +229,13 @@ impl Stack {
         let start = self.len() - operand_count;
         let end = start + operand_count;
         // For simplicity, convert all elements to fixed up front.
-        for (value, is_real) in self.values[start..end]
+        for (value, is_fixed) in self.values[start..end]
             .iter_mut()
             .zip(&mut self.value_is_fixed[start..])
         {
-            if !*is_real {
+            if !*is_fixed {
                 *value = Fixed::from_i32(*value).to_bits();
-                *is_real = true;
+                *is_fixed = true;
             }
         }
         let (values, deltas) = self.values[start..].split_at_mut(target_value_count);
