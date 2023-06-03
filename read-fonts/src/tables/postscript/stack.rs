@@ -169,7 +169,7 @@ impl Stack {
         self.values[..self.top]
             .iter()
             .zip(&self.value_is_fixed)
-            .map(|(value, is_real)| Number::from_stack(*value, *is_real))
+            .map(|(value, is_fixed)| Number::from_stack(*value, *is_fixed))
     }
 
     /// Apply a prefix sum to decode delta-encoded numbers.
