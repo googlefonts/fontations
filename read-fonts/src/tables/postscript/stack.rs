@@ -84,12 +84,11 @@ impl Stack {
         self.value_is_fixed[..self.top].reverse();
     }
 
-    pub fn push_i32(&mut self, value: i32) -> Result<(), Error> {
-        self.push(value, false)
-    }
-
-    pub fn push_fixed(&mut self, value: Fixed) -> Result<(), Error> {
-        self.push(value.to_bits(), true)
+    pub fn push(&mut self, number: impl Into<Number>) -> Result<(), Error> {
+        match number.into() {
+            Number::I32(value) => self.push_impl(value, false),
+            Number::Fixed(value) => self.push_impl(value.to_bits(), true),
+        }
     }
 
     /// Returns the 32-bit integer at the given index on the stack.
@@ -160,6 +159,17 @@ impl Stack {
                     Fixed::from_i32(*value)
                 }
             })
+    }
+
+    /// Returns an iterator yielding all elements on the stack as number
+    /// values.
+    ///
+    /// This is useful for capturing the current state of the stack.
+    pub fn number_values(&self) -> impl Iterator<Item = Number> + '_ {
+        self.values[..self.top]
+            .iter()
+            .zip(&self.value_is_fixed)
+            .map(|(value, is_real)| Number::from_stack(*value, *is_real))
     }
 
     /// Apply a prefix sum to decode delta-encoded numbers.
@@ -260,7 +270,7 @@ impl Stack {
         Ok(())
     }
 
-    fn push(&mut self, value: i32, is_fixed: bool) -> Result<(), Error> {
+    fn push_impl(&mut self, value: i32, is_fixed: bool) -> Result<(), Error> {
         if self.top == MAX_STACK {
             return Err(Error::StackOverflow);
         }
@@ -286,6 +296,47 @@ impl Default for Stack {
     }
 }
 
+/// Either a signed 32-bit integer or a 16.16 fixed point number.
+///
+/// This represents the CFF "number" operand type.
+/// See "Table 6 Operand Types" at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf>
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
+pub enum Number {
+    I32(i32),
+    Fixed(Fixed),
+}
+
+impl Number {
+    fn from_stack(raw: i32, is_fixed: bool) -> Self {
+        if is_fixed {
+            Self::Fixed(Fixed::from_bits(raw))
+        } else {
+            Self::I32(raw)
+        }
+    }
+}
+
+impl From<i32> for Number {
+    fn from(value: i32) -> Self {
+        Self::I32(value)
+    }
+}
+
+impl From<Fixed> for Number {
+    fn from(value: Fixed) -> Self {
+        Self::Fixed(value)
+    }
+}
+
+impl std::fmt::Display for Number {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::I32(value) => value.fmt(f),
+            Self::Fixed(value) => value.fmt(f),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use types::{F2Dot14, Fixed};
@@ -299,8 +350,8 @@ mod tests {
     #[test]
     fn push_pop() {
         let mut stack = Stack::new();
-        stack.push_i32(20).unwrap();
-        stack.push_fixed(Fixed::from_f64(42.42)).unwrap();
+        stack.push(20).unwrap();
+        stack.push(Fixed::from_f64(42.42)).unwrap();
         assert!(!stack.len_is_odd());
         stack.verify_exact_len(2).unwrap();
         stack.verify_at_least_len(2).unwrap();
@@ -311,23 +362,23 @@ mod tests {
     #[test]
     fn push_fixed_pop_i32() {
         let mut stack = Stack::new();
-        stack.push_fixed(Fixed::from_f64(42.42)).unwrap();
+        stack.push(Fixed::from_f64(42.42)).unwrap();
         assert!(stack.pop_i32().is_err());
     }
 
     #[test]
     fn push_i32_pop_fixed() {
         let mut stack = Stack::new();
-        stack.push_i32(123).unwrap();
+        stack.push(123).unwrap();
         assert_eq!(stack.pop_fixed().unwrap(), Fixed::from_f64(123.0));
     }
 
     #[test]
     fn reverse() {
         let mut stack = Stack::new();
-        stack.push_fixed(Fixed::from_f64(1.5)).unwrap();
-        stack.push_i32(42).unwrap();
-        stack.push_fixed(Fixed::from_f64(4.2)).unwrap();
+        stack.push(Fixed::from_f64(1.5)).unwrap();
+        stack.push(42).unwrap();
+        stack.push(Fixed::from_f64(4.2)).unwrap();
         stack.reverse();
         assert_eq!(stack.pop_fixed().unwrap(), Fixed::from_f64(1.5));
         assert_eq!(stack.pop_i32().unwrap(), 42);
@@ -337,9 +388,9 @@ mod tests {
     #[test]
     fn delta_prefix_sum() {
         let mut stack = Stack::new();
-        stack.push_fixed(Fixed::from_f64(1.5)).unwrap();
-        stack.push_i32(42).unwrap();
-        stack.push_fixed(Fixed::from_f64(4.2)).unwrap();
+        stack.push(Fixed::from_f64(1.5)).unwrap();
+        stack.push(42).unwrap();
+        stack.push(Fixed::from_f64(4.2)).unwrap();
         stack.apply_delta_prefix_sum();
         assert!(stack.len_is_odd());
         let values: Vec<_> = stack.fixed_values().collect();
@@ -360,16 +411,16 @@ mod tests {
         let blend_state = BlendState::new(ivs, coords, 0).unwrap();
         let mut stack = Stack::new();
         // Push our target values
-        stack.push_i32(10).unwrap();
-        stack.push_i32(20).unwrap();
+        stack.push(10).unwrap();
+        stack.push(20).unwrap();
         // Push deltas for 2 regions for the first value
-        stack.push_i32(4).unwrap();
-        stack.push_i32(-8).unwrap();
+        stack.push(4).unwrap();
+        stack.push(-8).unwrap();
         // Push deltas for 2 regions for the second value
-        stack.push_i32(-60).unwrap();
-        stack.push_i32(2).unwrap();
+        stack.push(-60).unwrap();
+        stack.push(2).unwrap();
         // Push target value count
-        stack.push_i32(2).unwrap();
+        stack.push(2).unwrap();
         stack.apply_blend(&blend_state).unwrap();
         let result: Vec<_> = stack.fixed_values().collect();
         // Expected values:
