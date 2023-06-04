@@ -8,6 +8,7 @@ mod index;
 mod stack;
 mod string;
 
+pub mod charstring;
 pub mod dict;
 
 include!("../../generated/generated_postscript.rs");
@@ -29,6 +30,7 @@ pub enum Error {
     ExpectedI32StackEntry(usize),
     InvalidNumber,
     InvalidDictOperator(u8),
+    InvalidCharstringOperator(u8),
     MissingItemVariationStore,
     Read(ReadError),
 }
@@ -71,6 +73,9 @@ impl fmt::Display for Error {
             }
             Self::InvalidDictOperator(operator) => {
                 write!(f, "dictionary operator {operator} is invalid")
+            }
+            Self::InvalidCharstringOperator(operator) => {
+                write!(f, "charstring operator {operator} is invalid")
             }
             Self::MissingItemVariationStore => {
                 write!(

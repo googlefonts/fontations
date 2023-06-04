@@ -499,7 +499,7 @@ impl StemSnaps {
     }
 }
 
-fn parse_int(cursor: &mut Cursor, b0: i32) -> Result<i32, Error> {
+pub(crate) fn parse_int(cursor: &mut Cursor, b0: i32) -> Result<i32, Error> {
     // Size   b0 range     Value range              Value calculation
     //--------------------------------------------------------------------------------
     // 1      32 to 246    -107 to +107             b0 - 139
