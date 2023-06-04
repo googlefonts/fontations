@@ -6,12 +6,14 @@ mod blend;
 mod fd_select;
 mod index;
 mod stack;
+mod string;
 
 include!("../../generated/generated_postscript.rs");
 
 pub use blend::BlendState;
 pub use index::Index;
 pub use stack::{Number, Stack};
+pub use string::{Latin1String, StringId};
 
 /// Errors that are specific to PostScript processing.
 #[derive(Clone, Debug)]
