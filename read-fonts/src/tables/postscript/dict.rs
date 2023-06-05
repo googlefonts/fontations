@@ -150,18 +150,18 @@ impl Operator {
 
 /// Either a PostScript DICT operator or a (numeric) operand.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum RawEntry {
+pub enum Token {
     Operator(Operator),
     Operand(Number),
 }
 
-impl From<Operator> for RawEntry {
+impl From<Operator> for Token {
     fn from(value: Operator) -> Self {
         Self::Operator(value)
     }
 }
 
-impl<T> From<T> for RawEntry
+impl<T> From<T> for Token
 where
     T: Into<Number>,
 {
@@ -175,34 +175,30 @@ where
 ///
 /// This does not perform any additional processing such as type conversion,
 /// delta decoding or blending.
-pub fn raw_entries(dict_data: &[u8]) -> impl Iterator<Item = Result<RawEntry, Error>> + '_ + Clone {
+pub fn tokens(dict_data: &[u8]) -> impl Iterator<Item = Result<Token, Error>> + '_ + Clone {
     let mut cursor = crate::FontData::new(dict_data).cursor();
     std::iter::from_fn(move || {
         if cursor.remaining_bytes() == 0 {
             None
         } else {
-            Some(parse_raw_entry(&mut cursor))
+            Some(parse_token(&mut cursor))
         }
     })
 }
 
-fn parse_raw_entry(cursor: &mut Cursor) -> Result<RawEntry, Error> {
+fn parse_token(cursor: &mut Cursor) -> Result<Token, Error> {
     // Escape opcode for accessing extensions.
     const ESCAPE: u8 = 12;
     let b0 = cursor.read::<u8>()?;
     Ok(if b0 == ESCAPE {
         let b1 = cursor.read::<u8>()?;
-        RawEntry::Operator(
-            Operator::from_extended_opcode(b1).ok_or(Error::InvalidDictOperator(b1))?,
-        )
+        Token::Operator(Operator::from_extended_opcode(b1).ok_or(Error::InvalidDictOperator(b1))?)
     } else {
         // See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-3-operand-encoding>
         match b0 {
-            28 | 29 | 32..=254 => RawEntry::Operand(parse_int(cursor, b0 as i32)?.into()),
-            30 => RawEntry::Operand(parse_bcd(cursor)?.into()),
-            _ => {
-                RawEntry::Operator(Operator::from_opcode(b0).ok_or(Error::InvalidDictOperator(b0))?)
-            }
+            28 | 29 | 32..=254 => Token::Operand(parse_int(cursor, b0 as i32)?.into()),
+            30 => Token::Operand(parse_bcd(cursor)?.into()),
+            _ => Token::Operator(Operator::from_opcode(b0).ok_or(Error::InvalidDictOperator(b0))?),
         }
     })
 }
@@ -290,20 +286,20 @@ pub fn entries<'a>(
     blend_params: Option<BlendParams<'a>>,
 ) -> impl Iterator<Item = Result<Entry, Error>> + 'a {
     let mut stack = Stack::new();
-    let mut raw_iter = raw_entries(dict_data);
+    let mut token_iter = tokens(dict_data);
     let mut blend_state = None;
     let mut store_index = 0;
     std::iter::from_fn(move || loop {
-        let raw_entry = match raw_iter.next()? {
+        let token = match token_iter.next()? {
             Ok(entry) => entry,
             Err(e) => return Some(Err(e)),
         };
-        match raw_entry {
-            RawEntry::Operand(number) => match stack.push(number) {
+        match token {
+            Token::Operand(number) => match stack.push(number) {
                 Ok(_) => continue,
                 Err(e) => return Some(Err(e)),
             },
-            RawEntry::Operator(op) => {
+            Token::Operator(op) => {
                 if op == Operator::Blend || op == Operator::VariationStoreIndex {
                     if op == Operator::VariationStoreIndex {
                         store_index = match stack.get_i32(0) {
@@ -617,13 +613,11 @@ mod tests {
     }
 
     #[test]
-    fn example_top_dict_raw_entries() {
+    fn example_top_dict_tokens() {
         use Operator::*;
         let top_dict_data = &font_test_data::cff2::EXAMPLE[5..12];
-        let raw_entries: Vec<_> = raw_entries(top_dict_data)
-            .map(|entry| entry.unwrap())
-            .collect();
-        let expected: &[RawEntry] = &[
+        let tokens: Vec<_> = tokens(top_dict_data).map(|entry| entry.unwrap()).collect();
+        let expected: &[Token] = &[
             68.into(),
             FdArrayOffset.into(),
             56.into(),
@@ -631,7 +625,7 @@ mod tests {
             16.into(),
             VariationStoreOffset.into(),
         ];
-        assert_eq!(&raw_entries, expected);
+        assert_eq!(&tokens, expected);
     }
 
     #[test]
