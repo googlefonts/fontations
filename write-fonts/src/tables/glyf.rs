@@ -815,12 +815,12 @@ impl From<ComponentFlags> for CompositeGlyphFlags {
 }
 
 impl Bbox {
-    fn union(self, other: Bbox) -> Bbox {
+    pub fn union(self, other: Bbox) -> Bbox {
         Bbox {
             x_min: self.x_min.min(other.x_min),
             y_min: self.y_min.min(other.y_min),
             x_max: self.x_max.max(other.x_max),
-            y_max: self.y_max.max(other.x_max),
+            y_max: self.y_max.max(other.y_max),
         }
     }
 }
@@ -1713,5 +1713,29 @@ mod tests {
         assert_eq!(orig.offset_data().len(), bytes.len());
 
         assert_eq!(orig.offset_data().as_ref(), bytes);
+    }
+
+    #[test]
+    fn union_box() {
+        assert_eq!(
+            Bbox {
+                x_min: -1,
+                y_min: -2,
+                x_max: 5,
+                y_max: 6
+            },
+            Bbox {
+                x_min: 0,
+                y_min: 0,
+                x_max: 5,
+                y_max: 6
+            }
+            .union(Bbox {
+                x_min: -1,
+                y_min: -2,
+                x_max: 3,
+                y_max: 4
+            })
+        )
     }
 }
