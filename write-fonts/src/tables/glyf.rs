@@ -118,8 +118,14 @@ impl ContourPoint {
         Self::new(point, false)
     }
 
-    fn distance(&self, other: &Self) -> f64 {
-        self.point.distance(other.point)
+    /// Return True if p0, p1 (self) and p2 are collinear and p1 is equidistant from p0 and p2
+    fn is_midpoint_between(&self, p0: &Self, p2: &Self) -> bool {
+        let p1 = self;
+        let p1p0 = p1.point - p0.point;
+        let p2p1 = p2.point - p1.point;
+        // should tolerance be a parameter?
+        let eps = f32::EPSILON as f64;
+        (p1p0.x - p2p1.x).abs() < eps && (p1p0.y - p2p1.y).abs() < eps
     }
 }
 
@@ -227,12 +233,8 @@ fn is_implicit_on_curve(points: &[ContourPoint], idx: usize) -> bool {
     if p0.on_curve || p0.on_curve != p2.on_curve {
         return false;
     }
-    // if the distance between p1 and p0 is approximately the same as the distance
-    // between p2 and p1, then we can drop p1
-    let p1p0 = p1.distance(p0);
-    let p2p1 = p2.distance(p1);
-    // should tolerance be a parameter?
-    (p1p0 - p2p1).abs() < f32::EPSILON as f64
+    // drop p1 if exactly between p0 and p2
+    p1.is_midpoint_between(p0, p2)
 }
 
 #[inline]
