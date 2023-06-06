@@ -1,6 +1,6 @@
 [package]
 name = "skrifa"
-version = "0.2.0"
+version = "0.3.0"
 edition = "2021"
 license = "MIT/Apache-2.0"
 description = "Metadata reader and glyph scaler for OpenType fonts."
@@ -14,7 +14,7 @@ scale = []
 hinting = []
 
 [dependencies]
-read-fonts = { version = "0.3.0", path = "../read-fonts" }
+read-fonts = { version = "0.4.0", path = "../read-fonts" }
 
 [dev-dependencies]
 font-test-data= { path = "../font-test-data" }
