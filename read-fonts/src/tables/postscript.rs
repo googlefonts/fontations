@@ -8,6 +8,8 @@ mod index;
 mod stack;
 mod string;
 
+pub mod dict;
+
 include!("../../generated/generated_postscript.rs");
 
 pub use blend::BlendState;
@@ -25,6 +27,9 @@ pub enum Error {
     StackUnderflow,
     InvalidStackAccess(usize),
     ExpectedI32StackEntry(usize),
+    InvalidNumber,
+    InvalidDictOperator(u8),
+    MissingItemVariationStore,
     Read(ReadError),
 }
 
@@ -60,6 +65,18 @@ impl fmt::Display for Error {
             }
             Self::ExpectedI32StackEntry(index) => {
                 write!(f, "attempted to read an integer at stack index {index}, but found a fixed point value")
+            }
+            Self::InvalidNumber => {
+                write!(f, "number is in an invalid format")
+            }
+            Self::InvalidDictOperator(operator) => {
+                write!(f, "dictionary operator {operator} is invalid")
+            }
+            Self::MissingItemVariationStore => {
+                write!(
+                    f,
+                    "encountered a blend operator but no item variation store was provided"
+                )
             }
             Self::Read(err) => write!(f, "{err}"),
         }
