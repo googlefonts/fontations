@@ -49,7 +49,7 @@ pub struct TableWriter {
 /// Returns an error if the table is malformed or cannot otherwise be serialized,
 /// otherwise it will return the bytes encoding the table.
 pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, Error> {
-    log::info!("writing table '{}'", table.table_type());
+    log::trace!("writing table '{}'", table.table_type());
     table.validate().map_err(Error::ValidationFailed)?;
     let mut graph = TableWriter::make_graph(table);
 
