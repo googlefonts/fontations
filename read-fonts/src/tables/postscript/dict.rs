@@ -291,7 +291,7 @@ pub fn entries<'a>(
     let mut store_index = 0;
     std::iter::from_fn(move || loop {
         let token = match token_iter.next()? {
-            Ok(entry) => entry,
+            Ok(token) => token,
             Err(e) => return Some(Err(e)),
         };
         match token {
