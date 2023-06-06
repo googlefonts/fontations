@@ -8,6 +8,7 @@ mod index;
 mod stack;
 mod string;
 
+pub mod charstring;
 pub mod dict;
 
 include!("../../generated/generated_postscript.rs");
@@ -29,7 +30,8 @@ pub enum Error {
     ExpectedI32StackEntry(usize),
     InvalidNumber,
     InvalidDictOperator(u8),
-    MissingItemVariationStore,
+    InvalidCharstringOperator(u8),
+    MissingBlendState,
     Read(ReadError),
 }
 
@@ -72,10 +74,13 @@ impl fmt::Display for Error {
             Self::InvalidDictOperator(operator) => {
                 write!(f, "dictionary operator {operator} is invalid")
             }
-            Self::MissingItemVariationStore => {
+            Self::InvalidCharstringOperator(operator) => {
+                write!(f, "charstring operator {operator} is invalid")
+            }
+            Self::MissingBlendState => {
                 write!(
                     f,
-                    "encountered a blend operator but no item variation store was provided"
+                    "encountered a blend operator but no blend state was provided"
                 )
             }
             Self::Read(err) => write!(f, "{err}"),

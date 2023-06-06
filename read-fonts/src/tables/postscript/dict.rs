@@ -3,11 +3,7 @@
 use std::ops::Range;
 
 use super::{BlendState, Error, Number, Stack, StringId};
-use crate::{
-    tables::variations::ItemVariationStore,
-    types::{F2Dot14, Fixed},
-    Cursor,
-};
+use crate::{types::Fixed, Cursor};
 
 /// PostScript DICT operator.
 ///
@@ -266,13 +262,6 @@ pub enum Entry {
     InitialRandomSeed(i32),
 }
 
-/// Parameters for applying blending when parsing a DICT.
-#[derive(Clone)]
-pub struct BlendParams<'a> {
-    pub store: ItemVariationStore<'a>,
-    pub coords: &'a [F2Dot14],
-}
-
 /// Given a byte slice containing DICT data, returns an iterator yielding
 /// each operator with its associated operands.
 ///
@@ -280,15 +269,13 @@ pub struct BlendParams<'a> {
 /// blending.
 ///
 /// If processing a Private DICT from a CFF2 table and an item variation
-/// store is present, then `blend_params` must be provided.
+/// store is present, then `blend_state` must be provided.
 pub fn entries<'a>(
     dict_data: &'a [u8],
-    blend_params: Option<BlendParams<'a>>,
+    mut blend_state: Option<BlendState<'a>>,
 ) -> impl Iterator<Item = Result<Entry, Error>> + 'a {
     let mut stack = Stack::new();
     let mut token_iter = tokens(dict_data);
-    let mut blend_state = None;
-    let mut store_index = 0;
     std::iter::from_fn(move || loop {
         let token = match token_iter.next()? {
             Ok(token) => token,
@@ -301,25 +288,21 @@ pub fn entries<'a>(
             },
             Token::Operator(op) => {
                 if op == Operator::Blend || op == Operator::VariationStoreIndex {
+                    let state = match blend_state.as_mut() {
+                        Some(state) => state,
+                        None => return Some(Err(Error::MissingBlendState)),
+                    };
                     if op == Operator::VariationStoreIndex {
-                        store_index = match stack.get_i32(0) {
-                            Ok(ix) => ix as u16,
+                        match stack
+                            .get_i32(0)
+                            .and_then(|ix| state.set_store_index(ix as u16))
+                        {
+                            Ok(_) => {}
                             Err(e) => return Some(Err(e)),
                         }
                     }
-                    if blend_state.is_none() {
-                        blend_state = match blend_params
-                            .clone()
-                            .ok_or(Error::MissingItemVariationStore)
-                            .and_then(|params| {
-                                BlendState::new(params.store, params.coords, store_index)
-                            }) {
-                            Ok(state) => Some(state),
-                            Err(e) => return Some(Err(e)),
-                        };
-                    }
                     if op == Operator::Blend {
-                        match stack.apply_blend(blend_state.as_ref().unwrap()) {
+                        match stack.apply_blend(state) {
                             Ok(_) => continue,
                             Err(e) => return Some(Err(e)),
                         }
@@ -495,7 +478,7 @@ impl StemSnaps {
     }
 }
 
-fn parse_int(cursor: &mut Cursor, b0: u8) -> Result<i32, Error> {
+pub(crate) fn parse_int(cursor: &mut Cursor, b0: u8) -> Result<i32, Error> {
     // Size   b0 range     Value range              Value calculation
     //--------------------------------------------------------------------------------
     // 1      32 to 246    -107 to +107             b0 - 139
@@ -571,7 +554,11 @@ fn parse_bcd(cursor: &mut Cursor) -> Result<Fixed, Error> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{tables::postscript::Index1, FontData, FontRead, FontRef, TableProvider};
+    use crate::{
+        tables::{postscript::Index1, variations::ItemVariationStore},
+        types::F2Dot14,
+        FontData, FontRead, FontRef, TableProvider,
+    };
 
     #[test]
     fn int_operands() {
@@ -649,11 +636,9 @@ mod tests {
         let private_dict_data = &font_test_data::cff2::EXAMPLE[0x4f..=0xc0];
         let store =
             ItemVariationStore::read(FontData::new(&font_test_data::cff2::EXAMPLE[18..])).unwrap();
-        let blend_params = BlendParams {
-            store,
-            coords: &[F2Dot14::from_f32(0.0)],
-        };
-        let entries: Vec<_> = entries(private_dict_data, Some(blend_params))
+        let coords = &[F2Dot14::from_f32(0.0)];
+        let blend_state = BlendState::new(store, coords, 0).unwrap();
+        let entries: Vec<_> = entries(private_dict_data, Some(blend_state))
             .map(|entry| entry.unwrap())
             .collect();
         fn make_blues(values: &[f64]) -> Blues {
