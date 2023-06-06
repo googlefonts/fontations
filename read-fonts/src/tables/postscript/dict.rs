@@ -196,7 +196,7 @@ fn parse_token(cursor: &mut Cursor) -> Result<Token, Error> {
     } else {
         // See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-3-operand-encoding>
         match b0 {
-            28 | 29 | 32..=254 => Token::Operand(parse_int(cursor, b0 as i32)?.into()),
+            28 | 29 | 32..=254 => Token::Operand(parse_int(cursor, b0)?.into()),
             30 => Token::Operand(parse_bcd(cursor)?.into()),
             _ => Token::Operator(Operator::from_opcode(b0).ok_or(Error::InvalidDictOperator(b0))?),
         }
@@ -495,7 +495,7 @@ impl StemSnaps {
     }
 }
 
-fn parse_int(cursor: &mut Cursor, b0: i32) -> Result<i32, Error> {
+fn parse_int(cursor: &mut Cursor, b0: u8) -> Result<i32, Error> {
     // Size   b0 range     Value range              Value calculation
     //--------------------------------------------------------------------------------
     // 1      32 to 246    -107 to +107             b0 - 139
@@ -505,9 +505,9 @@ fn parse_int(cursor: &mut Cursor, b0: i32) -> Result<i32, Error> {
     // 5      29           -(2^31) to +(2^31 - 1)   b1 << 24 | b2 << 16 | b3 << 8 | b4
     // <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-3-operand-encoding>
     Ok(match b0 {
-        32..=246 => b0 - 139,
-        247..=250 => (b0 - 247) * 256 + cursor.read::<u8>()? as i32 + 108,
-        251..=254 => -(b0 - 251) * 256 - cursor.read::<u8>()? as i32 - 108,
+        32..=246 => b0 as i32 - 139,
+        247..=250 => (b0 as i32 - 247) * 256 + cursor.read::<u8>()? as i32 + 108,
+        251..=254 => -(b0 as i32 - 251) * 256 - cursor.read::<u8>()? as i32 - 108,
         28 => cursor.read::<i16>()? as i32,
         29 => cursor.read::<i32>()?,
         _ => {
