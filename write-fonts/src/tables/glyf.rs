@@ -5,7 +5,7 @@ use crate::{
     util::WrappingGet,
     OtRound,
 };
-use kurbo::{BezPath, Rect};
+use kurbo::{Affine, BezPath, Rect};
 
 use read_fonts::{
     tables::glyf::{Anchor, CompositeGlyphFlags, CurvePoint, SimpleGlyphFlags, Transform},
@@ -120,12 +120,9 @@ impl ContourPoint {
 
     /// Return True if p0, p1 (self) and p2 are collinear and p1 is equidistant from p0 and p2
     fn is_midpoint_between(&self, p0: &Self, p2: &Self) -> bool {
-        let p1 = self;
-        let p1p0 = p1.point - p0.point;
-        let p2p1 = p2.point - p1.point;
-        // should tolerance be a parameter?
+        let delta_mid = p0.point.midpoint(p2.point) - Affine::scale(2.0) * self.point;
         let eps = f32::EPSILON as f64;
-        (p1p0.x - p2p1.x).abs() < eps && (p1p0.y - p2p1.y).abs() < eps
+        delta_mid.x.abs() < eps && delta_mid.y.abs() < eps
     }
 }
 
