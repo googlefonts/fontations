@@ -5,8 +5,14 @@
 pub struct StringId(u16);
 
 impl StringId {
-    pub fn new(raw: u16) -> Self {
+    /// Creates an identifier from a 16-bit unsigned integer.
+    pub const fn new(raw: u16) -> Self {
         Self(raw)
+    }
+
+    /// Returns the underlying identifier as a 16-bit unsigned integer.
+    pub const fn to_u16(self) -> u16 {
+        self.0
     }
 
     /// Resolves the identifier as a standard string.
@@ -49,7 +55,9 @@ pub struct Latin1String<'a> {
 }
 
 impl<'a> Latin1String<'a> {
-    pub(crate) fn new(chars: &'a [u8]) -> Self {
+    /// Creates a new Latin-1 encoded string reference from the given bytes,
+    /// with each representing a character.
+    pub const fn new(chars: &'a [u8]) -> Self {
         Self { chars }
     }
 
@@ -76,8 +84,10 @@ impl std::fmt::Display for Latin1String<'_> {
     }
 }
 
+/// The PostScript standard string set.
+///
 /// See "Appendix A - Standard Strings" in <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf>
-const STANDARD_STRINGS: &[&str] = &[
+pub const STANDARD_STRINGS: &[&str] = &[
     ".notdef",
     "space",
     "exclam",

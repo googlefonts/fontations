@@ -134,6 +134,22 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
     }
 
+    fn make_name_record(
+        platform_id: u16,
+        encoding_id: u16,
+        language_id: u16,
+        name_id: u16,
+        name: &str,
+    ) -> NameRecord {
+        NameRecord {
+            platform_id,
+            encoding_id,
+            language_id,
+            name_id: NameId::new(name_id),
+            string: name.to_string().into(),
+        }
+    }
+
     #[test]
     fn encoding() {
         let stringthing = NameStringWriter {
@@ -154,33 +170,38 @@ mod tests {
     #[test]
     fn sorting() {
         let mut table = Name::default();
-        table.name_record.insert(NameRecord {
-            platform_id: 3,
-            encoding_id: 1,
-            language_id: 0,
-            name_id: NameId::new(1030),
-            string: OffsetMarker::new("Ordinær".into()),
-        });
-        table.name_record.insert(NameRecord {
-            platform_id: 0,
-            encoding_id: 4,
-            language_id: 0,
-            name_id: NameId::new(4),
-            string: OffsetMarker::new("oh".into()),
-        });
-        table.name_record.insert(NameRecord {
-            platform_id: 3,
-            encoding_id: 1,
-            language_id: 0,
-            name_id: NameId::new(1029),
-            string: OffsetMarker::new("Regular".into()),
-        });
+        table
+            .name_record
+            .insert(make_name_record(3, 1, 0, 1030, "Ordinær"));
+        table.name_record.insert(make_name_record(0, 4, 0, 4, "oh"));
+        table
+            .name_record
+            .insert(make_name_record(3, 1, 0, 1029, "Regular"));
 
         let _dumped = crate::dump_table(&table).unwrap();
         let loaded = read_fonts::tables::name::Name::read(FontData::new(&_dumped)).unwrap();
         assert_eq!(loaded.name_record()[0].encoding_id, 4);
         assert_eq!(loaded.name_record()[1].name_id, NameId::new(1029));
         assert_eq!(loaded.name_record()[2].name_id, NameId::new(1030));
+    }
+
+    #[test]
+    fn name_input_order_does_not_matter() {
+        let mut some_names = vec![
+            make_name_record(3, 1, 7, 4, "hi"),
+            make_name_record(3, 1, 6, 4, "what"),
+            make_name_record(1, 1, 1, 1, "ho"),
+            make_name_record(7, 1, 2, 3, "something"),
+        ];
+
+        let other_names = some_names.clone();
+        some_names.reverse();
+
+        assert_ne!(other_names, some_names);
+        let name1 = Name::new(some_names.into_iter().collect());
+        let name2 = Name::new(other_names.into_iter().collect());
+
+        assert_eq!(name1.name_record, name2.name_record);
     }
 
     /// ensure we are counting characters and not bytes

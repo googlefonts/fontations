@@ -15,7 +15,7 @@ include!("../../generated/generated_postscript.rs");
 pub use blend::BlendState;
 pub use index::Index;
 pub use stack::{Number, Stack};
-pub use string::{Latin1String, StringId};
+pub use string::{Latin1String, StringId, STANDARD_STRINGS};
 
 /// Errors that are specific to PostScript processing.
 #[derive(Clone, Debug)]
