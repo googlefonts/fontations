@@ -117,10 +117,6 @@ impl ContourPoint {
     fn off_curve(point: kurbo::Point) -> Self {
         Self::new(point, false)
     }
-
-    fn distance(&self, other: &Self) -> f64 {
-        self.point.distance(other.point)
-    }
 }
 
 impl From<ContourPoint> for CurvePoint {
@@ -227,12 +223,10 @@ fn is_implicit_on_curve(points: &[ContourPoint], idx: usize) -> bool {
     if p0.on_curve || p0.on_curve != p2.on_curve {
         return false;
     }
-    // if the distance between p1 and p0 is approximately the same as the distance
-    // between p2 and p1, then we can drop p1
-    let p1p0 = p1.distance(p0);
-    let p2p1 = p2.distance(p1);
-    // should tolerance be a parameter?
-    (p1p0 - p2p1).abs() < f32::EPSILON as f64
+    // drop p1 if exactly between p0 and p2
+    let delta_mid = p0.point.midpoint(p2.point) - p1.point;
+    let eps = f32::EPSILON as f64;
+    delta_mid.x.abs() < eps && delta_mid.y.abs() < eps
 }
 
 #[inline]
@@ -1629,6 +1623,31 @@ mod tests {
                 ]],
             );
         }
+    }
+
+    #[test]
+    fn simple_glyph_from_kurbo_equidistant_but_not_collinear_points() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.quad_to((2.0, 2.0), (4.0, 3.0));
+        path.quad_to((6.0, 2.0), (8.0, 0.0));
+        path.close_path();
+
+        let glyph = SimpleGlyph::from_kurbo(&path).unwrap();
+
+        assert_contour_points(
+            &glyph,
+            vec![vec![
+                CurvePoint::on_curve(0, 0),
+                CurvePoint::off_curve(2, 2),
+                // the following on-curve point is equidistant from the previous/next
+                // off-curve points but it is not on the same line hence it must NOT
+                // be dropped
+                CurvePoint::on_curve(4, 3),
+                CurvePoint::off_curve(6, 2),
+                CurvePoint::on_curve(8, 0),
+            ]],
+        );
     }
 
     #[test]
