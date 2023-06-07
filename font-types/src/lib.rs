@@ -38,7 +38,7 @@ pub use glyph_id::GlyphId;
 pub use longdatetime::LongDateTime;
 pub use name_id::NameId;
 pub use offset::{Nullable, Offset16, Offset24, Offset32};
-pub use pen::{Pen, PenCommand};
+pub use pen::{BufferPen, Pen, PenCommand, SvgPen};
 pub use point::Point;
 pub use raw::{BigEndian, FixedSize, Scalar};
 pub use tag::{InvalidTag, Tag};
