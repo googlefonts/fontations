@@ -31,6 +31,7 @@ pub enum Error {
     InvalidNumber,
     InvalidDictOperator(u8),
     InvalidCharstringOperator(u8),
+    CharstringNestingDepthLimitExceeded,
     MissingBlendState,
     Read(ReadError),
 }
@@ -77,12 +78,20 @@ impl fmt::Display for Error {
             Self::InvalidCharstringOperator(operator) => {
                 write!(f, "charstring operator {operator} is invalid")
             }
+            Self::CharstringNestingDepthLimitExceeded => {
+                write!(
+                    f,
+                    "exceeded subroutine nesting depth limit {} while evaluating a charstring",
+                    charstring::NESTING_DEPTH_LIMIT
+                )
+            }
             Self::MissingBlendState => {
                 write!(
                     f,
                     "encountered a blend operator but no blend state was provided"
                 )
             }
+
             Self::Read(err) => write!(f, "{err}"),
         }
     }
