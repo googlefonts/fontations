@@ -1632,6 +1632,31 @@ mod tests {
     }
 
     #[test]
+    fn simple_glyph_from_kurbo_equidistant_but_not_collinear_points() {
+        let mut path = BezPath::new();
+        path.move_to((0.0, 0.0));
+        path.quad_to((2.0, 2.0), (4.0, 3.0));
+        path.quad_to((6.0, 2.0), (8.0, 0.0));
+        path.close_path();
+
+        let glyph = SimpleGlyph::from_kurbo(&path).unwrap();
+
+        assert_contour_points(
+            &glyph,
+            vec![vec![
+                CurvePoint::on_curve(0, 0),
+                CurvePoint::off_curve(2, 2),
+                // the following on-curve point is equidistant from the previous/next
+                // off-curve points but it is not on the same line hence it must NOT
+                // be dropped
+                CurvePoint::on_curve(4, 3),
+                CurvePoint::off_curve(6, 2),
+                CurvePoint::on_curve(8, 0),
+            ]],
+        );
+    }
+
+    #[test]
     fn repeatable_flags_basic() {
         let flags = [
             SimpleGlyphFlags::ON_CURVE_POINT,
