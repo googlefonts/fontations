@@ -32,6 +32,7 @@ pub enum Error {
     InvalidDictOperator(u8),
     InvalidCharstringOperator(u8),
     CharstringNestingDepthLimitExceeded,
+    MissingSubroutines,
     MissingBlendState,
     Read(ReadError),
 }
@@ -83,6 +84,12 @@ impl fmt::Display for Error {
                     f,
                     "exceeded subroutine nesting depth limit {} while evaluating a charstring",
                     charstring::NESTING_DEPTH_LIMIT
+                )
+            }
+            Self::MissingSubroutines => {
+                write!(
+                    f,
+                    "encountered a callsubr operator but no subroutine index was provided"
                 )
             }
             Self::MissingBlendState => {
