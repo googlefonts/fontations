@@ -8,7 +8,7 @@ use crate::{
 
 /// Maximum nesting depth for subroutine calls.
 ///
-/// See "Appendix B Type 2 Charstring Implementation Limits" in
+/// See "Appendix B Type 2 Charstring Implementation Limits" at
 /// <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=33>
 pub const NESTING_DEPTH_LIMIT: u32 = 10;
 
@@ -28,8 +28,7 @@ pub trait CommandSink {
     fn line_to(&mut self, x: Fixed, y: Fixed);
     fn curve_to(&mut self, cx0: Fixed, cy0: Fixed, cx1: Fixed, cy1: Fixed, x: Fixed, y: Fixed);
     fn close(&mut self);
-
-    // Hinting operators.
+    // Hint operators.
     /// Horizontal stem hint at `y` with height `dy`.
     fn hstem(&mut self, y: Fixed, dy: Fixed) {}
     /// Vertical stem hint at `x` with width `dx`.
@@ -109,13 +108,13 @@ struct Evaluator<'a, S> {
     global_subrs: Index<'a>,
     subrs: Option<Index<'a>>,
     blend_state: Option<BlendState<'a>>,
+    sink: &'a mut S,
     is_open: bool,
     have_read_width: bool,
     stem_count: usize,
-    stack: Stack,
-    sink: &'a mut S,
     x: Fixed,
     y: Fixed,
+    stack: Stack,
 }
 
 impl<'a, S> Evaluator<'a, S>
@@ -132,11 +131,11 @@ where
             global_subrs,
             subrs,
             blend_state,
+            sink,
             is_open: false,
             have_read_width: false,
             stem_count: 0,
             stack: Stack::new(),
-            sink,
             x: Fixed::ZERO,
             y: Fixed::ZERO,
         }
@@ -183,6 +182,14 @@ where
     ) -> Result<bool, Error> {
         use Operator::*;
         match operator {
+            // The following "flex" operators are intended to emit
+            // either two curves or a straight line depending on
+            // a "flex depth" parameter and the distance from the
+            // joining point to the chord connecting the two
+            // end points. In practice, we just emit the two curves,
+            // following FreeType:
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L335>
+            //
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=18>
             Flex => {
                 let args = self.stack.get_fixed_array::<12>(0)?;
@@ -274,6 +281,7 @@ where
                 self.stack.apply_blend(blend_state)?;
             }
             // Return from the current subroutine
+            // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=29>
             Return => {
                 return Ok(false);
             }
@@ -578,6 +586,7 @@ where
                 self.stack.clear();
             }
             // Call local or global subroutine
+            // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=29>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L972>
             CallSubr | CallGsubr => {
                 let subrs_index = if operator == CallSubr {
