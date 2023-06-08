@@ -46,3 +46,10 @@ impl OtRound<(i16, i16)> for kurbo::Point {
         (self.x.ot_round(), self.y.ot_round())
     }
 }
+
+impl OtRound<kurbo::Vec2> for kurbo::Vec2 {
+    #[inline]
+    fn ot_round(self) -> kurbo::Vec2 {
+        kurbo::Vec2::new((self.x + 0.5).floor(), (self.y + 0.5).floor())
+    }
+}

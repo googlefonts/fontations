@@ -2,7 +2,7 @@
 
 use crate::{
     pens::{write_to_pen, ControlBoundsPen},
-    util::WrappingGet,
+    util::{isclose, MultiZip, WrappingGet},
     OtRound,
 };
 use kurbo::{BezPath, Rect};
@@ -14,7 +14,6 @@ use read_fonts::{
 
 use crate::{
     from_obj::{FromObjRef, FromTableRef},
-    util::MultiZip,
     FontWrite,
 };
 
@@ -213,6 +212,17 @@ impl InterpolatableContourBuilder {
     }
 }
 
+/// True if p1 is the midpoint of p0 and p2.
+///
+/// We check both before and after rounding float coordinates to integer to avoid
+/// false negatives due to rounding.
+#[inline]
+fn is_mid_point(p0: kurbo::Point, p1: kurbo::Point, p2: kurbo::Point) -> bool {
+    let mid = p0.midpoint(p2);
+    (isclose(mid.x, p1.x) && isclose(mid.y, p1.y))
+        || p0.to_vec2().ot_round() + p2.to_vec2().ot_round() == p1.to_vec2().ot_round() * 2.0
+}
+
 fn is_implicit_on_curve(points: &[ContourPoint], idx: usize) -> bool {
     let p1 = &points[idx]; // user error if this is out of bounds
     if !p1.on_curve {
@@ -223,10 +233,8 @@ fn is_implicit_on_curve(points: &[ContourPoint], idx: usize) -> bool {
     if p0.on_curve || p0.on_curve != p2.on_curve {
         return false;
     }
-    // drop p1 if exactly between p0 and p2
-    let delta_mid = p0.point.midpoint(p2.point) - p1.point;
-    let eps = f32::EPSILON as f64;
-    delta_mid.x.abs() < eps && delta_mid.y.abs() < eps
+    // drop p1 if halfway between p0 and p2
+    is_mid_point(p0.point, p1.point, p2.point)
 }
 
 #[inline]
@@ -1756,5 +1764,39 @@ mod tests {
                 y_max: 4
             })
         )
+    }
+
+    #[test]
+    fn mid_points() {
+        // exactly in the middle
+        assert!(is_mid_point(
+            kurbo::Point::new(0.0, 0.0),
+            kurbo::Point::new(1.0, 1.0),
+            kurbo::Point::new(2.0, 2.0)
+        ));
+        // in the middle but rounding would make it not; take it anyway
+        assert!(is_mid_point(
+            kurbo::Point::new(0.5, 0.5),
+            kurbo::Point::new(3.0, 3.0),
+            kurbo::Point::new(5.5, 5.5)
+        ));
+        // very close to the middle
+        assert!(is_mid_point(
+            kurbo::Point::new(0.0, 0.0),
+            kurbo::Point::new(1.00001, 0.99999),
+            kurbo::Point::new(2.0, 2.0)
+        ));
+        // not quite in the middle but rounding would make it so; why throw it away?
+        assert!(is_mid_point(
+            kurbo::Point::new(0.0, 0.0),
+            kurbo::Point::new(-1.499999, 0.500001),
+            kurbo::Point::new(-2.0, 2.0)
+        ));
+        // not in the middle, neither before nor after rounding
+        assert!(!is_mid_point(
+            kurbo::Point::new(0.0, 0.0),
+            kurbo::Point::new(1.0, 1.5),
+            kurbo::Point::new(2.0, 2.0)
+        ));
     }
 }
