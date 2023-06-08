@@ -27,7 +27,7 @@ impl<'a> std::io::Write for PrettyPrinter<'a> {
     fn write(&mut self, buf: &[u8]) -> std::io::Result<usize> {
         let len = self.writer.write(buf)?;
         let wrote_buf = &buf[..len];
-        let wrote_str = unsafe { std::str::from_utf8_unchecked(wrote_buf) };
+        let wrote_str = String::from_utf8_lossy(wrote_buf);
         self.line_pos = match wrote_buf.iter().rev().position(|b| *b == b'\n') {
             Some(pos) => {
                 assert_eq!(pos, 0);
