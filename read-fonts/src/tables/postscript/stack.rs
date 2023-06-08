@@ -125,6 +125,23 @@ impl Stack {
         })
     }
 
+    /// Returns an array of `N` 16.16 fixed point values starting at
+    /// `first_index`.
+    pub fn get_fixed_array<const N: usize>(&self, first_index: usize) -> Result<[Fixed; N], Error> {
+        let mut values = [Fixed::ZERO; N];
+        let mut count = 0;
+        for (src, dest) in self.fixed_values().take(N).zip(&mut values) {
+            *dest = src;
+            count += 1;
+        }
+        if count < N {
+            // Report an invalid stack access for the first entry that exceeded
+            // the top of the stack
+            return Err(Error::InvalidStackAccess(N - count + first_index));
+        }
+        Ok(values)
+    }
+
     /// Pops a 32-bit integer from the top of stack.
     ///
     /// Will return an error if the top value on the stack was not pushed as an
