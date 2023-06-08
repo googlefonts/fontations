@@ -2,7 +2,7 @@
 
 use crate::{
     pens::{write_to_pen, ControlBoundsPen},
-    util::{FloatComparator, MultiZip, WrappingGet},
+    util::{isclose, MultiZip, WrappingGet},
     OtRound,
 };
 use kurbo::{BezPath, Rect};
@@ -218,9 +218,8 @@ impl InterpolatableContourBuilder {
 /// false negatives due to rounding.
 #[inline]
 fn is_mid_point(p0: kurbo::Point, p1: kurbo::Point, p2: kurbo::Point) -> bool {
-    let cmp = FloatComparator::default();
     let mid = p0.midpoint(p2);
-    (cmp.isclose(mid.x, p1.x) && cmp.isclose(mid.y, p1.y))
+    (isclose(mid.x, p1.x) && isclose(mid.y, p1.y))
         || p0.to_vec2().ot_round() + p2.to_vec2().ot_round() == p1.to_vec2().ot_round() * 2.0
 }
 
