@@ -925,6 +925,8 @@ impl FixedSize for RegionAxisCoordinates {
         F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
+impl sealed::Sealed for RegionAxisCoordinates {}
+
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for RegionAxisCoordinates {
     fn this_trait_should_only_be_implemented_in_generated_code() {}

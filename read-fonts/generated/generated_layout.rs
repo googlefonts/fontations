@@ -112,6 +112,8 @@ impl FixedSize for ScriptRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
+impl sealed::Sealed for ScriptRecord {}
+
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for ScriptRecord {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
@@ -263,6 +265,8 @@ impl LangSysRecord {
 impl FixedSize for LangSysRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
+
+impl sealed::Sealed for LangSysRecord {}
 
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for LangSysRecord {
@@ -488,6 +492,8 @@ impl FeatureRecord {
 impl FixedSize for FeatureRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
+
+impl sealed::Sealed for FeatureRecord {}
 
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for FeatureRecord {
@@ -1113,6 +1119,8 @@ impl FixedSize for RangeRecord {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
+impl sealed::Sealed for RangeRecord {}
+
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for RangeRecord {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
@@ -1403,6 +1411,8 @@ impl FixedSize for ClassRangeRecord {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
+impl sealed::Sealed for ClassRangeRecord {}
+
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for ClassRangeRecord {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
@@ -1494,6 +1504,8 @@ impl SequenceLookupRecord {
 impl FixedSize for SequenceLookupRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
+
+impl sealed::Sealed for SequenceLookupRecord {}
 
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for SequenceLookupRecord {
@@ -3877,6 +3889,8 @@ impl FixedSize for FeatureVariationRecord {
     const RAW_BYTE_LEN: usize = Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
+impl sealed::Sealed for FeatureVariationRecord {}
+
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for FeatureVariationRecord {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
@@ -4211,6 +4225,8 @@ impl FeatureTableSubstitutionRecord {
 impl FixedSize for FeatureTableSubstitutionRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
+
+impl sealed::Sealed for FeatureTableSubstitutionRecord {}
 
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for FeatureTableSubstitutionRecord {

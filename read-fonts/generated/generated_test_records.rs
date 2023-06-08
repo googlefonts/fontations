@@ -147,6 +147,8 @@ impl FixedSize for SimpleRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
+impl sealed::Sealed for SimpleRecord {}
+
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for SimpleRecord {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
@@ -275,6 +277,8 @@ impl ContainsOffests {
 impl FixedSize for ContainsOffests {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
+
+impl sealed::Sealed for ContainsOffests {}
 
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for ContainsOffests {

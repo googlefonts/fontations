@@ -46,6 +46,7 @@ pub(crate) mod codegen_prelude {
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
     pub use crate::offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
+    pub(crate) use crate::read::sealed;
     pub use crate::read::{
         ComputeSize, FontRead, FontReadWithArgs, Format, FromBytes, ReadArgs, ReadError, VarSize,
     };

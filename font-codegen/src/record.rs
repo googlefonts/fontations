@@ -41,6 +41,7 @@ pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
                 const RAW_BYTE_LEN: usize = #( #inner_types::RAW_BYTE_LEN )+*;
             }
 
+            impl sealed::Sealed for #name {}
             /// SAFETY: see the [`FromBytes`] trait documentation.
             unsafe impl FromBytes for #name {
                 fn this_trait_should_only_be_implemented_in_generated_code() {}

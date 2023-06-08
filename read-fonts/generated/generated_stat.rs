@@ -227,6 +227,8 @@ impl FixedSize for AxisRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
+impl sealed::Sealed for AxisRecord {}
+
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for AxisRecord {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
@@ -893,6 +895,8 @@ impl AxisValueRecord {
 impl FixedSize for AxisValueRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Fixed::RAW_BYTE_LEN;
 }
+
+impl sealed::Sealed for AxisValueRecord {}
 
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for AxisValueRecord {
