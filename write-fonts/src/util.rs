@@ -44,3 +44,54 @@ impl<T> WrappingGet<T> for &[T] {
         }]
     }
 }
+
+/// Compare two floats for equality using relative and absolute tolerances.
+///
+/// This is useful when porting from Python where `math.isclose` is common.
+///
+/// References:
+/// - [PEP425](https://peps.python.org/pep-0485/)
+/// - [math.isclose](https://docs.python.org/3/library/math.html#math.isclose)
+#[derive(Clone, Copy, Debug)]
+pub struct FloatComparator {
+    // TODO: Make it generic over T: Float? Need to add num-traits as a dependency
+    rel_tol: f64,
+    abs_tol: f64,
+}
+
+impl FloatComparator {
+    /// Create a new FloatComparator with the specified relative and absolute tolerances.
+    pub fn new(rel_tol: f64, abs_tol: f64) -> Self {
+        Self { rel_tol, abs_tol }
+    }
+
+    #[inline]
+    /// Return true if a and b are close according to the specified tolerances.
+    pub fn isclose(self, a: f64, b: f64) -> bool {
+        if a == b {
+            return true;
+        }
+        if !a.is_finite() || !b.is_finite() {
+            return false;
+        }
+        // The https://peps.python.org/pep-0485/ describes the algorithm used as:
+        //   abs(a-b) <= max( rel_tol * max(abs(a), abs(b)), abs_tol )
+        // In Rust, that would literally be:
+        //   diff <= f64::max(self.rel_tol * f64::max(f64::abs(a), f64::abs(b)), self.abs_tol)
+        // However below I use || instead of max(), since the logic works out the same and
+        // should be a bit faster. In the PEP it's referred to as Boost's 'weak' formulation.
+        let diff = (a - b).abs();
+        diff <= (self.rel_tol * b).abs() || diff <= (self.rel_tol * a).abs() || diff <= self.abs_tol
+    }
+}
+
+impl Default for FloatComparator {
+    /// Create a new FloatComparator with `rel_to=1e-9` and `abs_tol=0.0`.
+    fn default() -> Self {
+        // same defaults as Python's math.isclose so we can match fontTools
+        Self {
+            rel_tol: 1e-9,
+            abs_tol: 0.0,
+        }
+    }
+}
