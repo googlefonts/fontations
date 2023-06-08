@@ -85,19 +85,14 @@ impl FloatComparator {
     }
 }
 
-// same defaults as Python's math.isclose so we can match fontTools
-const DEFAULT_REL_TOL: f64 = 1e-9;
-const DEFAULT_ABS_TOL: f64 = 0.0;
-
-static DEFAULT_FLOAT_CMP: FloatComparator = FloatComparator {
-    rel_tol: DEFAULT_REL_TOL,
-    abs_tol: DEFAULT_ABS_TOL,
-};
-
 impl Default for FloatComparator {
     /// Create a new FloatComparator with `rel_to=1e-9` and `abs_tol=0.0`.
     fn default() -> Self {
-        DEFAULT_FLOAT_CMP
+        // same defaults as Python's math.isclose so we can match fontTools
+        Self {
+            rel_tol: 1e-9,
+            abs_tol: 0.0,
+        }
     }
 }
 
@@ -106,5 +101,5 @@ impl Default for FloatComparator {
 /// To use different relative or absolute tolerances, create a FloatComparator
 /// and use its `isclose` method.
 pub fn isclose(a: f64, b: f64) -> bool {
-    DEFAULT_FLOAT_CMP.isclose(a, b)
+    FloatComparator::default().isclose(a, b)
 }
