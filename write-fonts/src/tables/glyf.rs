@@ -1766,4 +1766,38 @@ mod tests {
             })
         )
     }
+
+    #[test]
+    fn mid_points() {
+        // exactly in the middle
+        assert!(is_mid_point(
+            kurbo::Point::new(0.0, 0.0),
+            kurbo::Point::new(1.0, 1.0),
+            kurbo::Point::new(2.0, 2.0)
+        ));
+        // in the middle but rounding would make it not; take it anyway
+        assert!(is_mid_point(
+            kurbo::Point::new(0.5, 0.5),
+            kurbo::Point::new(3.0, 3.0),
+            kurbo::Point::new(5.5, 5.5)
+        ));
+        // very close to the middle
+        assert!(is_mid_point(
+            kurbo::Point::new(0.0, 0.0),
+            kurbo::Point::new(1.00001, 0.99999),
+            kurbo::Point::new(2.0, 2.0)
+        ));
+        // not quite in the middle but rounding would make it so; why throw it away?
+        assert!(is_mid_point(
+            kurbo::Point::new(0.0, 0.0),
+            kurbo::Point::new(-1.499999, 0.500001),
+            kurbo::Point::new(-2.0, 2.0)
+        ));
+        // not in the middle, neither before nor after rounding
+        assert!(!is_mid_point(
+            kurbo::Point::new(0.0, 0.0),
+            kurbo::Point::new(1.0, 1.5),
+            kurbo::Point::new(2.0, 2.0)
+        ));
+    }
 }
