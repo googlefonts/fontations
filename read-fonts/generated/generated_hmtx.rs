@@ -137,6 +137,8 @@ impl FixedSize for LongMetric {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN;
 }
 
+impl sealed::Sealed for LongMetric {}
+
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for LongMetric {
     fn this_trait_should_only_be_implemented_in_generated_code() {}

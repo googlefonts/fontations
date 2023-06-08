@@ -121,17 +121,24 @@ pub trait VarSize {
 ///
 /// In practice, this trait is only implemented for `u8`, `BigEndian<T>`,
 /// and for structs where all fields are those base types.
-pub unsafe trait FromBytes: FixedSize {
+pub unsafe trait FromBytes: FixedSize + sealed::Sealed {
     /// You should not be implementing this trait!
     #[doc(hidden)]
     fn this_trait_should_only_be_implemented_in_generated_code();
 }
 
+// a sealed trait. see <https://rust-lang.github.io/api-guidelines/future-proofing.html>
+pub(crate) mod sealed {
+    pub trait Sealed {}
+}
+
+impl sealed::Sealed for u8 {}
 // SAFETY: any byte can be interpreted as any other byte
 unsafe impl FromBytes for u8 {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
+impl<T: Scalar> sealed::Sealed for BigEndian<T> {}
 // SAFETY: BigEndian<T> is always wrapper around a transparent fixed-size byte array
 unsafe impl<T: Scalar> FromBytes for BigEndian<T> {
     fn this_trait_should_only_be_implemented_in_generated_code() {}

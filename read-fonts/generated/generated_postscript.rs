@@ -442,6 +442,8 @@ impl FixedSize for FdSelectRange3 {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
 }
 
+impl sealed::Sealed for FdSelectRange3 {}
+
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for FdSelectRange3 {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
@@ -589,6 +591,8 @@ impl FdSelectRange4 {
 impl FixedSize for FdSelectRange4 {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
+
+impl sealed::Sealed for FdSelectRange4 {}
 
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for FdSelectRange4 {

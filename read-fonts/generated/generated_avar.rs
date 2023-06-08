@@ -173,6 +173,8 @@ impl FixedSize for AxisValueMap {
     const RAW_BYTE_LEN: usize = F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
+impl sealed::Sealed for AxisValueMap {}
+
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for AxisValueMap {
     fn this_trait_should_only_be_implemented_in_generated_code() {}

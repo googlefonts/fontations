@@ -138,6 +138,8 @@ impl FixedSize for EncodingRecord {
         PlatformId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
 
+impl sealed::Sealed for EncodingRecord {}
+
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for EncodingRecord {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
@@ -511,6 +513,8 @@ impl FixedSize for SubHeader {
     const RAW_BYTE_LEN: usize =
         u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
+
+impl sealed::Sealed for SubHeader {}
 
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for SubHeader {
@@ -1049,6 +1053,8 @@ impl FixedSize for SequentialMapGroup {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
+impl sealed::Sealed for SequentialMapGroup {}
+
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for SequentialMapGroup {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
@@ -1470,6 +1476,8 @@ impl FixedSize for ConstantMapGroup {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
+impl sealed::Sealed for ConstantMapGroup {}
+
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for ConstantMapGroup {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
@@ -1649,6 +1657,8 @@ impl FixedSize for VariationSelector {
     const RAW_BYTE_LEN: usize =
         Uint24::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
 }
+
+impl sealed::Sealed for VariationSelector {}
 
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for VariationSelector {
@@ -1853,6 +1863,8 @@ impl FixedSize for UvsMapping {
     const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
+impl sealed::Sealed for UvsMapping {}
+
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for UvsMapping {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
@@ -1899,6 +1911,8 @@ impl UnicodeRange {
 impl FixedSize for UnicodeRange {
     const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
 }
+
+impl sealed::Sealed for UnicodeRange {}
 
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for UnicodeRange {

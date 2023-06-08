@@ -307,6 +307,8 @@ impl FixedSize for ColorRecord {
         u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
 }
 
+impl sealed::Sealed for ColorRecord {}
+
 /// SAFETY: see the [`FromBytes`] trait documentation.
 unsafe impl FromBytes for ColorRecord {
     fn this_trait_should_only_be_implemented_in_generated_code() {}
