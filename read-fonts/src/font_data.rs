@@ -117,7 +117,11 @@ impl<'a> FontData<'a> {
     /// [`read_ref_unchecked`]: [Self::read_ref_unchecked]
     pub fn read_ref_at<T: FromBytes>(&self, offset: usize) -> Result<&'a T, ReadError> {
         assert_ne!(std::mem::size_of::<T>(), 0);
-        assert_eq!(std::mem::size_of::<T>(), T::RAW_BYTE_LEN); // padding check
+        // assert we have no padding.
+        // `T::RAW_BYTE_LEN` is computed by recursively taking the raw length of
+        // any fields of `T`; if `size_of::<T>() == T::RAW_BYTE_LEN`` we know that
+        // `T` contains no padding.
+        assert_eq!(std::mem::size_of::<T>(), T::RAW_BYTE_LEN);
         assert_eq!(std::mem::align_of::<T>(), 1);
         self.bytes
             .get(offset..offset + T::RAW_BYTE_LEN)
@@ -156,7 +160,11 @@ impl<'a> FontData<'a> {
     /// [`read_array_unchecked`]: [Self::read_array_unchecked]
     pub fn read_array<T: FromBytes>(&self, range: Range<usize>) -> Result<&'a [T], ReadError> {
         assert_ne!(std::mem::size_of::<T>(), 0);
-        assert_eq!(std::mem::size_of::<T>(), T::RAW_BYTE_LEN); // padding check
+        // assert we have no padding.
+        // `T::RAW_BYTE_LEN` is computed by recursively taking the raw length of
+        // any fields of `T`; if `size_of::<T>() == T::RAW_BYTE_LEN`` we know that
+        // `T` contains no padding.
+        assert_eq!(std::mem::size_of::<T>(), T::RAW_BYTE_LEN);
         assert_eq!(std::mem::align_of::<T>(), 1);
         let bytes = self
             .bytes
@@ -177,7 +185,7 @@ impl<'a> FontData<'a> {
     /// `T` must be a struct or scalar that has alignment of 1, a non-zero size,
     /// and no internal padding, and `range` must have a length that is non-zero
     /// and is a multiple of `size_of::<T>()`.
-    pub unsafe fn read_array_unchecked<T: FromBytes>(&self, range: Range<usize>) -> &'a [T] {
+    unsafe fn read_array_unchecked<T: FromBytes>(&self, range: Range<usize>) -> &'a [T] {
         let bytes = self.bytes.get_unchecked(range);
         let elems = bytes.len() / std::mem::size_of::<T>();
         std::slice::from_raw_parts(bytes.as_ptr() as *const _, elems)
