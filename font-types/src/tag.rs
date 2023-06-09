@@ -194,14 +194,14 @@ impl AsRef<[u8]> for Tag {
 
 impl Display for Tag {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        // a dumb no-std way of ensuring this string is valid utf-8
-        let mut bytes = [b'-'; 4];
-        for (i, b) in self.0.iter().enumerate() {
-            if b.is_ascii() {
-                bytes[i] = *b;
+        for byte in self.0 {
+            if (0x20..=0x7E).contains(&byte) {
+                write!(f, "{}", byte as char)?;
+            } else {
+                write!(f, "{{0x{:02X}}}", byte)?;
             }
         }
-        Display::fmt(&std::str::from_utf8(&bytes).unwrap(), f)
+        Ok(())
     }
 }
 
@@ -222,15 +222,7 @@ impl std::error::Error for InvalidTag {}
 
 impl Debug for Tag {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let mut dbg = f.debug_tuple("Tag");
-        let mut bytes = [b'-'; 4];
-        for (i, b) in self.0.iter().enumerate() {
-            if b.is_ascii() {
-                bytes[i] = *b;
-            }
-        }
-        dbg.field(&std::str::from_utf8(&bytes).unwrap());
-        dbg.finish()
+        write!(f, "Tag({})", self)
     }
 }
 
@@ -281,5 +273,11 @@ mod tests {
         assert!(Tag::new(&[0x21, 0x33, 0x33, 0x33]).validate().is_ok());
         assert!(Tag::new(&[0x7E, 0x33, 0x33, 0x33]).validate().is_ok());
         assert!(Tag::new(&[0x7F, 0x33, 0x33, 0x33]).validate().is_err());
+    }
+
+    #[test]
+    fn display() {
+        let bad_tag = Tag::new(&[0x19, b'z', b'@', 0x7F]);
+        assert_eq!(bad_tag.to_string(), "{0x19}z@{0x7F}");
     }
 }
