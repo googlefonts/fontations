@@ -83,13 +83,13 @@ impl<'a> Font<'a> {
     }
 
     pub fn string(&self, id: StringId) -> Option<Latin1String<'a>> {
-        Some(match id.standard_string() {
-            Ok(name) => name,
+        match id.standard_string() {
+            Ok(name) => Some(name),
             Err(ix) => match &self.kind {
-                FontKind::Cff(cff) => Latin1String::new(cff.strings.get(ix).ok()?),
-                _ => return None,
+                FontKind::Cff(cff) => cff.strings.get(ix).ok().map(Latin1String::new),
+                _ => None,
             },
-        })
+        }
     }
 
     /// Returns the number of available subfonts.
