@@ -604,7 +604,7 @@ impl<'a> ScalerFont<'a> {
             .map(|data| data.read_array(0..data.len()).unwrap())
             .unwrap_or_default();
         let cvt = font
-            .data_for_tag(Tag::new(b"cvt"))
+            .data_for_tag(Tag::new(b"cvt "))
             .and_then(|data| data.read_array(0..data.len()).ok())
             .unwrap_or_default();
         let maxp = font.maxp()?;

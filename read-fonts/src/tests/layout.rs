@@ -23,7 +23,7 @@ fn example_2_scripts_and_langs() {
     assert_eq!(table.lang_sys_count(), 1);
 
     let urdu_record = &table.lang_sys_records()[0];
-    assert_eq!(urdu_record.lang_sys_tag(), Tag::new(b"URD"));
+    assert_eq!(urdu_record.lang_sys_tag(), Tag::new(b"URD "));
     let urdu_sys = urdu_record.lang_sys(table.offset_data()).unwrap();
     assert_eq!(urdu_sys.required_feature_index(), 3);
     assert_eq!(urdu_sys.feature_index_count(), 3);

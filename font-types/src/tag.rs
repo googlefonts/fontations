@@ -6,31 +6,28 @@ use std::{
 
 /// An OpenType tag.
 ///
-/// A tag is a 4-byte array where each byte is in the printable ascii range
-/// (0x20..=0x7E).
+/// [Per the spec][spec], a tag is a 4-byte array where each byte is in the
+/// printable ASCII range (0x20..=0x7E).
+///
+/// We do not strictly enforce this constraint as it is possible to encounter
+/// invalid tags in existing fonts, and these need to be representable.
+///
+/// When creating new tags we encourage ensuring that the tag is valid,
+/// either by using [`Tag::new_checked`] or by calling [`Tag::validate`] on an
+/// existing tag.
+///
+/// [spec]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#data-types
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct Tag([u8; 4]);
 
 impl Tag {
-    /// Generate a `Tag` from a byte slice, verifying it conforms to the
-    /// OpenType spec.
+    /// Construct a `Tag` from raw bytes.
     ///
-    /// The argument must be a non-empty slice, containing at most four
-    /// bytes in the printable ascii range, `0x20..=0x7E`.
-    ///
-    /// If the input has fewer than four bytes, it will be padded with spaces
-    /// (`0x20`).
-    ///
-    /// # Panics
-    ///
-    /// This method panics if the tag is not valid per the requirements above.
-    pub const fn new(src: &[u8]) -> Tag {
-        match Tag::new_checked(src) {
-            Ok(tag) => tag,
-            Err(InvalidTag::InvalidLength(_)) => panic!("invalid length for tag"),
-            Err(InvalidTag::InvalidByte { .. }) => panic!("tag contains invalid byte"),
-        }
+    /// This does not perform any validation; use [Tag::new_checked] for a
+    /// constructor that validates input.
+    pub const fn new(src: &[u8; 4]) -> Tag {
+        Tag(*src)
     }
 
     /// Attempt to create a `Tag` from raw bytes.
@@ -39,6 +36,9 @@ impl Tag {
     /// ascii range (`0x20..=0x7E`).
     ///
     /// If the input has fewer than four bytes, it will be padded with spaces.
+    ///
+    /// This method returns an `InvalidTag` error if the tag does conform to
+    /// the spec.
     pub const fn new_checked(src: &[u8]) -> Result<Self, InvalidTag> {
         if src.is_empty() || src.len() > 4 {
             return Err(InvalidTag::InvalidLength(src.len()));
@@ -95,13 +95,45 @@ impl Tag {
     pub fn into_bytes(self) -> [u8; 4] {
         self.0
     }
+
+    /// Check that the tag conforms with the spec.
+    ///
+    /// This is intended for use during things like santization or lint passes
+    /// on existing fonts; if you are creating a new tag, you should Prefer
+    /// [`Tag::new_checked`].
+    ///
+    /// Specifically, this checks the following conditions
+    ///
+    /// - the tag is not empty
+    /// - the tag contains only characters in the printable ascii range (0x20..=0x1F)
+    /// - the tag does not begin with a space
+    /// - the tag does not contain any non-space characters after the first space
+    pub fn validate(self) -> Result<(), InvalidTag> {
+        if self == Tag::default() {
+            return Err(InvalidTag::InvalidLength(0));
+        }
+
+        let mut seen_space = false;
+        for (i, byte) in self.0.as_slice().iter().copied().enumerate() {
+            match byte {
+                0x20 if i == 0 => return Err(InvalidTag::InvalidByte { pos: i, byte }),
+                0x20 => seen_space = true,
+                0..=0x1F | 0x7f.. => return Err(InvalidTag::InvalidByte { pos: i, byte }),
+                0x21..=0x7e if seen_space => return Err(InvalidTag::ByteAfterSpace { pos: i }),
+                _ => (),
+            }
+        }
+        Ok(())
+    }
 }
 
 /// An error representing an invalid tag.
 #[derive(Clone, Debug, PartialEq, Eq)]
+#[non_exhaustive]
 pub enum InvalidTag {
     InvalidLength(usize),
     InvalidByte { pos: usize, byte: u8 },
+    ByteAfterSpace { pos: usize },
 }
 
 impl FromStr for Tag {
@@ -180,6 +212,7 @@ impl Display for InvalidTag {
                 write!(f, "Invalid byte 0x{byte:X} at index {pos}")
             }
             InvalidTag::InvalidLength(len) => write!(f, "Invalid length ({len})"),
+            InvalidTag::ByteAfterSpace { .. } => write!(f, "Non-space character after first space"),
         }
     }
 }
@@ -224,7 +257,7 @@ mod tests {
         assert!(Tag::new_checked(b"abcde").is_err());
         assert!(Tag::new_checked(b" bc").is_err()); // space invalid in first position
         assert!(Tag::new_checked(b"b c").is_err()); // non-space cannot follow space
-        assert_eq!(Tag::new_checked(b"bc  "), Ok(Tag::new(b"bc")));
+        assert_eq!(Tag::new_checked(b"bc"), Ok(Tag::new(b"bc  ")));
 
         // ascii only:
         assert!(Tag::new_checked(&[0x19]).is_err());
@@ -234,8 +267,19 @@ mod tests {
     }
 
     #[test]
-    #[should_panic]
-    fn name() {
-        let _ = Tag::new(&[0x19, 0x69]);
+    fn validate_test() {
+        assert!(Tag::new(b"    ").validate().is_err());
+        assert!(Tag::new(b"a   ").validate().is_ok());
+        assert!(Tag::new(b"ab  ").validate().is_ok());
+        assert!(Tag::new(b"abc ").validate().is_ok());
+        assert!(Tag::new(b"abcd").validate().is_ok());
+        assert!(Tag::new(b" bcc").validate().is_err()); // space invalid in first position
+        assert!(Tag::new(b"b cc").validate().is_err()); // non-space cannot follow space
+
+        // ascii only:
+        assert!(Tag::new(&[0x19, 0x33, 0x33, 0x33]).validate().is_err());
+        assert!(Tag::new(&[0x21, 0x33, 0x33, 0x33]).validate().is_ok());
+        assert!(Tag::new(&[0x7E, 0x33, 0x33, 0x33]).validate().is_ok());
+        assert!(Tag::new(&[0x7F, 0x33, 0x33, 0x33]).validate().is_err());
     }
 }
