@@ -198,7 +198,8 @@ impl<'a> FontData<'a> {
         }
     }
 
-    pub(crate) fn as_bytes(&self) -> &'a [u8] {
+    /// Return the data as a byte slice
+    pub fn as_bytes(&self) -> &'a [u8] {
         self.bytes
     }
 }
