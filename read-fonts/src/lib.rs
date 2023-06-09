@@ -242,7 +242,7 @@ impl<'a> FontRef<'a> {
         data: FontData<'a>,
         table_directory: TableDirectory<'a>,
     ) -> Result<Self, ReadError> {
-        if [TT_SFNT_VERSION, CFF_SFTN_VERSION].contains(&table_directory.sfnt_version()) {
+        if [TT_SFNT_VERSION, CFF_SFNT_VERSION].contains(&table_directory.sfnt_version()) {
             Ok(FontRef {
                 data,
                 table_directory,
@@ -257,4 +257,19 @@ impl<'a> TableProvider<'a> for FontRef<'a> {
     fn data_for_tag(&self, tag: Tag) -> Option<FontData<'a>> {
         self.table_data(tag)
     }
+
+    fn outline_format(&self) -> Option<OutlineFormat> {
+        Some(match self.table_directory.sfnt_version() {
+            TT_SFNT_VERSION => OutlineFormat::TrueType,
+            CFF_SFNT_VERSION => OutlineFormat::PostScript,
+            _ => return None,
+        })
+    }
+}
+
+/// The type of scalable outlines contained in a font.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum OutlineFormat {
+    TrueType,
+    PostScript,
 }
