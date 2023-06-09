@@ -192,7 +192,7 @@ where
             //
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=18>
             Flex => {
-                let args = self.stack.get_fixed_array::<12>(0)?;
+                let args = self.stack.fixed_array::<12>(0)?;
                 let dx1 = self.x + args[0];
                 let dy1 = self.y + args[1];
                 let dx2 = dx1 + args[2];
@@ -211,7 +211,7 @@ where
             }
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=19>
             HFlex => {
-                let args = self.stack.get_fixed_array::<7>(0)?;
+                let args = self.stack.fixed_array::<7>(0)?;
                 let dx1 = self.x + args[0];
                 let dy1 = self.y;
                 let dx2 = dx1 + args[1];
@@ -229,7 +229,7 @@ where
             }
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=19>
             HFlex1 => {
-                let args = self.stack.get_fixed_array::<9>(0)?;
+                let args = self.stack.fixed_array::<9>(0)?;
                 let dx1 = self.x + args[0];
                 let dy1 = self.y + args[1];
                 let dx2 = dx1 + args[2];
@@ -247,7 +247,7 @@ where
             }
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=20>
             Flex1 => {
-                let args = self.stack.get_fixed_array::<11>(0)?;
+                let args = self.stack.fixed_array::<11>(0)?;
                 let dx1 = self.x + args[0];
                 let dy1 = self.y + args[1];
                 let dx2 = dx1 + args[2];
@@ -315,7 +315,7 @@ where
                 let is_horizontal = matches!(operator, HStem | HStemHm);
                 let mut u = Fixed::ZERO;
                 while i < self.stack.len() {
-                    let args = self.stack.get_fixed_array::<2>(i)?;
+                    let args = self.stack.fixed_array::<2>(i)?;
                     u += args[0];
                     let w = args[1];
                     let v = u.wrapping_add(w);
@@ -348,7 +348,7 @@ where
                 };
                 let mut u = Fixed::ZERO;
                 while i < self.stack.len() {
-                    let args = self.stack.get_fixed_array::<2>(i)?;
+                    let args = self.stack.fixed_array::<2>(i)?;
                     u += args[0];
                     let w = args[1];
                     let v = u + w;
@@ -380,7 +380,7 @@ where
                 } else {
                     self.sink.close();
                 }
-                let args = self.stack.get_fixed_array::<2>(i)?;
+                let args = self.stack.fixed_array::<2>(i)?;
                 self.x += args[0];
                 self.y += args[1];
                 self.sink.move_to(self.x, self.y);
@@ -416,7 +416,7 @@ where
             RLineTo => {
                 let mut i = 0;
                 while i < self.stack.len() {
-                    let args = self.stack.get_fixed_array::<2>(i)?;
+                    let args = self.stack.fixed_array::<2>(i)?;
                     self.x += args[0];
                     self.y += args[1];
                     self.sink.line_to(self.x, self.y);
@@ -454,7 +454,7 @@ where
                     i += 1;
                 }
                 while i < self.stack.len() {
-                    let args = self.stack.get_fixed_array::<4>(i)?;
+                    let args = self.stack.fixed_array::<4>(i)?;
                     let x1 = self.x + args[0];
                     let y1 = self.y;
                     let x2 = x1 + args[1];
@@ -471,13 +471,14 @@ where
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=17>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2834>
             HvCurveTo | VhCurveTo => {
-                let count = self.stack.len();
-                let mut i = (count & !2) - count;
+                let count1 = self.stack.len();
+                let count = count1 & !2;
+                let mut i = count1 - count;
                 let mut alternate = operator == HvCurveTo;
                 while i < count {
                     let (x1, x2, x3, y1, y2, y3);
                     if alternate {
-                        let args = self.stack.get_fixed_array::<4>(i)?;
+                        let args = self.stack.fixed_array::<4>(i)?;
                         x1 = self.x + args[0];
                         y1 = self.y;
                         x2 = x1 + args[1];
@@ -492,9 +493,9 @@ where
                         };
                         alternate = false;
                     } else {
-                        let args = self.stack.get_fixed_array::<4>(i)?;
+                        let args = self.stack.fixed_array::<4>(i)?;
                         x1 = self.x;
-                        y1 = args[0];
+                        y1 = self.y + args[0];
                         x2 = x1 + args[1];
                         y2 = y1 + args[2];
                         x3 = x2 + args[3];
@@ -521,7 +522,7 @@ where
                 let count = self.stack.len();
                 let mut i = 0;
                 while i + 6 <= count {
-                    let args = self.stack.get_fixed_array::<6>(i)?;
+                    let args = self.stack.fixed_array::<6>(i)?;
                     let x1 = self.x + args[0];
                     let y1 = self.y + args[1];
                     let x2 = x1 + args[2];
@@ -532,7 +533,7 @@ where
                     i += 6;
                 }
                 if operator == RCurveLine {
-                    let [dx, dy] = self.stack.get_fixed_array::<2>(i)?;
+                    let [dx, dy] = self.stack.fixed_array::<2>(i)?;
                     self.x += dx;
                     self.y += dy;
                     self.sink.line_to(self.x, self.y);
@@ -545,13 +546,13 @@ where
             RLineCurve => {
                 let mut i = 0;
                 while i < self.stack.len() - 6 {
-                    let [dx, dy] = self.stack.get_fixed_array::<2>(i)?;
+                    let [dx, dy] = self.stack.fixed_array::<2>(i)?;
                     self.x += dx;
                     self.y += dy;
                     self.sink.line_to(self.x, self.y);
                     i += 2;
                 }
-                let args = self.stack.get_fixed_array::<6>(i)?;
+                let args = self.stack.fixed_array::<6>(i)?;
                 let x1 = self.x + args[0];
                 let y1 = self.y + args[1];
                 let x2 = x1 + args[2];
@@ -573,7 +574,7 @@ where
                     i += 1;
                 }
                 while i < self.stack.len() {
-                    let args = self.stack.get_fixed_array::<4>(i)?;
+                    let args = self.stack.fixed_array::<4>(i)?;
                     let x1 = self.x;
                     let y1 = self.y + args[0];
                     let x2 = x1 + args[1];
@@ -708,11 +709,11 @@ mod tests {
     use crate::{tables::variations::ItemVariationStore, types::F2Dot14, FontData, FontRead};
 
     #[derive(Copy, Clone, PartialEq, Debug)]
+    #[allow(clippy::enum_variant_names)]
     enum Command {
         MoveTo(Fixed, Fixed),
         LineTo(Fixed, Fixed),
         CurveTo(Fixed, Fixed, Fixed, Fixed, Fixed, Fixed),
-        Close,
     }
 
     #[derive(PartialEq, Default, Debug)]
@@ -732,7 +733,17 @@ mod tests {
         }
 
         fn close(&mut self) {
-            self.0.push(Command::Close)
+            // For testing purposes, replace the close command
+            // with a line to the most recent move or (0, 0)
+            // if none exists
+            let mut last_move = [Fixed::ZERO; 2];
+            for command in self.0.iter().rev() {
+                if let Command::MoveTo(x, y) = command {
+                    last_move = [*x, *y];
+                    break;
+                }
+            }
+            self.0.push(Command::LineTo(last_move[0], last_move[1]));
         }
     }
 
@@ -776,6 +787,282 @@ mod tests {
             LineTo(Fixed::from_f64(550.0), Fixed::ZERO),
             LineTo(Fixed::from_f64(550.0), Fixed::from_f64(500.0)),
             LineTo(Fixed::from_f64(50.0), Fixed::from_f64(500.0)),
+        ];
+        assert_eq!(&commands.0, expected);
+    }
+
+    #[test]
+    fn all_path_ops() {
+        // This charstring was manually constructed in
+        // font-test-data/test_data/ttx/charstring_path_ops.ttx
+        //
+        // The encoded version was extracted from the font and inlined below
+        // for simplicity.
+        //
+        // The geometry is arbitrary but includes the full set of path
+        // construction operators:
+        // --------------------------------------------------------------------
+        // -137 -632 rmoveto
+        // 34 -5 20 -6 rlineto
+        // 1 2 3 hlineto
+        // -179 -10 3 vlineto
+        // -30 15 22 8 -50 26 -14 -42 -41 19 -15 25 rrcurveto
+        // -30 15 22 8 hhcurveto
+        // 8 -30 15 22 8 hhcurveto
+        // 24 20 15 41 42 -20 14 -24 -25 -19 -14 -42 -41 19 -15 25 hvcurveto
+        // 20 vmoveto
+        // -20 14 -24 -25 -19 -14 4 5 rcurveline
+        // -20 14 -24 -25 -19 -14 4 5 rlinecurve
+        // -55 -23 -22 -59 vhcurveto
+        // -30 15 22 8 vvcurveto
+        // 8 -30 15 22 8 vvcurveto
+        // 24 20 15 41 42 -20 14 -24 -25 -19 -14 -42 23 flex
+        // 24 20 15 41 42 -20 14 hflex
+        // 13 hmoveto
+        // 41 42 -20 14 -24 -25 -19 -14 -42 hflex1
+        // 15 41 42 -20 14 -24 -25 -19 -14 -42 8 flex1
+        // endchar
+        let charstring = &[
+            251, 29, 253, 12, 21, 173, 134, 159, 133, 5, 140, 141, 142, 6, 251, 71, 129, 142, 7,
+            109, 154, 161, 147, 89, 165, 125, 97, 98, 158, 124, 164, 8, 109, 154, 161, 147, 27,
+            147, 109, 154, 161, 147, 27, 163, 159, 154, 180, 181, 119, 153, 115, 114, 120, 125, 97,
+            98, 158, 124, 164, 31, 159, 4, 119, 153, 115, 114, 120, 125, 143, 144, 24, 119, 153,
+            115, 114, 120, 125, 143, 144, 25, 84, 116, 117, 80, 30, 109, 154, 161, 147, 26, 147,
+            109, 154, 161, 147, 26, 163, 159, 154, 180, 181, 119, 153, 115, 114, 120, 125, 97, 162,
+            12, 35, 163, 159, 154, 180, 181, 119, 153, 12, 34, 152, 22, 180, 181, 119, 153, 115,
+            114, 120, 125, 97, 12, 36, 154, 180, 181, 119, 153, 115, 114, 120, 125, 97, 147, 12,
+            37, 14,
+        ];
+        let empty_index_bytes = [0u8; 8];
+        let global_subrs = Index::new(&empty_index_bytes, false).unwrap();
+        use Command::*;
+        let mut commands = CaptureCommandSink::default();
+        evaluate(charstring, global_subrs, None, None, &mut commands).unwrap();
+        // Expected results from extracted glyph data in
+        // font-test-data/test_data/extracted/charstring_path_ops-glyphs.txt
+        // --------------------------------------------------------------------
+        // m  -137,-632
+        // l  -103,-637
+        // l  -83,-643
+        // l  -82,-643
+        // l  -82,-641
+        // l  -79,-641
+        // l  -79,-820
+        // l  -89,-820
+        // l  -89,-817
+        // c  -119,-802 -97,-794 -147,-768
+        // c  -161,-810 -202,-791 -217,-766
+        // c  -247,-766 -232,-744 -224,-744
+        // c  -254,-736 -239,-714 -231,-714
+        // c  -207,-714 -187,-699 -187,-658
+        // c  -187,-616 -207,-602 -231,-602
+        // c  -256,-602 -275,-616 -275,-658
+        // c  -275,-699 -256,-714 -231,-714
+        // l  -137,-632
+        // m  -231,-694
+        // c  -251,-680 -275,-705 -294,-719
+        // l  -290,-714
+        // l  -310,-700
+        // c  -334,-725 -353,-739 -349,-734
+        // c  -349,-789 -372,-811 -431,-811
+        // c  -431,-841 -416,-819 -416,-811
+        // c  -408,-841 -393,-819 -393,-811
+        // c  -369,-791 -354,-750 -312,-770
+        // c  -298,-794 -323,-813 -337,-855
+        // c  -313,-855 -293,-840 -252,-840
+        // c  -210,-840 -230,-855 -216,-855
+        // l  -231,-694
+        // m  -203,-855
+        // c  -162,-813 -182,-799 -206,-799
+        // c  -231,-799 -250,-813 -292,-855
+        // c  -277,-814 -235,-834 -221,-858
+        // c  -246,-877 -260,-919 -292,-911
+        // l  -203,-855
+        let expected = &[
+            MoveTo(Fixed::from_i32(-137), Fixed::from_i32(-632)),
+            LineTo(Fixed::from_i32(-103), Fixed::from_i32(-637)),
+            LineTo(Fixed::from_i32(-83), Fixed::from_i32(-643)),
+            LineTo(Fixed::from_i32(-82), Fixed::from_i32(-643)),
+            LineTo(Fixed::from_i32(-82), Fixed::from_i32(-641)),
+            LineTo(Fixed::from_i32(-79), Fixed::from_i32(-641)),
+            LineTo(Fixed::from_i32(-79), Fixed::from_i32(-820)),
+            LineTo(Fixed::from_i32(-89), Fixed::from_i32(-820)),
+            LineTo(Fixed::from_i32(-89), Fixed::from_i32(-817)),
+            CurveTo(
+                Fixed::from_i32(-119),
+                Fixed::from_i32(-802),
+                Fixed::from_i32(-97),
+                Fixed::from_i32(-794),
+                Fixed::from_i32(-147),
+                Fixed::from_i32(-768),
+            ),
+            CurveTo(
+                Fixed::from_i32(-161),
+                Fixed::from_i32(-810),
+                Fixed::from_i32(-202),
+                Fixed::from_i32(-791),
+                Fixed::from_i32(-217),
+                Fixed::from_i32(-766),
+            ),
+            CurveTo(
+                Fixed::from_i32(-247),
+                Fixed::from_i32(-766),
+                Fixed::from_i32(-232),
+                Fixed::from_i32(-744),
+                Fixed::from_i32(-224),
+                Fixed::from_i32(-744),
+            ),
+            CurveTo(
+                Fixed::from_i32(-254),
+                Fixed::from_i32(-736),
+                Fixed::from_i32(-239),
+                Fixed::from_i32(-714),
+                Fixed::from_i32(-231),
+                Fixed::from_i32(-714),
+            ),
+            CurveTo(
+                Fixed::from_i32(-207),
+                Fixed::from_i32(-714),
+                Fixed::from_i32(-187),
+                Fixed::from_i32(-699),
+                Fixed::from_i32(-187),
+                Fixed::from_i32(-658),
+            ),
+            CurveTo(
+                Fixed::from_i32(-187),
+                Fixed::from_i32(-616),
+                Fixed::from_i32(-207),
+                Fixed::from_i32(-602),
+                Fixed::from_i32(-231),
+                Fixed::from_i32(-602),
+            ),
+            CurveTo(
+                Fixed::from_i32(-256),
+                Fixed::from_i32(-602),
+                Fixed::from_i32(-275),
+                Fixed::from_i32(-616),
+                Fixed::from_i32(-275),
+                Fixed::from_i32(-658),
+            ),
+            CurveTo(
+                Fixed::from_i32(-275),
+                Fixed::from_i32(-699),
+                Fixed::from_i32(-256),
+                Fixed::from_i32(-714),
+                Fixed::from_i32(-231),
+                Fixed::from_i32(-714),
+            ),
+            LineTo(Fixed::from_i32(-137), Fixed::from_i32(-632)),
+            MoveTo(Fixed::from_i32(-231), Fixed::from_i32(-694)),
+            CurveTo(
+                Fixed::from_i32(-251),
+                Fixed::from_i32(-680),
+                Fixed::from_i32(-275),
+                Fixed::from_i32(-705),
+                Fixed::from_i32(-294),
+                Fixed::from_i32(-719),
+            ),
+            LineTo(Fixed::from_i32(-290), Fixed::from_i32(-714)),
+            LineTo(Fixed::from_i32(-310), Fixed::from_i32(-700)),
+            CurveTo(
+                Fixed::from_i32(-334),
+                Fixed::from_i32(-725),
+                Fixed::from_i32(-353),
+                Fixed::from_i32(-739),
+                Fixed::from_i32(-349),
+                Fixed::from_i32(-734),
+            ),
+            CurveTo(
+                Fixed::from_i32(-349),
+                Fixed::from_i32(-789),
+                Fixed::from_i32(-372),
+                Fixed::from_i32(-811),
+                Fixed::from_i32(-431),
+                Fixed::from_i32(-811),
+            ),
+            CurveTo(
+                Fixed::from_i32(-431),
+                Fixed::from_i32(-841),
+                Fixed::from_i32(-416),
+                Fixed::from_i32(-819),
+                Fixed::from_i32(-416),
+                Fixed::from_i32(-811),
+            ),
+            CurveTo(
+                Fixed::from_i32(-408),
+                Fixed::from_i32(-841),
+                Fixed::from_i32(-393),
+                Fixed::from_i32(-819),
+                Fixed::from_i32(-393),
+                Fixed::from_i32(-811),
+            ),
+            CurveTo(
+                Fixed::from_i32(-369),
+                Fixed::from_i32(-791),
+                Fixed::from_i32(-354),
+                Fixed::from_i32(-750),
+                Fixed::from_i32(-312),
+                Fixed::from_i32(-770),
+            ),
+            CurveTo(
+                Fixed::from_i32(-298),
+                Fixed::from_i32(-794),
+                Fixed::from_i32(-323),
+                Fixed::from_i32(-813),
+                Fixed::from_i32(-337),
+                Fixed::from_i32(-855),
+            ),
+            CurveTo(
+                Fixed::from_i32(-313),
+                Fixed::from_i32(-855),
+                Fixed::from_i32(-293),
+                Fixed::from_i32(-840),
+                Fixed::from_i32(-252),
+                Fixed::from_i32(-840),
+            ),
+            CurveTo(
+                Fixed::from_i32(-210),
+                Fixed::from_i32(-840),
+                Fixed::from_i32(-230),
+                Fixed::from_i32(-855),
+                Fixed::from_i32(-216),
+                Fixed::from_i32(-855),
+            ),
+            LineTo(Fixed::from_i32(-231), Fixed::from_i32(-694)),
+            MoveTo(Fixed::from_i32(-203), Fixed::from_i32(-855)),
+            CurveTo(
+                Fixed::from_i32(-162),
+                Fixed::from_i32(-813),
+                Fixed::from_i32(-182),
+                Fixed::from_i32(-799),
+                Fixed::from_i32(-206),
+                Fixed::from_i32(-799),
+            ),
+            CurveTo(
+                Fixed::from_i32(-231),
+                Fixed::from_i32(-799),
+                Fixed::from_i32(-250),
+                Fixed::from_i32(-813),
+                Fixed::from_i32(-292),
+                Fixed::from_i32(-855),
+            ),
+            CurveTo(
+                Fixed::from_i32(-277),
+                Fixed::from_i32(-814),
+                Fixed::from_i32(-235),
+                Fixed::from_i32(-834),
+                Fixed::from_i32(-221),
+                Fixed::from_i32(-858),
+            ),
+            CurveTo(
+                Fixed::from_i32(-246),
+                Fixed::from_i32(-877),
+                Fixed::from_i32(-260),
+                Fixed::from_i32(-919),
+                Fixed::from_i32(-292),
+                Fixed::from_i32(-911),
+            ),
+            LineTo(Fixed::from_i32(-203), Fixed::from_i32(-855)),
         ];
         assert_eq!(&commands.0, expected);
     }
