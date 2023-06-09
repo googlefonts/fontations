@@ -29,6 +29,8 @@ pub static NOTO_SERIF_DISPLAY_TRIMMED: &[u8] =
 pub static CANTARELL_VF_TRIMMED: &[u8] =
     include_bytes!("../test_data/ttf/cantarell_vf_trimmed.ttf");
 
+pub static CHARSTRING_PATH_OPS: &[u8] = include_bytes!("../test_data/ttf/charstring_path_ops.ttf");
+
 pub mod post {
 
     #[rustfmt::skip]

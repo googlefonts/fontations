@@ -125,23 +125,6 @@ impl Stack {
         })
     }
 
-    /// Returns an array of `N` 16.16 fixed point values starting at
-    /// `first_index`.
-    pub fn get_fixed_array<const N: usize>(&self, first_index: usize) -> Result<[Fixed; N], Error> {
-        let mut values = [Fixed::ZERO; N];
-        let mut count = 0;
-        for (src, dest) in self.fixed_values().take(N).zip(&mut values) {
-            *dest = src;
-            count += 1;
-        }
-        if count < N {
-            // Report an invalid stack access for the first entry that exceeded
-            // the top of the stack
-            return Err(Error::InvalidStackAccess(N - count + first_index));
-        }
-        Ok(values)
-    }
-
     /// Pops a 32-bit integer from the top of stack.
     ///
     /// Will return an error if the top value on the stack was not pushed as an
@@ -176,6 +159,33 @@ impl Stack {
                     Fixed::from_i32(*value)
                 }
             })
+    }
+
+    /// Returns an array of `N` 16.16 fixed point values starting at
+    /// `first_index`.
+    pub fn fixed_array<const N: usize>(&self, first_index: usize) -> Result<[Fixed; N], Error> {
+        let mut result = [Fixed::ZERO; N];
+        if first_index >= self.top {
+            return Err(Error::InvalidStackAccess(first_index));
+        }
+        let end = first_index + N;
+        if end > self.top {
+            return Err(Error::InvalidStackAccess(end - 1));
+        }
+        let range = first_index..end;
+        for ((src, is_fixed), dest) in self.values[range.clone()]
+            .iter()
+            .zip(&self.value_is_fixed[range])
+            .zip(&mut result)
+        {
+            let value = if *is_fixed {
+                Fixed::from_bits(*src)
+            } else {
+                Fixed::from_i32(*src)
+            };
+            *dest = value;
+        }
+        Ok(result)
     }
 
     /// Returns an iterator yielding all elements on the stack as number
