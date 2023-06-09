@@ -4,6 +4,7 @@ use std::fmt;
 
 mod blend;
 mod fd_select;
+mod font;
 mod index;
 mod stack;
 mod string;
@@ -14,6 +15,7 @@ pub mod dict;
 include!("../../generated/generated_postscript.rs");
 
 pub use blend::BlendState;
+pub use font::{Cff2Font, CffFont, Font, FontKind};
 pub use index::Index;
 pub use stack::{Number, Stack};
 pub use string::{Latin1String, StringId, STANDARD_STRINGS};
