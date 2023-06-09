@@ -66,10 +66,12 @@ impl Tag {
         Ok(Tag(raw))
     }
 
-    // for symmetry with integer types / other things we encode/decode
-    /// Return the memory representation of this tag.
-    pub const fn to_be_bytes(self) -> [u8; 4] {
-        self.0
+    /// Construct a new `Tag` from a big-endian u32, without performing validation.
+    ///
+    /// This is provided as a convenience method for interop with code that
+    /// stores tags as big-endian u32s.
+    pub const fn from_u32(src: u32) -> Self {
+        Self::from_be_bytes(src.to_be_bytes())
     }
 
     /// Create a tag from raw big-endian bytes.
@@ -81,6 +83,12 @@ impl Tag {
     /// parsing, where invalid inputs are accepted.
     pub const fn from_be_bytes(bytes: [u8; 4]) -> Self {
         Self(bytes)
+    }
+
+    // for symmetry with integer types / other things we encode/decode
+    /// Return the memory representation of this tag.
+    pub const fn to_be_bytes(self) -> [u8; 4] {
+        self.0
     }
 
     /// Return the raw byte array representing this tag.
