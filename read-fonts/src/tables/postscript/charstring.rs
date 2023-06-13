@@ -493,7 +493,7 @@ where
         let initial_x = self.x;
         let initial_y = self.y;
         let mut count = 0;
-        let mut points = [Point::default(); 4];
+        let mut points = [Point::default(); 2];
         for mode in modes {
             let stack_used = match mode {
                 DxDy => {
@@ -549,19 +549,20 @@ where
                     }
                 }
             };
-            points[count] = Point::new(self.x, self.y);
-            count += 1;
             self.stack_ix += stack_used;
-            if count == 3 {
+            if count == 2 {
                 self.sink.curve_to(
                     points[0].x,
                     points[0].y,
                     points[1].x,
                     points[1].y,
-                    points[2].x,
-                    points[2].y,
+                    self.x,
+                    self.y,
                 );
                 count = 0;
+            } else {
+                points[count] = Point::new(self.x, self.y);
+                count += 1;
             }
         }
         Ok(())
