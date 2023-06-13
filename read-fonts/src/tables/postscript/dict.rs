@@ -555,9 +555,8 @@ fn parse_bcd(cursor: &mut Cursor) -> Result<Fixed, Error> {
 mod tests {
     use super::*;
     use crate::{
-        tables::{postscript::Index1, variations::ItemVariationStore},
-        types::F2Dot14,
-        FontData, FontRead, FontRef, TableProvider,
+        tables::variations::ItemVariationStore, types::F2Dot14, FontData, FontRead, FontRef,
+        TableProvider,
     };
 
     #[test]
@@ -670,7 +669,13 @@ mod tests {
     #[test]
     fn noto_serif_display_top_dict_entries() {
         use Entry::*;
-        let top_dict_data = noto_serif_display_top_dict_data();
+        let top_dict_data = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED)
+            .unwrap()
+            .cff()
+            .unwrap()
+            .top_dicts()
+            .get(0)
+            .unwrap();
         let entries: Vec<_> = entries(top_dict_data, None)
             .map(|entry| entry.unwrap())
             .collect();
@@ -686,18 +691,5 @@ mod tests {
             CharstringsOffset(523),
         ];
         assert_eq!(&entries, expected);
-    }
-
-    // TODO: remove this when we can finally read the structure of a CFF table
-    fn noto_serif_display_top_dict_data() -> &'static [u8] {
-        let cff = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED)
-            .unwrap()
-            .cff()
-            .unwrap();
-        let data = cff.trailing_data();
-        let name_index = Index1::read(FontData::new(data)).unwrap();
-        let top_dict_index =
-            Index1::read(FontData::new(&data[name_index.size_in_bytes().unwrap()..])).unwrap();
-        top_dict_index.get(0).unwrap()
     }
 }

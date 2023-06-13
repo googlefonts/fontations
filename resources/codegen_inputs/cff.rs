@@ -1,8 +1,7 @@
 #![parse_module(read_fonts::tables::cff)]
 
-/// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table
-#[tag = "CFF "]
-table Cff {
+/// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table header
+table CffHeader {
     /// Format major version (starting at 1).
     #[compile(1)]
     major: u8,

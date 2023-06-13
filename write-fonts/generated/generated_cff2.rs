@@ -5,9 +5,9 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table
+/// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table header
 #[derive(Clone, Debug, Default)]
-pub struct Cff2 {
+pub struct Cff2Header {
     /// Header size (bytes).
     pub header_size: u8,
     /// Length of Top DICT structure in bytes.
@@ -20,8 +20,8 @@ pub struct Cff2 {
     pub trailing_data: Vec<u8>,
 }
 
-impl Cff2 {
-    /// Construct a new `Cff2`
+impl Cff2Header {
+    /// Construct a new `Cff2Header`
     pub fn new(
         header_size: u8,
         top_dict_length: u16,
@@ -39,7 +39,7 @@ impl Cff2 {
     }
 }
 
-impl FontWrite for Cff2 {
+impl FontWrite for Cff2Header {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (2 as u8).write_into(writer);
@@ -51,13 +51,13 @@ impl FontWrite for Cff2 {
         self.trailing_data.write_into(writer);
     }
     fn table_type(&self) -> TableType {
-        TableType::TopLevel(Cff2::TAG)
+        TableType::Named("Cff2Header")
     }
 }
 
-impl Validate for Cff2 {
+impl Validate for Cff2Header {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_table("Cff2", |ctx| {
+        ctx.in_table("Cff2Header", |ctx| {
             ctx.in_field("top_dict_data", |ctx| {
                 if self.top_dict_data.len() > (u16::MAX as usize) {
                     ctx.report("array exceeds max length");
@@ -67,14 +67,10 @@ impl Validate for Cff2 {
     }
 }
 
-impl TopLevelTable for Cff2 {
-    const TAG: Tag = Tag::new(b"CFF2");
-}
-
-impl<'a> FromObjRef<read_fonts::tables::cff2::Cff2<'a>> for Cff2 {
-    fn from_obj_ref(obj: &read_fonts::tables::cff2::Cff2<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::cff2::Cff2Header<'a>> for Cff2Header {
+    fn from_obj_ref(obj: &read_fonts::tables::cff2::Cff2Header<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
-        Cff2 {
+        Cff2Header {
             header_size: obj.header_size(),
             top_dict_length: obj.top_dict_length(),
             _padding: obj._padding().to_owned_obj(offset_data),
@@ -84,10 +80,10 @@ impl<'a> FromObjRef<read_fonts::tables::cff2::Cff2<'a>> for Cff2 {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::tables::cff2::Cff2<'a>> for Cff2 {}
+impl<'a> FromTableRef<read_fonts::tables::cff2::Cff2Header<'a>> for Cff2Header {}
 
-impl<'a> FontRead<'a> for Cff2 {
+impl<'a> FontRead<'a> for Cff2Header {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::tables::cff2::Cff2 as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::cff2::Cff2Header as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }

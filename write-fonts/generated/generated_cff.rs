@@ -5,9 +5,9 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table
+/// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table header
 #[derive(Clone, Debug, Default)]
-pub struct Cff {
+pub struct CffHeader {
     /// Header size (bytes).
     pub hdr_size: u8,
     /// Absolute offset size.
@@ -18,8 +18,8 @@ pub struct Cff {
     pub trailing_data: Vec<u8>,
 }
 
-impl Cff {
-    /// Construct a new `Cff`
+impl CffHeader {
+    /// Construct a new `CffHeader`
     pub fn new(hdr_size: u8, off_size: u8, _padding: Vec<u8>, trailing_data: Vec<u8>) -> Self {
         Self {
             hdr_size,
@@ -30,7 +30,7 @@ impl Cff {
     }
 }
 
-impl FontWrite for Cff {
+impl FontWrite for CffHeader {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u8).write_into(writer);
@@ -41,22 +41,18 @@ impl FontWrite for Cff {
         self.trailing_data.write_into(writer);
     }
     fn table_type(&self) -> TableType {
-        TableType::TopLevel(Cff::TAG)
+        TableType::Named("CffHeader")
     }
 }
 
-impl Validate for Cff {
+impl Validate for CffHeader {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
 
-impl TopLevelTable for Cff {
-    const TAG: Tag = Tag::new(b"CFF ");
-}
-
-impl<'a> FromObjRef<read_fonts::tables::cff::Cff<'a>> for Cff {
-    fn from_obj_ref(obj: &read_fonts::tables::cff::Cff<'a>, _: FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::cff::CffHeader<'a>> for CffHeader {
+    fn from_obj_ref(obj: &read_fonts::tables::cff::CffHeader<'a>, _: FontData) -> Self {
         let offset_data = obj.offset_data();
-        Cff {
+        CffHeader {
             hdr_size: obj.hdr_size(),
             off_size: obj.off_size(),
             _padding: obj._padding().to_owned_obj(offset_data),
@@ -65,10 +61,10 @@ impl<'a> FromObjRef<read_fonts::tables::cff::Cff<'a>> for Cff {
     }
 }
 
-impl<'a> FromTableRef<read_fonts::tables::cff::Cff<'a>> for Cff {}
+impl<'a> FromTableRef<read_fonts::tables::cff::CffHeader<'a>> for CffHeader {}
 
-impl<'a> FontRead<'a> for Cff {
+impl<'a> FontRead<'a> for CffHeader {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        <read_fonts::tables::cff::Cff as FontRead>::read(data).map(|x| x.to_owned_table())
+        <read_fonts::tables::cff::CffHeader as FontRead>::read(data).map(|x| x.to_owned_table())
     }
 }
