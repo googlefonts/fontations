@@ -2,7 +2,7 @@
 
 use super::{BlendState, Error, Index, Stack};
 use crate::{
-    types::{Fixed, Pen},
+    types::{Fixed, Pen, Point},
     Cursor,
 };
 
@@ -115,6 +115,7 @@ struct Evaluator<'a, S> {
     x: Fixed,
     y: Fixed,
     stack: Stack,
+    stack_ix: usize,
 }
 
 impl<'a, S> Evaluator<'a, S>
@@ -138,6 +139,7 @@ where
             stack: Stack::new(),
             x: Fixed::ZERO,
             y: Fixed::ZERO,
+            stack_ix: 0,
         }
     }
 
@@ -181,6 +183,7 @@ where
         nesting_depth: u32,
     ) -> Result<bool, Error> {
         use Operator::*;
+        use PointMode::*;
         match operator {
             // The following "flex" operators are intended to emit
             // either two curves or a straight line depending on
@@ -192,80 +195,23 @@ where
             //
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=18>
             Flex => {
-                let args = self.stack.fixed_array::<12>(0)?;
-                let dx1 = self.x + args[0];
-                let dy1 = self.y + args[1];
-                let dx2 = dx1 + args[2];
-                let dy2 = dy1 + args[3];
-                let dx3 = dx2 + args[4];
-                let dy3 = dy2 + args[5];
-                let dx4 = dx3 + args[6];
-                let dy4 = dy3 + args[7];
-                let dx5 = dx4 + args[8];
-                let dy5 = dy4 + args[9];
-                self.x = dx5 + args[10];
-                self.y = dy5 + args[11];
-                self.sink.curve_to(dx1, dy1, dx2, dy2, dx3, dy3);
-                self.sink.curve_to(dx4, dy4, dx5, dy5, self.x, self.y);
-                self.stack.clear();
+                self.emit_curves([DxDy; 6])?;
+                self.reset_stack();
             }
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=19>
             HFlex => {
-                let args = self.stack.fixed_array::<7>(0)?;
-                let dx1 = self.x + args[0];
-                let dy1 = self.y;
-                let dx2 = dx1 + args[1];
-                let dy2 = dy1 + args[2];
-                let dx3 = dx2 + args[3];
-                let dy3 = dy2;
-                let dx4 = dx3 + args[4];
-                let dy4 = dy2;
-                let dx5 = dx4 + args[5];
-                let dy5 = self.y;
-                self.x = dx5 + args[6];
-                self.sink.curve_to(dx1, dy1, dx2, dy2, dx3, dy3);
-                self.sink.curve_to(dx4, dy4, dx5, dy5, self.x, self.y);
-                self.stack.clear();
+                self.emit_curves([DxY, DxDy, DxY, DxY, DxInitialY, DxY])?;
+                self.reset_stack();
             }
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=19>
             HFlex1 => {
-                let args = self.stack.fixed_array::<9>(0)?;
-                let dx1 = self.x + args[0];
-                let dy1 = self.y + args[1];
-                let dx2 = dx1 + args[2];
-                let dy2 = dy1 + args[3];
-                let dx3 = dx2 + args[4];
-                let dy3 = dy2;
-                let dx4 = dx3 + args[5];
-                let dy4 = dy2;
-                let dx5 = dx4 + args[6];
-                let dy5 = dy4 + args[7];
-                self.x = dx5 + args[8];
-                self.sink.curve_to(dx1, dy1, dx2, dy2, dx3, dy3);
-                self.sink.curve_to(dx4, dy4, dx5, dy5, self.x, self.y);
-                self.stack.clear();
+                self.emit_curves([DxDy, DxDy, DxY, DxY, DxDy, DxInitialY])?;
+                self.reset_stack();
             }
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=20>
             Flex1 => {
-                let args = self.stack.fixed_array::<11>(0)?;
-                let dx1 = self.x + args[0];
-                let dy1 = self.y + args[1];
-                let dx2 = dx1 + args[2];
-                let dy2 = dy1 + args[3];
-                let dx3 = dx2 + args[4];
-                let dy3 = dy2 + args[5];
-                let dx4 = dx3 + args[6];
-                let dy4 = dy3 + args[7];
-                let dx5 = dx4 + args[8];
-                let dy5 = dy4 + args[9];
-                if (dx5 - self.x).abs() > (dy5 - self.y).abs() {
-                    self.x = dx5 + args[10];
-                } else {
-                    self.y = dy5 + args[10];
-                }
-                self.sink.curve_to(dx1, dy1, dx2, dy2, dx3, dy3);
-                self.sink.curve_to(dx4, dy4, dx5, dy5, self.x, self.y);
-                self.stack.clear();
+                self.emit_curves([DxDy, DxDy, DxDy, DxDy, DxDy, DLargerCoordDist])?;
+                self.reset_stack();
             }
             // Set the variation store index
             // <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2charstr#syntax-for-font-variations-support-operators>
@@ -328,7 +274,7 @@ where
                     i += 2;
                 }
                 self.stem_count += len / 2;
-                self.stack.clear();
+                self.reset_stack();
             }
             // Applies a hint or counter mask.
             // If there are arguments on the stack, this is also an
@@ -364,7 +310,7 @@ where
                 } else {
                     self.sink.counter_mask(mask);
                 }
-                self.stack.clear();
+                self.reset_stack();
             }
             // Starts a new subpath
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=16>
@@ -380,11 +326,11 @@ where
                 } else {
                     self.sink.close();
                 }
-                let args = self.stack.fixed_array::<2>(i)?;
-                self.x += args[0];
-                self.y += args[1];
+                let [dx, dy] = self.stack.fixed_array::<2>(i)?;
+                self.x += dx;
+                self.y += dy;
                 self.sink.move_to(self.x, self.y);
-                self.stack.clear();
+                self.reset_stack();
             }
             // Starts a new subpath by moving the current point in the
             // horizontal or vertical direction
@@ -401,14 +347,14 @@ where
                 } else {
                     self.sink.close();
                 }
-                let value = self.stack.get_fixed(i)?;
+                let delta = self.stack.get_fixed(i)?;
                 if operator == HMoveTo {
-                    self.x += value;
+                    self.x += delta;
                 } else {
-                    self.y += value;
+                    self.y += delta;
                 }
                 self.sink.move_to(self.x, self.y);
-                self.stack.clear();
+                self.reset_stack();
             }
             // Emits a sequence of lines
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=16>
@@ -416,13 +362,13 @@ where
             RLineTo => {
                 let mut i = 0;
                 while i < self.stack.len() {
-                    let args = self.stack.fixed_array::<2>(i)?;
-                    self.x += args[0];
-                    self.y += args[1];
+                    let [dx, dy] = self.stack.fixed_array::<2>(i)?;
+                    self.x += dx;
+                    self.y += dy;
                     self.sink.line_to(self.x, self.y);
                     i += 2;
                 }
-                self.stack.clear();
+                self.reset_stack();
             }
             // Emits a sequence of alternating horizontal and vertical
             // lines
@@ -431,16 +377,16 @@ where
             HLineTo | VLineTo => {
                 let mut is_x = operator == HLineTo;
                 for i in 0..self.stack.len() {
-                    let value = self.stack.get_fixed(i)?;
+                    let delta = self.stack.get_fixed(i)?;
                     if is_x {
-                        self.x += value;
+                        self.x += delta;
                     } else {
-                        self.y += value;
+                        self.y += delta;
                     }
                     is_x = !is_x;
                     self.sink.line_to(self.x, self.y);
                 }
-                self.stack.clear();
+                self.reset_stack();
             }
             // Emits curves that start and end horizontal, unless
             // the stack count is odd, in which case the first
@@ -448,23 +394,14 @@ where
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=17>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2789>
             HhCurveTo => {
-                let mut i = 0;
                 if self.stack.len_is_odd() {
                     self.y += self.stack.get_fixed(0)?;
-                    i += 1;
+                    self.stack_ix = 1;
                 }
-                while i < self.stack.len() {
-                    let args = self.stack.fixed_array::<4>(i)?;
-                    let x1 = self.x + args[0];
-                    let y1 = self.y;
-                    let x2 = x1 + args[1];
-                    let y2 = y1 + args[2];
-                    self.x = x2 + args[3];
-                    self.y = y2;
-                    self.sink.curve_to(x1, y1, x2, y2, self.x, self.y);
-                    i += 4;
+                while self.coords_remaining() > 0 {
+                    self.emit_curves([DxY, DxDy, DxY])?;
                 }
-                self.stack.clear();
+                self.reset_stack();
             }
             // Alternates between curves with horizontal and vertical
             // tangents
@@ -473,94 +410,47 @@ where
             HvCurveTo | VhCurveTo => {
                 let count1 = self.stack.len();
                 let count = count1 & !2;
-                let mut i = count1 - count;
-                let mut alternate = operator == HvCurveTo;
-                while i < count {
-                    let (x1, x2, x3, y1, y2, y3);
-                    if alternate {
-                        let args = self.stack.fixed_array::<4>(i)?;
-                        x1 = self.x + args[0];
-                        y1 = self.y;
-                        x2 = x1 + args[1];
-                        y2 = y1 + args[2];
-                        y3 = y2 + args[3];
-                        x3 = if count - i == 5 {
-                            let x3 = x2 + self.stack.get_fixed(i + 4)?;
-                            i += 1;
-                            x3
-                        } else {
-                            x2
-                        };
-                        alternate = false;
+                let mut is_horizontal = operator == HvCurveTo;
+                self.stack_ix = count1 - count;
+                while self.stack_ix < count {
+                    let do_last_delta = count - self.stack_ix == 5;
+                    if is_horizontal {
+                        self.emit_curves([DxY, DxDy, MaybeDxDy(do_last_delta)])?;
                     } else {
-                        let args = self.stack.fixed_array::<4>(i)?;
-                        x1 = self.x;
-                        y1 = self.y + args[0];
-                        x2 = x1 + args[1];
-                        y2 = y1 + args[2];
-                        x3 = x2 + args[3];
-                        y3 = if count - i == 5 {
-                            let y3 = y2 + self.stack.get_fixed(i + 4)?;
-                            i += 1;
-                            y3
-                        } else {
-                            y2
-                        };
-                        alternate = true;
+                        self.emit_curves([XDy, DxDy, DxMaybeDy(do_last_delta)])?;
                     }
-                    self.sink.curve_to(x1, y1, x2, y2, x3, y3);
-                    self.x = x3;
-                    self.y = y3;
-                    i += 4;
+                    is_horizontal = !is_horizontal;
                 }
-                self.stack.clear();
+                self.reset_stack();
             }
             // Emits a sequence of curves possibly followed by a line
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=17>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L915>
             RrCurveTo | RCurveLine => {
-                let count = self.stack.len();
-                let mut i = 0;
-                while i + 6 <= count {
-                    let args = self.stack.fixed_array::<6>(i)?;
-                    let x1 = self.x + args[0];
-                    let y1 = self.y + args[1];
-                    let x2 = x1 + args[2];
-                    let y2 = y1 + args[3];
-                    self.x = x2 + args[4];
-                    self.y = y2 + args[5];
-                    self.sink.curve_to(x1, y1, x2, y2, self.x, self.y);
-                    i += 6;
+                while self.coords_remaining() >= 6 {
+                    self.emit_curves([DxDy; 3])?;
                 }
                 if operator == RCurveLine {
-                    let [dx, dy] = self.stack.fixed_array::<2>(i)?;
+                    let [dx, dy] = self.stack.fixed_array::<2>(self.stack_ix)?;
                     self.x += dx;
                     self.y += dy;
                     self.sink.line_to(self.x, self.y);
                 }
-                self.stack.clear();
+                self.reset_stack();
             }
             // Emits a sequence of lines followed by a curve
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=18>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2702>
             RLineCurve => {
-                let mut i = 0;
-                while i < self.stack.len() - 6 {
-                    let [dx, dy] = self.stack.fixed_array::<2>(i)?;
+                while self.coords_remaining() > 6 {
+                    let [dx, dy] = self.stack.fixed_array::<2>(self.stack_ix)?;
                     self.x += dx;
                     self.y += dy;
                     self.sink.line_to(self.x, self.y);
-                    i += 2;
+                    self.stack_ix += 2;
                 }
-                let args = self.stack.fixed_array::<6>(i)?;
-                let x1 = self.x + args[0];
-                let y1 = self.y + args[1];
-                let x2 = x1 + args[2];
-                let y2 = y1 + args[3];
-                self.x = x2 + args[4];
-                self.y = y2 + args[5];
-                self.sink.curve_to(x1, y1, x2, y2, self.x, self.y);
-                self.stack.clear();
+                self.emit_curves([DxDy; 3])?;
+                self.reset_stack();
             }
             // Emits curves that start and end vertical, unless
             // the stack count is odd, in which case the first
@@ -568,23 +458,14 @@ where
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=18>
             // FT: <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2744>
             VvCurveTo => {
-                let mut i = 0;
                 if self.stack.len_is_odd() {
                     self.x += self.stack.get_fixed(0)?;
-                    i += 1;
+                    self.stack_ix = 1;
                 }
-                while i < self.stack.len() {
-                    let args = self.stack.fixed_array::<4>(i)?;
-                    let x1 = self.x;
-                    let y1 = self.y + args[0];
-                    let x2 = x1 + args[1];
-                    let y2 = y1 + args[2];
-                    self.x = x2;
-                    self.y = y2 + args[3];
-                    self.sink.curve_to(x1, y1, x2, y2, self.x, self.y);
-                    i += 4;
+                while self.coords_remaining() > 0 {
+                    self.emit_curves([XDy, DxDy, XDy])?;
                 }
-                self.stack.clear();
+                self.reset_stack();
             }
             // Call local or global subroutine
             // Spec: <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=29>
@@ -602,6 +483,106 @@ where
         }
         Ok(true)
     }
+
+    fn coords_remaining(&self) -> usize {
+        self.stack.len() - self.stack_ix
+    }
+
+    fn emit_curves<const N: usize>(&mut self, modes: [PointMode; N]) -> Result<(), Error> {
+        use PointMode::*;
+        let initial_x = self.x;
+        let initial_y = self.y;
+        let mut count = 0;
+        let mut points = [Point::default(); 4];
+        for mode in modes {
+            let stack_used = match mode {
+                DxDy => {
+                    self.x += self.stack.get_fixed(self.stack_ix)?;
+                    self.y += self.stack.get_fixed(self.stack_ix + 1)?;
+                    2
+                }
+                XDy => {
+                    self.y += self.stack.get_fixed(self.stack_ix)?;
+                    1
+                }
+                DxY => {
+                    self.x += self.stack.get_fixed(self.stack_ix)?;
+                    1
+                }
+                DxInitialY => {
+                    self.x += self.stack.get_fixed(self.stack_ix)?;
+                    self.y = initial_y;
+                    1
+                }
+                // Emits a delta for the coordinate with the larger distance
+                // from the original value. Sets the other coordinate to the
+                // original value.
+                DLargerCoordDist => {
+                    let delta = self.stack.get_fixed(self.stack_ix)?;
+                    if (self.x - initial_x).abs() > (self.y - initial_y).abs() {
+                        self.x += delta;
+                        self.y = initial_y;
+                    } else {
+                        self.y += delta;
+                        self.x = initial_x;
+                    }
+                    1
+                }
+                // Apply delta to y if `do_dy` is true.
+                DxMaybeDy(do_dy) => {
+                    self.x += self.stack.get_fixed(self.stack_ix)?;
+                    if do_dy {
+                        self.y += self.stack.get_fixed(self.stack_ix + 1)?;
+                        2
+                    } else {
+                        1
+                    }
+                }
+                // Apply delta to x if `do_dx` is true.
+                MaybeDxDy(do_dx) => {
+                    self.y += self.stack.get_fixed(self.stack_ix)?;
+                    if do_dx {
+                        self.x += self.stack.get_fixed(self.stack_ix + 1)?;
+                        2
+                    } else {
+                        1
+                    }
+                }
+            };
+            points[count] = Point::new(self.x, self.y);
+            count += 1;
+            self.stack_ix += stack_used;
+            if count == 3 {
+                self.sink.curve_to(
+                    points[0].x,
+                    points[0].y,
+                    points[1].x,
+                    points[1].y,
+                    points[2].x,
+                    points[2].y,
+                );
+                count = 0;
+            }
+        }
+        Ok(())
+    }
+
+    fn reset_stack(&mut self) {
+        self.stack.clear();
+        self.stack_ix = 0;
+    }
+}
+
+/// Specifies how point coordinates for a curve are computed.
+#[derive(Copy, Clone)]
+enum PointMode {
+    DxDy,
+    XDy,
+    DxY,
+    DxInitialY,
+    DLargerCoordDist,
+    DxMaybeDy(bool),
+    MaybeDxDy(bool),
 }
 
 /// PostScript charstring operator.
