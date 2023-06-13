@@ -5,15 +5,15 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table
+/// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table header
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CffMarker {
+pub struct CffHeaderMarker {
     _padding_byte_len: usize,
     trailing_data_byte_len: usize,
 }
 
-impl CffMarker {
+impl CffHeaderMarker {
     fn major_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
@@ -40,12 +40,7 @@ impl CffMarker {
     }
 }
 
-impl TopLevelTable for Cff<'_> {
-    /// `CFF `
-    const TAG: Tag = Tag::new(b"CFF ");
-}
-
-impl<'a> FontRead<'a> for Cff<'a> {
+impl<'a> FontRead<'a> for CffHeader<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -56,17 +51,17 @@ impl<'a> FontRead<'a> for Cff<'a> {
         cursor.advance_by(_padding_byte_len);
         let trailing_data_byte_len = cursor.remaining_bytes();
         cursor.advance_by(trailing_data_byte_len);
-        cursor.finish(CffMarker {
+        cursor.finish(CffHeaderMarker {
             _padding_byte_len,
             trailing_data_byte_len,
         })
     }
 }
 
-/// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table
-pub type Cff<'a> = TableRef<'a, CffMarker>;
+/// [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table header
+pub type CffHeader<'a> = TableRef<'a, CffHeaderMarker>;
 
-impl<'a> Cff<'a> {
+impl<'a> CffHeader<'a> {
     /// Format major version (starting at 1).
     pub fn major(&self) -> u8 {
         let range = self.shape.major_byte_range();
@@ -105,9 +100,9 @@ impl<'a> Cff<'a> {
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for Cff<'a> {
+impl<'a> SomeTable<'a> for CffHeader<'a> {
     fn type_name(&self) -> &str {
-        "Cff"
+        "CffHeader"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
@@ -123,7 +118,7 @@ impl<'a> SomeTable<'a> for Cff<'a> {
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for Cff<'a> {
+impl<'a> std::fmt::Debug for CffHeader<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }

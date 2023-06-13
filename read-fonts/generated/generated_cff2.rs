@@ -5,16 +5,16 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table
+/// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table header
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct Cff2Marker {
+pub struct Cff2HeaderMarker {
     _padding_byte_len: usize,
     top_dict_data_byte_len: usize,
     trailing_data_byte_len: usize,
 }
 
-impl Cff2Marker {
+impl Cff2HeaderMarker {
     fn major_version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u8::RAW_BYTE_LEN
@@ -45,12 +45,7 @@ impl Cff2Marker {
     }
 }
 
-impl TopLevelTable for Cff2<'_> {
-    /// `CFF2`
-    const TAG: Tag = Tag::new(b"CFF2");
-}
-
-impl<'a> FontRead<'a> for Cff2<'a> {
+impl<'a> FontRead<'a> for Cff2Header<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
@@ -63,7 +58,7 @@ impl<'a> FontRead<'a> for Cff2<'a> {
         cursor.advance_by(top_dict_data_byte_len);
         let trailing_data_byte_len = cursor.remaining_bytes();
         cursor.advance_by(trailing_data_byte_len);
-        cursor.finish(Cff2Marker {
+        cursor.finish(Cff2HeaderMarker {
             _padding_byte_len,
             top_dict_data_byte_len,
             trailing_data_byte_len,
@@ -71,10 +66,10 @@ impl<'a> FontRead<'a> for Cff2<'a> {
     }
 }
 
-/// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table
-pub type Cff2<'a> = TableRef<'a, Cff2Marker>;
+/// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table header
+pub type Cff2Header<'a> = TableRef<'a, Cff2HeaderMarker>;
 
-impl<'a> Cff2<'a> {
+impl<'a> Cff2Header<'a> {
     /// Format major version (set to 2).
     pub fn major_version(&self) -> u8 {
         let range = self.shape.major_version_byte_range();
@@ -119,9 +114,9 @@ impl<'a> Cff2<'a> {
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for Cff2<'a> {
+impl<'a> SomeTable<'a> for Cff2Header<'a> {
     fn type_name(&self) -> &str {
-        "Cff2"
+        "Cff2Header"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
@@ -138,7 +133,7 @@ impl<'a> SomeTable<'a> for Cff2<'a> {
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for Cff2<'a> {
+impl<'a> std::fmt::Debug for Cff2Header<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }

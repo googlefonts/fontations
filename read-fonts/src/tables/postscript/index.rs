@@ -49,7 +49,7 @@ impl<'a> Index<'a> {
     }
 
     /// Returns the total size in bytes of the index table.
-    pub fn size_in_bytes(&self) -> Result<usize, Error> {
+    pub fn size_in_bytes(&self) -> Result<usize, ReadError> {
         match self {
             Self::Format1(ix) => ix.size_in_bytes(),
             Self::Format2(ix) => ix.size_in_bytes(),
@@ -87,7 +87,7 @@ impl<'a> From<Index2<'a>> for Index<'a> {
 
 impl<'a> Index1<'a> {
     /// Returns the total size in bytes of the index table.
-    pub fn size_in_bytes(&self) -> Result<usize, Error> {
+    pub fn size_in_bytes(&self) -> Result<usize, ReadError> {
         // 2 byte count + 1 byte off_size
         const HEADER_SIZE: usize = 3;
         // An empty CFF index contains only a 2 byte count field
@@ -95,7 +95,11 @@ impl<'a> Index1<'a> {
         let count = self.count() as usize;
         Ok(match count {
             0 => EMPTY_SIZE,
-            _ => HEADER_SIZE + self.offsets().len() + self.get_offset(count)?,
+            _ => {
+                HEADER_SIZE
+                    + self.offsets().len()
+                    + self.get_offset(count).map_err(|_| ReadError::OutOfBounds)?
+            }
         })
     }
 
@@ -119,7 +123,7 @@ impl<'a> Index1<'a> {
 
 impl<'a> Index2<'a> {
     /// Returns the total size in bytes of the index table.
-    pub fn size_in_bytes(&self) -> Result<usize, Error> {
+    pub fn size_in_bytes(&self) -> Result<usize, ReadError> {
         // 4 byte count + 1 byte off_size
         const HEADER_SIZE: usize = 5;
         // An empty CFF2 index contains only a 4 byte count field
@@ -127,7 +131,11 @@ impl<'a> Index2<'a> {
         let count = self.count() as usize;
         Ok(match count {
             0 => EMPTY_SIZE,
-            _ => HEADER_SIZE + self.offsets().len() + self.get_offset(count)?,
+            _ => {
+                HEADER_SIZE
+                    + self.offsets().len()
+                    + self.get_offset(count).map_err(|_| ReadError::OutOfBounds)?
+            }
         })
     }
 
