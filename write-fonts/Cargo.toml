@@ -24,3 +24,4 @@ ansi_term = "0.12.1"
 font-test-data = { path = "../font-test-data" }
 read-fonts = { version = "0.4.0", path = "../read-fonts", features = [ "codegen_test"] }
 env_logger = "0.10.0"
+rstest = "0.17.0"
