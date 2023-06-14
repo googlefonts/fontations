@@ -151,6 +151,7 @@ impl Pen for BezPathPen {
 pub enum ContourReversalError {
     InvalidFirstCommand(PenCommand),
     SubpathDoesNotStartWithMoveTo,
+    SubpathHasMultipleClose,
 }
 
 /// Buffers commands until a close is seen, then plays in reverse on inner pen.
@@ -190,6 +191,7 @@ fn flush_subpath<T: Pen>(commands: &[PenCommand], pen: &mut T) -> Result<(), Con
     // in a closed contour.
     let is_closed = *commands.last().unwrap() == PenCommand::Close;
     let last_segment_idx = if is_closed {
+        // We know first is move and last is close so this offset must be safe
         commands.len() - 2
     } else {
         commands.len() - 1
@@ -231,7 +233,7 @@ fn flush_subpath<T: Pen>(commands: &[PenCommand], pen: &mut T) -> Result<(), Con
                 y: end_y,
             },
             PenCommand::Close => {
-                panic!("Subpath should have 0 or 1 close, and it should already have been removed")
+                return Err(ContourReversalError::SubpathHasMultipleClose);
             }
         });
     }
@@ -561,6 +563,24 @@ mod tests {
     // excluding test cases that don't apply because we don't implement outputImpliedClosingLine=False.
     // https://github.com/fonttools/fonttools/blob/85c80be/Tests/pens/reverseContourPen_test.py#L6-L467
     #[rstest]
+    #[case::move_only_path_offset_validity(
+        vec![
+            PathEl::MoveTo((2.0, 2.0).into()),
+        ],
+        vec![
+            PathEl::MoveTo((2.0, 2.0).into()),
+        ],
+    )]
+    #[case::move_close_path_offset_validity(
+        vec![
+            PathEl::MoveTo((2.0, 2.0).into()),
+            PathEl::ClosePath,
+        ],
+        vec![
+            PathEl::MoveTo((2.0, 2.0).into()),
+            PathEl::ClosePath,
+        ],
+    )]
     #[case::closed_last_line_not_on_move(
         vec![
             PathEl::MoveTo((0.0, 0.0).into()),
