@@ -23,8 +23,15 @@
 //!
 
 use read_fonts::{
-    tables::{glyf::Glyf, hmtx::LongMetric, hvar::Hvar, loca::Loca, os2::SelectionFlags},
-    types::{BigEndian, GlyphId},
+    tables::{
+        glyf::{CompositeGlyphFlags, Glyf, Glyph},
+        gvar::Gvar,
+        hmtx::LongMetric,
+        hvar::Hvar,
+        loca::Loca,
+        os2::SelectionFlags,
+    },
+    types::{BigEndian, Fixed, GlyphId, Point},
     TableProvider,
 };
 
@@ -221,6 +228,7 @@ pub struct GlyphMetrics<'a> {
     default_advance_width: u16,
     lsbs: &'a [BigEndian<i16>],
     hvar: Option<Hvar<'a>>,
+    gvar: Option<Gvar<'a>>,
     loca_glyf: Option<(Loca<'a>, Glyf<'a>)>,
     coords: &'a [NormalizedCoord],
 }
@@ -232,6 +240,17 @@ impl<'a> GlyphMetrics<'a> {
         font: &impl TableProvider<'a>,
         size: Size,
         location: impl Into<LocationRef<'a>>,
+    ) -> Self {
+        Self::new_impl(font, size, location, false)
+    }
+
+    /// This is split out solely for testing the case where we need to derive
+    /// metric deltas from the gvar table.
+    fn new_impl(
+        font: &impl TableProvider<'a>,
+        size: Size,
+        location: impl Into<LocationRef<'a>>,
+        ignore_hvar: bool,
     ) -> Self {
         let glyph_count = font
             .maxp()
@@ -252,7 +271,8 @@ impl<'a> GlyphMetrics<'a> {
                 (h_metrics, default_advance_width, lsbs)
             })
             .unwrap_or_default();
-        let hvar = font.hvar().ok();
+        let hvar = if ignore_hvar { None } else { font.hvar().ok() };
+        let gvar = font.gvar().ok();
         let loca_glyf = if let (Ok(loca), Ok(glyf)) = (font.loca(None), font.glyf()) {
             Some((loca, glyf))
         } else {
@@ -265,6 +285,7 @@ impl<'a> GlyphMetrics<'a> {
             default_advance_width,
             lsbs,
             hvar,
+            gvar,
             loca_glyf,
             coords,
         }
@@ -295,6 +316,8 @@ impl<'a> GlyphMetrics<'a> {
                 // https://github.com/freetype/freetype/blob/7838c78f53f206ac5b8e9cefde548aa81cb00cf4/src/truetype/ttgxvar.c#L1027
                 .map(|delta| delta.to_f64() as i32)
                 .unwrap_or(0);
+        } else if self.gvar.is_some() {
+            advance += self.metric_deltas_from_gvar(glyph_id)[1];
         }
         Some(advance as f32 * self.scale)
     }
@@ -325,6 +348,8 @@ impl<'a> GlyphMetrics<'a> {
                 // https://github.com/freetype/freetype/blob/7838c78f53f206ac5b8e9cefde548aa81cb00cf4/src/truetype/ttgxvar.c#L1027
                 .map(|delta| delta.to_f64() as i32)
                 .unwrap_or(0);
+        } else if self.gvar.is_some() {
+            lsb += self.metric_deltas_from_gvar(glyph_id)[0];
         }
         Some(lsb as f32 * self.scale)
     }
@@ -345,6 +370,101 @@ impl<'a> GlyphMetrics<'a> {
             // Empty glyphs have an empty bounding box
             None => BoundingBox::default(),
         })
+    }
+}
+
+impl<'a> GlyphMetrics<'a> {
+    fn metric_deltas_from_gvar(&self, glyph_id: GlyphId) -> [i32; 2] {
+        GvarMetricDeltas::new(self)
+            .and_then(|metric_deltas| metric_deltas.compute_deltas(glyph_id))
+            .map(|deltas| deltas.map(|delta| delta.to_i32()))
+            .unwrap_or_default()
+    }
+}
+
+struct GvarMetricDeltas<'a> {
+    loca: Loca<'a>,
+    glyf: Glyf<'a>,
+    gvar: Gvar<'a>,
+    coords: &'a [NormalizedCoord],
+}
+
+impl<'a> GvarMetricDeltas<'a> {
+    fn new(metrics: &GlyphMetrics<'a>) -> Option<Self> {
+        let (loca, glyf) = metrics.loca_glyf.clone()?;
+        let gvar = metrics.gvar.clone()?;
+        Some(Self {
+            loca,
+            glyf,
+            gvar,
+            coords: metrics.coords,
+        })
+    }
+
+    /// Returns [lsb_delta, advance_delta]
+    fn compute_deltas(&self, glyph_id: GlyphId) -> Option<[Fixed; 2]> {
+        // For any given glyph, there's only one outline that contributes to
+        // metrics deltas (via "phantom points"). For simple glyphs, that is
+        // the glyph itself. For composite glyphs, it is the first component
+        // in the tree that has the USE_MY_METRICS flag set or, if there are
+        // none, the composite glyph itself.
+        //
+        // This searches for the glyph that meets that criteria and also
+        // returns the point count (for composites, this is the component
+        // count), so that we know where the deltas for phantom points start
+        // in the variation data.
+        let (glyph_id, point_count) = self.find_glyph_and_point_count(glyph_id, 0)?;
+        // [lsb, advance]
+        let mut metric_deltas = [Point::default(); 2];
+        let phantom_range = point_count..point_count + 2;
+        let var_data = self.gvar.glyph_variation_data(glyph_id).ok()?;
+        // Note that phantom points can never belong to a contour so we don't have
+        // to handle the IUP case here.
+        for (tuple, scalar) in var_data.active_tuples_at(self.coords) {
+            for tuple_delta in tuple.deltas() {
+                let ix = tuple_delta.position as usize;
+                if phantom_range.contains(&ix) {
+                    metric_deltas[ix - phantom_range.start] += tuple_delta.apply_scalar(scalar);
+                }
+            }
+        }
+        Some(metric_deltas.map(|point| point.x))
+    }
+
+    /// Returns the glyph id and associated point count that determines the
+    /// metrics for the requested glyph.
+    fn find_glyph_and_point_count(
+        &self,
+        glyph_id: GlyphId,
+        recurse_depth: usize,
+    ) -> Option<(GlyphId, usize)> {
+        if recurse_depth > crate::GLYF_COMPOSITE_RECURSION_LIMIT {
+            return None;
+        }
+        let glyph = self.loca.get_glyf(glyph_id, &self.glyf).ok()??;
+        match glyph {
+            Glyph::Simple(simple) => {
+                // Simple glyphs always use their own metrics
+                Some((glyph_id, simple.num_points()))
+            }
+            Glyph::Composite(composite) => {
+                // For composite glyphs, if one of the components has the
+                // USE_MY_METRICS flag set, recurse into the glyph referenced
+                // by that component. Otherwise, return the composite glyph
+                // itself and the number of components as the point count.
+                let mut count = 0;
+                for component in composite.components() {
+                    count += 1;
+                    if component
+                        .flags
+                        .contains(CompositeGlyphFlags::USE_MY_METRICS)
+                    {
+                        return self.find_glyph_and_point_count(component.glyph, recurse_depth + 1);
+                    }
+                }
+                Some((glyph_id, count))
+            }
+        }
     }
 }
 
@@ -457,5 +577,31 @@ mod tests {
             })
             .collect::<Vec<_>>();
         assert_eq!(expected, &result[..]);
+    }
+
+    #[test]
+    fn glyph_metrics_missing_hvar() {
+        let font = FontRef::new(VAZIRMATN_VAR).unwrap();
+        let glyph_count = font.maxp().unwrap().num_glyphs();
+        // Test a few different locations in variation space
+        for coord in [-1.0, -0.8, 0.0, 0.75, 1.0] {
+            let coords = &[NormalizedCoord::from_f32(coord)];
+            let location = LocationRef::new(coords);
+            let glyph_metrics = font.glyph_metrics(Size::unscaled(), location);
+            // This one forces use of gvar for metric deltas
+            let glyph_metrics_no_hvar =
+                GlyphMetrics::new_impl(&font, Size::unscaled(), location, true);
+            for gid in 0..glyph_count {
+                let gid = GlyphId::new(gid);
+                assert_eq!(
+                    glyph_metrics.advance_width(gid),
+                    glyph_metrics_no_hvar.advance_width(gid)
+                );
+                assert_eq!(
+                    glyph_metrics.left_side_bearing(gid),
+                    glyph_metrics_no_hvar.left_side_bearing(gid)
+                );
+            }
+        }
     }
 }
