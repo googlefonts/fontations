@@ -169,13 +169,15 @@ pub struct ReverseContourPen<'a, T: Pen> {
 ///
 ///  FontTools version in
 /// <https://github.com/fonttools/fonttools/blob/78e10d8b42095b709cd4125e592d914d3ed1558e/Lib/fontTools/pens/reverseContourPen.py#L25>
+///
+///  We differ from FontTools in that we start from the last point of the original contour, not the first.
+///  This way the implied closepath line-to of the original contour will become the implied closepath of
+///  the reversed contour. Credits to Behdad Esfahbod for the idea, see
+///  <https://github.com/fonttools/fonttools/issues/3093#issuecomment-1528134312>
 fn flush_subpath<T: Pen>(commands: &[PenCommand], pen: &mut T) -> Result<(), ContourReversalError> {
     if commands.is_empty() {
         return Ok(());
     }
-
-    let mut commands = commands;
-    let mut reversed = Vec::new();
 
     // subpath must start with a move, and by definition it can't have any other move
     let PenCommand::MoveTo { x, y } = commands[0] else {
@@ -183,17 +185,24 @@ fn flush_subpath<T: Pen>(commands: &[PenCommand], pen: &mut T) -> Result<(), Con
     };
     let (start_x, start_y) = (x, y);
 
-    // When reversed, the move is to the end point of the last command
-    // in a typical [move, ..., close] structure, end point == start point
-    let (end_x, end_y) = commands
-        .last()
-        .unwrap()
-        .end_point()
-        .unwrap_or((start_x, start_y));
-    reversed.push(PenCommand::MoveTo { x: end_x, y: end_y });
-    commands = &commands[1..];
+    // When reversed, the move is to the end point of the last segment,
+    // i.e. the last command in an open contour, or the penultimate command
+    // in a closed contour.
+    let is_closed = *commands.last().unwrap() == PenCommand::Close;
+    let last_segment_idx = if is_closed {
+        commands.len() - 2
+    } else {
+        commands.len() - 1
+    };
+    let (end_x, end_y) = commands[last_segment_idx].end_point().unwrap();
 
-    // Reverse the commands between move (if any) and final close (if any)
+    let mut commands = commands;
+    let mut reversed = Vec::new();
+
+    reversed.push(PenCommand::MoveTo { x: end_x, y: end_y });
+    commands = &commands[1..last_segment_idx + 1];
+
+    // Reverse the commands between move (if any) and final close (if any), exclusive.
     for (idx, cmd) in commands.iter().enumerate().rev() {
         let (end_x, end_y) = if idx > 0 {
             commands[idx - 1].end_point().unwrap_or((start_x, start_y))
@@ -221,16 +230,14 @@ fn flush_subpath<T: Pen>(commands: &[PenCommand], pen: &mut T) -> Result<(), Con
                 x: end_x,
                 y: end_y,
             },
-            // Close is a line from (end_x,end_y)=>(start_x, start_y) so reversed it's a line to end x/y
-            PenCommand::Close => PenCommand::LineTo { x: end_x, y: end_y },
+            PenCommand::Close => {
+                panic!("Subpath should have 0 or 1 close, and it should already have been removed")
+            }
         });
     }
 
-    // a closing line to start is a Z
-    if let Some(PenCommand::LineTo { x, y }) = reversed.last() {
-        if (start_x, start_y) == (*x, *y) {
-            *reversed.last_mut().unwrap() = PenCommand::Close;
-        }
+    if is_closed {
+        reversed.push(PenCommand::Close);
     }
 
     // send to inner
@@ -492,7 +499,7 @@ mod tests {
         let mut rev = ReverseContourPen::new(&mut bez);
         draw_closed_triangle(&mut rev);
         rev.flush().unwrap();
-        assert_eq!("M100,100 L50,200 L150,200 Z", bez.into_inner().to_svg());
+        assert_eq!("M50,200 L150,200 L100,100 Z", bez.into_inner().to_svg());
     }
 
     #[test]
@@ -509,7 +516,7 @@ mod tests {
         draw_closed_test_shape(&mut rev);
         rev.flush().unwrap();
         assert_eq!(
-            "M125,100 L100,50 L75,100 Q0,150 25,300 C50,150 150,150 175,300 Q200,150 125,100",
+            "M100,50 L75,100 Q0,150 25,300 C50,150 150,150 175,300 Q200,150 125,100 Z",
             bez.into_inner().to_svg()
         );
     }
@@ -528,10 +535,10 @@ mod tests {
 
         assert_eq!(
             &vec![
-                PenCommand::MoveTo { x: 0.0, y: 0.0 },
-                PenCommand::LineTo { x: 3.0, y: 3.0 },
+                PenCommand::MoveTo { x: 3.0, y: 3.0 },
                 PenCommand::LineTo { x: 2.0, y: 2.0 },
                 PenCommand::LineTo { x: 1.0, y: 1.0 },
+                PenCommand::LineTo { x: 0.0, y: 0.0 },
                 PenCommand::Close,
             ],
             rec.commands()
@@ -563,8 +570,7 @@ mod tests {
             PathEl::ClosePath,
         ],
         vec![
-            PathEl::MoveTo((0.0, 0.0).into()),
-            PathEl::LineTo((3.0, 3.0).into()),
+            PathEl::MoveTo((3.0, 3.0).into()),
             PathEl::LineTo((2.0, 2.0).into()),
             PathEl::LineTo((1.0, 1.0).into()),
             PathEl::LineTo((0.0, 0.0).into()),  // closing line NOT implied
@@ -596,8 +602,7 @@ mod tests {
             PathEl::ClosePath,
         ],
         vec![
-            PathEl::MoveTo((0.0, 0.0).into()),
-            PathEl::LineTo((2.0, 2.0).into()),
+            PathEl::MoveTo((2.0, 2.0).into()),
             PathEl::LineTo((1.0, 1.0).into()),
             PathEl::LineTo((0.0, 0.0).into()),  // duplicate line retained
             PathEl::LineTo((0.0, 0.0).into()),
@@ -611,8 +616,7 @@ mod tests {
             PathEl::ClosePath,
         ],
         vec![
-            PathEl::MoveTo((0.0, 0.0).into()),
-            PathEl::LineTo((1.0, 1.0).into()),
+            PathEl::MoveTo((1.0, 1.0).into()),
             PathEl::LineTo((0.0, 0.0).into()),  // closing line NOT implied
             PathEl::ClosePath,
         ],
@@ -639,8 +643,7 @@ mod tests {
             PathEl::ClosePath,
         ],
         vec![
-            PathEl::MoveTo((0.0, 0.0).into()),
-            PathEl::LineTo((6.0, 6.0).into()),  // the previously implied line
+            PathEl::MoveTo((6.0, 6.0).into()),  // the previously implied line
             PathEl::CurveTo((5.0, 5.0).into(), (4.0, 4.0).into(), (3.0, 3.0).into()),
             PathEl::CurveTo((2.0, 2.0).into(), (1.0, 1.0).into(), (0.0, 0.0).into()),
             PathEl::ClosePath,
@@ -655,8 +658,7 @@ mod tests {
             PathEl::ClosePath,
         ],
         vec![
-            PathEl::MoveTo((0.0, 0.0).into()),
-            PathEl::LineTo((7.0, 7.0).into()),
+            PathEl::MoveTo((7.0, 7.0).into()),
             PathEl::CurveTo((6.0, 6.0).into(), (5.0, 5.0).into(), (4.0, 4.0).into()),
             PathEl::CurveTo((3.0, 3.0).into(), (2.0, 2.0).into(), (1.0, 1.0).into()),
             PathEl::LineTo((0.0, 0.0).into()),  // ... does NOT become implied
@@ -685,8 +687,7 @@ mod tests {
             PathEl::ClosePath,
         ],
         vec![
-            PathEl::MoveTo((0.0, 0.0).into()),
-            PathEl::LineTo((4.0, 4.0).into()),  // the previously implied line
+            PathEl::MoveTo((4.0, 4.0).into()),  // the previously implied line
             PathEl::QuadTo((3.0, 3.0).into(), (2.0, 2.0).into()),
             PathEl::QuadTo((1.0, 1.0).into(), (0.0, 0.0).into()),
             PathEl::ClosePath,
@@ -700,8 +701,7 @@ mod tests {
             PathEl::ClosePath,
         ],
         vec![
-            PathEl::MoveTo((0.0, 0.0).into()),
-            PathEl::LineTo((3.0, 3.0).into()),
+            PathEl::MoveTo((3.0, 3.0).into()),
             PathEl::QuadTo((2.0, 2.0).into(), (1.0, 1.0).into()),
             PathEl::LineTo((0.0, 0.0).into()),  // ... does NOT become implied
             PathEl::ClosePath,
@@ -712,13 +712,15 @@ mod tests {
         vec![PathEl::MoveTo((0.0, 0.0).into())],
         vec![PathEl::MoveTo((0.0, 0.0).into())],
     )]
-    #[case::single_point_cannot_be_closed(
+    #[case::single_point_closed(
         vec![
             PathEl::MoveTo((0.0, 0.0).into()),
             PathEl::ClosePath,
         ],
-        // single-point paths are always open
-        vec![PathEl::MoveTo((0.0, 0.0).into())],
+        vec![
+            PathEl::MoveTo((0.0, 0.0).into()),
+            PathEl::ClosePath,
+        ],
     )]
     #[case::single_line_open(
         vec![
