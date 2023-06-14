@@ -164,10 +164,8 @@ use super::{
     font::UniqueId,
     instance::{NormalizedCoord, Size},
     setting::VariationSetting,
+    GLYF_COMPOSITE_RECURSION_LIMIT,
 };
-
-/// Limit for recursion when loading TrueType composite glyphs.
-const GLYF_COMPOSITE_RECURSION_LIMIT: usize = 32;
 
 /// Modes for hinting.
 ///
