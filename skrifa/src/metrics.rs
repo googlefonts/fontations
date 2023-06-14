@@ -31,7 +31,7 @@ use read_fonts::{
         loca::Loca,
         os2::SelectionFlags,
     },
-    types::{BigEndian, Fixed, GlyphId, Point},
+    types::{BigEndian, Fixed, GlyphId},
     TableProvider,
 };
 
@@ -241,17 +241,6 @@ impl<'a> GlyphMetrics<'a> {
         size: Size,
         location: impl Into<LocationRef<'a>>,
     ) -> Self {
-        Self::new_impl(font, size, location, false)
-    }
-
-    /// This is split out solely for testing the case where we need to derive
-    /// metric deltas from the gvar table.
-    fn new_impl(
-        font: &impl TableProvider<'a>,
-        size: Size,
-        location: impl Into<LocationRef<'a>>,
-        ignore_hvar: bool,
-    ) -> Self {
         let glyph_count = font
             .maxp()
             .map(|maxp| maxp.num_glyphs())
@@ -271,7 +260,7 @@ impl<'a> GlyphMetrics<'a> {
                 (h_metrics, default_advance_width, lsbs)
             })
             .unwrap_or_default();
-        let hvar = if ignore_hvar { None } else { font.hvar().ok() };
+        let hvar = font.hvar().ok();
         let gvar = font.gvar().ok();
         let loca_glyf = if let (Ok(loca), Ok(glyf)) = (font.loca(None), font.glyf()) {
             Some((loca, glyf))
@@ -377,7 +366,6 @@ impl<'a> GlyphMetrics<'a> {
     fn metric_deltas_from_gvar(&self, glyph_id: GlyphId) -> [i32; 2] {
         GvarMetricDeltas::new(self)
             .and_then(|metric_deltas| metric_deltas.compute_deltas(glyph_id))
-            .map(|deltas| deltas.map(|delta| delta.to_i32()))
             .unwrap_or_default()
     }
 }
@@ -402,7 +390,7 @@ impl<'a> GvarMetricDeltas<'a> {
     }
 
     /// Returns [lsb_delta, advance_delta]
-    fn compute_deltas(&self, glyph_id: GlyphId) -> Option<[Fixed; 2]> {
+    fn compute_deltas(&self, glyph_id: GlyphId) -> Option<[i32; 2]> {
         // For any given glyph, there's only one outline that contributes to
         // metrics deltas (via "phantom points"). For simple glyphs, that is
         // the glyph itself. For composite glyphs, it is the first component
@@ -415,7 +403,7 @@ impl<'a> GvarMetricDeltas<'a> {
         // in the variation data.
         let (glyph_id, point_count) = self.find_glyph_and_point_count(glyph_id, 0)?;
         // [lsb, advance]
-        let mut metric_deltas = [Point::default(); 2];
+        let mut metric_deltas = [Fixed::ZERO; 2];
         let phantom_range = point_count..point_count + 2;
         let var_data = self.gvar.glyph_variation_data(glyph_id).ok()?;
         // Note that phantom points can never belong to a contour so we don't have
@@ -424,11 +412,11 @@ impl<'a> GvarMetricDeltas<'a> {
             for tuple_delta in tuple.deltas() {
                 let ix = tuple_delta.position as usize;
                 if phantom_range.contains(&ix) {
-                    metric_deltas[ix - phantom_range.start] += tuple_delta.apply_scalar(scalar);
+                    metric_deltas[ix - phantom_range.start] += tuple_delta.apply_scalar(scalar).x;
                 }
             }
         }
-        Some(metric_deltas.map(|point| point.x))
+        Some(metric_deltas.map(|x| x.to_i32()))
     }
 
     /// Returns the glyph id and associated point count that determines the
@@ -588,9 +576,9 @@ mod tests {
             let coords = &[NormalizedCoord::from_f32(coord)];
             let location = LocationRef::new(coords);
             let glyph_metrics = font.glyph_metrics(Size::unscaled(), location);
-            // This one forces use of gvar for metric deltas
-            let glyph_metrics_no_hvar =
-                GlyphMetrics::new_impl(&font, Size::unscaled(), location, true);
+            let mut glyph_metrics_no_hvar = glyph_metrics.clone();
+            // Setting hvar to None forces use of gvar for metric deltas
+            glyph_metrics_no_hvar.hvar = None;
             for gid in 0..glyph_count {
                 let gid = GlyphId::new(gid);
                 assert_eq!(

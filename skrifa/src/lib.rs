@@ -48,4 +48,4 @@ pub use read_fonts::types::{GlyphId, Tag};
 pub use provider::MetadataProvider;
 
 /// Limit for recursion when loading TrueType composite glyphs.
-pub(crate) const GLYF_COMPOSITE_RECURSION_LIMIT: usize = 32;
+const GLYF_COMPOSITE_RECURSION_LIMIT: usize = 32;
