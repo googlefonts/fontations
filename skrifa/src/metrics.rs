@@ -402,7 +402,7 @@ impl<'a> GvarMetricDeltas<'a> {
         // count), so that we know where the deltas for phantom points start
         // in the variation data.
         let (glyph_id, point_count) = self.find_glyph_and_point_count(glyph_id, 0)?;
-        // [lsb, advance]
+        // [left_extent_delta, right_extent_delta]
         let mut metric_deltas = [Fixed::ZERO; 2];
         let phantom_range = point_count..point_count + 2;
         let var_data = self.gvar.glyph_variation_data(glyph_id).ok()?;
@@ -416,6 +416,7 @@ impl<'a> GvarMetricDeltas<'a> {
                 }
             }
         }
+        metric_deltas[1] -= metric_deltas[0];
         Some(metric_deltas.map(|x| x.to_i32()))
     }
 
