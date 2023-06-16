@@ -124,8 +124,6 @@ OR build and run in one command:
 
 1. Follow the instructions for [getting and building
    Chromium](https://chromium.googlesource.com/chromium/src/+/main/docs/linux/build_instructions.md)
-1. Verify that https://chromium-review.googlesource.com/c/chromium/src/+/4608308
-   has landed or run `git cl apply 4608308`.
 1. Add `use_typeface_fontations = true` to your `args.gn` using `$ gn args
    out/<builddir>`
 1. Comment out `"-Dunsafe_op_in_unsafe_fn",` in `build/config/compiler/BUILD.gn`
