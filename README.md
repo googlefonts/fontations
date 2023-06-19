@@ -84,7 +84,7 @@ Releasing involves the following steps:
    ./resources/scripts/release.sh read-fonts write-fonts
    ```
 
-## skia and chromium builds
+## Skia and Chromium builds
 
 An experimental `SkTypeface` implementation based on Fontations exists. This
 build is available in the Skia and Chromium repositories. The goal is to
@@ -93,28 +93,37 @@ backend. Tracking bugs: [Skia](https://crbug.com/skia/14259),
 [Chromium](https://crbug.com/1446251). To build the backends in Skia or Chromium
 follow the instructions below. This process is currently only tested on Linux.
 
-### skia build
+### Skia build
 
-1. Download Skia https://skia.org/docs/user/download/
-1. `$ bazel build --sandbox_base=/dev/shm --with_fontations //tools/viewer
+1. Download Skia https://skia.org/docs/user/download/, including bazelisk
+1. `$ bazelisk build --sandbox_base=/dev/shm --with_fontations //tools/viewer
    //tests:FontationsTest` (to build debug, add `-c dbg` after `build`)
+   * You should now have executables at `bazel-bin/tests/FontationsTest` and `bazel-bin/tools/viewer/viewer`
 
-#### unit tests and GM
+#### Skia Fontations unit tests
 
-Run unit tests withstayeri
+Build as above, then run the executable to run tests:
 
 `$ bazel-bin/tests/FontationsTest`
 
-Run Fontations Skia GM using:
+OR compile and test in one command:
+
+`$ bazelisk  test --sandbox_base=/dev/shm --with_fontations //tests:FontationsTest`
+
+#### Skia Fontations GM
+
+Build as above then:
 
 `$ bazel-bin/tools/viewer/viewer --slide GM_typeface_fontations_roboto`
+
+OR build and run in one command:
+
+`$ bazelisk run --sandbox_base=/dev/shm --with_fontations //tools/viewer -- --slide GM_typeface_fontations_roboto`
 
 ### chromium build
 
 1. Follow the instructions for [getting and building
    Chromium](https://chromium.googlesource.com/chromium/src/+/main/docs/linux/build_instructions.md)
-1. Verify that https://chromium-review.googlesource.com/c/chromium/src/+/4608308
-   has landed or run `git cl apply 4608308`.
 1. Add `use_typeface_fontations = true` to your `args.gn` using `$ gn args
    out/<builddir>`
 1. Comment out `"-Dunsafe_op_in_unsafe_fn",` in `build/config/compiler/BUILD.gn`
