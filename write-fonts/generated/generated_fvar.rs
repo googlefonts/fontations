@@ -8,31 +8,16 @@ use crate::codegen_prelude::*;
 /// The [fvar (Font Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/fvar) table
 #[derive(Clone, Debug, Default)]
 pub struct Fvar {
-    /// Major version number of the font variations table — set to 1.
-    /// Minor version number of the font variations table — set to 0.
-    pub version: MajorMinor,
     /// Offset in bytes from the beginning of the table to the start of the VariationAxisRecord array. The
     /// InstanceRecord array directly follows.
     pub axis_instance_arrays: OffsetMarker<AxisInstanceArrays>,
-    /// The number of variation axes in the font (the number of records in the axes array).
-    pub axis_count: u16,
-    /// The number of named instances defined in the font (the number of records in the instances array).
-    pub instance_count: u16,
 }
 
 impl Fvar {
     /// Construct a new `Fvar`
-    pub fn new(
-        version: MajorMinor,
-        axis_instance_arrays: AxisInstanceArrays,
-        axis_count: u16,
-        instance_count: u16,
-    ) -> Self {
+    pub fn new(axis_instance_arrays: AxisInstanceArrays) -> Self {
         Self {
-            version,
             axis_instance_arrays: axis_instance_arrays.into(),
-            axis_count,
-            instance_count,
         }
     }
 }
@@ -40,12 +25,12 @@ impl Fvar {
 impl FontWrite for Fvar {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        self.version.write_into(writer);
+        (MajorMinor::VERSION_1_0 as MajorMinor).write_into(writer);
         self.axis_instance_arrays.write_into(writer);
         (2 as u16).write_into(writer);
-        self.axis_count.write_into(writer);
+        (self.axis_count() as u16).write_into(writer);
         (20 as u16).write_into(writer);
-        self.instance_count.write_into(writer);
+        (self.instance_count() as u16).write_into(writer);
         (self.instance_size() as u16).write_into(writer);
     }
     fn table_type(&self) -> TableType {
@@ -71,10 +56,7 @@ impl TopLevelTable for Fvar {
 impl<'a> FromObjRef<read_fonts::tables::fvar::Fvar<'a>> for Fvar {
     fn from_obj_ref(obj: &read_fonts::tables::fvar::Fvar<'a>, _: FontData) -> Self {
         Fvar {
-            version: obj.version(),
             axis_instance_arrays: obj.axis_instance_arrays().to_owned_table(),
-            axis_count: obj.axis_count(),
-            instance_count: obj.instance_count(),
         }
     }
 }
