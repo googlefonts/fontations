@@ -20,23 +20,35 @@ impl Fvar {
             ctx.report("All or none of the instances must have post_script_name_id set. Use Some(0xFFFF) if you need to set it where you have no value.");
         }
 
+        let axis_count = self.axis_count();
         let uncoordinated_instances = self
             .axis_instance_arrays
             .instances
             .iter()
-            .filter(|ir| ir.coordinates.len() != self.axis_count as usize)
+            .filter(|ir| ir.coordinates.len() != axis_count as usize)
             .count();
         if uncoordinated_instances > 0 {
             ctx.report(format!(
-                "{uncoordinated_instances} instances do not axis_count ({}) coordinates",
-                self.axis_count
+                "{uncoordinated_instances} instances do not axis_count ({axis_count}) coordinates",
             ));
         }
     }
 
+    fn axis_count(&self) -> u16 {
+        self.axis_instance_arrays.axes.len().try_into().unwrap()
+    }
+
+    fn instance_count(&self) -> u16 {
+        self.axis_instance_arrays
+            .instances
+            .len()
+            .try_into()
+            .unwrap()
+    }
+
     fn instance_size(&self) -> u16 {
         // https://learn.microsoft.com/en-us/typography/opentype/spec/fvar#fvar-header
-        let mut instance_size = self.axis_count * Fixed::RAW_BYTE_LEN as u16 + 4;
+        let mut instance_size = self.axis_count() * Fixed::RAW_BYTE_LEN as u16 + 4;
         if self
             .axis_instance_arrays
             .instances
@@ -56,10 +68,7 @@ mod tests {
     use super::*;
 
     fn wdth_wght_fvar() -> Fvar {
-        let mut fvar = Fvar {
-            version: MajorMinor::VERSION_1_0,
-            ..Default::default()
-        };
+        let mut fvar = Fvar::default();
 
         fvar.axis_instance_arrays.axes.push(VariationAxisRecord {
             axis_tag: Tag::new(b"wght"),
@@ -75,8 +84,6 @@ mod tests {
             max_value: Fixed::from_f64(125.0),
             ..Default::default()
         });
-        fvar.axis_count = fvar.axis_instance_arrays.axes.len().try_into().unwrap();
-
         fvar
     }
 
@@ -139,12 +146,6 @@ mod tests {
         fvar.axis_instance_arrays
             .instances
             .push(nameless_instance_record(coordinates.clone()));
-        fvar.instance_count = fvar
-            .axis_instance_arrays
-            .instances
-            .len()
-            .try_into()
-            .unwrap();
         assert_eq!(2 * 4 + 4, fvar.instance_size());
 
         let bytes = crate::write::dump_table(&fvar).unwrap();
@@ -171,12 +172,6 @@ mod tests {
         fvar.axis_instance_arrays
             .instances
             .push(named_instance_record(coordinates.clone(), 256));
-        fvar.instance_count = fvar
-            .axis_instance_arrays
-            .instances
-            .len()
-            .try_into()
-            .unwrap();
         assert_eq!(2 * 4 + 6, fvar.instance_size());
 
         let bytes = crate::write::dump_table(&fvar).unwrap();
@@ -220,12 +215,6 @@ mod tests {
         fvar.axis_instance_arrays
             .instances
             .push(named_instance_record(coordinates, 256));
-        fvar.instance_count = fvar
-            .axis_instance_arrays
-            .instances
-            .len()
-            .try_into()
-            .unwrap();
         assert!(fvar.validate().is_err());
     }
 

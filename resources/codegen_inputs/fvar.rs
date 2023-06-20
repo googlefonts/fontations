@@ -8,6 +8,7 @@ extern record InstanceRecord;
 table Fvar {
     /// Major version number of the font variations table — set to 1.
     /// Minor version number of the font variations table — set to 0.
+    #[compile(MajorMinor::VERSION_1_0)]
     version: MajorMinor,
     /// Offset in bytes from the beginning of the table to the start of the VariationAxisRecord array. The
     /// InstanceRecord array directly follows.
@@ -18,11 +19,13 @@ table Fvar {
     #[compile(2)]
     _reserved: u16,
     /// The number of variation axes in the font (the number of records in the axes array).
+    #[compile(self.axis_count())]
     axis_count: u16,
     /// The size in bytes of each VariationAxisRecord — set to 20 (0x0014) for this version.
     #[compile(20)]
     axis_size: u16,
     /// The number of named instances defined in the font (the number of records in the instances array).
+    #[compile(self.instance_count())]
     instance_count: u16,
     /// The size in bytes of each InstanceRecord — set to either axisCount * sizeof(Fixed) + 4, or to axisCount * sizeof(Fixed) + 6.
     #[compile(self.instance_size())]
