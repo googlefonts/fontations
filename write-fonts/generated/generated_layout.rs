@@ -2611,17 +2611,17 @@ impl<'a> FontRead<'a> for FeatureVariations {
 pub struct FeatureVariationRecord {
     /// Offset to a condition set table, from beginning of
     /// FeatureVariations table.
-    pub condition_set: OffsetMarker<ConditionSet, WIDTH_32>,
+    pub condition_set: NullableOffsetMarker<ConditionSet, WIDTH_32>,
     /// Offset to a feature table substitution table, from beginning of
     /// the FeatureVariations table.
-    pub feature_table_substitution: OffsetMarker<FeatureTableSubstitution, WIDTH_32>,
+    pub feature_table_substitution: NullableOffsetMarker<FeatureTableSubstitution, WIDTH_32>,
 }
 
 impl FeatureVariationRecord {
     /// Construct a new `FeatureVariationRecord`
     pub fn new(
-        condition_set: ConditionSet,
-        feature_table_substitution: FeatureTableSubstitution,
+        condition_set: Option<ConditionSet>,
+        feature_table_substitution: Option<FeatureTableSubstitution>,
     ) -> Self {
         Self {
             condition_set: condition_set.into(),

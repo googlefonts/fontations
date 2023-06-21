@@ -3852,27 +3852,30 @@ impl<'a> std::fmt::Debug for FeatureVariations<'a> {
 pub struct FeatureVariationRecord {
     /// Offset to a condition set table, from beginning of
     /// FeatureVariations table.
-    pub condition_set_offset: BigEndian<Offset32>,
+    pub condition_set_offset: BigEndian<Nullable<Offset32>>,
     /// Offset to a feature table substitution table, from beginning of
     /// the FeatureVariations table.
-    pub feature_table_substitution_offset: BigEndian<Offset32>,
+    pub feature_table_substitution_offset: BigEndian<Nullable<Offset32>>,
 }
 
 impl FeatureVariationRecord {
     /// Offset to a condition set table, from beginning of
     /// FeatureVariations table.
-    pub fn condition_set_offset(&self) -> Offset32 {
+    pub fn condition_set_offset(&self) -> Nullable<Offset32> {
         self.condition_set_offset.get()
     }
 
     /// Attempt to resolve [`condition_set_offset`][Self::condition_set_offset].
-    pub fn condition_set<'a>(&self, data: FontData<'a>) -> Result<ConditionSet<'a>, ReadError> {
+    pub fn condition_set<'a>(
+        &self,
+        data: FontData<'a>,
+    ) -> Option<Result<ConditionSet<'a>, ReadError>> {
         self.condition_set_offset().resolve(data)
     }
 
     /// Offset to a feature table substitution table, from beginning of
     /// the FeatureVariations table.
-    pub fn feature_table_substitution_offset(&self) -> Offset32 {
+    pub fn feature_table_substitution_offset(&self) -> Nullable<Offset32> {
         self.feature_table_substitution_offset.get()
     }
 
@@ -3880,7 +3883,7 @@ impl FeatureVariationRecord {
     pub fn feature_table_substitution<'a>(
         &self,
         data: FontData<'a>,
-    ) -> Result<FeatureTableSubstitution<'a>, ReadError> {
+    ) -> Option<Result<FeatureTableSubstitution<'a>, ReadError>> {
         self.feature_table_substitution_offset().resolve(data)
     }
 }
