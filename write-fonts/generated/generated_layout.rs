@@ -2668,7 +2668,7 @@ impl FromObjRef<read_fonts::tables::layout::FeatureVariationRecord> for FeatureV
 }
 
 /// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct ConditionSet {
     /// Array of offsets to condition tables, from beginning of the
     /// ConditionSet table.
@@ -2726,7 +2726,7 @@ impl<'a> FontRead<'a> for ConditionSet {
 }
 
 /// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct ConditionFormat1 {
     /// Index (zero-based) for the variation axis within the 'fvar'
     /// table.

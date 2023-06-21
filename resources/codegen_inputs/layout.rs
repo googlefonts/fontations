@@ -574,6 +574,7 @@ record FeatureVariationRecord {
 }
 
 /// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
+#[capabilities(equality, order, hash)]
 table ConditionSet {
     /// Number of conditions for this condition set.
     #[compile(array_len($condition_offsets))]
@@ -591,6 +592,7 @@ table ConditionSet {
 //}
 
 /// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
+#[capabilities(equality, order, hash)]
 table ConditionFormat1 {
     /// Format, = 1
     #[format = 1]
