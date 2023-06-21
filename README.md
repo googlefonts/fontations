@@ -126,11 +126,10 @@ OR build and run in one command:
    Chromium](https://chromium.googlesource.com/chromium/src/+/main/docs/linux/build_instructions.md)
 1. Add `use_typeface_fontations = true` to your `args.gn` using `$ gn args
    out/<builddir>`
-1. Comment out `"-Dunsafe_op_in_unsafe_fn",` in `build/config/compiler/BUILD.gn`
-   if https://bugs.chromium.org/p/chromium/issues/detail?id=1448457 is not
-   closed yet.
 1. Build Chromium using `autoninja -C out/<builddir> chrome`
 1. Run Chromium using `$ out/<builddir>/chrome`
+1. Go to chrome://flags/#enable-fontations-backend and activate the flag, restart Chrome.
+1. Navigate to any URL, observe web fonts being displayed with Fontations + Skia path rendering.
 
 [codegen-readme]: ./font-codegen/README.md
 [`read-fonts`]: ./read-fonts
