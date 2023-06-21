@@ -20,21 +20,40 @@ impl<'a> Fvar<'a> {
 }
 
 impl VariationAxisRecord {
-    /// Returns a normalized coordinate for the given value.
-    pub fn normalize(&self, mut value: Fixed) -> Fixed {
-        use core::cmp::Ordering::*;
-        let min_value = self.min_value();
-        let default_value = self.default_value();
-        // Make sure max is >= min to avoid potential panic in clamp.
-        let max_value = self.max_value().max(min_value);
-        value = value.clamp(min_value, max_value);
-        value = match value.cmp(&default_value) {
-            Less => -((default_value - value) / (default_value - min_value)),
-            Greater => (value - default_value) / (max_value - default_value),
-            Equal => Fixed::ZERO,
-        };
-        value.clamp(-Fixed::ONE, Fixed::ONE)
+    /// Given a value in user space, normalize it for this axis.
+    ///
+    /// The value will be clamped to the axis's min/max values, then normalized;
+    /// it will always be in the range `-1.0..=1.0`
+    pub fn normalize(&self, value: Fixed) -> Fixed {
+        normalize_coordinate_impl(
+            value,
+            self.min_value(),
+            self.default_value(),
+            self.max_value(),
+        )
     }
+}
+
+/// Compute the normalized coordinate for a given value/axis min/max/default (in user space)
+///
+/// This is only exposed so that it can be reused in write-fonts
+#[doc(hidden)]
+pub fn normalize_coordinate_impl(
+    coord: Fixed,
+    min_value: Fixed,
+    default_value: Fixed,
+    max_value: Fixed,
+) -> Fixed {
+    use core::cmp::Ordering::*;
+    // Make sure max is >= min to avoid potential panic in clamp.
+    let max_value = max_value.max(min_value);
+    let coord = coord.clamp(min_value, max_value);
+    let coord = match coord.cmp(&default_value) {
+        Less => -((default_value - coord) / (default_value - min_value)),
+        Greater => (coord - default_value) / (max_value - default_value),
+        Equal => Fixed::ZERO,
+    };
+    coord.clamp(-Fixed::ONE, Fixed::ONE)
 }
 
 #[cfg(test)]

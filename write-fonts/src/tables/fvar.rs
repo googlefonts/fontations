@@ -49,6 +49,21 @@ impl Fvar {
     }
 }
 
+impl VariationAxisRecord {
+    /// Given a value in user space, normalize it for this axis.
+    ///
+    /// The value will be clamped to the axis's min/max values, then normalized;
+    /// it will always be in the range `-1.0..=1.0`
+    pub fn normalize(&self, value: Fixed) -> Fixed {
+        read_fonts::tables::fvar::normalize_coordinate_impl(
+            value,
+            self.min_value,
+            self.default_value,
+            self.max_value,
+        )
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use read::{FontRef, TableProvider};
