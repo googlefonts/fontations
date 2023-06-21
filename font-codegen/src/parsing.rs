@@ -1026,7 +1026,7 @@ static SKIP_FONT_WRITE: &str = "skip_font_write";
 static SKIP_CONSTRUCTOR: &str = "skip_constructor";
 static READ_ARGS: &str = "read_args";
 static GENERIC_OFFSET: &str = "generic_offset";
-static CAPABILITIES: &str = "capabilites";
+static CAPABILITIES: &str = "capabilities";
 static TAG: &str = "tag";
 
 impl Parse for TableAttrs {

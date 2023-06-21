@@ -37,7 +37,7 @@ table TupleVariationHeader {
 /// variation space using tuple records. A tuple record identifies a position
 /// in terms of normalized coordinates, which use F2DOT14 values.
 #[read_args(axis_count: u16)]
-#[capabilites(hash, equality, order)]
+#[capabilities(hash, equality, order)]
 record Tuple<'a> {
     /// Coordinate array specifying a position within the font’s variation space.
     ///
