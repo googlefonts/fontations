@@ -567,9 +567,11 @@ table FeatureVariations {
 record FeatureVariationRecord {
     /// Offset to a condition set table, from beginning of
     /// FeatureVariations table.
+    #[nullable]
     condition_set_offset: Offset32<ConditionSet>,
     /// Offset to a feature table substitution table, from beginning of
     /// the FeatureVariations table.
+    #[nullable]
     feature_table_substitution_offset: Offset32<FeatureTableSubstitution>,
 }
 
