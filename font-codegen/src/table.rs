@@ -489,10 +489,16 @@ pub(crate) fn generate_format_compile(
         .then(|| generate_format_from_obj(item, parse_module))
         .transpose()?;
 
+    let maybe_extra_traits = item
+        .attrs
+        .capabilities
+        .as_ref()
+        .map(|cap| cap.extra_traits());
+
     let constructors = generate_format_constructors(item, items)?;
     Ok(quote! {
         #( #docs )*
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, #maybe_extra_traits)]
         pub enum #name {
             #( #variants ),*
         }
