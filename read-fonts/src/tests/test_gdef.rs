@@ -1,7 +1,7 @@
 use types::{GlyphId, MajorMinor};
 
 use super::*;
-use crate::tables::layout::{ClassDefFormat2, DeltaFormat};
+use crate::tables::layout::{ClassDefFormat2, DeltaFormat, DeviceOrVariationIndex};
 use font_test_data::gdef as test_data;
 
 #[test]
@@ -54,7 +54,9 @@ fn lig_caret_list() {
 fn caretvalueformat3() {
     let table = CaretValueFormat3::read(test_data::CARETVALUEFORMAT3_TABLE.into()).unwrap();
     assert_eq!(table.coordinate(), 1206);
-    let device = table.device().unwrap();
+    let DeviceOrVariationIndex::Device(device) = table.device().unwrap() else {
+        panic!("not a device table");
+    };
     assert_eq!(device.start_size(), 12);
     assert_eq!(device.end_size(), 17);
     assert_eq!(device.delta_format(), DeltaFormat::Local4BitDeltas);

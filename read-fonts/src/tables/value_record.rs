@@ -3,7 +3,7 @@
 use types::{BigEndian, FixedSize, Offset16};
 
 use super::ValueFormat;
-use crate::{tables::layout::Device, ResolveOffset};
+use crate::{tables::layout::DeviceOrVariationIndex, ResolveOffset};
 
 #[cfg(feature = "traversal")]
 use crate::traversal::{Field, FieldType, RecordResolver, SomeRecord};
@@ -90,28 +90,28 @@ impl ValueRecord {
     pub fn x_placement_device<'a>(
         &self,
         data: FontData<'a>,
-    ) -> Option<Result<Device<'a>, ReadError>> {
+    ) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
         self.x_placement_device.map(|val| val.get().resolve(data))
     }
 
     pub fn y_placement_device<'a>(
         &self,
         data: FontData<'a>,
-    ) -> Option<Result<Device<'a>, ReadError>> {
+    ) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
         self.y_placement_device.map(|val| val.get().resolve(data))
     }
 
     pub fn x_advance_device<'a>(
         &self,
         data: FontData<'a>,
-    ) -> Option<Result<Device<'a>, ReadError>> {
+    ) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
         self.x_advance_device.map(|val| val.get().resolve(data))
     }
 
     pub fn y_advance_device<'a>(
         &self,
         data: FontData<'a>,
-    ) -> Option<Result<Device<'a>, ReadError>> {
+    ) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
         self.y_advance_device.map(|val| val.get().resolve(data))
     }
 }

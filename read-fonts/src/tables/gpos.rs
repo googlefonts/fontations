@@ -9,7 +9,8 @@ use crate::array::ComputedArray;
 
 /// reexport stuff from layout that we use
 pub use super::layout::{
-    ClassDef, CoverageTable, Device, FeatureList, FeatureVariations, Lookup, ScriptList,
+    ClassDef, CoverageTable, Device, DeviceOrVariationIndex, FeatureList, FeatureVariations,
+    Lookup, ScriptList,
 };
 pub use value_record::ValueRecord;
 

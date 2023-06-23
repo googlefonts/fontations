@@ -540,6 +540,7 @@ table Device {
 }
 
 /// Variation index table
+#[capabilities(equality, hash)]
 table VariationIndex {
     /// A delta-set outer index — used to select an item variation
     /// data subtable within the item variation store.
@@ -548,7 +549,17 @@ table VariationIndex {
     /// within an item variation data subtable.
     delta_set_inner_index: u16,
     /// Format, = 0x8000
-    delta_format: u16,
+    #[compile(DeltaFormat::VariationIndex)]
+    delta_format: DeltaFormat,
+}
+
+/// Either a [Device] table (in a non-variable font) or a [VariationIndex] table (in a variable font)
+#[capabilities(equality, hash)]
+format DeltaFormat@4 DeviceOrVariationIndex {
+    #[match_if($format != DeltaFormat::VariationIndex)]
+    Device(Device),
+    #[match_if($format == DeltaFormat::VariationIndex)]
+    VariationIndex(VariationIndex),
 }
 
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)

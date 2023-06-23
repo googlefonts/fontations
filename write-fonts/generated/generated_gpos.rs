@@ -226,8 +226,8 @@ impl AnchorTable {
     pub fn format_3(
         x_coordinate: i16,
         y_coordinate: i16,
-        x_device: Option<Device>,
-        y_device: Option<Device>,
+        x_device: Option<DeviceOrVariationIndex>,
+        y_device: Option<DeviceOrVariationIndex>,
     ) -> Self {
         Self::Format3(AnchorFormat3::new(
             x_coordinate,
@@ -411,11 +411,11 @@ pub struct AnchorFormat3 {
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for X coordinate, from beginning of
     /// Anchor table (may be NULL)
-    pub x_device: NullableOffsetMarker<Device>,
+    pub x_device: NullableOffsetMarker<DeviceOrVariationIndex>,
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for Y coordinate, from beginning of
     /// Anchor table (may be NULL)
-    pub y_device: NullableOffsetMarker<Device>,
+    pub y_device: NullableOffsetMarker<DeviceOrVariationIndex>,
 }
 
 impl AnchorFormat3 {
@@ -423,8 +423,8 @@ impl AnchorFormat3 {
     pub fn new(
         x_coordinate: i16,
         y_coordinate: i16,
-        x_device: Option<Device>,
-        y_device: Option<Device>,
+        x_device: Option<DeviceOrVariationIndex>,
+        y_device: Option<DeviceOrVariationIndex>,
     ) -> Self {
         Self {
             x_coordinate,

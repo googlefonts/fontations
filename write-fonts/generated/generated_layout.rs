@@ -2487,7 +2487,7 @@ impl<'a> FontRead<'a> for Device {
 }
 
 /// Variation index table
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
 pub struct VariationIndex {
     /// A delta-set outer index — used to select an item variation
     /// data subtable within the item variation store.
@@ -2495,26 +2495,24 @@ pub struct VariationIndex {
     /// A delta-set inner index — used to select a delta-set row
     /// within an item variation data subtable.
     pub delta_set_inner_index: u16,
-    /// Format, = 0x8000
-    pub delta_format: u16,
 }
 
 impl VariationIndex {
     /// Construct a new `VariationIndex`
-    pub fn new(delta_set_outer_index: u16, delta_set_inner_index: u16, delta_format: u16) -> Self {
+    pub fn new(delta_set_outer_index: u16, delta_set_inner_index: u16) -> Self {
         Self {
             delta_set_outer_index,
             delta_set_inner_index,
-            delta_format,
         }
     }
 }
 
 impl FontWrite for VariationIndex {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         self.delta_set_outer_index.write_into(writer);
         self.delta_set_inner_index.write_into(writer);
-        self.delta_format.write_into(writer);
+        (DeltaFormat::VariationIndex as DeltaFormat).write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("VariationIndex")
@@ -2530,7 +2528,6 @@ impl<'a> FromObjRef<read_fonts::tables::layout::VariationIndex<'a>> for Variatio
         VariationIndex {
             delta_set_outer_index: obj.delta_set_outer_index(),
             delta_set_inner_index: obj.delta_set_inner_index(),
-            delta_format: obj.delta_format(),
         }
     }
 }
@@ -2540,6 +2537,77 @@ impl<'a> FromTableRef<read_fonts::tables::layout::VariationIndex<'a>> for Variat
 impl<'a> FontRead<'a> for VariationIndex {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::VariationIndex as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// Either a [Device] table (in a non-variable font) or a [VariationIndex] table (in a variable font)
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub enum DeviceOrVariationIndex {
+    Device(Device),
+    VariationIndex(VariationIndex),
+}
+
+impl DeviceOrVariationIndex {
+    /// Construct a new `VariationIndex` subtable
+    pub fn variation_index(delta_set_outer_index: u16, delta_set_inner_index: u16) -> Self {
+        Self::VariationIndex(VariationIndex::new(
+            delta_set_outer_index,
+            delta_set_inner_index,
+        ))
+    }
+}
+
+impl Default for DeviceOrVariationIndex {
+    fn default() -> Self {
+        Self::Device(Default::default())
+    }
+}
+
+impl FontWrite for DeviceOrVariationIndex {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Device(item) => item.write_into(writer),
+            Self::VariationIndex(item) => item.write_into(writer),
+        }
+    }
+    fn table_type(&self) -> TableType {
+        match self {
+            Self::Device(item) => item.table_type(),
+            Self::VariationIndex(item) => item.table_type(),
+        }
+    }
+}
+
+impl Validate for DeviceOrVariationIndex {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Device(item) => item.validate_impl(ctx),
+            Self::VariationIndex(item) => item.validate_impl(ctx),
+        }
+    }
+}
+
+impl FromObjRef<read_fonts::tables::layout::DeviceOrVariationIndex<'_>> for DeviceOrVariationIndex {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::DeviceOrVariationIndex, _: FontData) -> Self {
+        use read_fonts::tables::layout::DeviceOrVariationIndex as ObjRefType;
+        match obj {
+            ObjRefType::Device(item) => DeviceOrVariationIndex::Device(item.to_owned_table()),
+            ObjRefType::VariationIndex(item) => {
+                DeviceOrVariationIndex::VariationIndex(item.to_owned_table())
+            }
+        }
+    }
+}
+
+impl FromTableRef<read_fonts::tables::layout::DeviceOrVariationIndex<'_>>
+    for DeviceOrVariationIndex
+{
+}
+
+impl<'a> FontRead<'a> for DeviceOrVariationIndex {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::DeviceOrVariationIndex as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }

@@ -852,7 +852,7 @@ impl<'a> AnchorFormat3<'a> {
     }
 
     /// Attempt to resolve [`x_device_offset`][Self::x_device_offset].
-    pub fn x_device(&self) -> Option<Result<Device<'a>, ReadError>> {
+    pub fn x_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
         let data = self.data;
         self.x_device_offset().resolve(data)
     }
@@ -866,7 +866,7 @@ impl<'a> AnchorFormat3<'a> {
     }
 
     /// Attempt to resolve [`y_device_offset`][Self::y_device_offset].
-    pub fn y_device(&self) -> Option<Result<Device<'a>, ReadError>> {
+    pub fn y_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
         let data = self.data;
         self.y_device_offset().resolve(data)
     }

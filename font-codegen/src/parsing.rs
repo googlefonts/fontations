@@ -641,7 +641,11 @@ impl Parse for TableFormat {
         } else {
             None
         };
-        validate_ident(&format, &["u8", "u16", "i16"], "unexpected format type")?;
+        validate_ident(
+            &format,
+            &["u8", "u16", "i16", "DeltaFormat"],
+            "unexpected format type",
+        )?;
         let name = input.parse::<syn::Ident>()?;
 
         let content;

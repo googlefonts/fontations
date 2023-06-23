@@ -8,8 +8,8 @@ use std::collections::HashSet;
 
 //use super::layout::value_record::ValueRecord;
 use super::layout::{
-    ChainedSequenceContext, ClassDef, CoverageTable, Device, FeatureList, FeatureVariations,
-    Lookup, LookupList, LookupSubtable, LookupType, ScriptList, SequenceContext,
+    ChainedSequenceContext, ClassDef, CoverageTable, DeviceOrVariationIndex, FeatureList,
+    FeatureVariations, Lookup, LookupList, LookupSubtable, LookupType, ScriptList, SequenceContext,
 };
 
 #[cfg(test)]
