@@ -569,7 +569,7 @@ pub enum AnchorTable<'a> {
 
 impl<'a> FontRead<'a> for AnchorTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             AnchorFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             AnchorFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -1043,7 +1043,7 @@ pub enum SinglePos<'a> {
 
 impl<'a> FontRead<'a> for SinglePos<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             SinglePosFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             SinglePosFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -1326,7 +1326,7 @@ pub enum PairPos<'a> {
 
 impl<'a> FontRead<'a> for PairPos<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             PairPosFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             PairPosFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),

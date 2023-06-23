@@ -641,6 +641,12 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
         quote!(Self::#name(table) => table)
     });
 
+    let format_offset = item
+        .format_offset
+        .as_ref()
+        .map(|lit| lit.base10_parse::<usize>().unwrap())
+        .unwrap_or(0);
+
     Ok(quote! {
         #( #docs )*
         pub enum #name<'a> {
@@ -649,7 +655,7 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
 
         impl<'a> FontRead<'a> for #name<'a> {
             fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-                let format: #format = data.read_at(0)?;
+                let format: #format = data.read_at(#format_offset)?;
                 match format {
                     #( #match_arms ),*
                     other => Err(ReadError::InvalidFormat(other.into())),

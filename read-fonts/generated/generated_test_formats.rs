@@ -227,7 +227,7 @@ pub enum MyTable<'a> {
 
 impl<'a> FontRead<'a> for MyTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             Table1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             Table2Marker::FORMAT => Ok(Self::MyFormat22(FontRead::read(data)?)),

@@ -206,7 +206,7 @@ pub enum FdSelect<'a> {
 
 impl<'a> FontRead<'a> for FdSelect<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u8 = data.read_at(0)?;
+        let format: u8 = data.read_at(0usize)?;
         match format {
             FdSelectFormat0Marker::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
             FdSelectFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),

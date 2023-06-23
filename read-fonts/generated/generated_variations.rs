@@ -386,7 +386,7 @@ pub enum DeltaSetIndexMap<'a> {
 
 impl<'a> FontRead<'a> for DeltaSetIndexMap<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u8 = data.read_at(0)?;
+        let format: u8 = data.read_at(0usize)?;
         match format {
             DeltaSetIndexMapFormat0Marker::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
             DeltaSetIndexMapFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
