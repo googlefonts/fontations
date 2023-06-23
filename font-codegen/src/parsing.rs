@@ -106,6 +106,7 @@ pub(crate) struct TableFormat {
     pub(crate) attrs: TableAttrs,
     pub(crate) name: syn::Ident,
     pub(crate) format: syn::Ident,
+    pub(crate) format_offset: Option<syn::LitInt>,
     pub(crate) variants: Vec<FormatVariant>,
 }
 
@@ -627,6 +628,19 @@ impl Parse for TableFormat {
         let attrs: TableAttrs = input.parse()?;
         let _kw = input.parse::<kw::format>()?;
         let format: syn::Ident = input.parse()?;
+        let format_offset = if input.peek(Token![@]) {
+            input.parse::<Token![@]>()?;
+            let offset = input.parse::<syn::LitInt>()?;
+            if offset.base10_parse::<u16>().is_err() {
+                return Err(syn::Error::new(
+                    offset.span(),
+                    "value must be an unsigned integer",
+                ));
+            }
+            Some(offset)
+        } else {
+            None
+        };
         validate_ident(&format, &["u8", "u16", "i16"], "unexpected format type")?;
         let name = input.parse::<syn::Ident>()?;
 
@@ -641,6 +655,7 @@ impl Parse for TableFormat {
             format,
             name,
             variants,
+            format_offset,
         })
     }
 }
@@ -1866,5 +1881,52 @@ mod tests {
         assert!(parse("1, 3").unwrap().minor.is_some());
         assert!(parse("1, 2, 3").is_err());
         assert!(parse("1, 'b'").is_err());
+    }
+
+    fn parse_format_group(s: &str) -> Result<TableFormat, syn::Error> {
+        syn::parse_str(s)
+    }
+
+    #[test]
+    fn parse_format_group_basic() {
+        let s = "format u16 MyThing {
+            FormatOne(SomeTable),
+        }";
+        let parsed = parse_format_group(s).unwrap();
+        assert_eq!(parsed.format.to_string(), "u16");
+        assert!(parsed.format_offset.is_none());
+    }
+
+    // just a sanity check
+    #[test]
+    fn parse_format_group_not_a_known_format() {
+        let s = "format Fixed MyThing {
+            FormatOne(SomeTable),
+        }";
+        assert!(parse_format_group(s).is_err());
+    }
+
+    #[test]
+    fn parse_format_group_with_format_offset() {
+        let s = "format u16@4 MyThing {
+            FormatOne(SomeTable),
+        }";
+
+        let parsed = parse_format_group(s).unwrap();
+        assert!(parsed.format_offset.is_some());
+        assert_eq!(
+            parsed.format_offset.unwrap().base10_parse::<u16>().ok(),
+            Some(4)
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must be an unsigned")]
+    fn parse_format_group_with_negative_format_offset() {
+        let s = "format u16@-4 MyThing {
+            FormatOne(SomeTable),
+        }";
+
+        parse_format_group(s).unwrap();
     }
 }

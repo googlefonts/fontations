@@ -780,7 +780,7 @@ pub enum ClipBox<'a> {
 
 impl<'a> FontRead<'a> for ClipBox<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u8 = data.read_at(0)?;
+        let format: u8 = data.read_at(0usize)?;
         match format {
             ClipBoxFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             ClipBoxFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -1518,7 +1518,7 @@ pub enum Paint<'a> {
 
 impl<'a> FontRead<'a> for Paint<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u8 = data.read_at(0)?;
+        let format: u8 = data.read_at(0usize)?;
         match format {
             PaintColrLayersMarker::FORMAT => Ok(Self::ColrLayers(FontRead::read(data)?)),
             PaintSolidMarker::FORMAT => Ok(Self::Solid(FontRead::read(data)?)),

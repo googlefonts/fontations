@@ -1153,7 +1153,7 @@ pub enum CoverageTable<'a> {
 
 impl<'a> FontRead<'a> for CoverageTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             CoverageFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             CoverageFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -1442,7 +1442,7 @@ pub enum ClassDef<'a> {
 
 impl<'a> FontRead<'a> for ClassDef<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             ClassDefFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             ClassDefFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -2348,7 +2348,7 @@ pub enum SequenceContext<'a> {
 
 impl<'a> FontRead<'a> for SequenceContext<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             SequenceContextFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             SequenceContextFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -3490,7 +3490,7 @@ pub enum ChainedSequenceContext<'a> {
 
 impl<'a> FontRead<'a> for ChainedSequenceContext<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             ChainedSequenceContextFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             ChainedSequenceContextFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
