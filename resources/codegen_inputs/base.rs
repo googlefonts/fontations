@@ -175,6 +175,6 @@ table BaseCoordFormat3 {
     /// table (variable font) for X or Y value, from beginning of
     /// BaseCoord table (may be NULL).
     #[nullable]
-    device_offset: Offset16<Device>,
+    device_offset: Offset16<DeviceOrVariationIndex>,
 }
 

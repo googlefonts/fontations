@@ -5,7 +5,7 @@
 use types::MajorMinor;
 
 use super::{
-    layout::{ClassDef, CoverageTable, Device},
+    layout::{ClassDef, CoverageTable, DeviceOrVariationIndex},
     variations::ItemVariationStore,
 };
 

@@ -887,7 +887,7 @@ impl<'a> CaretValueFormat3<'a> {
     }
 
     /// Attempt to resolve [`device_offset`][Self::device_offset].
-    pub fn device(&self) -> Result<Device<'a>, ReadError> {
+    pub fn device(&self) -> Result<DeviceOrVariationIndex<'a>, ReadError> {
         let data = self.data;
         self.device_offset().resolve(data)
     }

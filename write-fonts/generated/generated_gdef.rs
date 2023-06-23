@@ -389,7 +389,7 @@ impl CaretValue {
     }
 
     /// Construct a new `CaretValueFormat3` subtable
-    pub fn format_3(coordinate: i16, device: Device) -> Self {
+    pub fn format_3(coordinate: i16, device: DeviceOrVariationIndex) -> Self {
         Self::Format3(CaretValueFormat3::new(coordinate, device))
     }
 }
@@ -548,12 +548,12 @@ pub struct CaretValueFormat3 {
     /// Offset to Device table (non-variable font) / Variation Index
     /// table (variable font) for X or Y value-from beginning of
     /// CaretValue table
-    pub device: OffsetMarker<Device>,
+    pub device: OffsetMarker<DeviceOrVariationIndex>,
 }
 
 impl CaretValueFormat3 {
     /// Construct a new `CaretValueFormat3`
-    pub fn new(coordinate: i16, device: Device) -> Self {
+    pub fn new(coordinate: i16, device: DeviceOrVariationIndex) -> Self {
         Self {
             coordinate,
             device: device.into(),

@@ -6,7 +6,7 @@ use super::ValueFormat;
 use crate::{
     from_obj::{FromObjRef, ToOwnedObj},
     offsets::NullableOffsetMarker,
-    tables::layout::Device,
+    tables::layout::DeviceOrVariationIndex,
     validate::Validate,
     write::{FontWrite, TableWriter},
 };
@@ -17,10 +17,10 @@ pub struct ValueRecord {
     pub y_placement: Option<i16>,
     pub x_advance: Option<i16>,
     pub y_advance: Option<i16>,
-    pub x_placement_device: NullableOffsetMarker<Device>,
-    pub y_placement_device: NullableOffsetMarker<Device>,
-    pub x_advance_device: NullableOffsetMarker<Device>,
-    pub y_advance_device: NullableOffsetMarker<Device>,
+    pub x_placement_device: NullableOffsetMarker<DeviceOrVariationIndex>,
+    pub y_placement_device: NullableOffsetMarker<DeviceOrVariationIndex>,
+    pub x_advance_device: NullableOffsetMarker<DeviceOrVariationIndex>,
+    pub y_advance_device: NullableOffsetMarker<DeviceOrVariationIndex>,
 }
 
 impl ValueRecord {

@@ -3688,7 +3688,7 @@ impl VariationIndexMarker {
     }
     fn delta_format_byte_range(&self) -> Range<usize> {
         let start = self.delta_set_inner_index_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + DeltaFormat::RAW_BYTE_LEN
     }
 }
 
@@ -3697,7 +3697,7 @@ impl<'a> FontRead<'a> for VariationIndex<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        cursor.advance::<u16>();
+        cursor.advance::<DeltaFormat>();
         cursor.finish(VariationIndexMarker {})
     }
 }
@@ -3721,7 +3721,7 @@ impl<'a> VariationIndex<'a> {
     }
 
     /// Format, = 0x8000
-    pub fn delta_format(&self) -> u16 {
+    pub fn delta_format(&self) -> DeltaFormat {
         let range = self.shape.delta_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -3752,6 +3752,54 @@ impl<'a> SomeTable<'a> for VariationIndex<'a> {
 impl<'a> std::fmt::Debug for VariationIndex<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+/// Either a [Device] table (in a non-variable font) or a [VariationIndex] table (in a variable font)
+pub enum DeviceOrVariationIndex<'a> {
+    Device(Device<'a>),
+    VariationIndex(VariationIndex<'a>),
+}
+
+impl<'a> FontRead<'a> for DeviceOrVariationIndex<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: DeltaFormat = data.read_at(4usize)?;
+        match format {
+            format if format != DeltaFormat::VariationIndex => {
+                Ok(Self::Device(FontRead::read(data)?))
+            }
+            format if format == DeltaFormat::VariationIndex => {
+                Ok(Self::VariationIndex(FontRead::read(data)?))
+            }
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> DeviceOrVariationIndex<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Device(table) => table,
+            Self::VariationIndex(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for DeviceOrVariationIndex<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for DeviceOrVariationIndex<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
     }
 }
 

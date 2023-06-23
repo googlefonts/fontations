@@ -1,6 +1,6 @@
 //! The [BASE](https://learn.microsoft.com/en-us/typography/opentype/spec/base) table
 
-use super::layout::Device;
+use super::layout::DeviceOrVariationIndex;
 use super::variations::ItemVariationStore;
 
 include!("../../generated/generated_base.rs");

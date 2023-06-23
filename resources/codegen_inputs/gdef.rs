@@ -127,7 +127,7 @@ table CaretValueFormat3 {
     /// Offset to Device table (non-variable font) / Variation Index
     /// table (variable font) for X or Y value-from beginning of
     /// CaretValue table
-    device_offset: Offset16<Device>,
+    device_offset: Offset16<DeviceOrVariationIndex>,
 }
 
 /// [Mark Glyph Sets Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#mark-glyph-sets-table)

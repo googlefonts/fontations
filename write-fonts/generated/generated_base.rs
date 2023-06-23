@@ -671,7 +671,7 @@ impl BaseCoord {
     }
 
     /// Construct a new `BaseCoordFormat3` subtable
-    pub fn format_3(coordinate: i16, device: Option<Device>) -> Self {
+    pub fn format_3(coordinate: i16, device: Option<DeviceOrVariationIndex>) -> Self {
         Self::Format3(BaseCoordFormat3::new(coordinate, device))
     }
 }
@@ -840,12 +840,12 @@ pub struct BaseCoordFormat3 {
     /// Offset to Device table (non-variable font) / Variation Index
     /// table (variable font) for X or Y value, from beginning of
     /// BaseCoord table (may be NULL).
-    pub device: NullableOffsetMarker<Device>,
+    pub device: NullableOffsetMarker<DeviceOrVariationIndex>,
 }
 
 impl BaseCoordFormat3 {
     /// Construct a new `BaseCoordFormat3`
-    pub fn new(coordinate: i16, device: Option<Device>) -> Self {
+    pub fn new(coordinate: i16, device: Option<DeviceOrVariationIndex>) -> Self {
         Self {
             coordinate,
             device: device.into(),
