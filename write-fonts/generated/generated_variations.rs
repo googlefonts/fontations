@@ -510,8 +510,6 @@ impl FromObjRef<read_fonts::tables::variations::RegionAxisCoordinates> for Regio
 /// The [ItemVariationStore](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#item-variation-store-header-and-item-variation-data-subtables) table
 #[derive(Clone, Debug, Default)]
 pub struct ItemVariationStore {
-    /// Format— set to 1
-    pub format: u16,
     /// Offset in bytes from the start of the item variation store to
     /// the variation region list.
     pub variation_region_list: OffsetMarker<VariationRegionList, WIDTH_32>,
@@ -523,12 +521,10 @@ pub struct ItemVariationStore {
 impl ItemVariationStore {
     /// Construct a new `ItemVariationStore`
     pub fn new(
-        format: u16,
         variation_region_list: VariationRegionList,
         item_variation_datas: Vec<Option<ItemVariationData>>,
     ) -> Self {
         Self {
-            format,
             variation_region_list: variation_region_list.into(),
             item_variation_datas: item_variation_datas.into_iter().map(Into::into).collect(),
         }
@@ -538,7 +534,7 @@ impl ItemVariationStore {
 impl FontWrite for ItemVariationStore {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        self.format.write_into(writer);
+        (1 as u16).write_into(writer);
         self.variation_region_list.write_into(writer);
         (array_len(&self.item_variation_datas).unwrap() as u16).write_into(writer);
         self.item_variation_datas.write_into(writer);
@@ -570,7 +566,6 @@ impl<'a> FromObjRef<read_fonts::tables::variations::ItemVariationStore<'a>> for 
         _: FontData,
     ) -> Self {
         ItemVariationStore {
-            format: obj.format(),
             variation_region_list: obj.variation_region_list().to_owned_table(),
             item_variation_datas: obj.item_variation_datas().to_owned_table(),
         }
