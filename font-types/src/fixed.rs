@@ -135,6 +135,8 @@ macro_rules! fixed_mul_div {
     ($ty:ty) => {
         impl $ty {
             /// Multiplies `self` by `a` and divides the product by `b`.
+            // This one is specifically not always inlined due to size and
+            // frequency of use. We leave it to compiler discretion.
             #[inline]
             pub const fn mul_div(&self, a: Self, b: Self) -> Self {
                 let mut sign = 1;
