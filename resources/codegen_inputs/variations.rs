@@ -129,6 +129,7 @@ record RegionAxisCoordinates {
 /// The [ItemVariationStore](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#item-variation-store-header-and-item-variation-data-subtables) table
 table ItemVariationStore {
     /// Format— set to 1
+    #[compile(1)]
     format: u16,
     /// Offset in bytes from the start of the item variation store to
     /// the variation region list.
