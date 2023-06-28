@@ -629,9 +629,6 @@ pub fn to_path(
     contours: &[u16],
     sink: &mut impl Pen,
 ) -> Result<(), ToPathError> {
-    fn to_f32(x: F26Dot6) -> f32 {
-        x.to_f64() as f32
-    }
     // FreeType uses integer division to compute midpoints.
     // See: https://github.com/freetype/freetype/blob/de8b92dd7ec634e9e2b25ef534c54a3537555c11/src/base/ftoutln.c#L123
     fn midpoint(a: Point<F26Dot6>, b: Point<F26Dot6>) -> Point<F26Dot6> {
@@ -665,7 +662,7 @@ pub fn to_path(
             }
             step_point = false;
         }
-        let p = v_start.map(to_f32);
+        let p = v_start.map(F26Dot6::to_f32);
         if count > 0 && !last_was_close {
             sink.close();
         }
@@ -679,7 +676,7 @@ pub fn to_path(
             step_point = true;
             flag = flags[cur_ix];
             if flag.is_on_curve() {
-                let p = points[cur_ix].map(to_f32);
+                let p = points[cur_ix].map(F26Dot6::to_f32);
                 sink.line_to(p.x, p.y);
                 count += 1;
                 last_was_close = false;
@@ -692,8 +689,8 @@ pub fn to_path(
                     let cur_point = points[cur_ix];
                     flag = flags[cur_ix];
                     if flag.is_on_curve() {
-                        let control = v_control.map(to_f32);
-                        let point = cur_point.map(to_f32);
+                        let control = v_control.map(F26Dot6::to_f32);
+                        let point = cur_point.map(F26Dot6::to_f32);
                         sink.quad_to(control.x, control.y, point.x, point.y);
                         count += 1;
                         last_was_close = false;
@@ -704,16 +701,16 @@ pub fn to_path(
                         return Err(ToPathError::ExpectedQuad(cur_ix));
                     }
                     let v_middle = midpoint(v_control, cur_point);
-                    let control = v_control.map(to_f32);
-                    let point = v_middle.map(to_f32);
+                    let control = v_control.map(F26Dot6::to_f32);
+                    let point = v_middle.map(F26Dot6::to_f32);
                     sink.quad_to(control.x, control.y, point.x, point.y);
                     count += 1;
                     last_was_close = false;
                     v_control = cur_point;
                 }
                 if do_close_quad {
-                    let control = v_control.map(to_f32);
-                    let point = v_start.map(to_f32);
+                    let control = v_control.map(F26Dot6::to_f32);
+                    let point = v_start.map(F26Dot6::to_f32);
                     sink.quad_to(control.x, control.y, point.x, point.y);
                     count += 1;
                     last_was_close = false;
@@ -724,11 +721,11 @@ pub fn to_path(
                 if cur_ix + 1 > last_ix || !flags[cur_ix + 1].is_off_curve_cubic() {
                     return Err(ToPathError::ExpectedCubic(cur_ix + 1));
                 }
-                let control0 = points[cur_ix].map(to_f32);
-                let control1 = points[cur_ix + 1].map(to_f32);
+                let control0 = points[cur_ix].map(F26Dot6::to_f32);
+                let control1 = points[cur_ix + 1].map(F26Dot6::to_f32);
                 cur_ix += 2;
                 if cur_ix <= last_ix {
-                    let point = points[cur_ix].map(to_f32);
+                    let point = points[cur_ix].map(F26Dot6::to_f32);
                     sink.curve_to(
                         control0.x, control0.y, control1.x, control1.y, point.x, point.y,
                     );
@@ -736,7 +733,7 @@ pub fn to_path(
                     last_was_close = false;
                     continue;
                 }
-                let point = v_start.map(to_f32);
+                let point = v_start.map(F26Dot6::to_f32);
                 sink.curve_to(
                     control0.x, control0.y, control1.x, control1.y, point.x, point.y,
                 );
