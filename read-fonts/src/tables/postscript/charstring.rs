@@ -55,26 +55,199 @@ where
     P: Pen,
 {
     fn move_to(&mut self, x: Fixed, y: Fixed) {
-        self.0.move_to(x.to_f64() as f32, y.to_f64() as f32);
+        self.0.move_to(x.to_f32(), y.to_f32());
     }
 
     fn line_to(&mut self, x: Fixed, y: Fixed) {
-        self.0.line_to(x.to_f64() as f32, y.to_f64() as f32);
+        self.0.line_to(x.to_f32(), y.to_f32());
     }
 
     fn curve_to(&mut self, cx0: Fixed, cy0: Fixed, cx1: Fixed, cy1: Fixed, x: Fixed, y: Fixed) {
         self.0.curve_to(
-            cx0.to_f64() as f32,
-            cy0.to_f64() as f32,
-            cx1.to_f64() as f32,
-            cy1.to_f64() as f32,
-            x.to_f64() as f32,
-            y.to_f64() as f32,
+            cx0.to_f32(),
+            cy0.to_f32(),
+            cx1.to_f32(),
+            cy1.to_f32(),
+            x.to_f32(),
+            y.to_f32(),
         );
     }
 
     fn close(&mut self) {
         self.0.close();
+    }
+}
+
+/// Command sink adapter that applies a scaling factor.
+///
+/// This assumes a 26.6 scaling factor packed into a Fixed and thus,
+/// this is not public and exists only to match FreeType's exact
+/// scaling process.
+pub(crate) struct ScalingSink26Dot6<'a, S> {
+    inner: &'a mut S,
+    scale: Fixed,
+}
+
+impl<'a, S> ScalingSink26Dot6<'a, S> {
+    pub fn new(sink: &'a mut S, scale: Fixed) -> Self {
+        Self { scale, inner: sink }
+    }
+
+    fn scale(&self, coord: Fixed) -> Fixed {
+        if self.scale != Fixed::ONE {
+            // The following dance is necessary to exactly match FreeType's
+            // application of scaling factors:
+            // 1. Multiply by 1/64
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L284>
+            let a = coord * Fixed::from_bits(0x0400);
+            // 2. Convert to 26.6 by truncation
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psobjs.c#L2219>
+            let b = Fixed::from_bits(a.to_bits() >> 10);
+            // 3. Multiply by the original scale factor
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/cff/cffgload.c#L721>
+            let c = b * self.scale;
+            // Finally, we convert back to 16.16
+            Fixed::from_bits(c.to_bits() << 10)
+        } else {
+            // Otherwise, simply zero the low 10 bits
+            Fixed::from_bits(coord.to_bits() & !0x3FF)
+        }
+    }
+}
+
+impl<'a, S: CommandSink> CommandSink for ScalingSink26Dot6<'a, S> {
+    fn hstem(&mut self, y: Fixed, dy: Fixed) {
+        self.inner.hstem(y, dy);
+    }
+
+    fn vstem(&mut self, x: Fixed, dx: Fixed) {
+        self.inner.vstem(x, dx);
+    }
+
+    fn hint_mask(&mut self, mask: &[u8]) {
+        self.inner.hint_mask(mask);
+    }
+
+    fn counter_mask(&mut self, mask: &[u8]) {
+        self.inner.counter_mask(mask);
+    }
+
+    fn move_to(&mut self, x: Fixed, y: Fixed) {
+        self.inner.move_to(self.scale(x), self.scale(y));
+    }
+
+    fn line_to(&mut self, x: Fixed, y: Fixed) {
+        self.inner.line_to(self.scale(x), self.scale(y));
+    }
+
+    fn curve_to(&mut self, cx1: Fixed, cy1: Fixed, cx2: Fixed, cy2: Fixed, x: Fixed, y: Fixed) {
+        self.inner.curve_to(
+            self.scale(cx1),
+            self.scale(cy1),
+            self.scale(cx2),
+            self.scale(cy2),
+            self.scale(x),
+            self.scale(y),
+        );
+    }
+
+    fn close(&mut self) {
+        self.inner.close();
+    }
+}
+
+/// Command sink adapter that simplifies path operations.
+///
+/// This currently removes degenerate moves and lines.
+pub(crate) struct SimplifyingSink<'a, S> {
+    start: Option<(Fixed, Fixed)>,
+    last: Option<(Fixed, Fixed)>,
+    pending_move: Option<(Fixed, Fixed)>,
+    inner: &'a mut S,
+}
+
+impl<'a, S> SimplifyingSink<'a, S>
+where
+    S: CommandSink,
+{
+    pub fn new(inner: &'a mut S) -> Self {
+        Self {
+            start: None,
+            last: None,
+            pending_move: None,
+            inner,
+        }
+    }
+
+    fn flush_pending_move(&mut self) {
+        if let Some((x, y)) = self.pending_move.take() {
+            if let Some((last_x, last_y)) = self.start {
+                if self.last != self.start {
+                    self.inner.line_to(last_x, last_y);
+                }
+            }
+            self.start = Some((x, y));
+            self.last = None;
+            self.inner.move_to(x, y);
+        }
+    }
+
+    pub fn finish(&mut self) {
+        match self.start {
+            Some((x, y)) if self.last != self.start => {
+                self.inner.line_to(x, y);
+            }
+            _ => {}
+        }
+    }
+}
+
+impl<'a, S> CommandSink for SimplifyingSink<'a, S>
+where
+    S: CommandSink,
+{
+    fn hstem(&mut self, y: Fixed, dy: Fixed) {
+        self.inner.hstem(y, dy);
+    }
+
+    fn vstem(&mut self, x: Fixed, dx: Fixed) {
+        self.inner.vstem(x, dx);
+    }
+
+    fn hint_mask(&mut self, mask: &[u8]) {
+        self.inner.hint_mask(mask);
+    }
+
+    fn counter_mask(&mut self, mask: &[u8]) {
+        self.inner.counter_mask(mask);
+    }
+
+    fn move_to(&mut self, x: Fixed, y: Fixed) {
+        self.pending_move = Some((x, y));
+    }
+
+    fn line_to(&mut self, x: Fixed, y: Fixed) {
+        if self.pending_move == Some((x, y)) {
+            return;
+        }
+        self.flush_pending_move();
+        if self.last == Some((x, y)) || (self.last.is_none() && self.start == Some((x, y))) {
+            return;
+        }
+        self.inner.line_to(x, y);
+        self.last = Some((x, y));
+    }
+
+    fn curve_to(&mut self, cx1: Fixed, cy1: Fixed, cx2: Fixed, cy2: Fixed, x: Fixed, y: Fixed) {
+        self.flush_pending_move();
+        self.last = Some((x, y));
+        self.inner.curve_to(cx1, cy1, cx2, cy2, x, y);
+    }
+
+    fn close(&mut self) {
+        if self.pending_move.is_none() {
+            self.inner.close()
+        }
     }
 }
 
