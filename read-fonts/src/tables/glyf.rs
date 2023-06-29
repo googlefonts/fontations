@@ -582,7 +582,7 @@ impl Iterator for ComponentIter<'_> {
 }
 
 /// Iterator that only returns glyph identifiers for each component.
-/// 
+///
 /// Significantly faster in cases where we're just processing the glyph
 /// tree, counting components or accessing instructions.
 #[derive(Clone)]
