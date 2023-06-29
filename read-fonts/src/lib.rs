@@ -29,6 +29,9 @@ pub mod codegen_test;
 #[path = "tests/test_helpers.rs"]
 mod test_helpers;
 
+#[cfg(any(test, feature = "scaler_test"))]
+pub mod scaler_test;
+
 pub use font_data::FontData;
 pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
 pub use offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};

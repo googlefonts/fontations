@@ -18,3 +18,4 @@ read-fonts = { version = "0.6.0", path = "../read-fonts" }
 
 [dev-dependencies]
 font-test-data= { path = "../font-test-data" }
+read-fonts = { version = "0.6.0", path = "../read-fonts", features = ["scaler_test"] }
