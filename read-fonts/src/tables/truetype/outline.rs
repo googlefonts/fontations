@@ -2,14 +2,21 @@
 
 use std::mem::size_of;
 
+use super::ScalerMemory;
 use crate::{
-    tables::glyf::{to_path, PointFlags, ToPathError},
-    types::{F26Dot6, Fixed, Pen, Point},
+    tables::glyf::{to_path, Glyph, PointFlags, ToPathError},
+    types::{F26Dot6, Fixed, GlyphId, Pen, Point},
 };
 
-/// Memory requirements and metadata for scaling a TrueType outline.
-#[derive(Copy, Clone, Default, Debug)]
-pub struct OutlineInfo {
+/// Represents the information necessary to scale a glyph.
+///
+/// Contains a reference to the glyph data itself as well as metrics that
+/// can be used to compute the memory requirements for scaling the glyph.
+#[derive(Default, Debug)]
+pub struct ScalerGlyph<'a> {
+    pub glyph_id: GlyphId,
+    /// The associated top-level glyph for the outline.
+    pub glyph: Option<Glyph<'a>>,
     /// Sum of the point counts of all simple glyphs in an outline.
     pub points: usize,
     /// Sum of the contour counts of all simple glyphs in an outline.
@@ -35,7 +42,7 @@ pub struct OutlineInfo {
     pub has_variations: bool,
 }
 
-impl OutlineInfo {
+impl<'a> ScalerGlyph<'a> {
     /// Returns the minimum size in bytes required to scale an outline based
     /// on the computed sizes.
     pub fn required_buffer_size(&self) -> usize {
@@ -64,16 +71,24 @@ impl OutlineInfo {
         }
         size
     }
+
+    /// Allocates new memory for scaling this glyph from the given buffer.
+    ///
+    /// The size of the buffer must be at least as large as the size returned
+    /// by [`Self::required_buffer_size`].
+    pub fn memory_from_buffer(&self, buf: &'a mut [u8]) -> Option<ScalerMemory<'a>> {
+        ScalerMemory::new(self, buf)
+    }
 }
 
 #[derive(Debug)]
-pub struct Outline<'a> {
+pub struct ScalerOutline<'a> {
     pub points: &'a mut [Point<F26Dot6>],
     pub flags: &'a mut [PointFlags],
     pub contours: &'a mut [u16],
 }
 
-impl<'a> Outline<'a> {
+impl<'a> ScalerOutline<'a> {
     pub fn to_path(&self, pen: &mut impl Pen) -> Result<(), ToPathError> {
         to_path(self.points, self.flags, self.contours, pen)
     }

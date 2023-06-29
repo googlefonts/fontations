@@ -1,8 +1,8 @@
 //! Scaler for TrueType outlines.
 
 use super::{
-    deltas, Error, HintOutline, Outline, OutlineInfo, OutlineMemory, COMPOSITE_RECURSION_LIMIT,
-    PHANTOM_POINT_COUNT,
+    deltas, Error, HintOutline, ScalerGlyph, ScalerMemory, ScalerOutline,
+    COMPOSITE_RECURSION_LIMIT, PHANTOM_POINT_COUNT,
 };
 use crate::{
     tables::{
@@ -48,55 +48,59 @@ impl<'a> Scaler<'a> {
         })
     }
 
-    pub fn outline_info(&self, glyph_id: GlyphId, with_hinting: bool) -> Option<OutlineInfo> {
-        let mut info = OutlineInfo {
+    pub fn glyph(&self, glyph_id: GlyphId, with_hinting: bool) -> Result<ScalerGlyph, Error> {
+        let mut info = ScalerGlyph {
+            glyph_id,
             has_variations: self.gvar.is_some(),
             ..Default::default()
         };
-        let glyph = self.loca.get_glyf(glyph_id, &self.glyf).ok()?;
-        let Some(glyph) = glyph else {
-            return Some(info);
-        };
-        self.outline_info_rec(glyph, &mut info, 0, 0)?;
+        let glyph = self.loca.get_glyf(glyph_id, &self.glyf)?;
+        if glyph.is_none() {
+            return Ok(info);
+        }
+        self.glyph_rec(glyph.as_ref().unwrap(), &mut info, 0, 0)?;
         if info.points != 0 {
             info.points += PHANTOM_POINT_COUNT;
         }
+        info.glyph = glyph;
         info.has_hinting &= with_hinting;
-        Some(info)
+        Ok(info)
     }
 
     pub fn outline(
         &self,
-        memory: OutlineMemory<'a>,
-        glyph_id: GlyphId,
+        memory: ScalerMemory<'a>,
+        info: &ScalerGlyph,
         size: f32,
         coords: &'a [F2Dot14],
-    ) -> Result<Outline<'a>, Error> {
-        ScalerInstance::new(self.clone(), memory, size, coords, |_| true, false).outline(glyph_id)
+    ) -> Result<ScalerOutline<'a>, Error> {
+        ScalerInstance::new(self.clone(), memory, size, coords, |_| true, false)
+            .outline(&info.glyph, info.glyph_id)
     }
 
     pub fn hinted_outline(
         &self,
-        memory: OutlineMemory<'a>,
-        glyph_id: GlyphId,
+        memory: ScalerMemory<'a>,
+        info: &ScalerGlyph,
         size: f32,
         coords: &'a [F2Dot14],
         hint_fn: impl FnMut(HintOutline) -> bool,
-    ) -> Result<Outline<'a>, Error> {
-        ScalerInstance::new(self.clone(), memory, size, coords, hint_fn, true).outline(glyph_id)
+    ) -> Result<ScalerOutline<'a>, Error> {
+        ScalerInstance::new(self.clone(), memory, size, coords, hint_fn, false)
+            .outline(&info.glyph, info.glyph_id)
     }
 }
 
 impl<'a> Scaler<'a> {
-    fn outline_info_rec(
+    fn glyph_rec(
         &self,
-        glyph: Glyph,
-        info: &mut OutlineInfo,
+        glyph: &Glyph,
+        info: &mut ScalerGlyph,
         component_depth: usize,
         recurse_depth: usize,
-    ) -> Option<()> {
+    ) -> Result<(), Error> {
         if recurse_depth > COMPOSITE_RECURSION_LIMIT {
-            return None;
+            return Err(Error::RecursionLimitExceeded(info.glyph_id));
         }
         match glyph {
             Glyph::Simple(simple) => {
@@ -109,22 +113,22 @@ impl<'a> Scaler<'a> {
                 info.max_other_points = info.max_other_points.max(num_points_with_phantom);
             }
             Glyph::Composite(composite) => {
-                let count = composite.components().count() + PHANTOM_POINT_COUNT;
+                let (mut count, instructions) = composite.count_and_instructions();
+                count += PHANTOM_POINT_COUNT;
                 let point_base = info.points;
-                for component in composite.components() {
-                    let component_glyph = self.loca.get_glyf(component.glyph, &self.glyf).ok()?;
+                for component in composite.component_glyphs() {
+                    let component_glyph = self.loca.get_glyf(component, &self.glyf)?;
                     let Some(component_glyph) = component_glyph else {
                         continue;
                     };
-                    self.outline_info_rec(
-                        component_glyph,
+                    self.glyph_rec(
+                        &component_glyph,
                         info,
                         component_depth + count,
                         recurse_depth + 1,
                     )?;
                 }
-                let ins = composite.instructions().unwrap_or_default();
-                let has_hinting = !ins.is_empty();
+                let has_hinting = !instructions.unwrap_or_default().is_empty();
                 if has_hinting {
                     // We only need the "other points" buffers if the
                     // composite glyph has instructions.
@@ -136,7 +140,7 @@ impl<'a> Scaler<'a> {
                 info.has_hinting = info.has_hinting || has_hinting;
             }
         }
-        Some(())
+        Ok(())
     }
 
     fn advance_width(&self, gid: GlyphId, coords: &'a [F2Dot14]) -> i32 {
@@ -189,7 +193,7 @@ impl<'a> Scaler<'a> {
 
 struct ScalerInstance<'a, H> {
     scaler: Scaler<'a>,
-    memory: OutlineMemory<'a>,
+    memory: ScalerMemory<'a>,
     coords: &'a [F2Dot14],
     point_count: usize,
     contour_count: usize,
@@ -212,7 +216,7 @@ where
 {
     fn new(
         scaler: Scaler<'a>,
-        memory: OutlineMemory<'a>,
+        memory: ScalerMemory<'a>,
         size: f32,
         coords: &'a [F2Dot14],
         hint_fn: H,
@@ -243,9 +247,13 @@ where
         }
     }
 
-    fn outline(mut self, glyph_id: GlyphId) -> Result<Outline<'a>, Error> {
-        self.load(glyph_id, 0)?;
-        let outline = Outline {
+    fn outline(
+        mut self,
+        glyph: &Option<Glyph>,
+        glyph_id: GlyphId,
+    ) -> Result<ScalerOutline<'a>, Error> {
+        self.load(glyph, glyph_id, 0)?;
+        let outline = ScalerOutline {
             points: &mut self.memory.scaled[..self.point_count],
             flags: &mut self.memory.flags[..self.point_count],
             contours: &mut self.memory.contours[..self.contour_count],
@@ -259,14 +267,16 @@ where
         Ok(outline)
     }
 
-    fn load(&mut self, glyph_id: GlyphId, recurse_depth: usize) -> Result<(), Error> {
+    fn load(
+        &mut self,
+        glyph: &Option<Glyph>,
+        glyph_id: GlyphId,
+        recurse_depth: usize,
+    ) -> Result<(), Error> {
         if recurse_depth > COMPOSITE_RECURSION_LIMIT {
             return Err(Error::RecursionLimitExceeded(glyph_id));
         }
-        let Ok(glyph) = self.scaler.loca.get_glyf(glyph_id, &self.scaler.glyf) else {
-            return Err(Error::GlyphNotFound(glyph_id));
-        };
-        let glyph = match glyph {
+        let glyph = match &glyph {
             Some(glyph) => glyph,
             // This is a valid empty glyph
             None => return Ok(()),
@@ -274,12 +284,12 @@ where
         let bounds = [glyph.x_min(), glyph.x_max(), glyph.y_min(), glyph.y_max()];
         self.setup_phantom_points(bounds, glyph_id);
         match glyph {
-            Glyph::Simple(simple) => self.load_simple(&simple, glyph_id),
-            Glyph::Composite(composite) => self.load_composite(&composite, glyph_id, recurse_depth),
+            Glyph::Simple(simple) => self.load_simple(simple, glyph_id),
+            Glyph::Composite(composite) => self.load_composite(composite, glyph_id, recurse_depth),
         }
     }
 
-    fn load_simple(&mut self, glyph: &SimpleGlyph<'a>, glyph_id: GlyphId) -> Result<(), Error> {
+    fn load_simple(&mut self, glyph: &SimpleGlyph, glyph_id: GlyphId) -> Result<(), Error> {
         use Error::InsufficientMemory;
         // Compute the ranges for our point/flag buffers and slice them.
         let points_start = self.point_count;
@@ -449,7 +459,7 @@ where
 
     fn load_composite(
         &mut self,
-        glyph: &CompositeGlyph<'a>,
+        glyph: &CompositeGlyph,
         glyph_id: GlyphId,
         recurse_depth: usize,
     ) -> Result<(), Error> {
@@ -495,7 +505,12 @@ where
             let phantom = self.phantom;
             // Load the component glyph and keep track of the points range.
             let start_point = self.point_count;
-            self.load(component.glyph, recurse_depth + 1)?;
+            let component_glyph = self
+                .scaler
+                .loca
+                .get_glyf(component.glyph, &self.scaler.glyf)?;
+            self.load(&component_glyph, component.glyph, recurse_depth + 1)?;
+            // self.load(component.glyph, recurse_depth + 1)?;
             let end_point = self.point_count;
             if !component
                 .flags
