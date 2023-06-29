@@ -1,5 +1,6 @@
 use core::ops::RangeInclusive;
 
+use super::PHANTOM_POINT_COUNT;
 use crate::{
     tables::glyf::{PointFlags, PointMarker},
     tables::gvar::{Gvar, TupleVariation},
@@ -51,7 +52,7 @@ pub fn simple_glyph(
     iup_buffer: &mut [Point<Fixed>],
     deltas: &mut [Delta],
 ) -> Result<(), ReadError> {
-    if iup_buffer.len() < glyph.points.len() {
+    if iup_buffer.len() < glyph.points.len() || glyph.points.len() < PHANTOM_POINT_COUNT {
         return Err(ReadError::InvalidArrayLen);
     }
     for delta in deltas.iter_mut() {
