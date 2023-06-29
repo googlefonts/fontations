@@ -2,11 +2,12 @@
 
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
-// shared between Fixed and F2Dot14
+// shared between Fixed, F26Dot6 and F2Dot14
 macro_rules! fixed_impl {
     ($name:ident, $bits:literal, $fract_bits:literal, $ty:ty) => {
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+        #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
+        #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+        #[repr(transparent)]
         #[doc = concat!(stringify!($bits), "-bit signed fixed point number with ", stringify!($fract_bits), " bits of fraction." )]
         pub struct $name($ty);
         impl $name {

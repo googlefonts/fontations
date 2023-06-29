@@ -53,6 +53,7 @@ impl PointMarker {
 /// itself. Others, designated as markers are set and cleared while an outline
 /// is being transformed during variation application and hinting.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+#[repr(transparent)]
 pub struct PointFlags(u8);
 
 impl PointFlags {
