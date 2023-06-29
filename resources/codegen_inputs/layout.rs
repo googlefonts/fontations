@@ -526,7 +526,7 @@ enum u16 DeltaFormat {
 
 /// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
 #[skip_constructor]
-#[capabilites(equality, hash)]
+#[capabilities(equality, hash)]
 table Device {
     /// Smallest size to correct, in ppem
     start_size: u16,
@@ -567,13 +567,16 @@ table FeatureVariations {
 record FeatureVariationRecord {
     /// Offset to a condition set table, from beginning of
     /// FeatureVariations table.
+    #[nullable]
     condition_set_offset: Offset32<ConditionSet>,
     /// Offset to a feature table substitution table, from beginning of
     /// the FeatureVariations table.
+    #[nullable]
     feature_table_substitution_offset: Offset32<FeatureTableSubstitution>,
 }
 
 /// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
+#[capabilities(equality, order, hash)]
 table ConditionSet {
     /// Number of conditions for this condition set.
     #[compile(array_len($condition_offsets))]
@@ -591,6 +594,7 @@ table ConditionSet {
 //}
 
 /// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
+#[capabilities(equality, order, hash)]
 table ConditionFormat1 {
     /// Format, = 1
     #[format = 1]

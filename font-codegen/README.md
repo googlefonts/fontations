@@ -157,7 +157,7 @@ The following annotations are supported on top-level objects:
   common tables that contain offsets which point to different concrete types
   depending on the containing table, such as the `Layout` subtable shared
   between GPOS and GSUB.
-- `#[capabilites(equality, order, hash)]` Provide a list of additional
+- `#[capabilities(equality, order, hash)]` Provide a list of additional
   functionality to be implemented for this type. In Rust this means deriving 
   additional traits. In the case of records, the trait will be derived
   in both `read-fonts` and `write-fonts`, but in the case of tables only for

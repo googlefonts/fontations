@@ -37,7 +37,7 @@ table TupleVariationHeader {
 /// variation space using tuple records. A tuple record identifies a position
 /// in terms of normalized coordinates, which use F2DOT14 values.
 #[read_args(axis_count: u16)]
-#[capabilites(hash, equality, order)]
+#[capabilities(hash, equality, order)]
 record Tuple<'a> {
     /// Coordinate array specifying a position within the font’s variation space.
     ///
@@ -129,6 +129,7 @@ record RegionAxisCoordinates {
 /// The [ItemVariationStore](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#item-variation-store-header-and-item-variation-data-subtables) table
 table ItemVariationStore {
     /// Format— set to 1
+    #[compile(1)]
     format: u16,
     /// Offset in bytes from the start of the item variation store to
     /// the variation region list.
