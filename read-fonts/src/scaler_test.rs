@@ -1,11 +1,11 @@
 //! Helpers for unit testing
 
 use super::Pen;
-use core::str::FromStr;
-use read_fonts::{
+use crate::{
     tables::glyf::PointFlags,
     types::{F26Dot6, F2Dot14, GlyphId, Point},
 };
+use core::str::FromStr;
 
 #[derive(Copy, Clone, PartialEq, Debug)]
 // clippy doesn't like the common To suffix
@@ -18,37 +18,45 @@ pub enum PathElement {
 }
 
 #[derive(Default)]
-pub struct Path(pub Vec<PathElement>);
+pub struct Path {
+    pub elements: Vec<PathElement>,
+    pub is_cff: bool,
+}
 
 impl Pen for Path {
     fn move_to(&mut self, x: f32, y: f32) {
-        self.0.push(PathElement::MoveTo([x, y]));
+        self.elements.push(PathElement::MoveTo([x, y]));
     }
 
     fn line_to(&mut self, x: f32, y: f32) {
-        self.0.push(PathElement::LineTo([x, y]));
+        self.elements.push(PathElement::LineTo([x, y]));
     }
 
     fn quad_to(&mut self, x0: f32, y0: f32, x1: f32, y1: f32) {
-        self.0.push(PathElement::QuadTo([x0, y0, x1, y1]))
+        self.elements.push(PathElement::QuadTo([x0, y0, x1, y1]))
     }
 
     fn curve_to(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, x2: f32, y2: f32) {
-        self.0.push(PathElement::CurveTo([x0, y0, x1, y1, x2, y2]))
+        self.elements
+            .push(PathElement::CurveTo([x0, y0, x1, y1, x2, y2]))
     }
 
     fn close(&mut self) {
-        // FT_Outline_Decompose does not generate close commands, so for testing purposes,
-        // we insert a line to same point as the most recent move_to which copies
-        // FreeType's behavior.
-        let last_move = self
-            .0
-            .iter()
-            .rev()
-            .find(|element| matches!(*element, PathElement::MoveTo(_)))
-            .copied();
-        if let Some(PathElement::MoveTo(point)) = last_move {
-            self.0.push(PathElement::LineTo(point));
+        if !self.is_cff {
+            // FT_Outline_Decompose does not generate close commands, so for
+            // testing purposes, we insert a line to same point as the most
+            // recent move_to which copies FreeType's behavior.
+            //
+            // Except for CFF, which has its own logic for handling this :(
+            let last_move = self
+                .elements
+                .iter()
+                .rev()
+                .find(|element| matches!(*element, PathElement::MoveTo(_)))
+                .copied();
+            if let Some(PathElement::MoveTo(point)) = last_move {
+                self.elements.push(PathElement::LineTo(point));
+            }
         }
     }
 }
