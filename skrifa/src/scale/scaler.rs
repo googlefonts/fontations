@@ -5,7 +5,7 @@ use super::Hinting;
 
 use core::borrow::Borrow;
 use read_fonts::{
-    tables::postscript::Scaler as PostScriptScaler,
+    tables::postscript::{Scaler as PostScriptScaler, SubfontInstance},
     types::{Fixed, GlyphId},
     TableProvider,
 };
@@ -135,7 +135,13 @@ impl<'a> ScalerBuilder<'a> {
         ) {
             Some(Outlines::TrueType(glyf, &mut self.context.glyf_outline))
         } else {
-            PostScriptScaler::new(font).ok().map(Outlines::PostScript)
+            PostScriptScaler::new(font)
+                .ok()
+                .and_then(|scaler| {
+                    let first_subfont = scaler.subfont_instance(0, size, coords, false).ok()?;
+                    Some((scaler, first_subfont))
+                })
+                .map(|(scaler, subfont)| Outlines::PostScript(scaler, subfont))
         };
         Scaler {
             size,
@@ -216,9 +222,12 @@ impl<'a> Scaler<'a> {
     }
 }
 
+// Clippy doesn't like the size discrepancy between the two variants. Ignore
+// for now: we'll replace this with a real cache.
+#[allow(clippy::large_enum_variant)]
 enum Outlines<'a> {
     TrueType(glyf::Scaler<'a>, &'a mut glyf::Outline),
-    PostScript(PostScriptScaler<'a>),
+    PostScript(PostScriptScaler<'a>, SubfontInstance),
 }
 
 impl<'a> Outlines<'a> {
@@ -234,11 +243,12 @@ impl<'a> Outlines<'a> {
                 scaler.load(glyph_id, outline)?;
                 Ok(outline.to_path(pen)?)
             }
-            Self::PostScript(scaler) => {
+            Self::PostScript(scaler, subfont) => {
                 let subfont_index = scaler.subfont_index(glyph_id);
-                // TODO: cache these
-                let subfont = scaler.subfont_instance(subfont_index, size, coords, false)?;
-                Ok(scaler.outline(&subfont, glyph_id, coords, pen)?)
+                if subfont_index != subfont.index() {
+                    *subfont = scaler.subfont_instance(subfont_index, size, coords, false)?;
+                }
+                Ok(scaler.outline(subfont, glyph_id, coords, pen)?)
             }
         }
     }
