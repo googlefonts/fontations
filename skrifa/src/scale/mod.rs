@@ -219,19 +219,47 @@ impl Context {
 #[cfg(test)]
 mod tests {
     use super::{Context, Size};
-    use font_test_data::{VAZIRMATN_VAR, VAZIRMATN_VAR_GLYPHS};
     use read_fonts::{scaler_test, FontRef};
 
     #[test]
     fn vazirmatin_var() {
-        let font = FontRef::new(VAZIRMATN_VAR).unwrap();
-        let outlines = scaler_test::parse_glyph_outlines(VAZIRMATN_VAR_GLYPHS);
+        compare_glyphs(
+            font_test_data::VAZIRMATN_VAR,
+            font_test_data::VAZIRMATN_VAR_GLYPHS,
+            false,
+        );
+    }
+
+    #[test]
+    fn cantarell_vf() {
+        compare_glyphs(
+            font_test_data::CANTARELL_VF_TRIMMED,
+            font_test_data::CANTARELL_VF_TRIMMED_GLYPHS,
+            true,
+        );
+    }
+
+    #[test]
+    fn noto_serif_display() {
+        compare_glyphs(
+            font_test_data::NOTO_SERIF_DISPLAY_TRIMMED,
+            font_test_data::NOTO_SERIF_DISPLAY_TRIMMED_GLYPHS,
+            true,
+        );
+    }
+
+    fn compare_glyphs(font_data: &[u8], expected_outlines: &str, is_cff: bool) {
+        let font = FontRef::new(font_data).unwrap();
+        let outlines = scaler_test::parse_glyph_outlines(expected_outlines);
         let mut cx = Context::new();
         let mut path = scaler_test::Path {
             elements: vec![],
-            is_cff: false,
+            is_cff,
         };
         for expected_outline in &outlines {
+            if expected_outline.size == 0.0 && !expected_outline.coords.is_empty() {
+                continue;
+            }
             path.elements.clear();
             let mut scaler = cx
                 .new_scaler()

@@ -5,6 +5,7 @@ use super::Hinting;
 
 use core::borrow::Borrow;
 use read_fonts::{
+    tables::postscript::Scaler as PostScriptScaler,
     types::{Fixed, GlyphId},
     TableProvider,
 };
@@ -122,22 +123,24 @@ impl<'a> ScalerBuilder<'a> {
     pub fn build(mut self, font: &impl TableProvider<'a>) -> Scaler<'a> {
         self.resolve_variations(font);
         let coords = &self.context.coords[..];
-        let glyf = if let Ok(glyf) = glyf::Scaler::new(
+        let size = self.size.ppem().unwrap_or_default();
+        let outlines = if let Ok(glyf) = glyf::Scaler::new(
             &mut self.context.glyf,
             font,
             self.cache_key,
-            self.size.ppem().unwrap_or_default(),
+            size,
             #[cfg(feature = "hinting")]
             self.hint,
             coords,
         ) {
-            Some((glyf, &mut self.context.glyf_outline))
+            Some(Outlines::TrueType(glyf, &mut self.context.glyf_outline))
         } else {
-            None
+            PostScriptScaler::new(font).ok().map(Outlines::PostScript)
         };
         Scaler {
+            size,
             coords,
-            outlines: Outlines { glyf },
+            outlines,
         }
     }
 
@@ -186,8 +189,9 @@ impl<'a> ScalerBuilder<'a> {
 /// See the [module level documentation](crate::scale#getting-an-outline)
 /// for more detail.
 pub struct Scaler<'a> {
+    size: f32,
     coords: &'a [NormalizedCoord],
-    outlines: Outlines<'a>,
+    outlines: Option<Outlines<'a>>,
 }
 
 impl<'a> Scaler<'a> {
@@ -198,32 +202,44 @@ impl<'a> Scaler<'a> {
 
     /// Returns true if the scaler has a source for simple outlines.
     pub fn has_outlines(&self) -> bool {
-        self.outlines.has_outlines()
+        self.outlines.is_some()
     }
 
     /// Loads a simple outline for the specified glyph identifier and invokes the functions
-    /// in the given sink for the sequence of path commands that define the outline.
-    pub fn outline(&mut self, glyph_id: GlyphId, sink: &mut impl Pen) -> Result<()> {
-        self.outlines.outline(glyph_id, sink)
+    /// in the given pen for the sequence of path commands that define the outline.
+    pub fn outline(&mut self, glyph_id: GlyphId, pen: &mut impl Pen) -> Result<()> {
+        if let Some(outlines) = &mut self.outlines {
+            outlines.outline(glyph_id, self.size, self.coords, pen)
+        } else {
+            Err(Error::NoSources)
+        }
     }
 }
 
-/// Outline glyph scalers.
-struct Outlines<'a> {
-    glyf: Option<(glyf::Scaler<'a>, &'a mut glyf::Outline)>,
+enum Outlines<'a> {
+    TrueType(glyf::Scaler<'a>, &'a mut glyf::Outline),
+    PostScript(PostScriptScaler<'a>),
 }
 
 impl<'a> Outlines<'a> {
-    fn has_outlines(&self) -> bool {
-        self.glyf.is_some()
-    }
-
-    fn outline(&mut self, glyph_id: GlyphId, sink: &mut impl Pen) -> Result<()> {
-        if let Some((scaler, glyf_outline)) = &mut self.glyf {
-            scaler.load(glyph_id, glyf_outline)?;
-            Ok(glyf_outline.to_path(sink)?)
-        } else {
-            Err(Error::NoSources)
+    fn outline(
+        &mut self,
+        glyph_id: GlyphId,
+        size: f32,
+        coords: &'a [NormalizedCoord],
+        pen: &mut impl Pen,
+    ) -> Result<()> {
+        match self {
+            Self::TrueType(scaler, outline) => {
+                scaler.load(glyph_id, outline)?;
+                Ok(outline.to_path(pen)?)
+            }
+            Self::PostScript(scaler) => {
+                let subfont_index = scaler.subfont_index(glyph_id);
+                // TODO: cache these
+                let subfont = scaler.subfont_instance(subfont_index, size, coords, false)?;
+                Ok(scaler.outline(&subfont, glyph_id, coords, pen)?)
+            }
         }
     }
 }
