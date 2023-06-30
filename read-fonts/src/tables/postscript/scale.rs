@@ -150,11 +150,11 @@ impl<'a> Scaler<'a> {
             .unwrap_or(0) as u32
     }
 
-    /// Returns a new subfont instance for the given index, size and normalized
+    /// Creates a new subfont instance for the given index, size, normalized
     /// variation coordinates and hinting state.
     ///
     /// The index of a subfont for a particular glyph can be retrieved with
-    /// the `subfont_index` method.
+    /// the [`subfont_index`](Self::subfont_index) method.
     pub fn subfont_instance(
         &self,
         index: u32,
@@ -202,15 +202,15 @@ impl<'a> Scaler<'a> {
         })
     }
 
-    /// Evalutes a charstring for the given subfont instance, glyph identifier
-    /// and normalized variation coordinates.
+    /// Loads and scales an outline for the given subfont instance, glyph
+    /// identifier and normalized variation coordinates.
     ///
-    /// Before calling this method, use [`Scaler::subfont_index`] to retrieve
-    /// the subfont index for the desired glyph and then
-    /// [`Scaler::subfont_instance`] to create an instance of the subfont for
-    /// a particular size and location in variation space. Creating subfont
-    /// instances is not free, so this process is exposed in discrete steps
-    /// to allow for caching.
+    /// Before calling this method, use [`subfont_index`](Self::subfont_index)
+    /// to retrieve the subfont index for the desired glyph and then
+    /// [`subfont_instance`](Self::subfont_instance) to create an instance of
+    /// the subfont for a particular size and location in variation space.
+    /// Creating subfont instances is not free, so this process is exposed in
+    /// discrete steps to allow for caching.
     ///
     /// The result is emitted to the specified pen.
     pub fn outline(
