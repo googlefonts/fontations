@@ -510,7 +510,6 @@ where
                 .loca
                 .get_glyf(component.glyph, &self.scaler.glyf)?;
             self.load(&component_glyph, component.glyph, recurse_depth + 1)?;
-            // self.load(component.glyph, recurse_depth + 1)?;
             let end_point = self.point_count;
             if !component
                 .flags
