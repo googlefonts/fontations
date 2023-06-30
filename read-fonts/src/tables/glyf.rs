@@ -477,14 +477,46 @@ impl<'a> CompositeGlyph<'a> {
         }
     }
 
-    /// Returns the TrueType interpreter instructions.
-    pub fn instructions(&self) -> Option<&'a [u8]> {
-        ComponentIter {
+    /// Returns an iterator that yields the glyph identifier of each component
+    /// in the composite glyph.
+    pub fn component_glyphs(&self) -> impl Iterator<Item = GlyphId> + 'a + Clone {
+        ComponentGlyphIdIter {
             cur_flags: CompositeGlyphFlags::empty(),
             done: false,
             cursor: FontData::new(self.component_data()).cursor(),
         }
-        .instructions()
+    }
+
+    /// Returns the component count and TrueType interpreter instructions
+    /// in a single pass.
+    pub fn count_and_instructions(&self) -> (usize, Option<&'a [u8]>) {
+        let mut iter = ComponentGlyphIdIter {
+            cur_flags: CompositeGlyphFlags::empty(),
+            done: false,
+            cursor: FontData::new(self.component_data()).cursor(),
+        };
+        let mut count = 0;
+        while iter.by_ref().next().is_some() {
+            count += 1;
+        }
+        let instructions = if iter
+            .cur_flags
+            .contains(CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS)
+        {
+            iter.cursor
+                .read::<u16>()
+                .ok()
+                .map(|len| len as usize)
+                .and_then(|len| iter.cursor.read_array(len).ok())
+        } else {
+            None
+        };
+        (count, instructions)
+    }
+
+    /// Returns the TrueType interpreter instructions.
+    pub fn instructions(&self) -> Option<&'a [u8]> {
+        self.count_and_instructions().1
     }
 }
 
@@ -493,21 +525,6 @@ struct ComponentIter<'a> {
     cur_flags: CompositeGlyphFlags,
     done: bool,
     cursor: Cursor<'a>,
-}
-
-impl<'a> ComponentIter<'a> {
-    fn instructions(&mut self) -> Option<&'a [u8]> {
-        while self.by_ref().next().is_some() {}
-        if self
-            .cur_flags
-            .contains(CompositeGlyphFlags::WE_HAVE_INSTRUCTIONS)
-        {
-            let len = self.cursor.read::<u16>().ok()? as usize;
-            self.cursor.read_array(len).ok()
-        } else {
-            None
-        }
-    }
 }
 
 impl Iterator for ComponentIter<'_> {
@@ -561,6 +578,45 @@ impl Iterator for ComponentIter<'_> {
             anchor,
             transform,
         })
+    }
+}
+
+/// Iterator that only returns glyph identifiers for each component.
+///
+/// Significantly faster in cases where we're just processing the glyph
+/// tree, counting components or accessing instructions.
+#[derive(Clone)]
+struct ComponentGlyphIdIter<'a> {
+    cur_flags: CompositeGlyphFlags,
+    done: bool,
+    cursor: Cursor<'a>,
+}
+
+impl Iterator for ComponentGlyphIdIter<'_> {
+    type Item = GlyphId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.done {
+            return None;
+        }
+        let flags: CompositeGlyphFlags = self.cursor.read().ok()?;
+        self.cur_flags = flags;
+        let glyph = self.cursor.read::<GlyphId>().ok()?;
+        let args_are_words = flags.contains(CompositeGlyphFlags::ARG_1_AND_2_ARE_WORDS);
+        if args_are_words {
+            self.cursor.advance_by(4);
+        } else {
+            self.cursor.advance_by(2);
+        }
+        if flags.contains(CompositeGlyphFlags::WE_HAVE_A_SCALE) {
+            self.cursor.advance_by(2);
+        } else if flags.contains(CompositeGlyphFlags::WE_HAVE_AN_X_AND_Y_SCALE) {
+            self.cursor.advance_by(4);
+        } else if flags.contains(CompositeGlyphFlags::WE_HAVE_A_TWO_BY_TWO) {
+            self.cursor.advance_by(8);
+        }
+        self.done = !flags.contains(CompositeGlyphFlags::MORE_COMPONENTS);
+        Some(glyph)
     }
 }
 

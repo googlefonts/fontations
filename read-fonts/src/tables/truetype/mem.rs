@@ -4,10 +4,10 @@ use std::mem::{align_of, size_of};
 
 use types::{F26Dot6, Fixed, Point};
 
-use super::{super::glyf::PointFlags, OutlineInfo};
+use super::{super::glyf::PointFlags, ScalerGlyph};
 
-/// Buffers used during outline scaling.
-pub struct OutlineMemory<'a> {
+/// Buffers used during glyph scaling.
+pub struct ScalerMemory<'a> {
     pub unscaled: &'a mut [Point<i32>],
     pub scaled: &'a mut [Point<F26Dot6>],
     pub original_scaled: &'a mut [Point<F26Dot6>],
@@ -18,21 +18,21 @@ pub struct OutlineMemory<'a> {
     pub composite_deltas: &'a mut [Point<Fixed>],
 }
 
-impl<'a> OutlineMemory<'a> {
-    pub fn new(info: &OutlineInfo, buf: &'a mut [u8]) -> Option<Self> {
-        let (scaled, buf) = alloc_slice(buf, info.points)?;
-        let (unscaled, buf) = alloc_slice(buf, info.max_other_points)?;
+impl<'a> ScalerMemory<'a> {
+    pub(super) fn new(glyph: &ScalerGlyph, buf: &'a mut [u8]) -> Option<Self> {
+        let (scaled, buf) = alloc_slice(buf, glyph.points)?;
+        let (unscaled, buf) = alloc_slice(buf, glyph.max_other_points)?;
         // We only need original scaled points when hinting
-        let (original_scaled, buf) = if info.has_hinting {
-            alloc_slice(buf, info.max_other_points)?
+        let (original_scaled, buf) = if glyph.has_hinting {
+            alloc_slice(buf, glyph.max_other_points)?
         } else {
             (Default::default(), buf)
         };
         // Don't allocate any delta buffers if we don't have variations
-        let (deltas, iup_buffer, composite_deltas, buf) = if info.has_variations {
-            let (deltas, buf) = alloc_slice(buf, info.max_simple_points)?;
-            let (iup_buffer, buf) = alloc_slice(buf, info.max_simple_points)?;
-            let (composite_deltas, buf) = alloc_slice(buf, info.max_component_delta_stack)?;
+        let (deltas, iup_buffer, composite_deltas, buf) = if glyph.has_variations {
+            let (deltas, buf) = alloc_slice(buf, glyph.max_simple_points)?;
+            let (iup_buffer, buf) = alloc_slice(buf, glyph.max_simple_points)?;
+            let (composite_deltas, buf) = alloc_slice(buf, glyph.max_component_delta_stack)?;
             (deltas, iup_buffer, composite_deltas, buf)
         } else {
             (
@@ -42,8 +42,8 @@ impl<'a> OutlineMemory<'a> {
                 buf,
             )
         };
-        let (contours, buf) = alloc_slice(buf, info.contours)?;
-        let (flags, _) = alloc_slice(buf, info.points)?;
+        let (contours, buf) = alloc_slice(buf, glyph.contours)?;
+        let (flags, _) = alloc_slice(buf, glyph.points)?;
         Some(Self {
             unscaled,
             scaled,
@@ -142,7 +142,9 @@ mod tests {
 
     #[test]
     fn outline_memory() {
-        let outline_info = OutlineInfo {
+        let outline_info = ScalerGlyph {
+            glyph: None,
+            glyph_id: Default::default(),
             points: 10,
             contours: 4,
             max_simple_points: 4,
@@ -153,7 +155,7 @@ mod tests {
         };
         let required_size = outline_info.required_buffer_size();
         let mut buf = vec![0u8; required_size];
-        let memory = OutlineMemory::new(&outline_info, &mut buf).unwrap();
+        let memory = ScalerMemory::new(&outline_info, &mut buf).unwrap();
         assert_eq!(memory.scaled.len(), outline_info.points);
         assert_eq!(memory.unscaled.len(), outline_info.max_other_points);
         // We don't allocate this buffer when hinting is disabled
@@ -170,7 +172,9 @@ mod tests {
 
     #[test]
     fn fail_outline_memory() {
-        let outline_info = OutlineInfo {
+        let outline_info = ScalerGlyph {
+            glyph: None,
+            glyph_id: Default::default(),
             points: 10,
             contours: 4,
             max_simple_points: 4,
@@ -183,6 +187,6 @@ mod tests {
         // requirements. So subtract 5 to force a failure.
         let not_enough = outline_info.required_buffer_size() - 5;
         let mut buf = vec![0u8; not_enough];
-        assert!(OutlineMemory::new(&outline_info, &mut buf).is_none());
+        assert!(ScalerMemory::new(&outline_info, &mut buf).is_none());
     }
 }
