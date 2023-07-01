@@ -13,9 +13,14 @@ default = ["scale"]
 scale = []
 hinting = []
 
+[[bench]]
+name = "scale"
+harness = false
+
 [dependencies]
 read-fonts = { version = "0.6.0", path = "../read-fonts" }
 
 [dev-dependencies]
 font-test-data= { path = "../font-test-data" }
 read-fonts = { version = "0.6.0", path = "../read-fonts", features = ["scaler_test"] }
+criterion = "0.4"

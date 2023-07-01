@@ -12,3 +12,7 @@ members = [
 
 [workspace.metadata.release]
 allow-branch = ["main"]
+
+[profile.release]
+lto = true
+codegen-units = 1
