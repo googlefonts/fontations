@@ -24,7 +24,7 @@ fn scale(c: &mut Criterion) {
         c.bench_function(name, |b| {
             b.iter(|| {
                 for gid in 0..glyph_count {
-                    let _ = scaler.outline(GlyphId::new(gid), &mut NullPen {}).unwrap();
+                    let _ = scaler.outline(GlyphId::new(gid), &mut NullPen { i : 0.0 }).unwrap();
                 }
             })
         });
@@ -34,12 +34,17 @@ fn scale(c: &mut Criterion) {
 criterion_group!(benches, scale);
 criterion_main!(benches);
 
-struct NullPen {}
+struct NullPen { i : f32 }
 #[allow(unused_variables)]
 impl Pen for NullPen {
-    fn move_to(&mut self, x: f32, y: f32) {}
-    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {}
-    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {}
-    fn line_to(&mut self, x: f32, y: f32) {}
-    fn close(&mut self) {}
+    #[inline(never)]
+    fn move_to(&mut self, x: f32, y: f32) { self.i += x + y; }
+    #[inline(never)]
+    fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) { self.i += cx0 + cy0 + x + y; }
+    #[inline(never)]
+    fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) { self.i += cx0 + cy0 + cx1 + cy1 + x + y; }
+    #[inline(never)]
+    fn line_to(&mut self, x: f32, y: f32) { self.i += x + y; }
+    #[inline(never)]
+    fn close(&mut self) { self.i += 1.0; }
 }
