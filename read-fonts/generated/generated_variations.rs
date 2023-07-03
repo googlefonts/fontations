@@ -822,7 +822,7 @@ impl<'a> std::fmt::Debug for VariationRegionList<'a> {
 }
 
 /// The [VariationRegion](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct VariationRegion<'a> {
     /// Array of region axis coordinates records, in the order of axes
     /// given in the 'fvar' table.
@@ -891,7 +891,7 @@ impl<'a> SomeRecord<'a> for VariationRegion<'a> {
 }
 
 /// The [RegionAxisCoordinates](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct RegionAxisCoordinates {

@@ -408,7 +408,7 @@ impl<'a> FontRead<'a> for VariationRegionList {
 }
 
 /// The [VariationRegion](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct VariationRegion {
     /// Array of region axis coordinates records, in the order of axes
     /// given in the 'fvar' table.
@@ -458,7 +458,7 @@ impl FromObjRef<read_fonts::tables::variations::VariationRegion<'_>> for Variati
 }
 
 /// The [RegionAxisCoordinates](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq, Hash)]
 pub struct RegionAxisCoordinates {
     /// The region start coordinate value for the current axis.
     pub start_coord: F2Dot14,
