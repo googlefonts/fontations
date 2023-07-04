@@ -74,10 +74,9 @@ impl<const N: usize, T> OffsetMarker<T, N> {
         OffsetMarker { obj }
     }
 
-    //FIXME: maybe we get rid of this when we have From/Into impl'd?
     /// Set the contents of the marker, replacing any existing contents.
-    pub fn set(&mut self, obj: T) {
-        self.obj = obj;
+    pub fn set(&mut self, obj: impl Into<T>) {
+        self.obj = obj.into();
     }
 
     /// Convert into the inner type
@@ -93,8 +92,18 @@ impl<const N: usize, T> NullableOffsetMarker<T, N> {
     }
 
     /// Set the contents of the marker, replacing any existing contents.
-    pub fn set(&mut self, obj: impl Into<Option<T>>) {
-        self.obj = obj.into()
+    ///
+    /// The argument must be some value; to set the offest to null, use the
+    /// [`clear`] method.
+    ///
+    /// [`clear`]: Self::clear
+    pub fn set(&mut self, obj: impl Into<T>) {
+        self.obj = Some(obj.into())
+    }
+
+    /// Clear the contents of the marker.
+    pub fn clear(&mut self) {
+        self.obj = None;
     }
 
     /// Convert into the inner type
