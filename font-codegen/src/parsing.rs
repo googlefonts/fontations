@@ -266,7 +266,7 @@ pub(crate) struct SinceVersion {
 /// ```
 #[derive(Clone, Debug)]
 pub(crate) enum Count {
-    All(syn::token::Dot2),
+    All(syn::token::DotDot),
     SingleArg(CountArg),
     Complicated {
         args: Vec<CountArg>,
@@ -474,7 +474,7 @@ impl Parse for Items {
 fn get_parse_module_path(input: ParseStream) -> syn::Result<syn::Path> {
     let attrs = input.call(Attribute::parse_inner)?;
     match attrs.as_slice() {
-        [one] if one.path.is_ident("parse_module") => one.parse_args(),
+        [one] if one.path().is_ident("parse_module") => one.parse_args(),
         [one] => Err(logged_syn_error(one.span(), "unexpected attribute")),
         [_, two, ..] => Err(logged_syn_error(
             two.span(),
@@ -943,8 +943,11 @@ impl Parse for VariantAttrs {
             .map_err(|e| syn::Error::new(e.span(), format!("hmm: '{e}'")))?;
 
         for attr in attrs {
-            let ident = attr.path.get_ident().ok_or_else(|| {
-                syn::Error::new(attr.path.span(), "attr paths should be a single identifer")
+            let ident = attr.path().get_ident().ok_or_else(|| {
+                syn::Error::new(
+                    attr.path().span(),
+                    "attr paths should be a single identifer",
+                )
             })?;
             if ident == DOC {
                 this.docs.push(attr);
@@ -988,15 +991,18 @@ impl Parse for FieldAttrs {
             .map_err(|e| syn::Error::new(e.span(), format!("hmm: '{e}'")))?;
 
         for attr in attrs {
-            let ident = attr.path.get_ident().ok_or_else(|| {
-                syn::Error::new(attr.path.span(), "attr paths should be a single identifer")
+            let ident = attr.path().get_ident().ok_or_else(|| {
+                syn::Error::new(
+                    attr.path().span(),
+                    "attr paths should be a single identifer",
+                )
             })?;
             if ident == DOC {
                 this.docs.push(attr);
             } else if ident == NULLABLE {
-                this.nullable = Some(attr.path);
+                this.nullable = Some(attr.path().clone());
             } else if ident == SKIP_GETTER {
-                this.skip_getter = Some(attr.path);
+                this.skip_getter = Some(attr.path().clone());
             } else if ident == OFFSET_GETTER {
                 this.offset_getter = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == OFFSET_DATA {
@@ -1004,7 +1010,7 @@ impl Parse for FieldAttrs {
             } else if ident == OFFSET_ADJUSTMENT {
                 this.offset_adjustment = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == VERSION {
-                this.version = Some(attr.path);
+                this.version = Some(attr.path().clone());
             } else if ident == COUNT {
                 this.count = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == COMPILE {
@@ -1028,7 +1034,7 @@ impl Parse for FieldAttrs {
             } else if ident == TRAVERSE_WITH {
                 this.traverse_with = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == FORMAT {
-                this.format = Some(Attr::new(ident.clone(), parse_attr_eq_value(attr.tokens)?))
+                this.format = Some(Attr::new(ident.clone(), parse_attr_eq_value(&attr)?))
             } else {
                 return Err(logged_syn_error(
                     ident.span(),
@@ -1055,17 +1061,20 @@ impl Parse for TableAttrs {
             .map_err(|e| syn::Error::new(e.span(), format!("hmm: '{e}'")))?;
 
         for attr in attrs {
-            let ident = attr.path.get_ident().ok_or_else(|| {
-                syn::Error::new(attr.path.span(), "attr paths should be a single identifer")
+            let ident = attr.path().get_ident().ok_or_else(|| {
+                syn::Error::new(
+                    attr.path().span(),
+                    "attr paths should be a single identifer",
+                )
             })?;
             if ident == DOC {
                 this.docs.push(attr);
             } else if ident == SKIP_FROM_OBJ {
-                this.skip_from_obj = Some(attr.path);
+                this.skip_from_obj = Some(attr.path().clone());
             } else if ident == SKIP_FONT_WRITE {
-                this.skip_font_write = Some(attr.path);
+                this.skip_font_write = Some(attr.path().clone());
             } else if ident == SKIP_CONSTRUCTOR {
-                this.skip_constructor = Some(attr.path);
+                this.skip_constructor = Some(attr.path().clone());
             } else if ident == READ_ARGS {
                 this.read_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == GENERIC_OFFSET {
@@ -1073,7 +1082,7 @@ impl Parse for TableAttrs {
             } else if ident == CAPABILITIES {
                 this.capabilities = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == TAG {
-                let tag: syn::LitStr = parse_attr_eq_value(attr.tokens)?;
+                let tag: syn::LitStr = parse_attr_eq_value(&attr)?;
                 if let Err(e) = Tag::new_checked(tag.value().as_bytes()) {
                     return Err(logged_syn_error(tag.span(), format!("invalid tag: '{e}'")));
                 }
@@ -1098,13 +1107,16 @@ impl Parse for EnumVariantAttrs {
             .map_err(|e| syn::Error::new(e.span(), format!("hmm: '{e}'")))?;
 
         for attr in attrs {
-            let ident = attr.path.get_ident().ok_or_else(|| {
-                syn::Error::new(attr.path.span(), "attr paths should be a single identifer")
+            let ident = attr.path().get_ident().ok_or_else(|| {
+                syn::Error::new(
+                    attr.path().span(),
+                    "attr paths should be a single identifer",
+                )
             })?;
             if ident == DOC {
                 this.docs.push(attr);
             } else if ident == DEFAULT {
-                this.default = Some(attr.path);
+                this.default = Some(attr.path().clone());
             } else {
                 return Err(logged_syn_error(
                     ident.span(),
@@ -1718,8 +1730,7 @@ impl Capability {
     }
 }
 
-fn parse_attr_eq_value<T: Parse>(tokens: TokenStream) -> syn::Result<T> {
-    /// the tokens '= T' where 'T' is any `Parse`
+fn parse_attr_eq_value<T: Parse>(attr: &syn::Attribute) -> syn::Result<T> {
     struct EqualsThing<T>(T);
 
     impl<T: Parse> Parse for EqualsThing<T> {
@@ -1728,7 +1739,8 @@ fn parse_attr_eq_value<T: Parse>(tokens: TokenStream) -> syn::Result<T> {
             input.parse().map(EqualsThing)
         }
     }
-    syn::parse2::<EqualsThing<T>>(tokens).map(|t| t.0)
+    let tokens = attr.meta.require_name_value()?.value.to_token_stream();
+    syn::parse2::<T>(tokens).map_err(|err| syn::Error::new(attr.meta.span(), err.to_string()))
 }
 
 fn validate_ident(ident: &syn::Ident, expected: &[&str], error: &str) -> Result<(), syn::Error> {
@@ -1744,7 +1756,7 @@ fn get_optional_docs(input: ParseStream) -> Result<Vec<syn::Attribute>, syn::Err
         result.extend(Attribute::parse_outer(input)?);
     }
     for attr in &result {
-        if !attr.path.is_ident("doc") {
+        if !attr.path().is_ident("doc") {
             return Err(logged_syn_error(attr.span(), "expected doc comment"));
         }
     }
@@ -1793,6 +1805,7 @@ pub(crate) fn logged_syn_error<T: Display>(span: Span, message: T) -> syn::Error
 #[cfg(test)]
 mod tests {
     use quote::ToTokens;
+    use syn::parse_quote;
 
     use super::*;
 
@@ -1932,5 +1945,15 @@ mod tests {
         }";
 
         parse_format_group(s).unwrap();
+    }
+
+    #[test]
+    fn parse_tag_attr() {
+        let input: Table = parse_quote! {
+            #[tag = "hilo"]
+            table HiMom {}
+        };
+
+        assert_eq!(input.attrs.tag.unwrap().attr.value(), "hilo");
     }
 }

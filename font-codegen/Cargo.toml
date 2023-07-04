@@ -16,16 +16,16 @@ font-types = { version = "0.3.0", path = "../font-types" }
 rustfmt-wrapper = "0.2"
 regex = "1.5"
 miette = { version =  "5.0", features = ["fancy"] }
-syn =  { version = "1.0", features = ["parsing",  "extra-traits", "full"] }
+syn =  { version = "2.0", features = ["parsing",  "extra-traits", "full"] }
 proc-macro2 =  { version = "1.0", features = ["span-locations"]}
 quote = "1.0"
-toml = "0.5"
+toml = "0.7.5"
 serde = {version = "1.0", features = ["derive"] }
 xflags = "0.2.4"
 log = "0.4"
 env_logger = "0.10.0"
 rayon = "1.5.3"
-indexmap = "1.9.1"
+indexmap = "2.0"
 
 # cargo-release settings
 [package.metadata.release]
