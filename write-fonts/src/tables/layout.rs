@@ -596,6 +596,13 @@ impl Device {
     }
 }
 
+impl DeviceOrVariationIndex {
+    /// Create a new [`Device`] subtable
+    pub fn device(start_size: u16, end_size: u16, values: &[i8]) -> Self {
+        DeviceOrVariationIndex::Device(Device::new(start_size, end_size, values))
+    }
+}
+
 fn encode_delta(format: DeltaFormat, values: &[i8]) -> Vec<u16> {
     let (chunk_size, mask, bits) = match format {
         DeltaFormat::Local2BitDeltas => (8, 0b11, 2),
