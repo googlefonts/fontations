@@ -258,6 +258,18 @@ impl<'a> FontRead<'a> for SingleSubst {
     }
 }
 
+impl From<SingleSubstFormat1> for SingleSubst {
+    fn from(src: SingleSubstFormat1) -> SingleSubst {
+        SingleSubst::Format1(src)
+    }
+}
+
+impl From<SingleSubstFormat2> for SingleSubst {
+    fn from(src: SingleSubstFormat2) -> SingleSubst {
+        SingleSubst::Format2(src)
+    }
+}
+
 /// [Single Substitution Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#11-single-substitution-format-1)
 #[derive(Clone, Debug, Default)]
 pub struct SingleSubstFormat1 {

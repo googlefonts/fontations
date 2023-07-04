@@ -205,6 +205,24 @@ impl<'a> FontRead<'a> for FdSelect {
     }
 }
 
+impl From<FdSelectFormat0> for FdSelect {
+    fn from(src: FdSelectFormat0) -> FdSelect {
+        FdSelect::Format0(src)
+    }
+}
+
+impl From<FdSelectFormat3> for FdSelect {
+    fn from(src: FdSelectFormat3) -> FdSelect {
+        FdSelect::Format3(src)
+    }
+}
+
+impl From<FdSelectFormat4> for FdSelect {
+    fn from(src: FdSelectFormat4) -> FdSelect {
+        FdSelect::Format4(src)
+    }
+}
+
 /// FdSelect format 0.
 #[derive(Clone, Debug, Default)]
 pub struct FdSelectFormat0 {

@@ -316,6 +316,30 @@ impl<'a> FontRead<'a> for AxisValue {
     }
 }
 
+impl From<AxisValueFormat1> for AxisValue {
+    fn from(src: AxisValueFormat1) -> AxisValue {
+        AxisValue::Format1(src)
+    }
+}
+
+impl From<AxisValueFormat2> for AxisValue {
+    fn from(src: AxisValueFormat2) -> AxisValue {
+        AxisValue::Format2(src)
+    }
+}
+
+impl From<AxisValueFormat3> for AxisValue {
+    fn from(src: AxisValueFormat3) -> AxisValue {
+        AxisValue::Format3(src)
+    }
+}
+
+impl From<AxisValueFormat4> for AxisValue {
+    fn from(src: AxisValueFormat4) -> AxisValue {
+        AxisValue::Format4(src)
+    }
+}
+
 /// [Axis value table format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-table-format-1)
 #[derive(Clone, Debug, Default)]
 pub struct AxisValueFormat1 {

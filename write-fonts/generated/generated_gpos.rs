@@ -290,6 +290,24 @@ impl<'a> FontRead<'a> for AnchorTable {
     }
 }
 
+impl From<AnchorFormat1> for AnchorTable {
+    fn from(src: AnchorFormat1) -> AnchorTable {
+        AnchorTable::Format1(src)
+    }
+}
+
+impl From<AnchorFormat2> for AnchorTable {
+    fn from(src: AnchorFormat2) -> AnchorTable {
+        AnchorTable::Format2(src)
+    }
+}
+
+impl From<AnchorFormat3> for AnchorTable {
+    fn from(src: AnchorFormat3) -> AnchorTable {
+        AnchorTable::Format3(src)
+    }
+}
+
 /// [Anchor Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#anchor-table-format-1-design-units): Design Units
 #[derive(Clone, Debug, Default)]
 pub struct AnchorFormat1 {
@@ -655,6 +673,18 @@ impl<'a> FontRead<'a> for SinglePos {
     }
 }
 
+impl From<SinglePosFormat1> for SinglePos {
+    fn from(src: SinglePosFormat1) -> SinglePos {
+        SinglePos::Format1(src)
+    }
+}
+
+impl From<SinglePosFormat2> for SinglePos {
+    fn from(src: SinglePosFormat2) -> SinglePos {
+        SinglePos::Format2(src)
+    }
+}
+
 /// [Single Adjustment Positioning Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#single-adjustment-positioning-format-1-single-positioning-value): Single Positioning Value
 #[derive(Clone, Debug, Default)]
 pub struct SinglePosFormat1 {
@@ -863,6 +893,18 @@ impl FromTableRef<read_fonts::tables::gpos::PairPos<'_>> for PairPos {}
 impl<'a> FontRead<'a> for PairPos {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::gpos::PairPos as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+impl From<PairPosFormat1> for PairPos {
+    fn from(src: PairPosFormat1) -> PairPos {
+        PairPos::Format1(src)
+    }
+}
+
+impl From<PairPosFormat2> for PairPos {
+    fn from(src: PairPosFormat2) -> PairPos {
+        PairPos::Format2(src)
     }
 }
 
