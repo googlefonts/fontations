@@ -332,6 +332,18 @@ impl<'a> FontRead<'a> for DeltaSetIndexMap {
     }
 }
 
+impl From<DeltaSetIndexMapFormat0> for DeltaSetIndexMap {
+    fn from(src: DeltaSetIndexMapFormat0) -> DeltaSetIndexMap {
+        DeltaSetIndexMap::Format0(src)
+    }
+}
+
+impl From<DeltaSetIndexMapFormat1> for DeltaSetIndexMap {
+    fn from(src: DeltaSetIndexMapFormat1) -> DeltaSetIndexMap {
+        DeltaSetIndexMap::Format1(src)
+    }
+}
+
 impl FontWrite for EntryFormat {
     fn write_into(&self, writer: &mut TableWriter) {
         writer.write_slice(&self.bits().to_be_bytes())

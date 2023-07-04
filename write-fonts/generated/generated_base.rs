@@ -728,6 +728,24 @@ impl<'a> FontRead<'a> for BaseCoord {
     }
 }
 
+impl From<BaseCoordFormat1> for BaseCoord {
+    fn from(src: BaseCoordFormat1) -> BaseCoord {
+        BaseCoord::Format1(src)
+    }
+}
+
+impl From<BaseCoordFormat2> for BaseCoord {
+    fn from(src: BaseCoordFormat2) -> BaseCoord {
+        BaseCoord::Format2(src)
+    }
+}
+
+impl From<BaseCoordFormat3> for BaseCoord {
+    fn from(src: BaseCoordFormat3) -> BaseCoord {
+        BaseCoord::Format3(src)
+    }
+}
+
 /// [BaseCoordFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-1)
 #[derive(Clone, Debug, Default)]
 pub struct BaseCoordFormat1 {

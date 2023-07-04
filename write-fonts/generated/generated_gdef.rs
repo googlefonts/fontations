@@ -446,6 +446,24 @@ impl<'a> FontRead<'a> for CaretValue {
     }
 }
 
+impl From<CaretValueFormat1> for CaretValue {
+    fn from(src: CaretValueFormat1) -> CaretValue {
+        CaretValue::Format1(src)
+    }
+}
+
+impl From<CaretValueFormat2> for CaretValue {
+    fn from(src: CaretValueFormat2) -> CaretValue {
+        CaretValue::Format2(src)
+    }
+}
+
+impl From<CaretValueFormat3> for CaretValue {
+    fn from(src: CaretValueFormat3) -> CaretValue {
+        CaretValue::Format3(src)
+    }
+}
+
 /// [CaretValue Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caretvalue-format-1)
 #[derive(Clone, Debug, Default)]
 pub struct CaretValueFormat1 {

@@ -820,6 +820,18 @@ impl<'a> FontRead<'a> for CoverageTable {
     }
 }
 
+impl From<CoverageFormat1> for CoverageTable {
+    fn from(src: CoverageFormat1) -> CoverageTable {
+        CoverageTable::Format1(src)
+    }
+}
+
+impl From<CoverageFormat2> for CoverageTable {
+    fn from(src: CoverageFormat2) -> CoverageTable {
+        CoverageTable::Format2(src)
+    }
+}
+
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
 #[derive(Clone, Debug, Default)]
 pub struct ClassDefFormat1 {
@@ -1059,6 +1071,18 @@ impl FromTableRef<read_fonts::tables::layout::ClassDef<'_>> for ClassDef {}
 impl<'a> FontRead<'a> for ClassDef {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ClassDef as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+impl From<ClassDefFormat1> for ClassDef {
+    fn from(src: ClassDefFormat1) -> ClassDef {
+        ClassDef::Format1(src)
+    }
+}
+
+impl From<ClassDefFormat2> for ClassDef {
+    fn from(src: ClassDefFormat2) -> ClassDef {
+        ClassDef::Format2(src)
     }
 }
 
@@ -1691,6 +1715,24 @@ impl<'a> FontRead<'a> for SequenceContext {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::SequenceContext as FontRead>::read(data)
             .map(|x| x.to_owned_table())
+    }
+}
+
+impl From<SequenceContextFormat1> for SequenceContext {
+    fn from(src: SequenceContextFormat1) -> SequenceContext {
+        SequenceContext::Format1(src)
+    }
+}
+
+impl From<SequenceContextFormat2> for SequenceContext {
+    fn from(src: SequenceContextFormat2) -> SequenceContext {
+        SequenceContext::Format2(src)
+    }
+}
+
+impl From<SequenceContextFormat3> for SequenceContext {
+    fn from(src: SequenceContextFormat3) -> SequenceContext {
+        SequenceContext::Format3(src)
     }
 }
 
@@ -2430,6 +2472,24 @@ impl<'a> FontRead<'a> for ChainedSequenceContext {
     }
 }
 
+impl From<ChainedSequenceContextFormat1> for ChainedSequenceContext {
+    fn from(src: ChainedSequenceContextFormat1) -> ChainedSequenceContext {
+        ChainedSequenceContext::Format1(src)
+    }
+}
+
+impl From<ChainedSequenceContextFormat2> for ChainedSequenceContext {
+    fn from(src: ChainedSequenceContextFormat2) -> ChainedSequenceContext {
+        ChainedSequenceContext::Format2(src)
+    }
+}
+
+impl From<ChainedSequenceContextFormat3> for ChainedSequenceContext {
+    fn from(src: ChainedSequenceContextFormat3) -> ChainedSequenceContext {
+        ChainedSequenceContext::Format3(src)
+    }
+}
+
 impl FontWrite for DeltaFormat {
     fn write_into(&self, writer: &mut TableWriter) {
         let val = *self as u16;
@@ -2609,6 +2669,18 @@ impl<'a> FontRead<'a> for DeviceOrVariationIndex {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::DeviceOrVariationIndex as FontRead>::read(data)
             .map(|x| x.to_owned_table())
+    }
+}
+
+impl From<Device> for DeviceOrVariationIndex {
+    fn from(src: Device) -> DeviceOrVariationIndex {
+        DeviceOrVariationIndex::Device(src)
+    }
+}
+
+impl From<VariationIndex> for DeviceOrVariationIndex {
+    fn from(src: VariationIndex) -> DeviceOrVariationIndex {
+        DeviceOrVariationIndex::VariationIndex(src)
     }
 }
 

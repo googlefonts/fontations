@@ -482,6 +482,16 @@ pub(crate) fn generate_format_compile(
         quote!( Self::#var_name(item) => item.table_type(), )
     });
 
+    let from_impls = item.variants.iter().map(|variant| {
+        let var_name = &variant.name;
+        let typ = variant.type_name();
+        quote!( impl From<#typ> for #name {
+            fn from(src: #typ) -> #name {
+                #name::#var_name(src)
+            }
+        } )
+    });
+
     let from_obj_impl = item
         .attrs
         .skip_from_obj
@@ -534,6 +544,8 @@ pub(crate) fn generate_format_compile(
         }
 
         #from_obj_impl
+
+        #( #from_impls )*
 
     })
 }

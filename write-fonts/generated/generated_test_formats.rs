@@ -216,3 +216,21 @@ impl<'a> FontRead<'a> for MyTable {
             .map(|x| x.to_owned_table())
     }
 }
+
+impl From<Table1> for MyTable {
+    fn from(src: Table1) -> MyTable {
+        MyTable::Format1(src)
+    }
+}
+
+impl From<Table2> for MyTable {
+    fn from(src: Table2) -> MyTable {
+        MyTable::MyFormat22(src)
+    }
+}
+
+impl From<Table3> for MyTable {
+    fn from(src: Table3) -> MyTable {
+        MyTable::Format3(src)
+    }
+}

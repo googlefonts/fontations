@@ -335,6 +335,60 @@ impl<'a> FontRead<'a> for CmapSubtable {
     }
 }
 
+impl From<Cmap0> for CmapSubtable {
+    fn from(src: Cmap0) -> CmapSubtable {
+        CmapSubtable::Format0(src)
+    }
+}
+
+impl From<Cmap2> for CmapSubtable {
+    fn from(src: Cmap2) -> CmapSubtable {
+        CmapSubtable::Format2(src)
+    }
+}
+
+impl From<Cmap4> for CmapSubtable {
+    fn from(src: Cmap4) -> CmapSubtable {
+        CmapSubtable::Format4(src)
+    }
+}
+
+impl From<Cmap6> for CmapSubtable {
+    fn from(src: Cmap6) -> CmapSubtable {
+        CmapSubtable::Format6(src)
+    }
+}
+
+impl From<Cmap8> for CmapSubtable {
+    fn from(src: Cmap8) -> CmapSubtable {
+        CmapSubtable::Format8(src)
+    }
+}
+
+impl From<Cmap10> for CmapSubtable {
+    fn from(src: Cmap10) -> CmapSubtable {
+        CmapSubtable::Format10(src)
+    }
+}
+
+impl From<Cmap12> for CmapSubtable {
+    fn from(src: Cmap12) -> CmapSubtable {
+        CmapSubtable::Format12(src)
+    }
+}
+
+impl From<Cmap13> for CmapSubtable {
+    fn from(src: Cmap13) -> CmapSubtable {
+        CmapSubtable::Format13(src)
+    }
+}
+
+impl From<Cmap14> for CmapSubtable {
+    fn from(src: Cmap14) -> CmapSubtable {
+        CmapSubtable::Format14(src)
+    }
+}
+
 /// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
 #[derive(Clone, Debug, Default)]
 pub struct Cmap0 {
