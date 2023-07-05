@@ -10,7 +10,7 @@ mod outline;
 mod scale;
 
 pub use mem::ScalerMemory;
-pub use outline::{HintOutline, ScalerGlyph, ScalerOutline};
+pub use outline::{HinterOutline, ScalerGlyph, ScalerOutline};
 pub use scale::Scaler;
 
 /// Recursion limit for processing composite outlines.
