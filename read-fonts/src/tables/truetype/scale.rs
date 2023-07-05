@@ -1,7 +1,7 @@
 //! Scaler for TrueType outlines.
 
 use super::{
-    deltas, Error, HintOutline, ScalerGlyph, ScalerMemory, ScalerOutline,
+    deltas, Error, HinterOutline, ScalerGlyph, ScalerMemory, ScalerOutline,
     COMPOSITE_RECURSION_LIMIT, PHANTOM_POINT_COUNT,
 };
 use crate::{
@@ -84,7 +84,7 @@ impl<'a> Scaler<'a> {
         info: &ScalerGlyph,
         size: f32,
         coords: &'a [F2Dot14],
-        hint_fn: impl FnMut(HintOutline) -> bool,
+        hint_fn: impl FnMut(HinterOutline) -> bool,
     ) -> Result<ScalerOutline<'a>, Error> {
         ScalerInstance::new(self.clone(), memory, size, coords, hint_fn, false)
             .outline(&info.glyph, info.glyph_id)
@@ -212,7 +212,7 @@ struct ScalerInstance<'a, H> {
 
 impl<'a, H> ScalerInstance<'a, H>
 where
-    H: FnMut(HintOutline) -> bool,
+    H: FnMut(HinterOutline) -> bool,
 {
     fn new(
         scaler: Scaler<'a>,
@@ -435,7 +435,7 @@ where
                 point.x = point.x.round();
                 point.y = point.y.round();
             }
-            if !(self.hint_fn)(HintOutline {
+            if !(self.hint_fn)(HinterOutline {
                 unscaled,
                 scaled,
                 original_scaled,
@@ -444,6 +444,7 @@ where
                 bytecode: ins,
                 phantom: &mut self.phantom,
                 is_composite: false,
+                coords: self.coords,
             }) {
                 return Err(Error::HintingFailed(glyph_id));
             }
@@ -686,7 +687,7 @@ where
                         *contour -= delta;
                     }
                 }
-                if !(self.hint_fn)(HintOutline {
+                if !(self.hint_fn)(HinterOutline {
                     unscaled,
                     scaled,
                     original_scaled,
@@ -695,6 +696,7 @@ where
                     bytecode: ins,
                     phantom: &mut self.phantom,
                     is_composite: true,
+                    coords: self.coords,
                 }) {
                     return Err(Error::HintingFailed(glyph_id));
                 }
