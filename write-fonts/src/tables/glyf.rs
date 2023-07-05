@@ -484,6 +484,36 @@ impl<'a> FromObjRef<read::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {
 
 impl<'a> FromTableRef<read::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {}
 
+impl<'a> FromObjRef<read::tables::glyf::CompositeGlyph<'a>> for CompositeGlyph {
+    fn from_obj_ref(from: &read::tables::glyf::CompositeGlyph, _data: read::FontData) -> Self {
+        let bbox = Bbox {
+            x_min: from.x_min(),
+            y_min: from.y_min(),
+            x_max: from.x_max(),
+            y_max: from.y_max(),
+        };
+        let components = from
+            .components()
+            .map(|c| Component {
+                glyph: c.glyph,
+                anchor: c.anchor,
+                flags: c.flags.into(),
+                transform: c.transform,
+            })
+            .collect();
+        Self {
+            bbox,
+            components,
+            _instructions: from
+                .instructions()
+                .map(|v| v.to_owned())
+                .unwrap_or_default(),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read::tables::glyf::CompositeGlyph<'a>> for CompositeGlyph {}
+
 /// A little helper for managing how we're representing a given delta
 #[derive(Clone, Copy, Debug)]
 enum CoordDelta {
