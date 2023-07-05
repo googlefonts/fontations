@@ -1,6 +1,6 @@
 [package]
 name = "write-fonts"
-version = "0.9.0"
+version = "0.10.0"
 edition = "2021"
 license = "MIT/Apache-2.0"
 description = "Writing font files."
@@ -12,7 +12,7 @@ categories = ["text-processing", "parsing", "graphics"]
 default = ["dot2"]
 
 [dependencies]
-font-types = { version = "0.3.1", path = "../font-types" }
+font-types = { version = "0.3.2", path = "../font-types" }
 read-fonts = { version = "0.7.0", path = "../read-fonts" }
 log = "0.4"
 kurbo = "0.9.4"
