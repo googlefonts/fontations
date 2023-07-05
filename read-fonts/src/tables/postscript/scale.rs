@@ -145,8 +145,8 @@ impl<'a> Scaler<'a> {
     ///
     /// Before calling this method, use [`subfont_index`](Self::subfont_index)
     /// to retrieve the subfont index for the desired glyph and then
-    /// [`subfont_instance`](Self::subfont_instance) to create an instance of
-    /// the subfont for a particular size and location in variation space.
+    /// [`subfont`](Self::subfont) to create an instance of the subfont for a
+    /// particular size and location in variation space.
     /// Creating subfont instances is not free, so this process is exposed in
     /// discrete steps to allow for caching.
     ///
