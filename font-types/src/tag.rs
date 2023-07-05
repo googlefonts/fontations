@@ -311,6 +311,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn display() {
         let bad_tag = Tag::new(&[0x19, b'z', b'@', 0x7F]);
         assert_eq!(bad_tag.to_string(), "{0x19}z@{0x7F}");
