@@ -16,7 +16,7 @@ include!("../../generated/generated_postscript.rs");
 
 pub use blend::BlendState;
 pub use index::Index;
-pub use scale::{Scaler, SubfontInstance};
+pub use scale::{Scaler, ScalerSubfont};
 pub use stack::{Number, Stack};
 pub use string::{Latin1String, StringId, STANDARD_STRINGS};
 

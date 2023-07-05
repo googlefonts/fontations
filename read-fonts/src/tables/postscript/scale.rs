@@ -15,7 +15,7 @@ use crate::{
 /// State for reading and scaling glyph outlines from CFF/CFF2 tables.
 pub struct Scaler<'a> {
     version: Version<'a>,
-    top_dict: TopDict<'a>,
+    top_dict: ScalerTopDict<'a>,
     units_per_em: u16,
 }
 
@@ -44,7 +44,7 @@ impl<'a> Scaler<'a> {
         units_per_em: u16,
     ) -> Result<Self, Error> {
         let top_dict_data = cff1.top_dicts().get(top_dict_index)?;
-        let top_dict = TopDict::new(cff1.offset_data().as_bytes(), top_dict_data, false)?;
+        let top_dict = ScalerTopDict::new(cff1.offset_data().as_bytes(), top_dict_data, false)?;
         Ok(Self {
             version: Version::Version1(cff1),
             top_dict,
@@ -54,7 +54,7 @@ impl<'a> Scaler<'a> {
 
     pub fn from_cff2(cff2: Cff2<'a>, units_per_em: u16) -> Result<Self, Error> {
         let table_data = cff2.offset_data().as_bytes();
-        let top_dict = TopDict::new(table_data, cff2.top_dict_data(), true)?;
+        let top_dict = ScalerTopDict::new(table_data, cff2.top_dict_data(), true)?;
         Ok(Self {
             version: Version::Version2(cff2),
             top_dict,
@@ -64,68 +64,6 @@ impl<'a> Scaler<'a> {
 
     pub fn is_cff2(&self) -> bool {
         matches!(self.version, Version::Version2(_))
-    }
-
-    /// Returns the charstrings index.
-    ///
-    /// Contains the charstrings of all the glyphs in a font stored in an
-    /// INDEX structure. Charstring objects contained within this INDEX
-    /// are accessed by GID.
-    ///
-    /// See "CharStrings INDEX" at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=23>
-    pub fn charstrings(&self) -> &Option<Index<'a>> {
-        &self.top_dict.charstrings
-    }
-
-    /// Returns the font dict index.
-    ///
-    /// A Font DICT is used for hinting, variation or subroutine (subr) data
-    /// used by CharStrings.
-    ///
-    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#10-font-dict-index-font-dicts-and-fdselect>
-    pub fn font_dicts(&self) -> &Option<Index<'a>> {
-        &self.top_dict.font_dicts
-    }
-
-    /// Returns the fd select table.
-    ///
-    /// The FDSelect associates an FD (Font DICT) with a glyph by specifying an
-    /// FD index for that glyph. The FD index is used to access of of the Font
-    /// DICTS stored in the Font DICT INDEX.
-    ///
-    /// See "FDSelect" at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=28>
-    pub fn fd_select(&self) -> &Option<FdSelect<'a>> {
-        &self.top_dict.fd_select
-    }
-
-    /// Returns the data for the default Private DICT.
-    ///
-    /// See "Private DICT Data" at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=23>
-    pub fn default_private_dict_data(&self) -> Option<&'a [u8]> {
-        self.offset_data()
-            .as_bytes()
-            .get(self.top_dict.private_dict_range.clone()?)
-    }
-
-    /// Returns the global subroutine index.
-    ///
-    /// This contains sub-programs that are referenced by one or more
-    /// charstrings in the font set.
-    ///
-    /// See "Local/Global Subrs INDEXes" at <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=25>
-    pub fn global_subrs(&self) -> Index<'a> {
-        match &self.version {
-            Version::Version1(cff1) => cff1.global_subrs().into(),
-            Version::Version2(cff2) => cff2.global_subrs().into(),
-        }
-    }
-
-    /// Returns the item variation store that is used for applying variations
-    /// during dict and charstring evaluation.
-    ///
-    /// This is only present in CFF2 tables in variable fonts.
-    pub fn var_store(&self) -> &Option<ItemVariationStore<'a>> {
-        &self.top_dict.var_store
     }
 
     /// Returns the number of available subfonts.
@@ -150,18 +88,18 @@ impl<'a> Scaler<'a> {
             .unwrap_or(0) as u32
     }
 
-    /// Creates a new subfont instance for the given index, size, normalized
+    /// Creates a new subfont for the given index, size, normalized
     /// variation coordinates and hinting state.
     ///
     /// The index of a subfont for a particular glyph can be retrieved with
     /// the [`subfont_index`](Self::subfont_index) method.
-    pub fn subfont_instance(
+    pub fn subfont(
         &self,
         index: u32,
         size: f32,
         coords: &[F2Dot14],
         with_hinting: bool,
-    ) -> Result<SubfontInstance, Error> {
+    ) -> Result<ScalerSubfont, Error> {
         let private_dict_range = self.private_dict_range(index)?;
         let private_dict_data = self.offset_data().read_array(private_dict_range.clone())?;
         let mut hint_params = HintParams::default();
@@ -192,7 +130,7 @@ impl<'a> Scaler<'a> {
         }
         // TODO: convert hint params to zones if hinting is requested
         let _ = with_hinting;
-        Ok(SubfontInstance {
+        Ok(ScalerSubfont {
             is_cff2: self.is_cff2(),
             index,
             size,
@@ -215,14 +153,15 @@ impl<'a> Scaler<'a> {
     /// The result is emitted to the specified pen.
     pub fn outline(
         &self,
-        subfont: &SubfontInstance,
+        subfont: &ScalerSubfont,
         glyph_id: GlyphId,
         coords: &[F2Dot14],
         pen: &mut impl Pen,
     ) -> Result<(), Error> {
         use super::charstring;
         let charstring_data = self
-            .charstrings()
+            .top_dict
+            .charstrings
             .as_ref()
             .ok_or(Error::MissingCharstrings)?
             .get(glyph_id.to_u16() as usize)?;
@@ -259,6 +198,13 @@ impl<'a> Scaler<'a> {
         }
     }
 
+    fn global_subrs(&self) -> Index<'a> {
+        match &self.version {
+            Version::Version1(cff1) => cff1.global_subrs().into(),
+            Version::Version2(cff2) => cff2.global_subrs().into(),
+        }
+    }
+
     fn private_dict_range(&self, subfont_index: u32) -> Result<Range<usize>, Error> {
         if let Some(font_dicts) = &self.top_dict.font_dicts {
             // If we have a font dict index, use that
@@ -292,7 +238,7 @@ enum Version<'a> {
 ///
 /// For variable fonts, this is dependent on a location in variation space.
 #[derive(Clone)]
-pub struct SubfontInstance {
+pub struct ScalerSubfont {
     is_cff2: bool,
     index: u32,
     size: f32,
@@ -304,7 +250,7 @@ pub struct SubfontInstance {
     store_index: u16,
 }
 
-impl SubfontInstance {
+impl ScalerSubfont {
     pub fn index(&self) -> u32 {
         self.index
     }
@@ -331,7 +277,7 @@ impl SubfontInstance {
         scaler: &Scaler<'a>,
         coords: &'a [F2Dot14],
     ) -> Result<Option<BlendState<'a>>, Error> {
-        if let Some(var_store) = scaler.var_store().clone() {
+        if let Some(var_store) = scaler.top_dict.var_store.clone() {
             Ok(Some(BlendState::new(var_store, coords, self.store_index)?))
         } else {
             Ok(None)
@@ -369,10 +315,10 @@ impl Default for HintParams {
     }
 }
 
-/// Entries that we parse from the Top DICT to support charstring
-/// evaluation.
+/// Entries that we parse from the Top DICT that are required to support
+/// charstring evaluation.
 #[derive(Default)]
-struct TopDict<'a> {
+struct ScalerTopDict<'a> {
     charstrings: Option<Index<'a>>,
     font_dicts: Option<Index<'a>>,
     fd_select: Option<FdSelect<'a>>,
@@ -380,9 +326,9 @@ struct TopDict<'a> {
     var_store: Option<ItemVariationStore<'a>>,
 }
 
-impl<'a> TopDict<'a> {
+impl<'a> ScalerTopDict<'a> {
     fn new(table_data: &'a [u8], top_dict_data: &'a [u8], is_cff2: bool) -> Result<Self, Error> {
-        let mut items = TopDict::default();
+        let mut items = ScalerTopDict::default();
         for entry in dict::entries(top_dict_data, None) {
             match entry? {
                 dict::Entry::CharstringsOffset(offset) => {
@@ -436,16 +382,14 @@ mod tests {
         let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
         let cff = Scaler::new(&font).unwrap();
         assert!(!cff.is_cff2());
-        assert!(cff.var_store().is_none());
-        assert!(!cff.font_dicts().is_some());
-        assert!(cff.default_private_dict_data().is_some());
-        assert!(cff.fd_select().is_none());
+        assert!(cff.top_dict.var_store.is_none());
+        assert!(cff.top_dict.font_dicts.is_none());
+        assert!(cff.top_dict.private_dict_range.is_some());
+        assert!(cff.top_dict.fd_select.is_none());
         assert_eq!(cff.subfont_count(), 1);
         assert_eq!(cff.subfont_index(GlyphId::new(1)), 0);
         assert_eq!(cff.global_subrs().count(), 17);
-        let subfont = cff
-            .subfont_instance(0, 0.0, Default::default(), false)
-            .unwrap();
+        let subfont = cff.subfont(0, 0.0, Default::default(), false).unwrap();
         let hinting_params = subfont.hint_params;
         check_blues(
             &hinting_params.blues,
@@ -468,16 +412,14 @@ mod tests {
         let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
         let cff = Scaler::new(&font).unwrap();
         assert!(cff.is_cff2());
-        assert!(cff.var_store().is_some());
-        assert!(cff.font_dicts().is_some());
-        assert!(cff.default_private_dict_data().is_none());
-        assert!(cff.fd_select().is_none());
+        assert!(cff.top_dict.var_store.is_some());
+        assert!(cff.top_dict.font_dicts.is_some());
+        assert!(cff.top_dict.private_dict_range.is_none());
+        assert!(cff.top_dict.fd_select.is_none());
         assert_eq!(cff.subfont_count(), 1);
         assert_eq!(cff.subfont_index(GlyphId::new(1)), 0);
         assert_eq!(cff.global_subrs().count(), 0);
-        let subfont = cff
-            .subfont_instance(0, 0.0, Default::default(), false)
-            .unwrap();
+        let subfont = cff.subfont(0, 0.0, Default::default(), false).unwrap();
         let hinting_params = subfont.hint_params;
         check_blues(
             &hinting_params.blues,
@@ -497,10 +439,10 @@ mod tests {
         )
         .unwrap();
         assert!(cff.is_cff2());
-        assert!(cff.var_store().is_some());
-        assert!(cff.font_dicts().is_some());
-        assert!(cff.default_private_dict_data().is_none());
-        assert!(cff.fd_select().is_none());
+        assert!(cff.top_dict.var_store.is_some());
+        assert!(cff.top_dict.font_dicts.is_some());
+        assert!(cff.top_dict.private_dict_range.is_none());
+        assert!(cff.top_dict.fd_select.is_none());
         assert_eq!(cff.subfont_count(), 1);
         assert_eq!(cff.subfont_index(GlyphId::new(1)), 0);
         assert_eq!(cff.global_subrs().count(), 0);
@@ -536,7 +478,7 @@ mod tests {
             }
             path.elements.clear();
             let subfont = scaler
-                .subfont_instance(
+                .subfont(
                     scaler.subfont_index(expected_outline.glyph_id),
                     expected_outline.size,
                     &expected_outline.coords,
