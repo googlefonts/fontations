@@ -12,7 +12,40 @@ use crate::{
     FontData, FontRead, TableProvider,
 };
 
-/// State for reading and scaling glyph outlines from CFF/CFF2 tables.
+/// Type for loading, scaling and hinting outlines in CFF/CFF2 tables.
+///
+/// # Subfonts
+///
+/// CFF tables can contain multiple logical "subfonts" which determine the
+/// state required for processing some subset of glyphs. This state is
+/// accessed using the [`FDArray and FDSelect`](https://adobe-type-tools.github.io/font-tech-notes/pdfs/5176.CFF.pdf#page=28)
+/// operators to select an appropriate subfont for any given glyph identifier.
+/// This process is exposed on this type with the
+/// [`subfont_index`](Self::subfont_index) method to retrieve the subfont
+/// index for the requested glyph followed by using the
+/// [`subfont`](Self::subfont) method to create an appropriately configured
+/// subfont for that glyph.
+///
+/// # Example
+///
+/// ```
+/// # use read_fonts::{tables::postscript::*, types::*, FontRef};
+/// # fn example(font: FontRef, coords: &[F2Dot14], pen: &mut impl Pen) -> Result<(), Error> {
+/// let scaler = Scaler::new(&font)?;
+/// let glyph_id = GlyphId::new(24);
+/// // Retrieve the subfont index for the requested glyph.
+/// let subfont_index = scaler.subfont_index(glyph_id);
+/// // Construct a subfont with the given configuration.
+/// let size = 16.0;
+/// let coords = &[];
+/// let with_hinting = false;
+/// let subfont = scaler.subfont(subfont_index, size, coords, with_hinting)?;
+/// // Scale the outline using our configured subfont and emit the
+/// // result to the given pen.
+/// scaler.outline(&subfont, glyph_id, coords, pen)?;
+/// # Ok(())
+/// # }
+/// ```
 pub struct Scaler<'a> {
     version: Version<'a>,
     top_dict: ScalerTopDict<'a>,
