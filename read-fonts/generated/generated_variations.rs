@@ -1026,7 +1026,7 @@ impl<'a> ItemVariationStore<'a> {
     }
 
     /// A dynamically resolving wrapper for [`item_variation_data_offsets`][Self::item_variation_data_offsets].
-    pub fn item_variation_datas(
+    pub fn item_variation_data(
         &self,
     ) -> ArrayOfNullableOffsets<'a, ItemVariationData<'a>, Offset32> {
         let data = self.data;

@@ -527,18 +527,18 @@ pub struct ItemVariationStore {
     pub variation_region_list: OffsetMarker<VariationRegionList, WIDTH_32>,
     /// Offsets in bytes from the start of the item variation store to
     /// each item variation data subtable.
-    pub item_variation_datas: Vec<NullableOffsetMarker<ItemVariationData, WIDTH_32>>,
+    pub item_variation_data: Vec<NullableOffsetMarker<ItemVariationData, WIDTH_32>>,
 }
 
 impl ItemVariationStore {
     /// Construct a new `ItemVariationStore`
     pub fn new(
         variation_region_list: VariationRegionList,
-        item_variation_datas: Vec<Option<ItemVariationData>>,
+        item_variation_data: Vec<Option<ItemVariationData>>,
     ) -> Self {
         Self {
             variation_region_list: variation_region_list.into(),
-            item_variation_datas: item_variation_datas.into_iter().map(Into::into).collect(),
+            item_variation_data: item_variation_data.into_iter().map(Into::into).collect(),
         }
     }
 }
@@ -548,8 +548,8 @@ impl FontWrite for ItemVariationStore {
     fn write_into(&self, writer: &mut TableWriter) {
         (1 as u16).write_into(writer);
         self.variation_region_list.write_into(writer);
-        (array_len(&self.item_variation_datas).unwrap() as u16).write_into(writer);
-        self.item_variation_datas.write_into(writer);
+        (array_len(&self.item_variation_data).unwrap() as u16).write_into(writer);
+        self.item_variation_data.write_into(writer);
     }
     fn table_type(&self) -> TableType {
         TableType::Named("ItemVariationStore")
@@ -562,11 +562,11 @@ impl Validate for ItemVariationStore {
             ctx.in_field("variation_region_list", |ctx| {
                 self.variation_region_list.validate_impl(ctx);
             });
-            ctx.in_field("item_variation_datas", |ctx| {
-                if self.item_variation_datas.len() > (u16::MAX as usize) {
+            ctx.in_field("item_variation_data", |ctx| {
+                if self.item_variation_data.len() > (u16::MAX as usize) {
                     ctx.report("array exceeds max length");
                 }
-                self.item_variation_datas.validate_impl(ctx);
+                self.item_variation_data.validate_impl(ctx);
             });
         })
     }
@@ -579,7 +579,7 @@ impl<'a> FromObjRef<read_fonts::tables::variations::ItemVariationStore<'a>> for 
     ) -> Self {
         ItemVariationStore {
             variation_region_list: obj.variation_region_list().to_owned_table(),
-            item_variation_datas: obj.item_variation_datas().to_owned_table(),
+            item_variation_data: obj.item_variation_data().to_owned_table(),
         }
     }
 }
