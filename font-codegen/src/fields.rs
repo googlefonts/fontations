@@ -1374,8 +1374,13 @@ pub(crate) fn remove_offset_from_field_name(name: &str) -> Cow<str> {
         let temp = name.trim_end_matches("_offsets");
         // hacky attempt to respect pluralization rules. we can update this
         // as we encounter actual tables, instead of trying to be systematic
-        let plural_es = temp.ends_with("attach");
-        let suffix = if plural_es { "es" } else { "s" };
+        let suffix = if temp.ends_with("attach") {
+            "es"
+        } else if temp.ends_with("data") {
+            ""
+        } else {
+            "s"
+        };
         Cow::Owned(format!("{temp}{suffix}"))
     } else {
         Cow::Borrowed(name.trim_end_matches("_offset"))
