@@ -21,7 +21,7 @@ impl FontWrite for MyEnum2 {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MyRecord {
     pub my_enum1: MyEnum1,
     pub my_enum2: MyEnum2,

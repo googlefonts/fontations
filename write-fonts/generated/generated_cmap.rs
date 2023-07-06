@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 pub use read_fonts::tables::cmap::PlatformId;
 
 /// [cmap](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#overview)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Cmap {
     pub encoding_records: Vec<EncodingRecord>,
 }
@@ -69,7 +69,7 @@ impl<'a> FontRead<'a> for Cmap {
 }
 
 /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct EncodingRecord {
     /// Platform ID.
     pub platform_id: PlatformId,
@@ -130,7 +130,7 @@ impl FontWrite for PlatformId {
 }
 
 /// The different cmap subtable formats.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CmapSubtable {
     Format0(Cmap0),
     Format2(Cmap2),
@@ -390,7 +390,7 @@ impl From<Cmap14> for CmapSubtable {
 }
 
 /// [cmap Format 0](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-0-byte-encoding-table): Byte encoding table
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Cmap0 {
     /// For requirements on use of the language field, see “Use of
     /// the language field in 'cmap' subtables” in this document.
@@ -445,7 +445,7 @@ impl<'a> FontRead<'a> for Cmap0 {
 }
 
 /// [cmap Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-2-high-byte-mapping-through-table): High-byte mapping through table
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Cmap2 {
     /// This is the length in bytes of the subtable.
     pub length: u16,
@@ -505,7 +505,7 @@ impl<'a> FontRead<'a> for Cmap2 {
 }
 
 /// Part of [Cmap2]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SubHeader {
     /// First valid low byte for this SubHeader.
     pub first_code: u16,
@@ -557,7 +557,7 @@ impl FromObjRef<read_fonts::tables::cmap::SubHeader> for SubHeader {
 }
 
 /// [cmap Format 4](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values): Segment mapping to delta values
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Cmap4 {
     /// This is the length in bytes of the subtable.
     pub length: u16,
@@ -674,7 +674,7 @@ impl<'a> FontRead<'a> for Cmap4 {
 }
 
 /// [cmap Format 6](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-6-trimmed-table-mapping): Trimmed table mapping
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Cmap6 {
     /// This is the length in bytes of the subtable.
     pub length: u16,
@@ -757,7 +757,7 @@ impl<'a> FontRead<'a> for Cmap6 {
 }
 
 /// [cmap Format 8](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-8-mixed-16-bit-and-32-bit-coverage): mixed 16-bit and 32-bit coverage
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Cmap8 {
     /// Byte length of this subtable (including the header)
     pub length: u32,
@@ -844,7 +844,7 @@ impl<'a> FontRead<'a> for Cmap8 {
 }
 
 /// Used in [Cmap8] and [Cmap12]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SequentialMapGroup {
     /// First character code in this group; note that if this group is
     /// for one or more 16-bit character codes (which is determined
@@ -895,7 +895,7 @@ impl FromObjRef<read_fonts::tables::cmap::SequentialMapGroup> for SequentialMapG
 }
 
 /// [cmap Format 10](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-10-trimmed-array): Tr
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Cmap10 {
     /// Byte length of this subtable (including the header)
     pub length: u32,
@@ -971,7 +971,7 @@ impl<'a> FontRead<'a> for Cmap10 {
 }
 
 /// [cmap Format 12](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage): Segmented coverage
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Cmap12 {
     /// Byte length of this subtable (including the header)
     pub length: u32,
@@ -1050,7 +1050,7 @@ impl<'a> FontRead<'a> for Cmap12 {
 }
 
 /// [cmap Format 13](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-13-many-to-one-range-mappings): Many-to-one range mappings
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Cmap13 {
     /// Byte length of this subtable (including the header)
     pub length: u32,
@@ -1124,7 +1124,7 @@ impl<'a> FontRead<'a> for Cmap13 {
 }
 
 /// Part of [Cmap13]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ConstantMapGroup {
     /// First character code in this group
     pub start_char_code: u32,
@@ -1172,7 +1172,7 @@ impl FromObjRef<read_fonts::tables::cmap::ConstantMapGroup> for ConstantMapGroup
 }
 
 /// [cmap Format 14](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#format-14-unicode-variation-sequences): Unicode Variation Sequences
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Cmap14 {
     /// Byte length of this subtable (including this header)
     pub length: u32,
@@ -1243,7 +1243,7 @@ impl<'a> FontRead<'a> for Cmap14 {
 }
 
 /// Part of [Cmap14]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VariationSelector {
     /// Variation selector
     pub var_selector: Uint24,
@@ -1308,7 +1308,7 @@ impl FromObjRef<read_fonts::tables::cmap::VariationSelector> for VariationSelect
 }
 
 /// [Default UVS table](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#default-uvs-table)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DefaultUvs {
     /// Number of Unicode character ranges.
     pub num_unicode_value_ranges: u32,
@@ -1368,7 +1368,7 @@ impl<'a> FontRead<'a> for DefaultUvs {
 }
 
 /// [Non-Default UVS table](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#non-default-uvs-table)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NonDefaultUvs {
     pub num_uvs_mappings: u32,
     pub uvs_mapping: Vec<UvsMapping>,
@@ -1427,7 +1427,7 @@ impl<'a> FontRead<'a> for NonDefaultUvs {
 }
 
 /// Part of [Cmap14]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UvsMapping {
     /// Base Unicode value of the UVS
     pub unicode_value: Uint24,
@@ -1469,7 +1469,7 @@ impl FromObjRef<read_fonts::tables::cmap::UvsMapping> for UvsMapping {
 }
 
 /// Part of [Cmap14]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct UnicodeRange {
     /// First value in this range
     pub start_unicode_value: Uint24,

@@ -6,7 +6,7 @@
 use crate::codegen_prelude::*;
 
 /// [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table header
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Cff2Header {
     /// Header size (bytes).
     pub header_size: u8,

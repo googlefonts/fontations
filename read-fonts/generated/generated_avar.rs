@@ -104,7 +104,7 @@ impl<'a> std::fmt::Debug for Avar<'a> {
 }
 
 /// [SegmentMaps](https://learn.microsoft.com/en-us/typography/opentype/spec/avar#table-formats) record
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SegmentMaps<'a> {
     /// The number of correspondence pairs for this axis.
     pub position_map_count: BigEndian<u16>,
@@ -147,7 +147,7 @@ impl<'a> SomeRecord<'a> for SegmentMaps<'a> {
 }
 
 /// [AxisValueMap](https://learn.microsoft.com/en-us/typography/opentype/spec/avar#table-formats) record
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct AxisValueMap {

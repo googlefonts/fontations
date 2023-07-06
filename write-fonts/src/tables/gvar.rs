@@ -274,7 +274,7 @@ impl GlyphDeltas {
 }
 
 /// The serializable representation of a glyph's variation data
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct GlyphVariationData {
     tuple_variation_headers: Vec<TupleVariationHeader>,
     // optional; present if multiple variations have the same point numbers
@@ -283,7 +283,7 @@ pub struct GlyphVariationData {
 }
 
 /// The serializable representation of a single glyph tuple variation data
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 struct GlyphTupleVariationData {
     // this is possibly shared, if multiple are identical for a given glyph
     private_point_numbers: Option<PackedPointNumbers>,

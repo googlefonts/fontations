@@ -5,10 +5,13 @@ use quote::{quote, ToTokens};
 
 use crate::{
     fields::FieldConstructorInfo,
-    parsing::{logged_syn_error, CustomCompile, Field, Fields, Phase, Record, TableAttrs},
+    parsing::{
+        logged_syn_error, CustomCompile, Field, FieldType, Fields, Item, Items, Phase, Record,
+        TableAttrs,
+    },
 };
 
-pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
+pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStream> {
     let name = &item.name;
     let docs = &item.attrs.docs;
     let field_names = item.fields.iter().map(|fld| &fld.name).collect::<Vec<_>>();
@@ -50,10 +53,8 @@ pub(crate) fn generate(item: &Record) -> syn::Result<TokenStream> {
     });
     let maybe_impl_read_with_args = (has_read_args).then(|| generate_read_with_args(item));
     let maybe_extra_traits = item
-        .attrs
-        .capabilities
-        .as_ref()
-        .map(|cap| cap.extra_traits());
+        .gets_extra_traits(all_items)
+        .then(|| quote!(PartialEq, Eq, PartialOrd, Ord, Hash));
 
     Ok(quote! {
     #( #docs )*
@@ -266,7 +267,6 @@ pub(crate) fn generate_compile_impl(
         }
     });
 
-    let maybe_extra_traits = attrs.capabilities.as_ref().map(|cap| cap.extra_traits());
     let constructor_args_raw = fields.iter_constructor_info().collect::<Vec<_>>();
     let constructor_args = constructor_args_raw.iter().map(
         |FieldConstructorInfo {
@@ -322,7 +322,7 @@ pub(crate) fn generate_compile_impl(
 
     Ok(quote! {
         #( #docs )*
-        #[derive(Clone, Debug, #maybe_derive_default #maybe_extra_traits)]
+        #[derive(Clone, Debug, #maybe_derive_default PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct #name <#generic_param> {
             #( #field_decls, )*
         }
@@ -381,5 +381,31 @@ impl Record {
 
     fn is_zerocopy(&self) -> bool {
         self.fields.iter().all(Field::is_zerocopy_compatible)
+    }
+
+    fn gets_extra_traits(&self, all_items: &Items) -> bool {
+        self.fields
+            .iter()
+            .all(|fld| can_derive_extra_traits(&fld.typ, all_items))
+    }
+}
+
+/// Returns `true` if this field is composed only of non-offset scalars.
+///
+/// This means it can contain scalars, records which only contain scalars,
+/// and arrays of these two types.
+///
+/// we do not generate these traits if a record contains an offset,
+/// because the semantics are unclear: we would be comparing the raw bytes
+/// in the offset, instead of the thing that the offset points to.
+fn can_derive_extra_traits(field_type: &FieldType, all_items: &Items) -> bool {
+    match field_type {
+        FieldType::Scalar { .. } => true,
+        FieldType::Struct { typ } => match all_items.get(typ) {
+            Some(Item::Record(record)) => record.gets_extra_traits(all_items),
+            _ => false,
+        },
+        FieldType::Array { inner_typ } => can_derive_extra_traits(inner_typ, all_items),
+        _ => false,
     }
 }

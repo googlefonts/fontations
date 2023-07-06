@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 pub use read_fonts::tables::layout::DeltaFormat;
 
 /// [Script List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScriptList {
     /// Array of ScriptRecords, listed alphabetically by script tag
     pub script_records: Vec<ScriptRecord>,
@@ -65,7 +65,7 @@ impl<'a> FontRead<'a> for ScriptList {
 }
 
 /// [Script Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ScriptRecord {
     /// 4-byte script tag identifier
     pub script_tag: Tag,
@@ -113,7 +113,7 @@ impl FromObjRef<read_fonts::tables::layout::ScriptRecord> for ScriptRecord {
 }
 
 /// [Script Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-table-and-language-system-record)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Script {
     /// Offset to default LangSys table, from beginning of Script table
     /// — may be NULL
@@ -178,7 +178,7 @@ impl<'a> FontRead<'a> for Script {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LangSysRecord {
     /// 4-byte LangSysTag identifier
     pub lang_sys_tag: Tag,
@@ -229,7 +229,7 @@ impl FromObjRef<read_fonts::tables::layout::LangSysRecord> for LangSysRecord {
 }
 
 /// [Language System Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#language-system-table)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LangSys {
     /// Index of a feature required for this language system; if no
     /// required features = 0xFFFF
@@ -301,7 +301,7 @@ impl<'a> FontRead<'a> for LangSys {
 }
 
 /// [Feature List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-list-table)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FeatureList {
     /// Array of FeatureRecords — zero-based (first feature has
     /// FeatureIndex = 0), listed alphabetically by feature tag
@@ -360,7 +360,7 @@ impl<'a> FontRead<'a> for FeatureList {
 }
 
 /// Part of [FeatureList]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FeatureRecord {
     /// 4-byte feature identification tag
     pub feature_tag: Tag,
@@ -411,7 +411,7 @@ impl FromObjRef<read_fonts::tables::layout::FeatureRecord> for FeatureRecord {
 }
 
 /// [Feature Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#feature-table)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Feature {
     /// Offset from start of Feature table to FeatureParams table, if defined for the feature and present, else NULL
     pub feature_params: NullableOffsetMarker<FeatureParams>,
@@ -470,7 +470,7 @@ impl<'a> FromObjRef<read_fonts::tables::layout::Feature<'a>> for Feature {
 impl<'a> FromTableRef<read_fonts::tables::layout::Feature<'a>> for Feature {}
 
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LookupList<T> {
     /// Array of offsets to Lookup tables, from beginning of LookupList
     /// — zero based (first lookup is Lookup index = 0)
@@ -530,7 +530,7 @@ where
 }
 
 /// [Lookup Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-table)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Lookup<T> {
     /// Lookup qualifiers
     pub lookup_flag: LookupFlag,
@@ -589,7 +589,7 @@ where
 }
 
 /// [Coverage Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-1)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CoverageFormat1 {
     /// Array of glyph IDs — in numerical order
     pub glyph_array: Vec<GlyphId>,
@@ -647,7 +647,7 @@ impl<'a> FontRead<'a> for CoverageFormat1 {
 }
 
 /// [Coverage Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-format-2)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CoverageFormat2 {
     /// Array of glyph ranges — ordered by startGlyphID.
     pub range_records: Vec<RangeRecord>,
@@ -706,7 +706,7 @@ impl<'a> FontRead<'a> for CoverageFormat2 {
 }
 
 /// Used in [CoverageFormat2]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RangeRecord {
     /// First glyph ID in the range
     pub start_glyph_id: GlyphId,
@@ -753,7 +753,7 @@ impl FromObjRef<read_fonts::tables::layout::RangeRecord> for RangeRecord {
 }
 
 /// [Coverage Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-table)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum CoverageTable {
     Format1(CoverageFormat1),
     Format2(CoverageFormat2),
@@ -833,7 +833,7 @@ impl From<CoverageFormat2> for CoverageTable {
 }
 
 /// [Class Definition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-1)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClassDefFormat1 {
     /// First glyph ID of the classValueArray
     pub start_glyph_id: GlyphId,
@@ -896,7 +896,7 @@ impl<'a> FontRead<'a> for ClassDefFormat1 {
 }
 
 /// [Class Definition Table Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table-format-2)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClassDefFormat2 {
     /// Array of ClassRangeRecords — ordered by startGlyphID
     pub class_range_records: Vec<ClassRangeRecord>,
@@ -955,7 +955,7 @@ impl<'a> FontRead<'a> for ClassDefFormat2 {
 }
 
 /// Used in [ClassDefFormat2]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClassRangeRecord {
     /// First glyph ID in the range
     pub start_glyph_id: GlyphId,
@@ -1008,7 +1008,7 @@ impl FromObjRef<read_fonts::tables::layout::ClassRangeRecord> for ClassRangeReco
 }
 
 /// A [Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ClassDef {
     Format1(ClassDefFormat1),
     Format2(ClassDefFormat2),
@@ -1087,7 +1087,7 @@ impl From<ClassDefFormat2> for ClassDef {
 }
 
 /// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SequenceLookupRecord {
     /// Index (zero-based) into the input glyph sequence
     pub sequence_index: u16,
@@ -1129,7 +1129,7 @@ impl FromObjRef<read_fonts::tables::layout::SequenceLookupRecord> for SequenceLo
 }
 
 /// [Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-1-simple-glyph-contexts)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SequenceContextFormat1 {
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat1 table
@@ -1205,7 +1205,7 @@ impl<'a> FontRead<'a> for SequenceContextFormat1 {
 }
 
 /// Part of [SequenceContextFormat1]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SequenceRuleSet {
     /// Array of offsets to SequenceRule tables, from beginning of the
     /// SequenceRuleSet table
@@ -1263,7 +1263,7 @@ impl<'a> FontRead<'a> for SequenceRuleSet {
 }
 
 /// Part of [SequenceContextFormat1]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SequenceRule {
     /// Array of input glyph IDs—starting with the second glyph
     pub input_sequence: Vec<GlyphId>,
@@ -1330,7 +1330,7 @@ impl<'a> FontRead<'a> for SequenceRule {
 }
 
 /// [Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-2-class-based-glyph-contexts)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SequenceContextFormat2 {
     /// Offset to Coverage table, from beginning of
     /// SequenceContextFormat2 table
@@ -1419,7 +1419,7 @@ impl<'a> FontRead<'a> for SequenceContextFormat2 {
 }
 
 /// Part of [SequenceContextFormat2]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClassSequenceRuleSet {
     /// Array of offsets to ClassSequenceRule tables, from beginning of
     /// ClassSequenceRuleSet table
@@ -1483,7 +1483,7 @@ impl<'a> FontRead<'a> for ClassSequenceRuleSet {
 }
 
 /// Part of [SequenceContextFormat2]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ClassSequenceRule {
     /// Sequence of classes to be matched to the input glyph sequence,
     /// beginning with the second glyph position
@@ -1548,7 +1548,7 @@ impl<'a> FontRead<'a> for ClassSequenceRule {
 }
 
 /// [Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-context-format-3-coverage-based-glyph-contexts)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SequenceContextFormat3 {
     /// Array of offsets to Coverage tables, from beginning of
     /// SequenceContextFormat3 subtable
@@ -1630,7 +1630,7 @@ impl<'a> FontRead<'a> for SequenceContextFormat3 {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum SequenceContext {
     Format1(SequenceContextFormat1),
     Format2(SequenceContextFormat2),
@@ -1737,7 +1737,7 @@ impl From<SequenceContextFormat3> for SequenceContext {
 }
 
 /// [Chained Sequence Context Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-1-simple-glyph-contexts)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChainedSequenceContextFormat1 {
     /// Offset to Coverage table, from beginning of
     /// ChainSequenceContextFormat1 table
@@ -1816,7 +1816,7 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat1 {
 }
 
 /// Part of [ChainedSequenceContextFormat1]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChainedSequenceRuleSet {
     /// Array of offsets to ChainedSequenceRule tables, from beginning
     /// of ChainedSequenceRuleSet table
@@ -1882,7 +1882,7 @@ impl<'a> FontRead<'a> for ChainedSequenceRuleSet {
 }
 
 /// Part of [ChainedSequenceContextFormat1]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChainedSequenceRule {
     /// Array of backtrack glyph IDs
     pub backtrack_sequence: Vec<GlyphId>,
@@ -1976,7 +1976,7 @@ impl<'a> FontRead<'a> for ChainedSequenceRule {
 }
 
 /// [Chained Sequence Context Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-2-class-based-glyph-contexts)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChainedSequenceContextFormat2 {
     /// Offset to Coverage table, from beginning of
     /// ChainedSequenceContextFormat2 table
@@ -2088,7 +2088,7 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat2 {
 }
 
 /// Part of [ChainedSequenceContextFormat2]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChainedClassSequenceRuleSet {
     /// Array of offsets to ChainedClassSequenceRule tables, from
     /// beginning of ChainedClassSequenceRuleSet
@@ -2157,7 +2157,7 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRuleSet {
 }
 
 /// Part of [ChainedSequenceContextFormat2]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChainedClassSequenceRule {
     /// Array of backtrack-sequence classes
     pub backtrack_sequence: Vec<u16>,
@@ -2257,7 +2257,7 @@ impl<'a> FontRead<'a> for ChainedClassSequenceRule {
 }
 
 /// [Chained Sequence Context Format 3](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#chained-sequence-context-format-3-coverage-based-glyph-contexts)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ChainedSequenceContextFormat3 {
     /// Array of offsets to coverage tables for the backtrack sequence
     pub backtrack_coverages: Vec<OffsetMarker<CoverageTable>>,
@@ -2364,7 +2364,7 @@ impl<'a> FontRead<'a> for ChainedSequenceContextFormat3 {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum ChainedSequenceContext {
     Format1(ChainedSequenceContextFormat1),
     Format2(ChainedSequenceContextFormat2),
@@ -2498,7 +2498,7 @@ impl FontWrite for DeltaFormat {
 }
 
 /// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Device {
     /// Smallest size to correct, in ppem
     pub start_size: u16,
@@ -2547,7 +2547,7 @@ impl<'a> FontRead<'a> for Device {
 }
 
 /// Variation index table
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VariationIndex {
     /// A delta-set outer index — used to select an item variation
     /// data subtable within the item variation store.
@@ -2602,7 +2602,7 @@ impl<'a> FontRead<'a> for VariationIndex {
 }
 
 /// Either a [Device] table (in a non-variable font) or a [VariationIndex] table (in a variable font)
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeviceOrVariationIndex {
     Device(Device),
     VariationIndex(VariationIndex),
@@ -2685,7 +2685,7 @@ impl From<VariationIndex> for DeviceOrVariationIndex {
 }
 
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FeatureVariations {
     /// Array of feature variation records.
     pub feature_variation_records: Vec<FeatureVariationRecord>,
@@ -2747,7 +2747,7 @@ impl<'a> FontRead<'a> for FeatureVariations {
 }
 
 /// Part of [FeatureVariations]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FeatureVariationRecord {
     /// Offset to a condition set table, from beginning of
     /// FeatureVariations table.
@@ -2808,7 +2808,7 @@ impl FromObjRef<read_fonts::tables::layout::FeatureVariationRecord> for FeatureV
 }
 
 /// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
-#[derive(Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ConditionSet {
     /// Array of offsets to condition tables, from beginning of the
     /// ConditionSet table.
@@ -2866,7 +2866,7 @@ impl<'a> FontRead<'a> for ConditionSet {
 }
 
 /// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
-#[derive(Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ConditionFormat1 {
     /// Index (zero-based) for the variation axis within the 'fvar'
     /// table.
@@ -2931,7 +2931,7 @@ impl<'a> FontRead<'a> for ConditionFormat1 {
 }
 
 /// [FeatureTableSubstitution Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featuretablesubstitution-table)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FeatureTableSubstitution {
     /// Array of feature table substitution records.
     pub substitutions: Vec<FeatureTableSubstitutionRecord>,
@@ -2998,7 +2998,7 @@ impl<'a> FontRead<'a> for FeatureTableSubstitution {
 }
 
 /// Used in [FeatureTableSubstitution]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FeatureTableSubstitutionRecord {
     /// The feature table index to match.
     pub feature_index: u16,
@@ -3051,7 +3051,7 @@ impl FromObjRef<read_fonts::tables::layout::FeatureTableSubstitutionRecord>
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct SizeParams {
     /// The first value represents the design size in 720/inch units (decipoints).
     ///
@@ -3141,7 +3141,7 @@ impl<'a> FontRead<'a> for SizeParams {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct StylisticSetParams {
     /// The 'name' table name ID that specifies a string (or strings, for
     /// multiple languages) for a user-interface label for this feature.
@@ -3195,7 +3195,7 @@ impl<'a> FontRead<'a> for StylisticSetParams {
 }
 
 /// featureParams for ['cv01'-'cv99'](https://docs.microsoft.com/en-us/typography/opentype/spec/features_ae#cv01-cv99)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct CharacterVariantParams {
     /// The 'name' table name ID that specifies a string (or strings,
     /// for multiple languages) for a user-interface label for this

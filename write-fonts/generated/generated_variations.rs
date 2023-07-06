@@ -8,7 +8,7 @@ use crate::codegen_prelude::*;
 pub use read_fonts::tables::variations::EntryFormat;
 
 /// [TupleVariationHeader](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#tuplevariationheader)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct TupleVariationHeader {
     /// The size in bytes of the serialized data for this tuple
     /// variation table.
@@ -73,7 +73,7 @@ impl<'a> FromTableRef<read_fonts::tables::variations::TupleVariationHeader<'a>>
 /// The tuple variation store formats reference regions within the font’s
 /// variation space using tuple records. A tuple record identifies a position
 /// in terms of normalized coordinates, which use F2DOT14 values.
-#[derive(Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Tuple {
     /// Coordinate array specifying a position within the font’s variation space.
     ///
@@ -121,7 +121,7 @@ impl FromObjRef<read_fonts::tables::variations::Tuple<'_>> for Tuple {
 }
 
 /// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table format 0
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeltaSetIndexMapFormat0 {
     /// A packed field that describes the compressed representation of
     /// delta-set indices. See details below.
@@ -189,7 +189,7 @@ impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0 {
 }
 
 /// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table format 1
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeltaSetIndexMapFormat1 {
     /// A packed field that describes the compressed representation of
     /// delta-set indices. See details below.
@@ -257,7 +257,7 @@ impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1 {
 }
 
 /// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeltaSetIndexMap {
     Format0(DeltaSetIndexMapFormat0),
     Format1(DeltaSetIndexMapFormat1),
@@ -351,7 +351,7 @@ impl FontWrite for EntryFormat {
 }
 
 /// The [VariationRegionList](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) table
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VariationRegionList {
     /// Array of variation regions.
     pub variation_regions: Vec<VariationRegion>,
@@ -420,7 +420,7 @@ impl<'a> FontRead<'a> for VariationRegionList {
 }
 
 /// The [VariationRegion](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
-#[derive(Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VariationRegion {
     /// Array of region axis coordinates records, in the order of axes
     /// given in the 'fvar' table.
@@ -470,7 +470,7 @@ impl FromObjRef<read_fonts::tables::variations::VariationRegion<'_>> for Variati
 }
 
 /// The [RegionAxisCoordinates](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
-#[derive(Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct RegionAxisCoordinates {
     /// The region start coordinate value for the current axis.
     pub start_coord: F2Dot14,
@@ -520,7 +520,7 @@ impl FromObjRef<read_fonts::tables::variations::RegionAxisCoordinates> for Regio
 }
 
 /// The [ItemVariationStore](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#item-variation-store-header-and-item-variation-data-subtables) table
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ItemVariationStore {
     /// Offset in bytes from the start of the item variation store to
     /// the variation region list.
@@ -597,7 +597,7 @@ impl<'a> FontRead<'a> for ItemVariationStore {
 }
 
 /// The [ItemVariationData](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#item-variation-store-header-and-item-variation-data-subtables) subtable
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ItemVariationData {
     /// The number of delta sets for distinct items.
     pub item_count: u16,

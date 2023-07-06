@@ -6,7 +6,7 @@
 use crate::codegen_prelude::*;
 
 /// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Cpal {
     /// Number of palette entries in each palette.
     pub num_palette_entries: u16,
@@ -135,7 +135,7 @@ impl<'a> FontRead<'a> for Cpal {
 }
 
 /// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ColorRecord {
     /// Blue value (B0).
     pub blue: u8,

@@ -37,7 +37,6 @@ table TupleVariationHeader {
 /// variation space using tuple records. A tuple record identifies a position
 /// in terms of normalized coordinates, which use F2DOT14 values.
 #[read_args(axis_count: u16)]
-#[capabilities(hash, equality, order)]
 record Tuple<'a> {
     /// Coordinate array specifying a position within the font’s variation space.
     ///
@@ -109,7 +108,6 @@ table VariationRegionList {
 
 /// The [VariationRegion](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
 #[read_args(axis_count: u16)]
-#[capabilities(hash, equality, order)]
 record VariationRegion<'a> {
     /// Array of region axis coordinates records, in the order of axes
     /// given in the 'fvar' table.
@@ -118,7 +116,6 @@ record VariationRegion<'a> {
 }
 
 /// The [RegionAxisCoordinates](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
-#[capabilities(hash, equality, order)]
 record RegionAxisCoordinates {
     /// The region start coordinate value for the current axis.
     start_coord: F2Dot14,

@@ -68,7 +68,7 @@ pub(crate) fn generate_parse_module(items: &Items) -> Result<proc_macro2::TokenS
     let mut code = Vec::new();
     for item in items.iter() {
         let item_code = match item {
-            Item::Record(item) => record::generate(item)?,
+            Item::Record(item) => record::generate(item, items)?,
             Item::Table(item) => table::generate(item)?,
             Item::GenericGroup(item) => table::generate_group(item)?,
             Item::Format(item) => table::generate_format_group(item)?,

@@ -7,7 +7,7 @@ include!("../../generated/generated_post.rs");
 //TODO: I imagine we're going to need a builder for this
 
 /// A string in the post table.
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct PString(String);
 
 impl Post {
