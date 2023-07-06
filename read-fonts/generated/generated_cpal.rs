@@ -266,7 +266,7 @@ impl<'a> std::fmt::Debug for Cpal<'a> {
 }
 
 /// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ColorRecord {

@@ -1086,7 +1086,7 @@ impl<'a> std::fmt::Debug for CoverageFormat2<'a> {
 }
 
 /// Used in [CoverageFormat2]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct RangeRecord {
@@ -1378,7 +1378,7 @@ impl<'a> std::fmt::Debug for ClassDefFormat2<'a> {
 }
 
 /// Used in [ClassDefFormat2]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ClassRangeRecord {
@@ -1479,7 +1479,7 @@ impl<'a> SomeTable<'a> for ClassDef<'a> {
 }
 
 /// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SequenceLookupRecord {

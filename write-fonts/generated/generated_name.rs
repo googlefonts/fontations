@@ -6,7 +6,7 @@
 use crate::codegen_prelude::*;
 
 /// [Naming table version 1](https://docs.microsoft.com/en-us/typography/opentype/spec/name#naming-table-version-1)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Name {
     /// The name records where count is the number of records.
     pub name_record: BTreeSet<NameRecord>,
@@ -100,7 +100,7 @@ impl<'a> FontRead<'a> for Name {
 }
 
 /// Part of [Name]
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LangTagRecord {
     /// Language-tag string offset from start of storage area (in
     /// bytes).
@@ -140,7 +140,7 @@ impl FromObjRef<read_fonts::tables::name::LangTagRecord> for LangTagRecord {
 }
 
 ///[Name Records](https://docs.microsoft.com/en-us/typography/opentype/spec/name#name-records)
-#[derive(Clone, Debug, Default, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct NameRecord {
     /// Platform ID.
     pub platform_id: u16,

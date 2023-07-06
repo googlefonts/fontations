@@ -125,7 +125,7 @@ impl<'a> std::fmt::Debug for BasicTable<'a> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SimpleRecord {
@@ -169,7 +169,7 @@ impl<'a> SomeRecord<'a> for SimpleRecord {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ContainsArrays<'a> {
     pub scalars: &'a [BigEndian<u16>],
     pub records: &'a [SimpleRecord],

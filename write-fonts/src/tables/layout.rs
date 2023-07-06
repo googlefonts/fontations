@@ -42,7 +42,7 @@ macro_rules! table_newtype {
         /// lookups that are shared between GPOS/GSUB.
         ///
         /// You can access the inner type via `Deref` or the `as_inner` method.
-        #[derive(Clone, Debug, Default)]
+        #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct $name($inner);
 
         impl $name {
@@ -203,7 +203,7 @@ impl FontWrite for LookupType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FeatureParams {
     StylisticSet(StylisticSetParams),
     Size(SizeParams),

@@ -66,7 +66,6 @@ pub(crate) struct TableAttrs {
     pub(crate) tag: Option<Attr<syn::LitStr>>,
     /// Custom validation behaviour, must be a fn(&self, &mut ValidationCtx) for the type
     pub(crate) validate: Option<Attr<syn::Ident>>,
-    pub(crate) capabilities: Option<Attr<Capabilities>>,
 }
 
 #[derive(Debug, Clone)]
@@ -78,18 +77,6 @@ pub(crate) struct TableReadArgs {
 pub(crate) struct TableReadArg {
     pub(crate) ident: syn::Ident,
     pub(crate) typ: syn::Ident,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct Capabilities {
-    pub(crate) capabilities: Vec<Capability>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Capability {
-    Order,
-    Equality,
-    Hash,
 }
 
 #[derive(Debug, Clone)]
@@ -1051,7 +1038,6 @@ static SKIP_FONT_WRITE: &str = "skip_font_write";
 static SKIP_CONSTRUCTOR: &str = "skip_constructor";
 static READ_ARGS: &str = "read_args";
 static GENERIC_OFFSET: &str = "generic_offset";
-static CAPABILITIES: &str = "capabilities";
 static TAG: &str = "tag";
 
 impl Parse for TableAttrs {
@@ -1079,8 +1065,6 @@ impl Parse for TableAttrs {
                 this.read_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == GENERIC_OFFSET {
                 this.generic_offset = Some(Attr::new(ident.clone(), attr.parse_args()?));
-            } else if ident == CAPABILITIES {
-                this.capabilities = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == TAG {
                 let tag: syn::LitStr = parse_attr_eq_value(&attr)?;
                 if let Err(e) = Tag::new_checked(tag.value().as_bytes()) {
@@ -1143,33 +1127,6 @@ impl Parse for TableReadArg {
         input.parse::<Token![:]>()?;
         let typ = input.parse()?;
         Ok(TableReadArg { ident, typ })
-    }
-}
-
-impl Parse for Capabilities {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let mut capabilities =
-            Punctuated::<Capability, Token![,]>::parse_separated_nonempty(input)?
-                .into_iter()
-                .collect::<Vec<_>>();
-        capabilities.sort_unstable();
-        capabilities.dedup();
-        Ok(Capabilities { capabilities })
-    }
-}
-
-impl Parse for Capability {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let ident = input.parse::<syn::Ident>()?;
-        match ident.to_string().as_str() {
-            "equality" => Ok(Self::Equality),
-            "order" => Ok(Self::Order),
-            "hash" => Ok(Self::Hash),
-            _ => Err(logged_syn_error(
-                ident.span(),
-                "expected one of 'equality', 'order', or 'hash'",
-            )),
-        }
     }
 }
 
@@ -1700,37 +1657,8 @@ impl FromIterator<(syn::Ident, NeededWhen)> for ReferencedFields {
     }
 }
 
-impl Capabilities {
-    pub(crate) fn extra_traits(&self) -> TokenStream {
-        let iter = self.capabilities.iter().flat_map(Capability::traits);
-        quote! ( #( #iter, )* )
-    }
-}
-
-impl Capability {
-    fn traits(&self) -> impl Iterator<Item = syn::Ident> + '_ {
-        match self {
-            // in order for all branches to return the same type, they are all [Option<Ident>; 2]
-            // and then we filter
-            Capability::Order => [
-                Some(syn::Ident::new("PartialOrd", Span::call_site())),
-                Some(syn::Ident::new("Ord", Span::call_site())),
-            ]
-            .into_iter(),
-            Capability::Equality => [
-                Some(syn::Ident::new("PartialEq", Span::call_site())),
-                Some(syn::Ident::new("Eq", Span::call_site())),
-            ]
-            .into_iter(),
-            Capability::Hash => {
-                [Some(syn::Ident::new("Hash", Span::call_site())), None].into_iter()
-            }
-        }
-        .flatten()
-    }
-}
-
 fn parse_attr_eq_value<T: Parse>(attr: &syn::Attribute) -> syn::Result<T> {
+    /// the tokens '= T' where 'T' is any `Parse`
     struct EqualsThing<T>(T);
 
     impl<T: Parse> Parse for EqualsThing<T> {

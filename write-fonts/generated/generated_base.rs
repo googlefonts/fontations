@@ -6,7 +6,7 @@
 use crate::codegen_prelude::*;
 
 /// The [BASE](https://learn.microsoft.com/en-us/typography/opentype/spec/base) (Baseline) table
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Base {
     /// Offset to horizontal Axis table, from beginning of BASE table (may be NULL)
     pub horiz_axis: NullableOffsetMarker<Axis>,
@@ -82,7 +82,7 @@ impl<'a> FontRead<'a> for Base {
 }
 
 /// [Axis Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#axis-tables-horizaxis-and-vertaxis)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Axis {
     /// Offset to BaseTagList table, from beginning of Axis table (may
     /// be NULL)
@@ -142,7 +142,7 @@ impl<'a> FontRead<'a> for Axis {
 }
 
 /// [BaseTagList Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basetaglist-table)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BaseTagList {
     /// Array of 4-byte baseline identification tags — must be in
     /// alphabetical order
@@ -199,7 +199,7 @@ impl<'a> FontRead<'a> for BaseTagList {
 }
 
 /// [BaseScriptList Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescriptlist-table)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BaseScriptList {
     /// Array of BaseScriptRecords, in alphabetical order by
     /// baseScriptTag
@@ -258,7 +258,7 @@ impl<'a> FontRead<'a> for BaseScriptList {
 }
 
 /// [BaseScriptRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescriptrecord)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BaseScriptRecord {
     /// 4-byte script identification tag
     pub base_script_tag: Tag,
@@ -309,7 +309,7 @@ impl FromObjRef<read_fonts::tables::base::BaseScriptRecord> for BaseScriptRecord
 }
 
 /// [BaseScript Table](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescript-table)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BaseScript {
     /// Offset to BaseValues table, from beginning of BaseScript table (may be NULL)
     pub base_values: NullableOffsetMarker<BaseValues>,
@@ -387,7 +387,7 @@ impl<'a> FontRead<'a> for BaseScript {
 }
 
 /// [BaseLangSysRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#baselangsysrecord)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BaseLangSysRecord {
     /// 4-byte language system identification tag
     pub base_lang_sys_tag: Tag,
@@ -438,7 +438,7 @@ impl FromObjRef<read_fonts::tables::base::BaseLangSysRecord> for BaseLangSysReco
 }
 
 /// [BaseValues](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basevalues-table) table
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BaseValues {
     /// Index number of default baseline for this script — equals
     /// index position of baseline tag in baselineTags array of the
@@ -503,7 +503,7 @@ impl<'a> FontRead<'a> for BaseValues {
 }
 
 /// [MinMax](https://learn.microsoft.com/en-us/typography/opentype/spec/base#minmax-table) table
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct MinMax {
     /// Offset to BaseCoord table that defines the minimum extent
     /// value, from the beginning of MinMax table (may be NULL)
@@ -583,7 +583,7 @@ impl<'a> FontRead<'a> for MinMax {
 }
 
 /// [FeatMinMaxRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#baselangsysrecord)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FeatMinMaxRecord {
     /// 4-byte feature identification tag — must match feature tag in
     /// FeatureList
@@ -648,7 +648,7 @@ impl FromObjRef<read_fonts::tables::base::FeatMinMaxRecord> for FeatMinMaxRecord
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum BaseCoord {
     Format1(BaseCoordFormat1),
     Format2(BaseCoordFormat2),
@@ -747,7 +747,7 @@ impl From<BaseCoordFormat3> for BaseCoord {
 }
 
 /// [BaseCoordFormat1](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-1)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BaseCoordFormat1 {
     /// X or Y value, in design units
     pub coordinate: i16,
@@ -793,7 +793,7 @@ impl<'a> FontRead<'a> for BaseCoordFormat1 {
 }
 
 /// [BaseCoordFormat2](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-2)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BaseCoordFormat2 {
     /// X or Y value, in design units
     pub coordinate: i16,
@@ -851,7 +851,7 @@ impl<'a> FontRead<'a> for BaseCoordFormat2 {
 }
 
 /// [BaseCoordFormat3](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basecoord-format-3)
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct BaseCoordFormat3 {
     /// X or Y value, in design units
     pub coordinate: i16,

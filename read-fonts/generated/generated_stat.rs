@@ -188,7 +188,7 @@ impl<'a> std::fmt::Debug for Stat<'a> {
 }
 
 /// [Axis Records](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-records)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct AxisRecord {
@@ -868,7 +868,7 @@ impl<'a> std::fmt::Debug for AxisValueFormat4<'a> {
 }
 
 /// Part of [AxisValueFormat4]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct AxisValueRecord {
