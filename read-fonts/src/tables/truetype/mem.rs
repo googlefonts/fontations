@@ -85,13 +85,13 @@ fn alloc_slice<T: TransmuteElement>(buf: &mut [u8], len: usize) -> Option<(&mut 
     let base_ptr = buf.as_ptr() as usize;
     let aligned_ptr = align_up(base_ptr, align_of::<T>());
     let aligned_offset = aligned_ptr - base_ptr;
-    let aligned_buf = buf.get_mut(aligned_offset..)?;
+    let buf = buf.get_mut(aligned_offset..)?;
     // 2) Ensure we have enough space in the buffer to allocate our slice.
     let len_in_bytes = len * size_of::<T>();
-    if len_in_bytes > aligned_buf.len() {
+    if len_in_bytes > buf.len() {
         return None;
     }
-    let (slice_buf, rest) = aligned_buf.split_at_mut(len_in_bytes);
+    let (slice_buf, rest) = buf.split_at_mut(len_in_bytes);
     // SAFETY: Alignment and size requirements have been checked in 1) and
     // 2) above, respectively.
     // Element types are limited by the `TransmuteElement` trait which
