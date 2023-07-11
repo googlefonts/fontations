@@ -96,7 +96,9 @@ impl<'a, S> ScalingSink26Dot6<'a, S> {
     fn scale(&self, coord: Fixed) -> Fixed {
         if self.scale != Fixed::ONE {
             // The following dance is necessary to exactly match FreeType's
-            // application of scaling factors:
+            // application of scaling factors. This seems to be the result
+            // of merging the contributed Adobe code while not breaking the
+            // FreeType public API.
             // 1. Multiply by 1/64
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L284>
             let a = coord * Fixed::from_bits(0x0400);
@@ -156,17 +158,22 @@ impl<'a, S: CommandSink> CommandSink for ScalingSink26Dot6<'a, S> {
     }
 }
 
-/// Command sink adapter that simplifies path operations.
+/// Command sink adapter that supresses degenerate move and line commands.
 ///
-/// This currently removes degenerate moves and lines.
-pub(crate) struct SimplifyingSink<'a, S> {
+/// FreeType avoids emitting empty contours and zero length lines to prevent
+/// artifacts when stem darkening is enabled. We don't support stem darkening
+/// because it's not enabled by any of our clients but we remove the degenerate
+/// elements regardless to match the output.
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.c#L1786>
+pub(crate) struct NopFilteringSink<'a, S> {
     start: Option<(Fixed, Fixed)>,
     last: Option<(Fixed, Fixed)>,
     pending_move: Option<(Fixed, Fixed)>,
     inner: &'a mut S,
 }
 
-impl<'a, S> SimplifyingSink<'a, S>
+impl<'a, S> NopFilteringSink<'a, S>
 where
     S: CommandSink,
 {
@@ -202,7 +209,7 @@ where
     }
 }
 
-impl<'a, S> CommandSink for SimplifyingSink<'a, S>
+impl<'a, S> CommandSink for NopFilteringSink<'a, S>
 where
     S: CommandSink,
 {
