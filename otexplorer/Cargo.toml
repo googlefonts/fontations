@@ -8,8 +8,8 @@ publish = false
 
 [dependencies]
 xflags = "0.2.4"
-read-fonts = { path = "../read-fonts",version = "0.7.0" }
-font-types = { path = "../font-types",version = "0.3.2" }
+read-fonts = { path = "../read-fonts",version = "0.8.0" }
+font-types = { path = "../font-types",version = "0.3.3" }
 ansi_term = "0.12.1"
 atty = "0.2"
 
