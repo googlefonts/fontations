@@ -110,15 +110,16 @@ mod flags {
     xflags::xflags! {
         /// Generate font table representations
         cmd args {
-            cmd file
+            cmd file {
                 /// Code to generate; either 'parse' or 'compile'.
                 required mode: Mode
                 /// Path to the input file
                 required path: PathBuf
-                {}
-            default cmd plan
+            }
+            default cmd plan {
                 /// plan path
-                required path: PathBuf {}
+                required path: PathBuf
+            }
         }
     }
 }
