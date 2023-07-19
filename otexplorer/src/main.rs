@@ -203,15 +203,13 @@ mod flags {
 
     xflags::xflags! {
         /// Generate font table representations
-        cmd args
+        cmd args {
             required input: PathBuf
-            {
-                optional -i, --index index: u32
-                optional -l, --list
-                optional -q, --query query: Query
-                optional -t, --tables include: String
-                optional -x, --exclude exclude: String
-            }
-
+            optional -i, --index index: u32
+            optional -l, --list
+            optional -q, --query query: Query
+            optional -t, --tables include: String
+            optional -x, --exclude exclude: String
+        }
     }
 }
