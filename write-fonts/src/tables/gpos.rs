@@ -176,13 +176,7 @@ mod tests {
         let cov_one = CoverageTable::format_1(vec![GlyphId::new(2)]);
         let cov_two = CoverageTable::format_1(vec![GlyphId::new(4)]);
         let sub1 = SinglePos::format_1(cov_one, ValueRecord::default());
-        let sub2 = SinglePos::format_1(
-            cov_two,
-            ValueRecord {
-                x_advance: Some(500),
-                ..Default::default()
-            },
-        );
+        let sub2 = SinglePos::format_1(cov_two, ValueRecord::default().with_x_advance(500));
         let lookup = Lookup::new(LookupFlag::default(), vec![sub1, sub2], 0);
         let bytes = crate::dump_table(&lookup).unwrap();
 

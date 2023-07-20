@@ -12,6 +12,7 @@ use crate::{
 };
 
 #[derive(Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[non_exhaustive]
 pub struct ValueRecord {
     pub x_placement: Option<i16>,
     pub y_placement: Option<i16>,
@@ -24,6 +25,50 @@ pub struct ValueRecord {
 }
 
 impl ValueRecord {
+    pub fn new() -> ValueRecord {
+        ValueRecord::default()
+    }
+
+    pub fn with_x_placement(mut self, val: i16) -> Self {
+        self.x_placement = Some(val);
+        self
+    }
+
+    pub fn with_y_placement(mut self, val: i16) -> Self {
+        self.y_placement = Some(val);
+        self
+    }
+
+    pub fn with_x_advance(mut self, val: i16) -> Self {
+        self.x_advance = Some(val);
+        self
+    }
+
+    pub fn with_y_advance(mut self, val: i16) -> Self {
+        self.y_advance = Some(val);
+        self
+    }
+
+    pub fn with_x_placement_device(mut self, val: impl Into<DeviceOrVariationIndex>) -> Self {
+        self.x_placement_device = val.into().into();
+        self
+    }
+
+    pub fn with_y_placement_device(mut self, val: impl Into<DeviceOrVariationIndex>) -> Self {
+        self.y_placement_device = val.into().into();
+        self
+    }
+
+    pub fn with_x_advance_device(mut self, val: impl Into<DeviceOrVariationIndex>) -> Self {
+        self.x_advance_device = val.into().into();
+        self
+    }
+
+    pub fn with_y_advance_device(mut self, val: impl Into<DeviceOrVariationIndex>) -> Self {
+        self.y_advance_device = val.into().into();
+        self
+    }
+
     /// The [ValueFormat] of this record.
     pub fn format(&self) -> ValueFormat {
         macro_rules! flag_if_true {
