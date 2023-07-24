@@ -138,7 +138,7 @@ impl<'a> ScalerBuilder<'a> {
             PostScriptScaler::new(font)
                 .ok()
                 .and_then(|scaler| {
-                    let first_subfont = scaler.subfont(0, size, coords, false).ok()?;
+                    let first_subfont = scaler.subfont(0, size, coords).ok()?;
                     Some((scaler, first_subfont))
                 })
                 .map(|(scaler, subfont)| Outlines::PostScript(scaler, subfont))
@@ -146,6 +146,8 @@ impl<'a> ScalerBuilder<'a> {
         Scaler {
             size,
             coords,
+            #[cfg(feature = "hinting")]
+            hint: self.hint,
             outlines,
         }
     }
@@ -197,6 +199,8 @@ impl<'a> ScalerBuilder<'a> {
 pub struct Scaler<'a> {
     size: f32,
     coords: &'a [NormalizedCoord],
+    #[cfg(feature = "hinting")]
+    hint: Option<Hinting>,
     outlines: Option<Outlines<'a>>,
 }
 
@@ -215,6 +219,11 @@ impl<'a> Scaler<'a> {
     /// in the given pen for the sequence of path commands that define the outline.
     pub fn outline(&mut self, glyph_id: GlyphId, pen: &mut impl Pen) -> Result<()> {
         if let Some(outlines) = &mut self.outlines {
+            #[cfg(feature = "hinting")]
+            {
+                outlines.outline(glyph_id, self.size, self.coords, self.hint, pen)
+            }
+            #[cfg(not(feature = "hinting"))]
             outlines.outline(glyph_id, self.size, self.coords, pen)
         } else {
             Err(Error::NoSources)
@@ -236,6 +245,7 @@ impl<'a> Outlines<'a> {
         glyph_id: GlyphId,
         size: f32,
         coords: &'a [NormalizedCoord],
+        #[cfg(feature = "hinting")] hint: Option<Hinting>,
         pen: &mut impl Pen,
     ) -> Result<()> {
         match self {
@@ -246,9 +256,13 @@ impl<'a> Outlines<'a> {
             Self::PostScript(scaler, subfont) => {
                 let subfont_index = scaler.subfont_index(glyph_id);
                 if subfont_index != subfont.index() {
-                    *subfont = scaler.subfont(subfont_index, size, coords, false)?;
+                    *subfont = scaler.subfont(subfont_index, size, coords)?;
                 }
-                Ok(scaler.outline(subfont, glyph_id, coords, pen)?)
+                #[cfg(feature = "hinting")]
+                let hint = hint.is_some();
+                #[cfg(not(feature = "hinting"))]
+                let hint = false;
+                Ok(scaler.outline(subfont, glyph_id, coords, hint, pen)?)
             }
         }
     }

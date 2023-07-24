@@ -4,6 +4,7 @@ use std::fmt;
 
 mod blend;
 mod fd_select;
+mod hint;
 mod index;
 mod scale;
 mod stack;

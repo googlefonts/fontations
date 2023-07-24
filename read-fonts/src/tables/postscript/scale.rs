@@ -3,7 +3,8 @@
 use std::ops::Range;
 
 use super::{
-    dict::{self, Blues},
+    dict,
+    hint::{HintParams, HintState},
     BlendState, Error, FdSelect, Index,
 };
 use crate::{
@@ -42,11 +43,11 @@ use crate::{
 /// // Construct a subfont with the given configuration.
 /// let size = 16.0;
 /// let coords = &[];
-/// let with_hinting = false;
-/// let subfont = scaler.subfont(subfont_index, size, coords, with_hinting)?;
+/// let subfont = scaler.subfont(subfont_index, size, coords)?;
 /// // Scale the outline using our configured subfont and emit the
 /// // result to the given pen.
-/// scaler.outline(&subfont, glyph_id, coords, pen)?;
+/// let hint = false;
+/// scaler.outline(&subfont, glyph_id, coords, hint, pen)?;
 /// # Ok(())
 /// # }
 /// ```
@@ -143,7 +144,6 @@ impl<'a> Scaler<'a> {
         index: u32,
         size: f32,
         coords: &[F2Dot14],
-        with_hinting: bool,
     ) -> Result<ScalerSubfont, Error> {
         let private_dict_range = self.private_dict_range(index)?;
         let private_dict_data = self.offset_data().read_array(private_dict_range.clone())?;
@@ -173,14 +173,21 @@ impl<'a> Scaler<'a> {
                 _ => {}
             }
         }
-        // TODO: convert hint params to zones if hinting is requested
-        let _ = with_hinting;
+        let scale = if size <= 0.0 {
+            Fixed::ONE
+        } else {
+            // Note: we do an intermediate scale to 26.6 to ensure we
+            // match FreeType
+            Fixed::from_bits((size * 64.) as i32) / Fixed::from_bits(self.units_per_em as i32)
+        };
+        let hint_state = HintState::new(&hint_params, scale);
         Ok(ScalerSubfont {
             is_cff2: self.is_cff2(),
             index,
             size,
+            scale,
             subrs_offset,
-            hint_params,
+            hint_state,
             store_index,
         })
     }
@@ -201,6 +208,7 @@ impl<'a> Scaler<'a> {
         subfont: &ScalerSubfont,
         glyph_id: GlyphId,
         coords: &[F2Dot14],
+        hint: bool,
         pen: &mut impl Pen,
     ) -> Result<(), Error> {
         use super::charstring;
@@ -214,24 +222,29 @@ impl<'a> Scaler<'a> {
         let blend_state = subfont.blend_state(self, coords)?;
         let mut pen_sink = charstring::PenSink::new(pen);
         let mut simplifying_adapter = charstring::NopFilteringSink::new(&mut pen_sink);
-        let scale = if subfont.size <= 0.0 {
-            Fixed::ONE
+        if hint {
+            let mut scaling_adapter =
+                charstring::ScalingSink26Dot6::new(&mut simplifying_adapter, Fixed::ONE);
+            let mut hinting_adapter =
+                super::hint::Hinter::new(&subfont.hint_state, &mut scaling_adapter);
+            charstring::evaluate(
+                charstring_data,
+                self.global_subrs(),
+                subrs,
+                blend_state,
+                &mut hinting_adapter,
+            )?;
         } else {
-            // Note: we do an intermediate scale to 26.6 to ensure we
-            // match FreeType
-            Fixed::from_bits((subfont.size * 64.) as i32)
-                / Fixed::from_bits(self.units_per_em as i32)
-        };
-        let mut scaling_adapter =
-            charstring::ScalingSink26Dot6::new(&mut simplifying_adapter, scale);
-        // TODO: hinting will be another sink adapter that slots in here
-        charstring::evaluate(
-            charstring_data,
-            self.global_subrs(),
-            subrs,
-            blend_state,
-            &mut scaling_adapter,
-        )?;
+            let mut scaling_adapter =
+                charstring::ScalingSink26Dot6::new(&mut simplifying_adapter, subfont.scale);
+            charstring::evaluate(
+                charstring_data,
+                self.global_subrs(),
+                subrs,
+                blend_state,
+                &mut scaling_adapter,
+            )?;
+        }
         simplifying_adapter.finish();
         Ok(())
     }
@@ -291,11 +304,9 @@ pub struct ScalerSubfont {
     is_cff2: bool,
     index: u32,
     size: f32,
+    scale: Fixed,
     subrs_offset: Option<usize>,
-    // TODO: just capturing these for now. We'll soon compute the actual
-    // hinting state ("blue zones") from these values.
-    #[allow(dead_code)]
-    hint_params: HintParams,
+    hint_state: HintState,
     store_index: u16,
 }
 
@@ -330,36 +341,6 @@ impl ScalerSubfont {
             Ok(Some(BlendState::new(var_store, coords, self.store_index)?))
         } else {
             Ok(None)
-        }
-    }
-}
-
-/// Parameters used to generate the stem and counter zones for the hinting
-/// algorithm.
-#[derive(Clone)]
-pub struct HintParams {
-    pub blues: Blues,
-    pub family_blues: Blues,
-    pub other_blues: Blues,
-    pub family_other_blues: Blues,
-    pub blue_scale: Fixed,
-    pub blue_shift: Fixed,
-    pub blue_fuzz: Fixed,
-    pub language_group: i32,
-}
-
-impl Default for HintParams {
-    fn default() -> Self {
-        Self {
-            blues: Blues::default(),
-            other_blues: Blues::default(),
-            family_blues: Blues::default(),
-            family_other_blues: Blues::default(),
-            // See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-16-private-dict-operators>
-            blue_scale: Fixed::from_f64(0.039625),
-            blue_shift: Fixed::from_i32(7),
-            blue_fuzz: Fixed::ONE,
-            language_group: 0,
         }
     }
 }
@@ -418,13 +399,13 @@ mod tests {
     use super::*;
     use crate::FontRef;
 
-    fn check_blues(blues: &Blues, expected_values: &[(f64, f64)]) {
-        for (i, blue) in blues.values().iter().enumerate() {
-            let expected = expected_values[i];
-            assert_eq!(blue.0, Fixed::from_f64(expected.0));
-            assert_eq!(blue.1, Fixed::from_f64(expected.1));
-        }
-    }
+    // fn check_blues(blues: &Blues, expected_values: &[(f64, f64)]) {
+    //     for (i, blue) in blues.values().iter().enumerate() {
+    //         let expected = expected_values[i];
+    //         assert_eq!(blue.0, Fixed::from_f64(expected.0));
+    //         assert_eq!(blue.1, Fixed::from_f64(expected.1));
+    //     }
+    // }
 
     #[test]
     fn read_cff_static() {
@@ -438,22 +419,22 @@ mod tests {
         assert_eq!(cff.subfont_count(), 1);
         assert_eq!(cff.subfont_index(GlyphId::new(1)), 0);
         assert_eq!(cff.global_subrs().count(), 17);
-        let subfont = cff.subfont(0, 0.0, Default::default(), false).unwrap();
-        let hinting_params = subfont.hint_params;
-        check_blues(
-            &hinting_params.blues,
-            &[
-                (-15.0, 0.0),
-                (536.0, 547.0),
-                (571.0, 582.0),
-                (714.0, 726.0),
-                (760.0, 772.0),
-            ],
-        );
-        check_blues(&hinting_params.other_blues, &[(-255.0, -240.0)]);
-        assert_eq!(hinting_params.blue_scale, Fixed::from_f64(0.05));
-        assert_eq!(hinting_params.blue_fuzz, Fixed::ZERO);
-        assert_eq!(hinting_params.language_group, 0);
+        // let subfont = cff.subfont(0, 0.0, Default::default(), false).unwrap();
+        // let hinting_params = subfont.hint_params;
+        // check_blues(
+        //     &hinting_params.blues,
+        //     &[
+        //         (-15.0, 0.0),
+        //         (536.0, 547.0),
+        //         (571.0, 582.0),
+        //         (714.0, 726.0),
+        //         (760.0, 772.0),
+        //     ],
+        // );
+        // check_blues(&hinting_params.other_blues, &[(-255.0, -240.0)]);
+        // assert_eq!(hinting_params.blue_scale, Fixed::from_f64(0.05));
+        // assert_eq!(hinting_params.blue_fuzz, Fixed::ZERO);
+        // assert_eq!(hinting_params.language_group, 0);
     }
 
     #[test]
@@ -468,16 +449,16 @@ mod tests {
         assert_eq!(cff.subfont_count(), 1);
         assert_eq!(cff.subfont_index(GlyphId::new(1)), 0);
         assert_eq!(cff.global_subrs().count(), 0);
-        let subfont = cff.subfont(0, 0.0, Default::default(), false).unwrap();
-        let hinting_params = subfont.hint_params;
-        check_blues(
-            &hinting_params.blues,
-            &[(-10.0, 0.0), (482.0, 492.0), (694.0, 704.0), (739.0, 749.0)],
-        );
-        check_blues(&hinting_params.other_blues, &[(-227.0, -217.0)]);
-        assert_eq!(hinting_params.blue_scale, Fixed::from_f64(0.0625));
-        assert_eq!(hinting_params.blue_fuzz, Fixed::ONE);
-        assert_eq!(hinting_params.language_group, 0);
+        // let subfont = cff.subfont(0, 0.0, Default::default(), false).unwrap();
+        // let hinting_params = subfont.hint_params;
+        // check_blues(
+        //     &hinting_params.blues,
+        //     &[(-10.0, 0.0), (482.0, 492.0), (694.0, 704.0), (739.0, 749.0)],
+        // );
+        // check_blues(&hinting_params.other_blues, &[(-227.0, -217.0)]);
+        // assert_eq!(hinting_params.blue_scale, Fixed::from_f64(0.0625));
+        // assert_eq!(hinting_params.blue_fuzz, Fixed::ONE);
+        // assert_eq!(hinting_params.language_group, 0);
     }
 
     #[test]
@@ -537,7 +518,6 @@ mod tests {
                     scaler.subfont_index(expected_outline.glyph_id),
                     expected_outline.size,
                     &expected_outline.coords,
-                    false,
                 )
                 .unwrap();
             scaler
@@ -545,6 +525,7 @@ mod tests {
                     &subfont,
                     expected_outline.glyph_id,
                     &expected_outline.coords,
+                    false,
                     &mut path,
                 )
                 .unwrap();
