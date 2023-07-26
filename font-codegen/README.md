@@ -157,6 +157,8 @@ The following annotations are supported on top-level objects:
   common tables that contain offsets which point to different concrete types
   depending on the containing table, such as the `Layout` subtable shared
   between GPOS and GSUB.
+- `#[write_fonts_only]` Indicate that this table should only be generated for
+  `write-fonts` (i.e. should be ignored in `read-fonts`).
 
 #### field attributes
 - `#[nullable]`: only allowed on offsets or arrays of offsets, and indicates

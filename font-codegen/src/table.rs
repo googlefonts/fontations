@@ -9,6 +9,9 @@ use crate::parsing::{Attr, GenericGroup, Item, Items, Phase};
 use super::parsing::{Field, ReferencedFields, Table, TableFormat, TableReadArg, TableReadArgs};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
+    if item.attrs.write_only.is_some() {
+        return Ok(Default::default());
+    }
     let docs = &item.attrs.docs;
     let generic = item.attrs.generic_offset.as_ref();
     let generic_with_default = generic.map(|t| quote!(#t = ()));
@@ -595,9 +598,11 @@ fn generate_format_from_obj(
     parse_module: &syn::Path,
 ) -> syn::Result<TokenStream> {
     let name = &item.name;
-    let to_owned_arms = item.variants.iter().map(|variant| {
-        let var_name = &variant.name;
-        quote!( ObjRefType::#var_name(item) => #name::#var_name(item.to_owned_table()), )
+    let to_owned_arms = item.variants.iter().filter_map(|variant| {
+        variant.attrs.write_only.is_none().then(|| {
+            let var_name = &variant.name;
+            quote!( ObjRefType::#var_name(item) => #name::#var_name(item.to_owned_table()), )
+        })
     });
 
     Ok(quote! {
@@ -624,15 +629,20 @@ fn generate_format_from_obj(
 pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStream> {
     let name = &item.name;
     let docs = &item.attrs.docs;
-    let variants = item.variants.iter().map(|variant| {
-        let name = &variant.name;
-        let typ = variant.type_name();
-        let docs = &variant.attrs.docs;
-        quote! ( #( #docs )* #name(#typ<'a>) )
+    let variants = item.variants.iter().filter_map(|variant| {
+        variant.attrs.write_only.is_none().then(|| {
+            let name = &variant.name;
+            let typ = variant.type_name();
+            let docs = &variant.attrs.docs;
+            quote! ( #( #docs )* #name(#typ<'a>) )
+        })
     });
 
     let format = &item.format;
-    let match_arms = item.variants.iter().map(|variant| {
+    let match_arms = item.variants.iter().filter_map(|variant| {
+        if variant.attrs.write_only.is_some() {
+            return None;
+        }
         let name = &variant.name;
         let lhs = if let Some(expr) = variant.attrs.match_stmt.as_deref() {
             let expr = &expr.expr;
@@ -641,16 +651,18 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
             let typ = variant.marker_name();
             quote!(#typ::FORMAT)
         };
-        quote! {
+        Some(quote! {
             #lhs => {
                 Ok(Self::#name(FontRead::read(data)?))
             }
-        }
+        })
     });
 
-    let traversal_arms = item.variants.iter().map(|variant| {
-        let name = &variant.name;
-        quote!(Self::#name(table) => table)
+    let traversal_arms = item.variants.iter().filter_map(|variant| {
+        variant.attrs.write_only.is_none().then(|| {
+            let name = &variant.name;
+            quote!(Self::#name(table) => table)
+        })
     });
 
     let format_offset = item

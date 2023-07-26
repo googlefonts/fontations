@@ -603,6 +603,16 @@ impl DeviceOrVariationIndex {
     }
 }
 
+impl FontWrite for PendingVariationIndex {
+    fn write_into(&self, _writer: &mut TableWriter) {
+        panic!(
+            "Attempted to write PendingVariationIndex.\n\
+            VariationIndex tables should always be resolved before compilation.\n\
+            Please report this bug at <https://github.com/googlefonts/fontations/issues>"
+        )
+    }
+}
+
 fn encode_delta(format: DeltaFormat, values: &[i8]) -> Vec<u16> {
     let (chunk_size, mask, bits) = match format {
         DeltaFormat::Local2BitDeltas => (8, 0b11, 2),

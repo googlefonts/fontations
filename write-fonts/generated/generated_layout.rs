@@ -2601,11 +2601,39 @@ impl<'a> FontRead<'a> for VariationIndex {
     }
 }
 
+/// A type representing a temporary identifier for a set of variation deltas.
+///
+/// The final indices used in the VariationIndex table are not known until
+/// all deltas have been collected. This variant is used to assign a
+/// temporary identifier during compilation.
+///
+/// This type is not part of the spec and will never appear in an actual font file.
+/// It is intended to serve as a sentinel value, and will panic when written,
+/// ensuring that all VariationIndex tables have been correctly mapped before
+/// the font is compiled.
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PendingVariationIndex {
+    /// A unique identifier for a given set of deltas.
+    pub delta_set_id: u32,
+}
+
+impl PendingVariationIndex {
+    /// Construct a new `PendingVariationIndex`
+    pub fn new(delta_set_id: u32) -> Self {
+        Self { delta_set_id }
+    }
+}
+
+impl Validate for PendingVariationIndex {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
 /// Either a [Device] table (in a non-variable font) or a [VariationIndex] table (in a variable font)
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum DeviceOrVariationIndex {
     Device(Device),
     VariationIndex(VariationIndex),
+    PendingVariationIndex(PendingVariationIndex),
 }
 
 impl DeviceOrVariationIndex {
@@ -2615,6 +2643,11 @@ impl DeviceOrVariationIndex {
             delta_set_outer_index,
             delta_set_inner_index,
         ))
+    }
+
+    /// Construct a new `PendingVariationIndex` subtable
+    pub fn pending_variation_index(delta_set_id: u32) -> Self {
+        Self::PendingVariationIndex(PendingVariationIndex::new(delta_set_id))
     }
 }
 
@@ -2629,12 +2662,14 @@ impl FontWrite for DeviceOrVariationIndex {
         match self {
             Self::Device(item) => item.write_into(writer),
             Self::VariationIndex(item) => item.write_into(writer),
+            Self::PendingVariationIndex(item) => item.write_into(writer),
         }
     }
     fn table_type(&self) -> TableType {
         match self {
             Self::Device(item) => item.table_type(),
             Self::VariationIndex(item) => item.table_type(),
+            Self::PendingVariationIndex(item) => item.table_type(),
         }
     }
 }
@@ -2644,6 +2679,7 @@ impl Validate for DeviceOrVariationIndex {
         match self {
             Self::Device(item) => item.validate_impl(ctx),
             Self::VariationIndex(item) => item.validate_impl(ctx),
+            Self::PendingVariationIndex(item) => item.validate_impl(ctx),
         }
     }
 }
@@ -2681,6 +2717,12 @@ impl From<Device> for DeviceOrVariationIndex {
 impl From<VariationIndex> for DeviceOrVariationIndex {
     fn from(src: VariationIndex) -> DeviceOrVariationIndex {
         DeviceOrVariationIndex::VariationIndex(src)
+    }
+}
+
+impl From<PendingVariationIndex> for DeviceOrVariationIndex {
+    fn from(src: PendingVariationIndex) -> DeviceOrVariationIndex {
+        DeviceOrVariationIndex::PendingVariationIndex(src)
     }
 }
 
