@@ -64,6 +64,7 @@ pub(crate) struct TableAttrs {
     pub(crate) read_args: Option<Attr<TableReadArgs>>,
     pub(crate) generic_offset: Option<Attr<syn::Ident>>,
     pub(crate) tag: Option<Attr<syn::LitStr>>,
+    pub(crate) write_only: Option<syn::Path>,
     /// Custom validation behaviour, must be a fn(&self, &mut ValidationCtx) for the type
     pub(crate) validate: Option<Attr<syn::Ident>>,
 }
@@ -130,6 +131,7 @@ pub(crate) struct GroupVariant {
 pub(crate) struct VariantAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) match_stmt: Option<Attr<InlineExpr>>,
+    pub(crate) write_only: Option<syn::Path>,
 }
 
 impl FormatVariant {
@@ -922,6 +924,7 @@ impl Parse for FormatVariant {
 }
 
 static MATCH_IF: &str = "match_if";
+static WRITE_FONTS_ONLY: &str = "write_fonts_only";
 
 impl Parse for VariantAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -940,6 +943,8 @@ impl Parse for VariantAttrs {
                 this.docs.push(attr);
             } else if ident == MATCH_IF {
                 this.match_stmt = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == WRITE_FONTS_ONLY {
+                this.write_only = Some(attr.path().clone());
             } else {
                 return Err(logged_syn_error(
                     ident.span(),
@@ -1061,6 +1066,8 @@ impl Parse for TableAttrs {
                 this.skip_font_write = Some(attr.path().clone());
             } else if ident == SKIP_CONSTRUCTOR {
                 this.skip_constructor = Some(attr.path().clone());
+            } else if ident == WRITE_FONTS_ONLY {
+                this.write_only = Some(attr.path().clone());
             } else if ident == READ_ARGS {
                 this.read_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == GENERIC_OFFSET {
