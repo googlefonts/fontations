@@ -77,6 +77,7 @@ struct ValidationError {
 }
 
 /// One or more validation errors.
+#[derive(Clone)]
 pub struct ValidationReport {
     errors: Vec<ValidationError>,
 }

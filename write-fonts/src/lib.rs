@@ -72,19 +72,27 @@
 //! let _bytes = write_fonts::dump_table(&my_table).expect("failed to write bytes");
 //! ```
 //!
-//! Read and modify an existing 'head' table
+//! Read/modify/write an existing font
 //! ```no_run
 //! # let path_to_my_font_file = std::path::Path::new("");
 //! # fn seconds_since_font_epoch() -> LongDateTime { todo!() }
 //! use read_fonts::{FontRef, TableProvider};
-//! use write_fonts::{from_obj::ToOwnedTable, tables::head::Head, types::LongDateTime};
-//!
+//! use write_fonts::{
+//!     from_obj::ToOwnedTable,
+//!     tables::head::Head,
+//!     types::LongDateTime,
+//!     FontBuilder,
+//! };
 //! let font_bytes = std::fs::read(path_to_my_font_file).unwrap();
 //! let font = FontRef::new(&font_bytes).expect("failed to read font data");
 //! let mut head: Head = font.head().expect("missing 'head' table").to_owned_table();
 //! head.modified  = seconds_since_font_epoch();
-//! // to save the font you need to use `FontBuilder`, adding all the unchanged
-//! // tables from the original font, and then the new head table
+//! let new_bytes = FontBuilder::new()
+//!     .add_table(&head)
+//!     .unwrap() // errors if we can't compile 'head', unlikely here
+//!     .copy_missing_tables(font)
+//!     .build();
+//! std::fs::write("mynewfont.ttf", &new_bytes).unwrap();
 //! ```
 //!
 //! [`read-fonts`]: https://docs.rs/read-fonts/
@@ -115,7 +123,7 @@ mod codegen_test;
 #[cfg(test)]
 mod hex_diff;
 
-pub use font_builder::FontBuilder;
+pub use font_builder::{BuilderError, FontBuilder};
 pub use offsets::{NullableOffsetMarker, OffsetMarker};
 pub use round::OtRound;
 pub use write::{dump_table, FontWrite, TableWriter};
