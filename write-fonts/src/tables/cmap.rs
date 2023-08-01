@@ -132,7 +132,7 @@ impl Cmap {
 #[cfg(test)]
 mod tests {
     use font_types::GlyphId;
-    use read::{
+    use read_fonts::{
         tables::cmap::{Cmap, CmapSubtable, PlatformId},
         FontData, FontRead,
     };

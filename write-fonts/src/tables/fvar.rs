@@ -63,7 +63,7 @@ impl Fvar {
 
 #[cfg(test)]
 mod tests {
-    use read::{FontRef, TableProvider};
+    use read_fonts::{FontRef, TableProvider};
 
     use super::*;
 

@@ -457,8 +457,11 @@ impl SimpleGlyph {
     }
 }
 
-impl<'a> FromObjRef<read::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {
-    fn from_obj_ref(from: &read::tables::glyf::SimpleGlyph, _data: read::FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {
+    fn from_obj_ref(
+        from: &read_fonts::tables::glyf::SimpleGlyph,
+        _data: read_fonts::FontData,
+    ) -> Self {
         let bbox = Bbox {
             x_min: from.x_min(),
             y_min: from.y_min(),
@@ -482,10 +485,13 @@ impl<'a> FromObjRef<read::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {
     }
 }
 
-impl<'a> FromTableRef<read::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {}
+impl<'a> FromTableRef<read_fonts::tables::glyf::SimpleGlyph<'a>> for SimpleGlyph {}
 
-impl<'a> FromObjRef<read::tables::glyf::CompositeGlyph<'a>> for CompositeGlyph {
-    fn from_obj_ref(from: &read::tables::glyf::CompositeGlyph, _data: read::FontData) -> Self {
+impl<'a> FromObjRef<read_fonts::tables::glyf::CompositeGlyph<'a>> for CompositeGlyph {
+    fn from_obj_ref(
+        from: &read_fonts::tables::glyf::CompositeGlyph,
+        _data: read_fonts::FontData,
+    ) -> Self {
         let bbox = Bbox {
             x_min: from.x_min(),
             y_min: from.y_min(),
@@ -512,7 +518,7 @@ impl<'a> FromObjRef<read::tables::glyf::CompositeGlyph<'a>> for CompositeGlyph {
     }
 }
 
-impl<'a> FromTableRef<read::tables::glyf::CompositeGlyph<'a>> for CompositeGlyph {}
+impl<'a> FromTableRef<read_fonts::tables::glyf::CompositeGlyph<'a>> for CompositeGlyph {}
 
 /// A little helper for managing how we're representing a given delta
 #[derive(Clone, Copy, Debug)]
@@ -885,7 +891,7 @@ mod tests {
     use std::iter::from_fn;
 
     use kurbo::Affine;
-    use read::{
+    use read_fonts::{
         tables::glyf as read_glyf, types::GlyphId, FontData, FontRead, FontRef, TableProvider,
     };
 
@@ -902,7 +908,7 @@ mod tests {
         assert!(matches!(err, BadKurbo::HasCubic));
     }
 
-    fn simple_glyph_to_bezpath(glyph: &read::tables::glyf::SimpleGlyph) -> BezPath {
+    fn simple_glyph_to_bezpath(glyph: &read_fonts::tables::glyf::SimpleGlyph) -> BezPath {
         use types::{F26Dot6, Pen};
 
         #[derive(Default)]
@@ -949,14 +955,14 @@ mod tests {
             .map(|point| point.map(F26Dot6::from_i32))
             .collect::<Vec<_>>();
         let mut path = Path::default();
-        read::tables::glyf::to_path(&points, &flags, &contours, &mut path).unwrap();
+        read_fonts::tables::glyf::to_path(&points, &flags, &contours, &mut path).unwrap();
         path.0
     }
 
     // For `indexToLocFormat == 0` (short version), offset divided by 2 is stored, so add a padding
     // byte if the length is not even to ensure our computed bytes match those of our test glyphs.
-    fn pad_for_loca_format(loca: &read::tables::loca::Loca, mut bytes: Vec<u8>) -> Vec<u8> {
-        if matches!(loca, read::tables::loca::Loca::Short(_)) && bytes.len() & 1 != 0 {
+    fn pad_for_loca_format(loca: &read_fonts::tables::loca::Loca, mut bytes: Vec<u8>) -> Vec<u8> {
+        if matches!(loca, read_fonts::tables::loca::Loca::Short(_)) && bytes.len() & 1 != 0 {
             bytes.push(0);
         }
         bytes
@@ -1758,7 +1764,7 @@ mod tests {
         composite._instructions = orig.instructions().unwrap_or_default().to_vec();
         assert!(iter.next().is_none());
         let bytes = crate::dump_table(&composite).unwrap();
-        let ours = read::tables::glyf::CompositeGlyph::read(FontData::new(&bytes)).unwrap();
+        let ours = read_fonts::tables::glyf::CompositeGlyph::read(FontData::new(&bytes)).unwrap();
 
         let our_comps = ours.components().collect::<Vec<_>>();
         let orig_comps = orig.components().collect::<Vec<_>>();
