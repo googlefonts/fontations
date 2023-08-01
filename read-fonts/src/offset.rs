@@ -31,7 +31,7 @@ impl_offset!(Offset16, 2);
 impl_offset!(Offset24, 3);
 impl_offset!(Offset32, 4);
 
-/// a (temporary?) helper trait to blanket impl a resolve method for types::Offset
+/// A helper trait providing a 'resolve' method for offset types
 pub trait ResolveOffset {
     fn resolve<'a, T: FontRead<'a>>(&self, data: FontData<'a>) -> Result<T, ReadError>;
 
@@ -42,6 +42,7 @@ pub trait ResolveOffset {
     ) -> Result<T, ReadError>;
 }
 
+/// A helper trait providing a 'resolve' method for nullable offset types
 pub trait ResolveNullableOffset {
     fn resolve<'a, T: FontRead<'a>>(&self, data: FontData<'a>) -> Option<Result<T, ReadError>>;
 
