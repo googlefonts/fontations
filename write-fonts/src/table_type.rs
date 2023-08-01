@@ -6,7 +6,7 @@
 use std::fmt::Display;
 
 use font_types::Tag;
-use read::TopLevelTable;
+use read_fonts::TopLevelTable;
 
 use crate::tables::layout::LookupType;
 

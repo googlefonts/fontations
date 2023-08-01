@@ -13,7 +13,7 @@ pub struct PString(String);
 impl Post {
     /// Construct a new version 2.0 table from a glyph order.
     pub fn new_v2<'a>(order: impl IntoIterator<Item = &'a str>) -> Self {
-        let known_glyphs = crate::read::tables::post::DEFAULT_GLYPH_NAMES
+        let known_glyphs = read_fonts::tables::post::DEFAULT_GLYPH_NAMES
             .iter()
             .enumerate()
             .map(|(i, name)| (*name, i as u16))
@@ -92,7 +92,7 @@ mod tests {
     fn compilev2() {
         let post = Post::new_v2([".dotdef", "A", "B", "one", "flarb", "C"]);
         let dumped = crate::dump_table(&post).unwrap();
-        let loaded = read::tables::post::Post::read(FontData::new(&dumped)).unwrap();
+        let loaded = read_fonts::tables::post::Post::read(FontData::new(&dumped)).unwrap();
         assert_eq!(loaded.version(), Version16Dot16::VERSION_2_0);
         assert_eq!(loaded.glyph_name(GlyphId::new(1)), Some("A"));
         assert_eq!(loaded.glyph_name(GlyphId::new(4)), Some("flarb"));
