@@ -11,6 +11,16 @@ use crate::{
     write::{FontWrite, TableWriter},
 };
 
+/// A [ValueRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/gpos#valueRecord)
+///
+/// GPOS subtables use ValueRecords to describe all the variables and values
+/// used to adjust the position of a glyph or set of glyphs. A ValueRecord may
+/// define any combination of X and Y values (in design units) to add to
+/// (positive values) or subtract from (negative values) the placement and
+/// advance values provided in the font. In non-variable fonts, a ValueRecord
+/// may also contain an offset to a Device table for each of the specified
+/// values. In a variable font, it may also contain an offset to a
+/// VariationIndex table for each of the specified values.
 #[derive(Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[non_exhaustive]
 pub struct ValueRecord {
