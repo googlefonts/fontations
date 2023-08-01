@@ -12,7 +12,7 @@ pub struct PackingError {
 }
 
 /// An error occured while writing this table
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Error {
     ValidationFailed(ValidationReport),
     PackingFailed(PackingError),
