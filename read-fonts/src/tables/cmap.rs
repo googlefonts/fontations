@@ -14,8 +14,14 @@ pub enum MapVariant {
 }
 
 impl<'a> Cmap<'a> {
-    /// Maps a codepoint to a nominal glyph identifier using the first
-    /// available subtable that provides a valid mapping.
+    /// Map a codepoint to a nominal glyph identifier
+    ///
+    /// This uses the first available subtable that provides a valid mapping.
+    ///
+    /// # Note:
+    ///
+    /// Mapping logic is currently only implemented for the most common subtable
+    /// formats.
     pub fn map_codepoint(&self, codepoint: impl Into<u32>) -> Option<GlyphId> {
         let codepoint = codepoint.into();
         for record in self.encoding_records() {
