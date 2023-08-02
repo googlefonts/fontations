@@ -89,10 +89,7 @@ impl Default for FloatComparator {
     /// Create a new FloatComparator with `rel_to=1e-9` and `abs_tol=0.0`.
     fn default() -> Self {
         // same defaults as Python's math.isclose so we can match fontTools
-        Self {
-            rel_tol: 1e-9,
-            abs_tol: 0.0,
-        }
+        Self::new(1e-9, 0.0)
     }
 }
 

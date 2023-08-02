@@ -130,7 +130,7 @@ pub mod pens;
 mod round;
 mod table_type;
 pub mod tables;
-pub mod util;
+mod util;
 pub mod validate;
 mod write;
 
