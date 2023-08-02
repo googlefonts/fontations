@@ -10,10 +10,11 @@ use kurbo::{BezPath, Rect};
 use read_fonts::{
     tables::glyf::{Anchor, CompositeGlyphFlags, CurvePoint, SimpleGlyphFlags, Transform},
     types::GlyphId,
+    FontRead,
 };
 
 use crate::{
-    from_obj::{FromObjRef, FromTableRef},
+    from_obj::{FromObjRef, FromTableRef, ToOwnedTable},
     FontWrite,
 };
 
@@ -519,6 +520,18 @@ impl<'a> FromObjRef<read_fonts::tables::glyf::CompositeGlyph<'a>> for CompositeG
 }
 
 impl<'a> FromTableRef<read_fonts::tables::glyf::CompositeGlyph<'a>> for CompositeGlyph {}
+
+impl<'a> FontRead<'a> for SimpleGlyph {
+    fn read(data: read_fonts::FontData<'a>) -> Result<Self, read_fonts::ReadError> {
+        read_fonts::tables::glyf::SimpleGlyph::read(data).map(|g| g.to_owned_table())
+    }
+}
+
+impl<'a> FontRead<'a> for CompositeGlyph {
+    fn read(data: read_fonts::FontData<'a>) -> Result<Self, read_fonts::ReadError> {
+        read_fonts::tables::glyf::CompositeGlyph::read(data).map(|g| g.to_owned_table())
+    }
+}
 
 /// A little helper for managing how we're representing a given delta
 #[derive(Clone, Copy, Debug)]
