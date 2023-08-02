@@ -10,6 +10,7 @@ categories = ["text-processing", "parsing", "graphics"]
 
 [features]
 default = ["dot2"]
+read = []
 
 [dependencies]
 font-types = { version = "0.3.4", path = "../font-types" }

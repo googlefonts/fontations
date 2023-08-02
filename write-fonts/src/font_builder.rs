@@ -3,7 +3,7 @@
 use std::collections::BTreeMap;
 use std::{borrow::Cow, fmt::Display};
 
-use read::{FontRef, TableProvider};
+use read_fonts::{FontRef, TableProvider};
 use types::{Tag, TT_SFNT_VERSION};
 
 include!("../generated/generated_font.rs");
