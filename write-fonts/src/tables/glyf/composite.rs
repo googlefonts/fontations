@@ -12,7 +12,7 @@ use super::Bbox;
 pub use read_fonts::tables::glyf::{Anchor, Transform};
 
 /// A glyph consisting of multiple component sub-glyphs
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct CompositeGlyph {
     pub bbox: Bbox,
     components: Vec<Component>,
@@ -20,7 +20,7 @@ pub struct CompositeGlyph {
 }
 
 /// A single component glyph (part of a [`CompositeGlyph`]).
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Component {
     pub glyph: GlyphId,
     pub anchor: Anchor,
