@@ -30,7 +30,7 @@ pub struct Contour(Vec<CurvePoint>);
 /// An error if an input curve is malformed
 #[derive(Clone, Debug)]
 #[non_exhaustive]
-pub enum BadKurbo {
+pub enum MalformedPath {
     HasCubic,
     TooSmall,
     MissingMove,
@@ -58,10 +58,27 @@ impl SimpleGlyph {
     /// * In FontTools endPath says I'm done with this subpath, [BezPath] has no endPath.
     ///
     /// Context courtesy of @anthrotype.
-    pub fn from_kurbo(path: &BezPath) -> Result<Self, BadKurbo> {
-        Ok(simple_glyphs_from_kurbo(std::slice::from_ref(path))?
-            .pop()
-            .unwrap())
+    pub fn from_bezpath(path: &BezPath) -> Result<Self, MalformedPath> {
+        Self::interpolatable_glyphs_from_bezpaths(std::slice::from_ref(path))
+            .map(|mut x| x.pop().unwrap())
+    }
+
+    /// Attempt to create a set of interpolation-compatible glyphs from a set
+    /// of paths.
+    ///
+    /// The paths are expected to be preprocessed, and interpolation compatible
+    /// (i.e. they should have the same number and type of points, in the same
+    /// order.) They should contain only line and quadratic segments; the caller
+    /// is responsible for converting cubics to quadratics as needed.
+    ///
+    /// This method is provided for use when compiling variable fonts.
+    /// The inputs are expected to be different instances of the same named
+    /// glyph, each corresponding to a different location in the variation
+    /// space.
+    pub fn interpolatable_glyphs_from_bezpaths(
+        paths: &[BezPath],
+    ) -> Result<Vec<Self>, MalformedPath> {
+        simple_glyphs_from_kurbo(paths)
     }
 
     /// Compute the flags and deltas for this glyph's points.
@@ -137,6 +154,25 @@ impl Contour {
 
     pub fn iter(&self) -> impl Iterator<Item = &CurvePoint> {
         self.0.iter()
+    }
+}
+
+impl MalformedPath {
+    fn inconsistent_path_els(idx: usize, elements: &[kurbo::PathEl]) -> Self {
+        fn el_types(elements: &[kurbo::PathEl]) -> Vec<&'static str> {
+            elements
+                .iter()
+                .map(|el| match el {
+                    kurbo::PathEl::MoveTo(_) => "M",
+                    kurbo::PathEl::LineTo(_) => "L",
+                    kurbo::PathEl::QuadTo(_, _) => "Q",
+                    kurbo::PathEl::CurveTo(_, _, _) => "C",
+                    kurbo::PathEl::ClosePath => "Z",
+                })
+                .collect()
+        }
+
+        MalformedPath::InconsistentPathElements(idx, el_types(elements))
     }
 }
 
@@ -446,23 +482,12 @@ fn is_implicit_on_curve(points: &[ContourPoint], idx: usize) -> bool {
     is_mid_point(p0.point, p1.point, p2.point)
 }
 
-pub fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, BadKurbo> {
-    fn el_types(elements: &[kurbo::PathEl]) -> Vec<&'static str> {
-        elements
-            .iter()
-            .map(|el| match el {
-                kurbo::PathEl::MoveTo(_) => "M",
-                kurbo::PathEl::LineTo(_) => "L",
-                kurbo::PathEl::QuadTo(_, _) => "Q",
-                kurbo::PathEl::CurveTo(_, _, _) => "C",
-                kurbo::PathEl::ClosePath => "Z",
-            })
-            .collect()
-    }
+// impl for SimpleGlyph::interpolatable_glyphs_from_paths
+fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, MalformedPath> {
     // check that all paths have the same number of elements so we can zip them together
     let num_elements: Vec<usize> = paths.iter().map(|path| path.elements().len()).collect();
     if num_elements.iter().any(|n| *n != num_elements[0]) {
-        return Err(BadKurbo::UnequalNumberOfElements(num_elements));
+        return Err(MalformedPath::UnequalNumberOfElements(num_elements));
     }
     let path_iters = MultiZip::new(paths.iter().map(|path| path.iter()).collect());
     let mut contours: Vec<InterpolatableContourBuilder> = Vec::new();
@@ -486,9 +511,7 @@ pub fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, B
                         &kurbo::PathEl::MoveTo(pt) => {
                             pts.push(pt);
                         }
-                        _ => {
-                            return Err(BadKurbo::InconsistentPathElements(i, el_types(&elements)))
-                        }
+                        _ => return Err(MalformedPath::inconsistent_path_els(i, &elements)),
                     }
                 }
                 current = Some(InterpolatableContourBuilder::new(&pts));
@@ -500,12 +523,13 @@ pub fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, B
                         &kurbo::PathEl::LineTo(pt) => {
                             pts.push(pt);
                         }
-                        _ => {
-                            return Err(BadKurbo::InconsistentPathElements(i, el_types(&elements)))
-                        }
+                        _ => return Err(MalformedPath::inconsistent_path_els(i, &elements)),
                     }
                 }
-                current.as_mut().ok_or(BadKurbo::MissingMove)?.line_to(&pts)
+                current
+                    .as_mut()
+                    .ok_or(MalformedPath::MissingMove)?
+                    .line_to(&pts)
             }
             kurbo::PathEl::QuadTo(_, _) => {
                 quad_pts.clear();
@@ -514,19 +538,17 @@ pub fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, B
                         &kurbo::PathEl::QuadTo(p0, p1) => {
                             quad_pts.push((p0, p1));
                         }
-                        _ => {
-                            return Err(BadKurbo::InconsistentPathElements(i, el_types(&elements)))
-                        }
+                        _ => return Err(MalformedPath::inconsistent_path_els(i, &elements)),
                     }
                 }
                 current
                     .as_mut()
-                    .ok_or(BadKurbo::MissingMove)?
+                    .ok_or(MalformedPath::MissingMove)?
                     .quad_to(&quad_pts)
             }
-            kurbo::PathEl::CurveTo(_, _, _) => return Err(BadKurbo::HasCubic),
+            kurbo::PathEl::CurveTo(_, _, _) => return Err(MalformedPath::HasCubic),
             kurbo::PathEl::ClosePath => {
-                let contour = current.as_mut().ok_or(BadKurbo::MissingMove)?;
+                let contour = current.as_mut().ok_or(MalformedPath::MissingMove)?;
                 // remove last point in closed path if has same coords as the move point
                 // matches FontTools handling @ https://github.com/fonttools/fonttools/blob/3b9a73ff8379ab49d3ce35aaaaf04b3a7d9d1655/Lib/fontTools/pens/pointPen.py#L321-L323
                 // FontTools has an else case to support UFO glif's choice to not include 'move' for closed paths that does not apply here.
@@ -637,8 +659,8 @@ mod tests {
         path.curve_to((10., 10.), (20., 20.), (30., 30.));
         path.line_to((50., 50.));
         path.line_to((10., 10.));
-        let err = SimpleGlyph::from_kurbo(&path).unwrap_err();
-        assert!(matches!(err, BadKurbo::HasCubic));
+        let err = SimpleGlyph::from_bezpath(&path).unwrap_err();
+        assert!(matches!(err, MalformedPath::HasCubic));
     }
 
     #[test]
@@ -671,7 +693,7 @@ mod tests {
 
         let bezpath = simple_glyph_to_bezpath(&orig);
 
-        let ours = SimpleGlyph::from_kurbo(&bezpath).unwrap();
+        let ours = SimpleGlyph::from_bezpath(&bezpath).unwrap();
         let bytes = pad_for_loca_format(&loca, crate::dump_table(&ours).unwrap());
         let ours = read_glyf::SimpleGlyph::read(bytes.as_slice().into()).unwrap();
 
@@ -693,7 +715,7 @@ mod tests {
 
         let bezpath = simple_glyph_to_bezpath(&orig);
 
-        let ours = SimpleGlyph::from_kurbo(&bezpath).unwrap();
+        let ours = SimpleGlyph::from_bezpath(&bezpath).unwrap();
         let bytes = pad_for_loca_format(&loca, crate::dump_table(&ours).unwrap());
         let ours = read_glyf::SimpleGlyph::read(bytes.as_slice().into()).unwrap();
 
@@ -719,7 +741,7 @@ mod tests {
         // hence there is going to be an extra point (6, not 5 in total)
         path.line_to((20., -100.));
 
-        let glyph = SimpleGlyph::from_kurbo(&path).unwrap();
+        let glyph = SimpleGlyph::from_bezpath(&path).unwrap();
         let bytes = crate::dump_table(&glyph).unwrap();
         let read = read_fonts::tables::glyf::SimpleGlyph::read(bytes.as_slice().into()).unwrap();
         assert_eq!(read.number_of_contours(), 1);
@@ -758,7 +780,7 @@ mod tests {
         path2.close_path();
 
         for path in &[path1, path2] {
-            let glyph = SimpleGlyph::from_kurbo(path).unwrap();
+            let glyph = SimpleGlyph::from_bezpath(path).unwrap();
             let bytes = crate::dump_table(&glyph).unwrap();
             let read =
                 read_fonts::tables::glyf::SimpleGlyph::read(bytes.as_slice().into()).unwrap();
@@ -787,7 +809,7 @@ mod tests {
         path.move_to((1.0, 2.0));
         path.close_path();
 
-        let glyph = SimpleGlyph::from_kurbo(&path).unwrap();
+        let glyph = SimpleGlyph::from_bezpath(&path).unwrap();
         let bytes = crate::dump_table(&glyph).unwrap();
         let read = read_fonts::tables::glyf::SimpleGlyph::read(bytes.as_slice().into()).unwrap();
         assert_eq!(read.number_of_contours(), 2);
@@ -810,7 +832,7 @@ mod tests {
         path.line_to((50., -69.));
         path.line_to((80., -20.));
 
-        let glyph = SimpleGlyph::from_kurbo(&path).unwrap();
+        let glyph = SimpleGlyph::from_bezpath(&path).unwrap();
         let flags = glyph
             .compute_point_deltas()
             .map(|x| x.0)
@@ -854,7 +876,7 @@ mod tests {
         assert_eq!(path2.elements().len(), 6);
 
         let err = simple_glyphs_from_kurbo(&[path1, path2]).unwrap_err();
-        assert!(matches!(err, BadKurbo::UnequalNumberOfElements(_)));
+        assert!(matches!(err, MalformedPath::UnequalNumberOfElements(_)));
         assert_eq!(format!("{:?}", err), "UnequalNumberOfElements([5, 6])");
     }
 
@@ -872,7 +894,7 @@ mod tests {
         path2.close_path();
 
         let err = simple_glyphs_from_kurbo(&[path1, path2]).unwrap_err();
-        assert!(matches!(err, BadKurbo::InconsistentPathElements(1, _)));
+        assert!(matches!(err, MalformedPath::InconsistentPathElements(1, _)));
         assert_eq!(
             format!("{:?}", err),
             "InconsistentPathElements(1, [\"L\", \"Q\"])"
@@ -1149,7 +1171,7 @@ mod tests {
         // when making a SimpleGlyph from this path alone, the on-curve point at (1, 1)
         // can be implied/dropped.
         assert_contour_points(
-            &SimpleGlyph::from_kurbo(&path1).unwrap(),
+            &SimpleGlyph::from_bezpath(&path1).unwrap(),
             vec![vec![
                 CurvePoint::on_curve(0, 0),
                 CurvePoint::off_curve(0, 1),
@@ -1351,7 +1373,7 @@ mod tests {
         path.quad_to((6.0, 2.0), (8.0, 0.0));
         path.close_path();
 
-        let glyph = SimpleGlyph::from_kurbo(&path).unwrap();
+        let glyph = SimpleGlyph::from_bezpath(&path).unwrap();
 
         assert_contour_points(
             &glyph,
