@@ -8,7 +8,7 @@ mod composite;
 mod simple;
 
 pub use composite::{Anchor, Component, ComponentFlags, CompositeGlyph, Transform};
-pub use simple::{simple_glyphs_from_kurbo, BadKurbo, Contour, SimpleGlyph};
+pub use simple::{Contour, MalformedPath, SimpleGlyph};
 
 /// A Bounding box.
 ///
