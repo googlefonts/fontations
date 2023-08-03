@@ -84,3 +84,31 @@ impl FontWrite for Loca {
 impl Validate for Loca {
     fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn no_glyphs_is_short() {
+        assert_eq!(LocaFormat::Short, LocaFormat::new(&Vec::new()));
+    }
+
+    #[test]
+    fn some_glyphs_is_short() {
+        assert_eq!(LocaFormat::Short, LocaFormat::new(&[24, 48, 112]));
+    }
+
+    #[test]
+    fn unpadded_glyphs_is_long() {
+        assert_eq!(LocaFormat::Long, LocaFormat::new(&[24, 7, 112]));
+    }
+
+    #[test]
+    fn big_glyphs_is_long() {
+        assert_eq!(
+            LocaFormat::Long,
+            LocaFormat::new(&(0..=32).map(|i| i * 0x1000).collect::<Vec<_>>())
+        );
+    }
+}
