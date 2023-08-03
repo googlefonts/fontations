@@ -69,11 +69,12 @@ impl SimpleGlyph {
     /// The paths are expected to be preprocessed, and interpolation compatible
     /// (i.e. they should have the same number and type of points, in the same
     /// order.) They should contain only line and quadratic segments; the caller
-    /// is responsible for converting cubics to quadratics  as needed.
+    /// is responsible for converting cubics to quadratics as needed.
     ///
     /// This method is provided for use when compiling variable fonts.
     /// The inputs are expected to be different instances of the same named
-    /// glyph, each corresponding to a different location in the designspace.
+    /// glyph, each corresponding to a different location in the variation
+    /// space.
     pub fn interpolatable_glyphs_from_bezpaths(
         paths: &[BezPath],
     ) -> Result<Vec<Self>, MalformedPath> {
