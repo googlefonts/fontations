@@ -16,7 +16,7 @@ use read_fonts::{
 use super::Bbox;
 
 /// A simple (without components) glyph
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SimpleGlyph {
     pub bbox: Bbox,
     contours: Vec<Contour>,
@@ -24,7 +24,7 @@ pub struct SimpleGlyph {
 }
 
 /// A single contour, comprising only line and quadratic bezier segments
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Contour(Vec<CurvePoint>);
 
 /// An error if an input curve is malformed
