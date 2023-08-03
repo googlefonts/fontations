@@ -11,15 +11,19 @@ use kurbo::Rect;
 use read_fonts::{FontRead, TopLevelTable};
 
 mod composite;
+mod glyf_loca_builder;
 mod simple;
 
 pub use composite::{Anchor, Component, ComponentFlags, CompositeGlyph, Transform};
+pub use glyf_loca_builder::{GlyfLocaBuilder, SomeGlyph};
 pub use simple::{Contour, MalformedPath, SimpleGlyph};
 
 /// The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 ///
-/// Compiling the glyf table requires additional logic, since the positions
-/// of glyfs are stored in the 'loca' type.
+/// This table is the concatenated bytes of all the glyphs in the font, with
+/// the positions of each individual glyph stored in the ['loca' table][super::loca].
+/// As such, these two tables must be constructed together. The [`GlyfLocaBuilder`]
+/// type is provided to simplify this.
 pub struct Glyf(Vec<u8>);
 
 impl TopLevelTable for Glyf {

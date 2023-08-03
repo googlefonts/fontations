@@ -50,7 +50,7 @@ pub struct TableWriter {
 /// otherwise it will return the bytes encoding the table.
 pub fn dump_table<T: FontWrite + Validate>(table: &T) -> Result<Vec<u8>, Error> {
     log::trace!("writing table '{}'", table.table_type());
-    table.validate().map_err(Error::ValidationFailed)?;
+    table.validate()?;
     let mut graph = TableWriter::make_graph(table);
 
     if !graph.pack_objects() {
@@ -124,6 +124,14 @@ impl TableWriter {
         let result = self.stack.pop().unwrap();
         assert!(result.offsets.is_empty());
         result.bytes
+    }
+
+    /// A reference to the current table data.
+    ///
+    /// This is currently only used to figure out the glyph positions when
+    /// compiling the glyf table.
+    pub(crate) fn current_data(&self) -> &TableData {
+        self.stack.last().unwrap() // there is always at least one
     }
 }
 
