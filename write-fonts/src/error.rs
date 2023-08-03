@@ -56,6 +56,12 @@ impl std::fmt::Debug for PackingError {
 impl std::error::Error for PackingError {}
 impl std::error::Error for Error {}
 
+impl From<ValidationReport> for Error {
+    fn from(value: ValidationReport) -> Self {
+        Error::ValidationFailed(value)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

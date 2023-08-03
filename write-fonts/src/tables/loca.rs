@@ -41,6 +41,10 @@ impl Loca {
     /// Create a new loca table from 32-bit offsets.
     ///
     /// The loca format will be calculated based on the raw values.
+    ///
+    /// You generally do not construct this directly; it is constructed alongside
+    /// the corresponding 'glyf' table using the
+    /// [GlyfLocaBuilder](super::glyf::GlyfLocaBuilder).
     pub fn new(offsets: Vec<u32>) -> Self {
         let loca_format = LocaFormat::new(&offsets);
 
