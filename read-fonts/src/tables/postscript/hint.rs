@@ -604,18 +604,18 @@ impl HintMap {
             return;
         }
         if TRACE {
-            println!(
-                "  Got hint at {} ({})",
-                first.coord.to_f64(),
-                first.ds_coord.to_f64()
-            );
-            if is_pair {
-                println!(
-                    "  Got hint at {} ({})",
-                    second.coord.to_f64(),
-                    second.ds_coord.to_f64()
-                );
-            }
+            // println!(
+            //     "  Got hint at {} ({})",
+            //     first.coord.to_f64(),
+            //     first.ds_coord.to_f64()
+            // );
+            // if is_pair {
+            //     println!(
+            //         "  Got hint at {} ({})",
+            //         second.coord.to_f64(),
+            //         second.ds_coord.to_f64()
+            //     );
+            // }
         }
         let mut insertion_index = 0;
         while insertion_index < self.len {
@@ -671,18 +671,18 @@ impl HintMap {
             self.hints[insertion_index + 1] = second;
         }
         if TRACE {
-            println!(
-                "  Inserting hint at {} ({})",
-                first.coord.to_f64(),
-                first.ds_coord.to_f64()
-            );
-            if is_pair {
-                println!(
-                    "  Inserting hint at {} ({})",
-                    second.coord.to_f64(),
-                    second.ds_coord.to_f64()
-                );
-            }
+            // println!(
+            //     "  Inserting hint at {} ({})",
+            //     first.coord.to_f64(),
+            //     first.ds_coord.to_f64()
+            // );
+            // if is_pair {
+            //     println!(
+            //         "  Inserting hint at {} ({})",
+            //         second.coord.to_f64(),
+            //         second.ds_coord.to_f64()
+            //     );
+            // }
         }
         self.len += count;
     }
@@ -883,30 +883,30 @@ impl HintMap {
     }
 
     fn dump(&self) {
-        if !TRACE {
-            return;
-        }
-        for i in 0..self.len {
-            let hint = self.hints[i];
-            println!(
-                "[{}] {} {} {} {}{}{}{}{}{}",
-                hint.index,
-                hint.coord.to_f64(),
-                hint.ds_coord.to_f64() / hint.scale.to_f64(),
-                hint.scale.to_f64() * 65536.,
-                if hint.is_pair() { "p" } else { "" },
-                if hint.flags & (GHOST_BOTTOM | GHOST_TOP) != 0 {
-                    "g"
-                } else {
-                    ""
-                },
-                if hint.is_top() { "t" } else { "" },
-                if hint.is_bottom() { "b" } else { "" },
-                if hint.is_locked() { "L" } else { "" },
-                if hint.is_synthetic() { "S" } else { "" },
-            );
-        }
-        println!("-------------------------------");
+        // if !TRACE {
+        //     return;
+        // }
+        // for i in 0..self.len {
+        //     let hint = self.hints[i];
+        //     println!(
+        //         "[{}] {} {} {} {}{}{}{}{}{}",
+        //         hint.index,
+        //         hint.coord.to_f64(),
+        //         hint.ds_coord.to_f64() / hint.scale.to_f64(),
+        //         hint.scale.to_f64() * 65536.,
+        //         if hint.is_pair() { "p" } else { "" },
+        //         if hint.flags & (GHOST_BOTTOM | GHOST_TOP) != 0 {
+        //             "g"
+        //         } else {
+        //             ""
+        //         },
+        //         if hint.is_top() { "t" } else { "" },
+        //         if hint.is_bottom() { "b" } else { "" },
+        //         if hint.is_locked() { "L" } else { "" },
+        //         if hint.is_synthetic() { "S" } else { "" },
+        //     );
+        // }
+        // println!("-------------------------------");
     }
 }
 
