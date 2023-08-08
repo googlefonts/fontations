@@ -1,11 +1,12 @@
-use super::{glyf, Context, Error, NormalizedCoord, Pen, Result, Size, UniqueId, VariationSetting};
+use super::{
+    cff, glyf, Context, Error, NormalizedCoord, Pen, Result, Size, UniqueId, VariationSetting,
+};
 
 #[cfg(feature = "hinting")]
 use super::Hinting;
 
 use core::borrow::Borrow;
 use read_fonts::{
-    tables::postscript::{Scaler as PostScriptScaler, ScalerSubfont},
     types::{Fixed, GlyphId},
     TableProvider,
 };
@@ -135,10 +136,10 @@ impl<'a> ScalerBuilder<'a> {
         ) {
             Some(Outlines::TrueType(glyf, &mut self.context.glyf_outline))
         } else {
-            PostScriptScaler::new(font)
+            cff::Scaler::new(font)
                 .ok()
                 .and_then(|scaler| {
-                    let first_subfont = scaler.subfont(0, size, coords, false).ok()?;
+                    let first_subfont = scaler.subfont(0, size, coords).ok()?;
                     Some((scaler, first_subfont))
                 })
                 .map(|(scaler, subfont)| Outlines::PostScript(scaler, subfont))
@@ -227,7 +228,7 @@ impl<'a> Scaler<'a> {
 #[allow(clippy::large_enum_variant)]
 enum Outlines<'a> {
     TrueType(glyf::Scaler<'a>, &'a mut glyf::Outline),
-    PostScript(PostScriptScaler<'a>, ScalerSubfont),
+    PostScript(cff::Scaler<'a>, cff::Subfont),
 }
 
 impl<'a> Outlines<'a> {
@@ -246,9 +247,9 @@ impl<'a> Outlines<'a> {
             Self::PostScript(scaler, subfont) => {
                 let subfont_index = scaler.subfont_index(glyph_id);
                 if subfont_index != subfont.index() {
-                    *subfont = scaler.subfont(subfont_index, size, coords, false)?;
+                    *subfont = scaler.subfont(subfont_index, size, coords)?;
                 }
-                Ok(scaler.outline(subfont, glyph_id, coords, pen)?)
+                Ok(scaler.outline(subfont, glyph_id, coords, false, pen)?)
             }
         }
     }

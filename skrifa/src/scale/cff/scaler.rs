@@ -2,15 +2,21 @@
 
 use std::ops::Range;
 
-use super::{
-    dict::{self, Blues},
-    BlendState, Error, FdSelect, Index,
-};
-use crate::{
-    tables::{cff::Cff, cff2::Cff2, variations::ItemVariationStore},
+use read_fonts::{
+    tables::{
+        cff::Cff,
+        cff2::Cff2,
+        postscript::{
+            charstring::{self, CommandSink},
+            dict, BlendState, Error, FdSelect, Index,
+        },
+        variations::ItemVariationStore,
+    },
     types::{F2Dot14, Fixed, GlyphId, Pen},
-    FontData, FontRead, TableProvider,
+    FontData, FontRead, ReadError, TableProvider,
 };
+
+use super::hint::{HintParams, HintState};
 
 /// Type for loading, scaling and hinting outlines in CFF/CFF2 tables.
 ///
@@ -29,30 +35,9 @@ use crate::{
 /// index for the requested glyph followed by using the
 /// [`subfont`](Self::subfont) method to create an appropriately configured
 /// subfont for that glyph.
-///
-/// # Example
-///
-/// ```
-/// # use read_fonts::{tables::postscript::*, types::*, FontRef};
-/// # fn example(font: FontRef, coords: &[F2Dot14], pen: &mut impl Pen) -> Result<(), Error> {
-/// let scaler = Scaler::new(&font)?;
-/// let glyph_id = GlyphId::new(24);
-/// // Retrieve the subfont index for the requested glyph.
-/// let subfont_index = scaler.subfont_index(glyph_id);
-/// // Construct a subfont with the given configuration.
-/// let size = 16.0;
-/// let coords = &[];
-/// let with_hinting = false;
-/// let subfont = scaler.subfont(subfont_index, size, coords, with_hinting)?;
-/// // Scale the outline using our configured subfont and emit the
-/// // result to the given pen.
-/// scaler.outline(&subfont, glyph_id, coords, pen)?;
-/// # Ok(())
-/// # }
-/// ```
-pub struct Scaler<'a> {
+pub(crate) struct Scaler<'a> {
     version: Version<'a>,
-    top_dict: ScalerTopDict<'a>,
+    top_dict: TopDict<'a>,
     units_per_em: u16,
 }
 
@@ -75,13 +60,9 @@ impl<'a> Scaler<'a> {
         }
     }
 
-    pub fn from_cff(
-        cff1: Cff<'a>,
-        top_dict_index: usize,
-        units_per_em: u16,
-    ) -> Result<Self, Error> {
+    fn from_cff(cff1: Cff<'a>, top_dict_index: usize, units_per_em: u16) -> Result<Self, Error> {
         let top_dict_data = cff1.top_dicts().get(top_dict_index)?;
-        let top_dict = ScalerTopDict::new(cff1.offset_data().as_bytes(), top_dict_data, false)?;
+        let top_dict = TopDict::new(cff1.offset_data().as_bytes(), top_dict_data, false)?;
         Ok(Self {
             version: Version::Version1(cff1),
             top_dict,
@@ -89,9 +70,9 @@ impl<'a> Scaler<'a> {
         })
     }
 
-    pub fn from_cff2(cff2: Cff2<'a>, units_per_em: u16) -> Result<Self, Error> {
+    fn from_cff2(cff2: Cff2<'a>, units_per_em: u16) -> Result<Self, Error> {
         let table_data = cff2.offset_data().as_bytes();
-        let top_dict = ScalerTopDict::new(table_data, cff2.top_dict_data(), true)?;
+        let top_dict = TopDict::new(table_data, cff2.top_dict_data(), true)?;
         Ok(Self {
             version: Version::Version2(cff2),
             top_dict,
@@ -138,13 +119,7 @@ impl<'a> Scaler<'a> {
     ///
     /// The index of a subfont for a particular glyph can be retrieved with
     /// the [`subfont_index`](Self::subfont_index) method.
-    pub fn subfont(
-        &self,
-        index: u32,
-        size: f32,
-        coords: &[F2Dot14],
-        with_hinting: bool,
-    ) -> Result<ScalerSubfont, Error> {
+    pub fn subfont(&self, index: u32, size: f32, coords: &[F2Dot14]) -> Result<Subfont, Error> {
         let private_dict_range = self.private_dict_range(index)?;
         let private_dict_data = self.offset_data().read_array(private_dict_range.clone())?;
         let mut hint_params = HintParams::default();
@@ -173,14 +148,21 @@ impl<'a> Scaler<'a> {
                 _ => {}
             }
         }
-        // TODO: convert hint params to zones if hinting is requested
-        let _ = with_hinting;
-        Ok(ScalerSubfont {
+        let scale = if size <= 0.0 {
+            Fixed::ONE
+        } else {
+            // Note: we do an intermediate scale to 26.6 to ensure we
+            // match FreeType
+            Fixed::from_bits((size * 64.) as i32) / Fixed::from_bits(self.units_per_em as i32)
+        };
+        let hint_state = HintState::new(&hint_params, scale);
+        Ok(Subfont {
             is_cff2: self.is_cff2(),
             index,
-            size,
+            _size: size,
+            scale,
             subrs_offset,
-            hint_params,
+            _hint_state: hint_state,
             store_index,
         })
     }
@@ -198,33 +180,25 @@ impl<'a> Scaler<'a> {
     /// The result is emitted to the specified pen.
     pub fn outline(
         &self,
-        subfont: &ScalerSubfont,
+        subfont: &Subfont,
         glyph_id: GlyphId,
         coords: &[F2Dot14],
+        _hint: bool,
         pen: &mut impl Pen,
     ) -> Result<(), Error> {
-        use super::charstring;
         let charstring_data = self
             .top_dict
             .charstrings
             .as_ref()
-            .ok_or(Error::MissingCharstrings)?
+            .ok_or(Error::Read(ReadError::MalformedData(
+                "missing charstrings INDEX in CFF table",
+            )))?
             .get(glyph_id.to_u16() as usize)?;
         let subrs = subfont.subrs(self)?;
         let blend_state = subfont.blend_state(self, coords)?;
         let mut pen_sink = charstring::PenSink::new(pen);
-        let mut simplifying_adapter = charstring::NopFilteringSink::new(&mut pen_sink);
-        let scale = if subfont.size <= 0.0 {
-            Fixed::ONE
-        } else {
-            // Note: we do an intermediate scale to 26.6 to ensure we
-            // match FreeType
-            Fixed::from_bits((subfont.size * 64.) as i32)
-                / Fixed::from_bits(self.units_per_em as i32)
-        };
-        let mut scaling_adapter =
-            charstring::ScalingSink26Dot6::new(&mut simplifying_adapter, scale);
-        // TODO: hinting will be another sink adapter that slots in here
+        let mut simplifying_adapter = NopFilteringSink::new(&mut pen_sink);
+        let mut scaling_adapter = ScalingSink26Dot6::new(&mut simplifying_adapter, subfont.scale);
         charstring::evaluate(
             charstring_data,
             self.global_subrs(),
@@ -268,7 +242,9 @@ impl<'a> Scaler<'a> {
             // available.
             self.top_dict.private_dict_range.clone()
         }
-        .ok_or(Error::MissingPrivateDict)
+        .ok_or(Error::Read(ReadError::MalformedData(
+            "missing Private DICT in CFF table",
+        )))
     }
 }
 
@@ -287,25 +263,19 @@ enum Version<'a> {
 ///
 /// For variable fonts, this is dependent on a location in variation space.
 #[derive(Clone)]
-pub struct ScalerSubfont {
+pub(crate) struct Subfont {
     is_cff2: bool,
     index: u32,
-    size: f32,
+    _size: f32,
+    scale: Fixed,
     subrs_offset: Option<usize>,
-    // TODO: just capturing these for now. We'll soon compute the actual
-    // hinting state ("blue zones") from these values.
-    #[allow(dead_code)]
-    hint_params: HintParams,
+    _hint_state: HintState,
     store_index: u16,
 }
 
-impl ScalerSubfont {
+impl Subfont {
     pub fn index(&self) -> u32 {
         self.index
-    }
-
-    pub fn size(&self) -> f32 {
-        self.size
     }
 
     /// Returns the local subroutine index.
@@ -334,40 +304,10 @@ impl ScalerSubfont {
     }
 }
 
-/// Parameters used to generate the stem and counter zones for the hinting
-/// algorithm.
-#[derive(Clone)]
-pub struct HintParams {
-    pub blues: Blues,
-    pub family_blues: Blues,
-    pub other_blues: Blues,
-    pub family_other_blues: Blues,
-    pub blue_scale: Fixed,
-    pub blue_shift: Fixed,
-    pub blue_fuzz: Fixed,
-    pub language_group: i32,
-}
-
-impl Default for HintParams {
-    fn default() -> Self {
-        Self {
-            blues: Blues::default(),
-            other_blues: Blues::default(),
-            family_blues: Blues::default(),
-            family_other_blues: Blues::default(),
-            // See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-16-private-dict-operators>
-            blue_scale: Fixed::from_f64(0.039625),
-            blue_shift: Fixed::from_i32(7),
-            blue_fuzz: Fixed::ONE,
-            language_group: 0,
-        }
-    }
-}
-
 /// Entries that we parse from the Top DICT that are required to support
 /// charstring evaluation.
 #[derive(Default)]
-struct ScalerTopDict<'a> {
+struct TopDict<'a> {
     charstrings: Option<Index<'a>>,
     font_dicts: Option<Index<'a>>,
     fd_select: Option<FdSelect<'a>>,
@@ -375,9 +315,9 @@ struct ScalerTopDict<'a> {
     var_store: Option<ItemVariationStore<'a>>,
 }
 
-impl<'a> ScalerTopDict<'a> {
+impl<'a> TopDict<'a> {
     fn new(table_data: &'a [u8], top_dict_data: &'a [u8], is_cff2: bool) -> Result<Self, Error> {
-        let mut items = ScalerTopDict::default();
+        let mut items = TopDict::default();
         for entry in dict::entries(top_dict_data, None) {
             match entry? {
                 dict::Entry::CharstringsOffset(offset) => {
@@ -413,18 +353,196 @@ impl<'a> ScalerTopDict<'a> {
     }
 }
 
+/// Command sink adapter that applies a scaling factor.
+///
+/// This assumes a 26.6 scaling factor packed into a Fixed and thus,
+/// this is not public and exists only to match FreeType's exact
+/// scaling process.
+struct ScalingSink26Dot6<'a, S> {
+    inner: &'a mut S,
+    scale: Fixed,
+}
+
+impl<'a, S> ScalingSink26Dot6<'a, S> {
+    fn new(sink: &'a mut S, scale: Fixed) -> Self {
+        Self { scale, inner: sink }
+    }
+
+    fn scale(&self, coord: Fixed) -> Fixed {
+        if self.scale != Fixed::ONE {
+            // The following dance is necessary to exactly match FreeType's
+            // application of scaling factors. This seems to be the result
+            // of merging the contributed Adobe code while not breaking the
+            // FreeType public API.
+            // 1. Multiply by 1/64
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L284>
+            let a = coord * Fixed::from_bits(0x0400);
+            // 2. Convert to 26.6 by truncation
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psobjs.c#L2219>
+            let b = Fixed::from_bits(a.to_bits() >> 10);
+            // 3. Multiply by the original scale factor
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/cff/cffgload.c#L721>
+            let c = b * self.scale;
+            // Finally, we convert back to 16.16
+            Fixed::from_bits(c.to_bits() << 10)
+        } else {
+            // Otherwise, simply zero the low 10 bits
+            Fixed::from_bits(coord.to_bits() & !0x3FF)
+        }
+    }
+}
+
+impl<'a, S: CommandSink> CommandSink for ScalingSink26Dot6<'a, S> {
+    fn hstem(&mut self, y: Fixed, dy: Fixed) {
+        self.inner.hstem(y, dy);
+    }
+
+    fn vstem(&mut self, x: Fixed, dx: Fixed) {
+        self.inner.vstem(x, dx);
+    }
+
+    fn hint_mask(&mut self, mask: &[u8]) {
+        self.inner.hint_mask(mask);
+    }
+
+    fn counter_mask(&mut self, mask: &[u8]) {
+        self.inner.counter_mask(mask);
+    }
+
+    fn move_to(&mut self, x: Fixed, y: Fixed) {
+        self.inner.move_to(self.scale(x), self.scale(y));
+    }
+
+    fn line_to(&mut self, x: Fixed, y: Fixed) {
+        self.inner.line_to(self.scale(x), self.scale(y));
+    }
+
+    fn curve_to(&mut self, cx1: Fixed, cy1: Fixed, cx2: Fixed, cy2: Fixed, x: Fixed, y: Fixed) {
+        self.inner.curve_to(
+            self.scale(cx1),
+            self.scale(cy1),
+            self.scale(cx2),
+            self.scale(cy2),
+            self.scale(x),
+            self.scale(y),
+        );
+    }
+
+    fn close(&mut self) {
+        self.inner.close();
+    }
+}
+
+/// Command sink adapter that supresses degenerate move and line commands.
+///
+/// FreeType avoids emitting empty contours and zero length lines to prevent
+/// artifacts when stem darkening is enabled. We don't support stem darkening
+/// because it's not enabled by any of our clients but we remove the degenerate
+/// elements regardless to match the output.
+///
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.c#L1786>
+struct NopFilteringSink<'a, S> {
+    start: Option<(Fixed, Fixed)>,
+    last: Option<(Fixed, Fixed)>,
+    pending_move: Option<(Fixed, Fixed)>,
+    inner: &'a mut S,
+}
+
+impl<'a, S> NopFilteringSink<'a, S>
+where
+    S: CommandSink,
+{
+    fn new(inner: &'a mut S) -> Self {
+        Self {
+            start: None,
+            last: None,
+            pending_move: None,
+            inner,
+        }
+    }
+
+    fn flush_pending_move(&mut self) {
+        if let Some((x, y)) = self.pending_move.take() {
+            if let Some((last_x, last_y)) = self.start {
+                if self.last != self.start {
+                    self.inner.line_to(last_x, last_y);
+                }
+            }
+            self.start = Some((x, y));
+            self.last = None;
+            self.inner.move_to(x, y);
+        }
+    }
+
+    pub fn finish(&mut self) {
+        match self.start {
+            Some((x, y)) if self.last != self.start => {
+                self.inner.line_to(x, y);
+            }
+            _ => {}
+        }
+    }
+}
+
+impl<'a, S> CommandSink for NopFilteringSink<'a, S>
+where
+    S: CommandSink,
+{
+    fn hstem(&mut self, y: Fixed, dy: Fixed) {
+        self.inner.hstem(y, dy);
+    }
+
+    fn vstem(&mut self, x: Fixed, dx: Fixed) {
+        self.inner.vstem(x, dx);
+    }
+
+    fn hint_mask(&mut self, mask: &[u8]) {
+        self.inner.hint_mask(mask);
+    }
+
+    fn counter_mask(&mut self, mask: &[u8]) {
+        self.inner.counter_mask(mask);
+    }
+
+    fn move_to(&mut self, x: Fixed, y: Fixed) {
+        self.pending_move = Some((x, y));
+    }
+
+    fn line_to(&mut self, x: Fixed, y: Fixed) {
+        if self.pending_move == Some((x, y)) {
+            return;
+        }
+        self.flush_pending_move();
+        if self.last == Some((x, y)) || (self.last.is_none() && self.start == Some((x, y))) {
+            return;
+        }
+        self.inner.line_to(x, y);
+        self.last = Some((x, y));
+    }
+
+    fn curve_to(&mut self, cx1: Fixed, cy1: Fixed, cx2: Fixed, cy2: Fixed, x: Fixed, y: Fixed) {
+        self.flush_pending_move();
+        self.last = Some((x, y));
+        self.inner.curve_to(cx1, cy1, cx2, cy2, x, y);
+    }
+
+    fn close(&mut self) {
+        if self.pending_move.is_none() {
+            if let Some((start_x, start_y)) = self.start {
+                if self.start != self.last {
+                    self.inner.line_to(start_x, start_y);
+                }
+            }
+            self.start = None;
+            self.last = None;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::FontRef;
-
-    fn check_blues(blues: &Blues, expected_values: &[(f64, f64)]) {
-        for (i, blue) in blues.values().iter().enumerate() {
-            let expected = expected_values[i];
-            assert_eq!(blue.0, Fixed::from_f64(expected.0));
-            assert_eq!(blue.1, Fixed::from_f64(expected.1));
-        }
-    }
+    use read_fonts::FontRef;
 
     #[test]
     fn read_cff_static() {
@@ -438,22 +556,6 @@ mod tests {
         assert_eq!(cff.subfont_count(), 1);
         assert_eq!(cff.subfont_index(GlyphId::new(1)), 0);
         assert_eq!(cff.global_subrs().count(), 17);
-        let subfont = cff.subfont(0, 0.0, Default::default(), false).unwrap();
-        let hinting_params = subfont.hint_params;
-        check_blues(
-            &hinting_params.blues,
-            &[
-                (-15.0, 0.0),
-                (536.0, 547.0),
-                (571.0, 582.0),
-                (714.0, 726.0),
-                (760.0, 772.0),
-            ],
-        );
-        check_blues(&hinting_params.other_blues, &[(-255.0, -240.0)]);
-        assert_eq!(hinting_params.blue_scale, Fixed::from_f64(0.05));
-        assert_eq!(hinting_params.blue_fuzz, Fixed::ZERO);
-        assert_eq!(hinting_params.language_group, 0);
     }
 
     #[test]
@@ -468,16 +570,6 @@ mod tests {
         assert_eq!(cff.subfont_count(), 1);
         assert_eq!(cff.subfont_index(GlyphId::new(1)), 0);
         assert_eq!(cff.global_subrs().count(), 0);
-        let subfont = cff.subfont(0, 0.0, Default::default(), false).unwrap();
-        let hinting_params = subfont.hint_params;
-        check_blues(
-            &hinting_params.blues,
-            &[(-10.0, 0.0), (482.0, 492.0), (694.0, 704.0), (739.0, 749.0)],
-        );
-        check_blues(&hinting_params.other_blues, &[(-227.0, -217.0)]);
-        assert_eq!(hinting_params.blue_scale, Fixed::from_f64(0.0625));
-        assert_eq!(hinting_params.blue_fuzz, Fixed::ONE);
-        assert_eq!(hinting_params.language_group, 0);
     }
 
     #[test]
@@ -521,9 +613,9 @@ mod tests {
     /// fonts), locations in variation space.
     fn compare_glyphs(font_data: &[u8], expected_outlines: &str) {
         let font = FontRef::new(font_data).unwrap();
-        let outlines = crate::scaler_test::parse_glyph_outlines(expected_outlines);
+        let outlines = read_fonts::scaler_test::parse_glyph_outlines(expected_outlines);
         let scaler = super::Scaler::new(&font).unwrap();
-        let mut path = crate::scaler_test::Path {
+        let mut path = read_fonts::scaler_test::Path {
             elements: vec![],
             is_cff: true,
         };
@@ -537,7 +629,6 @@ mod tests {
                     scaler.subfont_index(expected_outline.glyph_id),
                     expected_outline.size,
                     &expected_outline.coords,
-                    false,
                 )
                 .unwrap();
             scaler
@@ -545,6 +636,7 @@ mod tests {
                     &subfont,
                     expected_outline.glyph_id,
                     &expected_outline.coords,
+                    false,
                     &mut path,
                 )
                 .unwrap();
