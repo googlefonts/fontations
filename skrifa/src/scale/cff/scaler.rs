@@ -13,7 +13,7 @@ use read_fonts::{
         variations::ItemVariationStore,
     },
     types::{F2Dot14, Fixed, GlyphId, Pen},
-    FontData, FontRead, ReadError, TableProvider,
+    FontData, FontRead, TableProvider,
 };
 
 use super::hint::{HintParams, HintState};
@@ -190,9 +190,7 @@ impl<'a> Scaler<'a> {
             .top_dict
             .charstrings
             .as_ref()
-            .ok_or(Error::Read(ReadError::MalformedData(
-                "missing charstrings INDEX in CFF table",
-            )))?
+            .ok_or(Error::MissingCharstrings)?
             .get(glyph_id.to_u16() as usize)?;
         let subrs = subfont.subrs(self)?;
         let blend_state = subfont.blend_state(self, coords)?;
@@ -242,9 +240,7 @@ impl<'a> Scaler<'a> {
             // available.
             self.top_dict.private_dict_range.clone()
         }
-        .ok_or(Error::Read(ReadError::MalformedData(
-            "missing Private DICT in CFF table",
-        )))
+        .ok_or(Error::MissingPrivateDict)
     }
 }
 
