@@ -144,6 +144,7 @@
 //! [lyon](https://github.com/nical/lyon) or
 //! [pathfinder](https://github.com/servo/pathfinder) for GPU rendering.
 
+mod cff;
 mod error;
 mod scaler;
 
