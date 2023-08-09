@@ -430,7 +430,7 @@ pub struct Blues {
 }
 
 impl Blues {
-    fn new(values: impl Iterator<Item = Fixed>) -> Self {
+    pub fn new(values: impl Iterator<Item = Fixed>) -> Self {
         let mut blues = Self::default();
         let mut stash = Fixed::ZERO;
         for (i, value) in values.take(MAX_BLUE_VALUES * 2).enumerate() {
