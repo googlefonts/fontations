@@ -47,7 +47,7 @@ pub fn iup_delta_optimize(
     let expected_num_coords = contour_ends
         .last()
         .copied()
-        //.map(|v| v + 1)
+        .map(|v| v + 1)
         .unwrap_or_default()
         + NUM_PHANTOM_POINTS;
     if num_coords != expected_num_coords {
@@ -1047,7 +1047,7 @@ mod tests {
         // using fonttools varLib's default tolerance
         let tolerance = 0.5;
         // a single contour, minus the phantom points
-        let contour_ends = vec![coords.len() - 4];
+        let contour_ends = vec![coords.len() - 1 - 4];
 
         let result = iup_delta_optimize(deltas, coords, tolerance, &contour_ends).unwrap();
 
