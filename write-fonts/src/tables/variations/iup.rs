@@ -427,7 +427,9 @@ fn iup_contour_optimize(
     };
     if deltas.iter().all(|d| d == first_delta) {
         let mut result = vec![None; n];
-        result[0] = Some(*first_delta);
+        if first_delta.x != 0.0 || first_delta.y != 0.0 {
+            result[0] = Some(*first_delta);
+        }
         return Ok(result);
     }
 
