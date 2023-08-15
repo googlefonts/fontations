@@ -15,7 +15,7 @@ use print::PrettyPrinter;
 use query::Query;
 
 fn main() -> Result<(), Error> {
-    let args = flags::Args::from_env().map_err(|e| Error(e.to_string()))?;
+    let args = flags::Otexplorer::from_env_or_exit();
     let bytes = std::fs::read(&args.input).unwrap();
     let font = FileRef::new(&bytes)
         .unwrap()
@@ -139,7 +139,7 @@ enum TableFilter {
 }
 
 impl TableFilter {
-    fn from_args(args: &flags::Args) -> Result<Self, Error> {
+    fn from_args(args: &flags::Otexplorer) -> Result<Self, Error> {
         if args.tables.is_some() && args.exclude.is_some() {
             return Err(Error::new("pass only one of --tables and --exclude"));
         }
@@ -202,8 +202,30 @@ mod flags {
     use std::path::PathBuf;
 
     xflags::xflags! {
-        /// Generate font table representations
-        cmd args {
+        /// Explore the contents of binary font files
+        ///
+        /// otexplorer can print a textual representation of the the tables in
+        /// a font file, or some subset of those tables.
+        ///
+        /// In addition to this, the -q option allows the user to provide a query,
+        /// which can be used to print some particular subtable or value.
+        ///
+        /// Queries begin with a table tag, and then zero or more path elements,
+        /// separated by a period ('.'). Path elements can be either the names
+        /// of fields, or indexes into an array.
+        ///
+        /// For instance, to print the first subtable of the second lookup in
+        /// the GPOS table, you can do,
+        ///
+        /// otexplorer $myfont -q GPOS.lookup_list.lookup_offsets.1.subtable_offsets.0
+        ///
+        /// Queries are case-insensitive, and fuzzily matched. The following
+        /// two examples produce identical results to the example above:
+        ///
+        /// otexplorer $myfont -q GPOS.lookupListOffset.lookupOffsets.1.subtableOffsets.0
+        /// otexplorer $myfont -q GPOS.look.off.1.off.0
+
+        cmd otexplorer {
             required input: PathBuf
             optional -i, --index index: u32
             optional -l, --list
