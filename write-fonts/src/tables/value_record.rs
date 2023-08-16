@@ -223,6 +223,14 @@ impl FromObjRef<read_fonts::tables::gpos::ValueRecord> for ValueRecord {
 
 #[cfg(test)]
 mod tests {
+    use font_types::GlyphId;
+    use read_fonts::FontRead;
+
+    use crate::tables::{
+        gpos::{Class1Record, Class2Record, PairPos, PairPosFormat2, SinglePos, SinglePosFormat1},
+        layout::{ClassDefBuilder, CoverageTableBuilder, VariationIndex},
+    };
+
     use super::*;
     #[test]
     fn serialize_explicit_value_record() {
@@ -237,5 +245,46 @@ mod tests {
             read_fonts::tables::gpos::ValueRecord::read(FontData::new(&bytes), my_record.format())
                 .unwrap();
         assert!(read_back.x_advance_device.get().is_null());
+    }
+
+    #[test]
+    fn compile_devices() {
+        let my_record = ValueRecord::new().with_x_advance_device(VariationIndex::new(0xff, 0xee));
+        let a_table = SinglePos::format_1(
+            CoverageTableBuilder::from_glyphs(vec![GlyphId::new(42)]).build(),
+            my_record,
+        );
+
+        let bytes = crate::dump_table(&a_table).unwrap();
+        let read_back = SinglePosFormat1::read(bytes.as_slice().into()).unwrap();
+        assert!(
+            matches!(read_back.value_record.x_advance_device.as_ref(), Some(DeviceOrVariationIndex::VariationIndex(var_idx)) if var_idx.delta_set_inner_index == 0xee)
+        )
+    }
+
+    #[test]
+    fn compile_devices_pairpos2() {
+        let rec1 = ValueRecord::new().with_x_advance_device(VariationIndex::new(0xff, 0xee));
+        let rec2 = ValueRecord::new().with_x_advance_device(VariationIndex::new(0xaa, 0xbb));
+        let class1 =
+            ClassDefBuilder::from_iter([(GlyphId::new(5), 2), (GlyphId::new(6), 2)]).build();
+        let class2 =
+            ClassDefBuilder::from_iter([(GlyphId::new(8), 3), (GlyphId::new(9), 3)]).build();
+        let class1recs = vec![Class1Record::new(vec![Class2Record::new(rec1, rec2)])];
+        let a_table = PairPos::format_2(
+            CoverageTableBuilder::from_glyphs(vec![GlyphId::new(42)]).build(),
+            class1,
+            class2,
+            class1recs,
+        );
+
+        let bytes = crate::dump_table(&a_table).unwrap();
+        let read_back = PairPosFormat2::read(bytes.as_slice().into()).unwrap();
+        let DeviceOrVariationIndex::VariationIndex(dev2) = read_back.class1_records[0].class2_records[0]
+            .value_record2
+            .x_advance_device
+            .as_ref()
+            .unwrap() else { panic!("not a variation index") };
+        assert_eq!(dev2.delta_set_outer_index, 0xaa);
     }
 }
