@@ -144,11 +144,9 @@
 //! [lyon](https://github.com/nical/lyon) or
 //! [pathfinder](https://github.com/servo/pathfinder) for GPU rendering.
 
+mod cff;
 mod error;
 mod scaler;
-
-#[cfg(test)]
-mod test;
 
 // This will go away in the future when we add tracing support. Hide it
 // for now.
@@ -221,18 +219,49 @@ impl Context {
 
 #[cfg(test)]
 mod tests {
-    use super::{test, Context, Size};
-    use font_test_data::{VAZIRMATN_VAR, VAZIRMATN_VAR_GLYPHS};
-    use read_fonts::FontRef;
+    use super::{Context, Size};
+    use read_fonts::{scaler_test, FontRef};
 
     #[test]
     fn vazirmatin_var() {
-        let font = FontRef::new(VAZIRMATN_VAR).unwrap();
-        let outlines = test::parse_glyph_outlines(VAZIRMATN_VAR_GLYPHS);
+        compare_glyphs(
+            font_test_data::VAZIRMATN_VAR,
+            font_test_data::VAZIRMATN_VAR_GLYPHS,
+            false,
+        );
+    }
+
+    #[test]
+    fn cantarell_vf() {
+        compare_glyphs(
+            font_test_data::CANTARELL_VF_TRIMMED,
+            font_test_data::CANTARELL_VF_TRIMMED_GLYPHS,
+            true,
+        );
+    }
+
+    #[test]
+    fn noto_serif_display() {
+        compare_glyphs(
+            font_test_data::NOTO_SERIF_DISPLAY_TRIMMED,
+            font_test_data::NOTO_SERIF_DISPLAY_TRIMMED_GLYPHS,
+            true,
+        );
+    }
+
+    fn compare_glyphs(font_data: &[u8], expected_outlines: &str, is_cff: bool) {
+        let font = FontRef::new(font_data).unwrap();
+        let outlines = scaler_test::parse_glyph_outlines(expected_outlines);
         let mut cx = Context::new();
-        let mut path = test::Path::default();
+        let mut path = scaler_test::Path {
+            elements: vec![],
+            is_cff,
+        };
         for expected_outline in &outlines {
-            path.0.clear();
+            if expected_outline.size == 0.0 && !expected_outline.coords.is_empty() {
+                continue;
+            }
+            path.elements.clear();
             let mut scaler = cx
                 .new_scaler()
                 .size(Size::new(expected_outline.size))
@@ -241,13 +270,13 @@ mod tests {
             scaler
                 .outline(expected_outline.glyph_id, &mut path)
                 .unwrap();
-            if path.0 != expected_outline.path {
+            if path.elements != expected_outline.path {
                 panic!(
                     "mismatch in glyph path for id {} (size: {}, coords: {:?}): path: {:?} expected_path: {:?}",
                     expected_outline.glyph_id,
                     expected_outline.size,
                     expected_outline.coords,
-                    &path.0,
+                    &path.elements,
                     &expected_outline.path
                 );
             }

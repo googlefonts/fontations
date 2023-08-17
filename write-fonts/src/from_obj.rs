@@ -2,7 +2,7 @@
 
 use std::collections::BTreeSet;
 
-use read::{
+use read_fonts::{
     ArrayOfNullableOffsets, ArrayOfOffsets, FontData, FontReadWithArgs, Offset, ReadArgs, ReadError,
 };
 use types::{BigEndian, Scalar};

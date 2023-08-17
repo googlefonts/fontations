@@ -6,7 +6,7 @@
 use crate::codegen_prelude::*;
 
 /// An array of variable-sized objects in a `CFF` table.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Index1 {
     /// Number of objects stored in INDEX.
     pub count: u16,
@@ -67,7 +67,7 @@ impl<'a> FontRead<'a> for Index1 {
 }
 
 /// An array of variable-sized objects in a `CFF2` table.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Index2 {
     /// Number of objects stored in INDEX.
     pub count: u32,
@@ -128,7 +128,7 @@ impl<'a> FontRead<'a> for Index2 {
 }
 
 /// Associates a glyph identifier with a Font DICT.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FdSelect {
     Format0(FdSelectFormat0),
     Format3(FdSelectFormat3),
@@ -205,8 +205,26 @@ impl<'a> FontRead<'a> for FdSelect {
     }
 }
 
+impl From<FdSelectFormat0> for FdSelect {
+    fn from(src: FdSelectFormat0) -> FdSelect {
+        FdSelect::Format0(src)
+    }
+}
+
+impl From<FdSelectFormat3> for FdSelect {
+    fn from(src: FdSelectFormat3) -> FdSelect {
+        FdSelect::Format3(src)
+    }
+}
+
+impl From<FdSelectFormat4> for FdSelect {
+    fn from(src: FdSelectFormat4) -> FdSelect {
+        FdSelect::Format4(src)
+    }
+}
+
 /// FdSelect format 0.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FdSelectFormat0 {
     /// FD selector array (one entry for each glyph).
     pub fds: Vec<u8>,
@@ -258,7 +276,7 @@ impl<'a> FontRead<'a> for FdSelectFormat0 {
 }
 
 /// FdSelect format 3.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FdSelectFormat3 {
     /// Range3 array.
     pub ranges: Vec<FdSelectRange3>,
@@ -325,7 +343,7 @@ impl<'a> FontRead<'a> for FdSelectFormat3 {
 }
 
 /// Range struct for FdSelect format 3.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FdSelectRange3 {
     /// First glyph index in range.
     pub first: u16,
@@ -364,7 +382,7 @@ impl FromObjRef<read_fonts::tables::postscript::FdSelectRange3> for FdSelectRang
 }
 
 /// FdSelect format 4.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FdSelectFormat4 {
     /// Range4 array.
     pub ranges: Vec<FdSelectRange4>,
@@ -431,7 +449,7 @@ impl<'a> FontRead<'a> for FdSelectFormat4 {
 }
 
 /// Range struct for FdSelect format 4.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct FdSelectRange4 {
     /// First glyph index in range.
     pub first: u32,

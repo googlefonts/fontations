@@ -34,6 +34,8 @@ pub enum Error {
     CharstringNestingDepthLimitExceeded,
     MissingSubroutines,
     MissingBlendState,
+    MissingPrivateDict,
+    MissingCharstrings,
     Read(ReadError),
 }
 
@@ -98,7 +100,12 @@ impl fmt::Display for Error {
                     "encountered a blend operator but no blend state was provided"
                 )
             }
-
+            Self::MissingPrivateDict => {
+                write!(f, "CFF table does not contain a private dictionary")
+            }
+            Self::MissingCharstrings => {
+                write!(f, "CFF table does not contain a charstrings index")
+            }
             Self::Read(err) => write!(f, "{err}"),
         }
     }

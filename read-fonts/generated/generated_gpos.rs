@@ -569,7 +569,7 @@ pub enum AnchorTable<'a> {
 
 impl<'a> FontRead<'a> for AnchorTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             AnchorFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             AnchorFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -852,7 +852,7 @@ impl<'a> AnchorFormat3<'a> {
     }
 
     /// Attempt to resolve [`x_device_offset`][Self::x_device_offset].
-    pub fn x_device(&self) -> Option<Result<Device<'a>, ReadError>> {
+    pub fn x_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
         let data = self.data;
         self.x_device_offset().resolve(data)
     }
@@ -866,7 +866,7 @@ impl<'a> AnchorFormat3<'a> {
     }
 
     /// Attempt to resolve [`y_device_offset`][Self::y_device_offset].
-    pub fn y_device(&self) -> Option<Result<Device<'a>, ReadError>> {
+    pub fn y_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
         let data = self.data;
         self.y_device_offset().resolve(data)
     }
@@ -1043,7 +1043,7 @@ pub enum SinglePos<'a> {
 
 impl<'a> FontRead<'a> for SinglePos<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             SinglePosFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             SinglePosFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -1326,7 +1326,7 @@ pub enum PairPos<'a> {
 
 impl<'a> FontRead<'a> for PairPos<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             PairPosFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             PairPosFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),

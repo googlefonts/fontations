@@ -1,9 +1,10 @@
 //! A GPOS ValueRecord
 
+use font_types::Nullable;
 use types::{BigEndian, FixedSize, Offset16};
 
 use super::ValueFormat;
-use crate::{tables::layout::Device, ResolveOffset};
+use crate::{tables::layout::DeviceOrVariationIndex, ResolveNullableOffset};
 
 #[cfg(feature = "traversal")]
 use crate::traversal::{Field, FieldType, RecordResolver, SomeRecord};
@@ -28,10 +29,10 @@ pub struct ValueRecord {
     pub y_placement: Option<BigEndian<i16>>,
     pub x_advance: Option<BigEndian<i16>>,
     pub y_advance: Option<BigEndian<i16>>,
-    pub x_placement_device: Option<BigEndian<Offset16>>,
-    pub y_placement_device: Option<BigEndian<Offset16>>,
-    pub x_advance_device: Option<BigEndian<Offset16>>,
-    pub y_advance_device: Option<BigEndian<Offset16>>,
+    pub x_placement_device: BigEndian<Nullable<Offset16>>,
+    pub y_placement_device: BigEndian<Nullable<Offset16>>,
+    pub x_advance_device: BigEndian<Nullable<Offset16>>,
+    pub y_advance_device: BigEndian<Nullable<Offset16>>,
 }
 
 impl ValueRecord {
@@ -57,16 +58,16 @@ impl ValueRecord {
             this.y_advance = Some(cursor.read_be()?);
         }
         if format.contains(ValueFormat::X_PLACEMENT_DEVICE) {
-            this.x_placement_device = Some(cursor.read_be()?);
+            this.x_placement_device = cursor.read_be()?;
         }
         if format.contains(ValueFormat::Y_PLACEMENT_DEVICE) {
-            this.y_placement_device = Some(cursor.read_be()?);
+            this.y_placement_device = cursor.read_be()?;
         }
         if format.contains(ValueFormat::X_ADVANCE_DEVICE) {
-            this.x_advance_device = Some(cursor.read_be()?);
+            this.x_advance_device = cursor.read_be()?;
         }
         if format.contains(ValueFormat::Y_ADVANCE_DEVICE) {
-            this.y_advance_device = Some(cursor.read_be()?);
+            this.y_advance_device = cursor.read_be()?;
         }
         Ok(this)
     }
@@ -90,29 +91,29 @@ impl ValueRecord {
     pub fn x_placement_device<'a>(
         &self,
         data: FontData<'a>,
-    ) -> Option<Result<Device<'a>, ReadError>> {
-        self.x_placement_device.map(|val| val.get().resolve(data))
+    ) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
+        self.x_placement_device.get().resolve(data)
     }
 
     pub fn y_placement_device<'a>(
         &self,
         data: FontData<'a>,
-    ) -> Option<Result<Device<'a>, ReadError>> {
-        self.y_placement_device.map(|val| val.get().resolve(data))
+    ) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
+        self.y_placement_device.get().resolve(data)
     }
 
     pub fn x_advance_device<'a>(
         &self,
         data: FontData<'a>,
-    ) -> Option<Result<Device<'a>, ReadError>> {
-        self.x_advance_device.map(|val| val.get().resolve(data))
+    ) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
+        self.x_advance_device.get().resolve(data)
     }
 
     pub fn y_advance_device<'a>(
         &self,
         data: FontData<'a>,
-    ) -> Option<Result<Device<'a>, ReadError>> {
-        self.y_advance_device.map(|val| val.get().resolve(data))
+    ) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
+        self.y_advance_device.get().resolve(data)
     }
 }
 
@@ -133,14 +134,18 @@ impl std::fmt::Debug for ValueRecord {
         self.y_placement.map(|y| f.field("y_placement", &y));
         self.x_advance.map(|x| f.field("x_advance", &x));
         self.y_advance.map(|y| f.field("y_advance", &y));
-        self.x_placement_device
-            .map(|x| f.field("x_placement_device", &x));
-        self.y_placement_device
-            .map(|y| f.field("y_placement_device", &y));
-        self.x_advance_device
-            .map(|x| f.field("x_advance_device", &x));
-        self.y_advance_device
-            .map(|y| f.field("y_advance_device", &y));
+        if !self.x_placement_device.get().is_null() {
+            f.field("x_placement_device", &self.x_placement_device.get());
+        }
+        if !self.y_placement_device.get().is_null() {
+            f.field("y_placement_device", &self.y_placement_device.get());
+        }
+        if !self.x_advance_device.get().is_null() {
+            f.field("x_advance_device", &self.x_advance_device.get());
+        }
+        if !self.y_advance_device.get().is_null() {
+            f.field("y_advance_device", &self.y_advance_device.get());
+        }
         f.finish()
     }
 }
@@ -164,18 +169,10 @@ impl<'a> ValueRecord {
             self.y_placement.is_some().then_some("y_placement"),
             self.x_advance.is_some().then_some("x_advance"),
             self.y_advance.is_some().then_some("y_advance"),
-            self.x_placement_device
-                .is_some()
-                .then_some("x_placement_device"),
-            self.y_placement_device
-                .is_some()
-                .then_some("y_placement_device"),
-            self.x_advance_device
-                .is_some()
-                .then_some("x_advance_device"),
-            self.y_advance_device
-                .is_some()
-                .then_some("y_advance_device"),
+            (!self.x_placement_device.get().is_null()).then_some("x_placement_device"),
+            (!self.y_placement_device.get().is_null()).then_some("y_placement_device"),
+            (!self.x_advance_device.get().is_null()).then_some("x_advance_device"),
+            (!self.y_advance_device.get().is_null()).then_some("y_advance_device"),
         ];
 
         let name = fields.iter().filter_map(|x| *x).nth(idx)?;
@@ -184,22 +181,18 @@ impl<'a> ValueRecord {
             "y_placement" => self.y_placement().unwrap().into(),
             "x_advance" => self.x_advance().unwrap().into(),
             "y_advance" => self.y_advance().unwrap().into(),
-            "x_placement_device" => FieldType::offset(
-                self.x_placement_device.unwrap().get(),
-                self.x_placement_device(data),
-            ),
-            "y_placement_device" => FieldType::offset(
-                self.y_placement_device.unwrap().get(),
-                self.y_placement_device(data),
-            ),
-            "x_advance_device" => FieldType::offset(
-                self.x_advance_device.unwrap().get(),
-                self.x_advance_device(data),
-            ),
-            "y_advance_device" => FieldType::offset(
-                self.y_advance_device.unwrap().get(),
-                self.y_advance_device(data),
-            ),
+            "x_placement_device" => {
+                FieldType::offset(self.x_placement_device.get(), self.x_placement_device(data))
+            }
+            "y_placement_device" => {
+                FieldType::offset(self.y_placement_device.get(), self.y_placement_device(data))
+            }
+            "x_advance_device" => {
+                FieldType::offset(self.x_advance_device.get(), self.x_advance_device(data))
+            }
+            "y_advance_device" => {
+                FieldType::offset(self.y_advance_device.get(), self.y_advance_device(data))
+            }
             _ => panic!("hmm"),
         };
 

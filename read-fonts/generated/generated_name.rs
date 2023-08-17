@@ -218,7 +218,7 @@ impl<'a> SomeRecord<'a> for LangTagRecord {
 }
 
 ///[Name Records](https://docs.microsoft.com/en-us/typography/opentype/spec/name#name-records)
-#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq)]
+#[derive(Clone, Debug)]
 #[repr(C)]
 #[repr(packed)]
 pub struct NameRecord {

@@ -123,7 +123,7 @@ impl<'a> std::fmt::Debug for TupleVariationHeader<'a> {
 /// The tuple variation store formats reference regions within the font’s
 /// variation space using tuple records. A tuple record identifies a position
 /// in terms of normalized coordinates, which use F2DOT14 values.
-#[derive(Clone, Debug, PartialOrd, Ord, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Tuple<'a> {
     /// Coordinate array specifying a position within the font’s variation space.
     ///
@@ -386,7 +386,7 @@ pub enum DeltaSetIndexMap<'a> {
 
 impl<'a> FontRead<'a> for DeltaSetIndexMap<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u8 = data.read_at(0)?;
+        let format: u8 = data.read_at(0usize)?;
         match format {
             DeltaSetIndexMapFormat0Marker::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
             DeltaSetIndexMapFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
@@ -822,7 +822,7 @@ impl<'a> std::fmt::Debug for VariationRegionList<'a> {
 }
 
 /// The [VariationRegion](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct VariationRegion<'a> {
     /// Array of region axis coordinates records, in the order of axes
     /// given in the 'fvar' table.
@@ -891,7 +891,7 @@ impl<'a> SomeRecord<'a> for VariationRegion<'a> {
 }
 
 /// The [RegionAxisCoordinates](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct RegionAxisCoordinates {
@@ -1026,7 +1026,7 @@ impl<'a> ItemVariationStore<'a> {
     }
 
     /// A dynamically resolving wrapper for [`item_variation_data_offsets`][Self::item_variation_data_offsets].
-    pub fn item_variation_datas(
+    pub fn item_variation_data(
         &self,
     ) -> ArrayOfNullableOffsets<'a, ItemVariationData<'a>, Offset32> {
         let data = self.data;

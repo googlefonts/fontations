@@ -259,9 +259,22 @@ impl<'de> serde::Deserialize<'de> for Tag {
     where
         D: serde::Deserializer<'de>,
     {
+        struct TagStrVisitor;
+        impl<'de> serde::de::Visitor<'de> for TagStrVisitor {
+            type Value = Tag;
+
+            fn expecting(&self, formatter: &mut std::fmt::Formatter) -> std::fmt::Result {
+                write!(formatter, "a four-byte ascii string")
+            }
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: serde::de::Error,
+            {
+                v.parse().map_err(serde::de::Error::custom)
+            }
+        }
         if deserializer.is_human_readable() {
-            <&str>::deserialize(deserializer)
-                .and_then(|s| s.parse().map_err(serde::de::Error::custom))
+            deserializer.deserialize_str(TagStrVisitor)
         } else {
             <[u8; 4]>::deserialize(deserializer).map(|raw| Tag::new(&raw))
         }
@@ -311,6 +324,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg(feature = "std")]
     fn display() {
         let bad_tag = Tag::new(&[0x19, b'z', b'@', 0x7F]);
         assert_eq!(bad_tag.to_string(), "{0x19}z@{0x7F}");
@@ -347,5 +361,13 @@ mod serde_tests {
         };
 
         serde_json::to_string(&ser_me).unwrap();
+    }
+
+    // ensure that we impl DeserializeOwned
+    #[test]
+    fn deser_json_owned() {
+        let json = r#"{"tag":"yolo"}"#;
+        let de_me: TestMe = serde_json::from_reader(json.as_bytes()).unwrap();
+        assert_eq!(de_me.tag, Tag::new(b"yolo"));
     }
 }

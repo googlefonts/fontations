@@ -46,13 +46,13 @@ impl Context {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::test, Context, Outline, Scaler};
-    use read_fonts::FontRef;
+    use super::{Context, Outline, Scaler};
+    use read_fonts::{scaler_test, FontRef};
 
     #[test]
     fn vazirmatin_var() {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
-        let outlines = test::parse_glyph_outlines(font_test_data::VAZIRMATN_VAR_GLYPHS);
+        let outlines = scaler_test::parse_glyph_outlines(font_test_data::VAZIRMATN_VAR_GLYPHS);
         let mut cx = Context::new();
         let mut outline = Outline::new();
         for expected_outline in &outlines {

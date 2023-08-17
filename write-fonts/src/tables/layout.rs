@@ -42,7 +42,7 @@ macro_rules! table_newtype {
         /// lookups that are shared between GPOS/GSUB.
         ///
         /// You can access the inner type via `Deref` or the `as_inner` method.
-        #[derive(Clone, Debug, Default)]
+        #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub struct $name($inner);
 
         impl $name {
@@ -203,7 +203,7 @@ impl FontWrite for LookupType {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum FeatureParams {
     StylisticSet(StylisticSetParams),
     Size(SizeParams),
@@ -593,6 +593,23 @@ impl Device {
             delta_format,
             delta_value,
         }
+    }
+}
+
+impl DeviceOrVariationIndex {
+    /// Create a new [`Device`] subtable
+    pub fn device(start_size: u16, end_size: u16, values: &[i8]) -> Self {
+        DeviceOrVariationIndex::Device(Device::new(start_size, end_size, values))
+    }
+}
+
+impl FontWrite for PendingVariationIndex {
+    fn write_into(&self, _writer: &mut TableWriter) {
+        panic!(
+            "Attempted to write PendingVariationIndex.\n\
+            VariationIndex tables should always be resolved before compilation.\n\
+            Please report this bug at <https://github.com/googlefonts/fontations/issues>"
+        )
     }
 }
 

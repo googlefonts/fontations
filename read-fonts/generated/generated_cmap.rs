@@ -227,7 +227,7 @@ pub enum CmapSubtable<'a> {
 
 impl<'a> FontRead<'a> for CmapSubtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             Cmap0Marker::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
             Cmap2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -473,7 +473,7 @@ impl<'a> std::fmt::Debug for Cmap2<'a> {
 }
 
 /// Part of [Cmap2]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SubHeader {
@@ -1012,7 +1012,7 @@ impl<'a> std::fmt::Debug for Cmap8<'a> {
 }
 
 /// Used in [Cmap8] and [Cmap12]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SequentialMapGroup {
@@ -1441,7 +1441,7 @@ impl<'a> std::fmt::Debug for Cmap13<'a> {
 }
 
 /// Part of [Cmap13]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ConstantMapGroup {
@@ -1837,7 +1837,7 @@ impl<'a> std::fmt::Debug for NonDefaultUvs<'a> {
 }
 
 /// Part of [Cmap14]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct UvsMapping {
@@ -1886,7 +1886,7 @@ impl<'a> SomeRecord<'a> for UvsMapping {
 }
 
 /// Part of [Cmap14]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct UnicodeRange {

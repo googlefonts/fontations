@@ -188,7 +188,7 @@ impl<'a> std::fmt::Debug for Stat<'a> {
 }
 
 /// [Axis Records](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-records)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct AxisRecord {
@@ -353,7 +353,7 @@ pub enum AxisValue<'a> {
 
 impl<'a> FontRead<'a> for AxisValue<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             AxisValueFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             AxisValueFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -868,7 +868,7 @@ impl<'a> std::fmt::Debug for AxisValueFormat4<'a> {
 }
 
 /// Part of [AxisValueFormat4]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct AxisValueRecord {

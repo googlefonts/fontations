@@ -104,12 +104,12 @@ table AnchorFormat3 {
     /// table (variable font) for X coordinate, from beginning of
     /// Anchor table (may be NULL)
     #[nullable]
-    x_device_offset: Offset16<Device>,
+    x_device_offset: Offset16<DeviceOrVariationIndex>,
     /// Offset to Device table (non-variable font) / VariationIndex
     /// table (variable font) for Y coordinate, from beginning of
     /// Anchor table (may be NULL)
     #[nullable]
-    y_device_offset: Offset16<Device>,
+    y_device_offset: Offset16<DeviceOrVariationIndex>,
 }
 
 /// [Mark Array Table](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#mark-array-table)

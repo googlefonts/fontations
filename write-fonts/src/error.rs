@@ -12,7 +12,7 @@ pub struct PackingError {
 }
 
 /// An error occured while writing this table
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Error {
     ValidationFailed(ValidationReport),
     PackingFailed(PackingError),
@@ -55,6 +55,12 @@ impl std::fmt::Debug for PackingError {
 
 impl std::error::Error for PackingError {}
 impl std::error::Error for Error {}
+
+impl From<ValidationReport> for Error {
+    fn from(value: ValidationReport) -> Self {
+        Error::ValidationFailed(value)
+    }
+}
 
 #[cfg(test)]
 mod tests {

@@ -1567,10 +1567,7 @@ mod tests {
             let coverage = glyph_range.clone().map(GlyphId::new).collect();
             let pair_sets = glyph_range
                 .map(|id| {
-                    let value_rec = gpos::ValueRecord {
-                        x_advance: Some(id as _),
-                        ..Default::default()
-                    };
+                    let value_rec = gpos::ValueRecord::new().with_x_advance(id as _);
                     gpos::PairSet::new(
                         (id..id + 165)
                             .map(|id2| {

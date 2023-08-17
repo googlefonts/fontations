@@ -64,9 +64,9 @@ pub(crate) struct TableAttrs {
     pub(crate) read_args: Option<Attr<TableReadArgs>>,
     pub(crate) generic_offset: Option<Attr<syn::Ident>>,
     pub(crate) tag: Option<Attr<syn::LitStr>>,
+    pub(crate) write_only: Option<syn::Path>,
     /// Custom validation behaviour, must be a fn(&self, &mut ValidationCtx) for the type
     pub(crate) validate: Option<Attr<syn::Ident>>,
-    pub(crate) capabilities: Option<Attr<Capabilities>>,
 }
 
 #[derive(Debug, Clone)]
@@ -78,18 +78,6 @@ pub(crate) struct TableReadArgs {
 pub(crate) struct TableReadArg {
     pub(crate) ident: syn::Ident,
     pub(crate) typ: syn::Ident,
-}
-
-#[derive(Clone, Debug)]
-pub(crate) struct Capabilities {
-    pub(crate) capabilities: Vec<Capability>,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum Capability {
-    Order,
-    Equality,
-    Hash,
 }
 
 #[derive(Debug, Clone)]
@@ -106,6 +94,7 @@ pub(crate) struct TableFormat {
     pub(crate) attrs: TableAttrs,
     pub(crate) name: syn::Ident,
     pub(crate) format: syn::Ident,
+    pub(crate) format_offset: Option<syn::LitInt>,
     pub(crate) variants: Vec<FormatVariant>,
 }
 
@@ -142,6 +131,7 @@ pub(crate) struct GroupVariant {
 pub(crate) struct VariantAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) match_stmt: Option<Attr<InlineExpr>>,
+    pub(crate) write_only: Option<syn::Path>,
 }
 
 impl FormatVariant {
@@ -265,7 +255,7 @@ pub(crate) struct SinceVersion {
 /// ```
 #[derive(Clone, Debug)]
 pub(crate) enum Count {
-    All(syn::token::Dot2),
+    All(syn::token::DotDot),
     SingleArg(CountArg),
     Complicated {
         args: Vec<CountArg>,
@@ -473,7 +463,7 @@ impl Parse for Items {
 fn get_parse_module_path(input: ParseStream) -> syn::Result<syn::Path> {
     let attrs = input.call(Attribute::parse_inner)?;
     match attrs.as_slice() {
-        [one] if one.path.is_ident("parse_module") => one.parse_args(),
+        [one] if one.path().is_ident("parse_module") => one.parse_args(),
         [one] => Err(logged_syn_error(one.span(), "unexpected attribute")),
         [_, two, ..] => Err(logged_syn_error(
             two.span(),
@@ -627,7 +617,24 @@ impl Parse for TableFormat {
         let attrs: TableAttrs = input.parse()?;
         let _kw = input.parse::<kw::format>()?;
         let format: syn::Ident = input.parse()?;
-        validate_ident(&format, &["u8", "u16", "i16"], "unexpected format type")?;
+        let format_offset = if input.peek(Token![@]) {
+            input.parse::<Token![@]>()?;
+            let offset = input.parse::<syn::LitInt>()?;
+            if offset.base10_parse::<u16>().is_err() {
+                return Err(syn::Error::new(
+                    offset.span(),
+                    "value must be an unsigned integer",
+                ));
+            }
+            Some(offset)
+        } else {
+            None
+        };
+        validate_ident(
+            &format,
+            &["u8", "u16", "i16", "DeltaFormat"],
+            "unexpected format type",
+        )?;
         let name = input.parse::<syn::Ident>()?;
 
         let content;
@@ -641,6 +648,7 @@ impl Parse for TableFormat {
             format,
             name,
             variants,
+            format_offset,
         })
     }
 }
@@ -916,6 +924,7 @@ impl Parse for FormatVariant {
 }
 
 static MATCH_IF: &str = "match_if";
+static WRITE_FONTS_ONLY: &str = "write_fonts_only";
 
 impl Parse for VariantAttrs {
     fn parse(input: ParseStream) -> syn::Result<Self> {
@@ -924,13 +933,18 @@ impl Parse for VariantAttrs {
             .map_err(|e| syn::Error::new(e.span(), format!("hmm: '{e}'")))?;
 
         for attr in attrs {
-            let ident = attr.path.get_ident().ok_or_else(|| {
-                syn::Error::new(attr.path.span(), "attr paths should be a single identifer")
+            let ident = attr.path().get_ident().ok_or_else(|| {
+                syn::Error::new(
+                    attr.path().span(),
+                    "attr paths should be a single identifer",
+                )
             })?;
             if ident == DOC {
                 this.docs.push(attr);
             } else if ident == MATCH_IF {
                 this.match_stmt = Some(Attr::new(ident.clone(), attr.parse_args()?));
+            } else if ident == WRITE_FONTS_ONLY {
+                this.write_only = Some(attr.path().clone());
             } else {
                 return Err(logged_syn_error(
                     ident.span(),
@@ -969,15 +983,18 @@ impl Parse for FieldAttrs {
             .map_err(|e| syn::Error::new(e.span(), format!("hmm: '{e}'")))?;
 
         for attr in attrs {
-            let ident = attr.path.get_ident().ok_or_else(|| {
-                syn::Error::new(attr.path.span(), "attr paths should be a single identifer")
+            let ident = attr.path().get_ident().ok_or_else(|| {
+                syn::Error::new(
+                    attr.path().span(),
+                    "attr paths should be a single identifer",
+                )
             })?;
             if ident == DOC {
                 this.docs.push(attr);
             } else if ident == NULLABLE {
-                this.nullable = Some(attr.path);
+                this.nullable = Some(attr.path().clone());
             } else if ident == SKIP_GETTER {
-                this.skip_getter = Some(attr.path);
+                this.skip_getter = Some(attr.path().clone());
             } else if ident == OFFSET_GETTER {
                 this.offset_getter = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == OFFSET_DATA {
@@ -985,7 +1002,7 @@ impl Parse for FieldAttrs {
             } else if ident == OFFSET_ADJUSTMENT {
                 this.offset_adjustment = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == VERSION {
-                this.version = Some(attr.path);
+                this.version = Some(attr.path().clone());
             } else if ident == COUNT {
                 this.count = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == COMPILE {
@@ -1009,7 +1026,7 @@ impl Parse for FieldAttrs {
             } else if ident == TRAVERSE_WITH {
                 this.traverse_with = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == FORMAT {
-                this.format = Some(Attr::new(ident.clone(), parse_attr_eq_value(attr.tokens)?))
+                this.format = Some(Attr::new(ident.clone(), parse_attr_eq_value(&attr)?))
             } else {
                 return Err(logged_syn_error(
                     ident.span(),
@@ -1026,7 +1043,6 @@ static SKIP_FONT_WRITE: &str = "skip_font_write";
 static SKIP_CONSTRUCTOR: &str = "skip_constructor";
 static READ_ARGS: &str = "read_args";
 static GENERIC_OFFSET: &str = "generic_offset";
-static CAPABILITIES: &str = "capabilities";
 static TAG: &str = "tag";
 
 impl Parse for TableAttrs {
@@ -1036,25 +1052,28 @@ impl Parse for TableAttrs {
             .map_err(|e| syn::Error::new(e.span(), format!("hmm: '{e}'")))?;
 
         for attr in attrs {
-            let ident = attr.path.get_ident().ok_or_else(|| {
-                syn::Error::new(attr.path.span(), "attr paths should be a single identifer")
+            let ident = attr.path().get_ident().ok_or_else(|| {
+                syn::Error::new(
+                    attr.path().span(),
+                    "attr paths should be a single identifer",
+                )
             })?;
             if ident == DOC {
                 this.docs.push(attr);
             } else if ident == SKIP_FROM_OBJ {
-                this.skip_from_obj = Some(attr.path);
+                this.skip_from_obj = Some(attr.path().clone());
             } else if ident == SKIP_FONT_WRITE {
-                this.skip_font_write = Some(attr.path);
+                this.skip_font_write = Some(attr.path().clone());
             } else if ident == SKIP_CONSTRUCTOR {
-                this.skip_constructor = Some(attr.path);
+                this.skip_constructor = Some(attr.path().clone());
+            } else if ident == WRITE_FONTS_ONLY {
+                this.write_only = Some(attr.path().clone());
             } else if ident == READ_ARGS {
                 this.read_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == GENERIC_OFFSET {
                 this.generic_offset = Some(Attr::new(ident.clone(), attr.parse_args()?));
-            } else if ident == CAPABILITIES {
-                this.capabilities = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == TAG {
-                let tag: syn::LitStr = parse_attr_eq_value(attr.tokens)?;
+                let tag: syn::LitStr = parse_attr_eq_value(&attr)?;
                 if let Err(e) = Tag::new_checked(tag.value().as_bytes()) {
                     return Err(logged_syn_error(tag.span(), format!("invalid tag: '{e}'")));
                 }
@@ -1079,13 +1098,16 @@ impl Parse for EnumVariantAttrs {
             .map_err(|e| syn::Error::new(e.span(), format!("hmm: '{e}'")))?;
 
         for attr in attrs {
-            let ident = attr.path.get_ident().ok_or_else(|| {
-                syn::Error::new(attr.path.span(), "attr paths should be a single identifer")
+            let ident = attr.path().get_ident().ok_or_else(|| {
+                syn::Error::new(
+                    attr.path().span(),
+                    "attr paths should be a single identifer",
+                )
             })?;
             if ident == DOC {
                 this.docs.push(attr);
             } else if ident == DEFAULT {
-                this.default = Some(attr.path);
+                this.default = Some(attr.path().clone());
             } else {
                 return Err(logged_syn_error(
                     ident.span(),
@@ -1112,33 +1134,6 @@ impl Parse for TableReadArg {
         input.parse::<Token![:]>()?;
         let typ = input.parse()?;
         Ok(TableReadArg { ident, typ })
-    }
-}
-
-impl Parse for Capabilities {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let mut capabilities =
-            Punctuated::<Capability, Token![,]>::parse_separated_nonempty(input)?
-                .into_iter()
-                .collect::<Vec<_>>();
-        capabilities.sort_unstable();
-        capabilities.dedup();
-        Ok(Capabilities { capabilities })
-    }
-}
-
-impl Parse for Capability {
-    fn parse(input: ParseStream) -> syn::Result<Self> {
-        let ident = input.parse::<syn::Ident>()?;
-        match ident.to_string().as_str() {
-            "equality" => Ok(Self::Equality),
-            "order" => Ok(Self::Order),
-            "hash" => Ok(Self::Hash),
-            _ => Err(logged_syn_error(
-                ident.span(),
-                "expected one of 'equality', 'order', or 'hash'",
-            )),
-        }
     }
 }
 
@@ -1669,37 +1664,7 @@ impl FromIterator<(syn::Ident, NeededWhen)> for ReferencedFields {
     }
 }
 
-impl Capabilities {
-    pub(crate) fn extra_traits(&self) -> TokenStream {
-        let iter = self.capabilities.iter().flat_map(Capability::traits);
-        quote! ( #( #iter, )* )
-    }
-}
-
-impl Capability {
-    fn traits(&self) -> impl Iterator<Item = syn::Ident> + '_ {
-        match self {
-            // in order for all branches to return the same type, they are all [Option<Ident>; 2]
-            // and then we filter
-            Capability::Order => [
-                Some(syn::Ident::new("PartialOrd", Span::call_site())),
-                Some(syn::Ident::new("Ord", Span::call_site())),
-            ]
-            .into_iter(),
-            Capability::Equality => [
-                Some(syn::Ident::new("PartialEq", Span::call_site())),
-                Some(syn::Ident::new("Eq", Span::call_site())),
-            ]
-            .into_iter(),
-            Capability::Hash => {
-                [Some(syn::Ident::new("Hash", Span::call_site())), None].into_iter()
-            }
-        }
-        .flatten()
-    }
-}
-
-fn parse_attr_eq_value<T: Parse>(tokens: TokenStream) -> syn::Result<T> {
+fn parse_attr_eq_value<T: Parse>(attr: &syn::Attribute) -> syn::Result<T> {
     /// the tokens '= T' where 'T' is any `Parse`
     struct EqualsThing<T>(T);
 
@@ -1709,7 +1674,8 @@ fn parse_attr_eq_value<T: Parse>(tokens: TokenStream) -> syn::Result<T> {
             input.parse().map(EqualsThing)
         }
     }
-    syn::parse2::<EqualsThing<T>>(tokens).map(|t| t.0)
+    let tokens = attr.meta.require_name_value()?.value.to_token_stream();
+    syn::parse2::<T>(tokens).map_err(|err| syn::Error::new(attr.meta.span(), err.to_string()))
 }
 
 fn validate_ident(ident: &syn::Ident, expected: &[&str], error: &str) -> Result<(), syn::Error> {
@@ -1725,7 +1691,7 @@ fn get_optional_docs(input: ParseStream) -> Result<Vec<syn::Attribute>, syn::Err
         result.extend(Attribute::parse_outer(input)?);
     }
     for attr in &result {
-        if !attr.path.is_ident("doc") {
+        if !attr.path().is_ident("doc") {
             return Err(logged_syn_error(attr.span(), "expected doc comment"));
         }
     }
@@ -1774,6 +1740,7 @@ pub(crate) fn logged_syn_error<T: Display>(span: Span, message: T) -> syn::Error
 #[cfg(test)]
 mod tests {
     use quote::ToTokens;
+    use syn::parse_quote;
 
     use super::*;
 
@@ -1866,5 +1833,62 @@ mod tests {
         assert!(parse("1, 3").unwrap().minor.is_some());
         assert!(parse("1, 2, 3").is_err());
         assert!(parse("1, 'b'").is_err());
+    }
+
+    fn parse_format_group(s: &str) -> Result<TableFormat, syn::Error> {
+        syn::parse_str(s)
+    }
+
+    #[test]
+    fn parse_format_group_basic() {
+        let s = "format u16 MyThing {
+            FormatOne(SomeTable),
+        }";
+        let parsed = parse_format_group(s).unwrap();
+        assert_eq!(parsed.format.to_string(), "u16");
+        assert!(parsed.format_offset.is_none());
+    }
+
+    // just a sanity check
+    #[test]
+    fn parse_format_group_not_a_known_format() {
+        let s = "format Fixed MyThing {
+            FormatOne(SomeTable),
+        }";
+        assert!(parse_format_group(s).is_err());
+    }
+
+    #[test]
+    fn parse_format_group_with_format_offset() {
+        let s = "format u16@4 MyThing {
+            FormatOne(SomeTable),
+        }";
+
+        let parsed = parse_format_group(s).unwrap();
+        assert!(parsed.format_offset.is_some());
+        assert_eq!(
+            parsed.format_offset.unwrap().base10_parse::<u16>().ok(),
+            Some(4)
+        );
+    }
+
+    #[test]
+    #[should_panic(expected = "must be an unsigned")]
+    fn parse_format_group_with_negative_format_offset() {
+        let s = "format u16@-4 MyThing {
+            FormatOne(SomeTable),
+        }";
+
+        parse_format_group(s).unwrap();
+    }
+
+    #[test]
+    fn parse_tag_attr() {
+        let input: Table = parse_quote! {
+            #[tag = "hilo"]
+            table HiMom {}
+        };
+
+        assert_eq!(input.attrs.tag.unwrap().attr.value(), "hilo");
     }
 }

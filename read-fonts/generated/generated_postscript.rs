@@ -206,7 +206,7 @@ pub enum FdSelect<'a> {
 
 impl<'a> FontRead<'a> for FdSelect<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u8 = data.read_at(0)?;
+        let format: u8 = data.read_at(0usize)?;
         match format {
             FdSelectFormat0Marker::FORMAT => Ok(Self::Format0(FontRead::read(data)?)),
             FdSelectFormat3Marker::FORMAT => Ok(Self::Format3(FontRead::read(data)?)),
@@ -416,7 +416,7 @@ impl<'a> std::fmt::Debug for FdSelectFormat3<'a> {
 }
 
 /// Range struct for FdSelect format 3.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FdSelectRange3 {
@@ -566,7 +566,7 @@ impl<'a> std::fmt::Debug for FdSelectFormat4<'a> {
 }
 
 /// Range struct for FdSelect format 4.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FdSelectRange4 {

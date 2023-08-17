@@ -653,7 +653,7 @@ pub enum CaretValue<'a> {
 
 impl<'a> FontRead<'a> for CaretValue<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             CaretValueFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             CaretValueFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -887,7 +887,7 @@ impl<'a> CaretValueFormat3<'a> {
     }
 
     /// Attempt to resolve [`device_offset`][Self::device_offset].
-    pub fn device(&self) -> Result<Device<'a>, ReadError> {
+    pub fn device(&self) -> Result<DeviceOrVariationIndex<'a>, ReadError> {
         let data = self.data;
         self.device_offset().resolve(data)
     }

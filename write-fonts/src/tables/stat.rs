@@ -34,7 +34,7 @@ fn convert_axis_value_offsets(
 #[cfg(test)]
 mod tests {
     use crate::dump_table;
-    use crate::read::tables::stat as read_stat;
+    use read_fonts::tables::stat as read_stat;
 
     use super::*;
 

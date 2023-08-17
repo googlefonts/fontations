@@ -919,7 +919,7 @@ pub enum BaseCoord<'a> {
 
 impl<'a> FontRead<'a> for BaseCoord<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             BaseCoordFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             BaseCoordFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -1174,7 +1174,7 @@ impl<'a> BaseCoordFormat3<'a> {
     }
 
     /// Attempt to resolve [`device_offset`][Self::device_offset].
-    pub fn device(&self) -> Option<Result<Device<'a>, ReadError>> {
+    pub fn device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
         let data = self.data;
         self.device_offset().resolve(data)
     }

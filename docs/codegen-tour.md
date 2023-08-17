@@ -439,11 +439,16 @@ You then also declare that you want to create an enum, providing an explicit
 format, and listing which tables should be included:
 
 ```rust
-format u16 MyTable {
+format u16[@N] MyTable {
     Format1(MyTableFormat1),
     Format2(MyTableFormat2),
 }
 ```
+
+the 'format' keyword is followed by the type that represents the format, and
+optionally a position  at which to read it (indicated by the '@' token, followed
+by an unsigned integer literal.) In the vast majority of cases this can be
+omitted, and the format will be read from the first position in the table.
 
 We will then generate an enum, as well as a `FontRead` implementation: this
 implementation will read the format off of the front of the input data, and then

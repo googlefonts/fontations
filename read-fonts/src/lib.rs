@@ -1,4 +1,60 @@
-//! Parsing OpentType tables.
+//! Reading OpenType tables
+//!
+//! This crate provides memory safe zero-allocation parsing of font files.
+//! It is unopinionated, and attempts to provide raw access to the underlying
+//! font data as it is described in the [OpenType specification][spec].
+//!
+//! This crate is intended for use by other parts of a font stack, such as a
+//! shaping engine or a glyph rasterizer.
+//!
+//! In addition to raw data access, this crate may also provide reference
+//! implementations of algorithms for interpreting that data, where such an
+//! implementation is required for the data to be useful. For instance, we
+//! provide functions for [mapping codepoints to glyph identifiers][cmap-impl]
+//! using the `cmap` table, or for [decoding entries in the `name` table][NameString].
+//!
+//! For higher level/more ergonomic access to font data, you may want to look
+//! into using [`skrifa`] instead.
+//!
+//! ## Structure & codegen
+//!
+//! The root [`tables`] module contains a submodule for each supported
+//! [table][table-directory], and that submodule contains items for each table,
+//! record, flagset or enum described in the relevant portion of the spec.
+//!
+//! The majority of the code in the tables module is auto-generated. For more
+//! information on our use of codegen, see the [codegen tour].
+//!
+//! # Related projects
+//!
+//! - [`write-fonts`] is a companion crate for creating/modifying font files
+//! - [`skrifa`] provides access to glyph outlines and metadata (in the same vein
+//!   as [freetype])
+//!
+//! # Example
+//!
+//! ```no_run
+//! # let path_to_my_font_file = std::path::Path::new("");
+//! use read_fonts::{FontRef, TableProvider};
+//! let font_bytes = std::fs::read(path_to_my_font_file).unwrap();
+//! // Single fonts only. for font collections (.ttc) use FontRef::from_index
+//! let font = FontRef::new(&font_bytes).expect("failed to read font data");
+//! let head = font.head().expect("missing 'head' table");
+//! let maxp = font.maxp().expect("missing 'maxp' table");
+//!
+//! println!("font version {} containing {} glyphs", head.font_revision(), maxp.num_glyphs());
+//! ```
+//!
+//!
+//! [spec]: https://learn.microsoft.com/en-us/typography/opentype/spec/
+//! [codegen-tour]: https://github.com/googlefonts/fontations/blob/main/docs/codegen-tour.md
+//! [cmap-impl]: tables::cmap::Cmap::map_codepoint
+//! [`write-fonts`]: https://docs.rs/write-fonts/
+//! [`skrifa`]: https://docs.rs/skrifa/
+//! [freetype]: http://freetype.org
+//! [codegen tour]: https://github.com/googlefonts/fontations/blob/main/docs/codegen-tour.md
+//! [NameString]: tables::name::NameString
+//! [table-directory]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-directory
 
 #![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(not(feature = "std"), no_std)]
@@ -28,6 +84,9 @@ pub mod codegen_test;
 #[cfg(test)]
 #[path = "tests/test_helpers.rs"]
 mod test_helpers;
+
+#[cfg(any(test, feature = "scaler_test"))]
+pub mod scaler_test;
 
 pub use font_data::FontData;
 pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
@@ -192,9 +251,12 @@ pub struct FontRef<'a> {
 impl<'a> FontRef<'a> {
     /// Creates a new reference to an in-memory font backed by the given data.
     ///
-    /// The data slice must begin with a
-    /// [table directory](https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-directory)
-    /// to be considered valid.
+    /// The data must be a single font (not a font collection) and must begin with a
+    /// [table directory] to be considered valid.
+    ///
+    /// To load a font from a font collection, use [`FontRef::from_index`] instead.
+    ///
+    /// [table directory]: https://github.com/googlefonts/fontations/pull/549
     pub fn new(data: &'a [u8]) -> Result<Self, ReadError> {
         let data = FontData::new(data);
         Self::with_table_directory(data, TableDirectory::read(data)?)

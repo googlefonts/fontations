@@ -47,7 +47,7 @@ pub fn iup_delta_optimize(
     let expected_num_coords = contour_ends
         .last()
         .copied()
-        //.map(|v| v + 1)
+        .map(|v| v + 1)
         .unwrap_or_default()
         + NUM_PHANTOM_POINTS;
     if num_coords != expected_num_coords {
@@ -427,7 +427,9 @@ fn iup_contour_optimize(
     };
     if deltas.iter().all(|d| d == first_delta) {
         let mut result = vec![None; n];
-        result[0] = Some(*first_delta);
+        if first_delta.x != 0.0 || first_delta.y != 0.0 {
+            result[0] = Some(*first_delta);
+        }
         return Ok(result);
     }
 
@@ -476,8 +478,12 @@ fn iup_contour_optimize(
         }
 
         deltas.rotate_left(mid);
-
-        encode
+        // The original fonttools version applies the IUP solution to the deltas and
+        // *then* rotates the deltas list back, whereas here we have rotated the deltas *before*
+        // applying the solution at the end, so we must rotate the solution as well
+        // otherwise indices don't match as in https://github.com/googlefonts/fontations/issues/571
+        // Cf. https://github.com/fonttools/fonttools/blob/dd783ff/Lib/fontTools/varLib/iup.py#L435-L437
+        encode.iter().map(|idx| ((idx + n - mid) % n)).collect()
     } else {
         // Repeat the contour an extra time, solve the new case, then look for solutions of the
         // circular n-length problem in the solution for new linear case.  I cannot prove that
@@ -551,6 +557,7 @@ fn iup_contour_optimize(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use pretty_assertions::assert_eq;
 
     struct IupScenario {
         deltas: Vec<Vec2>,
@@ -957,5 +964,285 @@ mod tests {
     #[test]
     fn iup_test_scenario08_optimize_contour() {
         iup_scenario8().assert_optimize_contour();
+    }
+
+    #[test]
+    fn iup_delta_optimize_oswald_glyph_two() {
+        // https://github.com/googlefonts/fontations/issues/564
+        let deltas: Vec<_> = vec![
+            (0.0, 0.0),
+            (41.0, 0.0),
+            (41.0, 41.0),
+            (60.0, 41.0),
+            (22.0, -22.0),
+            (27.0, -15.0),
+            (38.0, -4.0),
+            (44.0, 2.0),
+            (44.0, -1.0),
+            (44.0, 2.0),
+            (29.0, 4.0),
+            (18.0, 4.0),
+            (9.0, 4.0),
+            (-4.0, -4.0),
+            (-11.0, -12.0),
+            (-11.0, -10.0),
+            (-11.0, -25.0),
+            (44.0, -25.0),
+            (44.0, -12.0),
+            (44.0, -20.0),
+            (39.0, -38.0),
+            (26.0, -50.0),
+            (16.0, -50.0),
+            (-5.0, -50.0),
+            (-13.0, -21.0),
+            (-13.0, 1.0),
+            (-13.0, 11.0),
+            (-13.0, 16.0),
+            (-13.0, 16.0),
+            (-12.0, 19.0),
+            (0.0, 42.0),
+            (0.0, 0.0),
+            (36.0, 0.0),
+            (0.0, 0.0),
+            (0.0, 0.0),
+        ]
+        .into_iter()
+        .map(|c| c.into())
+        .collect();
+        let coords: Vec<_> = vec![
+            (41.0, 0.0),
+            (423.0, 0.0),
+            (423.0, 90.0),
+            (167.0, 90.0),
+            (353.0, 374.0),
+            (377.0, 410.0),
+            (417.0, 478.0),
+            (442.0, 556.0),
+            (442.0, 608.0),
+            (442.0, 706.0),
+            (346.0, 817.0),
+            (248.0, 817.0),
+            (176.0, 817.0),
+            (89.0, 759.0),
+            (50.0, 654.0),
+            (50.0, 581.0),
+            (50.0, 553.0),
+            (157.0, 553.0),
+            (157.0, 580.0),
+            (157.0, 619.0),
+            (173.0, 687.0),
+            (215.0, 729.0),
+            (253.0, 729.0),
+            (298.0, 729.0),
+            (334.0, 665.0),
+            (334.0, 609.0),
+            (334.0, 564.0),
+            (309.0, 495.0),
+            (270.0, 433.0),
+            (247.0, 397.0),
+            (41.0, 76.0),
+            (0.0, 0.0),
+            (478.0, 0.0),
+            (0.0, 0.0),
+            (0.0, 0.0),
+        ]
+        .into_iter()
+        .map(|c| c.into())
+        .collect();
+
+        // using fonttools varLib's default tolerance
+        let tolerance = 0.5;
+        // a single contour, minus the phantom points
+        let contour_ends = vec![coords.len() - 1 - 4];
+
+        let result = iup_delta_optimize(deltas, coords, tolerance, &contour_ends).unwrap();
+
+        assert_eq!(
+            result.into_iter().enumerate().collect::<Vec<_>>(),
+            // this is what fonttools iup_delta_optimize returns and what we want to match
+            vec![
+                (0, None),
+                (1, Some(Vec2 { x: 41.0, y: 0.0 })),
+                (2, None),
+                (3, Some(Vec2 { x: 60.0, y: 41.0 })),
+                (4, Some(Vec2 { x: 22.0, y: -22.0 })),
+                (5, Some(Vec2 { x: 27.0, y: -15.0 })),
+                (6, Some(Vec2 { x: 38.0, y: -4.0 })),
+                (7, Some(Vec2 { x: 44.0, y: 2.0 })),
+                (8, Some(Vec2 { x: 44.0, y: -1.0 })),
+                (9, Some(Vec2 { x: 44.0, y: 2.0 })),
+                (10, Some(Vec2 { x: 29.0, y: 4.0 })),
+                (11, Some(Vec2 { x: 18.0, y: 4.0 })),
+                (12, Some(Vec2 { x: 9.0, y: 4.0 })),
+                (13, Some(Vec2 { x: -4.0, y: -4.0 })),
+                (14, Some(Vec2 { x: -11.0, y: -12.0 })),
+                (15, Some(Vec2 { x: -11.0, y: -10.0 })),
+                (16, None),
+                (17, Some(Vec2 { x: 44.0, y: -25.0 })),
+                (18, Some(Vec2 { x: 44.0, y: -12.0 })),
+                (19, Some(Vec2 { x: 44.0, y: -20.0 })),
+                (20, Some(Vec2 { x: 39.0, y: -38.0 })),
+                (21, Some(Vec2 { x: 26.0, y: -50.0 })),
+                (22, Some(Vec2 { x: 16.0, y: -50.0 })),
+                (23, Some(Vec2 { x: -5.0, y: -50.0 })),
+                (24, Some(Vec2 { x: -13.0, y: -21.0 })),
+                (25, Some(Vec2 { x: -13.0, y: 1.0 })),
+                (26, Some(Vec2 { x: -13.0, y: 11.0 })),
+                (27, Some(Vec2 { x: -13.0, y: 16.0 })),
+                (28, Some(Vec2 { x: -13.0, y: 16.0 })),
+                (29, None),
+                (30, Some(Vec2 { x: 0.0, y: 42.0 })),
+                (31, None),
+                (32, Some(Vec2 { x: 36.0, y: 0.0 })),
+                (33, None),
+                (34, None),
+            ]
+        )
+    }
+
+    #[test]
+    fn iup_delta_optimize_gs_glyph_uppercase_c() {
+        // https://github.com/googlefonts/fontations/issues/571
+        let deltas: Vec<_> = vec![
+            (2.0, 0.0),
+            (4.0, 0.0),
+            (8.0, -1.0),
+            (10.0, -1.0),
+            (10.0, 0.0),
+            (-14.0, 25.0),
+            (-8.0, 34.0),
+            (-3.0, 38.0),
+            (-5.0, 35.0),
+            (-7.0, 35.0),
+            (6.0, 35.0),
+            (22.0, 27.0),
+            (29.0, 11.0),
+            (29.0, -1.0),
+            (29.0, -13.0),
+            (22.0, -29.0),
+            (8.0, -37.0),
+            (-3.0, -37.0),
+            (0.0, -37.0),
+            (1.0, -43.0),
+            (-7.0, -41.0),
+            (-19.0, -28.0),
+            (8.0, 0.0),
+            (8.0, 0.0),
+            (6.0, 0.0),
+            (4.0, 0.0),
+            (2.0, 0.0),
+            (0.0, 0.0),
+            (-5.0, 0.0),
+            (-8.0, 0.0),
+            (-10.0, 0.0),
+            (-10.0, 0.0),
+            (-8.0, 0.0),
+            (-5.0, 0.0),
+            (-1.0, 0.0),
+            (0.0, 0.0),
+            (0.0, 0.0),
+            (0.0, 0.0),
+            (0.0, 0.0),
+        ]
+        .into_iter()
+        .map(|c| c.into())
+        .collect();
+
+        let coords: Vec<_> = vec![
+            (416.0, -16.0),
+            (476.0, -16.0),
+            (581.0, 17.0),
+            (668.0, 75.0),
+            (699.0, 112.0),
+            (637.0, 172.0),
+            (609.0, 139.0),
+            (542.0, 91.0),
+            (463.0, 65.0),
+            (416.0, 65.0),
+            (339.0, 65.0),
+            (209.0, 137.0),
+            (131.0, 269.0),
+            (131.0, 358.0),
+            (131.0, 448.0),
+            (209.0, 579.0),
+            (339.0, 651.0),
+            (416.0, 651.0),
+            (458.0, 651.0),
+            (529.0, 631.0),
+            (590.0, 589.0),
+            (617.0, 556.0),
+            (678.0, 615.0),
+            (646.0, 652.0),
+            (566.0, 704.0),
+            (471.0, 732.0),
+            (416.0, 732.0),
+            (337.0, 732.0),
+            (202.0, 675.0),
+            (101.0, 574.0),
+            (45.0, 438.0),
+            (45.0, 279.0),
+            (101.0, 142.0),
+            (202.0, 41.0),
+            (337.0, -16.0),
+            (0.0, 0.0),
+            (741.0, 0.0),
+            (0.0, 0.0),
+            (0.0, 0.0),
+        ]
+        .into_iter()
+        .map(|c| c.into())
+        .collect();
+
+        // using fonttools varLib's default tolerance
+        let tolerance = 0.5;
+        // a single contour, minus the phantom points
+        let contour_ends = vec![coords.len() - 1 - 4];
+
+        let result = iup_delta_optimize(deltas, coords, tolerance, &contour_ends).unwrap();
+
+        assert_eq!(
+            result.into_iter().enumerate().collect::<Vec<_>>(),
+            vec![
+                (0, None),
+                (1, Some(Vec2 { x: 4.0, y: 0.0 })),
+                (2, Some(Vec2 { x: 8.0, y: -1.0 })),
+                (3, Some(Vec2 { x: 10.0, y: -1.0 })),
+                (4, Some(Vec2 { x: 10.0, y: 0.0 })),
+                (5, Some(Vec2 { x: -14.0, y: 25.0 })),
+                (6, Some(Vec2 { x: -8.0, y: 34.0 })),
+                (7, Some(Vec2 { x: -3.0, y: 38.0 })),
+                (8, Some(Vec2 { x: -5.0, y: 35.0 })),
+                (9, Some(Vec2 { x: -7.0, y: 35.0 })),
+                (10, Some(Vec2 { x: 6.0, y: 35.0 })),
+                (11, Some(Vec2 { x: 22.0, y: 27.0 })),
+                (12, Some(Vec2 { x: 29.0, y: 11.0 })),
+                (13, None),
+                (14, Some(Vec2 { x: 29.0, y: -13.0 })),
+                (15, Some(Vec2 { x: 22.0, y: -29.0 })),
+                (16, Some(Vec2 { x: 8.0, y: -37.0 })),
+                (17, Some(Vec2 { x: -3.0, y: -37.0 })),
+                (18, Some(Vec2 { x: 0.0, y: -37.0 })),
+                (19, Some(Vec2 { x: 1.0, y: -43.0 })),
+                (20, Some(Vec2 { x: -7.0, y: -41.0 })),
+                (21, Some(Vec2 { x: -19.0, y: -28.0 })),
+                (22, Some(Vec2 { x: 8.0, y: 0.0 })),
+                (23, Some(Vec2 { x: 8.0, y: 0.0 })),
+                (24, None),
+                (25, Some(Vec2 { x: 4.0, y: 0.0 })),
+                (26, None),
+                (27, None),
+                (28, None),
+                (29, None),
+                (30, None),
+                (31, Some(Vec2 { x: -10.0, y: 0.0 })),
+                (32, None),
+                (33, None),
+                (34, None),
+                (35, None),
+                (36, None),
+                (37, None),
+                (38, None),
+            ]
+        )
     }
 }

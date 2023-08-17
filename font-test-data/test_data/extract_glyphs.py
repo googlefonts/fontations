@@ -5,31 +5,39 @@ import sys
 import os
 import freetype
 
-# Our requirements.txt pins freetype-py to version 2.3.0 which includes FreeType 2.12.0. We only
+# Our requirements.txt pins freetype-py to version 2.4.0 which includes FreeType 2.13.0. We only
 # want to track one FreeType version at a time, so ensure that we are consistent.
-assert freetype.version() == (2, 12, 0)
+assert freetype.version() == (2, 13, 0)
 
 # Each glyph will be sampled in these sizes (in pixels per em). A size of 0 indicates
 # an unscaled glyph (results in font units)
 SAMPLE_SIZES = [0, 16, 50]
 
 # For variable fonts, sample the glyphs at these normalized coordinates.
-SAMPLE_COORDS = [-1.0, -0.2, 0.0, 0.3, 1.0]
+# The odd intermediate numbers are chosen so that rounding behavior yields consistent
+# results among FreeType, freetype-py and read-fonts.
+SAMPLE_COORDS = [-1.0, -0.2000122, 0.0, 0.2999878, 1.0]
 
 
 class DecomposeContext:
-    def __init__(self, is_scaled: bool):
+    def __init__(self, is_scaled: bool, is_cff: bool):
         self.data = ""
         self.is_scaled = is_scaled
+        self.is_cff = is_cff
+        self.last_end = None
+        self.last_move = None
 
     def add_element(self, cmd, points):
+        SCALE_FACTOR = 1.0 / 64.0
         self.data += cmd + " "
         if self.is_scaled:
             for point in points:
-                self.data += " {},{}".format(point.x / 64.0, point.y / 64.0)
+                self.data += " {},{}".format(point.x *
+                                             SCALE_FACTOR, point.y * SCALE_FACTOR)
         else:
             for point in points:
                 self.data += " {},{}".format(point.x, point.y)
+        self.last_end = points[-1]
         self.data += "\n"
 
 
@@ -38,7 +46,10 @@ def path_move_to(pt, ctx):
 
 
 def path_line_to(pt, ctx):
-    ctx.add_element("l", [pt])
+    # FreeType removes some (but not all!) degenerate lines for CFF outlines...
+    # Remove the rest here for consistency.
+    if not ctx.is_cff or ctx.last_end != pt:
+        ctx.add_element("l", [pt])
 
 
 def path_quad_to(c, pt, ctx):
@@ -88,7 +99,7 @@ class GlyphData:
         for tag in face.glyph.outline.tags:
             self.data += " " + str(tag)
         self.data += "\n"
-        decompose_ctx = DecomposeContext(size != 0)
+        decompose_ctx = DecomposeContext(size != 0, face.get_format() == 'CFF')
         face.glyph.outline.decompose(
             context=decompose_ctx, move_to=path_move_to, line_to=path_line_to, conic_to=path_quad_to, cubic_to=path_cubic_to)
         self.data += decompose_ctx.data
@@ -123,7 +134,6 @@ glyphs = GlyphData()
 if axis_count > 0:
     for coord in SAMPLE_COORDS:
         coords = [coord] * axis_count
-        face.set_var_design_coords(coords)
         for glyph_id in range(0, face.num_glyphs):
             for size in SAMPLE_SIZES:
                 glyphs.add_glyph(face, size, glyph_id, coords)

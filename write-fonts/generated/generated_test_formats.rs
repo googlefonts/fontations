@@ -5,7 +5,7 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Table1 {
     pub heft: u32,
     pub flex: u16,
@@ -52,7 +52,7 @@ impl<'a> FontRead<'a> for Table1 {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Table2 {
     pub values: Vec<u16>,
 }
@@ -108,7 +108,7 @@ impl<'a> FontRead<'a> for Table2 {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Table3 {
     pub something: u16,
 }
@@ -145,7 +145,7 @@ impl<'a> FontRead<'a> for Table3 {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum MyTable {
     Format1(Table1),
     MyFormat22(Table2),
@@ -214,5 +214,23 @@ impl<'a> FontRead<'a> for MyTable {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::codegen_test::formats::MyTable as FontRead>::read(data)
             .map(|x| x.to_owned_table())
+    }
+}
+
+impl From<Table1> for MyTable {
+    fn from(src: Table1) -> MyTable {
+        MyTable::Format1(src)
+    }
+}
+
+impl From<Table2> for MyTable {
+    fn from(src: Table2) -> MyTable {
+        MyTable::MyFormat22(src)
+    }
+}
+
+impl From<Table3> for MyTable {
+    fn from(src: Table3) -> MyTable {
+        MyTable::Format3(src)
     }
 }

@@ -14,7 +14,7 @@ impl FontWrite for SelectionFlags {
 }
 
 /// [`OS/2`](https://docs.microsoft.com/en-us/typography/opentype/spec/os2)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Os2 {
     /// [Average weighted escapement](https://learn.microsoft.com/en-us/typography/opentype/spec/os2#xavgcharwidth).
     ///

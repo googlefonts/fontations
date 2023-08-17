@@ -1,8 +1,9 @@
 //!  A builder for top-level font objects
 
-use std::borrow::Cow;
 use std::collections::BTreeMap;
+use std::{borrow::Cow, fmt::Display};
 
+use read_fonts::{FontRef, TableProvider};
 use types::{Tag, TT_SFNT_VERSION};
 
 include!("../generated/generated_font.rs");
@@ -13,6 +14,16 @@ const TABLE_RECORD_LEN: usize = 16;
 #[derive(Debug, Clone, Default)]
 pub struct FontBuilder<'a> {
     tables: BTreeMap<Tag, Cow<'a, [u8]>>,
+}
+
+/// An error returned when attempting to add a table to the builder.
+///
+/// This wraps a compilation error, adding the tag of the table where it was
+/// encountered.
+#[derive(Clone, Debug)]
+pub struct BuilderError {
+    tag: Tag,
+    inner: crate::error::Error,
 }
 
 impl TableDirectory {
@@ -37,8 +48,43 @@ impl TableDirectory {
 }
 
 impl<'a> FontBuilder<'a> {
-    pub fn add_table(&mut self, tag: Tag, data: impl Into<Cow<'a, [u8]>>) -> &mut Self {
+    /// Create a new builder to compile a binary font
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Add a table to the builder.
+    ///
+    /// The table can be any top-level table defined in this crate. This function
+    /// will attempt to compile the table and then add it to the builder if
+    /// successful, returning an error otherwise.
+    pub fn add_table<T>(&mut self, table: &T) -> Result<&mut Self, BuilderError>
+    where
+        T: FontWrite + Validate + TopLevelTable,
+    {
+        let tag = T::TAG;
+        let bytes = crate::dump_table(table).map_err(|inner| BuilderError { inner, tag })?;
+        Ok(self.add_raw(tag, bytes))
+    }
+
+    /// A builder method to add raw data for the provided tag
+    pub fn add_raw(&mut self, tag: Tag, data: impl Into<Cow<'a, [u8]>>) -> &mut Self {
         self.tables.insert(tag, data.into());
+        self
+    }
+
+    /// Copy each table from the source font if it does not already exist
+    pub fn copy_missing_tables(&mut self, font: FontRef<'a>) -> &mut Self {
+        for record in font.table_directory.table_records() {
+            let tag = record.tag();
+            if !self.tables.contains_key(&tag) {
+                if let Some(data) = font.data_for_tag(tag) {
+                    self.add_raw(tag, data);
+                } else {
+                    log::warn!("data for '{tag}' is malformed");
+                }
+            }
+        }
         self
     }
 
@@ -47,6 +93,9 @@ impl<'a> FontBuilder<'a> {
         self.tables.contains_key(&tag)
     }
 
+    /// Assemble all the tables into a binary font file with a [Table Directory].
+    ///
+    /// [Table Directory]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-directory
     pub fn build(&mut self) -> Vec<u8> {
         let header_len = std::mem::size_of::<u32>() // sfnt
             + std::mem::size_of::<u16>() * 4 // num_tables to range_shift
@@ -112,6 +161,14 @@ impl TTCHeader {
     }
 }
 
+impl Display for BuilderError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "failed to build '{}' table: '{}'", self.tag, self.inner)
+    }
+}
+
+impl std::error::Error for BuilderError {}
+
 #[cfg(test)]
 mod tests {
     use font_types::Tag;
@@ -125,7 +182,7 @@ mod tests {
         let data = b"doesn't matter".to_vec();
         let mut builder = FontBuilder::default();
         (0..0x16u32).for_each(|i| {
-            builder.add_table(Tag::from_be_bytes(i.to_ne_bytes()), &data);
+            builder.add_raw(Tag::from_be_bytes(i.to_ne_bytes()), &data);
         });
         let bytes = builder.build();
         let font = FontRef::new(&bytes).unwrap();

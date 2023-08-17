@@ -1086,7 +1086,7 @@ impl<'a> std::fmt::Debug for CoverageFormat2<'a> {
 }
 
 /// Used in [CoverageFormat2]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct RangeRecord {
@@ -1153,7 +1153,7 @@ pub enum CoverageTable<'a> {
 
 impl<'a> FontRead<'a> for CoverageTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             CoverageFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             CoverageFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -1378,7 +1378,7 @@ impl<'a> std::fmt::Debug for ClassDefFormat2<'a> {
 }
 
 /// Used in [ClassDefFormat2]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ClassRangeRecord {
@@ -1442,7 +1442,7 @@ pub enum ClassDef<'a> {
 
 impl<'a> FontRead<'a> for ClassDef<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             ClassDefFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             ClassDefFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -1479,7 +1479,7 @@ impl<'a> SomeTable<'a> for ClassDef<'a> {
 }
 
 /// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SequenceLookupRecord {
@@ -2348,7 +2348,7 @@ pub enum SequenceContext<'a> {
 
 impl<'a> FontRead<'a> for SequenceContext<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             SequenceContextFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             SequenceContextFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -3490,7 +3490,7 @@ pub enum ChainedSequenceContext<'a> {
 
 impl<'a> FontRead<'a> for ChainedSequenceContext<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let format: u16 = data.read_at(0)?;
+        let format: u16 = data.read_at(0usize)?;
         match format {
             ChainedSequenceContextFormat1Marker::FORMAT => Ok(Self::Format1(FontRead::read(data)?)),
             ChainedSequenceContextFormat2Marker::FORMAT => Ok(Self::Format2(FontRead::read(data)?)),
@@ -3688,7 +3688,7 @@ impl VariationIndexMarker {
     }
     fn delta_format_byte_range(&self) -> Range<usize> {
         let start = self.delta_set_inner_index_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+        start..start + DeltaFormat::RAW_BYTE_LEN
     }
 }
 
@@ -3697,7 +3697,7 @@ impl<'a> FontRead<'a> for VariationIndex<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        cursor.advance::<u16>();
+        cursor.advance::<DeltaFormat>();
         cursor.finish(VariationIndexMarker {})
     }
 }
@@ -3721,7 +3721,7 @@ impl<'a> VariationIndex<'a> {
     }
 
     /// Format, = 0x8000
-    pub fn delta_format(&self) -> u16 {
+    pub fn delta_format(&self) -> DeltaFormat {
         let range = self.shape.delta_format_byte_range();
         self.data.read_at(range.start).unwrap()
     }
@@ -3752,6 +3752,54 @@ impl<'a> SomeTable<'a> for VariationIndex<'a> {
 impl<'a> std::fmt::Debug for VariationIndex<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+/// Either a [Device] table (in a non-variable font) or a [VariationIndex] table (in a variable font)
+pub enum DeviceOrVariationIndex<'a> {
+    Device(Device<'a>),
+    VariationIndex(VariationIndex<'a>),
+}
+
+impl<'a> FontRead<'a> for DeviceOrVariationIndex<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: DeltaFormat = data.read_at(4usize)?;
+        match format {
+            format if format != DeltaFormat::VariationIndex => {
+                Ok(Self::Device(FontRead::read(data)?))
+            }
+            format if format == DeltaFormat::VariationIndex => {
+                Ok(Self::VariationIndex(FontRead::read(data)?))
+            }
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> DeviceOrVariationIndex<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Device(table) => table,
+            Self::VariationIndex(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for DeviceOrVariationIndex<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for DeviceOrVariationIndex<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
     }
 }
 

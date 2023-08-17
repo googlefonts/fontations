@@ -1,4 +1,7 @@
-use read_fonts::{tables::glyf::ToPathError, types::GlyphId, ReadError};
+use read_fonts::{
+    tables::glyf::ToPathError, tables::postscript::Error as PostScriptError, types::GlyphId,
+    ReadError,
+};
 
 use std::fmt;
 
@@ -16,6 +19,8 @@ pub enum Error {
     HintingFailed(GlyphId),
     /// An anchor point had invalid indices.
     InvalidAnchorPoint(GlyphId, u16),
+    /// Error occurred while loading a PostScript (CFF/CFF2) glyph.
+    PostScript(PostScriptError),
     /// Conversion from outline to path failed.
     ToPath(ToPathError),
     /// Error occured when reading font data.
@@ -31,6 +36,12 @@ impl From<ToPathError> for Error {
 impl From<ReadError> for Error {
     fn from(e: ReadError) -> Self {
         Self::Read(e)
+    }
+}
+
+impl From<PostScriptError> for Error {
+    fn from(value: PostScriptError) -> Self {
+        Self::PostScript(value)
     }
 }
 
@@ -50,6 +61,7 @@ impl fmt::Display for Error {
                 f,
                 "Invalid anchor point index ({index}) for composite glyph {gid}",
             ),
+            Self::PostScript(e) => write!(f, "{e}"),
             Self::ToPath(e) => write!(f, "{e}"),
             Self::Read(e) => write!(f, "{e}"),
         }

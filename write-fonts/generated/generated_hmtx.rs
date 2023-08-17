@@ -6,7 +6,7 @@
 use crate::codegen_prelude::*;
 
 /// The [hmtx (Horizontal Metrics)](https://docs.microsoft.com/en-us/typography/opentype/spec/hmtx) table
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct Hmtx {
     /// Paired advance width/height and left/top side bearing values for each
     /// glyph. Records are indexed by glyph ID.
@@ -65,7 +65,7 @@ impl<'a> FromObjRef<read_fonts::tables::hmtx::Hmtx<'a>> for Hmtx {
 
 impl<'a> FromTableRef<read_fonts::tables::hmtx::Hmtx<'a>> for Hmtx {}
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct LongMetric {
     /// Advance width/height, in font design units.
     pub advance: u16,

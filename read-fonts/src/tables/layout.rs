@@ -116,3 +116,11 @@ impl DeltaFormat {
         count + extra
     }
 }
+
+// we as a 'format' in codegen, and the generic error type for an invalid format
+// stores the value as an i64, so we need this conversion.
+impl From<DeltaFormat> for i64 {
+    fn from(value: DeltaFormat) -> Self {
+        value as u16 as _
+    }
+}

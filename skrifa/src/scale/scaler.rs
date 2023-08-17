@@ -1,4 +1,6 @@
-use super::{glyf, Context, Error, NormalizedCoord, Pen, Result, Size, UniqueId, VariationSetting};
+use super::{
+    cff, glyf, Context, Error, NormalizedCoord, Pen, Result, Size, UniqueId, VariationSetting,
+};
 
 #[cfg(feature = "hinting")]
 use super::Hinting;
@@ -122,22 +124,30 @@ impl<'a> ScalerBuilder<'a> {
     pub fn build(mut self, font: &impl TableProvider<'a>) -> Scaler<'a> {
         self.resolve_variations(font);
         let coords = &self.context.coords[..];
-        let glyf = if let Ok(glyf) = glyf::Scaler::new(
+        let size = self.size.ppem().unwrap_or_default();
+        let outlines = if let Ok(glyf) = glyf::Scaler::new(
             &mut self.context.glyf,
             font,
             self.cache_key,
-            self.size.ppem().unwrap_or_default(),
+            size,
             #[cfg(feature = "hinting")]
             self.hint,
             coords,
         ) {
-            Some((glyf, &mut self.context.glyf_outline))
+            Some(Outlines::TrueType(glyf, &mut self.context.glyf_outline))
         } else {
-            None
+            cff::Scaler::new(font)
+                .ok()
+                .and_then(|scaler| {
+                    let first_subfont = scaler.subfont(0, size, coords).ok()?;
+                    Some((scaler, first_subfont))
+                })
+                .map(|(scaler, subfont)| Outlines::PostScript(scaler, subfont))
         };
         Scaler {
+            size,
             coords,
-            outlines: Outlines { glyf },
+            outlines,
         }
     }
 
@@ -186,8 +196,9 @@ impl<'a> ScalerBuilder<'a> {
 /// See the [module level documentation](crate::scale#getting-an-outline)
 /// for more detail.
 pub struct Scaler<'a> {
+    size: f32,
     coords: &'a [NormalizedCoord],
-    outlines: Outlines<'a>,
+    outlines: Option<Outlines<'a>>,
 }
 
 impl<'a> Scaler<'a> {
@@ -198,32 +209,48 @@ impl<'a> Scaler<'a> {
 
     /// Returns true if the scaler has a source for simple outlines.
     pub fn has_outlines(&self) -> bool {
-        self.outlines.has_outlines()
+        self.outlines.is_some()
     }
 
     /// Loads a simple outline for the specified glyph identifier and invokes the functions
-    /// in the given sink for the sequence of path commands that define the outline.
-    pub fn outline(&mut self, glyph_id: GlyphId, sink: &mut impl Pen) -> Result<()> {
-        self.outlines.outline(glyph_id, sink)
+    /// in the given pen for the sequence of path commands that define the outline.
+    pub fn outline(&mut self, glyph_id: GlyphId, pen: &mut impl Pen) -> Result<()> {
+        if let Some(outlines) = &mut self.outlines {
+            outlines.outline(glyph_id, self.size, self.coords, pen)
+        } else {
+            Err(Error::NoSources)
+        }
     }
 }
 
-/// Outline glyph scalers.
-struct Outlines<'a> {
-    glyf: Option<(glyf::Scaler<'a>, &'a mut glyf::Outline)>,
+// Clippy doesn't like the size discrepancy between the two variants. Ignore
+// for now: we'll replace this with a real cache.
+#[allow(clippy::large_enum_variant)]
+enum Outlines<'a> {
+    TrueType(glyf::Scaler<'a>, &'a mut glyf::Outline),
+    PostScript(cff::Scaler<'a>, cff::Subfont),
 }
 
 impl<'a> Outlines<'a> {
-    fn has_outlines(&self) -> bool {
-        self.glyf.is_some()
-    }
-
-    fn outline(&mut self, glyph_id: GlyphId, sink: &mut impl Pen) -> Result<()> {
-        if let Some((scaler, glyf_outline)) = &mut self.glyf {
-            scaler.load(glyph_id, glyf_outline)?;
-            Ok(glyf_outline.to_path(sink)?)
-        } else {
-            Err(Error::NoSources)
+    fn outline(
+        &mut self,
+        glyph_id: GlyphId,
+        size: f32,
+        coords: &'a [NormalizedCoord],
+        pen: &mut impl Pen,
+    ) -> Result<()> {
+        match self {
+            Self::TrueType(scaler, outline) => {
+                scaler.load(glyph_id, outline)?;
+                Ok(outline.to_path(pen)?)
+            }
+            Self::PostScript(scaler, subfont) => {
+                let subfont_index = scaler.subfont_index(glyph_id);
+                if subfont_index != subfont.index() {
+                    *subfont = scaler.subfont(subfont_index, size, coords)?;
+                }
+                Ok(scaler.outline(subfont, glyph_id, coords, false, pen)?)
+            }
         }
     }
 }

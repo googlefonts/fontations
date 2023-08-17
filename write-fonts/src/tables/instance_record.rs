@@ -4,7 +4,7 @@
 use crate::codegen_prelude::*;
 
 /// The [InstanceRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar#instancerecord)
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct InstanceRecord {
     /// The name ID for entries in the 'name' table that provide subfamily names for this instance.
     pub subfamily_name_id: NameId,

@@ -111,7 +111,7 @@ impl<'a> std::fmt::Debug for Hmtx<'a> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct LongMetric {

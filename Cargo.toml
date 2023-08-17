@@ -10,5 +10,9 @@ members = [
     "skrifa",
 ]
 
+[workspace.dependencies]
+# dev dependencies
+pretty_assertions = "1.3.0"
+
 [workspace.metadata.release]
 allow-branch = ["main"]

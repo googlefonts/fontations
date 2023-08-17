@@ -92,8 +92,8 @@ impl<'a> BlendState<'a> {
         self.data = None;
         self.region_indices = &[];
         let store = &self.store;
-        let varation_datas = store.item_variation_datas();
-        let data = varation_datas
+        let varation_data = store.item_variation_data();
+        let data = varation_data
             .get(self.store_index as usize)
             .ok_or(Error::InvalidVariationStoreIndex(self.store_index))??;
         let region_indices = data.region_indexes();

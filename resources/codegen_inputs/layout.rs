@@ -526,7 +526,6 @@ enum u16 DeltaFormat {
 
 /// [Device Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#device-and-variationindex-tables)
 #[skip_constructor]
-#[capabilities(equality, hash)]
 table Device {
     /// Smallest size to correct, in ppem
     start_size: u16,
@@ -548,7 +547,36 @@ table VariationIndex {
     /// within an item variation data subtable.
     delta_set_inner_index: u16,
     /// Format, = 0x8000
-    delta_format: u16,
+    #[compile(DeltaFormat::VariationIndex)]
+    delta_format: DeltaFormat,
+}
+
+/// A type representing a temporary identifier for a set of variation deltas.
+///
+/// The final indices used in the VariationIndex table are not known until
+/// all deltas have been collected. This variant is used to assign a
+/// temporary identifier during compilation.
+///
+/// This type is not part of the spec and will never appear in an actual font file.
+/// It is intended to serve as a sentinel value, and will panic when written,
+/// ensuring that all VariationIndex tables have been correctly mapped before
+/// the font is compiled.
+#[write_fonts_only]
+#[skip_from_obj]
+#[skip_font_write]
+table PendingVariationIndex {
+    /// A unique identifier for a given set of deltas.
+    delta_set_id: u32,
+}
+
+/// Either a [Device] table (in a non-variable font) or a [VariationIndex] table (in a variable font)
+format DeltaFormat@4 DeviceOrVariationIndex {
+    #[match_if($format != DeltaFormat::VariationIndex)]
+    Device(Device),
+    #[match_if($format == DeltaFormat::VariationIndex)]
+    VariationIndex(VariationIndex),
+    #[write_fonts_only]
+    PendingVariationIndex(PendingVariationIndex),
 }
 
 /// [FeatureVariations Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featurevariations-table)
@@ -576,7 +604,6 @@ record FeatureVariationRecord {
 }
 
 /// [ConditionSet Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#conditionset-table)
-#[capabilities(equality, order, hash)]
 table ConditionSet {
     /// Number of conditions for this condition set.
     #[compile(array_len($condition_offsets))]
@@ -594,7 +621,6 @@ table ConditionSet {
 //}
 
 /// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
-#[capabilities(equality, order, hash)]
 table ConditionFormat1 {
     /// Format, = 1
     #[format = 1]

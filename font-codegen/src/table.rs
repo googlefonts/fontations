@@ -9,6 +9,9 @@ use crate::parsing::{Attr, GenericGroup, Item, Items, Phase};
 use super::parsing::{Field, ReferencedFields, Table, TableFormat, TableReadArg, TableReadArgs};
 
 pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
+    if item.attrs.write_only.is_some() {
+        return Ok(Default::default());
+    }
     let docs = &item.attrs.docs;
     let generic = item.attrs.generic_offset.as_ref();
     let generic_with_default = generic.map(|t| quote!(#t = ()));
@@ -406,7 +409,7 @@ pub(crate) fn generate_group_compile(
 
     Ok(quote! {
         #( #docs)*
-        #[derive(Debug, Clone)]
+        #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub enum #name {
             #( #variant_decls, )*
         }
@@ -482,6 +485,16 @@ pub(crate) fn generate_format_compile(
         quote!( Self::#var_name(item) => item.table_type(), )
     });
 
+    let from_impls = item.variants.iter().map(|variant| {
+        let var_name = &variant.name;
+        let typ = variant.type_name();
+        quote!( impl From<#typ> for #name {
+            fn from(src: #typ) -> #name {
+                #name::#var_name(src)
+            }
+        } )
+    });
+
     let from_obj_impl = item
         .attrs
         .skip_from_obj
@@ -492,7 +505,7 @@ pub(crate) fn generate_format_compile(
     let constructors = generate_format_constructors(item, items)?;
     Ok(quote! {
         #( #docs )*
-        #[derive(Clone, Debug)]
+        #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
         pub enum #name {
             #( #variants ),*
         }
@@ -528,6 +541,8 @@ pub(crate) fn generate_format_compile(
         }
 
         #from_obj_impl
+
+        #( #from_impls )*
 
     })
 }
@@ -583,9 +598,11 @@ fn generate_format_from_obj(
     parse_module: &syn::Path,
 ) -> syn::Result<TokenStream> {
     let name = &item.name;
-    let to_owned_arms = item.variants.iter().map(|variant| {
-        let var_name = &variant.name;
-        quote!( ObjRefType::#var_name(item) => #name::#var_name(item.to_owned_table()), )
+    let to_owned_arms = item.variants.iter().filter_map(|variant| {
+        variant.attrs.write_only.is_none().then(|| {
+            let var_name = &variant.name;
+            quote!( ObjRefType::#var_name(item) => #name::#var_name(item.to_owned_table()), )
+        })
     });
 
     Ok(quote! {
@@ -612,15 +629,20 @@ fn generate_format_from_obj(
 pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStream> {
     let name = &item.name;
     let docs = &item.attrs.docs;
-    let variants = item.variants.iter().map(|variant| {
-        let name = &variant.name;
-        let typ = variant.type_name();
-        let docs = &variant.attrs.docs;
-        quote! ( #( #docs )* #name(#typ<'a>) )
+    let variants = item.variants.iter().filter_map(|variant| {
+        variant.attrs.write_only.is_none().then(|| {
+            let name = &variant.name;
+            let typ = variant.type_name();
+            let docs = &variant.attrs.docs;
+            quote! ( #( #docs )* #name(#typ<'a>) )
+        })
     });
 
     let format = &item.format;
-    let match_arms = item.variants.iter().map(|variant| {
+    let match_arms = item.variants.iter().filter_map(|variant| {
+        if variant.attrs.write_only.is_some() {
+            return None;
+        }
         let name = &variant.name;
         let lhs = if let Some(expr) = variant.attrs.match_stmt.as_deref() {
             let expr = &expr.expr;
@@ -629,17 +651,25 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
             let typ = variant.marker_name();
             quote!(#typ::FORMAT)
         };
-        quote! {
+        Some(quote! {
             #lhs => {
                 Ok(Self::#name(FontRead::read(data)?))
             }
-        }
+        })
     });
 
-    let traversal_arms = item.variants.iter().map(|variant| {
-        let name = &variant.name;
-        quote!(Self::#name(table) => table)
+    let traversal_arms = item.variants.iter().filter_map(|variant| {
+        variant.attrs.write_only.is_none().then(|| {
+            let name = &variant.name;
+            quote!(Self::#name(table) => table)
+        })
     });
+
+    let format_offset = item
+        .format_offset
+        .as_ref()
+        .map(|lit| lit.base10_parse::<usize>().unwrap())
+        .unwrap_or(0);
 
     Ok(quote! {
         #( #docs )*
@@ -649,7 +679,7 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
 
         impl<'a> FontRead<'a> for #name<'a> {
             fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-                let format: #format = data.read_at(0)?;
+                let format: #format = data.read_at(#format_offset)?;
                 match format {
                     #( #match_arms ),*
                     other => Err(ReadError::InvalidFormat(other.into())),

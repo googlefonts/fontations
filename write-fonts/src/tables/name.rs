@@ -211,7 +211,7 @@ mod tests {
         let mut table = Name::default();
         table.name_record.insert(name);
         let bytes = crate::dump_table(&table).unwrap();
-        let load = crate::read::tables::name::Name::read(FontData::new(&bytes)).unwrap();
+        let load = read_fonts::tables::name::Name::read(FontData::new(&bytes)).unwrap();
 
         let data = load.name_record()[0].string(load.string_data()).unwrap();
         assert_eq!(data.chars().collect::<String>(), "cé");
