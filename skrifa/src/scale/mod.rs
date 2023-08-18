@@ -144,14 +144,13 @@
 //! [lyon](https://github.com/nical/lyon) or
 //! [pathfinder](https://github.com/servo/pathfinder) for GPU rendering.
 
+// Temporary until new scaler API is done.
+#![allow(dead_code)]
+
 mod cff;
 mod error;
+mod glyf;
 mod scaler;
-
-// This will go away in the future when we add tracing support. Hide it
-// for now.
-#[doc(hidden)]
-pub mod glyf;
 
 pub use read_fonts::types::Pen;
 
@@ -195,10 +194,8 @@ pub enum Hinting {
 /// for more detail.
 #[derive(Clone, Default, Debug)]
 pub struct Context {
-    /// Inner context for loading TrueType outlines.
-    glyf: glyf::Context,
-    /// Internal storage for TrueType outlines.
-    glyf_outline: glyf::Outline,
+    /// Memory buffer for TrueType scaling buffers.
+    outline_memory: Vec<u8>,
     /// Storage for normalized variation coordinates.
     coords: Vec<NormalizedCoord>,
     /// Storage for variation settings.

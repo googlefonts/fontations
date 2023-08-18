@@ -125,16 +125,8 @@ impl<'a> ScalerBuilder<'a> {
         self.resolve_variations(font);
         let coords = &self.context.coords[..];
         let size = self.size.ppem().unwrap_or_default();
-        let outlines = if let Ok(glyf) = glyf::Scaler::new(
-            &mut self.context.glyf,
-            font,
-            self.cache_key,
-            size,
-            #[cfg(feature = "hinting")]
-            self.hint,
-            coords,
-        ) {
-            Some(Outlines::TrueType(glyf, &mut self.context.glyf_outline))
+        let outlines = if let Some(glyf) = glyf::Scaler::new(font) {
+            Some(Outlines::TrueType(glyf, &mut self.context.outline_memory))
         } else {
             cff::Scaler::new(font)
                 .ok()
@@ -227,7 +219,7 @@ impl<'a> Scaler<'a> {
 // for now: we'll replace this with a real cache.
 #[allow(clippy::large_enum_variant)]
 enum Outlines<'a> {
-    TrueType(glyf::Scaler<'a>, &'a mut glyf::Outline),
+    TrueType(glyf::Scaler<'a>, &'a mut Vec<u8>),
     PostScript(cff::Scaler<'a>, cff::Subfont),
 }
 
@@ -240,8 +232,16 @@ impl<'a> Outlines<'a> {
         pen: &mut impl Pen,
     ) -> Result<()> {
         match self {
-            Self::TrueType(scaler, outline) => {
-                scaler.load(glyph_id, outline)?;
+            Self::TrueType(scaler, buf) => {
+                let glyph = scaler.glyph(glyph_id, false)?;
+                let buf_size = glyph.required_buffer_size();
+                if buf.len() < buf_size {
+                    buf.resize(buf_size, 0);
+                }
+                let memory = glyph
+                    .memory_from_buffer(&mut buf[..])
+                    .ok_or(Error::InsufficientMemory)?;
+                let outline = scaler.outline(memory, &glyph, size, coords)?;
                 Ok(outline.to_path(pen)?)
             }
             Self::PostScript(scaler, subfont) => {

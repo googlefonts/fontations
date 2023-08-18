@@ -1,86 +1,24 @@
-/*!
-TrueType outlines loaded from the `glyf` table.
-
-*/
+//! Scaling support for TrueType outlines.
 
 mod deltas;
-mod outline;
+mod glyph;
+mod hint;
+mod mem;
 mod scaler;
 
-#[cfg(feature = "hinting")]
-mod hint;
+pub use glyph::{ScalerGlyph, ScalerOutline};
+pub use hint::HinterOutline;
+pub use mem::ScalerMemory;
+pub use scaler::Scaler;
 
-pub use read_fonts::types::Point;
-pub use {outline::Outline, scaler::Scaler};
+use super::Error;
 
-use read_fonts::types::{F26Dot6, Fixed, Pen};
+/// Recursion limit for processing composite outlines.
+///
+/// In reality, most fonts contain shallow composite graphs with a nesting
+/// depth of 1 or 2. This is set as a hard limit to avoid stack overflow
+/// and infinite recursion.
+pub const COMPOSITE_RECURSION_LIMIT: usize = 32;
 
-/// Point that actually represents a vector holding a variation delta.
-pub type Delta = Point<Fixed>;
-
-/// Context for loading for TrueType glyphs.
-#[derive(Clone, Default, Debug)]
-pub struct Context {
-    /// Unscaled points.
-    unscaled: Vec<Point<i32>>,
-    /// Original scaled points.
-    original: Vec<Point<F26Dot6>>,
-    /// Storage for simple glyph deltas.
-    deltas: Vec<Delta>,
-    /// Storage for composite glyph deltas.
-    composite_deltas: Vec<Delta>,
-    /// Temporary point storage that is used for storing intermediate
-    /// interpolated values while computing deltas.
-    working_points: Vec<Point<Fixed>>,
-    /// Cache and retained state for executing TrueType bytecode.
-    #[cfg(feature = "hinting")]
-    hint_context: hint::HintContext,
-}
-
-impl Context {
-    /// Creates a new context.
-    pub fn new() -> Self {
-        Self::default()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::{Context, Outline, Scaler};
-    use read_fonts::{scaler_test, FontRef};
-
-    #[test]
-    fn vazirmatin_var() {
-        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
-        let outlines = scaler_test::parse_glyph_outlines(font_test_data::VAZIRMATN_VAR_GLYPHS);
-        let mut cx = Context::new();
-        let mut outline = Outline::new();
-        for expected_outline in &outlines {
-            #[cfg(feature = "hinting")]
-            let mut scaler = Scaler::new(
-                &mut cx,
-                &font,
-                None,
-                expected_outline.size,
-                None,
-                &expected_outline.coords,
-            )
-            .unwrap();
-            #[cfg(not(feature = "hinting"))]
-            let mut scaler = Scaler::new(
-                &mut cx,
-                &font,
-                None,
-                expected_outline.size,
-                &expected_outline.coords,
-            )
-            .unwrap();
-            scaler
-                .load(expected_outline.glyph_id, &mut outline)
-                .unwrap();
-            assert_eq!(&outline.points, &expected_outline.points);
-            assert_eq!(&outline.contours, &expected_outline.contours);
-            assert_eq!(&outline.flags, &expected_outline.flags);
-        }
-    }
-}
+/// Number of phantom points generated at the end of an outline.
+pub const PHANTOM_POINT_COUNT: usize = 4;
