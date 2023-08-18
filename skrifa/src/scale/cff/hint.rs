@@ -91,7 +91,6 @@ impl HintState {
         state
     }
 
-    #[cfg(test)]
     fn zones(&self) -> &[BlueZone] {
         &self.zones[..self.zone_count]
     }
@@ -246,6 +245,212 @@ impl HintState {
         self.zones = zones;
         self.zone_count = zone_ix;
     }
+
+    /// Check whether a hint is captured by one of the blue zones.
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psblues.c#L465>
+    fn capture(&self, bottom_edge: &mut Hint, top_edge: &mut Hint) -> bool {
+        let fuzz = self.blue_fuzz;
+        let mut captured = false;
+        let mut adjustment = Fixed::ZERO;
+        for zone in self.zones() {
+            if zone.is_bottom
+                && bottom_edge.is_bottom()
+                && (zone.cs_bottom_edge - fuzz) <= bottom_edge.cs_coord
+                && bottom_edge.cs_coord <= (zone.cs_top_edge + fuzz)
+            {
+                // Bottom edge captured by bottom zone.
+                adjustment = if self.supress_overshoot {
+                    zone.ds_flat_edge
+                } else if zone.cs_top_edge - bottom_edge.cs_coord >= self.blue_shift {
+                    // Guarantee minimum of 1 pixel overshoot
+                    bottom_edge
+                        .ds_coord
+                        .round()
+                        .min(zone.ds_flat_edge - Fixed::ONE)
+                } else {
+                    bottom_edge.ds_coord.round()
+                };
+                adjustment -= bottom_edge.ds_coord;
+                captured = true;
+                break;
+            }
+            if !zone.is_bottom
+                && top_edge.is_top()
+                && (zone.cs_bottom_edge - fuzz) <= top_edge.cs_coord
+                && top_edge.cs_coord <= (zone.cs_top_edge + fuzz)
+            {
+                // Top edge captured by top zone.
+                adjustment = if self.supress_overshoot {
+                    zone.ds_flat_edge
+                } else if top_edge.cs_coord - zone.cs_bottom_edge >= self.blue_shift {
+                    // Guarantee minimum of 1 pixel overshoot
+                    top_edge
+                        .ds_coord
+                        .round()
+                        .max(zone.ds_flat_edge + Fixed::ONE)
+                } else {
+                    top_edge.ds_coord.round()
+                };
+                adjustment -= top_edge.ds_coord;
+                captured = true;
+                break;
+            }
+        }
+        if captured {
+            // Move both edges and mark them as "locked"
+            if bottom_edge.is_valid() {
+                bottom_edge.ds_coord += adjustment;
+                bottom_edge.lock();
+            }
+            if top_edge.is_valid() {
+                top_edge.ds_coord += adjustment;
+                top_edge.lock();
+            }
+        }
+        captured
+    }
+}
+
+/// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.h#L85>
+#[derive(Copy, Clone, Default)]
+struct StemHint {
+    /// If true, device space position is valid
+    is_used: bool,
+    // Character space position
+    min: Fixed,
+    max: Fixed,
+    // Device space position after first use
+    ds_min: Fixed,
+    ds_max: Fixed,
+}
+
+// Hint flags
+const GHOST_BOTTOM: u8 = 0x1;
+const GHOST_TOP: u8 = 0x2;
+const PAIR_BOTTOM: u8 = 0x4;
+const PAIR_TOP: u8 = 0x8;
+const LOCKED: u8 = 0x10;
+const SYNTHETIC: u8 = 0x20;
+
+/// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psblues.h#L118>
+#[derive(Copy, Clone, Default)]
+struct Hint {
+    flags: u8,
+    /// Index in original stem hint array (if not synthetic)
+    index: u8,
+    cs_coord: Fixed,
+    ds_coord: Fixed,
+    scale: Fixed,
+}
+
+impl Hint {
+    fn is_valid(&self) -> bool {
+        self.flags != 0
+    }
+
+    fn is_bottom(&self) -> bool {
+        self.flags & (GHOST_BOTTOM | PAIR_BOTTOM) != 0
+    }
+
+    fn is_top(&self) -> bool {
+        self.flags & (GHOST_TOP | PAIR_TOP) != 0
+    }
+
+    fn is_pair(&self) -> bool {
+        self.flags & (PAIR_BOTTOM | PAIR_TOP) != 0
+    }
+
+    fn is_pair_top(&self) -> bool {
+        self.flags & PAIR_TOP != 0
+    }
+
+    fn is_locked(&self) -> bool {
+        self.flags & LOCKED != 0
+    }
+
+    fn is_synthetic(&self) -> bool {
+        self.flags & SYNTHETIC != 0
+    }
+
+    fn lock(&mut self) {
+        self.flags |= LOCKED
+    }
+
+    /// Hint initialization from an incoming stem hint.
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.c#L89>
+    fn setup(
+        &mut self,
+        stem: &StemHint,
+        index: u8,
+        origin: Fixed,
+        scale: Fixed,
+        darken_y: Fixed,
+        is_bottom: bool,
+    ) {
+        // "Ghost hints" are used to align a single edge rather than a
+        // stem-- think the top and bottom edges of an uppercase
+        // sans-serif I.
+        // These are encoded internally with stem hints of width -21
+        // and -20 for bottom and top hints, respectively.
+        const GHOST_BOTTOM_WIDTH: Fixed = Fixed::from_i32(-21);
+        const GHOST_TOP_WIDTH: Fixed = Fixed::from_i32(-20);
+        let width = stem.max - stem.min;
+        if width == GHOST_BOTTOM_WIDTH {
+            if is_bottom {
+                self.cs_coord = stem.max;
+                self.flags = GHOST_BOTTOM;
+            } else {
+                self.flags = 0;
+            }
+        } else if width == GHOST_TOP_WIDTH {
+            if !is_bottom {
+                self.cs_coord = stem.min;
+                self.flags = GHOST_TOP;
+            } else {
+                self.flags = 0;
+            }
+        } else if width < Fixed::ZERO {
+            // If width < 0, this is an inverted pair. We follow FreeType and
+            // swap the coordinates
+            if is_bottom {
+                self.cs_coord = stem.max;
+                self.flags = PAIR_BOTTOM;
+            } else {
+                self.cs_coord = stem.min;
+                self.flags = PAIR_TOP;
+            }
+        } else {
+            // This is a normal pair
+            if is_bottom {
+                self.cs_coord = stem.min;
+                self.flags = PAIR_BOTTOM;
+            } else {
+                self.cs_coord = stem.max;
+                self.flags = PAIR_TOP;
+            }
+        }
+        if self.is_top() {
+            // For top hints, adjust character space position up by twice the
+            // darkening amount
+            self.cs_coord += twice(darken_y);
+        }
+        self.cs_coord += origin;
+        self.scale = scale;
+        self.index = index;
+        // If original stem hint was used, copy the position
+        if self.flags != 0 && stem.is_used {
+            if self.is_top() {
+                self.ds_coord = stem.ds_max;
+            } else {
+                self.ds_coord = stem.ds_min;
+            }
+            self.lock();
+        } else {
+            self.ds_coord = self.cs_coord * scale;
+        }
+    }
 }
 
 fn twice(value: Fixed) -> Fixed {
@@ -254,10 +459,9 @@ fn twice(value: Fixed) -> Fixed {
 
 #[cfg(test)]
 mod tests {
-    use super::{BlueZone, Blues, Fixed, HintParams, HintState};
+    use super::{BlueZone, Blues, Fixed, Hint, HintParams, HintState, PAIR_BOTTOM, PAIR_TOP};
 
-    #[test]
-    fn scaled_blue_zones() {
+    fn make_hint_state() -> HintState {
         fn make_blues(values: &[f64]) -> Blues {
             Blues::new(values.iter().copied().map(Fixed::from_f64))
         }
@@ -276,7 +480,12 @@ mod tests {
             blue_fuzz: Fixed::ZERO,
             ..Default::default()
         };
-        let state = HintState::new(&params, Fixed::ONE / Fixed::from_i32(64));
+        HintState::new(&params, Fixed::ONE / Fixed::from_i32(64))
+    }
+
+    #[test]
+    fn scaled_blue_zones() {
+        let state = make_hint_state();
         assert!(!state.do_em_box_hints);
         assert_eq!(state.zone_count, 6);
         assert_eq!(state.boost, Fixed::from_bits(27035));
@@ -355,5 +564,70 @@ mod tests {
             },
         ];
         assert_eq!(state.zones(), expected_zones);
+    }
+
+    #[test]
+    fn blue_zone_capture() {
+        let state = make_hint_state();
+        let bottom_edge = Hint {
+            flags: PAIR_BOTTOM,
+            ds_coord: Fixed::from_f64(2.3),
+            ..Default::default()
+        };
+        let top_edge = Hint {
+            flags: PAIR_TOP,
+            // This value chosen to fit within the first "top" blue zone
+            cs_coord: Fixed::from_bits(35127297),
+            ds_coord: Fixed::from_f64(2.3),
+            ..Default::default()
+        };
+        // Capture both
+        {
+            let (mut bottom_edge, mut top_edge) = (bottom_edge, top_edge);
+            assert!(state.capture(&mut bottom_edge, &mut top_edge));
+            assert!(bottom_edge.is_locked());
+            assert!(top_edge.is_locked());
+        }
+        // Capture none
+        {
+            // Used to guarantee the edges are below all blue zones and will
+            // not be captured
+            let min_cs_coord = Fixed::MIN;
+            let mut bottom_edge = Hint {
+                cs_coord: min_cs_coord,
+                ..bottom_edge
+            };
+            let mut top_edge = Hint {
+                cs_coord: min_cs_coord,
+                ..top_edge
+            };
+            assert!(!state.capture(&mut bottom_edge, &mut top_edge));
+            assert!(!bottom_edge.is_locked());
+            assert!(!top_edge.is_locked());
+        }
+        // Capture bottom, ignore invalid top
+        {
+            let mut bottom_edge = bottom_edge;
+            let mut top_edge = Hint {
+                // Empty flags == invalid hint
+                flags: 0,
+                ..top_edge
+            };
+            assert!(state.capture(&mut bottom_edge, &mut top_edge));
+            assert!(bottom_edge.is_locked());
+            assert!(!top_edge.is_locked());
+        }
+        // Capture top, ignore invalid bottom
+        {
+            let mut bottom_edge = Hint {
+                // Empty flags == invalid hint
+                flags: 0,
+                ..bottom_edge
+            };
+            let mut top_edge = top_edge;
+            assert!(state.capture(&mut bottom_edge, &mut top_edge));
+            assert!(!bottom_edge.is_locked());
+            assert!(top_edge.is_locked());
+        }
     }
 }
