@@ -2,9 +2,12 @@
 
 use std::mem::{align_of, size_of};
 
-use types::{F26Dot6, Fixed, Point};
+use read_fonts::{
+    tables::glyf::PointFlags,
+    types::{F26Dot6, Fixed, Point},
+};
 
-use super::{super::glyf::PointFlags, ScalerGlyph};
+use super::ScalerGlyph;
 
 /// Buffers used during glyph scaling.
 pub struct ScalerMemory<'a> {

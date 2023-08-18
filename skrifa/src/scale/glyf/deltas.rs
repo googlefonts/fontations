@@ -7,7 +7,9 @@ use read_fonts::{
     ReadError,
 };
 
-use super::Delta;
+use super::PHANTOM_POINT_COUNT;
+
+pub type Delta = Point<Fixed>;
 
 /// Compute a set of deltas for the component offsets of a composite glyph.
 ///
@@ -40,7 +42,7 @@ pub struct SimpleGlyph<'a> {
 /// Compute a set of deltas for the points in a simple glyph.
 ///
 /// This function will use interpolation to infer missing deltas for tuples
-/// that contain sparse sets. The `working_points` buffer is temporary storage
+/// that contain sparse sets. The `iup_buffer` buffer is temporary storage
 /// used for this and the length must be >= glyph.points.len().
 pub fn simple_glyph(
     gvar: &Gvar,
@@ -48,9 +50,12 @@ pub fn simple_glyph(
     coords: &[F2Dot14],
     has_var_lsb: bool,
     glyph: SimpleGlyph,
-    working_points: &mut [Point<Fixed>],
+    iup_buffer: &mut [Point<Fixed>],
     deltas: &mut [Delta],
 ) -> Result<(), ReadError> {
+    if iup_buffer.len() < glyph.points.len() || glyph.points.len() < PHANTOM_POINT_COUNT {
+        return Err(ReadError::InvalidArrayLen);
+    }
     for delta in deltas.iter_mut() {
         *delta = Default::default();
     }
@@ -76,25 +81,21 @@ pub fn simple_glyph(
         // Infer missing deltas by interpolation.
         // Prepare our working buffer by converting the points to 16.16
         // and clearing the HAS_DELTA flags.
-        for ((flag, point), working_point) in
-            flags.iter_mut().zip(points).zip(&mut working_points[..])
-        {
-            *working_point = point.map(Fixed::from_i32);
+        for ((flag, point), iup_point) in flags.iter_mut().zip(points).zip(&mut iup_buffer[..]) {
+            *iup_point = point.map(Fixed::from_i32);
             flag.clear_marker(PointMarker::HAS_DELTA);
         }
         for tuple_delta in tuple.deltas() {
             let ix = tuple_delta.position as usize;
-            if let (Some(flag), Some(point)) = (flags.get_mut(ix), working_points.get_mut(ix)) {
+            if let (Some(flag), Some(point)) = (flags.get_mut(ix), iup_buffer.get_mut(ix)) {
                 flag.set_marker(PointMarker::HAS_DELTA);
                 *point += tuple_delta.apply_scalar(scalar);
             }
         }
-        interpolate_deltas(points, flags, contours, &mut working_points[..])
+        interpolate_deltas(points, flags, contours, &mut iup_buffer[..])
             .ok_or(ReadError::OutOfBounds)?;
-        for ((delta, point), working_point) in
-            deltas.iter_mut().zip(points).zip(working_points.iter())
-        {
-            *delta += *working_point - point.map(Fixed::from_i32);
+        for ((delta, point), iup_point) in deltas.iter_mut().zip(points).zip(iup_buffer.iter()) {
+            *delta += *iup_point - point.map(Fixed::from_i32);
         }
         Ok(())
     })?;
@@ -121,13 +122,15 @@ fn compute_deltas_for_glyph(
         return Ok(());
     };
     for (tuple, scalar) in var_data.active_tuples_at(coords) {
-        // Fast path: tuple contains all points, we can simply accumulate the deltas directly.
+        // Fast path: tuple contains all points, we can simply accumulate
+        // the deltas directly.
         if tuple.has_deltas_for_all_points() {
             for (delta, tuple_delta) in deltas.iter_mut().zip(tuple.deltas()) {
                 *delta += tuple_delta.apply_scalar(scalar);
             }
         } else {
-            // Slow path is, annoyingly, different for simple vs composite so let the caller handle it
+            // Slow path is, annoyingly, different for simple vs composite
+            // so let the caller handle it
             apply_tuple_missing_deltas_fn(scalar, tuple, deltas)?;
         }
     }
@@ -145,8 +148,6 @@ fn interpolate_deltas(
     contours: &[u16],
     out_points: &mut [Point<Fixed>],
 ) -> Option<()> {
-    debug_assert_eq!(points.len(), flags.len());
-    debug_assert!(out_points.len() >= points.len());
     let mut jiggler = Jiggler { points, out_points };
     let mut point_ix = 0usize;
     for &end_point_ix in contours {
@@ -156,8 +157,8 @@ fn interpolate_deltas(
         while point_ix <= end_point_ix && !flags.get(point_ix)?.has_marker(PointMarker::HAS_DELTA) {
             point_ix += 1;
         }
-        // If we didn't find any deltas, no variations in the current tuple apply,
-        // so skip it.
+        // If we didn't find any deltas, no variations in the current tuple
+        // apply, so skip it.
         if point_ix > end_point_ix {
             continue;
         }
@@ -180,7 +181,8 @@ fn interpolate_deltas(
         if cur_delta_ix == first_delta_ix {
             jiggler.shift(first_point_ix..=end_point_ix, cur_delta_ix)?;
         } else {
-            // Otherwise, handle remaining points at beginning and end of contour.
+            // Otherwise, handle remaining points at beginning and end of
+            // contour.
             jiggler.interpolate(
                 cur_delta_ix + 1..=end_point_ix,
                 RefPoints(cur_delta_ix, first_delta_ix),
@@ -196,7 +198,7 @@ fn interpolate_deltas(
     Some(())
 }
 
-pub struct RefPoints(usize, usize);
+struct RefPoints(usize, usize);
 
 struct Jiggler<'a> {
     points: &'a [Point<i32>],
@@ -215,8 +217,8 @@ impl<'a> Jiggler<'a> {
         if delta.x == Fixed::ZERO && delta.y == Fixed::ZERO {
             return Some(());
         }
-        // Apply the reference point delta to the entire range excluding the reference point
-        // itself which would apply the delta twice.
+        // Apply the reference point delta to the entire range excluding the
+        // reference point itself which would apply the delta twice.
         for out_point in self.out_points.get_mut(*range.start()..ref_ix)? {
             *out_point += delta;
         }

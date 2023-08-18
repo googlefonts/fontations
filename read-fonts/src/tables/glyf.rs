@@ -726,7 +726,7 @@ pub fn to_path(
         sink.move_to(p.x, p.y);
         count += 1;
         last_was_close = false;
-        while cur_ix < last_ix {
+        while cur_ix < last_ix || cur_ix == last_ix && !step_point {
             if step_point {
                 cur_ix += 1;
             }

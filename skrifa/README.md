@@ -37,9 +37,9 @@ Current (✔️), near term (🔜) and planned (⌛) feature matrix:
 
 | Source | Decoding | Variations | Hinting |
 |--------|---------|------------|---------|
-| glyf   | ✔️     |  ✔️        | ⌛*    |
-| CFF    | ⌛     | ⌛         | ⌛     |
-| CFF2   | ⌛     | ⌛         | ⌛     |
+| glyf   | ✔️     | ✔️         | ⌛*    |
+| CFF    | ✔️     | ✔️         | ⌛*    |
+| CFF2   | ✔️     | ✔️         | ⌛*    |
 | COLRv0 | 🔜     | 🔜         | **      |
 | COLRv1 | 🔜     | 🔜         | **      |
 | EBDT   | 🔜     | -          | -      |
@@ -50,11 +50,6 @@ Current (✔️), near term (🔜) and planned (⌛) feature matrix:
 
 \*\* This will be supported but is probably not desirable due the general
 affine transforms present in the paint graph.
-
-## Safety
-
-Unsafe code is forbidden by a `#![forbid(unsafe_code)]` attribute in the root
-of the library.
 
 ## Panicking
 

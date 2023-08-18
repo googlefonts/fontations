@@ -2,11 +2,12 @@
 
 use std::mem::size_of;
 
-use super::ScalerMemory;
-use crate::{
+use read_fonts::{
     tables::glyf::{to_path, Glyph, PointFlags, ToPathError},
-    types::{F26Dot6, F2Dot14, Fixed, GlyphId, Pen, Point},
+    types::{F26Dot6, Fixed, GlyphId, Pen, Point},
 };
+
+use super::ScalerMemory;
 
 /// Represents the information necessary to scale a glyph.
 ///
@@ -92,17 +93,4 @@ impl<'a> ScalerOutline<'a> {
     pub fn to_path(&self, pen: &mut impl Pen) -> Result<(), ToPathError> {
         to_path(self.points, self.flags, self.contours, pen)
     }
-}
-
-/// Outline data that is passed to the hinter.
-pub struct HinterOutline<'a> {
-    pub unscaled: &'a mut [Point<i32>],
-    pub scaled: &'a mut [Point<F26Dot6>],
-    pub original_scaled: &'a mut [Point<F26Dot6>],
-    pub flags: &'a mut [PointFlags],
-    pub contours: &'a [u16],
-    pub phantom: &'a mut [Point<F26Dot6>],
-    pub bytecode: &'a [u8],
-    pub is_composite: bool,
-    pub coords: &'a [F2Dot14],
 }

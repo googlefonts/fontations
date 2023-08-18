@@ -1,194 +1,389 @@
-use super::{
-    super::{Error, NormalizedCoord, Result, UniqueId, GLYF_COMPOSITE_RECURSION_LIMIT},
-    Context, Outline, Point,
-};
-
-#[cfg(feature = "hinting")]
-use {
-    super::{super::Hinting, hint},
-    read_fonts::tables::glyf::PointMarker,
-};
+//! Scaler for TrueType outlines.
 
 use read_fonts::{
     tables::{
-        glyf::{Anchor, CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, SimpleGlyph},
+        glyf::{
+            Anchor, CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, PointMarker, SimpleGlyph,
+        },
         gvar::Gvar,
         hmtx::Hmtx,
         hvar::Hvar,
         loca::Loca,
     },
-    types::{BigEndian, F26Dot6, F2Dot14, Fixed, GlyphId, Tag},
+    types::{F26Dot6, F2Dot14, Fixed, GlyphId, Point},
     TableProvider,
 };
 
-/// TrueType glyph scaler for a specific font and configuration.
+use super::{
+    deltas, Error, HinterOutline, ScalerGlyph, ScalerMemory, ScalerOutline,
+    COMPOSITE_RECURSION_LIMIT, PHANTOM_POINT_COUNT,
+};
+
+/// Scaler state for TrueType outlines.
+#[derive(Clone)]
 pub struct Scaler<'a> {
-    /// Backing context.
-    context: &'a mut Context,
-    /// Current font data.
-    font: ScalerFont<'a>,
-    /// State for tracking current hinting mode and cache slot.
-    #[cfg(feature = "hinting")]
-    hint_config: hint::HintConfig,
+    loca: Loca<'a>,
+    glyf: Glyf<'a>,
+    gvar: Option<Gvar<'a>>,
+    hmtx: Hmtx<'a>,
+    hvar: Option<Hvar<'a>>,
+    units_per_em: u16,
+    has_var_lsb: bool,
+}
+
+impl<'a> Scaler<'a> {
+    pub fn new(font: &impl TableProvider<'a>) -> Option<Self> {
+        let hvar = font.hvar().ok();
+        let has_var_lsb = hvar
+            .as_ref()
+            .map(|hvar| hvar.lsb_mapping().is_some())
+            .unwrap_or_default();
+        Some(Self {
+            loca: font.loca(None).ok()?,
+            glyf: font.glyf().ok()?,
+            gvar: font.gvar().ok(),
+            hmtx: font.hmtx().ok()?,
+            hvar,
+            units_per_em: font.head().ok()?.units_per_em(),
+            has_var_lsb,
+        })
+    }
+
+    pub fn glyph(&self, glyph_id: GlyphId, with_hinting: bool) -> Result<ScalerGlyph, Error> {
+        let mut info = ScalerGlyph {
+            glyph_id,
+            has_variations: self.gvar.is_some(),
+            ..Default::default()
+        };
+        let glyph = self.loca.get_glyf(glyph_id, &self.glyf)?;
+        if glyph.is_none() {
+            return Ok(info);
+        }
+        self.glyph_rec(glyph.as_ref().unwrap(), &mut info, 0, 0)?;
+        if info.points != 0 {
+            info.points += PHANTOM_POINT_COUNT;
+        }
+        info.glyph = glyph;
+        info.has_hinting &= with_hinting;
+        Ok(info)
+    }
+
+    pub fn outline(
+        &self,
+        memory: ScalerMemory<'a>,
+        info: &ScalerGlyph,
+        size: f32,
+        coords: &'a [F2Dot14],
+    ) -> Result<ScalerOutline<'a>, Error> {
+        ScalerInstance::new(self.clone(), memory, size, coords, |_| true, false)
+            .outline(&info.glyph, info.glyph_id)
+    }
+
+    pub fn hinted_outline(
+        &self,
+        memory: ScalerMemory<'a>,
+        info: &ScalerGlyph,
+        size: f32,
+        coords: &'a [F2Dot14],
+        hint_fn: impl FnMut(HinterOutline) -> bool,
+    ) -> Result<ScalerOutline<'a>, Error> {
+        ScalerInstance::new(self.clone(), memory, size, coords, hint_fn, false)
+            .outline(&info.glyph, info.glyph_id)
+    }
+}
+
+impl<'a> Scaler<'a> {
+    fn glyph_rec(
+        &self,
+        glyph: &Glyph,
+        info: &mut ScalerGlyph,
+        component_depth: usize,
+        recurse_depth: usize,
+    ) -> Result<(), Error> {
+        if recurse_depth > COMPOSITE_RECURSION_LIMIT {
+            return Err(Error::RecursionLimitExceeded(info.glyph_id));
+        }
+        match glyph {
+            Glyph::Simple(simple) => {
+                let num_points = simple.num_points();
+                let num_points_with_phantom = num_points + PHANTOM_POINT_COUNT;
+                info.max_simple_points = info.max_simple_points.max(num_points_with_phantom);
+                info.points += num_points;
+                info.contours += simple.end_pts_of_contours().len();
+                info.has_hinting = info.has_hinting || simple.instruction_length() != 0;
+                info.max_other_points = info.max_other_points.max(num_points_with_phantom);
+            }
+            Glyph::Composite(composite) => {
+                let (mut count, instructions) = composite.count_and_instructions();
+                count += PHANTOM_POINT_COUNT;
+                let point_base = info.points;
+                for component in composite.component_glyphs() {
+                    let component_glyph = self.loca.get_glyf(component, &self.glyf)?;
+                    let Some(component_glyph) = component_glyph else {
+                        continue;
+                    };
+                    self.glyph_rec(
+                        &component_glyph,
+                        info,
+                        component_depth + count,
+                        recurse_depth + 1,
+                    )?;
+                }
+                let has_hinting = !instructions.unwrap_or_default().is_empty();
+                if has_hinting {
+                    // We only need the "other points" buffers if the
+                    // composite glyph has instructions.
+                    let num_points_in_composite = info.points - point_base + PHANTOM_POINT_COUNT;
+                    info.max_other_points = info.max_other_points.max(num_points_in_composite);
+                }
+                info.max_component_delta_stack =
+                    info.max_component_delta_stack.max(component_depth + count);
+                info.has_hinting = info.has_hinting || has_hinting;
+            }
+        }
+        Ok(())
+    }
+
+    fn advance_width(&self, gid: GlyphId, coords: &'a [F2Dot14]) -> i32 {
+        let default_advance = self
+            .hmtx
+            .h_metrics()
+            .last()
+            .map(|metric| metric.advance())
+            .unwrap_or(0);
+        let mut advance = self
+            .hmtx
+            .h_metrics()
+            .get(gid.to_u16() as usize)
+            .map(|metric| metric.advance())
+            .unwrap_or(default_advance) as i32;
+        if let Some(hvar) = &self.hvar {
+            advance += hvar
+                .advance_width_delta(gid, coords)
+                // FreeType truncates metric deltas...
+                .map(|delta| delta.to_f64() as i32)
+                .unwrap_or(0);
+        }
+        advance
+    }
+
+    fn lsb(&self, gid: GlyphId, coords: &'a [F2Dot14]) -> i32 {
+        let gid_index = gid.to_u16() as usize;
+        let mut lsb = self
+            .hmtx
+            .h_metrics()
+            .get(gid_index)
+            .map(|metric| metric.side_bearing())
+            .unwrap_or_else(|| {
+                self.hmtx
+                    .left_side_bearings()
+                    .get(gid_index.saturating_sub(self.hmtx.h_metrics().len()))
+                    .map(|lsb| lsb.get())
+                    .unwrap_or(0)
+            }) as i32;
+        if let Some(hvar) = &self.hvar {
+            lsb += hvar
+                .lsb_delta(gid, coords)
+                // FreeType truncates metric deltas...
+                .map(|delta| delta.to_f64() as i32)
+                .unwrap_or(0);
+        }
+        lsb
+    }
+}
+
+struct ScalerInstance<'a, H> {
+    scaler: Scaler<'a>,
+    memory: ScalerMemory<'a>,
+    coords: &'a [F2Dot14],
+    point_count: usize,
+    contour_count: usize,
+    component_delta_count: usize,
+    scale: F26Dot6,
+    is_scaled: bool,
+    is_hinted: bool,
     /// Phantom points. These are 4 extra points appended to the end of an
     /// outline that allow the bytecode interpreter to produce hinted
     /// metrics.
     ///
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructing_glyphs#phantom-points>
-    phantom: [Point<F26Dot6>; 4],
+    phantom: [Point<F26Dot6>; PHANTOM_POINT_COUNT],
+    hint_fn: H,
 }
 
-impl<'a> Scaler<'a> {
-    /// Creates a new scaler for extracting outlines with the specified font
-    /// and configuration.
-    pub fn new(
-        context: &'a mut Context,
-        font: &impl TableProvider<'a>,
-        unique_id: Option<UniqueId>,
+impl<'a, H> ScalerInstance<'a, H>
+where
+    H: FnMut(HinterOutline) -> bool,
+{
+    fn new(
+        scaler: Scaler<'a>,
+        memory: ScalerMemory<'a>,
         size: f32,
-        #[cfg(feature = "hinting")] hinting: Option<Hinting>,
-        coords: &'a [NormalizedCoord],
-    ) -> Result<Self> {
-        let font = ScalerFont::new(font, unique_id, size, coords)?;
-        Ok(Self {
-            context,
-            font,
-            #[cfg(feature = "hinting")]
-            hint_config: hint::HintConfig::new(hinting),
+        coords: &'a [F2Dot14],
+        hint_fn: H,
+        is_hinted: bool,
+    ) -> Self {
+        let (is_scaled, scale) = if size > 0.0 && scaler.units_per_em > 0 {
+            (
+                true,
+                F26Dot6::from_bits((size * 64.) as i32)
+                    / F26Dot6::from_bits(scaler.units_per_em as i32),
+            )
+        } else {
+            (false, F26Dot6::from_bits(0x10000))
+        };
+        Self {
+            scaler,
+            memory,
+            coords,
+            point_count: 0,
+            contour_count: 0,
+            component_delta_count: 0,
+            scale,
+            is_scaled,
+            // We don't hint unscaled outlines
+            is_hinted: is_hinted && is_scaled,
             phantom: Default::default(),
-        })
+            hint_fn,
+        }
     }
 
-    /// Loads an outline for the specified glyph identifier to the preallocated
-    /// target.
-    pub fn load(&mut self, glyph_id: GlyphId, outline: &mut Outline) -> Result<()> {
-        outline.clear();
-        self.context.unscaled.clear();
-        self.context.original.clear();
-        self.context.deltas.clear();
-        if glyph_id.to_u16() >= self.font.glyph_count {
-            return Err(Error::GlyphNotFound(glyph_id));
-        }
-        #[cfg(feature = "hinting")]
-        {
-            self.hint_config.reset();
-        }
-        self.phantom = Default::default();
-        self.load_glyph(glyph_id, outline, 0)?;
+    fn outline(
+        mut self,
+        glyph: &Option<Glyph>,
+        glyph_id: GlyphId,
+    ) -> Result<ScalerOutline<'a>, Error> {
+        self.load(glyph, glyph_id, 0)?;
+        let outline = ScalerOutline {
+            points: &mut self.memory.scaled[..self.point_count],
+            flags: &mut self.memory.flags[..self.point_count],
+            contours: &mut self.memory.contours[..self.contour_count],
+        };
         let x_shift = self.phantom[0].x;
         if x_shift != F26Dot6::ZERO {
             for point in outline.points.iter_mut() {
                 point.x -= x_shift;
             }
         }
-        Ok(())
+        Ok(outline)
     }
-}
 
-// Loading
-impl<'a> Scaler<'a> {
-    fn load_glyph(
+    fn load(
         &mut self,
+        glyph: &Option<Glyph>,
         glyph_id: GlyphId,
-        outline: &mut Outline,
         recurse_depth: usize,
-    ) -> Result<()> {
-        if recurse_depth > GLYF_COMPOSITE_RECURSION_LIMIT {
+    ) -> Result<(), Error> {
+        if recurse_depth > COMPOSITE_RECURSION_LIMIT {
             return Err(Error::RecursionLimitExceeded(glyph_id));
         }
-        let Some(glyph) = self.font.glyph(glyph_id) else {
-            return Err(Error::GlyphNotFound(glyph_id));
-        };
-        let glyph = match glyph {
+        let glyph = match &glyph {
             Some(glyph) => glyph,
             // This is a valid empty glyph
             None => return Ok(()),
         };
         let bounds = [glyph.x_min(), glyph.x_max(), glyph.y_min(), glyph.y_max()];
-        self.setup_phantom(bounds, glyph_id);
+        self.setup_phantom_points(bounds, glyph_id);
         match glyph {
-            Glyph::Simple(simple) => self.load_simple(&simple, glyph_id, outline),
-            Glyph::Composite(composite) => {
-                self.load_composite(&composite, glyph_id, outline, recurse_depth)
-            }
+            Glyph::Simple(simple) => self.load_simple(simple, glyph_id),
+            Glyph::Composite(composite) => self.load_composite(composite, glyph_id, recurse_depth),
         }
     }
 
-    fn load_simple(
-        &mut self,
-        simple: &SimpleGlyph,
-        glyph_id: GlyphId,
-        outline: &mut Outline,
-    ) -> Result<()> {
-        // The base indices of the points and contours for the current glyph.
-        let point_base = outline.points.len();
-        let contour_base = outline.contours.len();
-        let end_pts = simple.end_pts_of_contours();
-        let contour_count = end_pts.len();
-        let contour_end = contour_base + contour_count;
-        outline
-            .contours
-            .extend(end_pts.iter().map(|end_pt| end_pt.get()));
-        let mut point_count = simple.num_points();
-        outline
+    fn load_simple(&mut self, glyph: &SimpleGlyph, glyph_id: GlyphId) -> Result<(), Error> {
+        use Error::InsufficientMemory;
+        // Compute the ranges for our point/flag buffers and slice them.
+        let points_start = self.point_count;
+        let point_count = glyph.num_points();
+        let phantom_start = point_count;
+        let points_end = points_start + point_count + PHANTOM_POINT_COUNT;
+        let point_range = points_start..points_end;
+        let other_points_end = point_count + PHANTOM_POINT_COUNT;
+        // Scaled points and flags are accumulated as we load the outline.
+        let scaled = self
+            .memory
+            .scaled
+            .get_mut(point_range.clone())
+            .ok_or(InsufficientMemory)?;
+        let flags = self
+            .memory
             .flags
-            .resize(outline.flags.len() + point_count, Default::default());
-        self.context.unscaled.clear();
-        self.context.unscaled.reserve(point_count + 4);
-        self.context.unscaled.resize(point_count, Point::default());
-        simple.read_points_fast(
-            &mut self.context.unscaled[..],
-            &mut outline.flags[point_base..],
-        )?;
-        #[cfg(feature = "hinting")]
-        let ins = simple.instructions();
-        for point in &self.phantom {
-            self.context
-                .unscaled
-                .push(Point::new(point.x.to_bits(), point.y.to_bits()));
-            outline.flags.push(Default::default());
+            .get_mut(point_range)
+            .ok_or(InsufficientMemory)?;
+        // Unscaled points are temporary and are allocated as needed. We only
+        // ever need one copy in memory for any simple or composite glyph so
+        // allocate from the base of the buffer.
+        let unscaled = self
+            .memory
+            .unscaled
+            .get_mut(..other_points_end)
+            .ok_or(InsufficientMemory)?;
+        // Read our unscaled points and flags (up to point_count which does not
+        // include phantom points).
+        glyph.read_points_fast(&mut unscaled[..point_count], &mut flags[..point_count])?;
+        // Compute the range for our contour end point buffer and slice it.
+        let contours_start = self.contour_count;
+        let contour_end_pts = glyph.end_pts_of_contours();
+        let contour_count = contour_end_pts.len();
+        let contours_end = contours_start + contour_count;
+        let contours = self
+            .memory
+            .contours
+            .get_mut(contours_start..contours_end)
+            .ok_or(InsufficientMemory)?;
+        // Read the contour end points.
+        for (end_pt, contour) in contour_end_pts.iter().zip(contours.iter_mut()) {
+            *contour = end_pt.get();
         }
-        point_count += 4;
-        let point_end = point_base + point_count;
-        outline.points.resize(point_end, Point::default());
-        // Compute deltas, but don't apply them yet.
+        // Adjust the running point/contour total counts
+        self.point_count += point_count;
+        self.contour_count += contour_count;
+        // Append phantom points to the outline.
+        for (i, phantom) in self.phantom.iter().enumerate() {
+            unscaled[phantom_start + i] = phantom.map(|x| x.to_bits());
+            flags[phantom_start + i] = Default::default();
+        }
         let mut have_deltas = false;
-        if self.font.has_variations() {
-            let gvar = self.font.gvar.clone().unwrap();
-            let deltas = &mut self.context.deltas;
-            let working_points = &mut self.context.working_points;
-            deltas.clear();
-            deltas.resize(point_count, Default::default());
-            working_points.clear();
-            working_points.resize(point_count, Default::default());
-            let glyph = super::deltas::SimpleGlyph {
-                points: &self.context.unscaled,
-                flags: &mut outline.flags[point_base..],
-                contours: &outline.contours[contour_base..],
+        if self.scaler.gvar.is_some() && !self.coords.is_empty() {
+            let gvar = self.scaler.gvar.as_ref().unwrap();
+            let glyph = deltas::SimpleGlyph {
+                points: &mut unscaled[..],
+                flags: &mut flags[..],
+                contours,
             };
-            if super::deltas::simple_glyph(
-                &gvar,
+            let deltas = self
+                .memory
+                .deltas
+                .get_mut(..point_count + PHANTOM_POINT_COUNT)
+                .ok_or(InsufficientMemory)?;
+            let iup_buffer = self
+                .memory
+                .iup_buffer
+                .get_mut(..point_count + PHANTOM_POINT_COUNT)
+                .ok_or(InsufficientMemory)?;
+            if deltas::simple_glyph(
+                gvar,
                 glyph_id,
-                self.font.coords,
-                self.font.has_var_lsb,
+                self.coords,
+                self.scaler.has_var_lsb,
                 glyph,
-                &mut working_points[..],
-                &mut deltas[..],
+                iup_buffer,
+                deltas,
             )
             .is_ok()
             {
                 have_deltas = true;
             }
         }
-        #[cfg(feature = "hinting")]
-        let hinted = self.hint_config.is_enabled() && !ins.is_empty();
-        let scale = self.font.scale;
-        if self.font.is_scaled {
+        let ins = glyph.instructions();
+        let is_hinted = self.is_hinted && !ins.is_empty();
+        if self.is_scaled {
+            let scale = self.scale;
             if have_deltas {
-                for ((point, unscaled), delta) in outline.points[point_base..]
+                for ((point, unscaled), delta) in scaled
                     .iter_mut()
-                    .zip(self.context.unscaled.iter_mut())
-                    .zip(&self.context.deltas)
+                    .zip(unscaled.iter_mut())
+                    .zip(self.memory.deltas.iter())
                 {
                     let delta = delta.map(Fixed::to_f26dot6);
                     let scaled = (unscaled.map(F26Dot6::from_i32) + delta) * scale;
@@ -196,84 +391,108 @@ impl<'a> Scaler<'a> {
                     // extra shift.
                     *point = scaled.map(|v| F26Dot6::from_bits(v.to_i32()));
                 }
-                #[cfg(feature = "hinting")]
-                if hinted {
+                if is_hinted {
                     // For hinting, we need to adjust the unscaled points as well.
                     // Round off deltas for unscaled outlines.
-                    for (unscaled, delta) in
-                        self.context.unscaled.iter_mut().zip(&self.context.deltas)
-                    {
+                    for (unscaled, delta) in unscaled.iter_mut().zip(self.memory.deltas.iter()) {
                         *unscaled += delta.map(Fixed::to_i32);
                     }
                 }
             } else {
-                for (point, unscaled) in outline.points[point_base..]
-                    .iter_mut()
-                    .zip(&self.context.unscaled)
-                {
+                for (point, unscaled) in scaled.iter_mut().zip(unscaled.iter_mut()) {
                     *point = unscaled.map(|v| F26Dot6::from_bits(v) * scale);
                 }
             }
         } else {
             if have_deltas {
                 // Round off deltas for unscaled outlines.
-                for (unscaled, delta) in self.context.unscaled.iter_mut().zip(&self.context.deltas)
-                {
+                for (unscaled, delta) in unscaled.iter_mut().zip(self.memory.deltas.iter()) {
                     *unscaled += delta.map(Fixed::to_i32);
                 }
             }
             // Unlike FreeType, we also store unscaled outlines in 26.6.
-            for (point, unscaled) in outline.points[point_base..]
-                .iter_mut()
-                .zip(&self.context.unscaled)
-            {
+            for (point, unscaled) in scaled.iter_mut().zip(unscaled.iter()) {
                 *point = unscaled.map(F26Dot6::from_i32);
             }
         }
-        // Save the phantom points.
-        self.save_phantom(outline, point_base, point_count);
-        #[cfg(feature = "hinting")]
-        if hinted {
-            // Hinting requires a copy of the scaled points. These are used
-            // as references when modifying an outline.
-            self.context.original.clear();
-            self.context
-                .original
-                .extend_from_slice(&outline.points[point_base..point_end]);
-            // When hinting, round the components of the phantom points.
-            for point in &mut outline.points[point_end - 4..] {
+        // Commit our potentially modified phantom points.
+        for (i, point) in scaled[phantom_start..]
+            .iter()
+            .enumerate()
+            .take(PHANTOM_POINT_COUNT)
+        {
+            self.phantom[i] = *point;
+        }
+        if is_hinted {
+            // Create a copy of our scaled points in original_scaled.
+            let original_scaled = self
+                .memory
+                .original_scaled
+                .get_mut(..other_points_end)
+                .ok_or(InsufficientMemory)?;
+            original_scaled.copy_from_slice(scaled);
+            // When hinting, round the phantom points.
+            for point in &mut scaled[phantom_start..] {
                 point.x = point.x.round();
                 point.y = point.y.round();
             }
-            // Apply hinting to the set of contours for this outline.
-            if !self.hint(outline, point_base, contour_base, ins, false) {
+            if !(self.hint_fn)(HinterOutline {
+                unscaled,
+                scaled,
+                original_scaled,
+                flags,
+                contours,
+                bytecode: ins,
+                phantom: &mut self.phantom,
+                is_composite: false,
+                coords: self.coords,
+            }) {
                 return Err(Error::HintingFailed(glyph_id));
             }
         }
-        if point_base != 0 {
+        if points_start != 0 {
             // If we're not the first component, shift our contour end points.
-            for contour_end in &mut outline.contours[contour_base..contour_end] {
-                *contour_end += point_base as u16;
+            for contour_end in contours.iter_mut() {
+                *contour_end += points_start as u16;
             }
         }
-        // We're done with the phantom points, so drop them.
-        self.drop_phantom(outline);
         Ok(())
     }
 
     fn load_composite(
         &mut self,
-        composite: &CompositeGlyph,
+        glyph: &CompositeGlyph,
         glyph_id: GlyphId,
-        outline: &mut Outline,
         recurse_depth: usize,
-    ) -> Result<()> {
+    ) -> Result<(), Error> {
+        use Error::InsufficientMemory;
+        let scale = self.scale;
         // The base indices of the points and contours for the current glyph.
-        let point_base = outline.points.len();
-        #[cfg(feature = "hinting")]
-        let contour_base = outline.contours.len();
-        let scale = self.font.scale;
-        if self.font.is_scaled {
+        let point_base = self.point_count;
+        let contour_base = self.contour_count;
+        // Compute the per component deltas. Since composites can be nested, we
+        // use a stack and keep track of the base.
+        let mut have_deltas = false;
+        let delta_base = self.component_delta_count;
+        if self.scaler.gvar.is_some() && !self.coords.is_empty() {
+            let gvar = self.scaler.gvar.as_ref().unwrap();
+            let count = glyph.components().count() + PHANTOM_POINT_COUNT;
+            let deltas = self
+                .memory
+                .composite_deltas
+                .get_mut(delta_base..delta_base + count)
+                .ok_or(InsufficientMemory)?;
+            if deltas::composite_glyph(gvar, glyph_id, self.coords, &mut deltas[..]).is_ok() {
+                // If the font is missing variation data for LSBs in HVAR then we
+                // apply the delta to the first phantom point.
+                if !self.scaler.has_var_lsb {
+                    self.phantom[0].x += F26Dot6::from_bits(deltas[count - 4].x.to_i32());
+                }
+                have_deltas = true;
+            }
+            self.component_delta_count += count;
+        }
+        if self.is_scaled {
             for point in self.phantom.iter_mut() {
                 *point *= scale;
             }
@@ -282,40 +501,18 @@ impl<'a> Scaler<'a> {
                 *point = point.map(|x| F26Dot6::from_i32(x.to_bits()));
             }
         }
-        // Compute the per component deltas. Since composites can be nested, we
-        // use a stack and keep track of the base.
-        let mut have_deltas = false;
-        let delta_base = self.context.composite_deltas.len();
-        if self.font.has_variations() {
-            let gvar = self.font.gvar.as_ref().unwrap();
-            let count = composite.components().count() + 4;
-            let deltas = &mut self.context.composite_deltas;
-            deltas.resize(delta_base + count, Default::default());
-            if super::deltas::composite_glyph(
-                gvar,
-                glyph_id,
-                self.font.coords,
-                &mut deltas[delta_base..],
-            )
-            .is_ok()
-            {
-                // If the font is missing variation data for LSBs in HVAR then we
-                // apply the delta to the first phantom point.
-                if !self.font.has_var_lsb {
-                    self.phantom[0].x +=
-                        F26Dot6::from_bits(deltas[delta_base + count - 4].x.to_i32());
-                }
-                have_deltas = true;
-            }
-        }
-        for (i, component) in composite.components().enumerate() {
+        for (i, component) in glyph.components().enumerate() {
             // Loading a component glyph will override phantom points so save a copy. We'll
             // restore them unless the USE_MY_METRICS flag is set.
             let phantom = self.phantom;
             // Load the component glyph and keep track of the points range.
-            let start_point = outline.points.len();
-            self.load_glyph(component.glyph, outline, recurse_depth + 1)?;
-            let end_point = outline.points.len();
+            let start_point = self.point_count;
+            let component_glyph = self
+                .scaler
+                .loca
+                .get_glyf(component.glyph, &self.scaler.glyf)?;
+            self.load(&component_glyph, component.glyph, recurse_depth + 1)?;
+            let end_point = self.point_count;
             if !component
                 .flags
                 .contains(CompositeGlyphFlags::USE_MY_METRICS)
@@ -339,15 +536,16 @@ impl<'a> Scaler<'a> {
                     | CompositeGlyphFlags::WE_HAVE_A_TWO_BY_TWO,
             );
             if have_xform {
-                if self.font.is_scaled {
-                    for point in &mut outline.points[start_point..end_point] {
+                let scaled = &mut self.memory.scaled[start_point..end_point];
+                if self.is_scaled {
+                    for point in scaled {
                         let x = point.x * xx + point.y * xy;
                         let y = point.x * yx + point.y * yy;
                         point.x = x;
                         point.y = y;
                     }
                 } else {
-                    for point in &mut outline.points[start_point..end_point] {
+                    for point in scaled {
                         // This juggling is necessary because, unlike FreeType, we also
                         // return unscaled outlines in 26.6 format for a consistent interface.
                         let unscaled = point.map(|c| F26Dot6::from_bits(c.to_i32()));
@@ -366,8 +564,8 @@ impl<'a> Scaler<'a> {
                                 | CompositeGlyphFlags::UNSCALED_COMPONENT_OFFSET)
                             == CompositeGlyphFlags::SCALED_COMPONENT_OFFSET
                     {
-                        // According to FreeType, this algorithm is a "guess" and
-                        // works better than the one documented by Apple.
+                        // According to FreeType, this algorithm is a "guess"
+                        // and works better than the one documented by Apple.
                         // https://github.com/freetype/freetype/blob/b1c90733ee6a04882b133101d61b12e352eeb290/src/truetype/ttgload.c#L1259
                         fn hypot(a: F26Dot6, b: F26Dot6) -> Fixed {
                             let a = a.to_bits().abs();
@@ -384,21 +582,19 @@ impl<'a> Scaler<'a> {
                     }
                     if have_deltas {
                         let delta = self
-                            .context
+                            .memory
                             .composite_deltas
                             .get(delta_base + i)
                             .copied()
                             .unwrap_or_default();
-                        // For composite glyphs, we copy FreeType and round off the fractional parts of deltas.
+                        // For composite glyphs, we copy FreeType and round off
+                        // the fractional parts of deltas.
                         x += delta.x.to_i32();
                         y += delta.y.to_i32();
                     }
-                    if self.font.is_scaled {
-                        // This only needs to be mutable when hinting is enabled. Ignore the warning.
-                        #[allow(unused_mut)]
+                    if self.is_scaled {
                         let mut offset = Point::new(x, y).map(F26Dot6::from_bits) * scale;
-                        #[cfg(feature = "hinting")]
-                        if self.hint_config.is_enabled()
+                        if self.is_hinted
                             && component
                                 .flags
                                 .contains(CompositeGlyphFlags::ROUND_XY_TO_GRID)
@@ -413,71 +609,115 @@ impl<'a> Scaler<'a> {
                 }
                 Anchor::Point { base, component } => {
                     let (base_offset, component_offset) = (base as usize, component as usize);
-                    let base_point = outline
-                        .points
+                    let base_point = self
+                        .memory
+                        .scaled
                         .get(point_base + base_offset)
                         .ok_or(Error::InvalidAnchorPoint(glyph_id, base))?;
-                    let component_point = outline
-                        .points
+                    let component_point = self
+                        .memory
+                        .scaled
                         .get(start_point + component_offset)
                         .ok_or(Error::InvalidAnchorPoint(glyph_id, component))?;
                     *base_point - *component_point
                 }
             };
             if anchor_offset.x != F26Dot6::ZERO || anchor_offset.y != F26Dot6::ZERO {
-                for point in &mut outline.points[start_point..end_point] {
+                for point in &mut self.memory.scaled[start_point..end_point] {
                     *point += anchor_offset;
                 }
             }
         }
         if have_deltas {
-            self.context.composite_deltas.truncate(delta_base);
+            self.component_delta_count = delta_base;
         }
-        #[cfg(feature = "hinting")]
-        if self.hint_config.is_enabled() {
-            let ins = composite.instructions().unwrap_or_default();
+        if self.is_hinted {
+            let ins = glyph.instructions().unwrap_or_default();
             if !ins.is_empty() {
+                let start_point = point_base;
+                let end_point = self.point_count + PHANTOM_POINT_COUNT;
+                let point_range = start_point..end_point;
+                let scaled = &mut self.memory.scaled[point_range.clone()];
+                let flags = self
+                    .memory
+                    .flags
+                    .get_mut(point_range.clone())
+                    .ok_or(InsufficientMemory)?;
                 // Append the current phantom points to the outline.
-                self.push_phantom(outline);
-                // For composite glyphs, the unscaled and original points are simply
-                // copies of the current point set.
-                self.context.unscaled.clear();
-                self.context.unscaled.extend(
-                    outline.points[point_base..]
-                        .iter()
-                        .map(|point| Point::new(point.x.to_bits(), point.y.to_bits())),
-                );
-                self.context.original.clear();
-                self.context
-                    .original
-                    .extend_from_slice(&outline.points[point_base..]);
-                let point_end = outline.points.len();
+                let phantom_start = self.point_count;
+                for (i, phantom) in self.phantom.iter().enumerate() {
+                    scaled[phantom_start + i] = *phantom;
+                    flags[phantom_start + i] = Default::default();
+                }
+                // For composite glyphs, the unscaled and original points are
+                // simply copies of the current point set.
+                let other_points_end = point_range.len();
+                let unscaled = self
+                    .memory
+                    .unscaled
+                    .get_mut(..other_points_end)
+                    .ok_or(InsufficientMemory)?;
+                for (scaled, unscaled) in scaled.iter().zip(unscaled.iter_mut()) {
+                    *unscaled = scaled.map(|x| x.to_bits());
+                }
+                let original_scaled = self
+                    .memory
+                    .original_scaled
+                    .get_mut(..other_points_end)
+                    .ok_or(InsufficientMemory)?;
+                original_scaled.copy_from_slice(scaled);
+                let contours = self
+                    .memory
+                    .contours
+                    .get_mut(contour_base..self.contour_count)
+                    .ok_or(InsufficientMemory)?;
                 // Round the phantom points.
-                for p in &mut outline.points[point_end - 4..] {
+                for p in &mut scaled[self.point_count..] {
                     p.x = p.x.round();
                     p.y = p.y.round();
                 }
                 // Clear the "touched" flags that are used during IUP processing.
-                for flag in &mut outline.flags[point_base..] {
+                for flag in flags.iter_mut() {
                     flag.clear_marker(PointMarker::TOUCHED);
                 }
-                if !self.hint(outline, point_base, contour_base, ins, true) {
+                // Make sure our contour end points accurately reflect the
+                // outline slices.
+                if point_base != 0 {
+                    let delta = point_base as u16;
+                    for contour in contours.iter_mut() {
+                        *contour -= delta;
+                    }
+                }
+                if !(self.hint_fn)(HinterOutline {
+                    unscaled,
+                    scaled,
+                    original_scaled,
+                    flags,
+                    contours,
+                    bytecode: ins,
+                    phantom: &mut self.phantom,
+                    is_composite: true,
+                    coords: self.coords,
+                }) {
                     return Err(Error::HintingFailed(glyph_id));
                 }
-                // As in simple outlines, drop the phantom points.
-                self.drop_phantom(outline);
+                // Undo the contour shifts if we applied them above.
+                if point_base != 0 {
+                    let delta = point_base as u16;
+                    for contour in contours.iter_mut() {
+                        *contour += delta;
+                    }
+                }
             }
         }
         Ok(())
     }
 }
 
-// Phantom point management.
-impl<'a> Scaler<'a> {
-    fn setup_phantom(&mut self, bounds: [i16; 4], glyph_id: GlyphId) {
-        let font = &self.font;
-        let lsb = font.lsb(glyph_id);
-        let advance = font.advance_width(glyph_id);
+impl<'a, H> ScalerInstance<'a, H> {
+    fn setup_phantom_points(&mut self, bounds: [i16; 4], glyph_id: GlyphId) {
+        let lsb = self.scaler.lsb(glyph_id, self.coords);
+        let advance = self.scaler.advance_width(glyph_id, self.coords);
         // Vertical metrics aren't significant to the glyph loading process, so
         // they are ignored.
         let vadvance = 0;
@@ -491,224 +731,5 @@ impl<'a> Scaler<'a> {
         self.phantom[2].y = F26Dot6::from_bits(bounds[3] as i32 + tsb);
         self.phantom[3].x = F26Dot6::from_bits(advance / 2);
         self.phantom[3].y = self.phantom[2].y - F26Dot6::from_bits(vadvance);
-    }
-
-    #[cfg(feature = "hinting")]
-    fn push_phantom(&mut self, outline: &mut Outline) {
-        for i in 0..4 {
-            outline.points.push(self.phantom[i]);
-            outline.flags.push(Default::default());
-        }
-    }
-
-    fn save_phantom(&mut self, outline: &mut Outline, point_base: usize, point_count: usize) {
-        for i in 0..4 {
-            self.phantom[3 - i] = outline.points[point_base + point_count - i - 1];
-        }
-    }
-
-    fn drop_phantom(&self, outline: &mut Outline) {
-        outline.points.truncate(outline.points.len() - 4);
-        outline.flags.truncate(outline.flags.len() - 4);
-    }
-}
-
-// Hinting
-#[cfg(feature = "hinting")]
-impl<'a> Scaler<'a> {
-    fn hint(
-        &mut self,
-        outline: &mut Outline,
-        point_base: usize,
-        contour_base: usize,
-        ins: &[u8],
-        is_composite: bool,
-    ) -> bool {
-        let glyph = hint::HintGlyph {
-            font: &self.font,
-            config: &mut self.hint_config,
-            points: &mut outline.points[..],
-            original: &mut self.context.original[..],
-            unscaled: &mut self.context.unscaled[..],
-            flags: &mut outline.flags[..],
-            contours: &mut outline.contours[..],
-            phantom: &mut self.phantom[..],
-            point_base,
-            contour_base,
-            ins,
-            is_composite,
-        };
-        self.context.hint_context.hint(glyph)
-    }
-}
-
-/// Representation of a font instance for the TrueType scaler.
-///
-/// Contains unique id, size, variation coordinates and the necessary
-/// table references for loading, scaling and hinting a glyph outline.
-#[derive(Clone)]
-pub struct ScalerFont<'a> {
-    pub id: Option<UniqueId>,
-    pub is_scaled: bool,
-    pub ppem: u16,
-    pub scale: F26Dot6,
-    pub coords: &'a [NormalizedCoord],
-    pub glyf: Glyf<'a>,
-    pub loca: Loca<'a>,
-    pub gvar: Option<Gvar<'a>>,
-    pub hmtx: Hmtx<'a>,
-    pub hvar: Option<Hvar<'a>>,
-    pub fpgm: &'a [u8],
-    pub prep: &'a [u8],
-    pub cvt: &'a [BigEndian<i16>],
-    pub units_per_em: u16,
-    pub glyph_count: u16,
-    pub max_storage: u16,
-    pub max_stack: u16,
-    pub max_function_defs: u16,
-    pub max_instruction_defs: u16,
-    pub max_twilight: u16,
-    pub axis_count: u16,
-    pub has_var_lsb: bool,
-}
-
-impl<'a> ScalerFont<'a> {
-    fn new(
-        font: &impl TableProvider<'a>,
-        id: Option<UniqueId>,
-        size: f32,
-        coords: &'a [NormalizedCoord],
-    ) -> Result<Self> {
-        let glyf = font.glyf()?;
-        let loca = font.loca(None)?;
-        let gvar = font.gvar().ok();
-        let hmtx = font.hmtx()?;
-        let hvar = font.hvar().ok();
-        let units_per_em = font.head()?.units_per_em();
-        let size = size.abs();
-        let ppem = size as u16;
-        let (is_scaled, scale) = if size != 0. && units_per_em != 0 {
-            (
-                true,
-                F26Dot6::from_bits((size * 64.) as i32) / F26Dot6::from_bits(units_per_em as i32),
-            )
-        } else {
-            (false, F26Dot6::from_bits(0x10000))
-        };
-        let fpgm = font
-            .data_for_tag(Tag::new(b"fpgm"))
-            .map(|data| data.read_array(0..data.len()).unwrap())
-            .unwrap_or_default();
-        let prep = font
-            .data_for_tag(Tag::new(b"prep"))
-            .map(|data| data.read_array(0..data.len()).unwrap())
-            .unwrap_or_default();
-        let cvt = font
-            .data_for_tag(Tag::new(b"cvt "))
-            .and_then(|data| data.read_array(0..data.len()).ok())
-            .unwrap_or_default();
-        let maxp = font.maxp()?;
-        let glyph_count = maxp.num_glyphs();
-        let axis_count = font.fvar().map(|fvar| fvar.axis_count()).unwrap_or(0);
-        let has_var_lsb = hvar
-            .as_ref()
-            .map(|hvar| hvar.lsb_mapping().is_some())
-            .unwrap_or_default();
-        Ok(Self {
-            id,
-            is_scaled,
-            ppem,
-            scale,
-            coords,
-            glyf,
-            loca,
-            gvar,
-            hmtx,
-            hvar,
-            fpgm,
-            prep,
-            cvt,
-            glyph_count,
-            units_per_em,
-            max_storage: maxp.max_storage().unwrap_or(0),
-            max_stack: maxp.max_stack_elements().unwrap_or(0),
-            max_function_defs: maxp.max_function_defs().unwrap_or(0),
-            max_instruction_defs: maxp.max_instruction_defs().unwrap_or(0),
-            max_twilight: maxp.max_twilight_points().unwrap_or(0),
-            axis_count,
-            has_var_lsb,
-        })
-    }
-
-    fn glyph(&self, gid: GlyphId) -> Option<Option<Glyph<'a>>> {
-        self.loca.get_glyf(gid, &self.glyf).ok()
-    }
-
-    fn has_variations(&self) -> bool {
-        !self.coords.is_empty() && self.gvar.is_some()
-    }
-
-    fn advance_width(&self, gid: GlyphId) -> i32 {
-        let default_advance = self
-            .hmtx
-            .h_metrics()
-            .last()
-            .map(|metric| metric.advance())
-            .unwrap_or(0);
-        let mut advance = self
-            .hmtx
-            .h_metrics()
-            .get(gid.to_u16() as usize)
-            .map(|metric| metric.advance())
-            .unwrap_or(default_advance) as i32;
-        if let Some(hvar) = &self.hvar {
-            advance += hvar
-                .advance_width_delta(gid, self.coords)
-                // FreeType truncates metric deltas...
-                .map(|delta| delta.to_f64() as i32)
-                .unwrap_or(0);
-        }
-        advance
-    }
-
-    fn lsb(&self, gid: GlyphId) -> i32 {
-        let gid_index = gid.to_u16() as usize;
-        let mut lsb = self
-            .hmtx
-            .h_metrics()
-            .get(gid_index)
-            .map(|metric| metric.side_bearing())
-            .unwrap_or_else(|| {
-                self.hmtx
-                    .left_side_bearings()
-                    .get(gid_index.saturating_sub(self.hmtx.h_metrics().len()))
-                    .map(|lsb| lsb.get())
-                    .unwrap_or(0)
-            }) as i32;
-        if let Some(hvar) = &self.hvar {
-            lsb += hvar
-                .lsb_delta(gid, self.coords)
-                // FreeType truncates metric deltas...
-                .map(|delta| delta.to_f64() as i32)
-                .unwrap_or(0);
-        }
-        lsb
-    }
-
-    #[cfg(feature = "hinting")]
-    #[allow(dead_code)]
-    pub(crate) fn scale_cvt(&self, scale: Option<i32>, scaled_cvt: &mut Vec<i32>) {
-        if scaled_cvt.len() < self.cvt.len() {
-            scaled_cvt.resize(self.cvt.len(), 0);
-        }
-        for (src, dest) in self.cvt.iter().zip(scaled_cvt.iter_mut()) {
-            *dest = src.get() as i32 * 64;
-        }
-        if let Some(scale) = scale {
-            let scale = F26Dot6::from_bits(scale >> 6);
-            for value in &mut scaled_cvt[..] {
-                *value = (F26Dot6::from_bits(*value) * scale).to_bits();
-            }
-        }
     }
 }
