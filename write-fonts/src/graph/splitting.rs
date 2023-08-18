@@ -1,4 +1,4 @@
-//! splitting layout subtables
+//! splitting layout (GPOS) subtables
 
 use std::collections::{HashMap, HashSet};
 
@@ -17,14 +17,17 @@ pub(super) fn split_pair_pos(graph: &mut Graph, lookup: ObjectId) {
     split_subtables(graph, lookup, split_pair_pos_subtable)
 }
 
-/// A common impl handling updating the lookuup with the new subtables
+/// A common impl handling updating the lookup with the new subtables
 fn split_subtables(
     graph: &mut Graph,
     lookup: ObjectId,
     split_fn: fn(&mut Graph, ObjectId) -> Option<Vec<ObjectId>>,
 ) {
     let data = graph.objects.remove(&lookup).unwrap();
-    debug_assert!(data.reparse::<rgpos::PositionLookup>().is_ok());
+    debug_assert!(
+        data.reparse::<rgpos::PositionLookup>().is_ok(),
+        "table splitting is only relevant for GPOS?"
+    );
     log::debug!("trying to split subtables in {lookup:?}, '{}'", data.type_);
 
     let mut new_subtables = HashMap::new();
@@ -74,7 +77,10 @@ fn split_pair_pos_subtable(graph: &mut Graph, lookup: ObjectId) -> Option<Vec<Ob
             log::info!("table splitting not yet implemented for PairPos format 2");
             None
         }
-        _ => unreachable!("we only write valid formats"),
+        other => {
+            log::warn!("unexpected pairpos format '{other}'");
+            None
+        }
     }
 }
 
@@ -131,12 +137,12 @@ fn split_pair_pos_format_1(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<
 
     let mut new_subtables = Vec::new();
     let mut prev_idx = 0;
-    for idx in &split_points {
+    for idx in split_points {
         // the split point is the *start* of the next subtable, so we do not
         // include this item in this subtable
-        let end = *idx as u16 - 1;
+        let end = idx as u16 - 1;
         let new_subtable = split_off_ppf1(graph, subtable, prev_idx, end);
-        prev_idx = *idx as u16;
+        prev_idx = idx as u16;
         new_subtables.push(graph.add_object(new_subtable));
     }
     Some(new_subtables)
