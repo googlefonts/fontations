@@ -112,12 +112,14 @@ impl<'a> Scaler<'a> {
                 info.contours += simple.end_pts_of_contours().len();
                 info.has_hinting = info.has_hinting || simple.instruction_length() != 0;
                 info.max_other_points = info.max_other_points.max(num_points_with_phantom);
+                info.has_overlaps |= simple.has_overlapping_contours();
             }
             Glyph::Composite(composite) => {
                 let (mut count, instructions) = composite.count_and_instructions();
                 count += PHANTOM_POINT_COUNT;
                 let point_base = info.points;
-                for component in composite.component_glyphs() {
+                for (component, flags) in composite.component_glyphs_and_flags() {
+                    info.has_overlaps |= flags.contains(CompositeGlyphFlags::OVERLAP_COMPOUND);
                     let component_glyph = self.loca.get_glyf(component, &self.glyf)?;
                     let Some(component_glyph) = component_glyph else {
                         continue;
@@ -731,5 +733,24 @@ impl<'a, H> ScalerInstance<'a, H> {
         self.phantom[2].y = F26Dot6::from_bits(bounds[3] as i32 + tsb);
         self.phantom[3].x = F26Dot6::from_bits(advance / 2);
         self.phantom[3].y = self.phantom[2].y - F26Dot6::from_bits(vadvance);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use read_fonts::{FontRef, TableProvider};
+
+    #[test]
+    fn overlap_flags() {
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+        let scaler = Scaler::new(&font).unwrap();
+        let glyph_count = font.maxp().unwrap().num_glyphs();
+        for gid in 0..glyph_count {
+            let glyph = scaler.glyph(GlyphId::new(gid), false).unwrap();
+            // GID 2 is a composite glyph with the overlap bit on a component
+            // GID 3 is a simple glyph with the overflag bit on the first flag
+            assert_eq!(glyph.has_overlaps, gid == 2 || gid == 3);
+        }
     }
 }
