@@ -749,7 +749,7 @@ mod tests {
         for gid in 0..glyph_count {
             let glyph = scaler.glyph(GlyphId::new(gid), false).unwrap();
             // GID 2 is a composite glyph with the overlap bit on a component
-            // GID 3 is a simple glyph with the overflag bit on the first flag
+            // GID 3 is a simple glyph with the overlap bit on the first flag
             assert_eq!(glyph.has_overlaps, gid == 2 || gid == 3);
         }
     }
