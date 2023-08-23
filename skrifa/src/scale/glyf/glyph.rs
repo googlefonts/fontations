@@ -41,6 +41,8 @@ pub struct ScalerGlyph<'a> {
     pub has_hinting: bool,
     /// True if the glyph requires variation delta processing.
     pub has_variations: bool,
+    /// True if the glyph contains any simple or compound overlap flags.
+    pub has_overlaps: bool,
 }
 
 impl<'a> ScalerGlyph<'a> {

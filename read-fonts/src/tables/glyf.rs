@@ -145,6 +145,17 @@ impl<'a> SimpleGlyph<'a> {
             .unwrap_or(0)
     }
 
+    /// Returns true if the contours in the simple glyph may overlap.
+    pub fn has_overlapping_contours(&self) -> bool {
+        // Checks the first flag for the OVERLAP_SIMPLE bit.
+        // Spec says: "When used, it must be set on the first flag byte for
+        // the glyph."
+        FontData::new(self.glyph_data())
+            .read_at::<SimpleGlyphFlags>(0)
+            .map(|flag| flag.contains(SimpleGlyphFlags::OVERLAP_SIMPLE))
+            .unwrap_or_default()
+    }
+
     /// Reads points and flags into the provided buffers.
     ///
     /// Drops all flag bits except on-curve. The lengths of the buffers must be
@@ -479,8 +490,10 @@ impl<'a> CompositeGlyph<'a> {
 
     /// Returns an iterator that yields the glyph identifier of each component
     /// in the composite glyph.
-    pub fn component_glyphs(&self) -> impl Iterator<Item = GlyphId> + 'a + Clone {
-        ComponentGlyphIdIter {
+    pub fn component_glyphs_and_flags(
+        &self,
+    ) -> impl Iterator<Item = (GlyphId, CompositeGlyphFlags)> + 'a + Clone {
+        ComponentGlyphIdFlagsIter {
             cur_flags: CompositeGlyphFlags::empty(),
             done: false,
             cursor: FontData::new(self.component_data()).cursor(),
@@ -490,7 +503,7 @@ impl<'a> CompositeGlyph<'a> {
     /// Returns the component count and TrueType interpreter instructions
     /// in a single pass.
     pub fn count_and_instructions(&self) -> (usize, Option<&'a [u8]>) {
-        let mut iter = ComponentGlyphIdIter {
+        let mut iter = ComponentGlyphIdFlagsIter {
             cur_flags: CompositeGlyphFlags::empty(),
             done: false,
             cursor: FontData::new(self.component_data()).cursor(),
@@ -586,14 +599,14 @@ impl Iterator for ComponentIter<'_> {
 /// Significantly faster in cases where we're just processing the glyph
 /// tree, counting components or accessing instructions.
 #[derive(Clone)]
-struct ComponentGlyphIdIter<'a> {
+struct ComponentGlyphIdFlagsIter<'a> {
     cur_flags: CompositeGlyphFlags,
     done: bool,
     cursor: Cursor<'a>,
 }
 
-impl Iterator for ComponentGlyphIdIter<'_> {
-    type Item = GlyphId;
+impl Iterator for ComponentGlyphIdFlagsIter<'_> {
+    type Item = (GlyphId, CompositeGlyphFlags);
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.done {
@@ -616,7 +629,7 @@ impl Iterator for ComponentGlyphIdIter<'_> {
             self.cursor.advance_by(8);
         }
         self.done = !flags.contains(CompositeGlyphFlags::MORE_COMPONENTS);
-        Some(glyph)
+        Some((glyph, flags))
     }
 }
 
@@ -943,6 +956,52 @@ mod tests {
                 (10, 95, true),
             ]
         );
+    }
+
+    #[test]
+    fn simple_glyph_overlapping_contour_flag() {
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+        let loca = font.loca(None).unwrap();
+        let glyf = font.glyf().unwrap();
+        let glyph_count = font.maxp().unwrap().num_glyphs();
+        for gid in 0..glyph_count {
+            let glyph = match loca.get_glyf(GlyphId::new(gid), &glyf) {
+                Ok(Some(Glyph::Simple(glyph))) => glyph,
+                _ => continue,
+            };
+            if gid == 3 {
+                // Only GID 3 has the overlap bit set
+                assert!(glyph.has_overlapping_contours())
+            } else {
+                assert!(!glyph.has_overlapping_contours())
+            }
+        }
+    }
+
+    #[test]
+    fn composite_overlapping_contour_flag() {
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+        let loca = font.loca(None).unwrap();
+        let glyf = font.glyf().unwrap();
+        let glyph_count = font.maxp().unwrap().num_glyphs();
+        for gid in 0..glyph_count {
+            let glyph = match loca.get_glyf(GlyphId::new(gid), &glyf) {
+                Ok(Some(Glyph::Composite(glyph))) => glyph,
+                _ => continue,
+            };
+            // Only GID 2, component 1 has the overlap bit set
+            for (component_ix, component) in glyph.components().enumerate() {
+                if gid == 2 && component_ix == 1 {
+                    assert!(component
+                        .flags
+                        .contains(CompositeGlyphFlags::OVERLAP_COMPOUND))
+                } else {
+                    assert!(!component
+                        .flags
+                        .contains(CompositeGlyphFlags::OVERLAP_COMPOUND))
+                }
+            }
+        }
     }
 
     #[test]

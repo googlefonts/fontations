@@ -155,6 +155,7 @@ mod tests {
             max_component_delta_stack: 4,
             has_hinting: false,
             has_variations: true,
+            has_overlaps: false,
         };
         let required_size = outline_info.required_buffer_size();
         let mut buf = vec![0u8; required_size];
@@ -185,6 +186,7 @@ mod tests {
             max_component_delta_stack: 4,
             has_hinting: false,
             has_variations: true,
+            has_overlaps: false,
         };
         // Required size adds 4 bytes slop to account for internal alignment
         // requirements. So subtract 5 to force a failure.
