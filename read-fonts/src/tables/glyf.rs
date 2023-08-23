@@ -488,8 +488,8 @@ impl<'a> CompositeGlyph<'a> {
         }
     }
 
-    /// Returns an iterator that yields the glyph identifier of each component
-    /// in the composite glyph.
+    /// Returns an iterator that yields the glyph identifier and flags of each
+    /// component in the composite glyph.
     pub fn component_glyphs_and_flags(
         &self,
     ) -> impl Iterator<Item = (GlyphId, CompositeGlyphFlags)> + 'a + Clone {
@@ -594,7 +594,7 @@ impl Iterator for ComponentIter<'_> {
     }
 }
 
-/// Iterator that only returns glyph identifiers for each component.
+/// Iterator that only returns glyph identifiers and flags for each component.
 ///
 /// Significantly faster in cases where we're just processing the glyph
 /// tree, counting components or accessing instructions.
