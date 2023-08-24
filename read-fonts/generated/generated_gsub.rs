@@ -1186,9 +1186,7 @@ impl<T> ExtensionSubstFormat1Marker<T> {
 
 impl<T> Clone for ExtensionSubstFormat1Marker<T> {
     fn clone(&self) -> Self {
-        Self {
-            offset_type: std::marker::PhantomData,
-        }
+        *self
     }
 }
 

@@ -1549,7 +1549,7 @@ impl Parse for InlineExpr {
             let span = tokens.span();
             let s = tokens.to_string();
             let mut idents = Vec::new();
-            let find_dollar_idents = regex::Regex::new(r#"(\$) (\w+)"#).unwrap();
+            let find_dollar_idents = regex::Regex::new(r"(\$) (\w+)").unwrap();
             for ident in find_dollar_idents.captures_iter(&s) {
                 let text = ident.get(2).unwrap().as_str();
                 let ident = syn::parse_str::<syn::Ident>(text).map_err(|_| {

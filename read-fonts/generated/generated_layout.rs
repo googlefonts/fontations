@@ -655,10 +655,7 @@ impl<T> LookupListMarker<T> {
 
 impl<T> Clone for LookupListMarker<T> {
     fn clone(&self) -> Self {
-        Self {
-            lookup_offsets_byte_len: self.lookup_offsets_byte_len,
-            offset_type: std::marker::PhantomData,
-        }
+        *self
     }
 }
 
@@ -786,10 +783,7 @@ impl<T> LookupMarker<T> {
 
 impl<T> Clone for LookupMarker<T> {
     fn clone(&self) -> Self {
-        Self {
-            subtable_offsets_byte_len: self.subtable_offsets_byte_len,
-            offset_type: std::marker::PhantomData,
-        }
+        *self
     }
 }
 
