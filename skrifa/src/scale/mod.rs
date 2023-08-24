@@ -155,7 +155,7 @@ mod scaler;
 pub use read_fonts::types::Pen;
 
 pub use error::{Error, Result};
-pub use scaler::{Scaler, ScalerBuilder};
+pub use scaler::{Scaler, ScalerBuilder, ScalerMetrics};
 
 use super::{
     font::UniqueId,
@@ -217,7 +217,7 @@ impl Context {
 #[cfg(test)]
 mod tests {
     use super::{Context, Size};
-    use read_fonts::{scaler_test, FontRef};
+    use read_fonts::{scaler_test, types::GlyphId, FontRef, TableProvider};
 
     #[test]
     fn vazirmatin_var() {
@@ -243,6 +243,31 @@ mod tests {
             font_test_data::NOTO_SERIF_DISPLAY_TRIMMED,
             font_test_data::NOTO_SERIF_DISPLAY_TRIMMED_GLYPHS,
             true,
+        );
+    }
+
+    #[test]
+    fn overlap_flags() {
+        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+        let mut cx = Context::new();
+        let mut path = scaler_test::Path {
+            elements: vec![],
+            is_cff: false,
+        };
+        let mut scaler = cx.new_scaler().build(&font);
+        let glyph_count = font.maxp().unwrap().num_glyphs();
+        // GID 2 is a composite glyph with the overlap bit on a component
+        // GID 3 is a simple glyph with the overlap bit on the first flag
+        let expected_gids_with_overlap = vec![2, 3];
+        assert_eq!(
+            expected_gids_with_overlap,
+            (0..glyph_count)
+                .filter_map(|gid| scaler
+                    .outline(GlyphId::new(gid), &mut path)
+                    .unwrap()
+                    .has_overlaps
+                    .then_some(gid))
+                .collect::<Vec<_>>()
         );
     }
 
