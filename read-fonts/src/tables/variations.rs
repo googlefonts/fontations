@@ -273,7 +273,9 @@ impl<'a> PackedPointNumbers<'a> {
 
         let mut n_seen = 0;
         while n_seen < n_points {
-            let Some((count, two_bytes)) = read_control_byte(&mut cursor) else { return n_bytes };
+            let Some((count, two_bytes)) = read_control_byte(&mut cursor) else {
+                return n_bytes;
+            };
             let word_size = 1 + usize::from(two_bytes);
             let run_size = word_size * count as usize;
             n_bytes += run_size + 1; // plus the control byte;

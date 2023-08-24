@@ -280,11 +280,15 @@ mod tests {
 
         let bytes = crate::dump_table(&a_table).unwrap();
         let read_back = PairPosFormat2::read(bytes.as_slice().into()).unwrap();
-        let DeviceOrVariationIndex::VariationIndex(dev2) = read_back.class1_records[0].class2_records[0]
+        let DeviceOrVariationIndex::VariationIndex(dev2) = read_back.class1_records[0]
+            .class2_records[0]
             .value_record2
             .x_advance_device
             .as_ref()
-            .unwrap() else { panic!("not a variation index") };
+            .unwrap()
+        else {
+            panic!("not a variation index")
+        };
         assert_eq!(dev2.delta_set_outer_index, 0xaa);
     }
 }

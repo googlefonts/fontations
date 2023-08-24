@@ -668,7 +668,11 @@ mod tests {
         let font = FontRef::new(font_test_data::SIMPLE_GLYF).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
-        let read_glyf::Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(0), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
+        let read_glyf::Glyph::Simple(orig) =
+            loca.get_glyf(GlyphId::new(0), &glyf).unwrap().unwrap()
+        else {
+            panic!("not a simple glyph")
+        };
         let orig_bytes = orig.offset_data();
 
         let ours = SimpleGlyph::from_table_ref(&orig);
@@ -688,7 +692,11 @@ mod tests {
         let font = FontRef::new(font_test_data::SIMPLE_GLYF).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
-        let read_glyf::Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
+        let read_glyf::Glyph::Simple(orig) =
+            loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap()
+        else {
+            panic!("not a simple glyph")
+        };
         let orig_bytes = orig.offset_data();
 
         let bezpath = simple_glyph_to_bezpath(&orig);
@@ -710,7 +718,11 @@ mod tests {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
-        let read_glyf::Glyph::Simple(orig) = loca.get_glyf(GlyphId::new(1), &glyf).unwrap().unwrap() else { panic!("not a simple glyph") };
+        let read_glyf::Glyph::Simple(orig) =
+            loca.get_glyf(GlyphId::new(1), &glyf).unwrap().unwrap()
+        else {
+            panic!("not a simple glyph")
+        };
         let orig_bytes = orig.offset_data();
 
         let bezpath = simple_glyph_to_bezpath(&orig);
