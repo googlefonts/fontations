@@ -361,7 +361,7 @@ mod tests {
         const N_GLYPHS: u16 = 1500; // manually determined to cause overflow
 
         let mut pairs = Vec::new();
-        for (advance, g1) in [0u16..N_GLYPHS].into_iter().flatten().enumerate() {
+        for (advance, g1) in (0u16..N_GLYPHS).enumerate() {
             pairs.push(KernPair(GlyphId::new(g1), GlyphId::new(5), advance as _));
             pairs.push(KernPair(GlyphId::new(g1), GlyphId::new(6), advance as _));
             pairs.push(KernPair(GlyphId::new(g1), GlyphId::new(7), advance as _));

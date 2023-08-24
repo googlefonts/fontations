@@ -22,16 +22,10 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
     let shape_fields = item.iter_shape_fields();
     let derive_clone_copy = generic.is_none().then(|| quote!(Clone, Copy));
     let impl_clone_copy = generic.is_some().then(|| {
-        let clone_fields = item
-            .iter_shape_field_names()
-            .map(|name| quote!(#name: self.#name));
         quote! {
             impl<#generic> Clone for #marker_name<#generic> {
                 fn clone(&self) -> Self {
-                    Self {
-                        #( #clone_fields, )*
-                        offset_type: std::marker::PhantomData,
-                    }
+                    *self
                 }
             }
 
@@ -327,9 +321,7 @@ fn generate_to_owned_impl(item: &Table, parse_module: &syn::Path) -> syn::Result
     let parse_generic = comp_generic
         .is_some()
         .then(|| syn::Ident::new("U", Span::call_site()));
-    let impl_generics = comp_generic
-        .into_iter()
-        .chain(parse_generic.as_ref().into_iter());
+    let impl_generics = comp_generic.into_iter().chain(parse_generic.as_ref());
     let impl_generics2 = impl_generics.clone();
     let where_clause = comp_generic.map(|t| {
         quote! {

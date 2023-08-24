@@ -3445,9 +3445,7 @@ impl<T> ExtensionPosFormat1Marker<T> {
 
 impl<T> Clone for ExtensionPosFormat1Marker<T> {
     fn clone(&self) -> Self {
-        Self {
-            offset_type: std::marker::PhantomData,
-        }
+        *self
     }
 }
 

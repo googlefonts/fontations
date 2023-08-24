@@ -80,7 +80,7 @@ mod tests {
                     fds[gid as usize] = *font_index;
                 }
             }
-            buf = buf.extend(fds.into_iter());
+            buf = buf.extend(fds);
             buf
         };
         let format3 = {
