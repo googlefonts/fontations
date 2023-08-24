@@ -162,10 +162,10 @@ impl<'a> ScalerBuilder<'a> {
             return; // nop
         }
         let Ok(fvar) = font.fvar() else {
-            return;  // nop
+            return; // nop
         };
         let Ok(axes) = fvar.axes() else {
-            return;  // nop
+            return; // nop
         };
         let avar_mappings = font.avar().ok().map(|avar| avar.axis_segment_maps());
         let axis_count = fvar.axis_count() as usize;

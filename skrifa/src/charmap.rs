@@ -51,7 +51,9 @@ pub struct Charmap<'a> {
 impl<'a> Charmap<'a> {
     /// Creates a new character map from the given font.
     pub fn new(font: &impl TableProvider<'a>) -> Self {
-        let Ok(cmap) = font.cmap() else { return Default::default() };
+        let Ok(cmap) = font.cmap() else {
+            return Default::default();
+        };
         let selection = MappingSelection::new(&cmap);
         Self {
             codepoint_subtable: selection
@@ -138,7 +140,9 @@ impl MappingIndex {
     /// Finds the indices of the most suitable Unicode mapping tables in the
     /// given font.
     pub fn new<'a>(font: &impl TableProvider<'a>) -> Self {
-        let Ok(cmap) = font.cmap() else { return Default::default() };
+        let Ok(cmap) = font.cmap() else {
+            return Default::default();
+        };
         MappingSelection::new(&cmap).mapping_index
     }
 
@@ -147,7 +151,9 @@ impl MappingIndex {
     ///
     /// The font should be the same as the one used to construct this object.
     pub fn charmap<'a>(&self, font: &impl TableProvider<'a>) -> Charmap<'a> {
-        let Ok(cmap) = font.cmap() else { return Default::default() };
+        let Ok(cmap) = font.cmap() else {
+            return Default::default();
+        };
         let records = cmap.encoding_records();
         let data = cmap.offset_data();
         Charmap {

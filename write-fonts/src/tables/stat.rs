@@ -67,7 +67,9 @@ mod tests {
         let axis_values = read.offset_to_axis_values().unwrap();
         assert_eq!(axis_values.axis_value_offsets().len(), 2);
         let value2 = axis_values.axis_values().get(1).unwrap();
-        let read_stat::AxisValue::Format1(value2) = value2 else { panic!("wrong format"); };
+        let read_stat::AxisValue::Format1(value2) = value2 else {
+            panic!("wrong format");
+        };
         assert_eq!(value2.value_name_id(), NameId::new(261));
     }
 }

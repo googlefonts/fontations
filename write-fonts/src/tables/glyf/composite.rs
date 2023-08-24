@@ -310,7 +310,11 @@ mod tests {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
-        let read_glyf::Glyph::Composite(orig) = loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap() else { panic!("not a composite glyph") };
+        let read_glyf::Glyph::Composite(orig) =
+            loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap()
+        else {
+            panic!("not a composite glyph")
+        };
 
         let bbox = Bbox {
             x_min: orig.x_min(),

@@ -128,7 +128,7 @@ where
     /// error variant.
     pub fn get(&self, idx: usize) -> Option<Result<T, ReadError>> {
         let Some(offset) = self.offsets.get(idx) else {
-            return Some(Err(ReadError::InvalidCollectionIndex(idx as _)))
+            return Some(Err(ReadError::InvalidCollectionIndex(idx as _)));
         };
         offset.get().resolve_with_args(self.data, &self.args)
     }

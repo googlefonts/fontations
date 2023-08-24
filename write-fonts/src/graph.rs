@@ -755,7 +755,9 @@ impl Graph {
         // now everything but the links to the roots roots has been remapped;
         // remap those, if needed
         for root in roots.iter() {
-            let Some(new_id) = id_map.get(root) else { continue };
+            let Some(new_id) = id_map.get(root) else {
+                continue;
+            };
             self.parents_invalid = true;
             self.positions_invalid = true;
             for (parent_id, len) in &self.nodes[new_id].parents {
@@ -842,7 +844,9 @@ impl Graph {
     }
 
     fn try_promoting_subtables(&mut self) {
-        let Some((can_promote, parent_id)) = self.get_promotable_subtables() else { return };
+        let Some((can_promote, parent_id)) = self.get_promotable_subtables() else {
+            return;
+        };
         let to_promote = self.select_promotions_hb(&can_promote, parent_id);
         log::info!(
             "promoting {} of {} eligible subtables",
