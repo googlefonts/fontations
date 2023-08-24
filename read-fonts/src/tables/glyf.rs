@@ -958,50 +958,54 @@ mod tests {
         );
     }
 
-    #[test]
-    fn simple_glyph_overlapping_contour_flag() {
-        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
+    // Test helper to enumerate all TrueType glyphs in the given font
+    fn all_glyphs(font_data: &[u8]) -> impl Iterator<Item = Option<Glyph>> {
+        let font = FontRef::new(font_data).unwrap();
         let loca = font.loca(None).unwrap();
         let glyf = font.glyf().unwrap();
         let glyph_count = font.maxp().unwrap().num_glyphs();
-        for gid in 0..glyph_count {
-            let glyph = match loca.get_glyf(GlyphId::new(gid), &glyf) {
-                Ok(Some(Glyph::Simple(glyph))) => glyph,
-                _ => continue,
-            };
-            if gid == 3 {
-                // Only GID 3 has the overlap bit set
-                assert!(glyph.has_overlapping_contours())
-            } else {
-                assert!(!glyph.has_overlapping_contours())
-            }
-        }
+        (0..glyph_count).map(move |gid| loca.get_glyf(GlyphId::new(gid), &glyf).unwrap())
     }
 
     #[test]
-    fn composite_overlapping_contour_flag() {
-        let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
-        let loca = font.loca(None).unwrap();
-        let glyf = font.glyf().unwrap();
-        let glyph_count = font.maxp().unwrap().num_glyphs();
-        for gid in 0..glyph_count {
-            let glyph = match loca.get_glyf(GlyphId::new(gid), &glyf) {
-                Ok(Some(Glyph::Composite(glyph))) => glyph,
-                _ => continue,
-            };
-            // Only GID 2, component 1 has the overlap bit set
-            for (component_ix, component) in glyph.components().enumerate() {
-                if gid == 2 && component_ix == 1 {
-                    assert!(component
-                        .flags
-                        .contains(CompositeGlyphFlags::OVERLAP_COMPOUND))
-                } else {
-                    assert!(!component
-                        .flags
-                        .contains(CompositeGlyphFlags::OVERLAP_COMPOUND))
-                }
-            }
-        }
+    fn simple_glyph_overlapping_contour_flag() {
+        let gids_with_overlap: Vec<_> = all_glyphs(font_test_data::VAZIRMATN_VAR)
+            .enumerate()
+            .filter_map(|(gid, glyph)| match glyph {
+                Some(Glyph::Simple(glyph)) if glyph.has_overlapping_contours() => Some(gid),
+                _ => None,
+            })
+            .collect();
+        // Only GID 3 has the overlap bit set
+        let expected_gids_with_overlap = vec![3];
+        assert_eq!(expected_gids_with_overlap, gids_with_overlap);
+    }
+
+    #[test]
+    fn composite_glyph_overlapping_contour_flag() {
+        let gids_components_with_overlap: Vec<_> = all_glyphs(font_test_data::VAZIRMATN_VAR)
+            .enumerate()
+            .filter_map(|(gid, glyph)| match glyph {
+                Some(Glyph::Composite(glyph)) => Some((gid, glyph)),
+                _ => None,
+            })
+            .flat_map(|(gid, glyph)| {
+                glyph
+                    .components()
+                    .enumerate()
+                    .filter_map(move |(comp_ix, comp)| {
+                        comp.flags
+                            .contains(CompositeGlyphFlags::OVERLAP_COMPOUND)
+                            .then_some((gid, comp_ix))
+                    })
+            })
+            .collect();
+        // Only GID 2, component 1 has the overlap bit set
+        let expected_gids_components_with_overlap = vec![(2, 1)];
+        assert_eq!(
+            expected_gids_components_with_overlap,
+            gids_components_with_overlap
+        );
     }
 
     #[test]

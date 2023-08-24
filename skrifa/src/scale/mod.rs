@@ -256,12 +256,19 @@ mod tests {
         };
         let mut scaler = cx.new_scaler().build(&font);
         let glyph_count = font.maxp().unwrap().num_glyphs();
-        for gid in 0..glyph_count {
-            let metrics = scaler.outline(GlyphId::new(gid), &mut path).unwrap();
-            // GID 2 is a composite glyph with the overlap bit on a component
-            // GID 3 is a simple glyph with the overlap bit on the first flag
-            assert_eq!(metrics.has_overlaps, gid == 2 || gid == 3);
-        }
+        // GID 2 is a composite glyph with the overlap bit on a component
+        // GID 3 is a simple glyph with the overlap bit on the first flag
+        let expected_gids_with_overlap = vec![2, 3];
+        assert_eq!(
+            expected_gids_with_overlap,
+            (0..glyph_count)
+                .filter_map(|gid| scaler
+                    .outline(GlyphId::new(gid), &mut path)
+                    .unwrap()
+                    .has_overlaps
+                    .then_some(gid))
+                .collect::<Vec<_>>()
+        );
     }
 
     fn compare_glyphs(font_data: &[u8], expected_outlines: &str, is_cff: bool) {
