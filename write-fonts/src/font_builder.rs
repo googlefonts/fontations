@@ -21,9 +21,12 @@ pub struct FontBuilder<'a> {
 /// This wraps a compilation error, adding the tag of the table where it was
 /// encountered.
 #[derive(Clone, Debug)]
+#[non_exhaustive]
 pub struct BuilderError {
-    tag: Tag,
-    inner: crate::error::Error,
+    /// The tag of the root table where the error occured
+    pub tag: Tag,
+    /// The underlying error
+    pub inner: crate::error::Error,
 }
 
 impl TableDirectory {
@@ -167,7 +170,11 @@ impl Display for BuilderError {
     }
 }
 
-impl std::error::Error for BuilderError {}
+impl std::error::Error for BuilderError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        Some(&self.inner)
+    }
+}
 
 #[cfg(test)]
 mod tests {
