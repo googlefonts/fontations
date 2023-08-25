@@ -5,6 +5,12 @@ use std::sync::Arc;
 use crate::{graph::Graph, validate::ValidationReport};
 
 /// A packing could not be found that satisfied all offsets
+///
+/// If the "dot2" feature is enabled, you can use the `write_graph_viz` method
+/// on this error to dump a text representation of the graph to disk. You can
+/// then use graphviz to convert this into an image. For example, to create
+/// an SVG, you might use, `dot -v -Tsvg failure.dot2 > failure.svg`, where
+/// 'failure.dot2' is the path where you dumped the graph.
 #[derive(Clone)]
 pub struct PackingError {
     // this is Arc so that we can clone and still be sent between threads.
@@ -14,7 +20,17 @@ pub struct PackingError {
 /// An error occured while writing this table
 #[derive(Debug, Clone)]
 pub enum Error {
+    /// The table failed a validation check
+    ///
+    /// This indicates that the table contained invalid or inconsistent data
+    /// (for instance, it had an explicit version set, but contained fields
+    /// not present in that version).
     ValidationFailed(ValidationReport),
+    /// The table contained overflowing offsets
+    ///
+    /// This indicates that an ordering could not be found that allowed all
+    /// tables to be reachable from their parents. See [`PackingError`] for
+    /// more details.
     PackingFailed(PackingError),
 }
 
