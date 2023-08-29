@@ -708,7 +708,6 @@ impl Graph {
     /// [isolate_subgraph]: https://github.com/harfbuzz/harfbuzz/blob/main/src/graph/graph.hh#L508
     fn isolate_subgraph_hb(&mut self, roots: &mut BTreeSet<ObjectId>) -> bool {
         self.update_parents();
-        log::trace!("isolating subgraph with {} roots", roots.len());
 
         // map of object id -> number of incoming edges
         let mut subgraph = BTreeMap::new();
@@ -727,6 +726,7 @@ impl Graph {
         }
 
         let next_space = self.next_space();
+        log::debug!("moved {} roots to {next_space:?}", roots.len(),);
         self.num_roots_per_space.insert(next_space, roots.len());
         let mut id_map = HashMap::new();
         //let mut made_changes = false;
@@ -1059,7 +1059,7 @@ impl Graph {
         match type_ {
             TableType::GposLookup(LookupType::PAIR_POS) => splitting::split_pair_pos(self, lookup),
             TableType::GposLookup(LookupType::MARK_TO_BASE) => {
-                log::info!("table splitting not yet implemented for GPOS Type 4 (mark-to-base)");
+                log::warn!("table splitting not yet implemented for GPOS Type 4 (mark-to-base)");
             }
             _ => (),
         }

@@ -122,7 +122,7 @@ impl<'a> FontBuilder<'a> {
 
         let mut writer = TableWriter::default();
         directory.write_into(&mut writer);
-        let mut data = writer.into_data();
+        let mut data = writer.into_data().bytes;
         for table in self.tables.values() {
             data.extend_from_slice(table);
             let rem = round4(table.len()) - table.len();

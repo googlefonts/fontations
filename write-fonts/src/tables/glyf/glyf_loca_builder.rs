@@ -82,7 +82,7 @@ impl GlyfLocaBuilder {
     /// [`head`]: crate::tables::head::Head::index_to_loc_format
     #[must_use]
     pub fn build(self) -> (Glyf, Loca, LocaFormat) {
-        let glyph_data = self.glyph_writer.into_data();
+        let glyph_data = self.glyph_writer.into_data().bytes;
         let loca = Loca::new(self.raw_loca);
         let format = loca.format();
         (Glyf(glyph_data), loca, format)
