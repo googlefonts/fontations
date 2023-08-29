@@ -120,11 +120,11 @@ impl TableWriter {
     }
 
     /// used when writing top-level font objects, which are done more manually.
-    pub(crate) fn into_data(mut self) -> Vec<u8> {
+    pub(crate) fn into_data(mut self) -> TableData {
         assert_eq!(self.stack.len(), 1);
         let result = self.stack.pop().unwrap();
         assert!(result.offsets.is_empty());
-        result.bytes
+        result
     }
 
     /// A reference to the current table data.
@@ -196,6 +196,7 @@ impl TableData {
 
     /// the 'adjustment' param is used to modify the written position.
     pub(crate) fn add_offset(&mut self, object: ObjectId, width: usize, adjustment: u32) {
+        const PLACEHOLDER_BYTES: &[u8] = &[0xff, 0xff, 0xff, 0xff];
         self.offsets.push(OffsetRecord {
             pos: self.bytes.len() as u32,
             len: match width {
@@ -206,12 +207,14 @@ impl TableData {
             object,
             adjustment,
         });
-        let null_bytes = &[0u8, 0, 0, 0].get(..width.min(4)).unwrap();
 
-        self.write_bytes(null_bytes);
+        // we don't want to use zeros as our placeholder, since we want to
+        // distinguish from a null offset during splitting/promotion.
+        // we write all ones, since maybe it will stand out in debugging
+        let placeholder = PLACEHOLDER_BYTES.get(..width.min(4)).unwrap();
+        self.write_bytes(placeholder);
     }
 
-    #[allow(dead_code)] // this will be used when we do promotion/splitting
     pub(crate) fn write<T: Scalar>(&mut self, value: T) {
         self.write_bytes(value.to_raw().as_ref())
     }
