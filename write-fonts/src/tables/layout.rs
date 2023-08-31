@@ -454,6 +454,12 @@ impl FromIterator<(GlyphId, u16)> for ClassDefBuilder {
     }
 }
 
+impl FromIterator<(GlyphId, u16)> for ClassDef {
+    fn from_iter<T: IntoIterator<Item = (GlyphId, u16)>>(iter: T) -> Self {
+        ClassDefBuilder::from_iter(iter).build()
+    }
+}
+
 impl ClassDefBuilder {
     fn prefer_format_1(&self) -> bool {
         // calculate our format2 size:

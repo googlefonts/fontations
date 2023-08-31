@@ -159,6 +159,9 @@ The following annotations are supported on top-level objects:
   between GPOS and GSUB.
 - `#[write_fonts_only]` Indicate that this table should only be generated for
   `write-fonts` (i.e. should be ignored in `read-fonts`).
+- `#[validate(method)]` Provide a method to perform additional pre-compilation
+  validation for this type. The method must be manually implemented on the type,
+  with the signature `fn(&self, &mut ValidationCtx)`.
 
 #### field attributes
 - `#[nullable]`: only allowed on offsets or arrays of offsets, and indicates

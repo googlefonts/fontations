@@ -133,6 +133,35 @@ impl PairPosFormat2 {
     fn compute_class2_count(&self) -> u16 {
         self.class_def2.class_count()
     }
+
+    fn check_length_and_format_conformance(&self, ctx: &mut ValidationCtx) {
+        let n_class_1s = self.class_def1.class_count();
+        let n_class_2s = self.class_def2.class_count();
+        let format_1 = self.compute_value_format1();
+        let format_2 = self.compute_value_format2();
+        if self.class1_records.len() != n_class_1s as usize {
+            ctx.report("class1_records length must match number of class1 classes");
+        }
+        ctx.in_field("class1_records", |ctx| {
+            ctx.in_array(|ctx| {
+                for record in &self.class1_records {
+                    ctx.array_item(|ctx| {
+                        if record.class2_records.len() != n_class_2s as usize {
+                            ctx.report(
+                                "class2_records length must match number of class2 classes ",
+                            );
+                        }
+                        if record.class2_records.iter().any(|rec| {
+                            rec.value_record1.format() != format_1
+                                || rec.value_record2.format() != format_2
+                        }) {
+                            ctx.report("all value records should report the same format");
+                        }
+                    })
+                }
+            })
+        });
+    }
 }
 
 impl MarkBasePosFormat1 {
@@ -205,5 +234,82 @@ mod tests {
                 ..Default::default()
             }
         );
+    }
+
+    // shared between a pair of tests below
+    fn make_rec(i: u16) -> ValueRecord {
+        // '0' here is shorthand for 'no device table'
+        if i == 0 {
+            return ValueRecord::new().with_explicit_value_format(ValueFormat::X_ADVANCE_DEVICE);
+        }
+        ValueRecord::new().with_x_advance_device(VariationIndex::new(0xff, i))
+    }
+
+    #[test]
+    fn compile_devices_pairpos2() {
+        let class1 = ClassDef::from_iter([(GlyphId::new(5), 0), (GlyphId::new(6), 1)]);
+        // class 0 is 'all the rest', here, always implicitly present
+        let class2 = ClassDef::from_iter([(GlyphId::new(8), 1)]);
+
+        // two c1recs, each with two c2recs
+        let class1recs = vec![
+            Class1Record::new(vec![
+                Class2Record::new(make_rec(0), make_rec(0)),
+                Class2Record::new(make_rec(1), make_rec(2)),
+            ]),
+            Class1Record::new(vec![
+                Class2Record::new(make_rec(0), make_rec(0)),
+                Class2Record::new(make_rec(2), make_rec(3)),
+            ]),
+        ];
+        let coverage = class1.iter().map(|(gid, _)| gid).collect();
+        let a_table = PairPos::format_2(coverage, class1, class2, class1recs);
+
+        let bytes = crate::dump_table(&a_table).unwrap();
+        let read_back = PairPosFormat2::read(bytes.as_slice().into()).unwrap();
+
+        assert!(read_back.class1_records[0].class2_records[0]
+            .value_record1
+            .x_advance_device
+            .is_none());
+        assert!(read_back.class1_records[1].class2_records[1]
+            .value_record1
+            .x_advance_device
+            .is_some());
+
+        let DeviceOrVariationIndex::VariationIndex(dev2) = read_back.class1_records[0]
+            .class2_records[1]
+            .value_record2
+            .x_advance_device
+            .as_ref()
+            .unwrap()
+        else {
+            panic!("not a variation index")
+        };
+        assert_eq!(dev2.delta_set_inner_index, 2);
+    }
+
+    #[should_panic(expected = "all value records should report the same format")]
+    #[test]
+    fn validate_bad_pairpos2() {
+        let class1 = ClassDef::from_iter([(GlyphId::new(5), 0), (GlyphId::new(6), 1)]);
+        // class 0 is 'all the rest', here, always implicitly present
+        let class2 = ClassDef::from_iter([(GlyphId::new(8), 1)]);
+        let coverage = class1.iter().map(|(gid, _)| gid).collect();
+
+        // two c1recs, each with two c2recs
+        let class1recs = vec![
+            Class1Record::new(vec![
+                Class2Record::new(make_rec(0), make_rec(0)),
+                Class2Record::new(make_rec(1), make_rec(2)),
+            ]),
+            Class1Record::new(vec![
+                Class2Record::new(make_rec(0), make_rec(0)),
+                // this is now the wrong type
+                Class2Record::new(make_rec(2), make_rec(3).with_x_advance(0x514)),
+            ]),
+        ];
+        let ppf2 = PairPos::format_2(coverage, class1, class2, class1recs);
+        crate::dump_table(&ppf2).unwrap();
     }
 }
