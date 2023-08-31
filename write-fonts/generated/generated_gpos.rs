@@ -1154,6 +1154,7 @@ impl Validate for PairPosFormat2 {
                 }
                 self.class1_records.validate_impl(ctx);
             });
+            self.check_length_and_format_conformance(ctx);
         })
     }
 }

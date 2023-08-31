@@ -232,6 +232,7 @@ record PairValueRecord {
 }
 
 /// [Pair Adjustment Positioning Format 2](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#pair-adjustment-positioning-format-2-class-pair-adjustment): Class Pair Adjustment
+#[validate(check_length_and_format_conformance)]
 table PairPosFormat2 {
     /// Format identifier: format = 2
     #[format = 2]
