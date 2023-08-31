@@ -201,6 +201,7 @@ table PairPosFormat1 {
     /// of PairPos subtable, ordered by Coverage Index.
     #[count($pair_set_count)]
     #[read_offset_with($value_format1, $value_format2)]
+    #[validate(check_format_consistency)]
     pair_set_offsets: [Offset16<PairSet>],
 }
 
