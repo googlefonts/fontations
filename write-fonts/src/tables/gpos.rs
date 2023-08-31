@@ -107,6 +107,27 @@ impl PairPosFormat1 {
             .map(|rec| rec.value_record2.format())
             .unwrap_or(ValueFormat::empty())
     }
+
+    fn check_format_consistency(&self, ctx: &mut ValidationCtx) {
+        let vf1 = self.compute_value_format1();
+        let vf2 = self.compute_value_format2();
+        ctx.in_array(|ctx| {
+            for pairset in &self.pair_sets {
+                ctx.array_item(|ctx| {
+                    ctx.in_field("pair_value_records", |ctx| {
+                        ctx.in_array(|ctx| {
+                            if pairset.pair_value_records.iter().any(|pairset| {
+                                pairset.value_record1.format() != vf1
+                                    || pairset.value_record2.format() != vf2
+                            }) {
+                                ctx.report("all ValueRecords must have same format")
+                            }
+                        })
+                    })
+                })
+            }
+        })
+    }
 }
 
 impl PairPosFormat2 {
@@ -196,6 +217,8 @@ impl MarkArray {
 mod tests {
 
     use read_fonts::tables::{gpos as read_gpos, layout::LookupFlag};
+
+    use crate::tables::layout::VariationIndex;
 
     use super::*;
 
@@ -311,5 +334,48 @@ mod tests {
         ];
         let ppf2 = PairPos::format_2(coverage, class1, class2, class1recs);
         crate::dump_table(&ppf2).unwrap();
+    }
+
+    #[test]
+    fn validate_pairpos1() {
+        let coverage: CoverageTable = [1, 2].into_iter().map(GlyphId::new).collect();
+        let good_table = PairPosFormat1::new(
+            coverage.clone(),
+            vec![
+                PairSet::new(vec![PairValueRecord::new(
+                    GlyphId::new(5),
+                    ValueRecord::new().with_x_advance(5),
+                    ValueRecord::new(),
+                )]),
+                PairSet::new(vec![PairValueRecord::new(
+                    GlyphId::new(1),
+                    ValueRecord::new().with_x_advance(42),
+                    ValueRecord::new(),
+                )]),
+            ],
+        );
+
+        let bad_table = PairPosFormat1::new(
+            coverage,
+            vec![
+                PairSet::new(vec![PairValueRecord::new(
+                    GlyphId::new(5),
+                    ValueRecord::new().with_x_advance(5),
+                    ValueRecord::new(),
+                )]),
+                PairSet::new(vec![PairValueRecord::new(
+                    GlyphId::new(1),
+                    //this is a different format, which is not okay
+                    ValueRecord::new().with_x_placement(42),
+                    ValueRecord::new(),
+                )]),
+            ],
+        );
+
+        assert!(crate::dump_table(&good_table).is_ok());
+        assert!(matches!(
+            crate::dump_table(&bad_table),
+            Err(crate::error::Error::ValidationFailed(_))
+        ));
     }
 }
