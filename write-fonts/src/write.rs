@@ -250,7 +250,7 @@ impl TableData {
         TableData {
             bytes: vec![0xca; size], // has no special meaning
             offsets: Vec::new(),
-            type_: TableType::Unknown,
+            type_: TableType::MockTable,
         }
     }
 

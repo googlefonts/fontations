@@ -116,6 +116,10 @@ impl<const N: usize, T: FontWrite> FontWrite for OffsetMarker<T, N> {
     fn write_into(&self, writer: &mut TableWriter) {
         writer.write_offset(&self.obj, N);
     }
+
+    fn table_type(&self) -> crate::table_type::TableType {
+        self.obj.table_type()
+    }
 }
 
 impl<const N: usize, T: FontWrite> FontWrite for NullableOffsetMarker<T, N> {
@@ -123,6 +127,13 @@ impl<const N: usize, T: FontWrite> FontWrite for NullableOffsetMarker<T, N> {
         match self.obj.as_ref() {
             Some(obj) => writer.write_offset(obj, N),
             None => writer.write_slice([0u8; N].as_slice()),
+        }
+    }
+
+    fn table_type(&self) -> crate::table_type::TableType {
+        match self.obj.as_ref() {
+            Some(obj) => obj.table_type(),
+            None => crate::table_type::TableType::Unknown,
         }
     }
 }
