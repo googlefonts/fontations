@@ -112,7 +112,10 @@ impl Display for TableType {
 
 #[cfg(test)]
 mod tests {
-    use crate::tables::{gpos, gsub};
+    use crate::tables::{
+        gpos, gsub,
+        layout::{Lookup, LookupFlag},
+    };
     use crate::FontWrite;
 
     use super::*;
@@ -138,5 +141,12 @@ mod tests {
             gsub::SubstitutionLookup::Extension(Default::default()).table_type(),
             TableType::GsubLookup(7)
         );
+    }
+
+    #[test]
+    fn gpos_type() {
+        let pairpos = gpos::PairPos::Format1(Default::default());
+        let lookup = gpos::PositionLookup::Pair(Lookup::new(LookupFlag::empty(), vec![pairpos], 0));
+        assert_eq!(lookup.table_type(), TableType::GposLookup(2));
     }
 }
