@@ -285,10 +285,6 @@ impl Graph {
         out
     }
 
-    fn can_potentially_promote_subtables(&self) -> bool {
-        [TableType::GSUB, TableType::GPOS].contains(&self.objects[&self.root].type_)
-    }
-
     /// Attempt to pack the graph.
     ///
     /// This involves finding an order for objects such that all offsets are
@@ -309,10 +305,8 @@ impl Graph {
             return true;
         }
 
-        if self.can_potentially_promote_subtables() {
-            self.try_splitting_subtables();
-            self.try_promoting_subtables();
-        }
+        self.try_splitting_subtables();
+        self.try_promoting_subtables();
 
         log::info!("assigning spaces");
         self.assign_spaces_hb();
