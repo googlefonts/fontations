@@ -6,7 +6,6 @@
 use std::fmt::Display;
 
 use font_types::Tag;
-use read_fonts::TopLevelTable;
 
 use crate::tables::layout::LookupType;
 
@@ -32,9 +31,6 @@ pub enum TableType {
 }
 
 impl TableType {
-    pub(crate) const GSUB: TableType = TableType::TopLevel(crate::tables::gsub::Gsub::TAG);
-    pub(crate) const GPOS: TableType = TableType::TopLevel(crate::tables::gpos::Gpos::TAG);
-
     #[cfg(feature = "dot2")]
     pub(crate) fn is_mock(&self) -> bool {
         *self == TableType::MockTable
@@ -122,8 +118,14 @@ mod tests {
 
     #[test]
     fn tagged_table_type() {
-        assert_eq!(gsub::Gsub::default().table_type(), TableType::GSUB);
-        assert_eq!(gpos::Gpos::default().table_type(), TableType::GPOS);
+        assert_eq!(
+            gsub::Gsub::default().table_type(),
+            TableType::TopLevel(Tag::new(b"GSUB"))
+        );
+        assert_eq!(
+            gpos::Gpos::default().table_type(),
+            TableType::TopLevel(Tag::new(b"GPOS"))
+        );
 
         assert_eq!(
             crate::tables::name::Name::default().table_type(),

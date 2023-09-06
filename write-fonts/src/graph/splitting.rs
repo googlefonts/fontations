@@ -102,9 +102,22 @@ fn split_pair_pos_format_1(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<
     let mut accumulated = BASE_SIZE;
     let mut split_points = Vec::new();
 
-    for (i, pair_set) in data.offsets.iter().skip(1).enumerate() {
-        let table_size = if visited.insert(pair_set.object) {
-            graph.objects[&pair_set.object].bytes.len()
+    for (i, pair_set_off) in data.offsets.iter().skip(1).enumerate() {
+        let table_size = if visited.insert(pair_set_off.object) {
+            let pairset = &graph.objects[&pair_set_off.object];
+            // the size of the pairset table itself
+            let mut subgraph_size = pairset.bytes.len();
+            // now we add the lengths of any new device tables. we do *not*
+            // deduplicate these, even within the graph, since it is possible
+            // that they will need to be re-duplicated later in some cases?
+            // TODO: investigate whether there are any wins here?
+            // <https://github.com/googlefonts/fontations/issues/596>
+            subgraph_size += pairset
+                .offsets
+                .iter()
+                .map(|off| graph.objects[&off.object].bytes.len())
+                .sum::<usize>();
+            subgraph_size
         } else {
             0
         };
@@ -249,9 +262,9 @@ mod tests {
     use crate::{
         tables::{
             gpos::{PairPos, PairSet, PairValueRecord, ValueRecord},
-            layout::CoverageTableBuilder,
+            layout::{CoverageTableBuilder, VariationIndex},
         },
-        TableWriter,
+        FontWrite, TableWriter,
     };
 
     fn make_read_record(start_coverage_index: u16, glyphs: Range<u16>) -> rlayout::RangeRecord {
@@ -401,5 +414,84 @@ mod tests {
 
         // ensure that the PairSet tables at the split boundaries are as expected
         assert_eq!(sub1.pair_set_count() + sub2.pair_set_count(), N_GLYPHS);
+    }
+
+    fn make_pairpos_f1_with_device_tables(g1_count: u16, g2_count: u16) -> PairPos {
+        let mut pairsets = Vec::new();
+        for g1 in 1u16..=g1_count {
+            let records = (1..=g2_count)
+                .map(|gid2| {
+                    let val = g2_count * g1 + gid2;
+                    let valrec = ValueRecord::new()
+                        .with_x_advance(val as _)
+                        .with_y_advance(val as _)
+                        .with_x_placement(val as _)
+                        .with_y_advance_device(VariationIndex::new(val, val + 1))
+                        .with_x_advance_device(VariationIndex::new(val, val));
+                    let valrec2 = valrec
+                        .clone()
+                        .with_y_advance_device(VariationIndex::new(
+                            u16::MAX - val,
+                            u16::MAX - val - 1,
+                        ))
+                        .with_x_advance_device(VariationIndex::new(u16::MAX - val, u16::MAX - val));
+                    PairValueRecord::new(GlyphId::new(gid2), valrec, valrec2)
+                })
+                .collect();
+            pairsets.push(PairSet::new(records));
+        }
+
+        let coverage = (1u16..=g1_count).map(GlyphId::new).collect();
+        PairPos::format_1(coverage, pairsets)
+    }
+
+    #[test]
+    fn split_pairpos1_with_device_tables() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        // construct a pp1 table that only requires splitting if you accounted
+        // for device tables. so:
+
+        // use device format with 5 fields, == 10 bytes per valuerecord,
+        // 22 bytes per pairvaluerecord (gid + 2 * value record)
+        // let's have two varidx tables per valuerecord, so...
+        // 24 bytes of subtables (4 * 6)
+        // let's say 100 pair value records per pairset, so:
+        // pairset = (2 + 100 * 22) + (100 * 24) == 4602 bytes
+        // so 15 pairsets (69030) puts us over the limit.
+        const G1_COUNT: u16 = 15;
+        const G2_COUNT: u16 = 100;
+
+        // first just naively check that the split function, called directly,
+        // works as expected
+
+        let table = make_pairpos_f1_with_device_tables(G1_COUNT, G2_COUNT);
+        let lookup = wlayout::Lookup::new(LookupFlag::empty(), vec![table], 0);
+        let mut graph = TableWriter::make_graph(&lookup);
+
+        assert!(lookup.table_type().is_splittable());
+        let id = graph.root;
+        split_pair_pos(&mut graph, id);
+        graph.remove_orphans();
+        assert!(graph.basic_sort());
+
+        let bytes = graph.serialize();
+
+        let rlookup =
+            rlayout::Lookup::<rgpos::PairPosFormat1>::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(rlookup.sub_table_count(), 2);
+    }
+
+    #[test]
+    fn fully_pack_pairpos1_with_device_tables() {
+        // because we're good at packing, we need to include more tables in order
+        // to trigger the splitting code, since if naive sorting succeeds we don't
+        // bother. 28 PairSet tables is experimentally selected, requiring one split
+        const G1_COUNT: u16 = 28;
+        const G2_COUNT: u16 = 100;
+
+        let table = make_pairpos_f1_with_device_tables(G1_COUNT, G2_COUNT);
+        let lookup = wlayout::Lookup::new(LookupFlag::empty(), vec![table], 0);
+        let lookuplist = wlayout::LookupList::new(vec![lookup]);
+        assert!(crate::dump_table(&lookuplist).is_ok());
     }
 }
