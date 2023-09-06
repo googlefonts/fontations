@@ -5,7 +5,7 @@ use font_types::Uint24;
 use crate::{table_type::TableType, tables::layout::LookupType, write::TableData};
 
 use std::{
-    collections::{BinaryHeap, HashMap, HashSet, VecDeque},
+    collections::{BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet, VecDeque},
     sync::atomic::AtomicU64,
 };
 
@@ -91,9 +91,9 @@ impl ObjectStore {
 //NOTE: we don't derive Debug because it's way too verbose to be useful
 pub struct Graph {
     /// the actual data for each table
-    objects: HashMap<ObjectId, TableData>,
+    objects: BTreeMap<ObjectId, TableData>,
     /// graph-specific state used for sorting
-    nodes: HashMap<ObjectId, Node>,
+    nodes: BTreeMap<ObjectId, Node>,
     order: Vec<ObjectId>,
     root: ObjectId,
     parents_invalid: bool,
@@ -203,20 +203,16 @@ impl Node {
 
 impl Graph {
     pub(crate) fn from_obj_store(store: ObjectStore, root: ObjectId) -> Self {
-        let objects = store
-            .objects
-            .into_iter()
-            .map(|(k, v)| (v, k))
-            .collect::<HashMap<_, _>>();
+        let objects = store.objects.into_iter().map(|(k, v)| (v, k)).collect();
         Self::from_objects(objects, root)
     }
 
-    fn from_objects(objects: HashMap<ObjectId, TableData>, root: ObjectId) -> Self {
+    fn from_objects(objects: BTreeMap<ObjectId, TableData>, root: ObjectId) -> Self {
         let nodes = objects
             .iter()
             //TODO: ensure table sizes elsewhere?
             .map(|(key, obj)| (*key, Node::new(obj.bytes.len().try_into().unwrap())))
-            .collect::<HashMap<_, _>>();
+            .collect();
         Graph {
             objects,
             nodes,
@@ -615,7 +611,7 @@ impl Graph {
             .copied()
             .collect::<HashSet<_>>();
 
-        let mut connected_roots = HashSet::new(); // we can reuse this
+        let mut connected_roots = BTreeSet::new(); // we can reuse this
         while let Some(next) = roots.iter().copied().next() {
             connected_roots.clear();
             self.find_connected_nodes_hb(next, &mut roots, &mut visited, &mut connected_roots);
@@ -680,7 +676,7 @@ impl Graph {
         id: ObjectId,
         targets: &mut HashSet<ObjectId>,
         visited: &mut HashSet<ObjectId>,
-        connected: &mut HashSet<ObjectId>,
+        connected: &mut BTreeSet<ObjectId>,
     ) {
         if !visited.insert(id) {
             return;
@@ -705,7 +701,7 @@ impl Graph {
     /// Based on the [isolate_subgraph] method in HarfBuzz.
     ///
     /// [isolate_subgraph]: https://github.com/harfbuzz/harfbuzz/blob/main/src/graph/graph.hh#L508
-    fn isolate_subgraph_hb(&mut self, roots: &mut HashSet<ObjectId>) -> bool {
+    fn isolate_subgraph_hb(&mut self, roots: &mut BTreeSet<ObjectId>) -> bool {
         self.update_parents();
         log::trace!("isolating subgraph with {} roots", roots.len());
 
@@ -790,7 +786,7 @@ impl Graph {
     ///
     /// [_try_isolating_subgraphs]: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-repacker.hh#L182
     fn try_splitting_subgraphs(&mut self, overflows: &[Overflow]) -> bool {
-        let mut to_isolate = HashMap::new();
+        let mut to_isolate = BTreeMap::new();
         for overflow in overflows {
             let child_space = self.nodes[&overflow.child].space;
             // we only isolate subgraphs in wide-space
@@ -801,7 +797,7 @@ impl Graph {
             debug_assert_eq!(self.nodes[&root].space, child_space);
             to_isolate
                 .entry(child_space)
-                .or_insert_with(HashSet::new)
+                .or_insert_with(BTreeSet::new)
                 .insert(root);
         }
 
@@ -817,8 +813,7 @@ impl Graph {
                 roots.len()
             );
             while roots.len() > max_to_move {
-                let next = *roots.iter().next().unwrap();
-                roots.remove(&next);
+                roots.pop_last();
             }
             self.isolate_subgraph_hb(&mut roots);
             *self.num_roots_per_space.get_mut(&space).unwrap() -= roots.len();
@@ -1226,7 +1221,7 @@ mod tests {
                     let table = TableData::make_mock(*size);
                     (*id, table)
                 })
-                .collect::<HashMap<_, _>>();
+                .collect::<BTreeMap<_, _>>();
 
             for link in &self.links {
                 objects
