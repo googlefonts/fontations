@@ -664,12 +664,23 @@ impl Graph {
         }
     }
 
-    fn find_subgraph_map_hb(&self, idx: ObjectId, graph: &mut HashMap<ObjectId, usize>) {
+    fn find_subgraph_map_hb(&self, idx: ObjectId, graph: &mut BTreeMap<ObjectId, usize>) {
+        use std::collections::btree_map::Entry;
         for link in &self.objects[&idx].offsets {
-            *graph.entry(link.object).or_default() += 1;
-            self.find_subgraph_map_hb(link.object, graph);
+            match graph.entry(link.object) {
+                // To avoid double counting, we only recurse if we are seeing
+                // this node for the first time.
+                Entry::Vacant(entry) => {
+                    entry.insert(1);
+                    self.find_subgraph_map_hb(link.object, graph);
+                }
+                Entry::Occupied(entry) => {
+                    *entry.into_mut() += 1;
+                }
+            }
         }
     }
+
     /// find all of the members of 'targets' that are reachable, skipping nodes in `visited`.
     fn find_connected_nodes_hb(
         &self,
@@ -706,11 +717,11 @@ impl Graph {
         log::trace!("isolating subgraph with {} roots", roots.len());
 
         // map of object id -> number of incoming edges
-        let mut subgraph = HashMap::new();
+        let mut subgraph = BTreeMap::new();
 
         for root in roots.iter() {
             // for the roots, we set the edge count to the number of long
-            // incoming offsets; if this differs from the total number off
+            // incoming offsets; if this differs from the total number of
             // incoming offsets it means we need to dupe the root as well.
             let inbound_wide_offsets = self.nodes[root]
                 .parents
@@ -1433,6 +1444,45 @@ mod tests {
         // ensure we are correctly update the roots_per_space thing
         assert_eq!(graph.num_roots_per_space[&graph.nodes[&ids[6]].space], 1);
         assert_eq!(graph.num_roots_per_space[&graph.nodes[&ids[5]].space], 1);
+    }
+
+    #[test]
+    fn all_roads_lead_to_overflow() {
+        // this is a regression test for a bug we had where we would fail
+        // to correctly duplicate shared subgraphs when there were
+        // multiple links between two objects, which caused us to overcount
+        // the 'incoming edges in subgraph'.
+
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        let ids = make_ids::<9>();
+        let sizes = [10, 10, 10, 10, 10, 65524, 65524, 10, 24];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset32)
+            .add_link(ids[0], ids[2], OffsetLen::Offset32)
+            .add_link(ids[0], ids[3], OffsetLen::Offset32)
+            .add_link(ids[0], ids[4], OffsetLen::Offset32)
+            .add_link(ids[1], ids[5], OffsetLen::Offset16)
+            .add_link(ids[1], ids[5], OffsetLen::Offset16)
+            .add_link(ids[2], ids[6], OffsetLen::Offset16)
+            .add_link(ids[3], ids[7], OffsetLen::Offset16)
+            .add_link(ids[5], ids[8], OffsetLen::Offset16)
+            .add_link(ids[5], ids[8], OffsetLen::Offset16)
+            .add_link(ids[6], ids[8], OffsetLen::Offset16)
+            .add_link(ids[7], ids[8], OffsetLen::Offset16)
+            .build();
+
+        graph.assign_spaces_hb();
+        graph.sort_shortest_distance();
+        let overflows = graph.find_overflows();
+        assert!(!overflows.is_empty());
+        graph.try_splitting_subgraphs(&overflows);
+        graph.sort_shortest_distance();
+        let overflows = graph.find_overflows();
+        assert!(!overflows.is_empty());
+        assert!(graph.try_splitting_subgraphs(&overflows));
+        graph.sort_shortest_distance();
+        assert!(!graph.has_overflows());
     }
 
     #[test]
