@@ -328,7 +328,7 @@ impl Graph {
                 overflows.len(),
                 self.debug_len()
             );
-            if !self.try_splitting_subgraphs(&overflows) {
+            if !self.try_isolating_subgraphs(&overflows) {
                 log::debug!("finished isolating all subgraphs without solution");
                 break overflows;
             }
@@ -790,7 +790,7 @@ impl Graph {
     /// This is a port of the [_try_isolating_subgraphs] method in hb-repacker.
     ///
     /// [_try_isolating_subgraphs]: https://github.com/harfbuzz/harfbuzz/blob/main/src/hb-repacker.hh#L182
-    fn try_splitting_subgraphs(&mut self, overflows: &[Overflow]) -> bool {
+    fn try_isolating_subgraphs(&mut self, overflows: &[Overflow]) -> bool {
         let mut to_isolate = BTreeMap::new();
         for overflow in overflows {
             let parent_space = self.nodes[&overflow.parent].space;
@@ -1433,7 +1433,7 @@ mod tests {
 
         // now isolate space that overflows
         let overflows = graph.find_overflows();
-        graph.try_splitting_subgraphs(&overflows);
+        graph.try_isolating_subgraphs(&overflows);
         graph.sort_shortest_distance();
 
         assert_eq!(graph.nodes.len(), 11);
@@ -1473,11 +1473,11 @@ mod tests {
         graph.sort_shortest_distance();
         let overflows = graph.find_overflows();
         assert!(!overflows.is_empty());
-        graph.try_splitting_subgraphs(&overflows);
+        graph.try_isolating_subgraphs(&overflows);
         graph.sort_shortest_distance();
         let overflows = graph.find_overflows();
         assert!(!overflows.is_empty());
-        assert!(graph.try_splitting_subgraphs(&overflows));
+        assert!(graph.try_isolating_subgraphs(&overflows));
         graph.sort_shortest_distance();
         assert!(!graph.has_overflows());
     }
