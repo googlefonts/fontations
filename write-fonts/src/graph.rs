@@ -793,15 +793,16 @@ impl Graph {
     fn try_splitting_subgraphs(&mut self, overflows: &[Overflow]) -> bool {
         let mut to_isolate = BTreeMap::new();
         for overflow in overflows {
-            let child_space = self.nodes[&overflow.child].space;
+            let parent_space = self.nodes[&overflow.parent].space;
+            debug_assert_eq!(parent_space, self.nodes[&overflow.child].space);
             // we only isolate subgraphs in wide-space
-            if !child_space.is_custom() || self.num_roots_per_space[&child_space] <= 1 {
+            if !parent_space.is_custom() || self.num_roots_per_space[&parent_space] <= 1 {
                 continue;
             }
-            let root = self.find_root_of_space(overflow.child);
-            debug_assert_eq!(self.nodes[&root].space, child_space);
+            let root = self.find_root_of_space(overflow.parent);
+            debug_assert_eq!(self.nodes[&root].space, parent_space);
             to_isolate
-                .entry(child_space)
+                .entry(parent_space)
                 .or_insert_with(BTreeSet::new)
                 .insert(root);
         }
