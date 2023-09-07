@@ -796,7 +796,7 @@ impl Graph {
             let parent_space = self.nodes[&overflow.parent].space;
             debug_assert_eq!(parent_space, self.nodes[&overflow.child].space);
             // we only isolate subgraphs in wide-space
-            if !parent_space.is_custom() || self.num_roots_per_space[&parent_space] <= 1 {
+            if !parent_space.is_custom() || self.num_roots_per_space[&parent_space] < 2 {
                 continue;
             }
             let root = self.find_root_of_space(overflow.parent);
@@ -812,7 +812,9 @@ impl Graph {
         }
 
         for (space, mut roots) in to_isolate {
-            let max_to_move = self.num_roots_per_space[&space] / 2;
+            let n_total_roots = self.num_roots_per_space[&space];
+            debug_assert!(n_total_roots >= 2, "checked in the loop above");
+            let max_to_move = n_total_roots / 2;
             log::trace!(
                 "moving {} of {} candidate roots from {space:?} to new space",
                 max_to_move.min(roots.len()),
@@ -1735,5 +1737,20 @@ mod tests {
         // if our impl changes and this is failing because we're only promoting
         // a single extension, then that's great
         assert_eq!(n_tables_before + 2, graph.order.len());
+    }
+
+    #[test]
+    fn unpackable_graph_should_fail() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        // specifically, it should not run forever.
+        let ids = make_ids::<4>();
+        let sizes = [10, 10, 66000, 66000];
+        let mut graph = TestGraphBuilder::new(ids, sizes)
+            .add_link(ids[0], ids[1], OffsetLen::Offset32)
+            .add_link(ids[1], ids[2], OffsetLen::Offset16)
+            .add_link(ids[1], ids[3], OffsetLen::Offset16)
+            .build();
+
+        assert!(!graph.pack_objects());
     }
 }
