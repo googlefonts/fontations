@@ -105,23 +105,17 @@ impl ValidationCtx {
         self.with_elem(LocationElem::Field(name), f);
     }
 
-    /// Run the provided closer in the context of an array.
-    pub fn in_array(&mut self, f: impl FnOnce(&mut ValidationCtx)) {
-        self.with_elem(LocationElem::Index(0), f);
-    }
-
-    /// Run the provided closer in the context of a new array item.
+    /// Run the provided closer for each item in an array.
     ///
-    /// This must only be called in a closure passed to [in_array][Self::in_array].
-    pub fn array_item(&mut self, f: impl FnOnce(&mut ValidationCtx)) {
-        assert!(matches!(
-            self.cur_location.last(),
-            Some(LocationElem::Index(_))
-        ));
-        f(self);
-        match self.cur_location.last_mut() {
-            Some(LocationElem::Index(i)) => *i += 1,
-            _ => panic!("array_item called outside of array"),
+    /// This handles tracking the active item, so that validation errors can
+    /// be associated with the correct index.
+    pub fn with_array_items<'a, T: 'a>(
+        &mut self,
+        iter: impl Iterator<Item = &'a T>,
+        mut f: impl FnMut(&mut ValidationCtx, &T),
+    ) {
+        for (i, item) in iter.enumerate() {
+            self.with_elem(LocationElem::Index(i), |ctx| f(ctx, item))
         }
     }
 
@@ -166,6 +160,9 @@ impl Display for ValidationError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         writeln!(f, "\"{}\"", self.error)?;
         let mut indent = 0;
+        if self.location.len() < 2 {
+            return f.write_str("no parent location available");
+        }
 
         for (i, window) in self.location.windows(2).enumerate() {
             let prev = &window[0];
@@ -194,13 +191,7 @@ impl Display for ValidationError {
 
 impl<T: Validate> Validate for Vec<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_array(|ctx| {
-            for item in self.iter() {
-                ctx.array_item(|ctx| {
-                    item.validate_impl(ctx);
-                })
-            }
-        });
+        ctx.with_array_items(self.iter(), |ctx, item| item.validate_impl(ctx))
     }
 }
 
@@ -227,12 +218,46 @@ impl<T: Validate> Validate for Option<T> {
 
 impl<T: Validate> Validate for BTreeSet<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        ctx.in_array(|ctx| {
-            for item in self.iter() {
-                ctx.array_item(|ctx| {
-                    item.validate_impl(ctx);
+        ctx.with_array_items(self.iter(), |ctx, item| item.validate_impl(ctx))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sanity_check_array_validation() {
+        #[derive(Clone, Debug, Copy)]
+        struct Derp(i16);
+
+        struct DerpStore {
+            derps: Vec<Derp>,
+        }
+
+        impl Validate for Derp {
+            fn validate_impl(&self, ctx: &mut ValidationCtx) {
+                if self.0 > 7 {
+                    ctx.report("this derp is too big!!");
+                }
+            }
+        }
+
+        impl Validate for DerpStore {
+            fn validate_impl(&self, ctx: &mut ValidationCtx) {
+                ctx.in_table("DerpStore", |ctx| {
+                    ctx.in_field("derps", |ctx| self.derps.validate_impl(ctx))
                 })
             }
-        });
+        }
+
+        let my_derps = DerpStore {
+            derps: [1i16, 0, 3, 4, 12, 7, 6].into_iter().map(Derp).collect(),
+        };
+
+        let report = my_derps.validate().err().unwrap();
+        assert_eq!(report.errors.len(), 1);
+        // ensure that the index is being calculated correctly
+        assert!(report.to_string().contains(".derps[4]"));
     }
 }
