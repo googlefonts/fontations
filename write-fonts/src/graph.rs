@@ -131,6 +131,7 @@ struct Priority(u8);
 
 /// A record of an overflowing offset
 #[derive(Clone, Debug)]
+#[allow(dead_code)] // my debugging needs change over time
 pub(crate) struct Overflow {
     parent: ObjectId,
     child: ObjectId,
@@ -305,22 +306,26 @@ impl Graph {
             return true;
         }
 
+        log::info!("basic sorting failed, trying splitting & promotion");
+
         self.try_splitting_subtables();
         self.try_promoting_subtables();
 
-        log::info!("assigning spaces");
         self.assign_spaces_hb();
         self.sort_shortest_distance();
 
         if !self.has_overflows() {
+            log::debug!("packing succeded");
             return true;
         }
+
+        log::debug!("packing failed, trying to isolate subgraphs");
 
         // now isolate spaces in a loop, until there are no more left:
         let overflows = loop {
             let overflows = self.find_overflows();
             if overflows.is_empty() {
-                // we're done
+                log::info!("resolved overflows successfully");
                 return true;
             }
             log::trace!(
@@ -329,7 +334,11 @@ impl Graph {
                 self.debug_len()
             );
             if !self.try_isolating_subgraphs(&overflows) {
-                log::debug!("finished isolating all subgraphs without solution");
+                // if we stop making forward progress, we stop trying.
+                // NOTE: harfbuzz tries some additional resolution strategies
+                // here, but that is largely legacy code and we don't know if
+                // we need it.
+                log::error!("finished isolating all subgraphs without solution");
                 break overflows;
             }
             self.sort_shortest_distance();
@@ -347,13 +356,11 @@ impl Graph {
     ///
     /// returns `true` if sort succeeds with no overflows
     fn basic_sort(&mut self) -> bool {
-        log::trace!("sorting {} objects", self.objects.len());
-
         self.sort_kahn();
         if !self.has_overflows() {
             return true;
         }
-        log::trace!("kahn failed, trying shortest distance");
+        log::debug!("kahn failed, trying shortest distance");
         self.sort_shortest_distance();
         !self.has_overflows()
     }
@@ -404,12 +411,19 @@ impl Graph {
             children.len()
         );
 
-        for overflow in overflows {
-            log::debug!(
-                "{:?} -> {:?} type {} dist {}",
-                overflow.parent,
-                overflow.child,
-                overflow.offset_type,
+        for overflow in overflows
+            .iter()
+            // if we have 5k overflows we don't need to print them all
+            .take(100)
+        {
+            let child = &self.objects[&overflow.child];
+            let parent = &self.objects[&overflow.parent];
+            log::trace!(
+                "{} ({}) -> {} ({}) dist {}",
+                overflow.parent.0,
+                parent.type_,
+                overflow.child.0,
+                child.type_,
                 overflow.distance
             );
         }
@@ -726,7 +740,7 @@ impl Graph {
         }
 
         let next_space = self.next_space();
-        log::debug!("moved {} roots to {next_space:?}", roots.len(),);
+        log::trace!("moved {} roots to {next_space:?}", roots.len(),);
         self.num_roots_per_space.insert(next_space, roots.len());
         let mut id_map = HashMap::new();
         //let mut made_changes = false;
@@ -816,9 +830,7 @@ impl Graph {
             debug_assert!(n_total_roots >= 2, "checked in the loop above");
             let max_to_move = n_total_roots / 2;
             log::trace!(
-                "moving {} of {} candidate roots from {space:?} to new space",
-                max_to_move.min(roots.len()),
-                roots.len()
+                "moving {max_to_move} of {} candidate roots ({n_total_roots} total) from {space:?} to new space", roots.len(),
             );
             while roots.len() > max_to_move {
                 roots.pop_last();
@@ -848,6 +860,7 @@ impl Graph {
 
     fn try_promoting_subtables(&mut self) {
         let Some((can_promote, parent_id)) = self.get_promotable_subtables() else {
+            log::info!("found no subtables to promote");
             return;
         };
         let to_promote = self.select_promotions_hb(&can_promote, parent_id);
@@ -936,11 +949,15 @@ impl Graph {
         // the only promotable subtables should be lookups, and there should
         // be a single LookupList that is their parent; if there is more than
         // one parent then something weird is going on.
-        if parents.len() > 1 {
+        if parents.len() != 1 {
             if cfg!(debug_assertions) {
-                panic!("Promotable subtables exist with multiple parents");
+                panic!(
+                    "Promotable subtables have unexpected number of parents.\n\
+                    If this happens during a test, you probably need to embed
+                    the lookup in a lookuplist."
+                );
             } else {
-                log::warn!("Promotable subtables exist with multiple parents");
+                log::warn!("Promotable subtables exist with none or multiple parents");
                 return None;
             }
         }
@@ -1044,6 +1061,7 @@ impl Graph {
             .iter()
             .filter_map(|(id, obj)| obj.type_.is_splittable().then_some(*id))
             .collect::<Vec<_>>();
+        log::debug!("found {} splittable subtables", splittable.len());
         for lookup in &splittable {
             self.split_subtables_if_needed(*lookup);
         }

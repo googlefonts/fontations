@@ -42,7 +42,11 @@ fn split_subtables(
         data.reparse::<rgpos::PositionLookup>().is_ok(),
         "table splitting is only relevant for GPOS?"
     );
-    log::debug!("trying to split subtables in '{}'", data.type_);
+    log::debug!(
+        "trying to split subtables in lookup '{}' with {} subtables",
+        data.type_,
+        data.offsets.len()
+    );
 
     let mut new_subtables = HashMap::new();
     for (i, subtable) in data.offsets.iter().enumerate() {
@@ -64,8 +68,8 @@ fn split_subtables(
         // - 1 because each group of new subtables replaces an old subtable
         .map(|ids| ids.len() - 1)
         .sum::<usize>();
-    log::debug!("Splitting produced {n_new_subtables} new subtables");
 
+    log::debug!("splitting produced {n_new_subtables} new subtables");
     let n_total_subtables: u16 = (data.offsets.len() + n_new_subtables).try_into().unwrap();
     // we just want the lookup type/flag/etc, but we need a generic FontRead type
     let generic_lookup: rlayout::Lookup<()> = data.reparse().unwrap();
@@ -101,6 +105,7 @@ fn split_pair_pos_subtable(graph: &mut Graph, lookup: ObjectId) -> Option<Vec<Ob
 // <https://github.com/harfbuzz/harfbuzz/blob/5d543d64222c6ce45332d0c188790f90691ef112/src/graph/pairpos-graph.hh#L50>
 fn split_pair_pos_format_1(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<ObjectId>> {
     const BASE_SIZE: usize = 5 * u16::RAW_BYTE_LEN;
+    log::debug!("splitting PairPos format 1 subtable");
 
     let data = &graph.objects[&subtable];
 
@@ -150,11 +155,12 @@ fn split_pair_pos_format_1(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<
         }
     }
 
-    log::debug!(
+    log::trace!(
         "nothing to split, size '{}'",
         accumulated + coverage_size.min(partial_coverage_size)
     );
 
+    log::debug!("identified {} split points", split_points.len());
     if split_points.is_empty() {
         return None;
     }
