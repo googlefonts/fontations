@@ -111,21 +111,14 @@ impl PairPosFormat1 {
     fn check_format_consistency(&self, ctx: &mut ValidationCtx) {
         let vf1 = self.compute_value_format1();
         let vf2 = self.compute_value_format2();
-        ctx.in_array(|ctx| {
-            for pairset in &self.pair_sets {
-                ctx.array_item(|ctx| {
-                    ctx.in_field("pair_value_records", |ctx| {
-                        ctx.in_array(|ctx| {
-                            if pairset.pair_value_records.iter().any(|pairset| {
-                                pairset.value_record1.format() != vf1
-                                    || pairset.value_record2.format() != vf2
-                            }) {
-                                ctx.report("all ValueRecords must have same format")
-                            }
-                        })
-                    })
-                })
-            }
+        ctx.with_array_items(self.pair_sets.iter(), |ctx, item| {
+            ctx.in_field("pair_value_records", |ctx| {
+                if item.pair_value_records.iter().any(|pairset| {
+                    pairset.value_record1.format() != vf1 || pairset.value_record2.format() != vf2
+                }) {
+                    ctx.report("all ValueRecords must have same format")
+                }
+            })
         })
     }
 }
@@ -164,21 +157,14 @@ impl PairPosFormat2 {
             ctx.report("class1_records length must match number of class1 classes");
         }
         ctx.in_field("class1_records", |ctx| {
-            ctx.in_array(|ctx| {
-                for record in &self.class1_records {
-                    ctx.array_item(|ctx| {
-                        if record.class2_records.len() != n_class_2s as usize {
-                            ctx.report(
-                                "class2_records length must match number of class2 classes ",
-                            );
-                        }
-                        if record.class2_records.iter().any(|rec| {
-                            rec.value_record1.format() != format_1
-                                || rec.value_record2.format() != format_2
-                        }) {
-                            ctx.report("all value records should report the same format");
-                        }
-                    })
+            ctx.with_array_items(self.class1_records.iter(), |ctx, c1rec| {
+                if c1rec.class2_records.len() != n_class_2s as usize {
+                    ctx.report("class2_records length must match number of class2 classes ");
+                }
+                if c1rec.class2_records.iter().any(|rec| {
+                    rec.value_record1.format() != format_1 || rec.value_record2.format() != format_2
+                }) {
+                    ctx.report("all value records should report the same format");
                 }
             })
         });
