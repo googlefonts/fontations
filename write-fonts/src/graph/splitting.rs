@@ -279,10 +279,12 @@ fn split_pair_pos_format_2(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<
         }
 
         accumulated += accumulated_delta;
-        let largest_obj = coverage_size.max(class_def_1_size).max(class_def2_size);
-        let total = accumulated + coverage_size + class_def_1_size + class_def2_size
-            // largest obj packs last and can overflow
-            - largest_obj;
+        let _largest_obj = coverage_size.max(class_def_1_size).max(class_def2_size);
+        let total = accumulated + coverage_size + class_def_1_size + class_def2_size;
+        //NOTE: harfbuzz has this optimization but I was seeing an overflow with
+        //the last object in some cases, so currently disabled
+        // largest obj packs last and can overflow
+        //- _largest_obj;
 
         if total > MAX_TABLE_SIZE {
             split_points.push(idx);
