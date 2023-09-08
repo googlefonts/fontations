@@ -3,7 +3,10 @@
 use std::collections::{BTreeSet, HashMap, HashSet};
 
 use font_types::{FixedSize, GlyphId, Offset16};
-use read_fonts::tables::{gpos as rgpos, layout as rlayout};
+use read_fonts::tables::{
+    gpos::{self as rgpos, ValueFormat},
+    layout as rlayout,
+};
 
 use super::{Graph, ObjectId};
 use crate::{
@@ -356,12 +359,14 @@ fn split_off_ppf2(
 
     let data = &graph.objects[&subtable];
     let table = data.reparse::<rgpos::PairPosFormat2>().unwrap();
+    let value_format1 = table.value_format1();
+    let value_format2 = table.value_format2();
 
     let mut new_ppf2 = TableData::new(data.type_);
     new_ppf2.write(table.pos_format());
     new_ppf2.add_offset(new_cov_id, 2, 0);
-    new_ppf2.write(table.value_format1());
-    new_ppf2.write(table.value_format2());
+    new_ppf2.write(value_format1);
+    new_ppf2.write(value_format2);
     new_ppf2.add_offset(new_class_def1_id, 2, 0);
     new_ppf2.add_offset(class_def_2_id, 2, 0);
 
@@ -382,10 +387,20 @@ fn split_off_ppf2(
     {
         let rec_offset_start = first_device_idx + seen_offsets;
         let rec_offsets = &graph.objects[&subtable].offsets[rec_offset_start..];
-        let rec1_seen = copy_value_rec(&mut new_ppf2, class2rec.value_record1(), rec_offsets);
+        let rec1_seen = copy_value_rec(
+            &mut new_ppf2,
+            class2rec.value_record1(),
+            value_format1,
+            rec_offsets,
+        );
         let rec_offsets = &rec_offsets[rec1_seen..];
         seen_offsets += rec1_seen;
-        seen_offsets += copy_value_rec(&mut new_ppf2, class2rec.value_record2(), rec_offsets);
+        seen_offsets += copy_value_rec(
+            &mut new_ppf2,
+            class2rec.value_record2(),
+            value_format2,
+            rec_offsets,
+        );
     }
     (new_ppf2, seen_offsets)
 }
@@ -394,6 +409,7 @@ fn split_off_ppf2(
 fn copy_value_rec(
     target: &mut TableData,
     rec: &rgpos::ValueRecord,
+    format: ValueFormat,
     dev_offsets: &[OffsetRecord],
 ) -> usize {
     let mut seen_offsets = 0;
@@ -407,11 +423,13 @@ fn copy_value_rec(
                 target.write(val);
             }
         };
-        ($fld:ident, off) => {
+        ($fld:ident, $flag:expr) => {
             if !rec.$fld.get().is_null() {
                 // we write this in a funny way to dodge a clippy warning
                 seen_offsets += 1;
                 target.add_offset(dev_offsets[seen_offsets - 1].object, 2, 0);
+            } else if $flag {
+                target.write(0u16); // null offset
             }
         };
     }
@@ -420,10 +438,22 @@ fn copy_value_rec(
     write_opt_field!(x_advance);
     write_opt_field!(y_advance);
 
-    write_opt_field!(x_placement_device, off);
-    write_opt_field!(y_placement_device, off);
-    write_opt_field!(x_advance_device, off);
-    write_opt_field!(y_advance_device, off);
+    write_opt_field!(
+        x_placement_device,
+        format.contains(ValueFormat::X_PLACEMENT_DEVICE)
+    );
+    write_opt_field!(
+        y_placement_device,
+        format.contains(ValueFormat::Y_PLACEMENT_DEVICE)
+    );
+    write_opt_field!(
+        x_advance_device,
+        format.contains(ValueFormat::X_ADVANCE_DEVICE)
+    );
+    write_opt_field!(
+        y_advance_device,
+        format.contains(ValueFormat::Y_ADVANCE_DEVICE)
+    );
     seen_offsets
 }
 
