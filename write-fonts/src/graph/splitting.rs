@@ -1,4 +1,13 @@
 //! splitting layout (GPOS) subtables
+//!
+//! The implementations here are directly adapted from the code in hb-repacker,
+//! with a few minor differences:
+//!
+//! - we don't use a context/interface for the tables, instead using a generic
+//! 'split_subtables' method similar to 'actuate_subtable_split' and passing
+//! it a method for each lookup type
+//! - harfbuzz splits off new subtables but retains the original subtable,
+//!   shrinking it to fit. We skip this step, and generate all new subtables.
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
@@ -20,6 +29,9 @@ pub(super) fn split_pair_pos(graph: &mut Graph, lookup: ObjectId) {
 }
 
 /// A common impl handling updating the lookup with the new subtables
+///
+/// This is roughly equivalent to `actuate_subtable_split` in hb-repacker:
+/// <https://github.com/harfbuzz/harfbuzz/blob/d5cb1a315380e9bd78ff377a586b78bc42abafa6/src/graph/split-helpers.hh#L34>
 fn split_subtables(
     graph: &mut Graph,
     lookup: ObjectId,
