@@ -196,7 +196,7 @@ impl TableData {
 
     /// the 'adjustment' param is used to modify the written position.
     pub(crate) fn add_offset(&mut self, object: ObjectId, width: usize, adjustment: u32) {
-        const PLACEHOLDER_BYTES: &[u8] = &[0xff, 0xff, 0xff, 0xff];
+        const PLACEHOLDER_BYTES: &[u8] = &[0xff; 4];
         self.offsets.push(OffsetRecord {
             pos: self.bytes.len() as u32,
             len: match width {
