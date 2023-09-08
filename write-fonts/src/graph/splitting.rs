@@ -328,8 +328,8 @@ fn split_off_ppf2(
     let class_def_1 = graph.objects.get(&class_def_1).unwrap();
     let class_def_1 = class_def_1.reparse::<rlayout::ClassDef>().unwrap();
 
-    let n_records = (end - start) + 1;
-    log::trace!("splitting off {n_records} class1records ({start}..={end})");
+    let class1_count = (end - start) + 1;
+    log::trace!("splitting off {class1_count} class1records ({start}..={end})");
 
     let class_map = coverage
         .iter()
@@ -369,6 +369,8 @@ fn split_off_ppf2(
     new_ppf2.write(value_format2);
     new_ppf2.add_offset(new_class_def1_id, 2, 0);
     new_ppf2.add_offset(class_def_2_id, 2, 0);
+    new_ppf2.write(class1_count as u16);
+    new_ppf2.write(table.class2_count());
 
     // now we need to copy over the class1records
     let mut seen_offsets = 0;
@@ -376,7 +378,7 @@ fn split_off_ppf2(
         .class1_records()
         .iter()
         .skip(start)
-        .take(n_records)
+        .take(class1_count)
         .flat_map(|c1rec| {
             c1rec
                 .unwrap()
