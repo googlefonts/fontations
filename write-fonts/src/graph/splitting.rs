@@ -287,24 +287,18 @@ fn split_pair_pos_format_2(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<
         return None;
     }
 
-    split_points.push(pp2.class1_count() as usize - 1);
+    split_points.push(pp2.class1_count() as usize);
     // now we have a list of split points, and just need to do the splitting.
     // note: harfbuzz does a thing here with a context type and an 'actuate_splits'
     // method.
 
     let mut new_subtables = Vec::new();
-    let mut prev_subtable_start = 0;
+    let mut prev_split = 0;
     let mut next_device_offset = 3; // after coverage & two class defs
-    for subtable_start in split_points {
-        let subtable_end = subtable_start - 1;
-        let (new_subtable, offsets_used) = split_off_ppf2(
-            graph,
-            subtable,
-            prev_subtable_start,
-            subtable_end,
-            next_device_offset,
-        );
-        prev_subtable_start = subtable_start;
+    for next_split in split_points {
+        let (new_subtable, offsets_used) =
+            split_off_ppf2(graph, subtable, prev_split, next_split, next_device_offset);
+        prev_split = next_split;
         next_device_offset += offsets_used;
         new_subtables.push(graph.add_object(new_subtable));
     }
@@ -328,14 +322,14 @@ fn split_off_ppf2(
     let class_def_1 = graph.objects.get(&class_def_1).unwrap();
     let class_def_1 = class_def_1.reparse::<rlayout::ClassDef>().unwrap();
 
-    let class1_count = (end - start) + 1;
+    let class1_count = end - start;
     log::trace!("splitting off {class1_count} class1records ({start}..={end})");
 
     let class_map = coverage
         .iter()
         .filter_map(|gid| {
             let glyph_class = class_def_1.get(gid);
-            (start..=end)
+            (start..end)
                 .contains(&(glyph_class as usize))
                 // classes are used as indexes, so adjust them
                 .then_some((gid, glyph_class.saturating_sub(start as u16)))
@@ -650,15 +644,15 @@ mod tests {
 
     use read_fonts::{
         tables::{gpos::ValueFormat, layout::LookupFlag},
-        FontData, FontRead,
+        FontData, FontRead, ResolveOffset,
     };
 
     use super::*;
     use crate::{
         tables::{
             gpos::{
-                Class1Record, Class2Record, Gpos, PairPos, PairSet, PairValueRecord,
-                PositionLookup, ValueRecord,
+                Class1Record, Class2Record, PairPos, PairSet, PairValueRecord, PositionLookup,
+                ValueRecord,
             },
             layout::{CoverageTableBuilder, DeviceOrVariationIndex, VariationIndex},
         },
@@ -907,12 +901,7 @@ mod tests {
         assert_eq!(count_num_ranges(&make_input(&[1, 2, 3, 5, 6, 7, 10])), 3);
     }
 
-    #[test]
-    fn split_pair_pos2() {
-        let _ = env_logger::builder().is_test(true).try_init();
-        // okay so... I want a big pairpos format 2 table.
-        // this means, mainly, that I want lots of different classes.
-
+    fn make_pairpos2() -> PositionLookup {
         fn next_class2_rec(i: usize) -> Class2Record {
             // idk how better to cast bits directly
             let val = i16::from_be_bytes(((i % u16::MAX as usize) as u16).to_be_bytes());
@@ -981,15 +970,86 @@ mod tests {
         let table = PairPos::format_2(coverage, class_def1, class_def2, class1recs);
 
         let lookup = wlayout::Lookup::new(LookupFlag::empty(), vec![table], 0);
-        let lookup = PositionLookup::Pair(lookup);
+        PositionLookup::Pair(lookup)
+    }
 
+    #[test]
+    fn split_pairpos_f2() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        // okay so... I want a big pairpos format 2 table.
+        // this means, mainly, that I want lots of different classes.
+
+        let lookup = make_pairpos2();
         let lookup_list = wlayout::LookupList::new(vec![lookup]);
-        let gpos = Gpos::new(Default::default(), Default::default(), lookup_list);
-        let mut graph = TableWriter::make_graph(&gpos);
+        let mut graph = TableWriter::make_graph(&lookup_list);
 
         graph.basic_sort();
         //graph.write_graph_viz("pairpos-test-0.dot").unwrap();
         assert!(graph.pack_objects());
         //graph.write_graph_viz("pairpos-test-1.dot").unwrap();
+    }
+
+    #[test]
+    fn ensure_split_pairpos_f2_works() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        // and sanity check that we have the same number of records:
+        let lookup = make_pairpos2();
+        let expected_n_c2_recs = match &lookup {
+            PositionLookup::Pair(pairpos) => pairpos
+                .subtables
+                .iter()
+                .map(|sub| match sub.as_ref() {
+                    PairPos::Format1(_) => 0,
+                    PairPos::Format2(sub) => sub
+                        .class1_records
+                        .iter()
+                        .map(|c1rec| c1rec.class2_records.len())
+                        .sum::<usize>(),
+                })
+                .sum::<usize>(),
+            _ => panic!("wrong lookup type"),
+        };
+        let lookup_list = wlayout::LookupList::new(vec![lookup]);
+        let bytes = crate::dump_table(&lookup_list).unwrap();
+
+        let rlookuplist = rgpos::PositionLookupList::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(rlookuplist.lookup_count(), 1);
+        let rlookup = rlookuplist.lookups().get(0).unwrap();
+        let subtables: Vec<_> = match rlookup {
+            rgpos::PositionLookup::Pair(pairpos) => pairpos
+                .subtables()
+                .iter()
+                .map(|sub| match sub {
+                    Ok(rgpos::PairPos::Format2(sub)) => sub,
+                    _ => panic!("wrong subtable type"),
+                })
+                .collect(),
+            rgpos::PositionLookup::Extension(lookup) => lookup
+                .subtables()
+                .iter()
+                .map(|sub| {
+                    let Ok(rgpos::ExtensionSubtable::Pair(ext_sub)) = sub else {
+                        panic!("wrong extension")
+                    };
+                    let data = ext_sub.offset_data();
+                    ext_sub
+                        .extension_offset()
+                        .resolve::<rgpos::PairPosFormat2>(data)
+                        .unwrap()
+                })
+                .collect(),
+            _ => panic!("wrong lookup type"),
+        };
+        let total_c2recs: usize = subtables
+            .iter()
+            .map(|sub| {
+                sub.class1_records()
+                    .iter()
+                    .map(|c1rec| c1rec.unwrap().class2_records.len())
+                    .sum::<usize>()
+            })
+            .sum();
+        assert_eq!(total_c2recs, expected_n_c2_recs);
     }
 }
