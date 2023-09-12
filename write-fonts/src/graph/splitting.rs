@@ -204,6 +204,7 @@ fn split_off_ppf1(graph: &mut Graph, subtable: ObjectId, start: u16, end: u16) -
 // based off of
 // <https://github.com/harfbuzz/harfbuzz/blob/f380a32825a1b2c51bbe21dc7acb9b3cc0921f69/src/graph/pairpos-graph.hh#L207>
 fn split_pair_pos_format_2(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<ObjectId>> {
+    // the minimum size of a format 2 subtable
     const BASE_SIZE: usize = 8 * u16::RAW_BYTE_LEN;
     let data = &graph.objects[&subtable];
 
@@ -279,12 +280,10 @@ fn split_pair_pos_format_2(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<
         }
 
         accumulated += accumulated_delta;
-        let _largest_obj = coverage_size.max(class_def_1_size).max(class_def2_size);
-        let total = accumulated + coverage_size + class_def_1_size + class_def2_size;
-        //NOTE: harfbuzz has this optimization but I was seeing an overflow with
-        //the last object in some cases, so currently disabled
-        // largest obj packs last and can overflow
-        //- _largest_obj;
+        let largest_obj = coverage_size.max(class_def_1_size).max(class_def2_size);
+        let total = accumulated + coverage_size + class_def_1_size + class_def2_size
+        // largest obj packs last and can overflow (we only point to the start)
+        - largest_obj;
 
         if total > MAX_TABLE_SIZE {
             split_points.push(idx);
@@ -630,12 +629,10 @@ fn size_of_value_record_children(
         .filter_map(|offset| (!offset.is_null()).then_some(*offset.offset()))
         .map(|_| {
             let obj = offsets[*next_offset_idx].object;
-            if seen.insert(obj) {
-                *next_offset_idx += 1;
-                graph.objects[&obj].bytes.len()
-            } else {
-                0
-            }
+            *next_offset_idx += 1;
+            seen.insert(obj)
+                .then(|| graph.objects[&obj].bytes.len())
+                .unwrap_or(0)
         })
         .sum()
 }
@@ -668,7 +665,7 @@ mod tests {
                 Class1Record, Class2Record, PairPos, PairSet, PairValueRecord, PositionLookup,
                 ValueRecord,
             },
-            layout::{CoverageTableBuilder, DeviceOrVariationIndex, VariationIndex},
+            layout::{CoverageTableBuilder, Device, DeviceOrVariationIndex, VariationIndex},
         },
         FontWrite, TableWriter,
     };
@@ -915,6 +912,20 @@ mod tests {
         assert_eq!(count_num_ranges(&make_input(&[1, 2, 3, 5, 6, 7, 10])), 3);
     }
 
+    fn dummy_class_def(
+        n_classes: u16,
+        n_glyphs_per_class: u16,
+        first_gid: u16,
+    ) -> wlayout::ClassDef {
+        let n_glyphs = n_classes * n_glyphs_per_class;
+        (first_gid..first_gid + n_glyphs)
+            .map(|gid| {
+                let class = (gid - 1) / n_glyphs_per_class;
+                (GlyphId::new(gid), class)
+            })
+            .collect()
+    }
+
     fn make_pairpos2() -> PositionLookup {
         fn next_class2_rec(i: usize) -> Class2Record {
             // idk how better to cast bits directly
@@ -945,24 +956,11 @@ mod tests {
             }
         }
 
-        fn make_class_def(
-            n_classes: u16,
-            n_glyphs_per_class: u16,
-            first_gid: u16,
-        ) -> wlayout::ClassDef {
-            let n_glyphs = n_classes * n_glyphs_per_class;
-            (first_gid..first_gid + n_glyphs)
-                .map(|gid| {
-                    let class = (gid - 1) / n_glyphs_per_class;
-                    (GlyphId::new(gid), class)
-                })
-                .collect()
-        }
         const CLASS1_COUNT: u16 = 100;
         const CLASS2_COUNT: u16 = 100;
 
-        let class_def1 = make_class_def(CLASS1_COUNT, 4, 1);
-        let class_def2 = make_class_def(CLASS2_COUNT, 3, 1);
+        let class_def1 = dummy_class_def(CLASS1_COUNT, 4, 1);
+        let class_def2 = dummy_class_def(CLASS2_COUNT, 3, 1);
 
         assert_eq!(class_def1.class_count(), CLASS1_COUNT);
         assert_eq!(class_def2.class_count(), CLASS2_COUNT);
@@ -1065,5 +1063,80 @@ mod tests {
             })
             .sum();
         assert_eq!(total_c2recs, expected_n_c2_recs);
+    }
+
+    #[test]
+    fn size_of_value_record_children_sanity() {
+        // let's have  single class1class, and three class2 classes
+        // we want a duplicate varidx, a null varidx, and a device table?
+
+        fn val_record_with_xadv(x_advance: i16) -> ValueRecord {
+            let format = ValueFormat::X_ADVANCE | ValueFormat::X_ADVANCE_DEVICE;
+            ValueRecord::new()
+                .with_explicit_value_format(format)
+                .with_x_advance(x_advance)
+        }
+
+        // number of classes, number of glyphs per class, GID of first glyph
+        let class_def1 = dummy_class_def(1, 4, 1);
+        let class_def2 = dummy_class_def(3, 3, 1);
+        let coverage = class_def1.iter().map(|(gid, _)| gid).collect();
+        let actual_device_table = Device::new(12, 15, &[118, 119, 127, 99]);
+        // sanity check the size of the device table, these are weird:
+        assert_eq!(crate::dump_table(&actual_device_table).unwrap().len(), 10);
+        let class1_records = vec![Class1Record::new(vec![
+            Class2Record::new(
+                val_record_with_xadv(5),
+                val_record_with_xadv(6)
+                    .with_x_advance_device(DeviceOrVariationIndex::variation_index(4, 20)),
+            ),
+            Class2Record::new(
+                val_record_with_xadv(7)
+                    .with_x_advance_device(DeviceOrVariationIndex::Device(actual_device_table)),
+                // a duplicate table
+                val_record_with_xadv(8)
+                    .with_x_advance_device(DeviceOrVariationIndex::variation_index(4, 20)),
+            ),
+            Class2Record::new(
+                val_record_with_xadv(9)
+                    .with_x_advance_device(DeviceOrVariationIndex::variation_index(6, 9)),
+                val_record_with_xadv(10),
+            ),
+        ])];
+        let ppf2 = PairPos::format_2(coverage, class_def1, class_def2, class1_records);
+
+        // now we need to pretend we're in the split_pair_pos_format_2 fn
+        let mut graph = TableWriter::make_graph(&ppf2);
+        assert!(graph.pack_objects());
+        let root_id = graph.root;
+        let ppf2_data = &graph.objects[&root_id];
+        let ppf2 = ppf2_data.reparse::<rgpos::PairPosFormat2>().unwrap();
+        assert_eq!(ppf2.class1_records().len(), 1);
+        let c1rec = ppf2.class1_records().get(0).unwrap();
+        let mut visited = HashSet::new();
+        let mut next_device_offset = 3;
+        assert_eq!(c1rec.class2_records.len(), 3);
+
+        // a little helper so we don't have to have this huge fn call in each assert
+        let mut children_size = |record: &rgpos::ValueRecord| -> usize {
+            size_of_value_record_children(
+                record,
+                &graph,
+                &ppf2_data.offsets,
+                &mut next_device_offset,
+                &mut visited,
+            )
+        };
+
+        let c2rec1 = c1rec.class2_records().get(0).unwrap();
+        assert_eq!(children_size(c2rec1.value_record1()), 0, "no subtables");
+        assert_eq!(children_size(c2rec1.value_record2()), 6, "one new varidx");
+        let c2rec2 = c1rec.class2_records().get(1).unwrap();
+        assert_eq!(children_size(c2rec2.value_record1()), 10, "a device table");
+        assert_eq!(children_size(c2rec2.value_record2()), 0, "duplicate table");
+        let c2rec3 = c1rec.class2_records().get(2).unwrap();
+        assert_eq!(children_size(c2rec3.value_record1()), 6, "new varidx table");
+        assert_eq!(children_size(c2rec3.value_record2()), 0, "a null offset");
+        assert_eq!(next_device_offset, 7, "we visited all offsets");
     }
 }
