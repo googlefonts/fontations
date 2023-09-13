@@ -1,18 +1,45 @@
 //! Support for generating graphviz files from our object graph
 
-use super::{Graph, ObjectId, OffsetLen, Space};
+use std::collections::{BTreeSet, HashSet};
+
+use super::{Graph, ObjectId, OffsetLen};
 
 pub struct GraphVizGraph<'a> {
     graph: &'a Graph,
+    nodes: Vec<ObjectId>,
     edges: Vec<GraphVizEdge>,
 }
 
 impl<'a> GraphVizGraph<'a> {
-    pub(crate) fn from_graph(graph: &'a Graph) -> Self {
+    pub(crate) fn from_graph(graph: &'a Graph, prune_non_overflows: bool) -> Self {
         let mut edges = Vec::new();
+
+        // if we are pruning it means that we remove all nodes in spaces
+        // that do not include overflows.
+        let nodes: BTreeSet<_> = if !prune_non_overflows {
+            graph.objects.keys().copied().collect()
+        } else {
+            let overflows = graph.find_overflows();
+            let overflow_spaces = overflows
+                .iter()
+                .map(|overflow| graph.nodes.get(&overflow.child).unwrap().space)
+                .collect::<HashSet<_>>();
+            graph
+                .nodes
+                .iter()
+                .filter_map(|(id, node)| overflow_spaces.contains(&node.space).then_some(*id))
+                .collect()
+        };
+
         for (parent_id, table) in &graph.objects {
+            if !nodes.contains(parent_id) {
+                continue;
+            }
             let parent = &graph.nodes[parent_id];
             for link in &table.offsets {
+                if !nodes.contains(&link.object) {
+                    continue;
+                }
                 let child = &graph.nodes[&link.object];
                 let len = child.position - parent.position;
                 edges.push(GraphVizEdge {
@@ -23,7 +50,12 @@ impl<'a> GraphVizGraph<'a> {
                 });
             }
         }
-        GraphVizGraph { graph, edges }
+
+        GraphVizGraph {
+            graph,
+            edges,
+            nodes: nodes.into_iter().collect(),
+        }
     }
 
     /// Write out this graph as a graphviz file to the provided path.
@@ -46,13 +78,11 @@ pub struct GraphVizEdge {
 
 impl<'a> dot2::GraphWalk<'a> for GraphVizGraph<'a> {
     type Node = ObjectId;
-
     type Edge = GraphVizEdge;
-
-    type Subgraph = Space;
+    type Subgraph = ();
 
     fn nodes(&'a self) -> dot2::Nodes<'a, Self::Node> {
-        self.graph.order.as_slice().into()
+        self.nodes.as_slice().into()
     }
 
     fn edges(&'a self) -> dot2::Edges<'a, Self::Edge> {
@@ -66,29 +96,12 @@ impl<'a> dot2::GraphWalk<'a> for GraphVizGraph<'a> {
     fn target(&'a self, edge: &Self::Edge) -> Self::Node {
         edge.target
     }
-
-    fn subgraphs(&'a self) -> dot2::Subgraphs<'a, Self::Subgraph> {
-        let mut spaces: Vec<_> = self.graph.nodes.values().map(|x| x.space).collect();
-        spaces.sort_unstable();
-        spaces.dedup();
-        spaces.into()
-    }
-
-    fn subgraph_nodes(&'a self, s: &Self::Subgraph) -> dot2::Nodes<'a, Self::Node> {
-        self.graph
-            .nodes
-            .iter()
-            .filter_map(|(id, node)| (node.space == *s).then_some(*id))
-            .collect()
-    }
 }
 
 impl<'a> dot2::Labeller<'a> for GraphVizGraph<'a> {
     type Node = ObjectId;
-
     type Edge = GraphVizEdge;
-
-    type Subgraph = Space;
+    type Subgraph = ();
 
     fn graph_id(&'a self) -> dot2::Result<dot2::Id<'a>> {
         dot2::Id::new("TablePacking")
