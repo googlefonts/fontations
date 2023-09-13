@@ -1169,7 +1169,10 @@ impl Graph {
 
     #[cfg(feature = "dot2")]
     pub(crate) fn write_graph_viz(&self, path: impl AsRef<std::path::Path>) -> std::io::Result<()> {
-        graphviz::GraphVizGraph::from_graph(self).write_to_file(path)
+        // if this is set then we prune the generated graph
+        const PRUNE_GRAPH_ENV_VAR: &str = "FONTC_PRUNE_GRAPH";
+        let try_trim_graph = std::env::var_os(PRUNE_GRAPH_ENV_VAR).is_some();
+        graphviz::GraphVizGraph::from_graph(self, try_trim_graph).write_to_file(path)
     }
 }
 
