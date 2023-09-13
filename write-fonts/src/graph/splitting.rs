@@ -158,28 +158,28 @@ fn split_pair_pos_format_1(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<
     if split_points.is_empty() {
         return None;
     }
+
     split_points.push(data.offsets.len() - 1);
     // okay, now we have a list of split points.
 
     let mut new_subtables = Vec::new();
-    let mut prev_idx = 0;
-    for idx in split_points {
+    let mut prev_split = 0;
+    for next_split in split_points {
         // the split point is the *start* of the next subtable, so we do not
         // include this item in this subtable
-        let end = idx as u16 - 1;
-        let new_subtable = split_off_ppf1(graph, subtable, prev_idx, end);
-        prev_idx = idx as u16;
+        let new_subtable = split_off_ppf1(graph, subtable, prev_split, next_split);
+        prev_split = next_split;
         new_subtables.push(graph.add_object(new_subtable));
     }
     Some(new_subtables)
 }
 
-fn split_off_ppf1(graph: &mut Graph, subtable: ObjectId, start: u16, end: u16) -> TableData {
+fn split_off_ppf1(graph: &mut Graph, subtable: ObjectId, start: usize, end: usize) -> TableData {
     let coverage = graph.objects[&subtable].offsets.first().unwrap().object;
     let coverage = graph.objects.get(&coverage).unwrap();
     let coverage = coverage.reparse::<rlayout::CoverageTable>().unwrap();
-    let n_pair_sets = (end - start) + 1;
-    let new_coverage = split_coverage(&coverage, start, end);
+    let n_pair_sets = end - start;
+    let new_coverage = split_coverage(&coverage, start as u16, end as u16);
     let new_cov_id = graph.add_object(new_coverage);
 
     let data = &graph.objects[&subtable];
@@ -191,11 +191,8 @@ fn split_off_ppf1(graph: &mut Graph, subtable: ObjectId, start: u16, end: u16) -
     new_ppf1.add_offset(new_cov_id, 2, 0);
     new_ppf1.write(table.value_format1());
     new_ppf1.write(table.value_format2());
-    new_ppf1.write(n_pair_sets);
-    for off in data.offsets[1 + start as usize..]
-        .iter()
-        .take(n_pair_sets as _)
-    {
+    new_ppf1.write(n_pair_sets as u16);
+    for off in data.offsets[1 + start..].iter().take(n_pair_sets as _) {
         new_ppf1.add_offset(off.object, 2, 0)
     }
     new_ppf1
@@ -456,13 +453,13 @@ fn copy_value_rec(
 
 fn split_coverage(coverage: &rlayout::CoverageTable, start: u16, end: u16) -> TableData {
     assert!(start <= end);
-    let len = (end - start) + 1;
+    let len = end - start;
     let mut data = TableData::default();
     match coverage {
         rlayout::CoverageTable::Format1(table) => {
             data.write(1u16);
             data.write(len);
-            for gid in &table.glyph_array()[start as usize..=end as usize] {
+            for gid in &table.glyph_array()[start as usize..end as usize] {
                 data.write(gid.get());
             }
         }
@@ -471,7 +468,7 @@ fn split_coverage(coverage: &rlayout::CoverageTable, start: u16, end: u16) -> Ta
             let records = table
                 .range_records()
                 .iter()
-                .filter_map(|record| split_range_record(record, start, end))
+                .filter_map(|record| split_range_record(record, start, end - 1))
                 .collect::<Vec<_>>();
             data.write(2u16);
             data.write(records.len() as u16);
@@ -485,6 +482,7 @@ fn split_coverage(coverage: &rlayout::CoverageTable, start: u16, end: u16) -> Ta
     data
 }
 
+// NOTE: range records use inclusive ranges, everything else here is exclusive
 fn split_range_record(
     record: &rlayout::RangeRecord,
     start: u16,
