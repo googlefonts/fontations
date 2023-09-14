@@ -235,8 +235,6 @@ fn split_pair_pos_format_2(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<
     let mut accumulated = BASE_SIZE;
     let mut coverage_size = 4;
     let mut class_def_1_size = 4;
-    let mut max_coverage_size = coverage_size;
-    let mut max_class_def_1_size = class_def_1_size;
 
     let mut split_points = Vec::new();
     let has_device_tables = (pp2.value_format1() | pp2.value_format2())
@@ -248,17 +246,7 @@ fn split_pair_pos_format_2(graph: &mut Graph, subtable: ObjectId) -> Option<Vec<
         let mut accumulated_delta = class1_record_size;
         coverage_size += estimator.increment_coverage_size(idx as _);
         class_def_1_size += estimator.increment_class_def_size(idx as _);
-        max_coverage_size = max_coverage_size.max(coverage_size);
-        max_class_def_1_size = max_class_def_1_size.max(class_def_1_size);
 
-        // NOTE:
-        //I'm finding that we generate slightly more splits than I would expect,
-        //and I want to look into that, but i also want to get this merged.
-        // Please remind me to open an issue to investigate size measurement
-        // more thoroughly. In particular, look into why we just take subgraph
-        // size for pairpos1 (ignoring duplicates) but try to account for duplicates
-        // in pairpos2?
-        // tracked at <https://github.com/googlefonts/fontations/issues/601>
         if has_device_tables {
             for class2rec in class1rec.unwrap().class2_records.iter() {
                 let class2rec = class2rec.as_ref().unwrap();
