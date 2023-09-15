@@ -1,4 +1,4 @@
-//! the [sbix (Standard Bitmap Graphics)](https://docs.microsoft.com/en-us/typography/opentype/spec/sbix) table
+//! The [sbix (Standard Bitmap Graphics)](https://docs.microsoft.com/en-us/typography/opentype/spec/sbix) table
 
 include!("../../generated/generated_sbix.rs");
 

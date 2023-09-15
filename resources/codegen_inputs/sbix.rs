@@ -1,5 +1,13 @@
 #![parse_module(read_fonts::tables::sbix)]
 
+/// Sbix header flags.
+flags u16 HeaderFlags {
+    /// Bit 0: Set to 1.
+    ALWAYS_SET = 0x0001,
+    /// Bit 1: Draw outlines.
+    DRAW_OUTLINES = 0x0002,
+}
+
 /// The [sbix (Standard Bitmap Graphics)](https://docs.microsoft.com/en-us/typography/opentype/spec/sbix) table
 #[read_args(num_glyphs: u16)]
 #[tag = "sbix"]
@@ -10,8 +18,10 @@ table Sbix {
     /// Bit 0: Set to 1.
     /// Bit 1: Draw outlines.
     /// Bits 2 to 15: reserved (set to 0).
-    flags: u16,
+    #[compile_with(compile_header_flags)]
+    flags: HeaderFlags,
     /// Number of bitmap strikes.
+    #[compile(array_len($strike_offsets))]
     num_strikes: u32,
     /// Offsets from the beginning of the 'sbix' table to data for each individual bitmap strike.
     #[count($num_strikes)]

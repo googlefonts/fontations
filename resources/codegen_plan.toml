@@ -293,6 +293,11 @@ mode = "parse"
 source = "resources/codegen_inputs/sbix.rs"
 target = "read-fonts/generated/generated_sbix.rs"
 
+[[generate]]
+mode = "compile"
+source = "resources/codegen_inputs/sbix.rs"
+target = "write-fonts/generated/generated_sbix.rs"
+
 # modules just used for testing
 [[generate]]
 mode = "parse"
