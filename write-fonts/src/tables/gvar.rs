@@ -26,7 +26,24 @@ pub struct GlyphDeltas {
     // start and end tuples of optional intermediate region
     intermediate_region: Option<(Tuple, Tuple)>,
     // (x, y) deltas or None for do not encode. One entry per point in the glyph.
-    deltas: Vec<Option<(i16, i16)>>,
+    deltas: Vec<GlyphDelta>,
+}
+
+/// A delta for a single value in a glyph.
+///
+/// This includes a flag indicating whether or not this delta is required (i.e
+/// it cannot be interpolated from neighbouring deltas and coordinates).
+/// This is only relevant for simple glyphs; interpolatable points may be omitted
+/// in the final binary when doing so saves space.
+/// See <https://learn.microsoft.com/en-us/typography/opentype/spec/gvar#inferred-deltas-for-un-referenced-point-numbers>
+/// for more information.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct GlyphDelta {
+    pub x: i16,
+    pub y: i16,
+    /// This delta must be included, i.e. cannot be interpolated
+    pub required: bool,
 }
 
 /// An error representing invalid input when building a gvar table
@@ -198,6 +215,23 @@ impl GlyphVariations {
     }
 }
 
+impl GlyphDelta {
+    /// Create a new delta value.
+    pub fn new(x: i16, y: i16, required: bool) -> Self {
+        Self { x, y, required }
+    }
+
+    /// Create a new delta value that must be encoded (cannot be interpolated)
+    pub fn required(x: i16, y: i16) -> Self {
+        Self::new(x, y, true)
+    }
+
+    /// Create a new delta value that may be omitted (can be interpolated)
+    pub fn optional(x: i16, y: i16) -> Self {
+        Self::new(x, y, false)
+    }
+}
+
 impl GlyphDeltas {
     /// Create a new set of deltas.
     ///
@@ -205,7 +239,7 @@ impl GlyphDeltas {
     /// it isn't required.
     pub fn new(
         peak_tuple: Tuple,
-        deltas: Vec<Option<(i16, i16)>>,
+        deltas: Vec<GlyphDelta>,
         intermediate_region: Option<(Tuple, Tuple)>,
     ) -> Self {
         if let Some((start, end)) = intermediate_region.as_ref() {
@@ -226,41 +260,67 @@ impl GlyphDeltas {
         shared_tuple_map: &HashMap<&Tuple, u16>,
         _shared_points: &PackedPointNumbers,
     ) -> (TupleVariationHeader, GlyphTupleVariationData) {
+        // build variation data for all points, even if they could be interp'd
+        fn build_non_sparse(deltas: &[GlyphDelta]) -> GlyphTupleVariationData {
+            let (x_deltas, y_deltas) = deltas.iter().map(|delta| (delta.x, delta.y)).unzip();
+            GlyphTupleVariationData {
+                private_point_numbers: None,
+                x_deltas: PackedDeltas::new(x_deltas),
+                y_deltas: PackedDeltas::new(y_deltas),
+            }
+        }
+
+        // build sparse variation data, omitting interpolatable values
+        fn build_sparse(deltas: &[GlyphDelta]) -> GlyphTupleVariationData {
+            let mut x_deltas = Vec::with_capacity(deltas.len());
+            let mut y_deltas = Vec::with_capacity(deltas.len());
+            let mut points = Vec::with_capacity(deltas.len());
+            for (i, (x, y)) in deltas
+                .iter()
+                .enumerate()
+                .filter_map(|(i, delta)| delta.required.then_some((i, (delta.x, delta.y))))
+            {
+                x_deltas.push(x);
+                y_deltas.push(y);
+                points.push(i as u16);
+            }
+            GlyphTupleVariationData {
+                private_point_numbers: Some(PackedPointNumbers::Some(points)),
+                x_deltas: PackedDeltas::new(x_deltas),
+                y_deltas: PackedDeltas::new(y_deltas),
+            }
+        }
+
         let GlyphDeltas {
             peak_tuple,
             intermediate_region,
             deltas,
         } = self;
-        // over-capacity here isn't a big deal
-        let mut x_deltas = Vec::with_capacity(deltas.len());
-        let mut y_deltas = Vec::with_capacity(deltas.len());
 
-        for delta in deltas.iter().filter(|d| d.is_some()) {
-            let (x, y) = delta.unwrap();
-            x_deltas.push(x);
-            y_deltas.push(y);
-        }
-        let private_point_numbers = if x_deltas.len() < deltas.len() {
-            Some(PackedPointNumbers::Some(
-                (0..deltas.len())
-                    .filter(|i| deltas[*i].is_some())
-                    .map(|v| v as u16)
-                    .collect::<Vec<_>>(),
-            ))
-        } else {
-            None
-        };
-        let has_private_points = private_point_numbers.is_some();
-        let data = GlyphTupleVariationData {
-            private_point_numbers,
-            x_deltas: PackedDeltas::new(x_deltas),
-            y_deltas: PackedDeltas::new(y_deltas),
-        };
-
-        let data_size = data.compute_size();
         let (idx, peak_tuple) = match shared_tuple_map.get(&peak_tuple) {
             Some(idx) => (Some(*idx), None),
             None => (None, Some(peak_tuple)),
+        };
+
+        // just because some points may be interpolatable does not mean that the
+        // sparse representation is more efficient, since it requires us to
+        // also explicitly include point numbers; so we try both packings and
+        // pick the best.
+
+        let dense_data = build_non_sparse(&deltas);
+        let dense_size = dense_data.compute_size();
+        let has_interpolatable_points = deltas.iter().any(|d| !d.required);
+        let (data, data_size, has_private_points) = if has_interpolatable_points {
+            let sparse_data = build_sparse(&deltas);
+            let sparse_size = sparse_data.compute_size();
+            log::trace!("gvar tuple variation size (dense, sparse): ({dense_size}, {sparse_size})");
+            if sparse_size < dense_size {
+                (sparse_data, sparse_size, true)
+            } else {
+                (dense_data, dense_size, false)
+            }
+        } else {
+            (dense_data, dense_size, false)
         };
 
         let header = TupleVariationHeader::new(
@@ -472,11 +532,11 @@ mod tests {
                 vec![GlyphDeltas::new(
                     Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
                     vec![
-                        Some((30, 31)),
-                        Some((40, 41)),
-                        Some((-50, -49)),
-                        Some((101, 102)),
-                        Some((10, 11)),
+                        GlyphDelta::required(30, 31),
+                        GlyphDelta::required(40, 41),
+                        GlyphDelta::required(-50, -49),
+                        GlyphDelta::required(101, 102),
+                        GlyphDelta::required(10, 11),
                     ],
                     None,
                 )],
@@ -487,22 +547,22 @@ mod tests {
                     GlyphDeltas::new(
                         Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
                         vec![
-                            Some((11, -20)),
-                            Some((69, -41)),
-                            Some((-69, 49)),
-                            Some((168, 101)),
-                            Some((1, 2)),
+                            GlyphDelta::required(11, -20),
+                            GlyphDelta::required(69, -41),
+                            GlyphDelta::required(-69, 49),
+                            GlyphDelta::required(168, 101),
+                            GlyphDelta::required(1, 2),
                         ],
                         None,
                     ),
                     GlyphDeltas::new(
                         Tuple::new(vec![F2Dot14::from_f32(0.8), F2Dot14::from_f32(1.0)]),
                         vec![
-                            Some((3, -200)),
-                            Some((4, -500)),
-                            Some((5, -800)),
-                            Some((6, -1200)),
-                            Some((7, -1500)),
+                            GlyphDelta::required(3, -200),
+                            GlyphDelta::required(4, -500),
+                            GlyphDelta::required(5, -800),
+                            GlyphDelta::required(6, -1200),
+                            GlyphDelta::required(7, -1500),
                         ],
                         None,
                     ),
@@ -544,13 +604,22 @@ mod tests {
     }
 
     #[test]
-    fn not_all_your_points_are_belong_to_us() {
+    fn use_iup_when_appropriate() {
+        // IFF iup provides space savings, we should prefer it.
+        let _ = env_logger::builder().is_test(true).try_init();
         let gid = GlyphId::new(0);
         let table = Gvar::new(vec![GlyphVariations::new(
             gid,
             vec![GlyphDeltas::new(
                 Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
-                vec![Some((30, 31)), None, None, Some((101, 102)), Some((10, 11))],
+                vec![
+                    GlyphDelta::required(30, 31),
+                    GlyphDelta::optional(30, 31),
+                    GlyphDelta::optional(30, 31),
+                    GlyphDelta::required(101, 102),
+                    GlyphDelta::required(10, 11),
+                    GlyphDelta::optional(10, 11),
+                ],
                 None,
             )],
         )])
@@ -578,5 +647,45 @@ mod tests {
             .map(|d| (d.x_delta, d.y_delta))
             .collect();
         assert_eq!(points, vec![(30, 31), (101, 102), (10, 11)]);
+    }
+
+    #[test]
+    fn disregard_iup_when_appropriate() {
+        // if the cost of encoding the list of points is greater than the savings
+        // from omitting some deltas, we should just encode explicit zeros
+        let points = vec![
+            GlyphDelta::required(1, 2),
+            GlyphDelta::required(3, 4),
+            GlyphDelta::required(5, 6),
+            GlyphDelta::optional(5, 6),
+            GlyphDelta::required(7, 8),
+        ];
+        let gid = GlyphId::new(0);
+        let table = Gvar::new(vec![GlyphVariations::new(
+            gid,
+            vec![GlyphDeltas::new(
+                Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                points,
+                None,
+            )],
+        )])
+        .unwrap();
+        let bytes = crate::dump_table(&table).unwrap();
+        let gvar = read_fonts::tables::gvar::Gvar::read(FontData::new(&bytes)).unwrap();
+        assert_eq!(gvar.version(), MajorMinor::VERSION_1_0);
+        assert_eq!(gvar.shared_tuple_count(), 0);
+        assert_eq!(gvar.glyph_count(), 1);
+
+        let g1 = gvar.glyph_variation_data(gid).unwrap();
+        let g1tup = g1.tuples().collect::<Vec<_>>();
+        assert_eq!(g1tup.len(), 1);
+        let tuple_variation = &g1tup[0];
+
+        assert!(tuple_variation.has_deltas_for_all_points());
+        let points: Vec<_> = tuple_variation
+            .deltas()
+            .map(|d| (d.x_delta, d.y_delta))
+            .collect();
+        assert_eq!(points, vec![(1, 2), (3, 4), (5, 6), (5, 6), (7, 8)]);
     }
 }

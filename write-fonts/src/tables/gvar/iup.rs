@@ -9,7 +9,8 @@
 
 use std::collections::HashSet;
 
-use crate::util::WrappingGet;
+use super::GlyphDelta;
+use crate::{round::OtRound, util::WrappingGet};
 
 use kurbo::{Point, Vec2};
 
@@ -18,8 +19,8 @@ const NUM_PHANTOM_POINTS: usize = 4;
 /// For the outline given in `coords`, with contour endpoints given
 /// `ends`, optimize a set of delta values `deltas` within error `tolerance`.
 ///
-/// Returns delta vector that has most number of None items instead of
-/// the input delta.
+/// For each delta in the input, returns an [`GlyphDelta`] with a flag
+/// indicating whether or not it can be interpolated.
 ///
 /// See:
 /// * <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L470>
@@ -29,7 +30,7 @@ pub fn iup_delta_optimize(
     coords: Vec<Point>,
     tolerance: f64,
     contour_ends: &[usize],
-) -> Result<Vec<Option<Vec2>>, IupError> {
+) -> Result<Vec<GlyphDelta>, IupError> {
     let num_coords = coords.len();
     if num_coords < NUM_PHANTOM_POINTS {
         return Err(IupError::NotEnoughCoords(num_coords));
@@ -404,12 +405,15 @@ fn iup_contour_optimize_dp(
 /// For contour with coordinates `coords`, optimize a set of delta values `deltas` within error `tolerance`.
 ///
 /// Returns delta vector that has most number of None items instead of the input delta.
+/// Returns a vector of [`GlyphDelta`]s with the maximal number marked as
+/// 'optional'.
+///
 /// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L369>
 fn iup_contour_optimize(
     deltas: &mut [Vec2],
     coords: &mut [Point],
     tolerance: f64,
-) -> Result<Vec<Option<Vec2>>, IupError> {
+) -> Result<Vec<GlyphDelta>, IupError> {
     if deltas.len() != coords.len() {
         return Err(IupError::DeltaCoordLengthMismatch {
             num_deltas: deltas.len(),
@@ -426,11 +430,17 @@ fn iup_contour_optimize(
         return Ok(Vec::new());
     };
     if deltas.iter().all(|d| d == first_delta) {
-        let mut result = vec![None; n];
-        if first_delta.x != 0.0 || first_delta.y != 0.0 {
-            result[0] = Some(*first_delta);
+        if *first_delta == Vec2::ZERO {
+            return Ok(vec![GlyphDelta::optional(0, 0); n]);
         }
-        return Ok(result);
+
+        let (x, y) = first_delta.to_point().ot_round();
+        // if all deltas are equal than the first is explict and the rest
+        // are interpolatable
+        return Ok(std::iter::once(GlyphDelta::required(x, y))
+            .chain(std::iter::repeat(GlyphDelta::optional(x, y)))
+            .take(n)
+            .collect());
     }
 
     // Solve the general problem using Dynamic Programming
@@ -543,12 +553,15 @@ fn iup_contour_optimize(
         encode
     };
 
-    Ok((0..n)
-        .map(|i| {
+    Ok(deltas
+        .iter()
+        .enumerate()
+        .map(|(i, delta)| {
+            let (x, y) = delta.to_point().ot_round();
             if encode.contains(&i) {
-                Some(deltas[i])
+                GlyphDelta::required(x, y)
             } else {
-                None
+                GlyphDelta::optional(x, y)
             }
         })
         .collect())
@@ -966,6 +979,22 @@ mod tests {
         iup_scenario8().assert_optimize_contour();
     }
 
+    // a helper to let us match the existing test format
+    fn make_vec_of_options(deltas: &[GlyphDelta]) -> Vec<(usize, Option<Vec2>)> {
+        deltas
+            .iter()
+            .enumerate()
+            .map(|(i, delta)| {
+                (
+                    i,
+                    delta
+                        .required
+                        .then_some(Vec2::new(delta.x as _, delta.y as _)),
+                )
+            })
+            .collect()
+    }
+
     #[test]
     fn iup_delta_optimize_oswald_glyph_two() {
         // https://github.com/googlefonts/fontations/issues/564
@@ -1055,10 +1084,12 @@ mod tests {
         // a single contour, minus the phantom points
         let contour_ends = vec![coords.len() - 1 - 4];
 
-        let result = iup_delta_optimize(deltas, coords, tolerance, &contour_ends).unwrap();
+        let result = iup_delta_optimize(deltas.clone(), coords, tolerance, &contour_ends).unwrap();
+        assert_eq!(result.len(), deltas.len());
+        let result = make_vec_of_options(&result);
 
         assert_eq!(
-            result.into_iter().enumerate().collect::<Vec<_>>(),
+            result,
             // this is what fonttools iup_delta_optimize returns and what we want to match
             vec![
                 (0, None),
@@ -1198,10 +1229,11 @@ mod tests {
         // a single contour, minus the phantom points
         let contour_ends = vec![coords.len() - 1 - 4];
 
-        let result = iup_delta_optimize(deltas, coords, tolerance, &contour_ends).unwrap();
+        let result = iup_delta_optimize(deltas.clone(), coords, tolerance, &contour_ends).unwrap();
+        let result = make_vec_of_options(&result);
 
         assert_eq!(
-            result.into_iter().enumerate().collect::<Vec<_>>(),
+            result,
             vec![
                 (0, None),
                 (1, Some(Vec2 { x: 4.0, y: 0.0 })),
