@@ -4,10 +4,6 @@ include!("../../generated/generated_variations.rs");
 
 pub use read_fonts::tables::variations::{TupleIndex, TupleVariationCount};
 
-mod iup;
-
-pub use iup::{iup_delta_optimize, IupError};
-
 impl TupleVariationHeader {
     pub fn new(
         variation_data_size: u16,

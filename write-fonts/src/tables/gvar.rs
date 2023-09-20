@@ -10,6 +10,8 @@ use super::variations::{
     PackedDeltas, PackedPointNumbers, Tuple, TupleVariationCount, TupleVariationHeader,
 };
 
+pub mod iup;
+
 /// Variation data for a single glyph, before it is compiled
 #[derive(Clone, Debug)]
 pub struct GlyphVariations {
