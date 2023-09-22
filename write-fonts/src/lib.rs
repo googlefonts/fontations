@@ -49,13 +49,13 @@
 //!
 //! ## Writing subtables
 //!
-//! A font table commonly contains some set of subtables, which are referenced
+//! A font table commonly contains some set of subtables which are referenced
 //! in the font binary as offsets relative to the position (within the file) of
 //! the parent table; and these subtables can themselves contain subtables, and
-//! so on. We refer to the entire structure of tables the 'table graph'.
+//! so on. We refer to the entire structure of tables as the 'table graph'.
 //! A consequence of this structure is that compiling
 //! a table is not as simple as just sequentially writing out the bytes of each
-//! field; it also involves determining an ordering for the subtables, determining
+//! field; it also involves computing an ordering for the subtables, determining
 //! their position in the final binary, and correctly writing that position in
 //! the appropriate location in any tables that reference that subtable.
 //!
