@@ -223,11 +223,6 @@ impl GlyphVariations {
         let mut point_number_counts = HashMap::new();
         // count how often each set of numbers occurs
         for deltas in &self.variations {
-            // FIXME: should we bother sharing if 'all'? it saves.. one byte per
-            // region?
-            if deltas.point_numbers == PackedPointNumbers::All {
-                continue;
-            }
             // for each set points, get compiled size + number of occurances
             let (_, count) = point_number_counts
                 .entry(&deltas.point_numbers)
@@ -324,10 +319,10 @@ impl GlyphDeltas {
         shared_points: Option<&PackedPointNumbers>,
     ) -> (TupleVariationHeader, GlyphTupleVariationData) {
         // build variation data for all points, even if they could be interp'd
-        fn build_non_sparse(deltas: &[GlyphDelta]) -> GlyphTupleVariationData {
+        fn build_non_sparse(deltas: &[GlyphDelta], shared_points: bool) -> GlyphTupleVariationData {
             let (x_deltas, y_deltas) = deltas.iter().map(|delta| (delta.x, delta.y)).unzip();
             GlyphTupleVariationData {
-                private_point_numbers: Some(PackedPointNumbers::All),
+                private_point_numbers: (!shared_points).then_some(PackedPointNumbers::All),
                 x_deltas: PackedDeltas::new(x_deltas),
                 y_deltas: PackedDeltas::new(y_deltas),
             }
@@ -362,12 +357,13 @@ impl GlyphDeltas {
         };
 
         let use_shared_points = Some(&point_numbers) == shared_points;
-        let has_sparse_points = point_numbers != PackedPointNumbers::All;
+        // only build sparse if we actually have sparse points
+        let try_sparse = point_numbers != PackedPointNumbers::All;
+        // only build dense if no shared points, unless they are non-sparse
+        let try_dense = !use_shared_points || !try_sparse;
 
-        // - if we use shared points, we don't bother building the dense repr
-        // - if we use all points, there's no point in building sparse
-        let dense_data = (!use_shared_points).then(|| build_non_sparse(&deltas));
-        let sparse_data = has_sparse_points.then(|| {
+        let dense_data = try_dense.then(|| build_non_sparse(&deltas, use_shared_points));
+        let sparse_data = try_sparse.then(|| {
             let private_point_numbers = (!use_shared_points).then_some(point_numbers);
             build_sparse(&deltas, private_point_numbers)
         });
@@ -791,5 +787,36 @@ mod tests {
             variations.compute_shared_points(),
             Some(PackedPointNumbers::Some(vec![0, 1, 2, 4]))
         )
+    }
+
+    #[test]
+    fn share_all_points() {
+        let variations = GlyphVariations::new(
+            GlyphId::new(0),
+            vec![
+                GlyphDeltas::new(
+                    Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                    vec![
+                        GlyphDelta::required(1, 2),
+                        GlyphDelta::required(3, 4),
+                        GlyphDelta::required(5, 6),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
+                    vec![
+                        GlyphDelta::required(2, 4),
+                        GlyphDelta::required(6, 8),
+                        GlyphDelta::required(7, 9),
+                    ],
+                    None,
+                ),
+            ],
+        );
+
+        let shared_tups = HashMap::new();
+        let built = variations.build(&shared_tups);
+        assert_eq!(built.shared_point_numbers, Some(PackedPointNumbers::All))
     }
 }
