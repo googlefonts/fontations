@@ -27,6 +27,7 @@ fn size_of_cmap12(num_groups: u32) -> u32 {
 
 impl CmapSubtable {
     /// Create a new format 4 `CmapSubtable` from a list of `(char, GlyphId)` pairs.
+    ///
     /// The pairs are expected to be already sorted by codepoint.
     /// Characters beyond the BMP are ignored. If all characters are beyond the BMP
     /// then `None` is returned.
@@ -116,6 +117,7 @@ impl CmapSubtable {
     }
 
     /// Create a new format 12 `CmapSubtable` from a list of `(char, GlyphId)` pairs.
+    ///
     /// The pairs are expected to be already sorted by chars.
     /// In case of duplicate chars, the last one wins.
     fn create_format_12(mappings: &[(char, GlyphId)]) -> Self {
