@@ -15,12 +15,14 @@ const UNICODE_BMP_ENCODING: u16 = 3;
 const UNICODE_FULL_REPERTOIRE_ENCODING: u16 = 4;
 
 fn size_of_cmap4(seg_count: u16, gid_count: u16) -> u16 {
+    // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values
     8 * 2  // 8 uint16's
     + 2 * seg_count * 4  // 4 parallel arrays of len seg_count, 2 bytes per entry
     + 2 * gid_count // 2 bytes per gid in glyphIdArray
 }
 
 fn size_of_cmap12(num_groups: u32) -> u32 {
+    // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage
     2 * 2 + 3 * 4  // 2 uint16's and 3 uint32's
     + num_groups * 3 * 4 // 3 unit32's per segment map group
 }
