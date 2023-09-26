@@ -27,7 +27,7 @@ pub struct GlyphDeltas {
     intermediate_region: Option<(Tuple, Tuple)>,
     // (x, y) deltas or None for do not encode. One entry per point in the glyph.
     deltas: Vec<GlyphDelta>,
-    point_numbers: PackedPointNumbers,
+    best_point_packing: PackedPointNumbers,
 }
 
 /// A delta for a single value in a glyph.
@@ -225,20 +225,19 @@ impl GlyphVariations {
         for deltas in &self.variations {
             // for each set points, get compiled size + number of occurances
             let (_, count) = point_number_counts
-                .entry(&deltas.point_numbers)
+                .entry(&deltas.best_point_packing)
                 .or_insert_with(|| {
-                    let size = deltas.point_numbers.compute_size();
+                    let size = deltas.best_point_packing.compute_size();
                     (size as usize, 0usize)
                 });
             *count += 1;
         }
 
         // find the one that saves the most bytes
-        let (pts, (size, count)) = point_number_counts
+        let (pts, (_, count)) = point_number_counts
             .into_iter()
             .filter(|(_, (_, count))| *count > 1)
             .max_by_key(|(_, (size, count))| *count * *size)?;
-        log::trace!("max shared pts ({size}B, {count}n), {pts:?}");
 
         // no use sharing points if they only occur once
         (count > 1).then(|| pts.to_owned())
@@ -276,6 +275,10 @@ impl GlyphDelta {
     pub fn optional(x: i16, y: i16) -> Self {
         Self::new(x, y, false)
     }
+
+    fn to_tuple(self) -> (i16, i16) {
+        (self.x, self.y)
+    }
 }
 
 impl GlyphDeltas {
@@ -294,61 +297,80 @@ impl GlyphDeltas {
                 "all tuples must have equal length"
             );
         }
-        let point_numbers = if deltas.iter().all(|d| d.required) {
-            PackedPointNumbers::All
-        } else {
-            PackedPointNumbers::Some(
-                deltas
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(i, d)| d.required.then_some(i as u16))
-                    .collect(),
-            )
-        };
+        // at construction time we build both iup optimized & not versions
+        // of ourselves, to determine what representation is most efficient;
+        // the caller will look at the generated packed points to decide which
+        // set should be shared.
+        let best_point_packing = Self::pick_best_point_number_repr(&deltas);
         GlyphDeltas {
             peak_tuple,
             intermediate_region,
             deltas,
-            point_numbers,
+            best_point_packing,
         }
     }
 
+    // this is a type method just to expose it for testing, we call it before
+    // we finish instantiating self.
+    //
+    // NOTE: we do a lot of duplicate work here with creating & throwing away
+    // buffers, and that can be improved at the cost of a bit more complexity
+    fn pick_best_point_number_repr(deltas: &[GlyphDelta]) -> PackedPointNumbers {
+        if deltas.iter().all(|d| d.required) {
+            return PackedPointNumbers::All;
+        }
+
+        let dense = Self::build_non_sparse_data(deltas);
+        let sparse = Self::build_sparse_data(deltas);
+        let dense_size = dense.compute_size();
+        let sparse_size = sparse.compute_size();
+        log::trace!("dense {dense_size}, sparse {sparse_size}");
+        if sparse_size < dense_size {
+            sparse.private_point_numbers.unwrap()
+        } else {
+            PackedPointNumbers::All
+        }
+    }
+
+    fn build_non_sparse_data(deltas: &[GlyphDelta]) -> GlyphTupleVariationData {
+        let (x_deltas, y_deltas) = deltas.iter().map(|delta| (delta.x, delta.y)).unzip();
+        GlyphTupleVariationData {
+            private_point_numbers: Some(PackedPointNumbers::All),
+            x_deltas: PackedDeltas::new(x_deltas),
+            y_deltas: PackedDeltas::new(y_deltas),
+        }
+    }
+
+    fn build_sparse_data(deltas: &[GlyphDelta]) -> GlyphTupleVariationData {
+        let (x_deltas, y_deltas) = deltas
+            .iter()
+            .filter_map(|delta| delta.required.then_some((delta.x, delta.y)))
+            .unzip();
+        let point_numbers = deltas
+            .iter()
+            .enumerate()
+            .filter_map(|(i, delta)| delta.required.then_some(i as u16))
+            .collect();
+        GlyphTupleVariationData {
+            private_point_numbers: Some(PackedPointNumbers::Some(point_numbers)),
+            x_deltas: PackedDeltas::new(x_deltas),
+            y_deltas: PackedDeltas::new(y_deltas),
+        }
+    }
+
+    // shared points is just "whatever points, if any, are shared." We are
+    // responsible for seeing if these are actually our points, in which case
+    // we are using shared points.
     fn build(
         self,
         shared_tuple_map: &HashMap<&Tuple, u16>,
         shared_points: Option<&PackedPointNumbers>,
     ) -> (TupleVariationHeader, GlyphTupleVariationData) {
-        // build variation data for all points, even if they could be interp'd
-        fn build_non_sparse(deltas: &[GlyphDelta], shared_points: bool) -> GlyphTupleVariationData {
-            let (x_deltas, y_deltas) = deltas.iter().map(|delta| (delta.x, delta.y)).unzip();
-            GlyphTupleVariationData {
-                private_point_numbers: (!shared_points).then_some(PackedPointNumbers::All),
-                x_deltas: PackedDeltas::new(x_deltas),
-                y_deltas: PackedDeltas::new(y_deltas),
-            }
-        }
-
-        // build sparse variation data, omitting interpolatable values
-        fn build_sparse(
-            deltas: &[GlyphDelta],
-            private_point_numbers: Option<PackedPointNumbers>,
-        ) -> GlyphTupleVariationData {
-            let (x_deltas, y_deltas) = deltas
-                .iter()
-                .filter_map(|delta| delta.required.then_some((delta.x, delta.y)))
-                .unzip();
-            GlyphTupleVariationData {
-                private_point_numbers,
-                x_deltas: PackedDeltas::new(x_deltas),
-                y_deltas: PackedDeltas::new(y_deltas),
-            }
-        }
-
         let GlyphDeltas {
             peak_tuple,
             intermediate_region,
             deltas,
-            point_numbers,
+            best_point_packing: point_numbers,
         } = self;
 
         let (idx, peak_tuple) = match shared_tuple_map.get(&peak_tuple) {
@@ -356,42 +378,28 @@ impl GlyphDeltas {
             None => (None, Some(peak_tuple)),
         };
 
-        let use_shared_points = Some(&point_numbers) == shared_points;
-        // only build sparse if we actually have sparse points
-        let try_sparse = point_numbers != PackedPointNumbers::All;
-        // only build dense if no shared points, unless they are non-sparse
-        let try_dense = !use_shared_points || !try_sparse;
-
-        let dense_data = try_dense.then(|| build_non_sparse(&deltas, use_shared_points));
-        let sparse_data = try_sparse.then(|| {
-            let private_point_numbers = (!use_shared_points).then_some(point_numbers);
-            build_sparse(&deltas, private_point_numbers)
-        });
-
-        // just because some points may be interpolatable does not mean that the
-        // sparse representation is more efficient, since it requires us to
-        // also explicitly include point numbers; so we try both packings and
-        // pick the best.
-        let (data_size, data) = match (dense_data, sparse_data) {
-            (Some(data), None) | (None, Some(data)) => (data.compute_size(), data),
-            (Some(dense), Some(sparse)) => {
-                let dense_size = dense.compute_size();
-                let sparse_size = sparse.compute_size();
-                if sparse_size < dense_size {
-                    (sparse_size, sparse)
-                } else {
-                    (dense_size, dense)
-                }
-            }
-            (None, None) => unreachable!("we always build at least one"),
+        let has_private_points = Some(&point_numbers) != shared_points;
+        let (x_deltas, y_deltas) = match &point_numbers {
+            PackedPointNumbers::All => deltas.iter().map(|d| (d.x, d.y)).unzip(),
+            PackedPointNumbers::Some(pts) => pts
+                .iter()
+                .map(|idx| deltas[*idx as usize].to_tuple())
+                .unzip(),
         };
+
+        let data = GlyphTupleVariationData {
+            private_point_numbers: has_private_points.then_some(point_numbers),
+            x_deltas: PackedDeltas::new(x_deltas),
+            y_deltas: PackedDeltas::new(y_deltas),
+        };
+        let data_size = data.compute_size();
 
         let header = TupleVariationHeader::new(
             data_size,
             idx,
             peak_tuple,
             intermediate_region,
-            !use_shared_points,
+            has_private_points,
         );
 
         (header, data)
@@ -755,6 +763,7 @@ mod tests {
 
     #[test]
     fn share_points() {
+        let _ = env_logger::builder().is_test(true).try_init();
         let variations = GlyphVariations::new(
             GlyphId::new(0),
             vec![
@@ -762,10 +771,11 @@ mod tests {
                     Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
                     vec![
                         GlyphDelta::required(1, 2),
-                        GlyphDelta::required(3, 4),
+                        GlyphDelta::optional(3, 4),
                         GlyphDelta::required(5, 6),
                         GlyphDelta::optional(5, 6),
                         GlyphDelta::required(7, 8),
+                        GlyphDelta::optional(7, 8),
                     ],
                     None,
                 ),
@@ -773,10 +783,11 @@ mod tests {
                     Tuple::new(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
                     vec![
                         GlyphDelta::required(10, 20),
-                        GlyphDelta::required(30, 40),
+                        GlyphDelta::optional(30, 40),
                         GlyphDelta::required(50, 60),
                         GlyphDelta::optional(50, 60),
                         GlyphDelta::required(70, 80),
+                        GlyphDelta::optional(70, 80),
                     ],
                     None,
                 ),
@@ -785,7 +796,7 @@ mod tests {
 
         assert_eq!(
             variations.compute_shared_points(),
-            Some(PackedPointNumbers::Some(vec![0, 1, 2, 4]))
+            Some(PackedPointNumbers::Some(vec![0, 2, 4]))
         )
     }
 
@@ -818,5 +829,89 @@ mod tests {
         let shared_tups = HashMap::new();
         let built = variations.build(&shared_tups);
         assert_eq!(built.shared_point_numbers, Some(PackedPointNumbers::All))
+    }
+
+    // comparing our behaviour against what we know fonttools does.
+    #[test]
+    #[allow(non_snake_case)]
+    fn oswald_Lcaron() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        let d1 = GlyphDeltas::new(
+            Tuple::new(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
+            vec![
+                GlyphDelta::optional(0, 0),
+                GlyphDelta::required(35, 0),
+                GlyphDelta::optional(0, 0),
+                GlyphDelta::required(-24, 0),
+                GlyphDelta::optional(0, 0),
+                GlyphDelta::optional(0, 0),
+            ],
+            None,
+        );
+
+        let d1_sparse = GlyphDeltas::build_sparse_data(&d1.deltas);
+
+        assert_eq!(
+            d1_sparse
+                .private_point_numbers
+                .clone()
+                .unwrap()
+                .compute_size(),
+            4
+        );
+        assert_eq!(d1_sparse.x_deltas.compute_size(), 3);
+        assert_eq!(d1_sparse.y_deltas.compute_size(), 1);
+
+        let d1_dense = GlyphDeltas::build_non_sparse_data(&d1.deltas);
+
+        assert_eq!(d1_dense.x_deltas.compute_size(), 6);
+        assert_eq!(d1_dense.y_deltas.compute_size(), 1);
+
+        assert_eq!(d1_sparse.compute_size(), d1_dense.compute_size());
+
+        let d2 = GlyphDeltas::new(
+            Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+            vec![
+                GlyphDelta::optional(0, 0),
+                GlyphDelta::required(26, 15),
+                GlyphDelta::optional(0, 0),
+                GlyphDelta::required(46, 0),
+                GlyphDelta::optional(0, 0),
+                GlyphDelta::optional(0, 0),
+            ],
+            None,
+        );
+        let d2_sparse = GlyphDeltas::build_sparse_data(&d2.deltas);
+
+        assert_eq!(
+            d2_sparse
+                .private_point_numbers
+                .as_ref()
+                .unwrap()
+                .compute_size(),
+            4
+        );
+        assert_eq!(d2_sparse.x_deltas.compute_size(), 3);
+        assert_eq!(d2_sparse.y_deltas.compute_size(), 3,);
+
+        let d2_dense = GlyphDeltas::build_non_sparse_data(&d2.deltas);
+
+        assert_eq!(d2_dense.x_deltas.compute_size(), 6);
+        assert_eq!(d2_dense.y_deltas.compute_size(), 4);
+
+        assert!(d2_sparse.compute_size() < d2_dense.compute_size());
+
+        let tups = HashMap::new();
+        let variations = GlyphVariations::new(GlyphId::new(0), vec![d1, d2]);
+        assert!(variations.compute_shared_points().is_none());
+        let built = variations.build(&tups);
+        assert_eq!(
+            built.per_tuple_data[0].private_point_numbers,
+            Some(PackedPointNumbers::All)
+        );
+        assert_eq!(
+            built.per_tuple_data[1].private_point_numbers,
+            Some(PackedPointNumbers::Some(vec![1, 3]))
+        );
     }
 }
