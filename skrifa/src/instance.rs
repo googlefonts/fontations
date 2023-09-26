@@ -1,5 +1,7 @@
 //! Helpers for selecting a font size and location in variation space.
 
+use read_fonts::types::Fixed;
+
 use crate::small_array::SmallArray;
 
 /// Type for a normalized variation coordinate.
@@ -48,6 +50,15 @@ impl Size {
             self.0 / units_per_em as f32
         } else {
             1.0
+        }
+    }
+
+    /// Computes a fixed point linear scale factor that matches FreeType.
+    pub(crate) fn fixed_linear_scale(self, units_per_em: u16) -> Fixed {
+        if self.0 > 0.0 && units_per_em > 0 {
+            Fixed::from_bits((self.0 * 64.) as i32) / Fixed::from_bits(units_per_em as i32)
+        } else {
+            Fixed::from_bits(0x10000 * 64)
         }
     }
 }
