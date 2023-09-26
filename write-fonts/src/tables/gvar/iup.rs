@@ -302,10 +302,12 @@ fn can_iup_in_between(
 
     let real_values = &deltas[(from + 1) as usize..to];
 
+    // compute this once here instead of in the loop
+    let tolerance_sq = tolerance.powi(2);
     Ok(real_values
         .iter()
         .zip(iup_values)
-        .all(|(d, i)| (d.x - i.x).abs() <= tolerance && (d.y - i.y).abs() <= tolerance))
+        .all(|(d, i)| (*d - i).hypot2() <= tolerance_sq))
 }
 
 /// <https://github.com/fonttools/fonttools/blob/6a13bdc2e668334b04466b288d31179df1cff7be/Lib/fontTools/varLib/iup.py#L327>
