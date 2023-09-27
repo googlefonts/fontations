@@ -170,6 +170,8 @@ impl Cmap {
     /// This emits [format 4](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values)
     /// and [format 12](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage)
     /// subtables, respectively for the Basic Multilingual Plane and Full Unicode Repertoire.
+    ///
+    /// Also see: <https://learn.microsoft.com/en-us/typography/opentype/spec/recom#cmap-table>
     pub fn from_mappings(mappings: impl IntoIterator<Item = (char, GlyphId)>) -> Cmap {
         let mut mappings: Vec<_> = mappings.into_iter().collect();
         mappings.sort();
@@ -177,6 +179,8 @@ impl Cmap {
         let mut uni_records = Vec::new(); // platform 0
         let mut win_records = Vec::new(); // platform 3
 
+        // if there are characters in the Unicode Basic Multilingual Plane (U+0000 to U+FFFF)
+        // we need to emit format 4 subtables
         let bmp_subtable = CmapSubtable::create_format_4(&mappings);
         if let Some(bmp_subtable) = bmp_subtable {
             // Absent a strong signal to do otherwise, match fontmake/fonttools
@@ -195,6 +199,8 @@ impl Cmap {
             ));
         }
 
+        // If there are any supplementary-plane characters (U+10000 to U+10FFFF) we also
+        // emit format 12 subtables
         if mappings.iter().any(|(cp, _)| *cp > '\u{FFFF}') {
             let full_repertoire_subtable = CmapSubtable::create_format_12(&mappings);
             // format 12 subtables are also going to be byte-shared, just like above
