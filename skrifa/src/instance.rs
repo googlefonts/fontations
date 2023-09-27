@@ -55,9 +55,18 @@ impl Size {
 
     /// Computes a fixed point linear scale factor that matches FreeType.
     pub(crate) fn fixed_linear_scale(self, units_per_em: u16) -> Fixed {
+        // FreeType computes a 16.16 scale factor that converts to 26.6.
+        // This is done in two steps, assuming use of FT_Set_Pixel_Size:
+        // 1) height is multiplied by 64:
+        //    <https://gitlab.freedesktop.org/freetype/freetype/-/blob/49781ab72b2dfd0f78172023921d08d08f323ade/src/base/ftobjs.c#L3596>
+        // 2) this value is divided by UPEM:
+        //    (here, scaled_h=height and h=upem)
+        //    <https://gitlab.freedesktop.org/freetype/freetype/-/blob/49781ab72b2dfd0f78172023921d08d08f323ade/src/base/ftobjs.c#L3312>
         if self.0 > 0.0 && units_per_em > 0 {
             Fixed::from_bits((self.0 * 64.) as i32) / Fixed::from_bits(units_per_em as i32)
         } else {
+            // This is an identity scale for the pattern
+            // `mul_div(value, scale, 64)`
             Fixed::from_bits(0x10000 * 64)
         }
     }
