@@ -18,7 +18,7 @@ type TemporaryDeltaSetId = u32;
 /// This handles assigning VariationIndex values to unique sets of deltas and
 /// grouping delta sets into [ItemVariationData] subtables.
 #[derive(Clone, Default, Debug)]
-pub(crate) struct VariationStoreBuilder {
+pub struct VariationStoreBuilder {
     // region -> index map
     all_regions: HashMap<VariationRegion, usize>,
     // we use an index map so that we have a deterministic ordering,
@@ -35,7 +35,7 @@ pub(crate) struct VariationStoreBuilder {
 /// This is generated when the [ItemVariationStore] is built; afterwards
 /// any tables or records that contain VariationIndex tables need to be remapped.
 #[derive(Clone, Debug, Default)]
-pub(crate) struct VariationIndexRemapping {
+pub struct VariationIndexRemapping {
     map: HashMap<TemporaryDeltaSetId, VariationIndex>,
 }
 
@@ -46,7 +46,7 @@ pub(crate) struct VariationIndexRemapping {
 struct DeltaSet(Vec<(u16, i32)>);
 
 impl VariationStoreBuilder {
-    pub(crate) fn add_deltas<T: Into<i32>>(&mut self, deltas: Vec<(VariationRegion, T)>) -> u32 {
+    pub fn add_deltas<T: Into<i32>>(&mut self, deltas: Vec<(VariationRegion, T)>) -> u32 {
         let mut delta_set = Vec::with_capacity(deltas.len());
         for (region, delta) in deltas {
             let region_idx = self.index_for_region(region) as u16;
@@ -83,7 +83,7 @@ impl VariationStoreBuilder {
         Encoder::new(&self.delta_sets, self.all_regions.len() as u16)
     }
 
-    pub(crate) fn build(self) -> (ItemVariationStore, VariationIndexRemapping) {
+    pub fn build(self) -> (ItemVariationStore, VariationIndexRemapping) {
         let mut key_map = VariationIndexRemapping::default();
         let mut encoder = self.encoder();
         encoder.optimize();
@@ -567,7 +567,7 @@ impl VariationIndexRemapping {
         self.map.insert(from, to);
     }
 
-    pub(crate) fn get(&self, from: TemporaryDeltaSetId) -> Option<VariationIndex> {
+    pub fn get(&self, from: TemporaryDeltaSetId) -> Option<VariationIndex> {
         self.map.get(&from).cloned()
     }
 
