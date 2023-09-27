@@ -4,6 +4,8 @@ include!("../../generated/generated_variations.rs");
 
 pub use read_fonts::tables::variations::{TupleIndex, TupleVariationCount};
 
+pub mod ivs_builder;
+
 impl TupleVariationHeader {
     pub fn new(
         variation_data_size: u16,
