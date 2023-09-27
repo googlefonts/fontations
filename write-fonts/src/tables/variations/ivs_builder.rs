@@ -682,8 +682,8 @@ mod tests {
         let _ = builder.add_deltas(vec![(r1.clone(), -9), (r3.clone(), 7)]);
         let _ = builder.add_deltas(vec![(r1, -11), (r3, 7)]);
 
-        let encoder = builder.encoder();
-        eprintln!("{encoder:?}");
+        // let encoder = builder.encoder();
+        // eprintln!("{encoder:?}");
         // we should have three regions, and two subtables
         let (_, key_lookup) = builder.build();
 
