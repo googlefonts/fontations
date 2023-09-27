@@ -616,7 +616,9 @@ impl Debug for Encoder<'_> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{read::FontRead, tables::variations::RegionAxisCoordinates, types::F2Dot14};
+    use crate::tables::variations::RegionAxisCoordinates;
+    use font_types::F2Dot14;
+    use read_fonts::{FontData, FontRead};
 
     use super::*;
 
@@ -707,9 +709,9 @@ mod tests {
         builder.add_deltas(vec![(r1.clone(), -10), (r3.clone(), 9)]);
         let (table, _) = builder.build();
         let bytes = crate::dump_table(&table).unwrap();
-        let data = crate::read::FontData::new(&bytes);
+        let data = FontData::new(&bytes);
 
-        let reloaded = crate::read::tables::variations::ItemVariationStore::read(data).unwrap();
+        let reloaded = read_fonts::tables::variations::ItemVariationStore::read(data).unwrap();
 
         assert_eq!(reloaded.item_variation_data_count(), 2);
         let var_data_array = reloaded.item_variation_data();
