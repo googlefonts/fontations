@@ -219,6 +219,8 @@ impl GlyphVariations {
     ///
     /// For fonts with a large number of variations, this could produce reasonable
     /// savings, at the cost of a significantly more complicated algorithm.
+    ///
+    /// (issue <https://github.com/googlefonts/fontations/issues/634>)
     fn compute_shared_points(&self) -> Option<PackedPointNumbers> {
         let mut point_number_counts = HashMap::new();
         // count how often each set of numbers occurs
@@ -234,13 +236,13 @@ impl GlyphVariations {
         }
 
         // find the one that saves the most bytes
-        let (pts, (_, count)) = point_number_counts
+        let (pts, _) = point_number_counts
             .into_iter()
+            // no use sharing points if they only occur once
             .filter(|(_, (_, count))| *count > 1)
-            .max_by_key(|(_, (size, count))| *count * *size)?;
+            .max_by_key(|(_, (size, count))| (*count - 1) * *size)?;
 
-        // no use sharing points if they only occur once
-        (count > 1).then(|| pts.to_owned())
+        Some(pts.to_owned())
     }
 
     fn build(self, shared_tuple_map: &HashMap<&Tuple, u16>) -> GlyphVariationData {
@@ -313,8 +315,9 @@ impl GlyphDeltas {
     // this is a type method just to expose it for testing, we call it before
     // we finish instantiating self.
     //
-    // NOTE: we do a lot of duplicate work here with creating & throwing away
+    // we do a lot of duplicate work here with creating & throwing away
     // buffers, and that can be improved at the cost of a bit more complexity
+    // <https://github.com/googlefonts/fontations/issues/635>
     fn pick_best_point_number_repr(deltas: &[GlyphDelta]) -> PackedPointNumbers {
         if deltas.iter().all(|d| d.required) {
             return PackedPointNumbers::All;
@@ -831,79 +834,96 @@ mod tests {
         assert_eq!(built.shared_point_numbers, Some(PackedPointNumbers::All))
     }
 
+    // three tuples with three different packedpoint representations means
+    // that we should have no shared points
+    #[test]
+    fn dont_share_unique_points() {
+        let variations = GlyphVariations::new(
+            GlyphId::new(0),
+            vec![
+                GlyphDeltas::new(
+                    Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                    vec![
+                        GlyphDelta::required(1, 2),
+                        GlyphDelta::optional(3, 4),
+                        GlyphDelta::required(5, 6),
+                        GlyphDelta::optional(5, 6),
+                        GlyphDelta::required(7, 8),
+                        GlyphDelta::optional(7, 8),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
+                    vec![
+                        GlyphDelta::required(10, 20),
+                        GlyphDelta::required(35, 40),
+                        GlyphDelta::required(50, 60),
+                        GlyphDelta::optional(50, 60),
+                        GlyphDelta::required(70, 80),
+                        GlyphDelta::optional(70, 80),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![F2Dot14::from_f32(0.5), F2Dot14::from_f32(1.0)]),
+                    vec![
+                        GlyphDelta::required(1, 2),
+                        GlyphDelta::optional(3, 4),
+                        GlyphDelta::required(5, 6),
+                        GlyphDelta::optional(5, 6),
+                        GlyphDelta::optional(7, 8),
+                        GlyphDelta::optional(7, 8),
+                    ],
+                    None,
+                ),
+            ],
+        );
+
+        let shared_tups = HashMap::new();
+        let built = variations.build(&shared_tups);
+        assert!(built.shared_point_numbers.is_none());
+    }
+
     // comparing our behaviour against what we know fonttools does.
     #[test]
     #[allow(non_snake_case)]
     fn oswald_Lcaron() {
         let _ = env_logger::builder().is_test(true).try_init();
-        let d1 = GlyphDeltas::new(
-            Tuple::new(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
+        // in this glyph, it is more efficient to encode all points for the first
+        // tuple, but sparse points for the second (the single y delta in the
+        // second tuple means you can't encode the y-deltas as 'all zero')
+        let variations = GlyphVariations::new(
+            GlyphId::new(0),
             vec![
-                GlyphDelta::optional(0, 0),
-                GlyphDelta::required(35, 0),
-                GlyphDelta::optional(0, 0),
-                GlyphDelta::required(-24, 0),
-                GlyphDelta::optional(0, 0),
-                GlyphDelta::optional(0, 0),
+                GlyphDeltas::new(
+                    Tuple::new(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
+                    vec![
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(35, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(-24, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                    vec![
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(26, 15),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(46, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
             ],
-            None,
         );
-
-        let d1_sparse = GlyphDeltas::build_sparse_data(&d1.deltas);
-
-        assert_eq!(
-            d1_sparse
-                .private_point_numbers
-                .clone()
-                .unwrap()
-                .compute_size(),
-            4
-        );
-        assert_eq!(d1_sparse.x_deltas.compute_size(), 3);
-        assert_eq!(d1_sparse.y_deltas.compute_size(), 1);
-
-        let d1_dense = GlyphDeltas::build_non_sparse_data(&d1.deltas);
-
-        assert_eq!(d1_dense.x_deltas.compute_size(), 6);
-        assert_eq!(d1_dense.y_deltas.compute_size(), 1);
-
-        assert_eq!(d1_sparse.compute_size(), d1_dense.compute_size());
-
-        let d2 = GlyphDeltas::new(
-            Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
-            vec![
-                GlyphDelta::optional(0, 0),
-                GlyphDelta::required(26, 15),
-                GlyphDelta::optional(0, 0),
-                GlyphDelta::required(46, 0),
-                GlyphDelta::optional(0, 0),
-                GlyphDelta::optional(0, 0),
-            ],
-            None,
-        );
-        let d2_sparse = GlyphDeltas::build_sparse_data(&d2.deltas);
-
-        assert_eq!(
-            d2_sparse
-                .private_point_numbers
-                .as_ref()
-                .unwrap()
-                .compute_size(),
-            4
-        );
-        assert_eq!(d2_sparse.x_deltas.compute_size(), 3);
-        assert_eq!(d2_sparse.y_deltas.compute_size(), 3,);
-
-        let d2_dense = GlyphDeltas::build_non_sparse_data(&d2.deltas);
-
-        assert_eq!(d2_dense.x_deltas.compute_size(), 6);
-        assert_eq!(d2_dense.y_deltas.compute_size(), 4);
-
-        assert!(d2_sparse.compute_size() < d2_dense.compute_size());
-
-        let tups = HashMap::new();
-        let variations = GlyphVariations::new(GlyphId::new(0), vec![d1, d2]);
         assert!(variations.compute_shared_points().is_none());
+        let tups = HashMap::new();
         let built = variations.build(&tups);
         assert_eq!(
             built.per_tuple_data[0].private_point_numbers,
