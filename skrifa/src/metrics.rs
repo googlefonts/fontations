@@ -116,13 +116,13 @@ impl Metrics {
             ..Default::default()
         };
         let coords = location.into().coords();
-        let scale = ScaleFactor(size.fixed_linear_scale(metrics.units_per_em));
+        let scale = size.linear_scale(metrics.units_per_em);
         if let Ok(head) = font.head() {
             metrics.bounds = Some(BoundingBox {
-                x_min: scale.apply(head.x_min() as i32),
-                y_min: scale.apply(head.y_min() as i32),
-                x_max: scale.apply(head.x_max() as i32),
-                y_max: scale.apply(head.y_max() as i32),
+                x_min: head.x_min() as f32 * scale,
+                y_min: head.y_min() as f32 * scale,
+                x_max: head.x_max() as f32 * scale,
+                y_max: head.y_max() as f32 * scale,
             });
         }
         if let Ok(maxp) = font.maxp() {
@@ -130,15 +130,15 @@ impl Metrics {
         }
         if let Ok(post) = font.post() {
             metrics.is_monospace = post.is_fixed_pitch() != 0;
-            metrics.italic_angle = post.italic_angle().to_f32();
+            metrics.italic_angle = post.italic_angle().to_f64() as f32;
             metrics.underline = Some(Decoration {
-                offset: scale.apply(post.underline_position().to_i16() as i32),
-                thickness: scale.apply(post.underline_thickness().to_i16() as i32),
+                offset: post.underline_position().to_i16() as f32 * scale,
+                thickness: post.underline_thickness().to_i16() as f32 * scale,
             });
         }
         let hhea = font.hhea();
         if let Ok(hhea) = &hhea {
-            metrics.max_width = Some(scale.apply(hhea.advance_width_max().to_u16() as i32));
+            metrics.max_width = Some(hhea.advance_width_max().to_u16() as f32 * scale);
         }
         // Choosing proper line metrics is a challenge due to the changing
         // spec, backward compatibility and broken fonts.
@@ -159,50 +159,44 @@ impl Metrics {
                 .fs_selection()
                 .contains(SelectionFlags::USE_TYPO_METRICS)
             {
-                metrics.ascent = scale.apply(os2.s_typo_ascender() as i32);
-                metrics.descent = scale.apply(os2.s_typo_descender() as i32);
-                metrics.leading = scale.apply(os2.s_typo_line_gap() as i32);
+                metrics.ascent = os2.s_typo_ascender() as f32 * scale;
+                metrics.descent = os2.s_typo_descender() as f32 * scale;
+                metrics.leading = os2.s_typo_line_gap() as f32 * scale;
                 used_typo_metrics = true;
             }
-            metrics.average_width = Some(scale.apply(os2.x_avg_char_width() as i32));
-            metrics.cap_height = os2.s_cap_height().map(|v| scale.apply(v as i32));
-            metrics.x_height = os2.sx_height().map(|v| scale.apply(v as i32));
+            metrics.average_width = Some(os2.x_avg_char_width() as f32 * scale);
+            metrics.cap_height = os2.s_cap_height().map(|v| v as f32 * scale);
+            metrics.x_height = os2.sx_height().map(|v| v as f32 * scale);
             metrics.strikeout = Some(Decoration {
-                offset: scale.apply(os2.y_strikeout_position() as i32),
-                thickness: scale.apply(os2.y_strikeout_size() as i32),
+                offset: os2.y_strikeout_position() as f32 * scale,
+                thickness: os2.y_strikeout_size() as f32 * scale,
             });
         }
         if !used_typo_metrics {
             if let Ok(hhea) = font.hhea() {
-                metrics.ascent = scale.apply(hhea.ascender().to_i16() as i32);
-                metrics.descent = scale.apply(hhea.descender().to_i16() as i32);
-                metrics.leading = scale.apply(hhea.line_gap().to_i16() as i32);
+                metrics.ascent = hhea.ascender().to_i16() as f32 * scale;
+                metrics.descent = hhea.descender().to_i16() as f32 * scale;
+                metrics.leading = hhea.line_gap().to_i16() as f32 * scale;
             }
             if metrics.ascent == 0.0 && metrics.descent == 0.0 {
                 if let Some(os2) = &os2 {
                     if os2.s_typo_ascender() != 0 || os2.s_typo_descender() != 0 {
-                        metrics.ascent = scale.apply(os2.s_typo_ascender() as i32);
-                        metrics.descent = scale.apply(os2.s_typo_descender() as i32);
-                        metrics.leading = scale.apply(os2.s_typo_line_gap() as i32);
+                        metrics.ascent = os2.s_typo_ascender() as f32 * scale;
+                        metrics.descent = os2.s_typo_descender() as f32 * scale;
+                        metrics.leading = os2.s_typo_line_gap() as f32 * scale;
                     } else {
-                        metrics.ascent = scale.apply(os2.us_win_ascent() as i32);
+                        metrics.ascent = os2.us_win_ascent() as f32 * scale;
                         // Win descent is always positive while other descent values are negative. Negate it
                         // to ensure we return consistent metrics.
-                        metrics.descent = -scale.apply(os2.us_win_descent() as i32);
+                        metrics.descent = -(os2.us_win_descent() as f32 * scale);
                     }
                 }
             }
         }
         if let (Ok(mvar), true) = (font.mvar(), !coords.is_empty()) {
             use read_fonts::tables::mvar::tags::*;
-            let metric_delta = |tag| {
-                scale.apply(
-                    mvar.metric_delta(tag, coords)
-                        .unwrap_or_default()
-                        .floor()
-                        .to_i32(),
-                )
-            };
+            let metric_delta =
+                |tag| mvar.metric_delta(tag, coords).unwrap_or_default().to_f64() as f32 * scale;
             metrics.ascent += metric_delta(HASC);
             metrics.descent += metric_delta(HDSC);
             metrics.leading += metric_delta(HLGP);
@@ -229,7 +223,7 @@ impl Metrics {
 #[derive(Clone)]
 pub struct GlyphMetrics<'a> {
     glyph_count: u16,
-    scale: ScaleFactor,
+    fixed_scale: FixedScaleFactor,
     h_metrics: &'a [LongMetric],
     default_advance_width: u16,
     lsbs: &'a [BigEndian<i16>],
@@ -255,7 +249,7 @@ impl<'a> GlyphMetrics<'a> {
             .head()
             .map(|head| head.units_per_em())
             .unwrap_or_default();
-        let scale = ScaleFactor(size.fixed_linear_scale(upem));
+        let fixed_scale = FixedScaleFactor(size.fixed_linear_scale(upem));
         let coords = location.into().coords();
         let (h_metrics, default_advance_width, lsbs) = font
             .hmtx()
@@ -275,7 +269,7 @@ impl<'a> GlyphMetrics<'a> {
         };
         Self {
             glyph_count,
-            scale,
+            fixed_scale,
             h_metrics,
             default_advance_width,
             lsbs,
@@ -314,7 +308,7 @@ impl<'a> GlyphMetrics<'a> {
         } else if self.gvar.is_some() {
             advance += self.metric_deltas_from_gvar(glyph_id)[1];
         }
-        Some(self.scale.apply(advance))
+        Some(self.fixed_scale.apply(advance))
     }
 
     /// Returns the left side bearing for the specified glyph.
@@ -346,7 +340,7 @@ impl<'a> GlyphMetrics<'a> {
         } else if self.gvar.is_some() {
             lsb += self.metric_deltas_from_gvar(glyph_id)[0];
         }
-        Some(self.scale.apply(lsb))
+        Some(self.fixed_scale.apply(lsb))
     }
 
     /// Returns the bounding box for the specified glyph.
@@ -357,10 +351,10 @@ impl<'a> GlyphMetrics<'a> {
         let (loca, glyf) = self.loca_glyf.as_ref()?;
         Some(match loca.get_glyf(glyph_id, glyf).ok()? {
             Some(glyph) => BoundingBox {
-                x_min: self.scale.apply(glyph.x_min() as i32),
-                y_min: self.scale.apply(glyph.y_min() as i32),
-                x_max: self.scale.apply(glyph.x_max() as i32),
-                y_max: self.scale.apply(glyph.y_max() as i32),
+                x_min: self.fixed_scale.apply(glyph.x_min() as i32),
+                y_min: self.fixed_scale.apply(glyph.y_min() as i32),
+                x_max: self.fixed_scale.apply(glyph.x_max() as i32),
+                y_max: self.fixed_scale.apply(glyph.y_max() as i32),
             },
             // Empty glyphs have an empty bounding box
             None => BoundingBox::default(),
@@ -377,9 +371,9 @@ impl<'a> GlyphMetrics<'a> {
 }
 
 #[derive(Copy, Clone)]
-struct ScaleFactor(Fixed);
+struct FixedScaleFactor(Fixed);
 
-impl ScaleFactor {
+impl FixedScaleFactor {
     #[inline(always)]
     fn apply(self, value: i32) -> f32 {
         // Match FreeType metric scaling
@@ -634,6 +628,35 @@ mod tests {
                     glyph_metrics_no_hvar.left_side_bearing(gid)
                 );
             }
+        }
+    }
+
+    /// Ensure our fixed point scaling code matches FreeType for advances.
+    ///
+    /// <https://github.com/googlefonts/fontations/issues/590>
+    #[test]
+    fn match_freetype_glyph_metric_scaling() {
+        // fontations:
+        // gid: 36 advance: 15.33600044250488281250 gid: 68 advance: 13.46399974822998046875 gid: 47 advance: 12.57600021362304687500 gid: 79 advance: 6.19199991226196289062
+        // ft:
+        // gid: 36 advance: 15.33595275878906250000 gid: 68 advance: 13.46395874023437500000 gid: 47 advance: 12.57595825195312500000 gid: 79 advance: 6.19198608398437500000
+        // with font.setSize(24);
+        //
+        // Raw advances for gids 36, 68, 47, and 79 in NotoSans-Regular
+        let font_unit_advances = [639, 561, 524, 258];
+        #[allow(clippy::excessive_precision)]
+        let scaled_advances = [
+            15.33595275878906250000,
+            13.46395874023437500000,
+            12.57595825195312500000,
+            6.19198608398437500000,
+        ];
+        let fixed_scale = FixedScaleFactor(Size::new(24.0).fixed_linear_scale(1000));
+        for (font_unit_advance, expected_scaled_advance) in
+            font_unit_advances.iter().zip(scaled_advances)
+        {
+            let scaled_advance = fixed_scale.apply(*font_unit_advance);
+            assert_eq!(scaled_advance, expected_scaled_advance);
         }
     }
 }
