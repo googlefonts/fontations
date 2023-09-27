@@ -2,6 +2,7 @@
 
 pub mod avar;
 pub mod base;
+pub mod cblc;
 pub mod cff;
 pub mod cff2;
 pub mod cmap;
