@@ -4,78 +4,47 @@
 
 include!("../../generated/generated_cmap.rs");
 
+use std::collections::HashMap;
+
 // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#windows-platform-platform-id--3
 const WINDOWS_BMP_ENCODING: u16 = 1;
+const WINDOWS_FULL_REPERTOIRE_ENCODING: u16 = 10;
 
 // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#unicode-platform-platform-id--0
 const UNICODE_BMP_ENCODING: u16 = 3;
+const UNICODE_FULL_REPERTOIRE_ENCODING: u16 = 4;
 
 fn size_of_cmap4(seg_count: u16, gid_count: u16) -> u16 {
+    // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values
     8 * 2  // 8 uint16's
     + 2 * seg_count * 4  // 4 parallel arrays of len seg_count, 2 bytes per entry
     + 2 * gid_count // 2 bytes per gid in glyphIdArray
 }
 
-impl CmapSubtable {
-    fn create_format_4(
-        lang: u16,
-        end_code: Vec<u16>,
-        start_code: Vec<u16>,
-        id_deltas: Vec<i16>,
-    ) -> Self {
-        assert!(
-            end_code.len() == start_code.len() && end_code.len() == id_deltas.len(),
-            "uneven parallel arrays, very bad. Very very bad."
-        );
-
-        let seg_count: u16 = start_code.len().try_into().unwrap();
-        // Spec: Log2 of the maximum power of 2 less than or equal to segCount (log2(searchRange/2),
-        // which is equal to floor(log2(segCount)))
-        let entry_selector = (seg_count as f32).log2().floor();
-
-        // Spec: Maximum power of 2 less than or equal to segCount, times 2
-        // ((2**floor(log2(segCount))) * 2, where “**” is an exponentiation operator)
-        let search_range = 2u16.pow(entry_selector as u32).checked_mul(2).unwrap();
-
-        // if 2^entry_selector*2 is a u16 then so is entry_selector
-        let entry_selector = entry_selector as u16;
-        let range_shift = seg_count * 2 - search_range;
-
-        let id_range_offsets = vec![0; id_deltas.len()];
-        CmapSubtable::Format4(Cmap4::new(
-            size_of_cmap4(seg_count, 0),
-            lang,
-            seg_count * 2,
-            search_range,
-            entry_selector,
-            range_shift,
-            end_code,
-            start_code,
-            id_deltas,
-            id_range_offsets,
-            vec![], // becauseour idRangeOffset's are 0 glyphIdArray is unused
-        ))
-    }
+fn size_of_cmap12(num_groups: u32) -> u32 {
+    // https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage
+    2 * 2 + 3 * 4  // 2 uint16's and 3 uint32's
+    + num_groups * 3 * 4 // 3 unit32's per segment map group
 }
 
-impl Cmap {
-    /// Generates a [cmap](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap) that is expected to work in most modern environments.
+impl CmapSubtable {
+    /// Create a new format 4 `CmapSubtable` from a list of `(char, GlyphId)` pairs.
     ///
-    /// For the time being just emits [format 4](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values)
-    /// so we can drive towards compiling working fonts. In time we may wish to additionally emit format 12 to support
-    /// novel codepoints.
-    pub fn from_mappings(mappings: impl IntoIterator<Item = (char, GlyphId)>) -> Cmap {
+    /// The pairs are expected to be already sorted by codepoint.
+    /// Characters beyond the BMP are ignored. If all characters are beyond the BMP
+    /// then `None` is returned.
+    fn create_format_4(mappings: &[(char, GlyphId)]) -> Option<Self> {
         let mut end_code = Vec::new();
         let mut start_code = Vec::new();
         let mut id_deltas = Vec::new();
 
-        let mut mappings: Vec<_> = mappings.into_iter().collect();
-        mappings.sort();
-
         let mut prev = (u16::MAX - 1, u16::MAX - 1);
-        for (cp, gid) in mappings.into_iter() {
+        for (cp, gid) in mappings {
             let gid = gid.to_u16();
-            let cp = (cp as u32).try_into().unwrap();
+            if *cp > '\u{FFFF}' {
+                continue;
+            }
+            let cp = (*cp as u32).try_into().unwrap();
             let next_in_run = (
                 prev.0.checked_add(1).unwrap(),
                 prev.1.checked_add(1).unwrap(),
@@ -105,27 +74,154 @@ impl Cmap {
             prev = current;
         }
 
+        if start_code.is_empty() {
+            // No characters in the BMP
+            return None;
+        }
+
         // close out
         start_code.push(0xFFFF);
         end_code.push(0xFFFF);
         id_deltas.push(1);
 
-        // Absent a strong signal to do otherwise, match fontmake/fonttools
-        // Since both tables use the same format4 subtable they are almost entirely byte-shared
-        // See https://github.com/googlefonts/fontmake-rs/issues/251
-        let win_bmp = EncodingRecord::new(
-            PlatformId::Windows,
-            WINDOWS_BMP_ENCODING,
-            CmapSubtable::create_format_4(
-                0, // set to zero for all 'cmap' subtables whose platform IDs are other than Macintosh
-                end_code, start_code, id_deltas,
-            ),
+        assert!(
+            end_code.len() == start_code.len() && end_code.len() == id_deltas.len(),
+            "uneven parallel arrays, very bad. Very very bad."
         );
-        let mut unicode = win_bmp.clone();
-        unicode.platform_id = PlatformId::Unicode;
-        unicode.encoding_id = UNICODE_BMP_ENCODING;
 
-        Cmap::new(vec![unicode, win_bmp])
+        let seg_count: u16 = start_code.len().try_into().unwrap();
+        // Spec: Log2 of the maximum power of 2 less than or equal to segCount (log2(searchRange/2),
+        // which is equal to floor(log2(segCount)))
+        let entry_selector = (seg_count as f32).log2().floor();
+
+        // Spec: Maximum power of 2 less than or equal to segCount, times 2
+        // ((2**floor(log2(segCount))) * 2, where “**” is an exponentiation operator)
+        let search_range = 2u16.pow(entry_selector as u32).checked_mul(2).unwrap();
+
+        // if 2^entry_selector*2 is a u16 then so is entry_selector
+        let entry_selector = entry_selector as u16;
+        let range_shift = seg_count * 2 - search_range;
+
+        let id_range_offsets = vec![0; id_deltas.len()];
+        Some(CmapSubtable::format_4(
+            size_of_cmap4(seg_count, 0),
+            0, // 'lang' set to zero for all 'cmap' subtables whose platform IDs are other than Macintosh
+            seg_count * 2,
+            search_range,
+            entry_selector,
+            range_shift,
+            end_code,
+            start_code,
+            id_deltas,
+            id_range_offsets,
+            vec![], // because our idRangeOffset's are 0 glyphIdArray is unused
+        ))
+    }
+
+    /// Create a new format 12 `CmapSubtable` from a list of `(char, GlyphId)` pairs.
+    ///
+    /// The pairs are expected to be already sorted by chars.
+    /// In case of duplicate chars, the last one wins.
+    fn create_format_12(mappings: &[(char, GlyphId)]) -> Self {
+        let (mut char_codes, gids): (Vec<u32>, Vec<u32>) = mappings
+            .iter()
+            .map(|(cp, gid)| (*cp as u32, gid.to_u16() as u32))
+            .unzip();
+        let cmap: HashMap<_, _> = char_codes.iter().cloned().zip(gids).collect();
+        char_codes.dedup();
+
+        // we know we have at least one non-BMP char_code > 0xFFFF so unwrap is safe
+        let mut start_char_code = *char_codes.first().unwrap();
+        let mut start_glyph_id = cmap[&start_char_code];
+        let mut last_glyph_id = start_glyph_id.wrapping_sub(1);
+        let mut last_char_code = start_char_code.wrapping_sub(1);
+        let mut groups = Vec::new();
+        for char_code in char_codes {
+            let glyph_id = cmap[&char_code];
+            if glyph_id != last_glyph_id.wrapping_add(1)
+                || char_code != last_char_code.wrapping_add(1)
+            {
+                groups.push((start_char_code, last_char_code, start_glyph_id));
+                start_char_code = char_code;
+                start_glyph_id = glyph_id;
+            }
+            last_glyph_id = glyph_id;
+            last_char_code = char_code;
+        }
+        groups.push((start_char_code, last_char_code, start_glyph_id));
+
+        let num_groups: u32 = groups.len().try_into().unwrap();
+        let seq_map_groups = groups
+            .into_iter()
+            .map(|(start_char, end_char, gid)| SequentialMapGroup::new(start_char, end_char, gid))
+            .collect::<Vec<_>>();
+        CmapSubtable::format_12(
+            size_of_cmap12(num_groups),
+            0, // 'lang' set to zero for all 'cmap' subtables whose platform IDs are other than Macintosh
+            num_groups,
+            seq_map_groups,
+        )
+    }
+}
+
+impl Cmap {
+    /// Generates a [cmap](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap) that is expected to work in most modern environments.
+    ///
+    /// This emits [format 4](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-4-segment-mapping-to-delta-values)
+    /// and [format 12](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap#format-12-segmented-coverage)
+    /// subtables, respectively for the Basic Multilingual Plane and Full Unicode Repertoire.
+    ///
+    /// Also see: <https://learn.microsoft.com/en-us/typography/opentype/spec/recom#cmap-table>
+    pub fn from_mappings(mappings: impl IntoIterator<Item = (char, GlyphId)>) -> Cmap {
+        let mut mappings: Vec<_> = mappings.into_iter().collect();
+        mappings.sort();
+
+        let mut uni_records = Vec::new(); // platform 0
+        let mut win_records = Vec::new(); // platform 3
+
+        // if there are characters in the Unicode Basic Multilingual Plane (U+0000 to U+FFFF)
+        // we need to emit format 4 subtables
+        let bmp_subtable = CmapSubtable::create_format_4(&mappings);
+        if let Some(bmp_subtable) = bmp_subtable {
+            // Absent a strong signal to do otherwise, match fontmake/fonttools
+            // Since both Windows and Unicode platform tables use the same subtable they are
+            // almost entirely byte-shared
+            // See https://github.com/googlefonts/fontmake-rs/issues/251
+            uni_records.push(EncodingRecord::new(
+                PlatformId::Unicode,
+                UNICODE_BMP_ENCODING,
+                bmp_subtable.clone(),
+            ));
+            win_records.push(EncodingRecord::new(
+                PlatformId::Windows,
+                WINDOWS_BMP_ENCODING,
+                bmp_subtable,
+            ));
+        }
+
+        // If there are any supplementary-plane characters (U+10000 to U+10FFFF) we also
+        // emit format 12 subtables
+        if mappings.iter().any(|(cp, _)| *cp > '\u{FFFF}') {
+            let full_repertoire_subtable = CmapSubtable::create_format_12(&mappings);
+            // format 12 subtables are also going to be byte-shared, just like above
+            uni_records.push(EncodingRecord::new(
+                PlatformId::Unicode,
+                UNICODE_FULL_REPERTOIRE_ENCODING,
+                full_repertoire_subtable.clone(),
+            ));
+            win_records.push(EncodingRecord::new(
+                PlatformId::Windows,
+                WINDOWS_FULL_REPERTOIRE_ENCODING,
+                full_repertoire_subtable,
+            ));
+        }
+
+        // put encoding records in order of (platform id, encoding id):
+        // - Unicode (0), BMP (3)
+        // - Unicode (0), full repertoire (4)
+        // - Windows (3), BMP (1)
+        // - Windows (3), full repertoire (10)
+        Cmap::new(uni_records.into_iter().chain(win_records).collect())
     }
 }
 
@@ -139,7 +235,10 @@ mod tests {
 
     use crate::{
         dump_table,
-        tables::cmap::{self as write, UNICODE_BMP_ENCODING, WINDOWS_BMP_ENCODING},
+        tables::cmap::{
+            self as write, UNICODE_BMP_ENCODING, UNICODE_FULL_REPERTOIRE_ENCODING,
+            WINDOWS_BMP_ENCODING, WINDOWS_FULL_REPERTOIRE_ENCODING,
+        },
     };
 
     fn assert_generates_simple_cmap(mappings: Vec<(char, GlyphId)>) {
@@ -248,5 +347,130 @@ mod tests {
             let bytes_for_one = dump_table(&cmap).unwrap().len();
             assert_eq!(bytes_for_one + 8, bytes_for_both);
         }
+    }
+
+    fn non_bmp_cmap_mappings() -> Vec<(char, GlyphId)> {
+        // contains four sequential map groups
+        vec![
+            // first group
+            ('\u{1f12f}', GlyphId::new(481)),
+            ('\u{1f130}', GlyphId::new(482)),
+            // char 0x1f131 skipped, starts second group
+            ('\u{1f132}', GlyphId::new(483)),
+            ('\u{1f133}', GlyphId::new(484)),
+            // gid 485 skipped, starts third group
+            ('\u{1f134}', GlyphId::new(486)),
+            // char 0x1f135 skipped, starts fourth group; 0x1f136 defined twice, last map prevails
+            ('\u{1f136}', GlyphId::new(487)),
+            ('\u{1f136}', GlyphId::new(488)),
+        ]
+    }
+
+    fn bmp_and_non_bmp_cmap_mappings() -> Vec<(char, GlyphId)> {
+        let mut mappings = simple_cmap_mappings();
+        mappings.extend(non_bmp_cmap_mappings());
+        mappings
+    }
+
+    fn assert_cmap12_groups(
+        font_data: FontData,
+        cmap: &Cmap,
+        record_index: usize,
+        expected: &[(u32, u32, u32)],
+    ) {
+        let rec = &cmap.encoding_records()[record_index];
+        let CmapSubtable::Format12(subtable) = rec.subtable(font_data).unwrap() else {
+            panic!("Expected a cmap12 in {rec:?}");
+        };
+        let groups = subtable
+            .groups()
+            .iter()
+            .map(|g| (g.start_char_code(), g.end_char_code(), g.start_glyph_id()))
+            .collect::<Vec<_>>();
+        assert_eq!(groups.len(), expected.len());
+        assert_eq!(groups, expected);
+    }
+
+    #[test]
+    fn generate_cmap4_and_12() {
+        let mappings = bmp_and_non_bmp_cmap_mappings();
+
+        let cmap = write::Cmap::from_mappings(mappings);
+
+        let bytes = dump_table(&cmap).unwrap();
+        let font_data = FontData::new(&bytes);
+        let cmap = Cmap::read(font_data).unwrap();
+
+        assert_eq!(4, cmap.encoding_records().len(), "{cmap:?}");
+        assert_eq!(
+            vec![
+                (PlatformId::Unicode, UNICODE_BMP_ENCODING),
+                (PlatformId::Unicode, UNICODE_FULL_REPERTOIRE_ENCODING),
+                (PlatformId::Windows, WINDOWS_BMP_ENCODING),
+                (PlatformId::Windows, WINDOWS_FULL_REPERTOIRE_ENCODING)
+            ],
+            cmap.encoding_records()
+                .iter()
+                .map(|er| (er.platform_id(), er.encoding_id()))
+                .collect::<Vec<_>>(),
+            "{cmap:?}"
+        );
+
+        let encoding_records = cmap.encoding_records();
+        let first_rec = &encoding_records[0];
+        assert!(
+            matches!(
+                first_rec.subtable(font_data).unwrap(),
+                CmapSubtable::Format4(_)
+            ),
+            "Expected a cmap4 in {first_rec:?}"
+        );
+
+        // (start_char_code, end_char_code, start_glyph_id)
+        let expected_groups = vec![
+            (10, 20, 0),
+            (30, 90, 11),
+            (153, 480, 72),
+            (0x1f12f, 0x1f130, 481),
+            (0x1f132, 0x1f133, 483),
+            (0x1f134, 0x1f134, 486),
+            (0x1f136, 0x1f136, 488),
+        ];
+        assert_cmap12_groups(font_data, &cmap, 1, &expected_groups);
+        assert_cmap12_groups(font_data, &cmap, 3, &expected_groups);
+    }
+
+    #[test]
+    fn generate_cmap12_only() {
+        let mappings = non_bmp_cmap_mappings();
+
+        let cmap = write::Cmap::from_mappings(mappings);
+
+        let bytes = dump_table(&cmap).unwrap();
+        let font_data = FontData::new(&bytes);
+        let cmap = Cmap::read(font_data).unwrap();
+
+        assert_eq!(2, cmap.encoding_records().len(), "{cmap:?}");
+        assert_eq!(
+            vec![
+                (PlatformId::Unicode, UNICODE_FULL_REPERTOIRE_ENCODING),
+                (PlatformId::Windows, WINDOWS_FULL_REPERTOIRE_ENCODING)
+            ],
+            cmap.encoding_records()
+                .iter()
+                .map(|er| (er.platform_id(), er.encoding_id()))
+                .collect::<Vec<_>>(),
+            "{cmap:?}"
+        );
+
+        // (start_char_code, end_char_code, start_glyph_id)
+        let expected_groups = vec![
+            (0x1f12f, 0x1f130, 481),
+            (0x1f132, 0x1f133, 483),
+            (0x1f134, 0x1f134, 486),
+            (0x1f136, 0x1f136, 488),
+        ];
+        assert_cmap12_groups(font_data, &cmap, 0, &expected_groups);
+        assert_cmap12_groups(font_data, &cmap, 1, &expected_groups);
     }
 }
