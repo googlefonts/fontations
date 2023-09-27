@@ -5,11 +5,11 @@ use std::{
     fmt::{Debug, Display},
 };
 
-use indexmap::IndexMap;
-use write_fonts::tables::{
+use crate::tables::{
     layout::VariationIndex,
     variations::{ItemVariationData, ItemVariationStore, VariationRegion, VariationRegionList},
 };
+use indexmap::IndexMap;
 
 type TemporaryDeltaSetId = u32;
 
@@ -616,7 +616,7 @@ impl Debug for Encoder<'_> {
 
 #[cfg(test)]
 mod tests {
-    use write_fonts::{read::FontRead, tables::variations::RegionAxisCoordinates, types::F2Dot14};
+    use crate::{read::FontRead, tables::variations::RegionAxisCoordinates, types::F2Dot14};
 
     use super::*;
 
@@ -706,11 +706,10 @@ mod tests {
         builder.add_deltas(vec![(r1.clone(), -11), (r3.clone(), 8)]);
         builder.add_deltas(vec![(r1.clone(), -10), (r3.clone(), 9)]);
         let (table, _) = builder.build();
-        let bytes = write_fonts::dump_table(&table).unwrap();
-        let data = write_fonts::read::FontData::new(&bytes);
+        let bytes = crate::dump_table(&table).unwrap();
+        let data = crate::read::FontData::new(&bytes);
 
-        let reloaded =
-            write_fonts::read::tables::variations::ItemVariationStore::read(data).unwrap();
+        let reloaded = crate::read::tables::variations::ItemVariationStore::read(data).unwrap();
 
         assert_eq!(reloaded.item_variation_data_count(), 2);
         let var_data_array = reloaded.item_variation_data();
