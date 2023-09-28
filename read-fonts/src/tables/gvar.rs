@@ -38,7 +38,8 @@ impl FontReadWithArgs<'_> for U16Or32 {
 }
 
 impl U16Or32 {
-    fn get(self) -> u32 {
+    #[inline]
+    pub fn get(self) -> u32 {
         self.0
     }
 }
