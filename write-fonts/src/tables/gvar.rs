@@ -123,8 +123,16 @@ impl Gvar {
     }
 
     fn compute_flags(&self) -> GvarFlags {
-        //TODO: use short offsets sometimes
-        GvarFlags::LONG_OFFSETS
+        let max_offset = self
+            .glyph_variation_data_offsets
+            .iter()
+            .fold(0, |acc, val| acc + val.length + val.length % 2);
+
+        if max_offset / 2 <= (u16::MAX as u32) {
+            GvarFlags::default()
+        } else {
+            GvarFlags::LONG_OFFSETS
+        }
     }
 
     fn compute_glyph_count(&self) -> u16 {
@@ -254,11 +262,15 @@ impl GlyphVariations {
             .map(|tup| tup.build(shared_tuple_map, shared_points.as_ref()))
             .unzip();
 
-        GlyphVariationData {
+        let mut this = GlyphVariationData {
             tuple_variation_headers: tuple_headers,
             shared_point_numbers: shared_points,
             per_tuple_data: tuple_data,
-        }
+            length: 0,
+        };
+
+        this.length = this.compute_size();
+        this
     }
 }
 
@@ -417,6 +429,11 @@ pub struct GlyphVariationData {
     // optional; present if multiple variations have the same point numbers
     shared_point_numbers: Option<PackedPointNumbers>,
     per_tuple_data: Vec<GlyphTupleVariationData>,
+    /// calculated length required to store this data
+    ///
+    /// we compute this once up front because we need to know it in a bunch
+    /// of different places
+    length: u32,
 }
 
 /// The serializable representation of a single glyph tuple variation data
@@ -457,19 +474,37 @@ struct GlyphDataWriter<'a> {
 
 impl FontWrite for GlyphDataWriter<'_> {
     fn write_into(&self, writer: &mut TableWriter) {
-        assert!(self.long_offsets, "short offset logic not implemented");
-        let mut last = 0u32;
-        last.write_into(writer);
-
-        // write all the offsets
-        for glyph in self.data {
-            last += glyph.compute_size();
+        if self.long_offsets {
+            let mut last = 0u32;
             last.write_into(writer);
+
+            // write all the offsets
+            for glyph in self.data {
+                last += glyph.compute_size();
+                last.write_into(writer);
+            }
+        } else {
+            // for short offsets we divide the real offset by two; this means
+            // we will have to add padding if necessary
+            let mut last = 0u16;
+            last.write_into(writer);
+
+            // write all the offsets
+            for glyph in self.data {
+                let size = glyph.compute_size();
+                // ensure we're always rounding up to the next 2
+                let short_size = (size / 2) + size % 2;
+                last += short_size as u16;
+                last.write_into(writer);
+            }
         }
         // then write the actual data
         for glyph in self.data {
             if !glyph.is_empty() {
                 glyph.write_into(writer);
+                if !self.long_offsets && glyph.length % 2 != 0 {
+                    writer.pad_to_2byte_aligned();
+                }
             }
         }
     }
@@ -933,5 +968,121 @@ mod tests {
             built.per_tuple_data[1].private_point_numbers,
             Some(PackedPointNumbers::Some(vec![1, 3]))
         );
+    }
+
+    fn make_39_bytes_of_variation_data() -> Vec<GlyphDeltas> {
+        vec![
+            GlyphDeltas::new(
+                Tuple::new(vec![F2Dot14::from_f32(-1.0), F2Dot14::from_f32(-1.0)]),
+                vec![
+                    GlyphDelta::optional(0, 0),
+                    GlyphDelta::required(35, 0),
+                    GlyphDelta::optional(0, 0),
+                    GlyphDelta::required(-24, 0),
+                    GlyphDelta::optional(0, 0),
+                    GlyphDelta::optional(0, 0),
+                ],
+                None,
+            ),
+            GlyphDeltas::new(
+                Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                vec![
+                    GlyphDelta::optional(0, 0),
+                    GlyphDelta::required(26, 15),
+                    GlyphDelta::optional(0, 0),
+                    GlyphDelta::required(46, 0),
+                    GlyphDelta::optional(0, 0),
+                    GlyphDelta::required(1, 0),
+                ],
+                None,
+            ),
+        ]
+    }
+
+    // sanity checking my input data for two subsequent tests
+    #[test]
+    fn who_tests_the_testers() {
+        let variations = GlyphVariations::new(GlyphId::NOTDEF, make_39_bytes_of_variation_data());
+        // to get our real size we need to mock up the shared tuples:
+        let mut tupl_map = HashMap::new();
+        tupl_map.insert(&variations.variations[0].peak_tuple, 1);
+        tupl_map.insert(&variations.variations[1].peak_tuple, 2);
+
+        let built = variations.clone().build(&tupl_map);
+        // we need an odd number for this to make sense
+        assert_eq!(built.length, 31);
+    }
+
+    #[test]
+    fn prefer_short_offsets() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        const N_GLYPHS: u16 = 5;
+        let test_data = make_39_bytes_of_variation_data();
+        let a_small_number_of_variations = (0..N_GLYPHS)
+            .map(|i| GlyphVariations::new(GlyphId::new(i), test_data.clone()))
+            .collect();
+
+        let gvar = Gvar::new(a_small_number_of_variations).unwrap();
+        assert_eq!(gvar.compute_flags(), GvarFlags::empty());
+
+        let writer = gvar.compile_variation_data();
+        let mut sink = TableWriter::default();
+        writer.write_into(&mut sink);
+
+        let bytes = sink.into_data().bytes;
+        let expected_len = (N_GLYPHS + 1) as usize * u16::RAW_BYTE_LEN // offsets
+                             + 32 * N_GLYPHS as usize; // rounded size of each glyph, * 5 glyphs
+        assert_eq!(bytes.len(), expected_len);
+
+        let dumped = crate::dump_table(&gvar).unwrap();
+        let loaded = read_fonts::tables::gvar::Gvar::read(FontData::new(&dumped)).unwrap();
+
+        assert_eq!(loaded.glyph_count(), N_GLYPHS);
+        assert_eq!(loaded.flags(), GvarFlags::empty());
+        assert_eq!(
+            loaded
+                .glyph_variation_data_offsets()
+                .iter()
+                .map(|off| off.unwrap().get())
+                .collect::<Vec<_>>(),
+            vec![0u32, 32, 64, 96, 128, 160]
+        );
+    }
+
+    #[test]
+    fn use_long_offsets_when_necessary() {
+        // 2**16 * 2 / (31 + 1 padding) (bytes per tuple) = 4096 so this just overflows
+        const N_GLYPHS: u16 = 4100;
+        let _ = env_logger::builder().is_test(true).try_init();
+        let test_data = make_39_bytes_of_variation_data();
+        let a_large_number_of_variations = (0..N_GLYPHS)
+            .map(|i| GlyphVariations::new(GlyphId::new(i), test_data.clone()))
+            .collect();
+
+        let gvar = Gvar::new(a_large_number_of_variations).unwrap();
+        assert_eq!(gvar.compute_flags(), GvarFlags::LONG_OFFSETS);
+
+        let writer = gvar.compile_variation_data();
+        let mut sink = TableWriter::default();
+        writer.write_into(&mut sink);
+
+        let bytes = sink.into_data().bytes;
+        let expected_len = (N_GLYPHS + 1) as usize * u32::RAW_BYTE_LEN + 31 * N_GLYPHS as usize;
+        assert_eq!(bytes.len(), expected_len);
+
+        let dumped = crate::dump_table(&gvar).unwrap();
+        let loaded = read_fonts::tables::gvar::Gvar::read(FontData::new(&dumped)).unwrap();
+
+        assert_eq!(loaded.glyph_count(), N_GLYPHS);
+        assert_eq!(loaded.flags(), GvarFlags::LONG_OFFSETS);
+        assert_eq!(
+            loaded
+                .glyph_variation_data_offsets()
+                .iter()
+                .take(6)
+                .map(|off| off.unwrap().get())
+                .collect::<Vec<_>>(),
+            vec![0u32, 31, 62, 93, 124, 155]
+        )
     }
 }
