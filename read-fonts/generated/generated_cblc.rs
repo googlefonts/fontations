@@ -110,6 +110,8 @@ impl<'a> std::fmt::Debug for Cblc<'a> {
 
 /// [BitmapSize](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#bitmapsize-record) record.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(C)]
+#[repr(packed)]
 pub struct BitmapSize {
     /// Offset to index subtable from beginning of EBLC/CBLC.
     pub index_subtable_array_offset: BigEndian<u32>,
@@ -201,6 +203,28 @@ impl BitmapSize {
     }
 }
 
+impl FixedSize for BitmapSize {
+    const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN
+        + u32::RAW_BYTE_LEN
+        + SbitLineMetrics::RAW_BYTE_LEN
+        + SbitLineMetrics::RAW_BYTE_LEN
+        + GlyphId::RAW_BYTE_LEN
+        + GlyphId::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + u8::RAW_BYTE_LEN
+        + BitmapFlags::RAW_BYTE_LEN;
+}
+
+impl sealed::Sealed for BitmapSize {}
+
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for BitmapSize {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for BitmapSize {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -217,8 +241,8 @@ impl<'a> SomeRecord<'a> for BitmapSize {
                     self.number_of_index_subtables(),
                 )),
                 3usize => Some(Field::new("color_ref", self.color_ref())),
-                4usize => Some(compile_error!(concat!("another weird type: ", "hori"))),
-                5usize => Some(compile_error!(concat!("another weird type: ", "vert"))),
+                4usize => Some(Field::new("hori", self.hori().traversal_type(_data))),
+                5usize => Some(Field::new("vert", self.vert().traversal_type(_data))),
                 6usize => Some(Field::new("start_glyph_index", self.start_glyph_index())),
                 7usize => Some(Field::new("end_glyph_index", self.end_glyph_index())),
                 8usize => Some(Field::new("ppem_x", self.ppem_x())),
@@ -233,7 +257,7 @@ impl<'a> SomeRecord<'a> for BitmapSize {
 }
 
 /// [SbitLineMetrics](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#sbitlinemetrics-record) record.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SbitLineMetrics {

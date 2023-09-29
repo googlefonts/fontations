@@ -403,7 +403,7 @@ fn traversal_arm_for_field(
             quote!(Field::new(#name_str, traversal::FieldType::var_array(#typ_str, self.#name()#maybe_unwrap, #data)))
         }
         // HACK: who wouldn't want to hard-code ValueRecord handling
-        FieldType::Struct { typ } if typ == "ValueRecord" => {
+        FieldType::Struct { typ } if typ == "ValueRecord" || typ == "SbitLineMetrics" => {
             let offset_data = pass_data
                 .cloned()
                 .unwrap_or_else(|| fld.offset_getter_data_src());
@@ -476,6 +476,14 @@ impl Field {
     }
 
     pub(crate) fn is_zerocopy_compatible(&self) -> bool {
+        match &self.typ {
+            FieldType::Struct { typ: name } => {
+                if name == "SbitLineMetrics" {
+                    return true;
+                }
+            }
+            _ => {}
+        }
         matches!(
             self.typ,
             FieldType::Scalar { .. } | FieldType::Offset { .. }

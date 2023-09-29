@@ -52,10 +52,15 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
         }
     });
     let maybe_impl_read_with_args = (has_read_args).then(|| generate_read_with_args(item));
-    let maybe_extra_traits = item
+    let mut maybe_extra_traits = item
         .gets_extra_traits(all_items)
         .then(|| quote!(PartialEq, Eq, PartialOrd, Ord, Hash));
-
+    if item.name == "SbitLineMetrics" {
+        use quote::TokenStreamExt;
+        let mut copy_trait = quote!(Copy,);
+        copy_trait.append_all(maybe_extra_traits.unwrap_or_default());
+        maybe_extra_traits = Some(copy_trait);
+    }
     Ok(quote! {
     #( #docs )*
     #[derive(Clone, Debug, #maybe_extra_traits)]
