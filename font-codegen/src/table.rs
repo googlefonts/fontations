@@ -190,7 +190,7 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
 
     let mut variant_decls = Vec::new();
     let mut read_match_arms = Vec::new();
-    let mut as_some_table_arms = Vec::new();
+    let mut dyn_inner_arms = Vec::new();
     for var in &item.variants {
         let var_name = &var.name;
         let type_id = &var.type_id;
@@ -198,7 +198,7 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
         variant_decls.push(quote! { #var_name ( #inner <'a, #typ<'a>> ) });
         read_match_arms
             .push(quote! { #type_id => Ok(#name :: #var_name (untyped.into_concrete())) });
-        as_some_table_arms.push(quote! { #name :: #var_name(table) => table });
+        dyn_inner_arms.push(quote! { #name :: #var_name(table) => table });
     }
 
     Ok(quote! {
@@ -219,23 +219,29 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
 
         #[cfg(feature = "traversal")]
         impl<'a> #name <'a> {
-            fn as_some_table(&self) -> &(dyn SomeTable<'a> + 'a) {
+            fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
                 match self {
-                    #( #as_some_table_arms, )*
+                    #( #dyn_inner_arms, )*
                 }
             }
         }
 
         #[cfg(feature = "traversal")]
-
         impl<'a> SomeTable<'a> for #name <'a> {
 
             fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-                self.as_some_table().get_field(idx)
+                self.dyn_inner().get_field(idx)
             }
 
             fn type_name(&self) -> &str {
-                self.as_some_table().type_name()
+                self.dyn_inner().type_name()
+            }
+        }
+
+        #[cfg(feature = "traversal")]
+        impl<'a> std::fmt::Debug for #name<'a> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                self.dyn_inner().fmt(f)
             }
         }
     })
