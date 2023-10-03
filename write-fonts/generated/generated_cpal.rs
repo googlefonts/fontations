@@ -5,6 +5,8 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+pub use read_fonts::tables::cpal::PaletteType;
+
 /// [CPAL (Color Palette Table)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-table-header) table
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -26,7 +28,7 @@ pub struct Cpal {
     /// This is an array of 32-bit flag fields that describe properties of each palette.
     ///
     /// [Palette Types Array]: https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array
-    pub palette_types_array: NullableOffsetMarker<Vec<u32>, WIDTH_32>,
+    pub palette_types_array: NullableOffsetMarker<Vec<PaletteType>, WIDTH_32>,
     /// Offset from the beginning of CPAL table to the [Palette Labels Array][].
     ///
     /// This is an array of 'name' table IDs (typically in the font-specific name
@@ -132,6 +134,12 @@ impl<'a> FromTableRef<read_fonts::tables::cpal::Cpal<'a>> for Cpal {}
 impl<'a> FontRead<'a> for Cpal {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::cpal::Cpal as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+impl FontWrite for PaletteType {
+    fn write_into(&self, writer: &mut TableWriter) {
+        writer.write_slice(&self.bits().to_be_bytes())
     }
 }
 

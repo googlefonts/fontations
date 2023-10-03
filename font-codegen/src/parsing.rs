@@ -554,7 +554,11 @@ impl Parse for BitFlags {
         let docs = get_optional_docs(input)?;
         let _kw = input.parse::<kw::flags>()?;
         let typ = input.parse::<syn::Ident>()?;
-        validate_ident(&typ, &["u8", "u16"], "allowed bitflag types: u8, u16")?;
+        validate_ident(
+            &typ,
+            &["u8", "u16", "u32"],
+            "allowed bitflag types: u8, u16, u32",
+        )?;
         let name = input.parse::<syn::Ident>()?;
 
         let content;
