@@ -2,12 +2,16 @@
 
 pub mod avar;
 pub mod base;
+pub mod bitmap;
+pub mod cbdt;
 pub mod cblc;
 pub mod cff;
 pub mod cff2;
 pub mod cmap;
 pub mod colr;
 pub mod cpal;
+pub mod ebdt;
+pub mod eblc;
 pub mod fvar;
 pub mod gdef;
 pub mod glyf;

@@ -142,6 +142,18 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    fn cbdt(&self) -> Result<tables::cbdt::Cbdt<'a>, ReadError> {
+        self.expect_table()
+    }
+
+    fn eblc(&self) -> Result<tables::eblc::Eblc<'a>, ReadError> {
+        self.expect_table()
+    }
+
+    fn ebdt(&self) -> Result<tables::ebdt::Ebdt<'a>, ReadError> {
+        self.expect_table()
+    }
+
     fn sbix(&self) -> Result<tables::sbix::Sbix<'a>, ReadError> {
         // should we make the user pass this in?
         let num_glyphs = self.maxp().map(|maxp| maxp.num_glyphs())?;

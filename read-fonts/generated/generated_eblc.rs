@@ -5,14 +5,14 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
-/// The [Color Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/cblc) table
+/// The [Embedded Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc) table
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct CblcMarker {
+pub struct EblcMarker {
     bitmap_sizes_byte_len: usize,
 }
 
-impl CblcMarker {
+impl EblcMarker {
     fn major_version_byte_range(&self) -> Range<usize> {
         let start = 0;
         start..start + u16::RAW_BYTE_LEN
@@ -31,12 +31,12 @@ impl CblcMarker {
     }
 }
 
-impl TopLevelTable for Cblc<'_> {
-    /// `CBLC`
-    const TAG: Tag = Tag::new(b"CBLC");
+impl TopLevelTable for Eblc<'_> {
+    /// `EBLC`
+    const TAG: Tag = Tag::new(b"EBLC");
 }
 
-impl<'a> FontRead<'a> for Cblc<'a> {
+impl<'a> FontRead<'a> for Eblc<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
@@ -44,23 +44,23 @@ impl<'a> FontRead<'a> for Cblc<'a> {
         let num_sizes: u32 = cursor.read()?;
         let bitmap_sizes_byte_len = num_sizes as usize * BitmapSize::RAW_BYTE_LEN;
         cursor.advance_by(bitmap_sizes_byte_len);
-        cursor.finish(CblcMarker {
+        cursor.finish(EblcMarker {
             bitmap_sizes_byte_len,
         })
     }
 }
 
-/// The [Color Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/cblc) table
-pub type Cblc<'a> = TableRef<'a, CblcMarker>;
+/// The [Embedded Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc) table
+pub type Eblc<'a> = TableRef<'a, EblcMarker>;
 
-impl<'a> Cblc<'a> {
-    /// Major version of the CBLC table, = 3.
+impl<'a> Eblc<'a> {
+    /// Major version of the EBLC table, = 2.
     pub fn major_version(&self) -> u16 {
         let range = self.shape.major_version_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
-    /// Minor version of CBLC table, = 0.
+    /// Minor version of EBLC table, = 0.
     pub fn minor_version(&self) -> u16 {
         let range = self.shape.minor_version_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -80,9 +80,9 @@ impl<'a> Cblc<'a> {
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for Cblc<'a> {
+impl<'a> SomeTable<'a> for Eblc<'a> {
     fn type_name(&self) -> &str {
-        "Cblc"
+        "Eblc"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
@@ -103,7 +103,7 @@ impl<'a> SomeTable<'a> for Cblc<'a> {
 }
 
 #[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for Cblc<'a> {
+impl<'a> std::fmt::Debug for Eblc<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }

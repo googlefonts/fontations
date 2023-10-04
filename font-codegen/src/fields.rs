@@ -476,18 +476,15 @@ impl Field {
     }
 
     pub(crate) fn is_zerocopy_compatible(&self) -> bool {
-        match &self.typ {
-            FieldType::Struct { typ: name } => {
-                if name == "SbitLineMetrics" {
-                    return true;
-                }
-            }
-            _ => {}
-        }
-        matches!(
-            self.typ,
-            FieldType::Scalar { .. } | FieldType::Offset { .. }
-        )
+        // hack: we want to add `FieldType::Struct` here but don't want to
+        // catch `ValueRecord` so use this attribute to ignore it.
+        // Fields that require args for reading can't be read "zerocopy"
+        // anyway.
+        self.attrs.read_with_args.is_none()
+            && matches!(
+                self.typ,
+                FieldType::Scalar { .. } | FieldType::Offset { .. } | FieldType::Struct { .. }
+            )
     }
 
     pub(crate) fn is_array(&self) -> bool {

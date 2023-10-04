@@ -1,14 +1,14 @@
-#![parse_module(read_fonts::tables::cblc)]
+#![parse_module(read_fonts::tables::eblc)]
 
 extern record BitmapSize;
 
-/// The [Color Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/cblc) table
-#[tag = "CBLC"]
-table Cblc {
-    /// Major version of the CBLC table, = 3.
-    #[compile(3)]
+/// The [Embedded Bitmap Location](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc) table
+#[tag = "EBLC"]
+table Eblc {
+    /// Major version of the EBLC table, = 2.
+    #[compile(2)]
     major_version: u16,
-    /// Minor version of CBLC table, = 0.
+    /// Minor version of EBLC table, = 0.
     #[compile(0)]
     minor_version: u16,
     /// Number of BitmapSize records.
