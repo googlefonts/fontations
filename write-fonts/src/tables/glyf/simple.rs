@@ -2,7 +2,6 @@
 
 use crate::{
     from_obj::{FromObjRef, FromTableRef, ToOwnedTable},
-    pens::{self, ControlBoundsPen},
     util::{self, MultiZip, WrappingGet},
     FontWrite, OtRound,
 };
@@ -572,10 +571,8 @@ fn simple_glyphs_from_kurbo(paths: &[BezPath]) -> Result<Vec<SimpleGlyph>, Malfo
     for (contours, path) in glyph_contours.into_iter().zip(paths.iter()) {
         // https://github.com/googlefonts/fontmake-rs/issues/285 we want control point box, not tight bbox
         // so don't call path.bounding_box
-        let mut cbox_pen = ControlBoundsPen::new();
-        pens::write_to_pen(path, &mut cbox_pen);
         glyphs.push(SimpleGlyph {
-            bbox: cbox_pen.bounds().unwrap_or_default().into(),
+            bbox: path.control_box().into(),
             contours,
             _instructions: Default::default(),
         })
