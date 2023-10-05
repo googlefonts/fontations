@@ -274,12 +274,6 @@ fn get_class_info(graph: &Graph, subtable: ObjectId) -> Vec<Mark2BaseClassInfo> 
     assert_eq!(base_array_off.pos, 10);
     let base_array_data = &graph.objects[&base_array_off.object];
 
-    let base_count: u16 = base_array_data.read_at(0).unwrap_or(0);
-    assert_eq!(
-        base_array_data.offsets.len(),
-        (base_count as usize * mark_class_count as usize)
-    );
-
     for offsets in base_array_data.offsets.chunks_exact(mark_class_count as _) {
         for (i, off) in offsets.iter().enumerate() {
             class_to_info[i].children.push(off.object)
@@ -293,8 +287,14 @@ fn get_class_info(graph: &Graph, subtable: ObjectId) -> Vec<Mark2BaseClassInfo> 
 mod tests {
     use std::ops::Range;
 
+    use font_types::GlyphId;
+    use read_fonts::{tables::layout::LookupFlag, FontRead};
+
     use crate::{
-        tables::gpos::{AnchorTable, BaseArray, BaseRecord, MarkArray, MarkRecord},
+        tables::{
+            gpos::{AnchorTable, BaseArray, BaseRecord, MarkArray, MarkBasePosFormat1, MarkRecord},
+            layout::Lookup,
+        },
         TableWriter,
     };
 
@@ -342,6 +342,136 @@ mod tests {
             })
             .collect();
         BaseArray::new(base_records)
+    }
+
+    // big sanity check of splitting a real table
+    #[test]
+    fn split_mark_2_base() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        const MARK_CLASS_COUNT: u16 = 100;
+        const MARKS_PER_CLASS: u16 = 4;
+        const N_BASES: u16 = 200;
+        const N_MARKS: u16 = MARK_CLASS_COUNT * MARKS_PER_CLASS;
+        const FIRST_BASE_GLYPH: u16 = 2;
+        const FIRST_MARK_GLYPH: u16 = 2000;
+
+        let mark_coverage = (FIRST_MARK_GLYPH..FIRST_MARK_GLYPH + N_MARKS)
+            .map(GlyphId::new)
+            .collect();
+        let base_coverage = (FIRST_BASE_GLYPH..FIRST_BASE_GLYPH + N_BASES)
+            .map(GlyphId::new)
+            .collect();
+        let mark_array = make_mark_array(MARK_CLASS_COUNT, MARKS_PER_CLASS);
+        let base_array = make_base_array(N_BASES, MARK_CLASS_COUNT);
+
+        let table = MarkBasePosFormat1::new(mark_coverage, base_coverage, mark_array, base_array);
+        let lookup = Lookup::new(LookupFlag::empty(), vec![table], 0);
+        let mut graph = TableWriter::make_graph(&lookup);
+        let id = graph.root;
+        assert!(graph.objects[&id].type_.is_promotable());
+        split_mark_to_base(&mut graph, id);
+        graph.remove_orphans();
+        assert!(graph.basic_sort());
+
+        let dumped = graph.serialize();
+        let read_back =
+            rlayout::Lookup::<rgpos::MarkBasePosFormat1>::read(dumped.as_slice().into()).unwrap();
+
+        // quick sanity check: do the coverage tables match?
+        let mark_cov: CoverageTable = read_back
+            .subtables()
+            .iter()
+            .flat_map(|sub| {
+                sub.ok()
+                    .and_then(|sub| sub.mark_coverage().ok().map(|cov| cov.iter()))
+            })
+            .flatten()
+            .collect();
+        assert_eq!(&mark_cov, lookup.subtables[0].mark_coverage.as_ref());
+        let base_cov: CoverageTable = read_back
+            .subtables()
+            .iter()
+            .flat_map(|sub| {
+                sub.ok()
+                    .and_then(|sub| sub.base_coverage().ok().map(|cov| cov.iter()))
+            })
+            .flatten()
+            .collect();
+        assert_eq!(&base_cov, lookup.subtables[0].base_coverage.as_ref());
+
+        // this is a closure for comparing the pre-and-post split values
+        let compare_old_and_new = |base_gid, mark_gid| {
+            // now let's manually check one of the records.
+            let base_gid = GlyphId::new(base_gid);
+            let mark_gid = GlyphId::new(mark_gid);
+
+            // find the values in the original table:
+            let old_subtable = &lookup.subtables[0];
+
+            let base_cov_idx = base_gid.to_u16() - FIRST_BASE_GLYPH;
+            let mark_cov_idx = mark_gid.to_u16() - FIRST_MARK_GLYPH;
+
+            // first find the original values
+            let orig_mark_record = &old_subtable.mark_array.mark_records[mark_cov_idx as usize];
+            let orig_base_anchor = &old_subtable.base_array.base_records[base_cov_idx as usize]
+                .base_anchors[orig_mark_record.mark_class as usize];
+
+            // then find the post-split subtable with this mark glyph
+            let new_subtable = read_back
+                .subtables()
+                .iter()
+                .find_map(|sub| {
+                    let sub = sub.unwrap();
+                    sub.mark_coverage()
+                        .unwrap()
+                        .get(mark_gid)
+                        .is_some()
+                        .then_some(sub)
+                })
+                .unwrap();
+            let new_mark_idx = new_subtable.mark_coverage().unwrap().get(mark_gid).unwrap();
+            let new_base_idx = new_subtable.base_coverage().unwrap().get(base_gid).unwrap();
+            let new_mark_array = new_subtable.mark_array().unwrap();
+            let new_mark_record = &new_mark_array.mark_records()[new_mark_idx as usize];
+            let new_mark_anchor = new_mark_record
+                .mark_anchor(new_mark_array.offset_data())
+                .unwrap();
+            let new_base_array = new_subtable.base_array().unwrap();
+            let new_base_anchor = new_base_array
+                .base_records()
+                .get(new_base_idx as usize)
+                .unwrap()
+                .base_anchors(new_base_array.offset_data())
+                .get(new_mark_record.mark_class() as usize)
+                .transpose()
+                .unwrap();
+
+            fn get_f1_anchor_x_coords(old: &AnchorTable, new: &rgpos::AnchorTable) -> (i16, i16) {
+                match (old, new) {
+                    (AnchorTable::Format1(old), rgpos::AnchorTable::Format1(new)) => {
+                        (old.x_coordinate, new.x_coordinate())
+                    }
+                    _ => panic!("only format 1 here"),
+                }
+            }
+
+            let (old_mark_x, new_mark_x) =
+                get_f1_anchor_x_coords(orig_mark_record.mark_anchor.as_ref(), &new_mark_anchor);
+            assert_eq!(old_mark_x, new_mark_x);
+            let (old_base_x, new_base_x) = orig_base_anchor
+                .as_ref()
+                .zip(new_base_anchor.as_ref())
+                .map(|(old, new)| get_f1_anchor_x_coords(old, new))
+                .unwrap_or_default();
+            assert_eq!(old_base_x, new_base_x);
+        };
+
+        // the first two, the last two, and an even/odd pair in the middle
+        for base in [2, 3, 150, 151, 200, 201] {
+            for mark in [2000, 2001, 2222, 2211, 2398, 2399] {
+                compare_old_and_new(base, mark);
+            }
+        }
     }
 
     #[test]
