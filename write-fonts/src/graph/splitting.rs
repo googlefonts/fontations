@@ -20,7 +20,10 @@ use read_fonts::tables::{
 use super::{Graph, ObjectId};
 use crate::{tables::layout as wlayout, write::TableData, FontWrite, TableWriter};
 
+mod mark2base;
 mod pairpos;
+
+pub(super) use mark2base::split_mark_to_base;
 pub(super) use pairpos::split_pair_pos;
 
 const MAX_TABLE_SIZE: usize = u16::MAX as usize;
