@@ -1059,7 +1059,7 @@ impl Graph {
         match type_ {
             TableType::GposLookup(LookupType::PAIR_POS) => splitting::split_pair_pos(self, lookup),
             TableType::GposLookup(LookupType::MARK_TO_BASE) => {
-                log::warn!("table splitting not yet implemented for GPOS Type 4 (mark-to-base)");
+                splitting::split_mark_to_base(self, lookup)
             }
             _ => (),
         }
