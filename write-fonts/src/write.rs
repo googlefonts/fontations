@@ -5,7 +5,7 @@ use crate::graph::{Graph, ObjectId, ObjectStore, OffsetLen};
 use crate::table_type::TableType;
 use crate::validate::Validate;
 use font_types::{FixedSize, Scalar};
-use read_fonts::{FontData, FontRead, ReadError};
+use read_fonts::{FontData, FontRead, FontReadWithArgs, ReadError};
 
 /// A type that that can be written out as part of a font file.
 ///
@@ -240,6 +240,15 @@ impl TableData {
     pub(crate) fn reparse<'a, T: FontRead<'a>>(&'a self) -> Result<T, ReadError> {
         let data = FontData::new(&self.bytes);
         T::read(data)
+    }
+
+    // see above
+    pub(crate) fn reparse_with_args<'a, A, T: FontReadWithArgs<'a, Args = A>>(
+        &'a self,
+        args: &A,
+    ) -> Result<T, ReadError> {
+        let data = FontData::new(&self.bytes);
+        T::read_with_args(data, args)
     }
 
     /// A helper function to read a value out of this data.
