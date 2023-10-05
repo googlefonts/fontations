@@ -3,11 +3,13 @@
 #[path = "./lookupflag.rs"]
 mod lookupflag;
 
+use core::cmp::Ordering;
+
 pub use lookupflag::LookupFlag;
 
 #[cfg(test)]
 #[path = "../tests/layout.rs"]
-mod tests;
+mod spec_tests;
 
 include!("../../generated/generated_layout.rs");
 
@@ -77,8 +79,8 @@ impl FeatureTableSubstitutionRecord {
     }
 }
 
-impl CoverageTable<'_> {
-    pub fn iter(&self) -> impl Iterator<Item = GlyphId> + '_ {
+impl<'a> CoverageTable<'a> {
+    pub fn iter(&self) -> impl Iterator<Item = GlyphId> + 'a {
         // all one expression so that we have a single return type
         let (iter1, iter2) = match self {
             CoverageTable::Format1(t) => (Some(t.glyph_array().iter().map(|g| g.get())), None),
@@ -92,6 +94,46 @@ impl CoverageTable<'_> {
             .into_iter()
             .flatten()
             .chain(iter2.into_iter().flatten())
+    }
+
+    /// If this glyph is in the coverage table, returns its index
+    pub fn get(&self, gid: GlyphId) -> Option<u16> {
+        match self {
+            CoverageTable::Format1(sub) => sub.get(gid),
+            CoverageTable::Format2(sub) => sub.get(gid),
+        }
+    }
+}
+
+impl CoverageFormat1<'_> {
+    /// If this glyph is in the coverage table, returns its index
+    pub fn get(&self, gid: GlyphId) -> Option<u16> {
+        let be_glyph: BigEndian<GlyphId> = gid.into();
+        self.glyph_array()
+            .binary_search(&be_glyph)
+            .ok()
+            .map(|idx| idx as _)
+    }
+}
+
+impl CoverageFormat2<'_> {
+    /// If this glyph is in the coverage table, returns its index
+    pub fn get(&self, gid: GlyphId) -> Option<u16> {
+        self.range_records()
+            .binary_search_by(|rec| {
+                if rec.end_glyph_id() < gid {
+                    Ordering::Less
+                } else if rec.start_glyph_id() > gid {
+                    Ordering::Greater
+                } else {
+                    Ordering::Equal
+                }
+            })
+            .ok()
+            .map(|idx| {
+                let rec = &self.range_records()[idx];
+                rec.start_coverage_index() + gid.to_u16() - rec.start_glyph_id().to_u16()
+            })
     }
 }
 
@@ -159,5 +201,38 @@ impl ClassDef<'_> {
             ClassDef::Format1(table) => table.get(gid),
             ClassDef::Format2(table) => table.get(gid),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn coverage_get_format1() {
+        // manually generated, corresponding to the glyphs (1, 7, 13, 27, 44);
+        const COV1_DATA: FontData = FontData::new(&[0, 1, 0, 5, 0, 1, 0, 7, 0, 13, 0, 27, 0, 44]);
+
+        let coverage = CoverageFormat1::read(COV1_DATA).unwrap();
+        assert_eq!(coverage.get(GlyphId::new(1)), Some(0));
+        assert_eq!(coverage.get(GlyphId::new(2)), None);
+        assert_eq!(coverage.get(GlyphId::new(7)), Some(1));
+        assert_eq!(coverage.get(GlyphId::new(27)), Some(3));
+        assert_eq!(coverage.get(GlyphId::new(45)), None);
+    }
+
+    #[test]
+    fn coverage_get_format2() {
+        // manually generated, corresponding to glyphs (5..10) and (30..40).
+        const COV2_DATA: FontData =
+            FontData::new(&[0, 2, 0, 2, 0, 5, 0, 9, 0, 0, 0, 30, 0, 39, 0, 5]);
+        let coverage = CoverageFormat2::read(COV2_DATA).unwrap();
+        assert_eq!(coverage.get(GlyphId::new(2)), None);
+        assert_eq!(coverage.get(GlyphId::new(7)), Some(2));
+        assert_eq!(coverage.get(GlyphId::new(9)), Some(4));
+        assert_eq!(coverage.get(GlyphId::new(10)), None);
+        assert_eq!(coverage.get(GlyphId::new(32)), Some(7));
+        assert_eq!(coverage.get(GlyphId::new(39)), Some(14));
+        assert_eq!(coverage.get(GlyphId::new(40)), None);
     }
 }
