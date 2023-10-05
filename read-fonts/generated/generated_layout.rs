@@ -3759,6 +3759,8 @@ pub enum DeviceOrVariationIndex<'a> {
 impl<'a> FontRead<'a> for DeviceOrVariationIndex<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: DeltaFormat = data.read_at(4usize)?;
+
+        #[allow(clippy::redundant_guards)]
         match format {
             format if format != DeltaFormat::VariationIndex => {
                 Ok(Self::Device(FontRead::read(data)?))

@@ -69,7 +69,6 @@ where
         let len = self.len;
 
         std::iter::from_fn(move || {
-            let args = args;
             if i == len {
                 return None;
             }

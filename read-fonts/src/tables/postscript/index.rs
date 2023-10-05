@@ -174,7 +174,7 @@ fn read_offset(
     //
     // See <https://learn.microsoft.com/en-us/typography/opentype/spec/cff2#table-7-index-format>
     if index > count {
-        return Err(ReadError::OutOfBounds)?;
+        Err(ReadError::OutOfBounds)?;
     }
     let data_offset = index * offset_size as usize;
     let offset_data = FontData::new(offset_data);
