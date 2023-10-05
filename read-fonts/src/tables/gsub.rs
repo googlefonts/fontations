@@ -16,8 +16,8 @@ include!("../../generated/generated_gsub.rs");
 /// A typed GSUB [LookupList] table
 pub type SubstitutionLookupList<'a> = LookupList<'a, SubstitutionLookup<'a>>;
 
-/// A GSUB [SequenceContext](super::layout::SequenceContext)
+/// A GSUB [SequenceContext]
 pub type SubstitutionSequenceContext<'a> = super::layout::SequenceContext<'a>;
 
-/// A GSUB [ChainedSequenceContext](super::layout::ChainedSequenceContext)
+/// A GSUB [ChainedSequenceContext]
 pub type SubstitutionChainContext<'a> = super::layout::ChainedSequenceContext<'a>;
