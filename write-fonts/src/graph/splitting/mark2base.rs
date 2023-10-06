@@ -293,7 +293,7 @@ mod tests {
     use crate::{
         tables::{
             gpos::{AnchorTable, BaseArray, BaseRecord, MarkArray, MarkBasePosFormat1, MarkRecord},
-            layout::Lookup,
+            layout::{DeviceOrVariationIndex, Lookup, LookupList, VariationIndex},
         },
         TableWriter,
     };
@@ -314,19 +314,36 @@ mod tests {
         }
     }
 
-    fn make_mark_array(class_count: u16, glyphs_per_class: u16) -> MarkArray {
+    fn make_mark_array(
+        class_count: u16,
+        glyphs_per_class: u16,
+        // if true we add VariationIndex subtables to our anchors,
+        // which is important because it adds an extra layer to the graph
+        // and complicates packing
+        include_var_index_tables: bool,
+    ) -> MarkArray {
         let mark_glyph_count = class_count * glyphs_per_class;
         let records = (0..mark_glyph_count)
             .map(|cov_idx| {
                 let mark_class = cov_idx / glyphs_per_class;
-                let anchor_val = u16_to_i16(cov_idx);
-                MarkRecord::new(mark_class, AnchorTable::format_1(anchor_val, anchor_val))
+                let val = u16_to_i16(cov_idx);
+                let anchor = if include_var_index_tables {
+                    let var_idx = VariationIndex::new(cov_idx, cov_idx);
+                    AnchorTable::format_3(val, val, Some(var_idx.into()), None)
+                } else {
+                    AnchorTable::format_1(val, val)
+                };
+                MarkRecord::new(mark_class, anchor)
             })
             .collect();
         MarkArray::new(records)
     }
 
-    fn make_base_array(base_count: u16, mark_class_count: u16) -> BaseArray {
+    fn make_base_array(
+        base_count: u16,
+        mark_class_count: u16,
+        include_var_index_tables: bool,
+    ) -> BaseArray {
         let base_records = (0..base_count)
             .map(|i| {
                 let mark_anchors = (0..mark_class_count)
@@ -334,7 +351,14 @@ mod tests {
                         // even anchors exist, odd anchors are null
                         (j % 2 == 0).then(|| {
                             let val = u16_to_i16(i * mark_class_count + j);
-                            AnchorTable::format_1(val, val)
+                            if include_var_index_tables {
+                                // we want duplicate variation index tables, since it
+                                // poses different challanges when resolving offsets
+                                let var_idx = VariationIndex::new(j, j);
+                                AnchorTable::format_3(val, val, Some(var_idx.into()), None)
+                            } else {
+                                AnchorTable::format_1(val, val)
+                            }
                         })
                     })
                     .collect();
@@ -361,8 +385,8 @@ mod tests {
         let base_coverage = (FIRST_BASE_GLYPH..FIRST_BASE_GLYPH + N_BASES)
             .map(GlyphId::new)
             .collect();
-        let mark_array = make_mark_array(MARK_CLASS_COUNT, MARKS_PER_CLASS);
-        let base_array = make_base_array(N_BASES, MARK_CLASS_COUNT);
+        let mark_array = make_mark_array(MARK_CLASS_COUNT, MARKS_PER_CLASS, false);
+        let base_array = make_base_array(N_BASES, MARK_CLASS_COUNT, false);
 
         let table = MarkBasePosFormat1::new(mark_coverage, base_coverage, mark_array, base_array);
         let lookup = Lookup::new(LookupFlag::empty(), vec![table], 0);
@@ -475,6 +499,90 @@ mod tests {
     }
 
     #[test]
+    fn full_split_including_variation_index_tables() {
+        let _ = env_logger::builder().is_test(true).try_init();
+
+        const MARK_CLASS_COUNT: u16 = 120;
+        const MARKS_PER_CLASS: u16 = 4;
+        const N_BASES: u16 = 500;
+        const N_MARKS: u16 = MARK_CLASS_COUNT * MARKS_PER_CLASS;
+        const FIRST_BASE_GLYPH: u16 = 2;
+        const FIRST_MARK_GLYPH: u16 = 2000;
+
+        let mark_coverage = (FIRST_MARK_GLYPH..FIRST_MARK_GLYPH + N_MARKS)
+            .map(GlyphId::new)
+            .collect();
+        let base_coverage = (FIRST_BASE_GLYPH..FIRST_BASE_GLYPH + N_BASES)
+            .map(GlyphId::new)
+            .collect();
+        let mark_array = make_mark_array(MARK_CLASS_COUNT, MARKS_PER_CLASS, true);
+        let base_array = make_base_array(N_BASES, MARK_CLASS_COUNT, true);
+
+        let table = MarkBasePosFormat1::new(mark_coverage, base_coverage, mark_array, base_array);
+        let lookup = Lookup::new(LookupFlag::empty(), vec![table], 0);
+        let lookup_list = LookupList::new(vec![lookup]);
+        let bytes = crate::dump_table(&lookup_list).unwrap();
+        let read_back = rgpos::PositionLookupList::read(bytes.as_slice().into()).unwrap();
+        assert_eq!(read_back.lookup_count(), 1);
+        let lookup = read_back.lookups().get(0).unwrap();
+
+        let subtables: Vec<_> = match lookup {
+            rgpos::PositionLookup::MarkToBase(lookup) => {
+                lookup.subtables().iter().map(|sub| sub.unwrap()).collect()
+            }
+            rgpos::PositionLookup::Extension(lookup) => lookup
+                .subtables()
+                .iter()
+                .map(|sub| {
+                    let Ok(rgpos::ExtensionSubtable::MarkToBase(ext_sub)) = sub else {
+                        panic!("wrong extension type");
+                    };
+                    ext_sub.extension().unwrap()
+                })
+                .collect(),
+            _ => panic!("bad lookup type"),
+        };
+        assert_eq!(subtables.len(), 7);
+
+        // now we want to check to see that one of our variation index tables is correct.
+        // in the markarray, each mark has a varidx table, with both values equal
+        // to that mark's original coverage index.
+
+        let mark_cov_idx_to_test = 72;
+        let orig_anchor = &lookup_list.lookups[0].subtables[0].mark_array.mark_records
+            [mark_cov_idx_to_test]
+            .mark_anchor;
+        // sanity check that our logic makes sense
+        match orig_anchor.as_ref() {
+            AnchorTable::Format3(anchor) => match anchor.x_device.as_ref() {
+                Some(DeviceOrVariationIndex::VariationIndex(varidx))
+                    if varidx.delta_set_outer_index == mark_cov_idx_to_test as u16 => {}
+                _ => panic!("bad assumptions"),
+            },
+            _ => panic!("very bad assumptions"),
+        };
+
+        let gid = GlyphId::new(FIRST_MARK_GLYPH + mark_cov_idx_to_test as u16);
+        let subtable = subtables
+            .iter()
+            .find(|sub| sub.mark_coverage().unwrap().get(gid).is_some())
+            .expect("should exist in some subtable");
+        let new_cov_idx = subtable.mark_coverage().unwrap().get(gid).unwrap();
+        let mark_array = subtable.mark_array().unwrap();
+        let mark_record = &mark_array.mark_records()[new_cov_idx as usize];
+        let mark_anchor = mark_record.mark_anchor(mark_array.offset_data()).unwrap();
+        let rgpos::AnchorTable::Format3(mark_anchor) = mark_anchor else {
+            panic!("wrong format")
+        };
+
+        // moment of truth: did we preserve the correct var index table in
+        // this mark's anchor?
+        assert!(
+            matches!(mark_anchor.x_device().transpose().unwrap(), Some(rgpos::DeviceOrVariationIndex::VariationIndex(varidx)) if varidx.delta_set_outer_index() == mark_cov_idx_to_test as u16)
+        );
+    }
+
+    #[test]
     fn test_my_test_helper() {
         assert_eq!(u16_to_i16(1), 1);
         assert_eq!(u16_to_i16(32767), 32767);
@@ -489,7 +597,7 @@ mod tests {
         const GLYPHS_PER_CLASS: u16 = N_GLYPHS / N_CLASSES;
         const SPLIT_CLASS_RANGE: Range<u16> = 20..25;
 
-        let mark_array = make_mark_array(N_CLASSES, GLYPHS_PER_CLASS);
+        let mark_array = make_mark_array(N_CLASSES, GLYPHS_PER_CLASS, false);
 
         let graph = TableWriter::make_graph(&mark_array);
         let data = &graph.objects[&graph.root];
@@ -536,7 +644,7 @@ mod tests {
         const N_BASES: u16 = 10;
         const SPLIT_CLASS_RANGE: Range<u16> = 15..20;
 
-        let base_array = make_base_array(N_BASES, N_CLASSES);
+        let base_array = make_base_array(N_BASES, N_CLASSES, false);
         let graph = TableWriter::make_graph(&base_array);
         let data = &graph.objects[&graph.root];
 
