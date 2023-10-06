@@ -49,7 +49,7 @@ impl VariationStoreBuilder {
     pub fn add_deltas<T: Into<i32>>(&mut self, deltas: Vec<(VariationRegion, T)>) -> u32 {
         let mut delta_set = Vec::with_capacity(deltas.len());
         for (region, delta) in deltas {
-            let region_idx = self.index_for_region(region) as u16;
+            let region_idx = self.canonical_index_for_region(region) as u16;
             delta_set.push((region_idx, delta.into()));
         }
         delta_set.sort_unstable();
@@ -63,7 +63,7 @@ impl VariationStoreBuilder {
             })
     }
 
-    fn index_for_region(&mut self, region: VariationRegion) -> usize {
+    fn canonical_index_for_region(&mut self, region: VariationRegion) -> usize {
         let next_idx = self.all_regions.len();
         *self.all_regions.entry(region).or_insert(next_idx)
     }
@@ -108,9 +108,17 @@ struct Encoding<'a> {
 }
 
 /// A type for remapping delta sets during encoding.
+///
+/// This mapping applies to a single ItemVariationData table, with the regions
+/// defined in the VariationRegionList in the parent table.
 struct RegionMap {
-    /// a region idx + the bits required to store it.
-    map: Vec<(u16, ColumnBits)>,
+    /// A map from the canonical region indices (represented in the sorted
+    /// order of the map) to the ordering of the deltas in a particular
+    /// ItemVariationData table.
+    ///
+    /// For each canonical index, we store the local (column) index and the bits
+    /// required to store that column.
+    regions_to_columns: Vec<(u16, ColumnBits)>,
     n_active_regions: u16,
     n_long_regions: u16,
     long_words: bool,
@@ -365,18 +373,16 @@ impl RowShape {
             })
     }
 
-    /// we reorder regions so that all the 'word' columns are at the front.
-    ///
-    /// The returns a vec where for each region `x`, `vec[x]` is the final position
-    /// of that region.
+    /// Returns a struct that maps the canonical regions to the column indicies
+    /// used in this ItemVariationData.
     fn region_map(&self) -> RegionMap {
         let mut with_idx = self.0.iter().copied().enumerate().collect::<Vec<_>>();
         // sort in descending order of bit size, e.g. big first
         with_idx.sort_unstable_by_key(|(idx, bit)| (std::cmp::Reverse(*bit), *idx));
         // now build a map of indexes from the original positions to the new ones.
         let mut map = vec![(0u16, ColumnBits::None); with_idx.len()];
-        for (new_idx, (old_idx, bits)) in with_idx.iter().enumerate() {
-            map[*old_idx] = (new_idx as _, *bits);
+        for (new_idx, (canonical_idx, bits)) in with_idx.iter().enumerate() {
+            map[*canonical_idx] = (new_idx as _, *bits);
         }
 
         let (count_8, count_16, count_32) = self.count_lengths();
@@ -384,7 +390,7 @@ impl RowShape {
         let n_long_regions = if long_words { count_32 } else { count_16 };
         let n_active_regions = count_8 + count_16 + count_32;
         RegionMap {
-            map,
+            regions_to_columns: map,
             n_active_regions,
             n_long_regions,
             long_words,
@@ -467,10 +473,10 @@ impl<'a> Encoding<'a> {
         for (i, delta) in self.deltas.iter().enumerate() {
             let pos = i * n_regions;
             for (region, val) in &delta.0 {
-                let Some(idx_for_region) = region_map.index_for_region(*region) else {
+                let Some(column_idx) = region_map.column_index_for_region(*region) else {
                     continue;
                 };
-                let idx = pos + idx_for_region as usize;
+                let idx = pos + column_idx as usize;
                 raw_deltas[idx] = *val;
             }
             let raw_key = delta_ids.get(*delta).unwrap();
@@ -498,6 +504,9 @@ impl RegionMap {
     ///
     /// This is mostly boilerplate around whether we are writing i16 and i8, or
     /// i32 and i16.
+    ///
+    /// Invariant: the raw deltas are sorted based on the region ordering of this
+    /// RegionMap.
     fn encode_raw_delta_values(&self, raw_deltas: Vec<i32>) -> Vec<u8> {
         // handles the branching logic of whether long words are 32 or 16 bits.
         fn encode_words<'a>(
@@ -546,19 +555,32 @@ impl RegionMap {
         self.n_long_regions | long_flag
     }
 
-    /// returns `None` if this column is ignored
-    fn index_for_region(&self, region: u16) -> Option<u16> {
-        let (idx, bits) = self.map[region as usize];
-        (bits != ColumnBits::None).then_some(idx)
+    /// For the provided canonical region index, returns the column index used
+    /// in this encoding, or None if the region is ignored.
+    fn column_index_for_region(&self, region: u16) -> Option<u16> {
+        let (column, bits) = self.regions_to_columns[region as usize];
+        (bits != ColumnBits::None).then_some(column)
     }
 
-    /// the indexes into the canonical region list of the active regions
+    /// the indexes into the canonical region list of the active columns
     fn indices(&self) -> Vec<u16> {
-        self.map
+        let mut result: Vec<_> = self
+            .regions_to_columns
             .iter()
             .enumerate()
             .filter_map(|(i, (_, bits))| (*bits as u8 > 0).then_some(i as _))
-            .collect()
+            .collect();
+        // we need this result to be sorted based on the local order:
+        result.sort_unstable_by_key(|region_idx| {
+            self.regions_to_columns
+                .get(*region_idx as usize)
+                .map(|(column, _)| *column)
+                // this can't fail since we got the indexes from this array
+                // immediately previously, but this probably generates better
+                // code than an unwrap
+                .unwrap_or(u16::MAX)
+        });
+        result
     }
 }
 
