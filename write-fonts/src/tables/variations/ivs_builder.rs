@@ -554,10 +554,21 @@ impl RegionMap {
 
     /// the indexes into the canonical region list of the active regions
     fn indices(&self) -> Vec<u16> {
-        self.map
+        // map VarData column to corresponding index into region list excluding inactive
+        let column_to_region_map: HashMap<_, _> = self
+            .map
             .iter()
             .enumerate()
-            .filter_map(|(i, (_, bits))| (*bits as u8 > 0).then_some(i as _))
+            .filter_map(|(region, (column, bits))| {
+                (*bits as u8 > 0).then_some((*column, region as u16))
+            })
+            .collect();
+        let mut column_indices: Vec<_> = column_to_region_map.keys().copied().collect();
+        column_indices.sort_unstable();
+        // return region indices sorted by column index
+        column_indices
+            .into_iter()
+            .map(|column_idx| *column_to_region_map.get(&column_idx).unwrap())
             .collect()
     }
 }
