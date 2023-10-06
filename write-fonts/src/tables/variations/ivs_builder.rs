@@ -877,4 +877,47 @@ mod tests {
         builder.add_deltas(vec![(r1.clone(), 0), (r2.clone(), 0)]);
         let _ = builder.build();
     }
+
+    #[test]
+    fn vardata_region_indices_order() {
+        let r0 = VariationRegion::new(vec![reg_coords(0.0, 0.5, 1.0)]);
+        let r1 = VariationRegion::new(vec![reg_coords(0.5, 1.0, 1.0)]);
+
+        let mut builder = VariationStoreBuilder::default();
+        builder.add_deltas(vec![(r0.clone(), 1), (r1.clone(), 2)]);
+        // 256 won't fit in a u8 thus we expect the deltas for the column corresponding
+        // to r1 will be packed as u16
+        builder.add_deltas(vec![(r0.clone(), 3), (r1.clone(), 256)]);
+
+        let (store, _varidx_map) = builder.build();
+
+        assert_eq!(store.variation_region_list.variation_regions.len(), 2);
+        assert_eq!(store.item_variation_data.len(), 1);
+
+        let var_data = store.item_variation_data[0].as_ref().unwrap();
+
+        assert_eq!(var_data.item_count, 2);
+        assert_eq!(var_data.word_delta_count, 1);
+        // this should be [1, 0] and not [0, 1] because the regions with wider
+        // deltas should be packed first.
+        // var_data.region_indexes is an array of indices into the variation region list
+        // in the order of the columns of the variation data. So it maps from column index
+        // to region index, not the other way around.
+        assert_eq!(var_data.region_indexes, vec![1, 0]);
+        assert_eq!(
+            var_data.delta_sets,
+            // ItemVariationData packs deltas as two-dimensional [u8] array
+            // with item_count rows and region_index_count columns.
+            // In this particular case (word_count=1) the first column contains 'words'
+            // with 2-byte deltas, followed by the second column with 1-byte deltas.
+            vec![
+                // item[0]
+                0, 2, // 2: delta for r1
+                1, //    1: delta for r0
+                // item[1]
+                1, 0, // 256: delta for r1
+                3, //    3: delta for r0
+            ],
+        );
+    }
 }
