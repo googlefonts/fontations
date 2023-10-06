@@ -22,6 +22,7 @@ impl Stat {
 // we use a custom conversion here because we use a shim table in read-fonts
 // (required because it is an offset to an array of offsets, which is too recursive for us)
 // but in write-fonts we want to skip the shim table and just use a vec.
+#[allow(clippy::unwrap_or_default)] // we need to be explicit to provide type info
 fn convert_axis_value_offsets(
     from: Result<read_fonts::tables::stat::AxisValueArray, ReadError>,
 ) -> OffsetMarker<Vec<OffsetMarker<AxisValue>>, WIDTH_32> {

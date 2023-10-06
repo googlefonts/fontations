@@ -300,7 +300,7 @@ impl RepeatableFlag {
             }
 
             match (iter.next(), prev.take()) {
-                (None, Some(RepeatableFlag { flag, repeat })) if repeat == 1 => {
+                (None, Some(RepeatableFlag { flag, repeat: 1 })) => {
                     let flag = flag & !SimpleGlyphFlags::REPEAT_FLAG;
                     decompose_single_repeat = Some(RepeatableFlag { flag, repeat: 0 });
                     return decompose_single_repeat;

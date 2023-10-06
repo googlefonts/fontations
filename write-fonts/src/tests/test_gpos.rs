@@ -134,7 +134,7 @@ fn contextualposformat3() {
 //FIXME: turn this back on when we support device records
 //#[test]
 //fn valueformattable() {
-//// https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-14-valueformat-table-and-valuerecord
+// // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-14-valueformat-table-and-valuerecord
 
 //#[rustfmt::skip]
 //let bytes = [
@@ -177,7 +177,7 @@ fn anchorformat2() {
 //FIXME: enable when we have device tables working
 //#[test]
 //fn anchorformat3() {
-//// https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-17-anchorformat3-table
+// // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-17-anchorformat3-table
 
 //let bytes = [
 //0x00, 0x03, 0x01, 0x17, 0x05, 0x15, 0x00, 0x0A, 0x00, 0x14,
