@@ -303,6 +303,6 @@ fn read_big_metrics(cursor: &mut Cursor) -> Result<BigGlyphMetrics, ReadError> {
 #[cfg(feature = "traversal")]
 impl SbitLineMetrics {
     pub(crate) fn traversal_type<'a>(&self, data: FontData<'a>) -> FieldType<'a> {
-        FieldType::Record(self.clone().traverse(data))
+        FieldType::Record(self.traverse(data))
     }
 }

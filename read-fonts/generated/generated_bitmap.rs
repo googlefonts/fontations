@@ -1030,7 +1030,7 @@ impl<'a> FontRead<'a> for IndexSubtable2<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u32>();
         cursor.advance::<u32>();
-        let big_metrics_byte_len = 1_usize * BigGlyphMetrics::RAW_BYTE_LEN;
+        let big_metrics_byte_len = BigGlyphMetrics::RAW_BYTE_LEN;
         cursor.advance_by(big_metrics_byte_len);
         cursor.finish(IndexSubtable2Marker {
             big_metrics_byte_len,
@@ -1414,7 +1414,7 @@ impl<'a> FontRead<'a> for IndexSubtable5<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u32>();
         cursor.advance::<u32>();
-        let big_metrics_byte_len = 1_usize * BigGlyphMetrics::RAW_BYTE_LEN;
+        let big_metrics_byte_len = BigGlyphMetrics::RAW_BYTE_LEN;
         cursor.advance_by(big_metrics_byte_len);
         let num_glyphs: u32 = cursor.read()?;
         let glyph_array_byte_len = num_glyphs as usize * GlyphId::RAW_BYTE_LEN;

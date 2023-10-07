@@ -7,8 +7,8 @@ use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
 use super::parsing::{
-    logged_syn_error, Attr, Count, CustomCompile, Field, FieldReadArgs, FieldType, FieldValidation,
-    Fields, NeededWhen, OffsetTarget, Phase, Record, ReferencedFields,
+    logged_syn_error, Attr, Count, CountArg, CustomCompile, Field, FieldReadArgs, FieldType,
+    FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record, ReferencedFields,
 };
 
 impl Fields {
@@ -1017,7 +1017,13 @@ impl Field {
                     }
                     _ => unreachable!("count not valid here"),
                 };
-                quote!(  #count_expr * #size_expr )
+                match other {
+                    Count::SingleArg(CountArg::Literal(lit)) if lit.base10_digits() == "1" => {
+                        // Prevent identity-op clippy error with `1 * size`
+                        size_expr
+                    }
+                    _ => quote!(  #count_expr * #size_expr ),
+                }
             }
             None => quote!(compile_error!("missing count attribute?")),
         };
