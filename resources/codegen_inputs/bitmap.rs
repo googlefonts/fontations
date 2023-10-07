@@ -192,3 +192,13 @@ table IndexSubtable5 {
     #[count($num_glyphs)]
     glyph_array: [GlyphId],
 }
+
+/// [EbdtComponent](https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt#ebdtcomponent-record) record.
+record BdtComponent {
+    /// Component glyph ID.
+    glyph_id: GlyphId,
+    /// Position of component left.
+    x_offset: i8,
+    /// Position of component top.
+    y_offset: i8,
+}

@@ -35,7 +35,10 @@ impl BitmapSize {
         if !(self.start_glyph_index()..=self.end_glyph_index()).contains(&glyph_id) {
             return Err(ReadError::OutOfBounds);
         }
-        let mut location = BitmapLocation::default();
+        let mut location = BitmapLocation {
+            bit_depth: self.bit_depth,
+            ..BitmapLocation::default()
+        };
         for ix in 0..self.number_of_index_subtables() {
             let subtable = self.subtable(offset_data, ix)?;
             if !(subtable.first_glyph_index..=subtable.last_glyph_index).contains(&glyph_id) {
@@ -116,14 +119,14 @@ pub struct BitmapLocation {
     /// Offset in EBDT/CBDT table.
     pub data_offset: usize,
     pub data_size: Option<usize>,
+    pub bit_depth: u8,
     pub metrics: Option<BigGlyphMetrics>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum BitmapFormat {
-    Mask,
-    PackedMask,
-    Color,
+pub enum BitmapDataFormat {
+    BitAligned,
+    ByteAligned,
     Png,
 }
 
@@ -135,9 +138,14 @@ pub enum BitmapMetrics {
 
 #[derive(Clone)]
 pub struct BitmapData<'a> {
-    pub format: BitmapFormat,
-    pub metrics: Option<BitmapMetrics>,
-    pub data: &'a [u8],
+    pub metrics: BitmapMetrics,
+    pub content: BitmapContent<'a>,
+}
+
+#[derive(Clone)]
+pub enum BitmapContent<'a> {
+    Data(BitmapDataFormat, &'a [u8]),
+    Composite(&'a [BdtComponent]),
 }
 
 pub(crate) fn bitmap_data<'a>(
@@ -150,38 +158,146 @@ pub(crate) fn bitmap_data<'a>(
         .ok_or(ReadError::OutOfBounds)?
         .cursor();
     match location.format {
+        // Small metrics, byte-aligned data
+        // <https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt#format-1-small-metrics-byte-aligned-data>
+        1 => {
+            let metrics = read_small_metrics(&mut image_data)?;
+            // The data for each row is padded to a byte boundary
+            let pitch = (metrics.width as usize * location.bit_depth as usize + 7) / 8;
+            let height = metrics.height as usize;
+            let data = image_data.read_array::<u8>(pitch * height)?;
+            Ok(BitmapData {
+                metrics: BitmapMetrics::Small(metrics),
+                content: BitmapContent::Data(BitmapDataFormat::ByteAligned, data),
+            })
+        }
+        // Small metrics, bit-aligned data
+        // <https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt#format-2-small-metrics-bit-aligned-data>
+        2 => {
+            let metrics = read_small_metrics(&mut image_data)?;
+            let width = metrics.width as usize * location.bit_depth as usize;
+            let height = metrics.height as usize;
+            // The data is tightly packed
+            let data = image_data.read_array::<u8>((width * height + 7) / 8)?;
+            Ok(BitmapData {
+                metrics: BitmapMetrics::Small(metrics),
+                content: BitmapContent::Data(BitmapDataFormat::BitAligned, data),
+            })
+        }
+        // Format 3 is obsolete
+        // <https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt#format-3-obsolete>
+        // Format 4 is not supported
+        // <https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt#format-4-not-supported-metrics-in-eblc-compressed-data>
+        // ---
+        // Metrics in EBLC/CBLC, bit-aligned image data only
+        // <https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt#format-5-metrics-in-eblc-bit-aligned-image-data-only>
+        5 => {
+            let metrics = location.metrics.clone().ok_or(ReadError::MalformedData(
+                "expected metrics from location table",
+            ))?;
+            let width = metrics.width as usize * location.bit_depth as usize;
+            let height = metrics.height as usize;
+            // The data is tightly packed
+            let data = image_data.read_array::<u8>((width * height + 7) / 8)?;
+            Ok(BitmapData {
+                metrics: BitmapMetrics::Big(metrics),
+                content: BitmapContent::Data(BitmapDataFormat::BitAligned, data),
+            })
+        }
+        // Big metrics, byte-aligned data
+        // <https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt#format-6-big-metrics-byte-aligned-data>
+        6 => {
+            let metrics = read_big_metrics(&mut image_data)?;
+            // The data for each row is padded to a byte boundary
+            let pitch = (metrics.width as usize * location.bit_depth as usize + 7) / 8;
+            let height = metrics.height as usize;
+            let data = image_data.read_array::<u8>(pitch * height)?;
+            Ok(BitmapData {
+                metrics: BitmapMetrics::Big(metrics),
+                content: BitmapContent::Data(BitmapDataFormat::ByteAligned, data),
+            })
+        }
+        // Big metrics, bit-aligned data
+        // <https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt#format7-big-metrics-bit-aligned-data>
+        7 => {
+            let metrics = read_big_metrics(&mut image_data)?;
+            let width = metrics.width as usize * location.bit_depth as usize;
+            let height = metrics.height as usize;
+            // The data is tightly packed
+            let data = image_data.read_array::<u8>((width * height + 7) / 8)?;
+            Ok(BitmapData {
+                metrics: BitmapMetrics::Big(metrics),
+                content: BitmapContent::Data(BitmapDataFormat::BitAligned, data),
+            })
+        }
+        // Small metrics, component data
+        // <https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt#format-8-small-metrics-component-data>
+        8 => {
+            let metrics = read_small_metrics(&mut image_data)?;
+            let _pad = image_data.read::<u8>()?;
+            let count = image_data.read::<u16>()? as usize;
+            let components = image_data.read_array::<BdtComponent>(count)?;
+            Ok(BitmapData {
+                metrics: BitmapMetrics::Small(metrics),
+                content: BitmapContent::Composite(components),
+            })
+        }
+        // Big metrics, component data
+        // <https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt#format-9-big-metrics-component-data>
+        9 => {
+            let metrics = read_big_metrics(&mut image_data)?;
+            let count = image_data.read::<u16>()? as usize;
+            let components = image_data.read_array::<BdtComponent>(count)?;
+            Ok(BitmapData {
+                metrics: BitmapMetrics::Big(metrics),
+                content: BitmapContent::Composite(components),
+            })
+        }
+        // Small metrics, PNG image data
+        // <https://learn.microsoft.com/en-us/typography/opentype/spec/cbdt#format-17-small-metrics-png-image-data>
         17 if is_color => {
-            let metrics = image_data.read_array::<SmallGlyphMetrics>(1)?[0].clone();
+            let metrics = read_small_metrics(&mut image_data)?;
             let data_len = image_data.read::<u32>()? as usize;
             let data = image_data.read_array::<u8>(data_len)?;
-            return Ok(BitmapData {
-                format: BitmapFormat::Png,
-                metrics: Some(BitmapMetrics::Small(metrics)),
-                data,
-            });
+            Ok(BitmapData {
+                metrics: BitmapMetrics::Small(metrics),
+                content: BitmapContent::Data(BitmapDataFormat::Png, data),
+            })
         }
+        // Big metrics, PNG image data
+        // <https://learn.microsoft.com/en-us/typography/opentype/spec/cbdt#format-18-big-metrics-png-image-data>
         18 if is_color => {
-            let metrics = image_data.read_array::<BigGlyphMetrics>(1)?[0].clone();
+            let metrics = read_big_metrics(&mut image_data)?;
             let data_len = image_data.read::<u32>()? as usize;
             let data = image_data.read_array::<u8>(data_len)?;
-            return Ok(BitmapData {
-                format: BitmapFormat::Png,
-                metrics: Some(BitmapMetrics::Big(metrics)),
-                data,
-            });
+            Ok(BitmapData {
+                metrics: BitmapMetrics::Big(metrics),
+                content: BitmapContent::Data(BitmapDataFormat::Png, data),
+            })
         }
+        // Metrics in CBLC table, PNG image data
+        // <https://learn.microsoft.com/en-us/typography/opentype/spec/cbdt#format-19-metrics-in-cblc-table-png-image-data>
         19 if is_color => {
+            let metrics = location.metrics.clone().ok_or(ReadError::MalformedData(
+                "expected metrics from location table",
+            ))?;
             let data_len = image_data.read::<u32>()? as usize;
             let data = image_data.read_array::<u8>(data_len)?;
-            return Ok(BitmapData {
-                format: BitmapFormat::Png,
-                metrics: None,
-                data,
-            });
+            Ok(BitmapData {
+                metrics: BitmapMetrics::Big(metrics),
+                content: BitmapContent::Data(BitmapDataFormat::Png, data),
+            })
         }
-        _ => {}
+        _ => Err(ReadError::MalformedData("unexpected bitmap data format")),
     }
-    Err(ReadError::MalformedData("bad image format"))
+}
+
+fn read_small_metrics(cursor: &mut Cursor) -> Result<SmallGlyphMetrics, ReadError> {
+    Ok(cursor.read_array::<SmallGlyphMetrics>(1)?[0].clone())
+}
+
+fn read_big_metrics(cursor: &mut Cursor) -> Result<BigGlyphMetrics, ReadError> {
+    Ok(cursor.read_array::<BigGlyphMetrics>(1)?[0].clone())
 }
 
 #[cfg(feature = "traversal")]

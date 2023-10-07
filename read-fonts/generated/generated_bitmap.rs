@@ -1505,3 +1505,60 @@ impl<'a> std::fmt::Debug for IndexSubtable5<'a> {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
+
+/// [EbdtComponent](https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt#ebdtcomponent-record) record.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(C)]
+#[repr(packed)]
+pub struct BdtComponent {
+    /// Component glyph ID.
+    pub glyph_id: BigEndian<GlyphId>,
+    /// Position of component left.
+    pub x_offset: BigEndian<i8>,
+    /// Position of component top.
+    pub y_offset: BigEndian<i8>,
+}
+
+impl BdtComponent {
+    /// Component glyph ID.
+    pub fn glyph_id(&self) -> GlyphId {
+        self.glyph_id.get()
+    }
+
+    /// Position of component left.
+    pub fn x_offset(&self) -> i8 {
+        self.x_offset.get()
+    }
+
+    /// Position of component top.
+    pub fn y_offset(&self) -> i8 {
+        self.y_offset.get()
+    }
+}
+
+impl FixedSize for BdtComponent {
+    const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + i8::RAW_BYTE_LEN + i8::RAW_BYTE_LEN;
+}
+
+impl sealed::Sealed for BdtComponent {}
+
+/// SAFETY: see the [`FromBytes`] trait documentation.
+unsafe impl FromBytes for BdtComponent {
+    fn this_trait_should_only_be_implemented_in_generated_code() {}
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for BdtComponent {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "BdtComponent",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("glyph_id", self.glyph_id())),
+                1usize => Some(Field::new("x_offset", self.x_offset())),
+                2usize => Some(Field::new("y_offset", self.y_offset())),
+                _ => None,
+            }),
+            data,
+        }
+    }
+}
