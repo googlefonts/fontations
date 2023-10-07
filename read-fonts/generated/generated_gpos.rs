@@ -193,7 +193,7 @@ impl<'a> FontRead<'a> for PositionLookup<'a> {
 
 #[cfg(feature = "traversal")]
 impl<'a> PositionLookup<'a> {
-    fn as_some_table(&self) -> &(dyn SomeTable<'a> + 'a) {
+    fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
         match self {
             PositionLookup::Single(table) => table,
             PositionLookup::Pair(table) => table,
@@ -211,10 +211,17 @@ impl<'a> PositionLookup<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> SomeTable<'a> for PositionLookup<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.as_some_table().get_field(idx)
+        self.dyn_inner().get_field(idx)
     }
     fn type_name(&self) -> &str {
-        self.as_some_table().type_name()
+        self.dyn_inner().type_name()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for PositionLookup<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
     }
 }
 
@@ -3571,7 +3578,7 @@ impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
 
 #[cfg(feature = "traversal")]
 impl<'a> ExtensionSubtable<'a> {
-    fn as_some_table(&self) -> &(dyn SomeTable<'a> + 'a) {
+    fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
         match self {
             ExtensionSubtable::Single(table) => table,
             ExtensionSubtable::Pair(table) => table,
@@ -3588,9 +3595,16 @@ impl<'a> ExtensionSubtable<'a> {
 #[cfg(feature = "traversal")]
 impl<'a> SomeTable<'a> for ExtensionSubtable<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        self.as_some_table().get_field(idx)
+        self.dyn_inner().get_field(idx)
     }
     fn type_name(&self) -> &str {
-        self.as_some_table().type_name()
+        self.dyn_inner().type_name()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ExtensionSubtable<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
     }
 }

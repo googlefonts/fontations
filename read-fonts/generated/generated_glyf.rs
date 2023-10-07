@@ -1112,6 +1112,8 @@ pub enum Glyph<'a> {
 impl<'a> FontRead<'a> for Glyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: i16 = data.read_at(0usize)?;
+
+        #[allow(clippy::redundant_guards)]
         match format {
             format if format >= 0 => Ok(Self::Simple(FontRead::read(data)?)),
             format if format < 0 => Ok(Self::Composite(FontRead::read(data)?)),

@@ -31,7 +31,7 @@ table Cpal {
     #[since_version(1)]
     #[nullable]
     #[read_offset_with($num_palettes)]
-    palette_types_array_offset: Offset32<[u32]>,
+    palette_types_array_offset: Offset32<[PaletteType]>,
     /// Offset from the beginning of CPAL table to the [Palette Labels Array][].
     ///
     /// This is an array of 'name' table IDs (typically in the font-specific name
@@ -56,6 +56,14 @@ table Cpal {
     #[nullable]
     #[read_offset_with($num_palette_entries)]
     palette_entry_labels_array_offset: Offset32<[NameId]>,
+}
+
+/// The [PaletteType](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array) flags.
+flags u32 PaletteType {
+    /// Bit 0: palette is appropriate to use when displaying the font on a light background such as white.
+    USABLE_WITH_LIGHT_BACKGROUND = 0x0001,
+    /// Bit 1: palette is appropriate to use when displaying the font on a dark background such as black.
+    USABLE_WITH_DARK_BACKGROUND = 0x0002,
 }
 
 /// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record

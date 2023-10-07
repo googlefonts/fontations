@@ -133,8 +133,7 @@ impl Fields {
 
     /// If this table has a version field, return it.
     pub(crate) fn version_field(&self) -> Option<&Field> {
-        self.iter()
-            .find_map(|fld| fld.attrs.version.is_some().then_some(fld))
+        self.iter().find(|fld| fld.attrs.version.is_some())
     }
 
     // used for validating lengths. handles both fields and 'virtual fields',

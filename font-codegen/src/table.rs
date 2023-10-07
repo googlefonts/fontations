@@ -190,7 +190,7 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
 
     let mut variant_decls = Vec::new();
     let mut read_match_arms = Vec::new();
-    let mut as_some_table_arms = Vec::new();
+    let mut dyn_inner_arms = Vec::new();
     for var in &item.variants {
         let var_name = &var.name;
         let type_id = &var.type_id;
@@ -198,7 +198,7 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
         variant_decls.push(quote! { #var_name ( #inner <'a, #typ<'a>> ) });
         read_match_arms
             .push(quote! { #type_id => Ok(#name :: #var_name (untyped.into_concrete())) });
-        as_some_table_arms.push(quote! { #name :: #var_name(table) => table });
+        dyn_inner_arms.push(quote! { #name :: #var_name(table) => table });
     }
 
     Ok(quote! {
@@ -219,23 +219,29 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
 
         #[cfg(feature = "traversal")]
         impl<'a> #name <'a> {
-            fn as_some_table(&self) -> &(dyn SomeTable<'a> + 'a) {
+            fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
                 match self {
-                    #( #as_some_table_arms, )*
+                    #( #dyn_inner_arms, )*
                 }
             }
         }
 
         #[cfg(feature = "traversal")]
-
         impl<'a> SomeTable<'a> for #name <'a> {
 
             fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-                self.as_some_table().get_field(idx)
+                self.dyn_inner().get_field(idx)
             }
 
             fn type_name(&self) -> &str {
-                self.as_some_table().type_name()
+                self.dyn_inner().type_name()
+            }
+        }
+
+        #[cfg(feature = "traversal")]
+        impl<'a> std::fmt::Debug for #name<'a> {
+            fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+                self.dyn_inner().fmt(f)
             }
         }
     })
@@ -592,12 +598,14 @@ fn generate_format_from_obj(
     parse_module: &syn::Path,
 ) -> syn::Result<TokenStream> {
     let name = &item.name;
-    let to_owned_arms = item.variants.iter().filter_map(|variant| {
-        variant.attrs.write_only.is_none().then(|| {
+    let to_owned_arms = item
+        .variants
+        .iter()
+        .filter(|variant| variant.attrs.write_only.is_none())
+        .map(|variant| {
             let var_name = &variant.name;
             quote!( ObjRefType::#var_name(item) => #name::#var_name(item.to_owned_table()), )
-        })
-    });
+        });
 
     Ok(quote! {
         impl FromObjRef<#parse_module:: #name<'_>> for #name {
@@ -623,41 +631,52 @@ fn generate_format_from_obj(
 pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStream> {
     let name = &item.name;
     let docs = &item.attrs.docs;
-    let variants = item.variants.iter().filter_map(|variant| {
-        variant.attrs.write_only.is_none().then(|| {
+    let variants = item
+        .variants
+        .iter()
+        .filter(|variant| variant.attrs.write_only.is_none())
+        .map(|variant| {
             let name = &variant.name;
             let typ = variant.type_name();
             let docs = &variant.attrs.docs;
             quote! ( #( #docs )* #name(#typ<'a>) )
-        })
-    });
+        });
 
     let format = &item.format;
-    let match_arms = item.variants.iter().filter_map(|variant| {
-        if variant.attrs.write_only.is_some() {
-            return None;
-        }
-        let name = &variant.name;
-        let lhs = if let Some(expr) = variant.attrs.match_stmt.as_deref() {
-            let expr = &expr.expr;
-            quote!(format if #expr)
-        } else {
-            let typ = variant.marker_name();
-            quote!(#typ::FORMAT)
-        };
-        Some(quote! {
-            #lhs => {
-                Ok(Self::#name(FontRead::read(data)?))
-            }
+    // if we have any fancy match statement we disable a clippy lint
+    let mut has_any_match_stmt = false;
+    let match_arms = item
+        .variants
+        .iter()
+        .filter(|variant| variant.attrs.write_only.is_none())
+        .map(|variant| {
+            let name = &variant.name;
+            let lhs = if let Some(expr) = variant.attrs.match_stmt.as_deref() {
+                has_any_match_stmt = true;
+                let expr = &expr.expr;
+                quote!(format if #expr)
+            } else {
+                let typ = variant.marker_name();
+                quote!(#typ::FORMAT)
+            };
+            Some(quote! {
+                #lhs => {
+                    Ok(Self::#name(FontRead::read(data)?))
+                }
+            })
         })
-    });
+        .collect::<Vec<_>>();
 
-    let traversal_arms = item.variants.iter().filter_map(|variant| {
-        variant.attrs.write_only.is_none().then(|| {
+    let maybe_allow_lint = has_any_match_stmt.then(|| quote!(#[allow(clippy::redundant_guards)]));
+
+    let traversal_arms = item
+        .variants
+        .iter()
+        .filter(|variant| variant.attrs.write_only.is_none())
+        .map(|variant| {
             let name = &variant.name;
             quote!(Self::#name(table) => table)
-        })
-    });
+        });
 
     let format_offset = item
         .format_offset
@@ -674,6 +693,7 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
         impl<'a> FontRead<'a> for #name<'a> {
             fn read(data: FontData<'a>) -> Result<Self, ReadError> {
                 let format: #format = data.read_at(#format_offset)?;
+                #maybe_allow_lint
                 match format {
                     #( #match_arms ),*
                     other => Err(ReadError::InvalidFormat(other.into())),
@@ -770,12 +790,12 @@ impl Table {
         let mut result = Vec::new();
         // if an input arg is needed later, save it in the shape.
         if let Some(args) = &self.attrs.read_args {
-            result.extend(args.args.iter().filter_map(|arg| {
-                self.fields
-                    .referenced_fields
-                    .needs_at_runtime(&arg.ident)
-                    .then(|| (arg.ident.clone(), arg.typ.to_token_stream()))
-            }));
+            result.extend(
+                args.args
+                    .iter()
+                    .filter(|arg| self.fields.referenced_fields.needs_at_runtime(&arg.ident))
+                    .map(|arg| (arg.ident.clone(), arg.typ.to_token_stream())),
+            );
         }
 
         for next in self.fields.iter() {
@@ -875,15 +895,16 @@ impl TableReadArgs {
         &'a self,
         referenced_fields: &'a ReferencedFields,
     ) -> impl Iterator<Item = TokenStream> + 'a {
-        self.args.iter().filter_map(|TableReadArg { ident, typ }| {
-            referenced_fields.needs_at_runtime(ident).then(|| {
+        self.args
+            .iter()
+            .filter(|arg| referenced_fields.needs_at_runtime(&arg.ident))
+            .map(|TableReadArg { ident, typ }| {
                 quote! {
                     pub(crate) fn #ident(&self) -> #typ {
                         self.shape.#ident
                     }
                 }
             })
-        })
     }
 }
 
