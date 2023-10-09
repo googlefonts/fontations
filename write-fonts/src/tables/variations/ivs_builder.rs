@@ -1041,4 +1041,47 @@ mod tests {
             ],
         );
     }
+
+    #[test]
+    fn direct_variation_store() {
+        let r1 = VariationRegion::new(vec![reg_coords(0.0, 0.5, 1.0)]);
+        let r2 = VariationRegion::new(vec![reg_coords(0.5, 1.0, 1.0)]);
+
+        let mut builder = DirectVariationStoreBuilder::default();
+        let var_idxes = vec![
+            builder.add_deltas(vec![(r1.clone(), 1), (r2.clone(), 2)]),
+            builder.add_deltas(vec![(r1.clone(), 3), (r2.clone(), 256)]), // 256 doesn't fit u8
+            builder.add_deltas(vec![(r1.clone(), 1), (r2.clone(), 2)]),   // repeats 1st one
+        ];
+        // duplicate delta sets are stored as is, variation indices are not merged,
+        // they simply increment as deltas for each glyph are appended; there is a 1:1
+        // correspondence between the glyph index and the variation index.
+        assert_eq!(var_idxes, vec![0, 1, 2]);
+
+        let store = builder.build();
+
+        assert_eq!(store.variation_region_list.variation_regions.len(), 2);
+        assert_eq!(store.item_variation_data.len(), 1);
+
+        let var_data = store.item_variation_data[0].as_ref().unwrap();
+
+        assert_eq!(var_data.item_count, 3); // not 2
+        assert_eq!(var_data.word_delta_count, 1);
+        // [1, 0], not [0, 1] as wider deltas should be packed first
+        assert_eq!(var_data.region_indexes, vec![1, 0]);
+        assert_eq!(
+            var_data.delta_sets,
+            vec![
+                // item[0]
+                0, 2, // 2: delta for r1
+                1, //    1: delta for r0
+                // item[1]
+                1, 0, // 256: delta for r1
+                3, //    3: delta for r0
+                // item[2] contains same deltas as item[0] but is not merged
+                0, 2, // 2: delta for r1
+                1, //    1: delta for r0
+            ],
+        );
+    }
 }
