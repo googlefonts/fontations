@@ -1,0 +1,313 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ttFont sfntVersion="\x00\x01\x00\x00" ttLibVersion="4.37">
+  <head>
+    <!-- Most of this table will be recalculated by the compiler -->
+    <tableVersion value="1.0"/>
+    <fontRevision value="1.0"/>
+    <checkSumAdjustment value="0xe34c4a3"/>
+    <magicNumber value="0x5f0f3cf5"/>
+    <flags value="00000000 00000011"/>
+    <unitsPerEm value="1024"/>
+    <created value="Sat Nov  5 18:46:15 2022"/>
+    <modified value="Sat Nov  5 18:46:15 2022"/>
+    <xMin value="51"/>
+    <yMin value="-250"/>
+    <xMax value="998"/>
+    <yMax value="950"/>
+    <macStyle value="00000000 00000011"/>
+    <lowestRecPPEM value="6"/>
+    <fontDirectionHint value="2"/>
+    <indexToLocFormat value="0"/>
+    <glyphDataFormat value="0"/>
+  </head>
+
+  <GlyphOrder>
+    <!-- The 'id' attribute is only for humans; it is ignored when parsed. -->
+    <GlyphID id="0" name=".notdef"/>
+    <GlyphID id="1" name="g1"/>
+    <GlyphID id="2" name="g2"/>
+    <GlyphID id="3" name="g3"/>
+    <GlyphID id="4" name="numbersign"/>
+  </GlyphOrder>
+
+  <maxp>
+    <tableVersion value="0x5000"/>
+    <numGlyphs value="4"/>
+  </maxp>
+
+  <EBDT>
+    <header version="2.0"/>
+    <strikedata index="0">
+      <ebdt_bitmap_format_2 name="g1">
+        <SmallGlyphMetrics>
+          <height value="8"/>
+          <width value="3"/>
+          <BearingX value="1"/>
+          <BearingY value="6"/>
+          <Advance value="4"/>
+        </SmallGlyphMetrics>
+        <rawimagedata>
+          eeaeea
+        </rawimagedata>
+      </ebdt_bitmap_format_2>
+      <ebdt_bitmap_format_2 name="g2">
+        <SmallGlyphMetrics>
+          <height value="8"/>
+          <width value="4"/>
+          <BearingX value="0"/>
+          <BearingY value="6"/>
+          <Advance value="4"/>
+        </SmallGlyphMetrics>
+        <rawimagedata>
+          f0f0f0f0
+        </rawimagedata>
+      </ebdt_bitmap_format_2>  
+      <ebdt_bitmap_format_2 name="g3">
+        <SmallGlyphMetrics>
+          <height value="8"/>
+          <width value="4"/>
+          <BearingX value="0"/>
+          <BearingY value="6"/>
+          <Advance value="4"/>
+        </SmallGlyphMetrics>
+        <rawimagedata>
+          abababab 
+        </rawimagedata>
+      </ebdt_bitmap_format_2>          
+    </strikedata>
+    <strikedata index="1">
+      <ebdt_bitmap_format_5 name="g3">
+        <rawimagedata>
+          aabbccdd 00112233 ffee1234 424242aa
+          88990011  
+        </rawimagedata>
+      </ebdt_bitmap_format_5>
+    </strikedata>    
+  </EBDT>
+
+  <EBLC>
+    <header version="2.0"/>
+    <strike index="0">
+      <bitmapSizeTable>
+        <sbitLineMetrics direction="hori">
+          <ascender value="6"/>
+          <descender value="2"/>
+          <widthMax value="4"/>
+          <caretSlopeNumerator value="0"/>
+          <caretSlopeDenominator value="0"/>
+          <caretOffset value="0"/>
+          <minOriginSB value="0"/>
+          <minAdvanceSB value="0"/>
+          <maxBeforeBL value="6"/>
+          <minAfterBL value="-2"/>
+          <pad1 value="0"/>
+          <pad2 value="0"/>
+        </sbitLineMetrics>
+        <sbitLineMetrics direction="vert">
+          <ascender value="6"/>
+          <descender value="2"/>
+          <widthMax value="0"/>
+          <caretSlopeNumerator value="0"/>
+          <caretSlopeDenominator value="0"/>
+          <caretOffset value="0"/>
+          <minOriginSB value="0"/>
+          <minAdvanceSB value="0"/>
+          <maxBeforeBL value="0"/>
+          <minAfterBL value="0"/>
+          <pad1 value="0"/>
+          <pad2 value="0"/>
+        </sbitLineMetrics>
+        <colorRef value="0"/>
+        <startGlyphIndex value="1"/>
+        <endGlyphIndex value="2"/>
+        <ppemX value="7"/>
+        <ppemY value="7"/>
+        <bitDepth value="1"/>
+        <flags value="1"/>
+      </bitmapSizeTable>
+      <!-- GlyphIds are written but not read. The firstGlyphIndex and
+           lastGlyphIndex values will be recalculated by the compiler. -->
+      <eblc_index_sub_table_3 imageFormat="2" firstGlyphIndex="1" lastGlyphIndex="2">
+        <glyphLoc id="1" name="g1"/>
+        <glyphLoc id="2" name="g2"/>
+      </eblc_index_sub_table_3>
+    </strike>
+    <strike index="1">
+      <bitmapSizeTable>
+        <sbitLineMetrics direction="hori">
+          <ascender value="12"/>
+          <descender value="5"/>
+          <widthMax value="9"/>
+          <caretSlopeNumerator value="0"/>
+          <caretSlopeDenominator value="0"/>
+          <caretOffset value="0"/>
+          <minOriginSB value="0"/>
+          <minAdvanceSB value="0"/>
+          <maxBeforeBL value="12"/>
+          <minAfterBL value="-5"/>
+          <pad1 value="0"/>
+          <pad2 value="0"/>
+        </sbitLineMetrics>
+        <sbitLineMetrics direction="vert">
+          <ascender value="12"/>
+          <descender value="5"/>
+          <widthMax value="0"/>
+          <caretSlopeNumerator value="0"/>
+          <caretSlopeDenominator value="0"/>
+          <caretOffset value="0"/>
+          <minOriginSB value="0"/>
+          <minAdvanceSB value="0"/>
+          <maxBeforeBL value="0"/>
+          <minAfterBL value="0"/>
+          <pad1 value="0"/>
+          <pad2 value="0"/>
+        </sbitLineMetrics>
+        <colorRef value="0"/>
+        <startGlyphIndex value="3"/>
+        <endGlyphIndex value="3"/>
+        <ppemX value="15"/>
+        <ppemY value="15"/>
+        <bitDepth value="1"/>
+        <flags value="1"/>
+      </bitmapSizeTable>
+      <!-- GlyphIds are written but not read. The firstGlyphIndex and
+           lastGlyphIndex values will be recalculated by the compiler. -->
+      <eblc_index_sub_table_2 imageFormat="5" firstGlyphIndex="3" lastGlyphIndex="3">
+        <imageSize value="20"/>
+        <BigGlyphMetrics>
+          <height value="17"/>
+          <width value="9"/>
+          <horiBearingX value="0"/>
+          <horiBearingY value="12"/>
+          <horiAdvance value="9"/>
+          <vertBearingX value="-4"/>
+          <vertBearingY value="-9"/>
+          <vertAdvance value="0"/>
+        </BigGlyphMetrics>
+        <glyphLoc id="3" name="g3"/>
+      </eblc_index_sub_table_2>
+    </strike>    
+  </EBLC>
+
+  <CBDT>
+    <header version="3.0"/>
+    <strikedata index="0">
+      <cbdt_bitmap_format_17 name="numbersign">
+        <SmallGlyphMetrics>
+          <height value="128"/>
+          <width value="136"/>
+          <BearingX value="0"/>
+          <BearingY value="101"/>
+          <Advance value="136"/>
+        </SmallGlyphMetrics>
+        <rawimagedata>
+          89504e47 0d0a1a0a 0000000d 49484452
+          00000088 00000080 08030000 00e737d1
+          0d000000 8a504c54 4547704c 5c5c5c75
+          75756d6d 6d727272 7474746a 69696c6c
+          6c696969 6f6f6f6b 6b6b6968 68737272
+          56555570 70706d6d 6d6b6b6b 61606068
+          68686666 66646363 64636354 53535b59
+          59616060 52515154 5353605f 5f5e5e5e
+          5d5d5d5b 5b5b5150 505a5959 51505052
+          51515756 56515050 51505052 51515453
+          534f4e4e 4f4e4e51 50504f4e 4e4f4e4e
+          4f4e4eb5 c8e4e900 00002e74 524e5300
+          208040eb ff511070 a3c38fff 30ffffff
+          80ffffea ff60bfff af9fffff ffff70ff
+          10cfff40 ef8fff80 bfff50ff df66dbac
+          80000002 6b494441 547801ed d8878eea
+          400c85e1 13c2d27b 872dd909 1d26efff
+          78b76107 4b9adb22 e2a0953f b5e8df36
+          5e4c8579 06c61863 8c31c618 13d57e89
+          21c5b718 414f547f b96988d8 a0566f42
+          4deb85b4 45ec708c a1a6db23 3511eb1c
+          63a8e9f4 4803b966 8f414f8f 45c8c5dc
+          3a50d31f 30116b94 7a6da869 0c881cbe
+          cdb10635 b5e1cda0 2bf76648 34777548
+          1a220e07 149b5033 1cddc8e1 e311a943
+          4d73c444 6c71eb40 4d1cfa9b 5d8e63a8
+          194f485b ee0dc706 d4b42744 0e3f6111
+          d474a624 46ae3f65 d033654d e41adc34
+          77754a66 726f3876 a1a63527 72f80eb5
+          e9026aba 73227775 c631869a e59cc817
+          23730635 fdd57c75 b346aeb5 620b94a8
+          31beebce 56643e5f 72dcac72 f30db5b8
+          8473bc0a 6f6ff7eb 557ec157 f2ba8147
+          1bbf1532 fec20779 2fa48483 7c14f285
+          0f927c16 f2f883b8 e56701a9 4389a274
+          cb960e64 b7cf63e2 a064b765 1172074a
+          9f29a07e 903de441 c8016a92 23598ab8
+          e4b8809a cd919c44 dc73dc41 cd39307c
+          7464d073 617de476 dc52a8e9 5f988827
+          6e1ba8b9 7a22875f 733c41cd c913397c
+          ca517357 3d4944f4 cc41cd3e 30fc8edb
+          1e6a5c68 f884db19 4ac4f099 88872a77
+          550e7fd6 3f88cb3c eb83f5bd ce4db338
+          df653eb7 3f337f97 715b9470 0e5fc8a2
+          84ad28e4 6407b183 a81f24f1 85247834
+          b7f1059c 1d4a9478 9645206e edd9c641
+          4b1af8c7 f79feec5 48f6ac2f 46ecc5c8
+          156a36a1 e13d8ba0 260d0cdf f70c5ac2
+          c35f2bd9 5516da9b 03d42cfe b8ab09d4
+          1c42c367 4ff26ed3 79862779 804fa126
+          fae3aeae 2bfe6464 53e503fc bae24f46
+          d6cff100 1fbea3f6 b9ed2b7e 80df693e
+          c0b373e0 6f467b8a 0be871c9 e9a7c441
+          e89f7e59 c018638c 31c61863 4cf5be03
+          d8291f21 ceb2e953 00000000 49454e44
+          ae426082   
+        </rawimagedata>
+      </cbdt_bitmap_format_17>
+    </strikedata>
+  </CBDT>
+
+  <CBLC>
+    <header version="3.0"/>
+    <strike index="0">
+      <bitmapSizeTable>
+        <sbitLineMetrics direction="hori">
+          <ascender value="101"/>
+          <descender value="-27"/>
+          <widthMax value="136"/>
+          <caretSlopeNumerator value="0"/>
+          <caretSlopeDenominator value="0"/>
+          <caretOffset value="0"/>
+          <minOriginSB value="0"/>
+          <minAdvanceSB value="0"/>
+          <maxBeforeBL value="0"/>
+          <minAfterBL value="0"/>
+          <pad1 value="0"/>
+          <pad2 value="0"/>
+        </sbitLineMetrics>
+        <sbitLineMetrics direction="vert">
+          <ascender value="101"/>
+          <descender value="-27"/>
+          <widthMax value="136"/>
+          <caretSlopeNumerator value="0"/>
+          <caretSlopeDenominator value="0"/>
+          <caretOffset value="0"/>
+          <minOriginSB value="0"/>
+          <minAdvanceSB value="0"/>
+          <maxBeforeBL value="0"/>
+          <minAfterBL value="0"/>
+          <pad1 value="0"/>
+          <pad2 value="0"/>
+        </sbitLineMetrics>
+        <colorRef value="0"/>
+        <startGlyphIndex value="4"/>
+        <endGlyphIndex value="4"/>
+        <ppemX value="109"/>
+        <ppemY value="109"/>
+        <bitDepth value="32"/>
+        <flags value="1"/>
+      </bitmapSizeTable>
+      <!-- GlyphIds are written but not read. The firstGlyphIndex and
+           lastGlyphIndex values will be recalculated by the compiler. -->
+      <eblc_index_sub_table_1 imageFormat="17" firstGlyphIndex="4" lastGlyphIndex="4">
+        <glyphLoc id="4" name="numbersign"/>
+      </eblc_index_sub_table_1>
+    </strike>
+  </CBLC>  
+
+</ttFont>

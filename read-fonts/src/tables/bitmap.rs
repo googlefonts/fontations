@@ -3,30 +3,13 @@
 include!("../../generated/generated_bitmap.rs");
 
 impl BitmapSize {
-    pub fn subtable<'a>(
-        &self,
-        offset_data: FontData<'a>,
-        index: u32,
-    ) -> Result<BitmapSizeSubtable<'a>, ReadError> {
-        let base_offset = self.index_subtable_array_offset() as usize;
-        const SUBTABLE_HEADER_SIZE: usize = 8;
-        let header_offset = base_offset + index as usize * SUBTABLE_HEADER_SIZE;
-        let header_data = offset_data
-            .slice(header_offset..)
-            .ok_or(ReadError::OutOfBounds)?;
-        let header = IndexSubtableArray::read(header_data)?;
-        let subtable_offset = base_offset + header.additional_offset_to_index_subtable() as usize;
-        let subtable_data = offset_data
-            .slice(subtable_offset..)
-            .ok_or(ReadError::OutOfBounds)?;
-        let subtable = IndexSubtable::read(subtable_data)?;
-        Ok(BitmapSizeSubtable {
-            first_glyph_index: header.first_glyph_index(),
-            last_glyph_index: header.last_glyph_index(),
-            kind: subtable,
-        })
-    }
-
+    /// Returns the bitmap location information for the given glyph.
+    ///
+    /// The `offset_data` parameter is provided by the `offset_data()` method
+    /// of the parent `Eblc` or `Cblc` table.
+    ///
+    /// The resulting [`BitmapLocation`] value is used by the `data()` method
+    /// in the associated `Ebdt` or `Cbdt` table to extract the bitmap data.
     pub fn location(
         &self,
         offset_data: FontData,
@@ -104,9 +87,33 @@ impl BitmapSize {
         }
         Err(ReadError::OutOfBounds)
     }
+
+    fn subtable<'a>(
+        &self,
+        offset_data: FontData<'a>,
+        index: u32,
+    ) -> Result<BitmapSizeSubtable<'a>, ReadError> {
+        let base_offset = self.index_subtable_array_offset() as usize;
+        const SUBTABLE_HEADER_SIZE: usize = 8;
+        let header_offset = base_offset + index as usize * SUBTABLE_HEADER_SIZE;
+        let header_data = offset_data
+            .slice(header_offset..)
+            .ok_or(ReadError::OutOfBounds)?;
+        let header = IndexSubtableArray::read(header_data)?;
+        let subtable_offset = base_offset + header.additional_offset_to_index_subtable() as usize;
+        let subtable_data = offset_data
+            .slice(subtable_offset..)
+            .ok_or(ReadError::OutOfBounds)?;
+        let subtable = IndexSubtable::read(subtable_data)?;
+        Ok(BitmapSizeSubtable {
+            first_glyph_index: header.first_glyph_index(),
+            last_glyph_index: header.last_glyph_index(),
+            kind: subtable,
+        })
+    }
 }
 
-pub struct BitmapSizeSubtable<'a> {
+struct BitmapSizeSubtable<'a> {
     pub first_glyph_index: GlyphId,
     pub last_glyph_index: GlyphId,
     pub kind: IndexSubtable<'a>,
@@ -116,16 +123,22 @@ pub struct BitmapSizeSubtable<'a> {
 pub struct BitmapLocation {
     /// Format of EBDT/CBDT image data.
     pub format: u16,
-    /// Offset in EBDT/CBDT table.
+    /// Offset in bytes from the start of the EBDT/CBDT table.
     pub data_offset: usize,
+    /// Size of the image data in bytes, if present in the EBLC/CBLC table.
     pub data_size: Option<usize>,
+    /// Bit depth from the associated size. Required for computing image data
+    /// size when unspecified.
     pub bit_depth: u8,
+    /// Full metrics, if present in the EBLC/CBLC table.
     pub metrics: Option<BigGlyphMetrics>,
 }
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum BitmapDataFormat {
+    /// The full bitmap is tightly packed according to the bit depth.
     BitAligned,
+    /// Each row of the data is aligned to a byte boundary.
     ByteAligned,
     Png,
 }
