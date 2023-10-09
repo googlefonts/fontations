@@ -45,6 +45,105 @@ pub struct VariationIndexRemapping {
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq)]
 struct DeltaSet(Vec<(u16, i32)>);
 
+#[derive(Clone, Default, Debug)]
+pub struct DirectVariationStoreBuilder {
+    // region -> index map
+    all_regions: HashMap<VariationRegion, usize>,
+    delta_sets: Vec<DeltaSet>,
+}
+
+impl DirectVariationStoreBuilder {
+    pub fn add_deltas<T: Into<i32>>(&mut self, deltas: Vec<(VariationRegion, T)>) -> u32 {
+        let mut delta_set = Vec::with_capacity(deltas.len());
+        for (region, delta) in deltas {
+            let region_idx = self.canonical_index_for_region(region) as u16;
+            delta_set.push((region_idx, delta.into()));
+        }
+        delta_set.sort_unstable();
+        let varidx = self.delta_sets.len() as u32;
+        self.delta_sets.push(DeltaSet(delta_set));
+        varidx
+    }
+
+    fn canonical_index_for_region(&mut self, region: VariationRegion) -> usize {
+        let next_idx = self.all_regions.len();
+        *self.all_regions.entry(region).or_insert(next_idx)
+    }
+
+    fn shape(&self) -> RowShape {
+        let total_regions = self.all_regions.len() as u16;
+
+        let mut shape = RowShape::default();
+        let delta = self.delta_sets.first().unwrap();
+        shape.reuse(delta, total_regions);
+        let mut total_shape = shape.clone();
+
+        for delta in &self.delta_sets[1..] {
+            shape.reuse(delta, total_regions);
+            total_shape = total_shape.merge(&shape);
+        }
+        total_shape
+    }
+
+    fn make_variation_data(&self) -> Option<ItemVariationData> {
+        assert!(self.delta_sets.len() <= 0xffff);
+        let item_count = self.delta_sets.len() as u16;
+        if item_count == 0 {
+            //TODO: figure out when a null subtable is useful?
+            return None;
+        }
+
+        let shape = self.shape();
+        let region_map = shape.region_map();
+        let n_regions = shape.n_non_zero_regions();
+        let total_n_delta_values = self.delta_sets.len() * n_regions;
+        let mut raw_deltas = vec![0i32; total_n_delta_values];
+
+        // first we generate a vec of i32s, which represents an uncompressed
+        // 2d array where rows are items and columns are per-region values.
+        for (i, delta) in self.delta_sets.iter().enumerate() {
+            let pos = i * n_regions;
+            for (region, val) in &delta.0 {
+                let Some(idx_for_region) = region_map.column_index_for_region(*region) else {
+                    continue;
+                };
+                let idx = pos + idx_for_region as usize;
+                raw_deltas[idx] = *val;
+            }
+        }
+
+        // then we convert the correctly-ordered i32s into the final compressed
+        // representation.
+        let delta_sets = region_map.encode_raw_delta_values(raw_deltas);
+        let word_delta_count = region_map.word_delta_count();
+        let region_indexes = region_map.indices();
+
+        Some(ItemVariationData::new(
+            item_count,
+            word_delta_count,
+            region_indexes,
+            delta_sets,
+        ))
+    }
+
+    fn make_region_list(&self) -> VariationRegionList {
+        let mut region_list = self
+            .all_regions
+            .iter()
+            .map(|(reg, idx)| (idx, reg.to_owned()))
+            .collect::<Vec<_>>();
+        region_list.sort_unstable();
+        let region_list = region_list.into_iter().map(|(_, reg)| reg).collect();
+        VariationRegionList::new(region_list)
+    }
+
+    pub fn build(self) -> ItemVariationStore {
+        let subtables = vec![self.make_variation_data()];
+        let region_list = self.make_region_list();
+        ItemVariationStore::new(region_list, subtables)
+    }
+}
+
 impl VariationStoreBuilder {
     pub fn add_deltas<T: Into<i32>>(&mut self, deltas: Vec<(VariationRegion, T)>) -> u32 {
         let mut delta_set = Vec::with_capacity(deltas.len());
