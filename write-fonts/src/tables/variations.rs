@@ -4,6 +4,8 @@ include!("../../generated/generated_variations.rs");
 
 pub use read_fonts::tables::variations::{TupleIndex, TupleVariationCount};
 
+use crate::tables::layout::VariationIndex;
+
 pub mod ivs_builder;
 
 impl TupleVariationHeader {
@@ -367,6 +369,41 @@ impl Tuple {
 
     pub fn is_empty(&self) -> bool {
         self.values.is_empty()
+    }
+}
+
+impl DeltaSetIndexMap {
+    fn get_entry_format(_mapping: &[VariationIndex]) -> EntryFormat {
+        // TODO: compute most compact entry format based on mapping values
+        EntryFormat::all()
+    }
+
+    pub fn from_vec(mapping: Vec<VariationIndex>) -> Self {
+        let map_count = mapping.len();
+        let fmt = DeltaSetIndexMap::get_entry_format(&mapping);
+        let bits = fmt.bits();
+        let inner_bits = 1 + (bits & 0x000F);
+        let inner_mask = (1 << inner_bits as u32) - 1;
+        let outer_shift = 16 - inner_bits;
+        let entry_size = 1 + ((bits & 0x0030) >> 4);
+        assert!((1..=4).contains(&entry_size));
+        let mut map_data: Vec<u8> = Vec::with_capacity(mapping.len() * entry_size as usize);
+        for VariationIndex {
+            delta_set_outer_index,
+            delta_set_inner_index,
+        } in mapping
+        {
+            let idx = ((delta_set_outer_index as u32) << 16) | delta_set_inner_index as u32;
+            let idx = ((idx & 0xFFFF0000) >> outer_shift) | (idx & inner_mask);
+            // append entry_size bytes to map_data in BigEndian order
+            map_data.extend_from_slice(&idx.to_be_bytes()[4 - entry_size as usize..]);
+        }
+        let delta_set_index_map: DeltaSetIndexMap = if map_count < 0xFFFF {
+            DeltaSetIndexMap::format_0(fmt, map_count as u16, map_data)
+        } else {
+            DeltaSetIndexMap::format_1(fmt, map_count as u32, map_data)
+        };
+        delta_set_index_map
     }
 }
 
