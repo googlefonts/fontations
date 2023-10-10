@@ -37,6 +37,8 @@ pub static CANTARELL_VF_TRIMMED_GLYPHS: &str =
 
 pub static CHARSTRING_PATH_OPS: &[u8] = include_bytes!("../test_data/ttf/charstring_path_ops.ttf");
 
+pub static EMBEDDED_BITMAPS: &[u8] = include_bytes!("../test_data/ttf/embedded_bitmaps.ttf");
+
 pub mod post {
 
     #[rustfmt::skip]

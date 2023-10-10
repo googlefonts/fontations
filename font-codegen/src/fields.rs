@@ -7,8 +7,8 @@ use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
 use super::parsing::{
-    logged_syn_error, Attr, Count, CustomCompile, Field, FieldReadArgs, FieldType, FieldValidation,
-    Fields, NeededWhen, OffsetTarget, Phase, Record, ReferencedFields,
+    logged_syn_error, Attr, Count, CountArg, CustomCompile, Field, FieldReadArgs, FieldType,
+    FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record, ReferencedFields,
 };
 
 impl Fields {
@@ -401,8 +401,9 @@ fn traversal_arm_for_field(
             let data = fld.offset_getter_data_src();
             quote!(Field::new(#name_str, traversal::FieldType::var_array(#typ_str, self.#name()#maybe_unwrap, #data)))
         }
-        // HACK: who wouldn't want to hard-code ValueRecord handling
-        FieldType::Struct { typ } if typ == "ValueRecord" => {
+        // See if there are better ways to handle these hardcoded types
+        // <https://github.com/googlefonts/fontations/issues/659>
+        FieldType::Struct { typ } if typ == "ValueRecord" || typ == "SbitLineMetrics" => {
             let offset_data = pass_data
                 .cloned()
                 .unwrap_or_else(|| fld.offset_getter_data_src());
@@ -475,10 +476,16 @@ impl Field {
     }
 
     pub(crate) fn is_zerocopy_compatible(&self) -> bool {
-        matches!(
-            self.typ,
-            FieldType::Scalar { .. } | FieldType::Offset { .. }
-        )
+        // hack: we want to add `FieldType::Struct` here but don't want to
+        // catch `ValueRecord` so use this attribute to ignore it.
+        // Fields that require args for reading can't be read "zerocopy"
+        // anyway.
+        // <https://github.com/googlefonts/fontations/issues/659>
+        self.attrs.read_with_args.is_none()
+            && matches!(
+                self.typ,
+                FieldType::Scalar { .. } | FieldType::Offset { .. } | FieldType::Struct { .. }
+            )
     }
 
     pub(crate) fn is_array(&self) -> bool {
@@ -1012,7 +1019,13 @@ impl Field {
                     }
                     _ => unreachable!("count not valid here"),
                 };
-                quote!(  #count_expr * #size_expr )
+                match other {
+                    Count::SingleArg(CountArg::Literal(lit)) if lit.base10_digits() == "1" => {
+                        // Prevent identity-op clippy error with `1 * size`
+                        size_expr
+                    }
+                    _ => quote!(  #count_expr * #size_expr ),
+                }
             }
             None => quote!(compile_error!("missing count attribute?")),
         };
