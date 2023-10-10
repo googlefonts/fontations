@@ -43,18 +43,20 @@ mod tests {
         let ebdt = font.ebdt().unwrap();
         let size = &eblc.bitmap_sizes()[0];
         // Metrics for size at index 0
-        assert_eq!(size.hori.ascender(), 6);
-        assert_eq!(size.hori.descender(), 2);
-        assert_eq!(size.hori.width_max(), 4);
-        assert_eq!(size.hori.max_before_bl(), 6);
-        assert_eq!(size.hori.min_after_bl(), -2);
-        assert_eq!(size.vert.ascender(), 6);
-        assert_eq!(size.vert.descender(), 2);
-        assert_eq!(size.start_glyph_index(), GlyphId::new(1));
-        assert_eq!(size.end_glyph_index(), GlyphId::new(2));
-        assert_eq!(size.ppem_x(), 7);
-        assert_eq!(size.ppem_y(), 7);
-        assert_eq!(size.bit_depth(), 1);
+        assert!(
+            size.hori.ascender() == 6
+                && size.hori.descender() == 2
+                && size.hori.width_max() == 4
+                && size.hori.max_before_bl() == 6
+                && size.hori.min_after_bl() == -2
+                && size.vert.ascender() == 6
+                && size.vert.descender() == 2
+                && size.start_glyph_index() == GlyphId::new(1)
+                && size.end_glyph_index() == GlyphId::new(2)
+                && size.ppem_x() == 7
+                && size.ppem_y() == 7
+                && size.bit_depth() == 1
+        );
         // Bit aligned formats in this strike:
         let expected: &[(GlyphId, &[u8], SmallGlyphMetrics)] = &[
             (
@@ -82,11 +84,9 @@ mod tests {
         ];
         for (gid, data, metrics) in expected {
             let location = size.location(eblc.offset_data(), *gid).unwrap();
-            // all glyphs have data format == 2
             assert_eq!(location.format, 2);
             let bitmap_data = ebdt.data(&location).unwrap();
             let (img_fmt, img_data) = bitmap_data.content.extract_data();
-            // all glyphs are bit aligned
             assert_eq!(img_fmt, BitmapDataFormat::BitAligned);
             assert_eq!(img_data, *data);
             assert_eq!(bitmap_data.extract_small_metrics(), metrics);
@@ -100,18 +100,20 @@ mod tests {
         let ebdt = font.ebdt().unwrap();
         let size = &eblc.bitmap_sizes()[1];
         // Metrics for size at index 1
-        assert_eq!(size.hori.ascender(), 12);
-        assert_eq!(size.hori.descender(), 5);
-        assert_eq!(size.hori.width_max(), 9);
-        assert_eq!(size.hori.max_before_bl(), 12);
-        assert_eq!(size.hori.min_after_bl(), -5);
-        assert_eq!(size.vert.ascender(), 12);
-        assert_eq!(size.vert.descender(), 5);
-        assert_eq!(size.start_glyph_index(), GlyphId::new(3));
-        assert_eq!(size.end_glyph_index(), GlyphId::new(3));
-        assert_eq!(size.ppem_x(), 15);
-        assert_eq!(size.ppem_y(), 15);
-        assert_eq!(size.bit_depth(), 1);
+        assert!(
+            size.hori.ascender() == 12
+                && size.hori.descender() == 5
+                && size.hori.width_max() == 9
+                && size.hori.max_before_bl() == 12
+                && size.hori.min_after_bl() == -5
+                && size.vert.ascender() == 12
+                && size.vert.descender() == 5
+                && size.start_glyph_index() == GlyphId::new(3)
+                && size.end_glyph_index() == GlyphId::new(3)
+                && size.ppem_x() == 15
+                && size.ppem_y() == 15
+                && size.bit_depth() == 1
+        );
         let expected: &[(GlyphId, &[u8])] = &[(
             GlyphId::new(3),
             &[
@@ -135,11 +137,9 @@ mod tests {
                     vert_advance: 0,
                 })
             );
-            // all glyphs have data format == 5
             assert_eq!(location.format, 5);
             let bitmap_data = ebdt.data(&location).unwrap();
             let (img_fmt, img_data) = bitmap_data.content.extract_data();
-            // all glyphs are bit aligned
             assert_eq!(img_fmt, BitmapDataFormat::BitAligned);
             assert_eq!(img_data, *data);
         }

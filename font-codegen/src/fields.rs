@@ -401,7 +401,8 @@ fn traversal_arm_for_field(
             let data = fld.offset_getter_data_src();
             quote!(Field::new(#name_str, traversal::FieldType::var_array(#typ_str, self.#name()#maybe_unwrap, #data)))
         }
-        // HACK: who wouldn't want to hard-code ValueRecord handling
+        // See if there are better ways to handle these hardcoded types
+        // <https://github.com/googlefonts/fontations/issues/659>
         FieldType::Struct { typ } if typ == "ValueRecord" || typ == "SbitLineMetrics" => {
             let offset_data = pass_data
                 .cloned()
@@ -479,6 +480,7 @@ impl Field {
         // catch `ValueRecord` so use this attribute to ignore it.
         // Fields that require args for reading can't be read "zerocopy"
         // anyway.
+        // <https://github.com/googlefonts/fontations/issues/659>
         self.attrs.read_with_args.is_none()
             && matches!(
                 self.typ,

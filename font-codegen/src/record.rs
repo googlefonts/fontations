@@ -55,6 +55,8 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
     let mut maybe_extra_traits = item
         .gets_extra_traits(all_items)
         .then(|| quote!(PartialEq, Eq, PartialOrd, Ord, Hash));
+    // Just make all records Copy?
+    // <https://github.com/googlefonts/fontations/issues/659>
     if item.name == "SbitLineMetrics" {
         use quote::TokenStreamExt;
         let mut copy_trait = quote!(Copy,);
