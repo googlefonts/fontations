@@ -4,8 +4,6 @@ include!("../../generated/generated_variations.rs");
 
 pub use read_fonts::tables::variations::{TupleIndex, TupleVariationCount};
 
-use crate::tables::layout::VariationIndex;
-
 pub mod ivs_builder;
 
 impl TupleVariationHeader {
@@ -395,8 +393,12 @@ impl DeltaSetIndexMap {
     }
 }
 
-    pub fn from_vec(mapping: Vec<VariationIndex>) -> Self {
-        let map_count = mapping.len();
+impl<I> FromIterator<I> for DeltaSetIndexMap
+where
+    I: Into<u32>,
+{
+    fn from_iter<T: IntoIterator<Item = I>>(iter: T) -> Self {
+        let mapping: Vec<u32> = iter.into_iter().map(|v| v.into()).collect();
         let fmt = DeltaSetIndexMap::get_entry_format(&mapping);
         let bits = fmt.bits();
         let inner_bits = 1 + (bits & 0x000F);
@@ -404,13 +406,9 @@ impl DeltaSetIndexMap {
         let outer_shift = 16 - inner_bits;
         let entry_size = 1 + ((bits & 0x0030) >> 4);
         assert!((1..=4).contains(&entry_size));
-        let mut map_data: Vec<u8> = Vec::with_capacity(mapping.len() * entry_size as usize);
-        for VariationIndex {
-            delta_set_outer_index,
-            delta_set_inner_index,
-        } in mapping
-        {
-            let idx = ((delta_set_outer_index as u32) << 16) | delta_set_inner_index as u32;
+        let map_count = mapping.len();
+        let mut map_data: Vec<u8> = Vec::with_capacity(map_count * entry_size as usize);
+        for idx in mapping {
             let idx = ((idx & 0xFFFF0000) >> outer_shift) | (idx & inner_mask);
             // append entry_size bytes to map_data in BigEndian order
             map_data.extend_from_slice(&idx.to_be_bytes()[4 - entry_size as usize..]);
