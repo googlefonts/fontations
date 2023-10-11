@@ -373,10 +373,27 @@ impl Tuple {
 }
 
 impl DeltaSetIndexMap {
-    fn get_entry_format(_mapping: &[VariationIndex]) -> EntryFormat {
-        // TODO: compute most compact entry format based on mapping values
-        EntryFormat::all()
+    fn get_entry_format(mapping: &[u32]) -> EntryFormat {
+        let ored = mapping.iter().fold(0, |acc, idx| acc | *idx);
+
+        let inner = (ored & 0xFFFF) as u16;
+        let inner_bits = (16 - inner.leading_zeros() as u8).max(1);
+        assert!(inner_bits <= 16);
+
+        let ored = (ored >> (16 - inner_bits)) | (ored & ((1 << inner_bits) - 1));
+        let entry_size = if ored <= 0x000000FF {
+            1
+        } else if ored <= 0x0000FFFF {
+            2
+        } else if ored <= 0x00FFFFFF {
+            3
+        } else {
+            4
+        };
+
+        EntryFormat::from_bits((entry_size - 1) << 4 | (inner_bits - 1)).unwrap()
     }
+}
 
     pub fn from_vec(mapping: Vec<VariationIndex>) -> Self {
         let map_count = mapping.len();
