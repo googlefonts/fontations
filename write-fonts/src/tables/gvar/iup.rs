@@ -527,7 +527,8 @@ fn iup_contour_optimize(
                 solution.insert(idx % n);
                 i = dp_result.chain[idx];
             }
-            if i == Some(start.saturating_sub(n)) {
+            // this should only be None for the first loop, when start is n - 1
+            if i == start.checked_sub(n) {
                 // Python reads [-1] to get 0, usize doesn't like that
                 let cost = dp_result.costs[start]
                     - if n < start {
@@ -1278,5 +1279,38 @@ mod tests {
                 (38, None),
             ]
         )
+    }
+
+    // https://github.com/googlefonts/fontations/issues/662
+    // this bug seems to be triggered when deltas and coords are equal?
+    // test case based on s.cp in googlesans
+    #[test]
+    fn bug_662() {
+        let deltas = vec![
+            Vec2 { x: 73.0, y: 0.0 },
+            Vec2 { x: 158.0, y: 448.0 },
+            Vec2 { x: 154.0, y: 448.0 },
+            Vec2 { x: 0.0, y: 0.0 },
+            Vec2 { x: 765.0, y: 0.0 },
+            Vec2 { x: 0.0, y: 0.0 },
+            Vec2 { x: 0.0, y: 0.0 },
+        ];
+
+        let coords = [
+            (73.0, 0.0),
+            (158.0, 448.0),
+            (154.0, 448.0),
+            (0.0, 0.0),
+            (765.0, 0.0),
+            (0.0, 0.0),
+            (0.0, 0.0),
+        ]
+        .into_iter()
+        .map(|(x, y)| Point::new(x, y))
+        .collect::<Vec<_>>();
+
+        let contour_ends = vec![2];
+
+        iup_delta_optimize(deltas, coords, 0.5, &contour_ends).unwrap();
     }
 }
