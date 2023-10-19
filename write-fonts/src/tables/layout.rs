@@ -644,6 +644,12 @@ fn encode_chunk(chunk: &[i8], mask: u8, bits: usize) -> u16 {
     out
 }
 
+impl From<VariationIndex> for u32 {
+    fn from(value: VariationIndex) -> Self {
+        ((value.delta_set_outer_index as u32) << 16) | value.delta_set_inner_index as u32
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
