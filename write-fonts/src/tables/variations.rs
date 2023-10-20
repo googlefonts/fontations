@@ -370,9 +370,82 @@ impl Tuple {
     }
 }
 
+impl DeltaSetIndexMap {
+    /// Return the most compact entry format that can represent this mapping.
+    ///
+    /// EntryFormat is a packed u8 field that describes the compressed representation
+    /// of delta-set indices. For more info, see:
+    /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data>
+    // This is a direct port from fonttools' DeltaSetMap.getEntryFormat:
+    // https://github.com/fonttools/fonttools/blob/6d531f/Lib/fontTools/ttLib/tables/otTables.py#L644-L666
+    fn get_entry_format(mapping: &[u32]) -> EntryFormat {
+        let ored = mapping.iter().fold(0, |acc, idx| acc | *idx);
+
+        let inner = (ored & 0xFFFF) as u16;
+        let inner_bits = (16 - inner.leading_zeros() as u8).max(1);
+        assert!(inner_bits <= 16);
+
+        let ored = (ored >> (16 - inner_bits)) | (ored & ((1 << inner_bits) - 1));
+        let entry_size = if ored <= 0x000000FF {
+            1
+        } else if ored <= 0x0000FFFF {
+            2
+        } else if ored <= 0x00FFFFFF {
+            3
+        } else {
+            4
+        };
+
+        EntryFormat::from_bits((entry_size - 1) << 4 | (inner_bits - 1)).unwrap()
+    }
+
+    /// Compress u32's into packed data using the most compact entry format.
+    ///
+    /// Returns the computed entry format and the packed data.
+    ///
+    /// For more info, see:
+    /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data>
+    // Ported from fonttools' VarIdxMapValue.write method:
+    // https://github.com/fonttools/fonttools/blob/6d531fe/Lib/fontTools/ttLib/tables/otConverters.py#L1764-L1781
+    fn pack_map_data(mapping: &[u32]) -> (EntryFormat, Vec<u8>) {
+        let fmt = DeltaSetIndexMap::get_entry_format(mapping);
+        let inner_bits = fmt.bit_count();
+        let inner_mask = (1 << inner_bits as u32) - 1;
+        let outer_shift = 16 - inner_bits;
+        let entry_size = fmt.entry_size();
+        assert!((1..=4).contains(&entry_size));
+        let mut map_data: Vec<u8> = Vec::with_capacity(mapping.len() * entry_size as usize);
+        for idx in mapping {
+            let idx = ((idx & 0xFFFF0000) >> outer_shift) | (idx & inner_mask);
+            // append entry_size bytes to map_data in BigEndian order
+            map_data.extend_from_slice(&idx.to_be_bytes()[4 - entry_size as usize..]);
+        }
+        (fmt, map_data)
+    }
+}
+
+impl<I> FromIterator<I> for DeltaSetIndexMap
+where
+    I: Into<u32>,
+{
+    /// Create a DeltaSetIndexMap from an iterator of delta-set indices.
+    fn from_iter<T: IntoIterator<Item = I>>(iter: T) -> Self {
+        let mapping: Vec<u32> = iter.into_iter().map(|v| v.into()).collect();
+        let (fmt, map_data) = DeltaSetIndexMap::pack_map_data(&mapping);
+        let map_count = mapping.len();
+        let delta_set_index_map: DeltaSetIndexMap = if map_count <= u16::MAX as usize {
+            DeltaSetIndexMap::format_0(fmt, map_count as u16, map_data)
+        } else {
+            DeltaSetIndexMap::format_1(fmt, map_count as u32, map_data)
+        };
+        delta_set_index_map
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use rstest::rstest;
 
     #[test]
     fn point_pack_words() {
@@ -518,5 +591,130 @@ mod tests {
             ],
             deltas.iter_runs().collect::<Vec<_>>()
         )
+    }
+
+    #[rstest]
+    #[case::one_byte_one_inner_bit(
+        vec![0, 1, 1], 0b00_0000, 1, 1, b"\x00\x01\x01",
+    )]
+    #[case::one_byte_two_inner_bits(
+        vec![0, 1, 2], 0b00_0001, 1, 2, b"\x00\x01\x02",
+    )]
+    #[case::one_byte_three_inner_bits(
+        vec![0, 1, 4], 0b00_0010, 1, 3, b"\x00\x01\x04",
+    )]
+    #[case::one_byte_four_inner_bits(
+        vec![0, 1, 8], 0b00_0011, 1, 4, b"\x00\x01\x08",
+    )]
+    // 256 needs 2 bytes, of which 9 bits for the inner value
+    #[case::two_bytes_nine_inner_bits(
+        vec![0, 1, 256], 0b01_1000, 2, 9, b"\x00\x00\x00\x01\x01\x00",
+    )]
+    #[case::two_bytes_sixteen_inner_bits(
+        vec![0, 1, 0x8000], 0b01_1111, 2, 16, b"\x00\x00\x00\x01\x80\x00",
+    )]
+    // note this gets packed the same as case 'one_byte_two_inner_bits': [0, 1, 2]
+    // above, but it uses only 1 bit for the inner value, while the other bits are
+    // used for the outer value:
+    // 0x0001_0000 => b"\x02" => 0b00000010 => {outer: 1, inner: 0)
+    #[case::one_byte_one_inner_bit_two_vardatas(
+        vec![0, 1, 0x01_0000], 0b00_0000, 1, 1, b"\x00\x01\x02",
+    )]
+    #[case::three_bytes_sixteen_inner_bits(
+        vec![0, 0xFFFF, 0x01_0000],
+        0b10_1111,
+        3,
+        16,
+        b"\x00\x00\x00\x00\xFF\xFF\x01\x00\x00",
+    )]
+    #[case::four_bytes_sixteen_inner_bits(
+        vec![0, 0xFFFF, 0xFFFF_FFFF],
+        0b11_1111,
+        4,
+        16,
+        b"\x00\x00\x00\x00\x00\x00\xFF\xFF\xFF\xFF\xFF\xFF",
+    )]
+    #[test]
+    fn delta_set_index_map_entry_format_and_packed_data(
+        #[case] mapping: Vec<u32>,
+        #[case] expected_format_bits: u8,
+        #[case] expected_entry_size: u8,
+        #[case] expected_inner_bit_count: u8,
+        #[case] expected_map_data: &[u8],
+    ) {
+        let (format, data) = DeltaSetIndexMap::pack_map_data(&mapping);
+        assert_eq!(format.bits(), expected_format_bits);
+        assert_eq!(format.entry_size(), expected_entry_size);
+        assert_eq!(format.bit_count(), expected_inner_bit_count);
+        assert_eq!(data, expected_map_data);
+
+        let dsim: DeltaSetIndexMap = mapping.iter().copied().collect();
+        // all test mappings have fewer than 65536 entries (for practical reasons)
+        // so we should generate a Format0
+        assert!(matches!(dsim, DeltaSetIndexMap::Format0 { .. }));
+
+        // make sure we get the same mapping back after round-tripping to/from bytes
+        let raw_dsim = crate::dump_table(&dsim).unwrap();
+        let dsim2 =
+            read_fonts::tables::variations::DeltaSetIndexMap::read(FontData::new(&raw_dsim))
+                .unwrap();
+        assert_eq!(
+            (0..mapping.len())
+                .map(|i| {
+                    let index = dsim2.get(i as u32).unwrap();
+                    ((index.outer as u32) << 16) | index.inner as u32
+                })
+                .collect::<Vec<_>>(),
+            mapping
+        );
+    }
+
+    #[test]
+    fn delta_set_index_map_from_variation_index_iterator() {
+        // as returned from VariationStoreBuilder::build() in the VariationIndexRemapping
+        use crate::tables::layout::VariationIndex;
+
+        let mapping = vec![
+            VariationIndex::new(0, 0),
+            VariationIndex::new(0, 1),
+            VariationIndex::new(0, 2),
+            VariationIndex::new(1, 0),
+            VariationIndex::new(1, 1),
+            VariationIndex::new(1, 2),
+        ];
+
+        let dsim: DeltaSetIndexMap = mapping.into_iter().collect();
+        let DeltaSetIndexMap::Format0(dsim) = dsim else {
+            panic!("expected DeltaSetIndexMap::Format0, got {:?}", dsim);
+        };
+        assert_eq!(dsim.map_count, 6);
+        assert_eq!(dsim.entry_format.bits(), 0b000001);
+        assert_eq!(dsim.entry_format.entry_size(), 1); // one byte per entry
+        assert_eq!(dsim.entry_format.bit_count(), 2);
+        // for each entry/byte, the right-most 2 bits are the inner value,
+        // the remaining bits are the outer value
+        assert_eq!(
+            dsim.map_data,
+            vec![
+                0b00_00, // (0, 0)
+                0b00_01, // (0, 1)
+                0b00_10, // (0, 2)
+                0b01_00, // (1, 0)
+                0b01_01, // (1, 1)
+                0b01_10, // (1, 2)
+            ]
+        );
+    }
+
+    #[test]
+    fn huge_mapping_generates_format_1_delta_set_index_map() {
+        // 65536 entries, so we need a Format1 with u32 map_count
+        let mapping = (0..=0xFFFF).collect::<Vec<u32>>();
+        let map_count = mapping.len() as u32;
+        let dsim: DeltaSetIndexMap = mapping.into_iter().collect();
+        let DeltaSetIndexMap::Format1(dsim) = dsim else {
+            panic!("expected DeltaSetIndexMap::Format1, got {:?}", dsim);
+        };
+        assert_eq!(dsim.map_count, map_count);
     }
 }
