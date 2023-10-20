@@ -21,13 +21,16 @@ type TemporaryDeltaSetId = u32;
 pub struct VariationStoreBuilder {
     // region -> index map
     all_regions: HashMap<VariationRegion, usize>,
-    // we use an index map so that we have a deterministic ordering,
-    // which lets us write better tests
-    //NOTE: we could store IndexMap<RowShape, IndexMap<DeltaSet, TemporaryDeltaSetId>> here,
-    //if desired, but that would require us to know the total number of regions
-    //when we construct the builder.
-    delta_sets: IndexMap<DeltaSet, TemporaryDeltaSetId>,
-    next_id: TemporaryDeltaSetId,
+    delta_sets: DeltaSetStorage,
+}
+
+/// A collection of delta sets.
+#[derive(Clone, Debug)]
+enum DeltaSetStorage {
+    // only for hvar: we do not deduplicate deltas, and store one per glyph id
+    Direct(Vec<DeltaSet>),
+    // the general case, where each delta gets a unique id
+    Deduplicated(IndexMap<DeltaSet, TemporaryDeltaSetId>),
 }
 
 /// A map from the temporary delta set identifiers to the final values.
@@ -46,21 +49,40 @@ pub struct VariationIndexRemapping {
 struct DeltaSet(Vec<(u16, i32)>);
 
 impl VariationStoreBuilder {
-    pub fn add_deltas<T: Into<i32>>(&mut self, deltas: Vec<(VariationRegion, T)>) -> u32 {
+    /// Create a builder that will optimize delta storage.
+    ///
+    /// This is the general case. For HVAR, it is also possible to use the
+    /// glyph ids as implicit indices, which may be more efficient for some
+    /// data. To use implicit indices, use [`new_with_implicit_indices`] instead.
+    ///
+    /// [`new_with_implicit_indices`]: VariationStoreBuilder::new_with_implicit_indices
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    /// Create a builder that does not share deltas between entries.
+    ///
+    /// This is used in HVAR, where it is possible to use glyph ids as the
+    /// 'inner index', and to generate a single ItemVariationData subtable
+    /// with one entry per item.
+    pub fn new_with_implicit_indices() -> Self {
+        VariationStoreBuilder {
+            all_regions: Default::default(),
+            delta_sets: DeltaSetStorage::Direct(Default::default()),
+        }
+    }
+
+    pub fn add_deltas<T: Into<i32>>(
+        &mut self,
+        deltas: Vec<(VariationRegion, T)>,
+    ) -> TemporaryDeltaSetId {
         let mut delta_set = Vec::with_capacity(deltas.len());
         for (region, delta) in deltas {
             let region_idx = self.canonical_index_for_region(region) as u16;
             delta_set.push((region_idx, delta.into()));
         }
         delta_set.sort_unstable();
-        *self
-            .delta_sets
-            .entry(DeltaSet(delta_set))
-            .or_insert_with(|| {
-                let id = self.next_id;
-                self.next_id += 1;
-                id
-            })
+        self.delta_sets.add(DeltaSet(delta_set))
     }
 
     fn canonical_index_for_region(&mut self, region: VariationRegion) -> usize {
@@ -83,13 +105,50 @@ impl VariationStoreBuilder {
         Encoder::new(&self.delta_sets, self.all_regions.len() as u16)
     }
 
+    /// Build the `ItemVariationStore` table
+    ///
+    /// This also returns a structure that can be used to remap the temporarily
+    /// assigned delta set Ids to their final `VariationIndex` values.
     pub fn build(self) -> (ItemVariationStore, VariationIndexRemapping) {
         let mut key_map = VariationIndexRemapping::default();
-        let mut encoder = self.encoder();
-        encoder.optimize();
-        let subtables = encoder.encode(&mut key_map);
+        let subtables = if matches!(self.delta_sets, DeltaSetStorage::Direct(_)) {
+            vec![self.build_unoptimized(&mut key_map)]
+        } else {
+            let mut encoder = self.encoder();
+            encoder.optimize();
+            encoder.encode(&mut key_map)
+        };
         let region_list = self.make_region_list();
         (ItemVariationStore::new(region_list, subtables), key_map)
+    }
+
+    /// Build a single ItemVariationData subtable
+    fn build_unoptimized(
+        &self,
+        key_map: &mut VariationIndexRemapping,
+    ) -> Option<ItemVariationData> {
+        // first pick an encoding capable of representing all items:
+        let n_regions = self.all_regions.len() as u16;
+        let mut shape = RowShape(vec![ColumnBits::None; n_regions as usize]);
+        let mut temp = RowShape::default();
+
+        for (delta, _) in self.delta_sets.iter() {
+            temp.reuse(delta, n_regions);
+            if !shape.can_cover(&temp) {
+                shape = shape.merge(&temp);
+            }
+        }
+
+        // then encode everything with that encoding.
+        let encoding = Encoding {
+            shape,
+            deltas: self.delta_sets.iter().collect(),
+        };
+        debug_assert!(
+            encoding.deltas.len() <= u16::MAX as usize,
+            "unmapped variation store supports at most u16::MAX items"
+        );
+        encoding.encode(key_map, 0)
     }
 }
 
@@ -97,14 +156,13 @@ impl VariationStoreBuilder {
 ///
 /// This mostly exists so that we can write better tests.
 struct Encoder<'a> {
-    delta_map: &'a IndexMap<DeltaSet, TemporaryDeltaSetId>,
     encodings: Vec<Encoding<'a>>,
 }
 
 /// A set of deltas that share a shape.
 struct Encoding<'a> {
     shape: RowShape,
-    deltas: Vec<&'a DeltaSet>,
+    deltas: Vec<(&'a DeltaSet, TemporaryDeltaSetId)>,
 }
 
 /// A type for remapping delta sets during encoding.
@@ -150,16 +208,16 @@ enum ColumnBits {
 }
 
 impl<'a> Encoder<'a> {
-    fn new(delta_map: &'a IndexMap<DeltaSet, TemporaryDeltaSetId>, total_regions: u16) -> Self {
+    fn new(delta_map: &'a DeltaSetStorage, total_regions: u16) -> Self {
         let mut shape = RowShape::default();
         let mut encodings: IndexMap<_, Vec<_>> = Default::default();
 
-        for delta in delta_map.keys() {
+        for (delta, idx) in delta_map.iter() {
             shape.reuse(delta, total_regions);
             match encodings.get_mut(&shape) {
-                Some(items) => items.push(delta),
+                Some(items) => items.push((delta, idx)),
                 None => {
-                    encodings.insert(shape.clone(), vec![delta]);
+                    encodings.insert(shape.clone(), vec![(delta, idx)]);
                 }
             }
         }
@@ -168,10 +226,7 @@ impl<'a> Encoder<'a> {
             .map(|(shape, deltas)| Encoding { shape, deltas })
             .collect();
 
-        Encoder {
-            encodings,
-            delta_map,
-        }
+        Encoder { encodings }
     }
 
     fn cost(&self) -> usize {
@@ -293,7 +348,7 @@ impl<'a> Encoder<'a> {
             .into_iter()
             .flat_map(Encoding::iter_split_into_table_size_chunks)
             .enumerate()
-            .map(|(i, encoding)| encoding.encode(self.delta_map, key_map, i as u16))
+            .map(|(i, encoding)| encoding.encode(key_map, i as u16))
             .collect()
     }
 }
@@ -343,6 +398,15 @@ impl RowShape {
                 .map(|(us, them)| *us.max(them))
                 .collect(),
         )
+    }
+
+    /// `true` if each value in this shape is >= the same value in `other`.
+    fn can_cover(&self, other: &Self) -> bool {
+        debug_assert_eq!(self.0.len(), other.0.len());
+        self.0
+            .iter()
+            .zip(other.0.iter())
+            .all(|(us, them)| us >= them)
     }
 
     /// the cost in bytes of a row in this encoding
@@ -447,7 +511,6 @@ impl<'a> Encoding<'a> {
 
     fn encode(
         self,
-        delta_ids: &IndexMap<DeltaSet, TemporaryDeltaSetId>,
         key_map: &mut VariationIndexRemapping,
         subtable_idx: u16,
     ) -> Option<ItemVariationData> {
@@ -470,7 +533,7 @@ impl<'a> Encoding<'a> {
 
         // first we generate a vec of i32s, which represents an uncompressed
         // 2d array where rows are items and columns are per-region values.
-        for (i, delta) in self.deltas.iter().enumerate() {
+        for (i, (delta, raw_key)) in self.deltas.iter().enumerate() {
             let pos = i * n_regions;
             for (region, val) in &delta.0 {
                 let Some(column_idx) = region_map.column_index_for_region(*region) else {
@@ -479,7 +542,6 @@ impl<'a> Encoding<'a> {
                 let idx = pos + column_idx as usize;
                 raw_deltas[idx] = *val;
             }
-            let raw_key = delta_ids.get(*delta).unwrap();
             let final_key = VariationIndex::new(subtable_idx, i as u16);
             key_map.set(*raw_key, final_key);
         }
@@ -599,6 +661,45 @@ impl VariationIndexRemapping {
         self.map
             .get(&from)
             .map(|var| (var.delta_set_outer_index, var.delta_set_inner_index))
+    }
+}
+
+impl DeltaSetStorage {
+    fn add(&mut self, delta_set: DeltaSet) -> TemporaryDeltaSetId {
+        match self {
+            DeltaSetStorage::Direct(deltas) => {
+                let next_id = deltas.len() as u32;
+                deltas.push(delta_set);
+                next_id
+            }
+            DeltaSetStorage::Deduplicated(deltas) => {
+                let next_id = deltas.len() as u32;
+                *deltas.entry(delta_set).or_insert(next_id)
+            }
+        }
+    }
+
+    fn iter(&self) -> impl Iterator<Item = (&DeltaSet, TemporaryDeltaSetId)> + '_ {
+        // a dumb trick so that we are returning a single concrete type regardless
+        // of which variant this is (which is required when returning impl Trait)
+        let (a_vec, a_map) = match self {
+            DeltaSetStorage::Direct(deltas) => (Some(deltas), None),
+            DeltaSetStorage::Deduplicated(deltas) => (None, Some(deltas)),
+        };
+        a_vec
+            .into_iter()
+            .flat_map(|x| x.iter().enumerate().map(|(i, val)| (val, i as u32)))
+            .chain(
+                a_map
+                    .into_iter()
+                    .flat_map(|map| map.iter().map(|(val, idx)| (val, *idx))),
+            )
+    }
+}
+
+impl Default for DeltaSetStorage {
+    fn default() -> Self {
+        Self::Deduplicated(Default::default())
     }
 }
 
@@ -941,5 +1042,48 @@ mod tests {
                 3, //    3: delta for r0
             ],
         );
+    }
+
+    #[test]
+    fn unoptimized_version() {
+        let r0 = VariationRegion::new(vec![reg_coords(0.0, 0.5, 1.0)]);
+        let r1 = VariationRegion::new(vec![reg_coords(0.5, 1.0, 1.0)]);
+
+        let mut builder = VariationStoreBuilder::new_with_implicit_indices();
+        builder.add_deltas(vec![(r0.clone(), 1), (r1.clone(), 2)]);
+        // 256 won't fit in a u8 thus we expect the deltas for the column corresponding
+        // to r1 will be packed as u16
+        builder.add_deltas(vec![(r0.clone(), 1), (r1.clone(), 2)]);
+        builder.add_deltas(vec![(r0.clone(), 3), (r1.clone(), 256)]);
+        builder.add_deltas(vec![(r0.clone(), 3), (r1.clone(), 256)]);
+
+        let (ivs, key_map) = builder.build();
+        // we should get an ivs with one subtable, containing four deltas
+        assert_eq!(ivs.item_variation_data.len(), 1);
+
+        let var_data = ivs.item_variation_data[0].as_ref().unwrap();
+        assert_eq!(var_data.item_count, 4);
+        assert_eq!(var_data.region_indexes, vec![1, 0]);
+
+        assert_eq!(
+            var_data.delta_sets,
+            &[
+                0x0, 0x2, // item 1, region 2
+                0x1, // item 1, region 1
+                0x0, 0x2, // item 2, region 2
+                0x1, // item 2, region 1
+                0x1, 0x0, // item 3, region 2
+                0x3, // item 3, region 1
+                0x1, 0x0, // item 4, region 2
+                0x3, // item 4, region 1
+            ]
+        );
+
+        // assert that keymap entries are identity mapping
+        assert_eq!(key_map.map.len(), 4);
+        assert!(key_map
+            .map
+            .iter()
+            .all(|(key, idx)| *key == idx.delta_set_inner_index as u32))
     }
 }
