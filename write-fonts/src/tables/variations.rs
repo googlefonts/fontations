@@ -386,14 +386,11 @@ impl DeltaSetIndexMap {
         assert!(inner_bits <= 16);
 
         let ored = (ored >> (16 - inner_bits)) | (ored & ((1 << inner_bits) - 1));
-        let entry_size = if ored <= 0x000000FF {
-            1
-        } else if ored <= 0x0000FFFF {
-            2
-        } else if ored <= 0x00FFFFFF {
-            3
-        } else {
-            4
+        let entry_size = match ored {
+            0..=0xFF => 1,
+            0x100..=0xFFFF => 2,
+            0x10000..=0xFFFFFF => 3,
+            _ => 4,
         };
 
         EntryFormat::from_bits((entry_size - 1) << 4 | (inner_bits - 1)).unwrap()
