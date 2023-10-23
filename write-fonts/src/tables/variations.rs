@@ -419,7 +419,7 @@ impl DeltaSetIndexMap {
             map_count -= 1;
         }
 
-        let mut map_data: Vec<u8> = Vec::with_capacity(map_count * entry_size as usize);
+        let mut map_data = Vec::with_capacity(map_count * entry_size as usize);
         for idx in mapping.iter().take(map_count) {
             let idx = ((idx & 0xFFFF0000) >> outer_shift) | (idx & inner_mask);
             // append entry_size bytes to map_data in BigEndian order

@@ -526,10 +526,7 @@ impl<'a> DeltaSetIndexMap<'a> {
         // mapCount, then the last logical entry of the mapping array is used."
         // https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats
         // #associating-target-items-to-variation-data
-        let mut index = index;
-        if index >= map_count {
-            index = map_count.saturating_sub(1);
-        }
+        let index = index.min(map_count.saturating_sub(1));
         let offset = index as usize * entry_size as usize;
         let entry = match entry_size {
             1 => data.read_at::<u8>(offset)? as u32,
