@@ -516,12 +516,17 @@ impl EntryFormat {
 impl<'a> DeltaSetIndexMap<'a> {
     /// Returns the delta set index for the specified value.
     pub fn get(&self, index: u32) -> Result<DeltaSetIndex, ReadError> {
-        let (entry_format, data) = match self {
-            Self::Format0(fmt) => (fmt.entry_format(), fmt.map_data()),
-            Self::Format1(fmt) => (fmt.entry_format(), fmt.map_data()),
+        let (entry_format, map_count, data) = match self {
+            Self::Format0(fmt) => (fmt.entry_format(), fmt.map_count() as u32, fmt.map_data()),
+            Self::Format1(fmt) => (fmt.entry_format(), fmt.map_count(), fmt.map_data()),
         };
         let entry_size = entry_format.entry_size();
         let data = FontData::new(data);
+        // "if an index into the mapping array is used that is greater than or equal to
+        // mapCount, then the last logical entry of the mapping array is used."
+        // https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats
+        // #associating-target-items-to-variation-data
+        let index = index.min(map_count.saturating_sub(1));
         let offset = index as usize * entry_size as usize;
         let entry = match entry_size {
             1 => data.read_at::<u8>(offset)? as u32,
