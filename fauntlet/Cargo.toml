@@ -1,0 +1,15 @@
+[package]
+name = "fauntlet"
+version = "0.1.0"
+edition = "2021"
+license = "MIT/Apache-2.0"
+description = "Metadata reader and glyph scaler for OpenType fonts."
+repository = "https://github.com/googlefonts/fontations"
+readme = "README.md"
+
+[dependencies]
+skrifa = { version = "0.11.0", path = "../skrifa" }
+freetype-rs = "0.32.0"
+glob = "0.3.1"
+memmap2 = "0.5.10"
+rayon = "1.8.0"
