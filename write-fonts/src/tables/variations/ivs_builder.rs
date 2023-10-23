@@ -335,9 +335,8 @@ impl<'a> Encoder<'a> {
             .for_each(|enc| enc.deltas.sort_unstable());
         // and then sort the encodings themselves; order doesn't matter,
         // but we want to match fonttools output when comparing ttx
-        self.encodings.sort_unstable_by(|a, b| {
-            (a.shape.row_cost(), &a.shape).cmp(&(b.shape.row_cost(), &b.shape))
-        });
+        self.encodings
+            .sort_unstable_by(Encoding::ord_matching_fonttools);
         log::trace!(
             "optimized {} encodings, {}B, ({}B saved)",
             self.encodings.len(),
@@ -469,6 +468,43 @@ impl RowShape {
             long_words,
         }
     }
+
+    // for verifying our sorting behaviour.
+    // ported from https://github.com/fonttools/fonttools/blob/ec9986d3b863d/Lib/fontTools/varLib/varStore.py#L441
+    #[cfg(test)]
+    fn to_fonttools_repr(&self) -> u128 {
+        assert!(
+            self.0.len() <= u128::BITS as usize / 4,
+            "we can only pack 128 bits"
+        );
+
+        let has_long_word = self.0.iter().any(|bits| *bits == ColumnBits::Four);
+        let mut chars = 0;
+        let mut i = 1;
+
+        if !has_long_word {
+            for v in &self.0 {
+                if *v != ColumnBits::None {
+                    chars += i;
+                }
+                if *v == ColumnBits::Two {
+                    chars += i * 0b0010;
+                }
+                i <<= 4;
+            }
+        } else {
+            for v in &self.0 {
+                if *v != ColumnBits::None {
+                    chars += i * 0b0011;
+                }
+                if *v == ColumnBits::Four {
+                    chars += i * 0b1100;
+                }
+                i <<= 4;
+            }
+        }
+        chars
+    }
 }
 
 impl<'a> Encoding<'a> {
@@ -567,6 +603,35 @@ impl<'a> Encoding<'a> {
             region_indexes,
             delta_sets,
         ))
+    }
+
+    /// match the sorting behaviour that fonttools uses for the final sorting.
+    ///
+    /// fonttools's behaviour is particular, because they store the 'rowshape' as
+    /// a packed bitvec with the least significant bits storing the first item,
+    /// e.g. it's the inverse of our default order. Also we don't want to include
+    /// our temporary ids.
+    fn ord_matching_fonttools(&self, other: &Self) -> std::cmp::Ordering {
+        // first just compare the cost
+        let cost_ord = self.shape.row_cost().cmp(&other.shape.row_cost());
+        if cost_ord != std::cmp::Ordering::Equal {
+            return cost_ord;
+        }
+
+        debug_assert_eq!(
+            self.shape.0.len(),
+            other.shape.0.len(),
+            "all shapes have same # of regions"
+        );
+
+        // if cost is equal, compare each column, in reverse
+        for (a, b) in self.shape.0.iter().rev().zip(other.shape.0.iter().rev()) {
+            match a.cmp(b) {
+                std::cmp::Ordering::Equal => (), // continue
+                not_eq => return not_eq,
+            }
+        }
+        std::cmp::Ordering::Equal
     }
 }
 
@@ -908,6 +973,66 @@ mod tests {
         assert_eq!(key_lookup.get_raw(k3).unwrap(), (0, 0),); // smallest r1 value
 
         assert_eq!(key_lookup.map.len(), 6);
+    }
+
+    // really just here to check my own understanding of what's going on
+    #[test]
+    fn fontools_rowshape_repr() {
+        use ColumnBits as C;
+        let shape1 = RowShape(vec![C::None, C::One, C::One, C::Two]);
+        assert_eq!(shape1.to_fonttools_repr(), 0b0011_0001_0001_0000);
+        let shape2 = RowShape(vec![C::Two, C::One, C::One, C::None]);
+        assert_eq!(shape2.to_fonttools_repr(), 0b0000_0001_0001_0011);
+
+        assert!(shape1.to_fonttools_repr() > shape2.to_fonttools_repr());
+    }
+
+    #[test]
+    fn encoding_sort_order() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        let [r1, r2, r3] = test_regions();
+
+        // make two encodings that have the same total cost, but different shape
+
+        let mut builder = VariationStoreBuilder::default();
+        // shape (2, 1, 0)
+        builder.add_deltas(vec![(r1.clone(), 1000), (r2.clone(), 5)]);
+        builder.add_deltas(vec![(r1.clone(), 1013), (r2.clone(), 20)]);
+        builder.add_deltas(vec![(r1.clone(), 1014), (r2.clone(), 21)]);
+        // shape (0, 2, 1)
+        builder.add_deltas(vec![(r2.clone(), 1212), (r3.clone(), 7)]);
+        builder.add_deltas(vec![(r2.clone(), 1213), (r3.clone(), 8)]);
+        builder.add_deltas(vec![(r2.clone(), 1214), (r3.clone(), 8)]);
+
+        //shape (1, 0, 1)
+        builder.add_deltas(vec![(r1.clone(), 12), (r3.clone(), 7)]);
+        builder.add_deltas(vec![(r1.clone(), 13), (r3.clone(), 9)]);
+        builder.add_deltas(vec![(r1.clone(), 14), (r3.clone(), 10)]);
+        builder.add_deltas(vec![(r1.clone(), 15), (r3.clone(), 11)]);
+        builder.add_deltas(vec![(r1.clone(), 16), (r3.clone(), 12)]);
+
+        let (var_store, key_lookup) = builder.build();
+        assert_eq!(var_store.item_variation_data.len(), 3);
+        assert_eq!(key_lookup.map.len(), 11);
+
+        // encoding (1, 0, 1) will be sorted first, since it has the lowest cost
+        assert_eq!(
+            var_store.item_variation_data[0]
+                .as_ref()
+                .unwrap()
+                .region_indexes,
+            vec![0, 2]
+        );
+
+        // then encoding with shape (2, 1, 0) since the costs are equal and we
+        // compare backwards, to match fonttools
+        assert_eq!(
+            var_store.item_variation_data[1]
+                .as_ref()
+                .unwrap()
+                .region_indexes,
+            vec![0, 1]
+        );
     }
 
     #[test]
