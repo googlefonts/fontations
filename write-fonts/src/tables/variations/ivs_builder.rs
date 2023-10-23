@@ -188,7 +188,7 @@ struct RegionMap {
 ///
 /// We could get much fancier about how we represent this type, and avoid
 /// allocation in most cases; but this is simple and works, so :shrug:
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct RowShape(Vec<ColumnBits>);
 
 //NOTE: we could do fancier bit packing here (fonttools uses four bits per
@@ -329,6 +329,15 @@ impl<'a> Encoder<'a> {
             log::trace!("{:?}", DebugTodoList(&to_process));
         }
         self.encodings = to_process.into_iter().flatten().collect();
+        // now sort the items in each individual encoding
+        self.encodings
+            .iter_mut()
+            .for_each(|enc| enc.deltas.sort_unstable());
+        // and then sort the encodings themselves; order doesn't matter,
+        // but we want to match fonttools output when comparing ttx
+        self.encodings.sort_unstable_by(|a, b| {
+            (a.shape.row_cost(), &a.shape).cmp(&(b.shape.row_cost(), &b.shape))
+        });
         log::trace!(
             "optimized {} encodings, {}B, ({}B saved)",
             self.encodings.len(),
@@ -697,6 +706,86 @@ impl DeltaSetStorage {
     }
 }
 
+// a custom impl so that we match the behaviour of fonttools:
+//
+// - fonttools stores this densely, as just a tuple of deltas in region-order.
+// - we store this sparsely, with explicit region indices.
+// - this means that we need to handle the case where we are eliding a delta,
+//   in one deltaset where we have a negative value in the other.
+//   For example:
+//   # fonttools rep (1, 5, -10), (1, 5, 0)
+//   # fontations   [(0, 1), (1, 5), (2, -10), (0, 1), (1, 5)]
+//
+// in this case fonttools will sort the first set before the second, and we would
+// do the opposite.
+impl PartialOrd for DeltaSet {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for DeltaSet {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let max_region_idx = self
+            .0
+            .iter()
+            .chain(other.0.iter())
+            .map(|(idx, _)| *idx)
+            .max()
+            .unwrap_or(0);
+
+        let left = DenseDeltaIter::new(&self.0, max_region_idx);
+        let right = DenseDeltaIter::new(&other.0, max_region_idx);
+
+        for (l, r) in left.zip(right) {
+            match l.cmp(&r) {
+                std::cmp::Ordering::Equal => (),
+                non_eq => return non_eq,
+            }
+        }
+        std::cmp::Ordering::Equal
+    }
+}
+
+// a helper that iterates our sparse deltas, inserting explicit 0s for any missing
+// regions.
+//
+// // this is only used in our partial ord impl
+struct DenseDeltaIter<'a> {
+    total_len: u16,
+    cur_pos: u16,
+    deltas: &'a [(u16, i32)],
+}
+
+impl<'a> DenseDeltaIter<'a> {
+    fn new(deltas: &'a [(u16, i32)], max_idx: u16) -> Self {
+        DenseDeltaIter {
+            total_len: max_idx,
+            deltas,
+            cur_pos: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for DenseDeltaIter<'a> {
+    type Item = i32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur_pos > self.total_len {
+            return None;
+        }
+        let result = if self.deltas.first().map(|(idx, _)| *idx) == Some(self.cur_pos) {
+            let result = self.deltas.first().unwrap().1;
+            self.deltas = &self.deltas[1..];
+            result
+        } else {
+            0
+        };
+        self.cur_pos += 1;
+        Some(result)
+    }
+}
+
 impl Default for DeltaSetStorage {
     fn default() -> Self {
         Self::Deduplicated(Default::default())
@@ -781,14 +870,14 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .region_indexes,
-            vec![0, 1, 2]
+            vec![2]
         );
         assert_eq!(
             store.item_variation_data[1]
                 .as_ref()
                 .unwrap()
                 .region_indexes,
-            vec![2]
+            vec![0, 1, 2]
         );
     }
 
@@ -811,10 +900,12 @@ mod tests {
         let (_, key_lookup) = builder.build();
 
         // first subtable has only one item
-        assert_eq!(key_lookup.get_raw(k1).unwrap(), (0, 0),);
-        // next two items are in the next subtable (different outer index)
-        assert_eq!(key_lookup.get_raw(k2).unwrap(), (1, 0),);
-        assert_eq!(key_lookup.get_raw(k3).unwrap(), (1, 1),);
+        // first item gets mapped into second subtable, because of how we sort
+        assert_eq!(key_lookup.get_raw(k1).unwrap(), (1, 0),);
+        // next two items are in the same (first) subtable
+        // inner indexes are based on sort order within the subtable:
+        assert_eq!(key_lookup.get_raw(k2).unwrap(), (0, 4),); // largest r1 value
+        assert_eq!(key_lookup.get_raw(k3).unwrap(), (0, 0),); // smallest r1 value
 
         assert_eq!(key_lookup.map.len(), 6);
     }
@@ -840,20 +931,20 @@ mod tests {
         let var_data_array = reloaded.item_variation_data();
 
         let var_data = var_data_array.get(0).unwrap().unwrap();
+        assert_eq!(var_data.region_indexes(), &[0, 2]);
+        assert_eq!(var_data.item_count(), 4);
+        assert_eq!(var_data.delta_set(0).collect::<Vec<_>>(), vec![-12, 7]);
+        assert_eq!(var_data.delta_set(1).collect::<Vec<_>>(), vec![-11, 8]);
+        assert_eq!(var_data.delta_set(2).collect::<Vec<_>>(), vec![-10, 9]);
+        assert_eq!(var_data.delta_set(3).collect::<Vec<_>>(), vec![-3, 20]);
+
+        let var_data = var_data_array.get(1).unwrap().unwrap();
         assert_eq!(var_data.region_indexes(), &[0, 1, 2]);
         assert_eq!(var_data.item_count(), 1);
         assert_eq!(
             var_data.delta_set(0).collect::<Vec<_>>(),
             vec![512, 1000, 265]
         );
-
-        let var_data = var_data_array.get(1).unwrap().unwrap();
-        assert_eq!(var_data.region_indexes(), &[0, 2]);
-        assert_eq!(var_data.item_count(), 4);
-        assert_eq!(var_data.delta_set(0).collect::<Vec<_>>(), vec![-3, 20]);
-        assert_eq!(var_data.delta_set(1).collect::<Vec<_>>(), vec![-12, 7]);
-        assert_eq!(var_data.delta_set(2).collect::<Vec<_>>(), vec![-11, 8]);
-        assert_eq!(var_data.delta_set(3).collect::<Vec<_>>(), vec![-10, 9]);
     }
 
     #[test]
@@ -1085,5 +1176,32 @@ mod tests {
             .map
             .iter()
             .all(|(key, idx)| *key == idx.delta_set_inner_index as u32))
+    }
+
+    #[test]
+    fn delta_set_ordering() {
+        let left = DeltaSet(vec![(0, 1), (1, 2), (2, -11)]);
+        let right = DeltaSet(vec![(0, 1), (1, 2)]);
+
+        // although the vec ord impl thinks that the left is 'bigger'
+        // (it having more items):
+        assert!(left.0 > right.0);
+        // our custom impl treats it as smaller, matching fonttools
+        assert!(left < right);
+
+        // but this is only the case because the delta is negative
+        let left = DeltaSet(vec![(0, 1), (1, 2), (2, 11)]);
+        let right = DeltaSet(vec![(0, 1), (1, 2)]);
+
+        assert!(left > right);
+        let left = DeltaSet(vec![(0, 1), (1, 2), (2, -11)]);
+        let right = DeltaSet(vec![(0, 1), (1, 2), (3, 0)]);
+
+        assert!(left < right);
+
+        // also true in the middle
+        let left = DeltaSet(vec![(0, 1), (1, -2), (2, -11)]);
+        let right = DeltaSet(vec![(0, 1), (2, -11)]);
+        assert!(left < right)
     }
 }
