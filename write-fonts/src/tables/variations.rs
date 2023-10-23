@@ -411,12 +411,21 @@ impl DeltaSetIndexMap {
         let outer_shift = 16 - inner_bits;
         let entry_size = fmt.entry_size();
         assert!((1..=4).contains(&entry_size));
-        let mut map_data: Vec<u8> = Vec::with_capacity(mapping.len() * entry_size as usize);
-        for idx in mapping {
+
+        // omit trailing entries that are the same as the previous one;
+        // the last entry is assumed when index is >= map_count
+        let mut map_count = mapping.len();
+        while map_count > 1 && mapping[map_count - 1] == mapping[map_count - 2] {
+            map_count -= 1;
+        }
+
+        let mut map_data: Vec<u8> = Vec::with_capacity(map_count * entry_size as usize);
+        for idx in mapping.iter().take(map_count) {
             let idx = ((idx & 0xFFFF0000) >> outer_shift) | (idx & inner_mask);
             // append entry_size bytes to map_data in BigEndian order
             map_data.extend_from_slice(&idx.to_be_bytes()[4 - entry_size as usize..]);
         }
+        assert_eq!(map_data.len(), map_count * entry_size as usize);
         (fmt, map_data)
     }
 }
@@ -429,7 +438,7 @@ where
     fn from_iter<T: IntoIterator<Item = I>>(iter: T) -> Self {
         let mapping: Vec<u32> = iter.into_iter().map(|v| v.into()).collect();
         let (fmt, map_data) = DeltaSetIndexMap::pack_map_data(&mapping);
-        let map_count = mapping.len();
+        let map_count = map_data.len() / fmt.entry_size() as usize;
         let delta_set_index_map: DeltaSetIndexMap = if map_count <= u16::MAX as usize {
             DeltaSetIndexMap::format_0(fmt, map_count as u16, map_data)
         } else {
@@ -591,8 +600,10 @@ mod tests {
     }
 
     #[rstest]
+    // Note how the packed data below is b"\x00\x01" and not b"\x00\x01\x01", for the
+    // repeated trailing values can be omitted
     #[case::one_byte_one_inner_bit(
-        vec![0, 1, 1], 0b00_0000, 1, 1, b"\x00\x01\x01",
+        vec![0, 1, 1], 0b00_0000, 1, 1, b"\x00\x01",
     )]
     #[case::one_byte_two_inner_bits(
         vec![0, 1, 2], 0b00_0001, 1, 2, b"\x00\x01\x02",
