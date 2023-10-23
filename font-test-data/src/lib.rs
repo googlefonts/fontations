@@ -39,6 +39,9 @@ pub static CHARSTRING_PATH_OPS: &[u8] = include_bytes!("../test_data/ttf/charstr
 
 pub static EMBEDDED_BITMAPS: &[u8] = include_bytes!("../test_data/ttf/embedded_bitmaps.ttf");
 
+pub static HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP: &[u8] =
+    include_bytes!("../test_data/ttf/hvar_with_truncated_adv_index_map.ttf");
+
 pub mod post {
 
     #[rustfmt::skip]
