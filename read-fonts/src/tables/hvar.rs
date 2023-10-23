@@ -45,7 +45,7 @@ impl<'a> Hvar<'a> {
 
 #[cfg(test)]
 mod tests {
-    use crate::{FontRef, TableProvider};
+    use crate::{tables::variations::DeltaSetIndexMap, FontRef, TableProvider};
     use types::{F2Dot14, Fixed, GlyphId};
 
     #[test]
@@ -83,5 +83,31 @@ mod tests {
                 .unwrap(),
             Fixed::from_f64(59.0)
         );
+    }
+
+    #[test]
+    fn advance_deltas_from_hvar_with_truncated_adv_index_map() {
+        let font = FontRef::new(font_test_data::HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP).unwrap();
+        let maxp = font.maxp().unwrap();
+        let num_glyphs = maxp.num_glyphs();
+        let hvar = font.hvar().unwrap();
+        let Ok(DeltaSetIndexMap::Format0(adv_index_map)) = hvar.advance_width_mapping().unwrap()
+        else {
+            panic!("Expected DeltaSetIndexMap::Format0 for hvar.advance_width_mapping()");
+        };
+        assert!(adv_index_map.map_count() < num_glyphs);
+        assert_eq!(num_glyphs, 24);
+        assert_eq!(adv_index_map.map_count(), 15);
+        let last_mapped_gid = adv_index_map.map_count() - 1;
+        // We expect the last 10 glyphs to have the same advance width delta as the last mapped glyph.
+        // Crucially, hvar.advance_width_delta() should not return OutOfBounds for these glyphs.
+        for idx in last_mapped_gid..num_glyphs {
+            let gid = GlyphId::new(idx);
+            assert_eq!(
+                hvar.advance_width_delta(gid, &[F2Dot14::from_f32(1.0)])
+                    .unwrap(),
+                Fixed::from_f64(100.0)
+            );
+        }
     }
 }
