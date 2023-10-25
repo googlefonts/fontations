@@ -78,17 +78,17 @@ impl VariationStoreBuilder {
     ) -> TemporaryDeltaSetId {
         let mut delta_set = Vec::with_capacity(deltas.len());
         for (region, delta) in deltas {
-            let delta = delta.into();
-            // a delta of zero is the same as not including this region;
-            // so we elide the region for consistency, and this delta can be
-            // merged into another encoding if that's better.
-            if delta == 0 {
-                continue;
-            }
             let region_idx = self.canonical_index_for_region(region) as u16;
-            delta_set.push((region_idx, delta));
+            delta_set.push((region_idx, delta.into()));
         }
         delta_set.sort_unstable();
+        // treat a deltaset containing all zeros the same as an empty one;
+        // e.g. a glyph that only has one instance at the default location (no deltas)
+        // vs another that defines multiple instances but all of them are at the
+        // default location (all deltas are zero).
+        if delta_set.iter().all(|(_, delta)| *delta == 0) {
+            delta_set.clear();
+        }
         self.delta_sets.add(DeltaSet(delta_set))
     }
 
