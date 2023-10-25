@@ -211,6 +211,7 @@ pub struct ResolvedColorStop {
 // was chosen over the obvious enum approach for simplicity in generating a
 // single concrete type for the `impl Iterator` return type of the `resolve`
 // method.
+#[derive(Debug)]
 pub struct ColorStops<'a> {
     stops: &'a [ColorStop],
     var_stops: &'a [VarColorStop],
@@ -267,6 +268,7 @@ impl<'a> ColorStops<'a> {
 /// This is roughly equivalent to FreeType's
 /// [`FT_COLR_Paint`](https://freetype.org/freetype2/docs/reference/ft2-layer_management.html#ft_colr_paint)
 /// type.
+#[derive(Debug)]
 pub enum ResolvedPaint<'a> {
     ColrLayers {
         range: Range<usize>,
