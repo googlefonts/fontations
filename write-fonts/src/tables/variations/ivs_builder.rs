@@ -1339,20 +1339,24 @@ mod tests {
 
     #[test]
     fn no_duplicate_zero_delta_sets() {
-        let r0 = VariationRegion::new(vec![reg_coords(0.0, 1.0, 1.0)]);
+        let r0 = VariationRegion::new(vec![reg_coords(0.0, 5.0, 1.0)]);
+        let r1 = VariationRegion::new(vec![reg_coords(0.5, 1.0, 1.0)]);
         let mut builder = VariationStoreBuilder::new();
         let varidxes = vec![
             // first glyph has no variations (e.g. .notdef only defined at default location)
             // but we still need to add it to the variation store to reserve an index so
             // we add an empty delta set
             builder.add_deltas::<i32>(Vec::new()),
-            builder.add_deltas(vec![(r0.clone(), 100)]),
-            // this glyph has an explicit master that is the same as the default (delta is 0);
+            builder.add_deltas(vec![(r0.clone(), 50), (r1.clone(), 100)]),
+            // this glyph has explicit masters that are *all* the same as the default (delta is 0);
             // we expect the builder to reuse the same no-op delta set as the first glyph
-            builder.add_deltas(vec![(r0.clone(), 0)]),
+            builder.add_deltas(vec![(r0.clone(), 0), (r1.clone(), 0)]),
             // this glyph repeats the same delta set as the second glyph, thus we expect
             // the builder to map it to the same delta set index
-            builder.add_deltas(vec![(r0.clone(), 100)]),
+            builder.add_deltas(vec![(r0.clone(), 50), (r1.clone(), 100)]),
+            // this glyph happens to have one master that's the same as the default (delta is 0);
+            // nothing special here, we expect a new delta set to be created
+            builder.add_deltas(vec![(r0.clone(), 0), (r1.clone(), 100)]),
         ];
         let (store, key_map) = builder.build();
 
@@ -1361,17 +1365,18 @@ mod tests {
             .map(|idx| key_map.get(idx).unwrap().into())
             .collect::<Vec<_>>();
 
-        assert_eq!(store.variation_region_list.variation_regions.len(), 1);
+        assert_eq!(store.variation_region_list.variation_regions.len(), 2);
         assert_eq!(store.item_variation_data.len(), 1);
 
         let var_data = store.item_variation_data[0].as_ref().unwrap();
 
-        assert_eq!(var_data.item_count, 2);
+        assert_eq!(var_data.item_count, 3);
         assert_eq!(var_data.word_delta_count, 0);
-        assert_eq!(var_data.region_indexes, vec![0]);
-        assert_eq!(var_data.delta_sets, vec![0, 100],);
-        // glyph 0 and 2 should map to the same no-op 0 delta, while
-        // glyph 1 and 3 should map to delta 100
-        assert_eq!(varidx_map, vec![0, 1, 0, 1]);
+        assert_eq!(var_data.region_indexes, vec![0, 1]);
+        assert_eq!(var_data.delta_sets, vec![0, 0, 0, 100, 50, 100],);
+        // glyph 0 and 2 should map to the same no-op [0, 0] deltaset, while
+        // glyph 1 and 3 should map to deltaset [50, 100];
+        // glyph 4 should map to deltaset [0, 100]
+        assert_eq!(varidx_map, vec![0, 2, 0, 2, 1]);
     }
 }
