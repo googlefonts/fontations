@@ -12,5 +12,10 @@ categories = ["text-processing", "parsing", "graphics"]
 read-fonts = { version = "0.14.0", path = "../read-fonts" }
 
 [dev-dependencies]
-font-test-data= { path = "../font-test-data" }
-read-fonts = { version = "0.14.0", path = "../read-fonts", features = ["scaler_test"] }
+font-test-data = { path = "../font-test-data" }
+read-fonts = { version = "0.14.0", path = "../read-fonts", features = [
+    "scaler_test",
+    "serde",
+] }
+serde = "1.0"
+serde_json = "1.0"

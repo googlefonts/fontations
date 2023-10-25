@@ -181,18 +181,19 @@
     <GlyphID id="175" name="solid_colorline_alpha"/>
     <GlyphID id="176" name="paintcolrglyph_cycle_first"/>
     <GlyphID id="177" name="paintcolrglyph_cycle_second"/>
+    <GlyphID id="178" name="no_cycle_multi_colrglyph"/>
   </GlyphOrder>
 
   <head>
     <!-- Most of this table will be recalculated by the compiler -->
     <tableVersion value="1.0"/>
     <fontRevision value="1.0"/>
-    <checkSumAdjustment value="0x6a1abf86"/>
+    <checkSumAdjustment value="0xc8f21069"/>
     <magicNumber value="0x5f0f3cf5"/>
     <flags value="00000000 00000001"/>
     <unitsPerEm value="1000"/>
-    <created value="Mon Nov 27 09:21:31 2023"/>
-    <modified value="Mon Nov 27 09:21:31 2023"/>
+    <created value="Fri Dec  1 11:10:45 2023"/>
+    <modified value="Fri Dec  1 11:10:45 2023"/>
     <xMin value="0"/>
     <yMin value="0"/>
     <xMax value="1200"/>
@@ -227,7 +228,7 @@
   <maxp>
     <!-- Most of this table will be recalculated by the compiler -->
     <tableVersion value="0x10000"/>
-    <numGlyphs value="178"/>
+    <numGlyphs value="179"/>
     <maxPoints value="28"/>
     <maxContours value="4"/>
     <maxCompositePoints value="0"/>
@@ -364,9 +365,10 @@
     <mtx name="linear_repeat_0.5_1.5" width="1000" lsb="100"/>
     <mtx name="linear_repeat_0_1" width="1000" lsb="100"/>
     <mtx name="linear_repeat_0_1.5" width="1000" lsb="100"/>
+    <mtx name="no_cycle_multi_colrglyph" width="1000" lsb="0"/>
     <mtx name="one" width="1000" lsb="184"/>
-    <mtx name="paintcolrglyph_cycle_first" width="1000" lsb="100"/>
-    <mtx name="paintcolrglyph_cycle_second" width="1000" lsb="100"/>
+    <mtx name="paintcolrglyph_cycle_first" width="1000" lsb="0"/>
+    <mtx name="paintcolrglyph_cycle_second" width="1000" lsb="0"/>
     <mtx name="radial_contained_gradient_extend_mode_pad" width="1000" lsb="0"/>
     <mtx name="radial_contained_gradient_extend_mode_reflect" width="1000" lsb="0"/>
     <mtx name="radial_contained_gradient_extend_mode_repeat" width="1000" lsb="0"/>
@@ -483,7 +485,7 @@
     </cmap_format_4>
     <cmap_format_4 platformID="3" platEncID="1" language="0">
     </cmap_format_4>
-    <cmap_format_12 platformID="3" platEncID="10" format="12" reserved="0" length="220" language="0" nGroups="17">
+    <cmap_format_12 platformID="3" platEncID="10" format="12" reserved="0" length="232" language="0" nGroups="18">
       <map code="0xf0100" name="linear_repeat_0_1"/><!-- ???? -->
       <map code="0xf0101" name="linear_repeat_0.2_0.8"/><!-- ???? -->
       <map code="0xf0102" name="linear_repeat_0_1.5"/><!-- ???? -->
@@ -656,6 +658,7 @@
       <map code="0xf1000" name="solid_colorline_alpha"/><!-- ???? -->
       <map code="0xf1100" name="paintcolrglyph_cycle_first"/><!-- ???? -->
       <map code="0xf1101" name="paintcolrglyph_cycle_second"/><!-- ???? -->
+      <map code="0xf1200" name="no_cycle_multi_colrglyph"/><!-- ???? -->
       <map code="0xfe001" name=".null"/><!-- ???? -->
       <map code="0xfe002" name="upem_box_glyph"/><!-- ???? -->
       <map code="0xfe003" name="cross_glyph"/><!-- ???? -->
@@ -1513,6 +1516,16 @@
         <pt x="100" y="950" on="1"/>
         <pt x="900" y="950" on="1"/>
         <pt x="900" y="250" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="no_cycle_multi_colrglyph" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
       </contour>
       <instructions/>
     </TTGlyph>
@@ -2666,13 +2679,13 @@
       Regular
     </namerecord>
     <namerecord nameID="3" platformID="1" platEncID="0" langID="0x0" unicode="True">
-      COLRv1 Variable Test Glyphs 2023-11-27T11:21:31.813571
+      COLRv1 Variable Test Glyphs 2023-12-01T13:10:45.413573
     </namerecord>
     <namerecord nameID="4" platformID="1" platEncID="0" langID="0x0" unicode="True">
       COLRv1 Variable Test Glyphs Regular
     </namerecord>
     <namerecord nameID="5" platformID="1" platEncID="0" langID="0x0" unicode="True">
-      2023-11-27T11:21:31.813571
+      2023-12-01T13:10:45.413573
     </namerecord>
     <namerecord nameID="6" platformID="1" platEncID="0" langID="0x0" unicode="True">
       COLRv1VariableTestGlyphs-Regular
@@ -2816,13 +2829,13 @@
       Regular
     </namerecord>
     <namerecord nameID="3" platformID="3" platEncID="1" langID="0x409">
-      COLRv1 Variable Test Glyphs 2023-11-27T11:21:31.813571
+      COLRv1 Variable Test Glyphs 2023-12-01T13:10:45.413573
     </namerecord>
     <namerecord nameID="4" platformID="3" platEncID="1" langID="0x409">
       COLRv1 Variable Test Glyphs Regular
     </namerecord>
     <namerecord nameID="5" platformID="3" platEncID="1" langID="0x409">
-      2023-11-27T11:21:31.813571
+      2023-12-01T13:10:45.413573
     </namerecord>
     <namerecord nameID="6" platformID="3" platEncID="1" langID="0x409">
       COLRv1VariableTestGlyphs-Regular
@@ -3156,6 +3169,7 @@
       <psName name="solid_colorline_alpha"/>
       <psName name="paintcolrglyph_cycle_first"/>
       <psName name="paintcolrglyph_cycle_second"/>
+      <psName name="no_cycle_multi_colrglyph"/>
     </extraNames>
   </post>
 
@@ -3205,7 +3219,7 @@
     </LayerRecordArray>
     <!-- LayerRecordCount=8 -->
     <BaseGlyphList>
-      <!-- BaseGlyphCount=159 -->
+      <!-- BaseGlyphCount=160 -->
       <BaseGlyphPaintRecord index="0">
         <BaseGlyph value="linear_repeat_0_1"/>
         <Paint Format="10"><!-- PaintGlyph -->
@@ -7872,9 +7886,16 @@
           <Glyph value="paintcolrglyph_cycle_first"/>
         </Paint>
       </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="159">
+        <BaseGlyph value="no_cycle_multi_colrglyph"/>
+        <Paint Format="1"><!-- PaintColrLayers -->
+          <NumLayers value="5"/>
+          <FirstLayerIndex value="66"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
     </BaseGlyphList>
     <LayerList>
-      <!-- LayerCount=66 -->
+      <!-- LayerCount=71 -->
       <Paint index="0" Format="10"><!-- PaintGlyph -->
         <Paint Format="2"><!-- PaintSolid -->
           <PaletteIndex value="10"/>
@@ -8927,6 +8948,76 @@
         <dx value="-150"/>
         <dy value="0"/>
       </Paint>
+      <Paint index="66" Format="18"><!-- PaintScaleAroundCenter -->
+        <Paint Format="26"><!-- PaintRotateAroundCenter -->
+          <Paint Format="11"><!-- PaintColrGlyph -->
+            <Glyph value="solid_colorline_alpha"/>
+          </Paint>
+          <angle value="180.0"/>
+          <centerX value="500"/>
+          <centerY value="600"/>
+        </Paint>
+        <scaleX value="1.0"/>
+        <scaleY value="1.0"/>
+        <centerX value="500"/>
+        <centerY value="600"/>
+      </Paint>
+      <Paint index="67" Format="18"><!-- PaintScaleAroundCenter -->
+        <Paint Format="26"><!-- PaintRotateAroundCenter -->
+          <Paint Format="11"><!-- PaintColrGlyph -->
+            <Glyph value="solid_colorline_alpha"/>
+          </Paint>
+          <angle value="-180.0"/>
+          <centerX value="500"/>
+          <centerY value="600"/>
+        </Paint>
+        <scaleX value="0.82"/>
+        <scaleY value="0.82"/>
+        <centerX value="500"/>
+        <centerY value="600"/>
+      </Paint>
+      <Paint index="68" Format="18"><!-- PaintScaleAroundCenter -->
+        <Paint Format="26"><!-- PaintRotateAroundCenter -->
+          <Paint Format="11"><!-- PaintColrGlyph -->
+            <Glyph value="solid_colorline_alpha"/>
+          </Paint>
+          <angle value="180.0"/>
+          <centerX value="500"/>
+          <centerY value="600"/>
+        </Paint>
+        <scaleX value="0.64"/>
+        <scaleY value="0.64"/>
+        <centerX value="500"/>
+        <centerY value="600"/>
+      </Paint>
+      <Paint index="69" Format="18"><!-- PaintScaleAroundCenter -->
+        <Paint Format="26"><!-- PaintRotateAroundCenter -->
+          <Paint Format="11"><!-- PaintColrGlyph -->
+            <Glyph value="solid_colorline_alpha"/>
+          </Paint>
+          <angle value="-180.0"/>
+          <centerX value="500"/>
+          <centerY value="600"/>
+        </Paint>
+        <scaleX value="0.46"/>
+        <scaleY value="0.46"/>
+        <centerX value="500"/>
+        <centerY value="600"/>
+      </Paint>
+      <Paint index="70" Format="18"><!-- PaintScaleAroundCenter -->
+        <Paint Format="26"><!-- PaintRotateAroundCenter -->
+          <Paint Format="11"><!-- PaintColrGlyph -->
+            <Glyph value="solid_colorline_alpha"/>
+          </Paint>
+          <angle value="180.0"/>
+          <centerX value="500"/>
+          <centerY value="600"/>
+        </Paint>
+        <scaleX value="0.28"/>
+        <scaleY value="0.28"/>
+        <centerX value="500"/>
+        <centerY value="600"/>
+      </Paint>
     </LayerList>
     <ClipList Format="1">
       <Clip>
@@ -9011,6 +9102,9 @@
         <Glyph value="linear_gradient_extend_mode_pad"/>
         <Glyph value="linear_gradient_extend_mode_reflect"/>
         <Glyph value="linear_gradient_extend_mode_repeat"/>
+        <Glyph value="no_cycle_multi_colrglyph"/>
+        <Glyph value="paintcolrglyph_cycle_first"/>
+        <Glyph value="paintcolrglyph_cycle_second"/>
         <Glyph value="radial_contained_gradient_extend_mode_pad"/>
         <Glyph value="radial_contained_gradient_extend_mode_reflect"/>
         <Glyph value="radial_contained_gradient_extend_mode_repeat"/>
@@ -9110,8 +9204,6 @@
         <Glyph value="linear_repeat_0.5_1.5"/>
         <Glyph value="linear_repeat_0_1"/>
         <Glyph value="linear_repeat_0_1.5"/>
-        <Glyph value="paintcolrglyph_cycle_first"/>
-        <Glyph value="paintcolrglyph_cycle_second"/>
         <ClipBox Format="1">
           <xMin value="100"/>
           <yMin value="250"/>
@@ -28297,6 +28389,7 @@
       <Map glyph="linear_repeat_0.5_1.5" outer="0" inner="0"/>
       <Map glyph="linear_repeat_0_1" outer="0" inner="0"/>
       <Map glyph="linear_repeat_0_1.5" outer="0" inner="0"/>
+      <Map glyph="no_cycle_multi_colrglyph" outer="0" inner="0"/>
       <Map glyph="one" outer="0" inner="0"/>
       <Map glyph="paintcolrglyph_cycle_first" outer="0" inner="0"/>
       <Map glyph="paintcolrglyph_cycle_second" outer="0" inner="0"/>
