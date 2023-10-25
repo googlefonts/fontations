@@ -1,5 +1,5 @@
 mod font;
 mod pen;
 
-pub use font::{FontFileData, FontInstance, FreeTypeFont, SharedFontData, SkrifaFont};
+pub use font::{Font, FreeTypeInstance, InstanceOptions, SharedFontData, SkrifaInstance};
 pub use pen::{NullPen, RecordingPen, RegularizingPen};

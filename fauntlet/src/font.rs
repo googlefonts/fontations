@@ -20,12 +20,12 @@ use skrifa::{
     scale, GlyphId,
 };
 
-pub struct FreeTypeFont<'a> {
+pub struct FreeTypeInstance<'a> {
     face: &'a mut Face<SharedFontData>,
     load_flags: LoadFlag,
 }
 
-impl<'a> FreeTypeFont<'a> {
+impl<'a> FreeTypeInstance<'a> {
     pub fn glyph_count(&self) -> u16 {
         self.face.num_glyphs() as u16
     }
@@ -54,12 +54,12 @@ impl<'a> FreeTypeFont<'a> {
     }
 }
 
-pub struct SkrifaFont<'a> {
+pub struct SkrifaInstance<'a> {
     font: FontRef<'a>,
     scaler: scale::Scaler<'a>,
 }
 
-impl<'a> SkrifaFont<'a> {
+impl<'a> SkrifaInstance<'a> {
     pub fn glyph_count(&self) -> u16 {
         self.font
             .maxp()
@@ -74,13 +74,13 @@ impl<'a> SkrifaFont<'a> {
 }
 
 #[derive(Copy, Clone, Debug)]
-pub struct FontInstance<'a> {
+pub struct InstanceOptions<'a> {
     pub index: usize,
     pub ppem: u32,
     pub coords: &'a [F2Dot14],
 }
 
-impl<'a> FontInstance<'a> {
+impl<'a> InstanceOptions<'a> {
     pub fn new(index: usize, ppem: u32, coords: &'a [F2Dot14]) -> Self {
         Self {
             index,
@@ -90,15 +90,16 @@ impl<'a> FontInstance<'a> {
     }
 }
 
-pub struct FontFileData {
+pub struct Font {
     path: PathBuf,
     data: SharedFontData,
+    // Just to keep the FT_Library alive
     _ft_library: Library,
     ft_faces: Vec<Face<SharedFontData>>,
     skrifa_cx: scale::Context,
 }
 
-impl FontFileData {
+impl Font {
     pub fn new(path: impl AsRef<Path>) -> Option<Self> {
         let path = path.as_ref().to_owned();
         let file = std::fs::File::open(&path).ok()?;
@@ -136,42 +137,52 @@ impl FontFileData {
             .unwrap_or_default()
     }
 
-    pub fn get(&mut self, instance: &FontInstance) -> Option<(FreeTypeFont, SkrifaFont)> {
-        let ft_font = self.ft_faces.get_mut(instance.index)?;
+    /// Create instances for both FreeType and Skrifa with the given options.
+    ///
+    /// Borrowing rules require both to be created at the same time. The
+    /// mutable borrow here prevents the underlying FT_Face from being modified
+    /// before it is dropped.
+    pub fn instantiate(
+        &mut self,
+        options: &InstanceOptions,
+    ) -> Option<(FreeTypeInstance, SkrifaInstance)> {
+        let face = self.ft_faces.get_mut(options.index)?;
         let mut load_flags = LoadFlag::NO_AUTOHINT | LoadFlag::NO_HINTING | LoadFlag::NO_BITMAP;
         // let upem = ft_font.raw().units_per_EM as u32;
-        if instance.ppem != 0 {
-            ft_font.set_pixel_sizes(instance.ppem, instance.ppem).ok()?;
+        if options.ppem != 0 {
+            face.set_pixel_sizes(options.ppem, options.ppem).ok()?;
         } else {
             load_flags |= LoadFlag::NO_SCALE;
         }
-        if !instance.coords.is_empty() {
+        if !options.coords.is_empty() {
             let mut ft_coords = vec![];
             ft_coords.extend(
-                instance
+                options
                     .coords
                     .iter()
                     .map(|c| c.to_fixed().to_bits() as FT_Long),
             );
             unsafe {
                 freetype::freetype_sys::FT_Set_Var_Blend_Coordinates(
-                    ft_font.raw_mut() as _,
-                    instance.coords.len() as u32,
+                    face.raw_mut() as _,
+                    options.coords.len() as u32,
                     ft_coords.as_ptr(),
                 );
             }
         } else {
             unsafe {
+                // Note the explicit call to set *design* coordinates. Setting
+                // blend doesn't correctly disable variation processing
                 freetype::freetype_sys::FT_Set_Var_Design_Coordinates(
-                    ft_font.raw_mut() as _,
+                    face.raw_mut() as _,
                     0,
                     std::ptr::null(),
                 );
             }
         }
-        let font_ref = FontRef::from_index(self.data.0.as_ref(), instance.index as u32).ok()?;
-        let size = if instance.ppem != 0 {
-            Size::new(instance.ppem as f32)
+        let font = FontRef::from_index(self.data.0.as_ref(), options.index as u32).ok()?;
+        let size = if options.ppem != 0 {
+            Size::new(options.ppem as f32)
         } else {
             // Size::new(upem as f32)
             Size::unscaled()
@@ -180,17 +191,11 @@ impl FontFileData {
             .skrifa_cx
             .new_scaler()
             .size(size)
-            .normalized_coords(instance.coords)
-            .build(&font_ref);
+            .normalized_coords(options.coords)
+            .build(&font);
         Some((
-            FreeTypeFont {
-                face: ft_font,
-                load_flags,
-            },
-            SkrifaFont {
-                font: font_ref,
-                scaler,
-            },
+            FreeTypeInstance { face, load_flags },
+            SkrifaInstance { font, scaler },
         ))
     }
 }
@@ -204,6 +209,8 @@ impl Borrow<[u8]> for SharedFontData {
     }
 }
 
+// Since Pen is dyn here which is a fat pointer, we wrap it in a struct
+// to pass through the required void* type in FT_Outline_Decompose.
 struct FreeTypePen<'a>(&'a mut dyn Pen, bool);
 
 impl<'a> FreeTypePen<'a> {
@@ -219,6 +226,8 @@ impl<'a> FreeTypePen<'a> {
 }
 
 fn ft_pen<'a>(user: *mut c_void) -> &'a mut FreeTypePen<'a> {
+    // SAFETY: this is wildly unsafe and only works if we make sure to pass
+    // &mut FreeTypePen as the user parameter to FT_Outline_Decompose
     unsafe { &mut *(user as *mut FreeTypePen) }
 }
 

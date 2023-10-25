@@ -10,6 +10,8 @@ readme = "README.md"
 [dependencies]
 skrifa = { version = "0.11.0", path = "../skrifa" }
 freetype-rs = "0.32.0"
-glob = "0.3.1"
 memmap2 = "0.5.10"
 rayon = "1.8.0"
+clap = { version = "4.4.7", features = ["derive"] }
+wild = "2.2.0"
+similar = "2.3.0"
