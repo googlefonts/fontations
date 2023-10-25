@@ -1361,9 +1361,6 @@ mod tests {
             .map(|idx| key_map.get(idx).unwrap().into())
             .collect::<Vec<_>>();
 
-        println!("{:#?}", store);
-        println!("{:#?}", varidx_map);
-
         assert_eq!(store.variation_region_list.variation_regions.len(), 1);
         assert_eq!(store.item_variation_data.len(), 1);
 
