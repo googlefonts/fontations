@@ -365,25 +365,28 @@ impl<'a, S> ScalingSink26Dot6<'a, S> {
     }
 
     fn scale(&self, coord: Fixed) -> Fixed {
+        // The following dance is necessary to exactly match FreeType's
+        // application of scaling factors. This seems to be the result
+        // of merging the contributed Adobe code while not breaking the
+        // FreeType public API.
+        // 1. Multiply by 1/64
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L284>
+        let a = coord * Fixed::from_bits(0x0400);
+        // 2. Truncate the bottom 10 bits. Combined with the division by 64,
+        // converts to font units.
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psobjs.c#L2219>
+        let b = Fixed::from_bits(a.to_bits() >> 10);
         if self.scale != Fixed::ONE {
-            // The following dance is necessary to exactly match FreeType's
-            // application of scaling factors. This seems to be the result
-            // of merging the contributed Adobe code while not breaking the
-            // FreeType public API.
-            // 1. Multiply by 1/64
-            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L284>
-            let a = coord * Fixed::from_bits(0x0400);
-            // 2. Convert to 26.6 by truncation
-            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psobjs.c#L2219>
-            let b = Fixed::from_bits(a.to_bits() >> 10);
-            // 3. Multiply by the original scale factor
+            // Scaled case:
+            // 3. Multiply by the original scale factor (to 26.6)
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/cff/cffgload.c#L721>
             let c = b * self.scale;
-            // Finally, we convert back to 16.16
+            // 4. Convert from 26.6 to 16.16
             Fixed::from_bits(c.to_bits() << 10)
         } else {
-            // Otherwise, simply zero the low 10 bits
-            Fixed::from_bits(coord.to_bits() & !0x3FF)
+            // Unscaled case:
+            // 3. Convert from integer to 16.16
+            Fixed::from_bits(b.to_bits() << 16)
         }
     }
 }
