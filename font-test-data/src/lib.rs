@@ -42,6 +42,11 @@ pub static EMBEDDED_BITMAPS: &[u8] = include_bytes!("../test_data/ttf/embedded_b
 pub static HVAR_WITH_TRUNCATED_ADVANCE_INDEX_MAP: &[u8] =
     include_bytes!("../test_data/ttf/hvar_with_truncated_adv_index_map.ttf");
 
+pub static COLRV0V1: &[u8] = include_bytes!("../test_data/ttf/test_glyphs-glyf_colr_1.ttf");
+
+pub static COLRV0V1_VARIABLE: &[u8] =
+    include_bytes!("../test_data/ttf/test_glyphs-glyf_colr_1_variable.ttf");
+
 pub mod post {
 
     #[rustfmt::skip]
