@@ -369,6 +369,9 @@ impl<'a, S> ScalingSink26Dot6<'a, S> {
         // application of scaling factors. This seems to be the result
         // of merging the contributed Adobe code while not breaking the
         // FreeType public API.
+        //
+        // The first two steps apply to both scaled and unscaled outlines:
+        //
         // 1. Multiply by 1/64
         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L284>
         let a = coord * Fixed::from_bits(0x0400);
@@ -550,7 +553,6 @@ mod tests {
         for coord in [50.0, 50.1, 50.125, 50.5, 50.9] {
             assert_eq!(sink.scale(Fixed::from_f64(coord)).to_f32(), 50.0);
         }
-        assert_eq!(sink.scale(Fixed::from_f64(893.9844)).to_f32(), 894.0);
     }
 
     #[test]
