@@ -148,7 +148,6 @@ impl Font {
     ) -> Option<(FreeTypeInstance, SkrifaInstance)> {
         let face = self.ft_faces.get_mut(options.index)?;
         let mut load_flags = LoadFlag::NO_AUTOHINT | LoadFlag::NO_HINTING | LoadFlag::NO_BITMAP;
-        // let upem = ft_font.raw().units_per_EM as u32;
         if options.ppem != 0 {
             face.set_pixel_sizes(options.ppem, options.ppem).ok()?;
         } else {
@@ -184,7 +183,6 @@ impl Font {
         let size = if options.ppem != 0 {
             Size::new(options.ppem as f32)
         } else {
-            // Size::new(upem as f32)
             Size::unscaled()
         };
         let scaler = self

@@ -20,7 +20,7 @@ enum Command {
         print_paths: bool,
         #[arg(long)]
         /// End the process immediately if a comparison fails
-        abort_on_fail: bool,
+        exit_on_fail: bool,
         /// Paths to font files to compare (may use glob syntax)
         files: Vec<std::path::PathBuf>,
     },
@@ -39,7 +39,7 @@ fn main() {
     match args.command {
         Command::CompareOutlines {
             print_paths,
-            abort_on_fail,
+            exit_on_fail,
             files,
         } => {
             files.par_iter().for_each(|font_path| {
@@ -55,21 +55,16 @@ fn main() {
                                 for coord in &var_locations {
                                     coords.clear();
                                     coords.extend(std::iter::repeat(*coord).take(axis_count));
-                                    let instance =
+                                    let options =
                                         fauntlet::InstanceOptions::new(font_ix, *ppem, &coords);
-                                    if let Some(fonts) = font_data.instantiate(&instance) {
-                                        compare_outlines(
-                                            &font_path,
-                                            &instance,
-                                            fonts,
-                                            abort_on_fail,
-                                        );
+                                    if let Some(fonts) = font_data.instantiate(&options) {
+                                        compare_outlines(&font_path, &options, fonts, exit_on_fail);
                                     }
                                 }
                             } else {
-                                let instance = InstanceOptions::new(font_ix, *ppem, &[]);
-                                if let Some(fonts) = font_data.instantiate(&instance) {
-                                    compare_outlines(&font_path, &instance, fonts, abort_on_fail);
+                                let options = InstanceOptions::new(font_ix, *ppem, &[]);
+                                if let Some(fonts) = font_data.instantiate(&options) {
+                                    compare_outlines(&font_path, &options, fonts, exit_on_fail);
                                 }
                             }
                         }
@@ -84,10 +79,10 @@ fn compare_outlines(
     path: &Path,
     options: &InstanceOptions,
     (mut ft_font, mut skrifa_font): (FreeTypeInstance, SkrifaInstance),
-    abort_on_fail: bool,
+    exit_on_fail: bool,
 ) {
     let glyph_count = skrifa_font.glyph_count();
-    let is_scaled = true; // options.ppem != 0;
+    let is_scaled = options.ppem != 0;
 
     let mut ft_outline = RecordingPen::default();
     let mut skrifa_outline = RecordingPen::default();
@@ -100,11 +95,19 @@ fn compare_outlines(
             .unwrap();
         skrifa_outline.clear();
         skrifa_font
-            .outline(gid, &mut RegularizingPen::new(&mut skrifa_outline, is_scaled))
+            .outline(
+                gid,
+                &mut RegularizingPen::new(&mut skrifa_outline, is_scaled),
+            )
             .unwrap();
         if ft_outline != skrifa_outline {
             fn outline_to_string(outline: &RecordingPen) -> String {
-                outline.0.iter().map(|cmd| format!("{cmd:?}")).collect::<Vec<_>>().join("\n")
+                outline
+                    .0
+                    .iter()
+                    .map(|cmd| format!("{cmd:?}"))
+                    .collect::<Vec<_>>()
+                    .join("\n")
             }
             let ft_cmds = outline_to_string(&ft_outline);
             let skrifa_cmds = outline_to_string(&skrifa_outline);
@@ -125,7 +128,7 @@ fn compare_outlines(
                 options.coords,
                 gid.to_u16(),
             );
-            if abort_on_fail {
+            if exit_on_fail {
                 std::process::exit(1);
             }
         }
