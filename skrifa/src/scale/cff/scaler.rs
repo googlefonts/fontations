@@ -544,6 +544,42 @@ mod tests {
     use read_fonts::FontRef;
 
     #[test]
+    fn unscaled_scaling_sink_produces_integers() {
+        let nothing = &mut ();
+        let sink = ScalingSink26Dot6::new(nothing, Fixed::ONE);
+        for coord in [50.0, 50.1, 50.125, 50.5, 50.9] {
+            assert_eq!(sink.scale(Fixed::from_f64(coord)).to_f32(), 50.0);
+        }
+        assert_eq!(sink.scale(Fixed::from_f64(893.9844)).to_f32(), 894.0);
+    }
+
+    #[test]
+    fn scaled_scaling_sink() {
+        let ppem = 20.0;
+        let upem = 1000.0;
+        // match FreeType scaling with intermediate conversion to 26.6
+        let scale = Fixed::from_bits((ppem * 64.) as i32) / Fixed::from_bits(upem as i32);
+        let nothing = &mut ();
+        let sink = ScalingSink26Dot6::new(nothing, scale);
+        let inputs = [
+            // input coord, expected scaled output
+            (0.0, 0.0),
+            (8.0, 0.15625),
+            (16.0, 0.3125),
+            (32.0, 0.640625),
+            (72.0, 1.4375),
+            (128.0, 2.5625),
+        ];
+        for (coord, expected) in inputs {
+            assert_eq!(
+                sink.scale(Fixed::from_f64(coord)).to_f32(),
+                expected,
+                "scaling coord {coord}"
+            );
+        }
+    }
+
+    #[test]
     fn read_cff_static() {
         let font = FontRef::new(font_test_data::NOTO_SERIF_DISPLAY_TRIMMED).unwrap();
         let cff = Scaler::new(&font).unwrap();
