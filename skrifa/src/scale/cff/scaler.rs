@@ -365,25 +365,31 @@ impl<'a, S> ScalingSink26Dot6<'a, S> {
     }
 
     fn scale(&self, coord: Fixed) -> Fixed {
+        // The following dance is necessary to exactly match FreeType's
+        // application of scaling factors. This seems to be the result
+        // of merging the contributed Adobe code while not breaking the
+        // FreeType public API.
+        //
+        // The first two steps apply to both scaled and unscaled outlines:
+        //
+        // 1. Multiply by 1/64
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L284>
+        let a = coord * Fixed::from_bits(0x0400);
+        // 2. Truncate the bottom 10 bits. Combined with the division by 64,
+        // converts to font units.
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psobjs.c#L2219>
+        let b = Fixed::from_bits(a.to_bits() >> 10);
         if self.scale != Fixed::ONE {
-            // The following dance is necessary to exactly match FreeType's
-            // application of scaling factors. This seems to be the result
-            // of merging the contributed Adobe code while not breaking the
-            // FreeType public API.
-            // 1. Multiply by 1/64
-            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L284>
-            let a = coord * Fixed::from_bits(0x0400);
-            // 2. Convert to 26.6 by truncation
-            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psobjs.c#L2219>
-            let b = Fixed::from_bits(a.to_bits() >> 10);
-            // 3. Multiply by the original scale factor
+            // Scaled case:
+            // 3. Multiply by the original scale factor (to 26.6)
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/cff/cffgload.c#L721>
             let c = b * self.scale;
-            // Finally, we convert back to 16.16
+            // 4. Convert from 26.6 to 16.16
             Fixed::from_bits(c.to_bits() << 10)
         } else {
-            // Otherwise, simply zero the low 10 bits
-            Fixed::from_bits(coord.to_bits() & !0x3FF)
+            // Unscaled case:
+            // 3. Convert from integer to 16.16
+            Fixed::from_bits(b.to_bits() << 16)
         }
     }
 }
@@ -539,6 +545,41 @@ where
 mod tests {
     use super::*;
     use read_fonts::FontRef;
+
+    #[test]
+    fn unscaled_scaling_sink_produces_integers() {
+        let nothing = &mut ();
+        let sink = ScalingSink26Dot6::new(nothing, Fixed::ONE);
+        for coord in [50.0, 50.1, 50.125, 50.5, 50.9] {
+            assert_eq!(sink.scale(Fixed::from_f64(coord)).to_f32(), 50.0);
+        }
+    }
+
+    #[test]
+    fn scaled_scaling_sink() {
+        let ppem = 20.0;
+        let upem = 1000.0;
+        // match FreeType scaling with intermediate conversion to 26.6
+        let scale = Fixed::from_bits((ppem * 64.) as i32) / Fixed::from_bits(upem as i32);
+        let nothing = &mut ();
+        let sink = ScalingSink26Dot6::new(nothing, scale);
+        let inputs = [
+            // input coord, expected scaled output
+            (0.0, 0.0),
+            (8.0, 0.15625),
+            (16.0, 0.3125),
+            (32.0, 0.640625),
+            (72.0, 1.4375),
+            (128.0, 2.5625),
+        ];
+        for (coord, expected) in inputs {
+            assert_eq!(
+                sink.scale(Fixed::from_f64(coord)).to_f32(),
+                expected,
+                "scaling coord {coord}"
+            );
+        }
+    }
 
     #[test]
     fn read_cff_static() {
