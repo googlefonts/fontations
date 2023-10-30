@@ -2,18 +2,23 @@ use skrifa::raw::types::{Pen, PenCommand};
 
 /// Pen that eliminates differences between FreeType and Skrifa.
 ///
-/// This covers two primary cases:
+/// This covers three primary cases:
 ///
 /// 1. All contours in FT are implicitly closed while Skrifa emits an
 /// explicit close element. This simply drops close elements and replaces
 /// them with a line if the current point does not match the most recent
 /// start point.
 ///
-/// 2. The FT CFF parser elminates some, but not all degenerate move/line
+/// 2. The FT CFF loader elminates some, but not all degenerate move/line
 /// elements (due to a final scaling step that may introduce new ones).
 /// Skrifa applies this pass *after* scaling so is more aggressive about
-/// removing degenerates.
-/// This drops unused moves and lines that end at the current point.
+/// removing degenerates. This drops unused moves and lines that end at the
+/// current point.
+///
+/// 3. The FT TrueType loader in unscaled mode always produces integers. This
+/// leads to truncated results when midpoints are computed for implied
+/// oncurve points. Skrifa retains the more accurate representation so
+/// points are truncated here (in the unscaled case) for comparison.
 pub struct RegularizingPen<'a, P> {
     inner: &'a mut P,
     is_scaled: bool,
@@ -122,14 +127,4 @@ impl Pen for RecordingPen {
     fn close(&mut self) {
         self.0.push(PenCommand::Close)
     }
-}
-
-pub struct NullPen {}
-
-impl Pen for NullPen {
-    fn move_to(&mut self, _x: f32, _y: f32) {}
-    fn quad_to(&mut self, _cx0: f32, _cy0: f32, _x: f32, _y: f32) {}
-    fn curve_to(&mut self, _cx0: f32, _cy0: f32, _cx1: f32, _cy1: f32, _x: f32, _y: f32) {}
-    fn line_to(&mut self, _x: f32, _y: f32) {}
-    fn close(&mut self) {}
 }

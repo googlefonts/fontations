@@ -3,9 +3,10 @@ name = "fauntlet"
 version = "0.1.0"
 edition = "2021"
 license = "MIT/Apache-2.0"
-description = "Metadata reader and glyph scaler for OpenType fonts."
+description = "Testing tool for comparing Skrifa and FreeType."
 repository = "https://github.com/googlefonts/fontations"
 readme = "README.md"
+publish = false
 
 [dependencies]
 skrifa = { version = "0.11.0", path = "../skrifa" }
@@ -15,3 +16,7 @@ rayon = "1.8.0"
 clap = { version = "4.4.7", features = ["derive"] }
 wild = "2.2.0"
 similar = "2.3.0"
+
+# cargo-release settings
+[package.metadata.release]
+release = false

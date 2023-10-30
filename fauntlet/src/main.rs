@@ -1,3 +1,4 @@
+use std::io::Write;
 use std::path::Path;
 
 use rayon::prelude::*;
@@ -13,8 +14,8 @@ struct Args {
 
 #[derive(clap::Subcommand, Debug)]
 enum Command {
-    /// Compare outlines for all glyphs in a set of font files
-    CompareOutlines {
+    /// Compare outlines and advances for all glyphs in a set of font files
+    CompareGlyphs {
         /// Print the path for each font file as it is processed
         #[arg(long)]
         print_paths: bool,
@@ -27,7 +28,7 @@ enum Command {
 }
 
 fn main() {
-    // Pixels per em sizes
+    // Pixels per em sizes. A size of 0 means an explicit unscaled comparison
     let ppem_sizes = [0, 8, 16, 50, 72, 113, 144];
 
     // Locations in normalized variation space
@@ -37,11 +38,13 @@ fn main() {
     let args = Args::parse_from(wild::args());
 
     match args.command {
-        Command::CompareOutlines {
+        Command::CompareGlyphs {
             print_paths,
             exit_on_fail,
             files,
         } => {
+            use std::sync::atomic::{AtomicBool, Ordering};
+            let ok = AtomicBool::new(true);
             files.par_iter().for_each(|font_path| {
                 if print_paths {
                     println!("[{font_path:?}]");
@@ -57,50 +60,86 @@ fn main() {
                                     coords.extend(std::iter::repeat(*coord).take(axis_count));
                                     let options =
                                         fauntlet::InstanceOptions::new(font_ix, *ppem, &coords);
-                                    if let Some(fonts) = font_data.instantiate(&options) {
-                                        compare_outlines(&font_path, &options, fonts, exit_on_fail);
+                                    if let Some(instances) = font_data.instantiate(&options) {
+                                        if !compare_glyphs(
+                                            &font_path,
+                                            &options,
+                                            instances,
+                                            exit_on_fail,
+                                        ) {
+                                            ok.store(false, Ordering::Release);
+                                        }
                                     }
                                 }
                             } else {
                                 let options = InstanceOptions::new(font_ix, *ppem, &[]);
-                                if let Some(fonts) = font_data.instantiate(&options) {
-                                    compare_outlines(&font_path, &options, fonts, exit_on_fail);
+                                if let Some(instances) = font_data.instantiate(&options) {
+                                    if !compare_glyphs(
+                                        &font_path,
+                                        &options,
+                                        instances,
+                                        exit_on_fail,
+                                    ) {
+                                        ok.store(false, Ordering::Release);
+                                    }
                                 }
                             }
                         }
                     }
                 }
             });
+            if !ok.load(Ordering::Acquire) {
+                std::process::exit(1);
+            }
         }
     }
 }
 
-fn compare_outlines(
+fn compare_glyphs(
     path: &Path,
     options: &InstanceOptions,
-    (mut ft_font, mut skrifa_font): (FreeTypeInstance, SkrifaInstance),
+    (mut ft_instance, mut skrifa_instance): (FreeTypeInstance, SkrifaInstance),
     exit_on_fail: bool,
-) {
-    let glyph_count = skrifa_font.glyph_count();
+) -> bool {
+    let glyph_count = skrifa_instance.glyph_count();
     let is_scaled = options.ppem != 0;
 
     let mut ft_outline = RecordingPen::default();
     let mut skrifa_outline = RecordingPen::default();
 
+    let mut ok = true;
+
     for gid in 0..glyph_count {
         let gid = GlyphId::new(gid);
+        let ft_advance = ft_instance.advance(gid);
+        let skrifa_advance = skrifa_instance.advance(gid);
+        if ft_advance != skrifa_advance {
+            writeln!(
+                std::io::stderr(),
+                "[{path:?}#{} ppem: {} coords: {:?}] glyph id {} advance doesn't match:\nFreeType: {ft_advance:?}\nSkrifa:   {skrifa_advance:?}",
+                options.index,
+                options.ppem,
+                options.coords,
+                gid.to_u16(),
+            )
+            .unwrap();
+            if exit_on_fail {
+                std::process::exit(1);
+            }
+        }
         ft_outline.clear();
-        ft_font
+        ft_instance
             .outline(gid, &mut RegularizingPen::new(&mut ft_outline, is_scaled))
             .unwrap();
         skrifa_outline.clear();
-        skrifa_font
+        skrifa_instance
             .outline(
                 gid,
                 &mut RegularizingPen::new(&mut skrifa_outline, is_scaled),
             )
             .unwrap();
         if ft_outline != skrifa_outline {
+            ok = false;
             fn outline_to_string(outline: &RecordingPen) -> String {
                 outline
                     .0
@@ -121,16 +160,19 @@ fn compare_outlines(
                 };
                 diff_str.push_str(&format!("{sign} {change}"));
             }
-            println!(
-                "[{path:?}#{} ppem: {} coords: {:?}] glyph id {} doesn't match:\n{diff_str}",
+            write!(
+                std::io::stderr(),
+                "[{path:?}#{} ppem: {} coords: {:?}] glyph id {} outline doesn't match:\n{diff_str}",
                 options.index,
                 options.ppem,
                 options.coords,
                 gid.to_u16(),
-            );
+            )
+            .unwrap();
             if exit_on_fail {
                 std::process::exit(1);
             }
         }
     }
+    ok
 }
