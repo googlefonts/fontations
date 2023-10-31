@@ -8,7 +8,7 @@ and [FreeType](https://freetype.org).
 This currently compares glyph outlines (in path form) and advance widths for
 fixed sets of sizes and locations in variation space. Prior to comparison,
 the outlines are "regularized" to account for minor differences in output.
-These differences do not affect rendering and exists for various reasons:
+These differences do not affect rendering and exist for the following reasons:
 
 1. All contours are implicitly closed in FreeType. Skrifa emits close
 elements to allow our output to be further processed by, e.g. a stroke
