@@ -77,7 +77,7 @@ pub struct EncodingRecord {
     pub platform_id: PlatformId,
     /// Platform-specific encoding ID.
     pub encoding_id: u16,
-    /// Byte offset from beginning of table to the subtable for this
+    /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
     /// encoding.
     pub subtable: OffsetMarker<CmapSubtable, WIDTH_32>,
 }
@@ -1263,11 +1263,11 @@ impl<'a> FontRead<'a> for Cmap14 {
 pub struct VariationSelector {
     /// Variation selector
     pub var_selector: Uint24,
-    /// Offset from the start of the format 14 subtable to Default UVS
-    /// Table. May be 0.
+    /// Offset from the start of the [`Cmap14`] subtable to Default UVS
+    /// Table. May be NULL.
     pub default_uvs: NullableOffsetMarker<DefaultUvs, WIDTH_32>,
-    /// Offset from the start of the format 14 subtable to Non-Default
-    /// UVS Table. May be 0.
+    /// Offset from the start of the [`Cmap14`] subtable to Non-Default
+    /// UVS Table. May be NULL.
     pub non_default_uvs: NullableOffsetMarker<NonDefaultUvs, WIDTH_32>,
 }
 

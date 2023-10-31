@@ -102,7 +102,10 @@ impl ScriptRecord {
         self.script_offset.get()
     }
 
-    /// Attempt to resolve [`script_offset`][Self::script_offset].
+    /// Offset to Script table, from beginning of ScriptList
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn script<'a>(&self, data: FontData<'a>) -> Result<Script<'a>, ReadError> {
         self.script_offset().resolve(data)
     }
@@ -256,7 +259,10 @@ impl LangSysRecord {
         self.lang_sys_offset.get()
     }
 
-    /// Attempt to resolve [`lang_sys_offset`][Self::lang_sys_offset].
+    /// Offset to LangSys table, from beginning of Script table
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn lang_sys<'a>(&self, data: FontData<'a>) -> Result<LangSys<'a>, ReadError> {
         self.lang_sys_offset().resolve(data)
     }
@@ -482,7 +488,10 @@ impl FeatureRecord {
         self.feature_offset.get()
     }
 
-    /// Attempt to resolve [`feature_offset`][Self::feature_offset].
+    /// Offset to Feature table, from beginning of FeatureList
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn feature<'a>(&self, data: FontData<'a>) -> Result<Feature<'a>, ReadError> {
         let args = self.feature_tag();
         self.feature_offset().resolve_with_args(data, &args)
@@ -3910,7 +3919,11 @@ impl FeatureVariationRecord {
         self.condition_set_offset.get()
     }
 
-    /// Attempt to resolve [`condition_set_offset`][Self::condition_set_offset].
+    /// Offset to a condition set table, from beginning of
+    /// FeatureVariations table.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn condition_set<'a>(
         &self,
         data: FontData<'a>,
@@ -3924,7 +3937,11 @@ impl FeatureVariationRecord {
         self.feature_table_substitution_offset.get()
     }
 
-    /// Attempt to resolve [`feature_table_substitution_offset`][Self::feature_table_substitution_offset].
+    /// Offset to a feature table substitution table, from beginning of
+    /// the FeatureVariations table.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn feature_table_substitution<'a>(
         &self,
         data: FontData<'a>,

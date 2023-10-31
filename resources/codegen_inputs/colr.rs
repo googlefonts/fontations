@@ -70,7 +70,7 @@ table BaseGlyphList {
 record BaseGlyphPaint {
     /// Glyph ID of the base glyph.
     glyph_id: GlyphId,
-    /// Offset to a Paint table.
+    /// Offset to a Paint table, from the beginning of the [`BaseGlyphList`] table.
     paint_offset: Offset32<Paint>,
 }
 
@@ -99,7 +99,7 @@ record Clip {
     start_glyph_id: GlyphId,
     /// Last glyph ID in the range.
     end_glyph_id: GlyphId,
-    /// Offset to a ClipBox table.
+    /// Offset to a ClipBox table, from the beginning of the [`ClipList`] table.
     clip_box_offset: Offset24<ClipBox>,
 }
 

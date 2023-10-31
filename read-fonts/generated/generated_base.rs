@@ -389,7 +389,10 @@ impl BaseScriptRecord {
         self.base_script_offset.get()
     }
 
-    /// Attempt to resolve [`base_script_offset`][Self::base_script_offset].
+    /// Offset to BaseScript table, from beginning of BaseScriptList
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn base_script<'a>(&self, data: FontData<'a>) -> Result<BaseScript<'a>, ReadError> {
         self.base_script_offset().resolve(data)
     }
@@ -568,7 +571,10 @@ impl BaseLangSysRecord {
         self.min_max_offset.get()
     }
 
-    /// Attempt to resolve [`min_max_offset`][Self::min_max_offset].
+    /// Offset to MinMax table, from beginning of BaseScript table
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn min_max<'a>(&self, data: FontData<'a>) -> Result<MinMax<'a>, ReadError> {
         self.min_max_offset().resolve(data)
     }
@@ -861,7 +867,11 @@ impl FeatMinMaxRecord {
         self.min_coord_offset.get()
     }
 
-    /// Attempt to resolve [`min_coord_offset`][Self::min_coord_offset].
+    /// Offset to BaseCoord table that defines the minimum extent
+    /// value, from beginning of MinMax table (may be NULL)
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn min_coord<'a>(&self, data: FontData<'a>) -> Option<Result<MinMax<'a>, ReadError>> {
         self.min_coord_offset().resolve(data)
     }
@@ -872,7 +882,11 @@ impl FeatMinMaxRecord {
         self.max_coord_offset.get()
     }
 
-    /// Attempt to resolve [`max_coord_offset`][Self::max_coord_offset].
+    /// Offset to BaseCoord table that defines the maximum extent
+    /// value, from beginning of MinMax table (may be NULL)
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn max_coord<'a>(&self, data: FontData<'a>) -> Option<Result<MinMax<'a>, ReadError>> {
         self.max_coord_offset().resolve(data)
     }
