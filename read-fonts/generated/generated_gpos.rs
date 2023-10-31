@@ -1008,7 +1008,10 @@ impl MarkRecord {
         self.mark_anchor_offset.get()
     }
 
-    /// Attempt to resolve [`mark_anchor_offset`][Self::mark_anchor_offset].
+    /// Offset to Anchor table, from beginning of MarkArray table.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn mark_anchor<'a>(&self, data: FontData<'a>) -> Result<AnchorTable<'a>, ReadError> {
         self.mark_anchor_offset().resolve(data)
     }
@@ -2233,7 +2236,11 @@ impl EntryExitRecord {
         self.entry_anchor_offset.get()
     }
 
-    /// Attempt to resolve [`entry_anchor_offset`][Self::entry_anchor_offset].
+    /// Offset to entryAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn entry_anchor<'a>(
         &self,
         data: FontData<'a>,
@@ -2247,7 +2254,11 @@ impl EntryExitRecord {
         self.exit_anchor_offset.get()
     }
 
-    /// Attempt to resolve [`exit_anchor_offset`][Self::exit_anchor_offset].
+    /// Offset to exitAnchor table, from beginning of CursivePos
+    /// subtable (may be NULL).
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn exit_anchor<'a>(
         &self,
         data: FontData<'a>,
@@ -2561,7 +2572,12 @@ impl<'a> BaseRecord<'a> {
         self.base_anchor_offsets
     }
 
-    /// A dynamically resolving wrapper for [`base_anchor_offsets`][Self::base_anchor_offsets].
+    /// Array of offsets (one per mark class) to Anchor tables. Offsets
+    /// are from beginning of BaseArray table, ordered by class
+    /// (offsets may be NULL).
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn base_anchors(
         &self,
         data: FontData<'a>,
@@ -3016,7 +3032,12 @@ impl<'a> ComponentRecord<'a> {
         self.ligature_anchor_offsets
     }
 
-    /// A dynamically resolving wrapper for [`ligature_anchor_offsets`][Self::ligature_anchor_offsets].
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of LigatureAttach table, ordered by class
+    /// (offsets may be NULL).
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn ligature_anchors(
         &self,
         data: FontData<'a>,
@@ -3357,7 +3378,12 @@ impl<'a> Mark2Record<'a> {
         self.mark2_anchor_offsets
     }
 
-    /// A dynamically resolving wrapper for [`mark2_anchor_offsets`][Self::mark2_anchor_offsets].
+    /// Array of offsets (one per class) to Anchor tables. Offsets are
+    /// from beginning of Mark2Array table, in class order (offsets may
+    /// be NULL).
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn mark2_anchors(
         &self,
         data: FontData<'a>,

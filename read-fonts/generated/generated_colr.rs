@@ -484,7 +484,7 @@ impl<'a> std::fmt::Debug for BaseGlyphList<'a> {
 pub struct BaseGlyphPaint {
     /// Glyph ID of the base glyph.
     pub glyph_id: BigEndian<GlyphId>,
-    /// Offset to a Paint table.
+    /// Offset to a Paint table, from the beginning of the [`BaseGlyphList`] table.
     pub paint_offset: BigEndian<Offset32>,
 }
 
@@ -494,12 +494,15 @@ impl BaseGlyphPaint {
         self.glyph_id.get()
     }
 
-    /// Offset to a Paint table.
+    /// Offset to a Paint table, from the beginning of the [`BaseGlyphList`] table.
     pub fn paint_offset(&self) -> Offset32 {
         self.paint_offset.get()
     }
 
-    /// Attempt to resolve [`paint_offset`][Self::paint_offset].
+    /// Offset to a Paint table, from the beginning of the [`BaseGlyphList`] table.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn paint<'a>(&self, data: FontData<'a>) -> Result<Paint<'a>, ReadError> {
         self.paint_offset().resolve(data)
     }
@@ -715,7 +718,7 @@ pub struct Clip {
     pub start_glyph_id: BigEndian<GlyphId>,
     /// Last glyph ID in the range.
     pub end_glyph_id: BigEndian<GlyphId>,
-    /// Offset to a ClipBox table.
+    /// Offset to a ClipBox table, from the beginning of the [`ClipList`] table.
     pub clip_box_offset: BigEndian<Offset24>,
 }
 
@@ -730,12 +733,15 @@ impl Clip {
         self.end_glyph_id.get()
     }
 
-    /// Offset to a ClipBox table.
+    /// Offset to a ClipBox table, from the beginning of the [`ClipList`] table.
     pub fn clip_box_offset(&self) -> Offset24 {
         self.clip_box_offset.get()
     }
 
-    /// Attempt to resolve [`clip_box_offset`][Self::clip_box_offset].
+    /// Offset to a ClipBox table, from the beginning of the [`ClipList`] table.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn clip_box<'a>(&self, data: FontData<'a>) -> Result<ClipBox<'a>, ReadError> {
         self.clip_box_offset().resolve(data)
     }

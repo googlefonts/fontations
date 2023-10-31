@@ -19,7 +19,7 @@ record EncodingRecord {
     platform_id: PlatformId,
     /// Platform-specific encoding ID.
     encoding_id: u16,
-    /// Byte offset from beginning of table to the subtable for this
+    /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
     /// encoding.
     subtable_offset: Offset32<CmapSubtable>,
 }
@@ -297,12 +297,12 @@ table Cmap14 {
 record VariationSelector {
     /// Variation selector
     var_selector: Uint24,
-    /// Offset from the start of the format 14 subtable to Default UVS
-    /// Table. May be 0.
+    /// Offset from the start of the [`Cmap14`] subtable to Default UVS
+    /// Table. May be NULL.
     #[nullable]
     default_uvs_offset: Offset32<DefaultUvs>,
-    /// Offset from the start of the format 14 subtable to Non-Default
-    /// UVS Table. May be 0.
+    /// Offset from the start of the [`Cmap14`] subtable to Non-Default
+    /// UVS Table. May be NULL.
     #[nullable]
     non_default_uvs_offset: Offset32<NonDefaultUvs>,
 }
