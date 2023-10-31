@@ -47,7 +47,7 @@ fn main() {
             let ok = AtomicBool::new(true);
             files.par_iter().for_each(|font_path| {
                 if print_paths {
-                    println!("[{font_path:?}]");
+                    writeln!(std::io::stdout(), "[{font_path:?}]").unwrap();
                 }
                 if let Some(mut font_data) = fauntlet::Font::new(&font_path) {
                     for font_ix in 0..font_data.count() {
