@@ -82,6 +82,13 @@ impl VariationStoreBuilder {
             delta_set.push((region_idx, delta.into()));
         }
         delta_set.sort_unstable();
+        // treat a deltaset containing all zeros the same as an empty one;
+        // e.g. a glyph that only has one instance at the default location (no deltas)
+        // vs another that defines multiple instances but all of them are at the
+        // default location (all deltas are zero).
+        if delta_set.iter().all(|(_, delta)| *delta == 0) {
+            delta_set.clear();
+        }
         self.delta_sets.add(DeltaSet(delta_set))
     }
 
@@ -188,7 +195,7 @@ struct RegionMap {
 ///
 /// We could get much fancier about how we represent this type, and avoid
 /// allocation in most cases; but this is simple and works, so :shrug:
-#[derive(Debug, Clone, Default, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 struct RowShape(Vec<ColumnBits>);
 
 //NOTE: we could do fancier bit packing here (fonttools uses four bits per
@@ -329,6 +336,14 @@ impl<'a> Encoder<'a> {
             log::trace!("{:?}", DebugTodoList(&to_process));
         }
         self.encodings = to_process.into_iter().flatten().collect();
+        // now sort the items in each individual encoding
+        self.encodings
+            .iter_mut()
+            .for_each(|enc| enc.deltas.sort_unstable());
+        // and then sort the encodings themselves; order doesn't matter,
+        // but we want to match fonttools output when comparing ttx
+        self.encodings
+            .sort_unstable_by(Encoding::ord_matching_fonttools);
         log::trace!(
             "optimized {} encodings, {}B, ({}B saved)",
             self.encodings.len(),
@@ -460,6 +475,43 @@ impl RowShape {
             long_words,
         }
     }
+
+    // for verifying our sorting behaviour.
+    // ported from https://github.com/fonttools/fonttools/blob/ec9986d3b863d/Lib/fontTools/varLib/varStore.py#L441
+    #[cfg(test)]
+    fn to_fonttools_repr(&self) -> u128 {
+        assert!(
+            self.0.len() <= u128::BITS as usize / 4,
+            "we can only pack 128 bits"
+        );
+
+        let has_long_word = self.0.iter().any(|bits| *bits == ColumnBits::Four);
+        let mut chars = 0;
+        let mut i = 1;
+
+        if !has_long_word {
+            for v in &self.0 {
+                if *v != ColumnBits::None {
+                    chars += i;
+                }
+                if *v == ColumnBits::Two {
+                    chars += i * 0b0010;
+                }
+                i <<= 4;
+            }
+        } else {
+            for v in &self.0 {
+                if *v != ColumnBits::None {
+                    chars += i * 0b0011;
+                }
+                if *v == ColumnBits::Four {
+                    chars += i * 0b1100;
+                }
+                i <<= 4;
+            }
+        }
+        chars
+    }
 }
 
 impl<'a> Encoding<'a> {
@@ -558,6 +610,35 @@ impl<'a> Encoding<'a> {
             region_indexes,
             delta_sets,
         ))
+    }
+
+    /// match the sorting behaviour that fonttools uses for the final sorting.
+    ///
+    /// fonttools's behaviour is particular, because they store the 'rowshape' as
+    /// a packed bitvec with the least significant bits storing the first item,
+    /// e.g. it's the inverse of our default order. Also we don't want to include
+    /// our temporary ids.
+    fn ord_matching_fonttools(&self, other: &Self) -> std::cmp::Ordering {
+        // first just compare the cost
+        let cost_ord = self.shape.row_cost().cmp(&other.shape.row_cost());
+        if cost_ord != std::cmp::Ordering::Equal {
+            return cost_ord;
+        }
+
+        debug_assert_eq!(
+            self.shape.0.len(),
+            other.shape.0.len(),
+            "all shapes have same # of regions"
+        );
+
+        // if cost is equal, compare each column, in reverse
+        for (a, b) in self.shape.0.iter().rev().zip(other.shape.0.iter().rev()) {
+            match a.cmp(b) {
+                std::cmp::Ordering::Equal => (), // continue
+                not_eq => return not_eq,
+            }
+        }
+        std::cmp::Ordering::Equal
     }
 }
 
@@ -697,6 +778,86 @@ impl DeltaSetStorage {
     }
 }
 
+// a custom impl so that we match the behaviour of fonttools:
+//
+// - fonttools stores this densely, as just a tuple of deltas in region-order.
+// - we store this sparsely, with explicit region indices.
+// - this means that we need to handle the case where we are eliding a delta,
+//   in one deltaset where we have a negative value in the other.
+//   For example:
+//   # fonttools rep (1, 5, -10), (1, 5, 0)
+//   # fontations   [(0, 1), (1, 5), (2, -10), (0, 1), (1, 5)]
+//
+// in this case fonttools will sort the first set before the second, and we would
+// do the opposite.
+impl PartialOrd for DeltaSet {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl Ord for DeltaSet {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let max_region_idx = self
+            .0
+            .iter()
+            .chain(other.0.iter())
+            .map(|(idx, _)| *idx)
+            .max()
+            .unwrap_or(0);
+
+        let left = DenseDeltaIter::new(&self.0, max_region_idx);
+        let right = DenseDeltaIter::new(&other.0, max_region_idx);
+
+        for (l, r) in left.zip(right) {
+            match l.cmp(&r) {
+                std::cmp::Ordering::Equal => (),
+                non_eq => return non_eq,
+            }
+        }
+        std::cmp::Ordering::Equal
+    }
+}
+
+// a helper that iterates our sparse deltas, inserting explicit 0s for any missing
+// regions.
+//
+// // this is only used in our partial ord impl
+struct DenseDeltaIter<'a> {
+    total_len: u16,
+    cur_pos: u16,
+    deltas: &'a [(u16, i32)],
+}
+
+impl<'a> DenseDeltaIter<'a> {
+    fn new(deltas: &'a [(u16, i32)], max_idx: u16) -> Self {
+        DenseDeltaIter {
+            total_len: max_idx,
+            deltas,
+            cur_pos: 0,
+        }
+    }
+}
+
+impl<'a> Iterator for DenseDeltaIter<'a> {
+    type Item = i32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.cur_pos > self.total_len {
+            return None;
+        }
+        let result = if self.deltas.first().map(|(idx, _)| *idx) == Some(self.cur_pos) {
+            let result = self.deltas.first().unwrap().1;
+            self.deltas = &self.deltas[1..];
+            result
+        } else {
+            0
+        };
+        self.cur_pos += 1;
+        Some(result)
+    }
+}
+
 impl Default for DeltaSetStorage {
     fn default() -> Self {
         Self::Deduplicated(Default::default())
@@ -781,14 +942,14 @@ mod tests {
                 .as_ref()
                 .unwrap()
                 .region_indexes,
-            vec![0, 1, 2]
+            vec![2]
         );
         assert_eq!(
             store.item_variation_data[1]
                 .as_ref()
                 .unwrap()
                 .region_indexes,
-            vec![2]
+            vec![0, 1, 2]
         );
     }
 
@@ -811,12 +972,74 @@ mod tests {
         let (_, key_lookup) = builder.build();
 
         // first subtable has only one item
-        assert_eq!(key_lookup.get_raw(k1).unwrap(), (0, 0),);
-        // next two items are in the next subtable (different outer index)
-        assert_eq!(key_lookup.get_raw(k2).unwrap(), (1, 0),);
-        assert_eq!(key_lookup.get_raw(k3).unwrap(), (1, 1),);
+        // first item gets mapped into second subtable, because of how we sort
+        assert_eq!(key_lookup.get_raw(k1).unwrap(), (1, 0),);
+        // next two items are in the same (first) subtable
+        // inner indexes are based on sort order within the subtable:
+        assert_eq!(key_lookup.get_raw(k2).unwrap(), (0, 4),); // largest r1 value
+        assert_eq!(key_lookup.get_raw(k3).unwrap(), (0, 0),); // smallest r1 value
 
         assert_eq!(key_lookup.map.len(), 6);
+    }
+
+    // really just here to check my own understanding of what's going on
+    #[test]
+    fn fontools_rowshape_repr() {
+        use ColumnBits as C;
+        let shape1 = RowShape(vec![C::None, C::One, C::One, C::Two]);
+        assert_eq!(shape1.to_fonttools_repr(), 0b0011_0001_0001_0000);
+        let shape2 = RowShape(vec![C::Two, C::One, C::One, C::None]);
+        assert_eq!(shape2.to_fonttools_repr(), 0b0000_0001_0001_0011);
+
+        assert!(shape1.to_fonttools_repr() > shape2.to_fonttools_repr());
+    }
+
+    #[test]
+    fn encoding_sort_order() {
+        let _ = env_logger::builder().is_test(true).try_init();
+        let [r1, r2, r3] = test_regions();
+
+        // make two encodings that have the same total cost, but different shape
+
+        let mut builder = VariationStoreBuilder::default();
+        // shape (2, 1, 0)
+        builder.add_deltas(vec![(r1.clone(), 1000), (r2.clone(), 5)]);
+        builder.add_deltas(vec![(r1.clone(), 1013), (r2.clone(), 20)]);
+        builder.add_deltas(vec![(r1.clone(), 1014), (r2.clone(), 21)]);
+        // shape (0, 2, 1)
+        builder.add_deltas(vec![(r2.clone(), 1212), (r3.clone(), 7)]);
+        builder.add_deltas(vec![(r2.clone(), 1213), (r3.clone(), 8)]);
+        builder.add_deltas(vec![(r2.clone(), 1214), (r3.clone(), 8)]);
+
+        //shape (1, 0, 1)
+        builder.add_deltas(vec![(r1.clone(), 12), (r3.clone(), 7)]);
+        builder.add_deltas(vec![(r1.clone(), 13), (r3.clone(), 9)]);
+        builder.add_deltas(vec![(r1.clone(), 14), (r3.clone(), 10)]);
+        builder.add_deltas(vec![(r1.clone(), 15), (r3.clone(), 11)]);
+        builder.add_deltas(vec![(r1.clone(), 16), (r3.clone(), 12)]);
+
+        let (var_store, key_lookup) = builder.build();
+        assert_eq!(var_store.item_variation_data.len(), 3);
+        assert_eq!(key_lookup.map.len(), 11);
+
+        // encoding (1, 0, 1) will be sorted first, since it has the lowest cost
+        assert_eq!(
+            var_store.item_variation_data[0]
+                .as_ref()
+                .unwrap()
+                .region_indexes,
+            vec![0, 2]
+        );
+
+        // then encoding with shape (2, 1, 0) since the costs are equal and we
+        // compare backwards, to match fonttools
+        assert_eq!(
+            var_store.item_variation_data[1]
+                .as_ref()
+                .unwrap()
+                .region_indexes,
+            vec![0, 1]
+        );
     }
 
     #[test]
@@ -840,20 +1063,20 @@ mod tests {
         let var_data_array = reloaded.item_variation_data();
 
         let var_data = var_data_array.get(0).unwrap().unwrap();
+        assert_eq!(var_data.region_indexes(), &[0, 2]);
+        assert_eq!(var_data.item_count(), 4);
+        assert_eq!(var_data.delta_set(0).collect::<Vec<_>>(), vec![-12, 7]);
+        assert_eq!(var_data.delta_set(1).collect::<Vec<_>>(), vec![-11, 8]);
+        assert_eq!(var_data.delta_set(2).collect::<Vec<_>>(), vec![-10, 9]);
+        assert_eq!(var_data.delta_set(3).collect::<Vec<_>>(), vec![-3, 20]);
+
+        let var_data = var_data_array.get(1).unwrap().unwrap();
         assert_eq!(var_data.region_indexes(), &[0, 1, 2]);
         assert_eq!(var_data.item_count(), 1);
         assert_eq!(
             var_data.delta_set(0).collect::<Vec<_>>(),
             vec![512, 1000, 265]
         );
-
-        let var_data = var_data_array.get(1).unwrap().unwrap();
-        assert_eq!(var_data.region_indexes(), &[0, 2]);
-        assert_eq!(var_data.item_count(), 4);
-        assert_eq!(var_data.delta_set(0).collect::<Vec<_>>(), vec![-3, 20]);
-        assert_eq!(var_data.delta_set(1).collect::<Vec<_>>(), vec![-12, 7]);
-        assert_eq!(var_data.delta_set(2).collect::<Vec<_>>(), vec![-11, 8]);
-        assert_eq!(var_data.delta_set(3).collect::<Vec<_>>(), vec![-10, 9]);
     }
 
     #[test]
@@ -1085,5 +1308,75 @@ mod tests {
             .map
             .iter()
             .all(|(key, idx)| *key == idx.delta_set_inner_index as u32))
+    }
+
+    #[test]
+    fn delta_set_ordering() {
+        let left = DeltaSet(vec![(0, 1), (1, 2), (2, -11)]);
+        let right = DeltaSet(vec![(0, 1), (1, 2)]);
+
+        // although the vec ord impl thinks that the left is 'bigger'
+        // (it having more items):
+        assert!(left.0 > right.0);
+        // our custom impl treats it as smaller, matching fonttools
+        assert!(left < right);
+
+        // but this is only the case because the delta is negative
+        let left = DeltaSet(vec![(0, 1), (1, 2), (2, 11)]);
+        let right = DeltaSet(vec![(0, 1), (1, 2)]);
+
+        assert!(left > right);
+        let left = DeltaSet(vec![(0, 1), (1, 2), (2, -11)]);
+        let right = DeltaSet(vec![(0, 1), (1, 2), (3, 0)]);
+
+        assert!(left < right);
+
+        // also true in the middle
+        let left = DeltaSet(vec![(0, 1), (1, -2), (2, -11)]);
+        let right = DeltaSet(vec![(0, 1), (2, -11)]);
+        assert!(left < right)
+    }
+
+    #[test]
+    fn no_duplicate_zero_delta_sets() {
+        let r0 = VariationRegion::new(vec![reg_coords(0.0, 5.0, 1.0)]);
+        let r1 = VariationRegion::new(vec![reg_coords(0.5, 1.0, 1.0)]);
+        let mut builder = VariationStoreBuilder::new();
+        let varidxes = vec![
+            // first glyph has no variations (e.g. .notdef only defined at default location)
+            // but we still need to add it to the variation store to reserve an index so
+            // we add an empty delta set
+            builder.add_deltas::<i32>(Vec::new()),
+            builder.add_deltas(vec![(r0.clone(), 50), (r1.clone(), 100)]),
+            // this glyph has explicit masters that are *all* the same as the default (delta is 0);
+            // we expect the builder to reuse the same no-op delta set as the first glyph
+            builder.add_deltas(vec![(r0.clone(), 0), (r1.clone(), 0)]),
+            // this glyph repeats the same delta set as the second glyph, thus we expect
+            // the builder to map it to the same delta set index
+            builder.add_deltas(vec![(r0.clone(), 50), (r1.clone(), 100)]),
+            // this glyph happens to have one master that's the same as the default (delta is 0);
+            // nothing special here, we expect a new delta set to be created
+            builder.add_deltas(vec![(r0.clone(), 0), (r1.clone(), 100)]),
+        ];
+        let (store, key_map) = builder.build();
+
+        let varidx_map: Vec<u32> = varidxes
+            .into_iter()
+            .map(|idx| key_map.get(idx).unwrap().into())
+            .collect::<Vec<_>>();
+
+        assert_eq!(store.variation_region_list.variation_regions.len(), 2);
+        assert_eq!(store.item_variation_data.len(), 1);
+
+        let var_data = store.item_variation_data[0].as_ref().unwrap();
+
+        assert_eq!(var_data.item_count, 3);
+        assert_eq!(var_data.word_delta_count, 0);
+        assert_eq!(var_data.region_indexes, vec![0, 1]);
+        assert_eq!(var_data.delta_sets, vec![0, 0, 0, 100, 50, 100],);
+        // glyph 0 and 2 should map to the same no-op [0, 0] deltaset, while
+        // glyph 1 and 3 should map to deltaset [50, 100];
+        // glyph 4 should map to deltaset [0, 100]
+        assert_eq!(varidx_map, vec![0, 2, 0, 2, 1]);
     }
 }
