@@ -155,14 +155,17 @@ impl<'a> Scaler<'a> {
             // match FreeType
             Fixed::from_bits((size * 64.) as i32) / Fixed::from_bits(self.units_per_em as i32)
         };
-        let hint_state = HintState::new(&hint_params, scale);
+        // When hinting, use a modified scale factor
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L279>
+        let hint_scale = Fixed::from_bits((scale.to_bits() + 32) / 64);
+        let hint_state = HintState::new(&hint_params, hint_scale);
         Ok(Subfont {
             is_cff2: self.is_cff2(),
             index,
             _size: size,
             scale,
             subrs_offset,
-            _hint_state: hint_state,
+            hint_state,
             store_index,
         })
     }
@@ -265,7 +268,7 @@ pub(crate) struct Subfont {
     _size: f32,
     scale: Fixed,
     subrs_offset: Option<usize>,
-    _hint_state: HintState,
+    pub(crate) hint_state: HintState,
     store_index: u16,
 }
 
