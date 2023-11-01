@@ -12,6 +12,13 @@ const MAX_BLUES: usize = 7;
 const MAX_OTHER_BLUES: usize = 5;
 const MAX_BLUE_ZONES: usize = MAX_BLUES + MAX_OTHER_BLUES;
 
+// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.h#L47>
+const MAX_HINTS: usize = 96;
+
+// One bit per stem hint
+// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.h#L80>
+const HINT_MASK_SIZE: usize = (MAX_HINTS + 7) / 8;
+
 /// Parameters used to generate the stem and counter zones for the hinting
 /// algorithm.
 #[derive(Clone)]
@@ -453,13 +460,65 @@ impl Hint {
     }
 }
 
+/// Bitmask that specifies which hints are currently active.
+///
+/// "Each bit of the mask, starting with the most-significant bit of
+/// the first byte, represents the corresponding hint zone in the
+/// order in which the hints were declared at the beginning of
+/// the charstring."
+///
+/// See <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=24>
+/// Also <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.h#L70>
+#[derive(Copy, Clone, PartialEq, Default)]
+struct HintMask {
+    mask: [u8; HINT_MASK_SIZE],
+    is_valid: bool,
+}
+
+impl HintMask {
+    fn new(bytes: &[u8]) -> Option<Self> {
+        let len = bytes.len();
+        if len > HINT_MASK_SIZE {
+            return None;
+        }
+        let mut mask = Self::default();
+        mask.mask[..len].copy_from_slice(&bytes[..len]);
+        mask.is_valid = true;
+        Some(mask)
+    }
+
+    fn all() -> Self {
+        Self {
+            mask: [0xFF; HINT_MASK_SIZE],
+            is_valid: true,
+        }
+    }
+
+    fn clear(&mut self, bit: usize) {
+        self.mask[bit >> 3] &= !msb_mask(bit);
+    }
+
+    fn get(&self, bit: usize) -> bool {
+        self.mask[bit >> 3] & msb_mask(bit) != 0
+    }
+}
+
+/// Returns a bit mask for the selected bit with the
+/// most significant bit at index 0.
+fn msb_mask(bit: usize) -> u8 {
+    1 << (7 - (bit & 0x7))
+}
+
 fn twice(value: Fixed) -> Fixed {
     Fixed::from_bits(value.to_bits().wrapping_mul(2))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{BlueZone, Blues, Fixed, Hint, HintParams, HintState, PAIR_BOTTOM, PAIR_TOP};
+    use super::{
+        BlueZone, Blues, Fixed, Hint, HintMask, HintParams, HintState, HINT_MASK_SIZE, PAIR_BOTTOM,
+        PAIR_TOP,
+    };
 
     fn make_hint_state() -> HintState {
         fn make_blues(values: &[f64]) -> Blues {
@@ -629,5 +688,25 @@ mod tests {
             assert!(!bottom_edge.is_locked());
             assert!(top_edge.is_locked());
         }
+    }
+
+    #[test]
+    fn hint_mask_ops() {
+        const MAX_BITS: usize = HINT_MASK_SIZE * 8;
+        let all_bits = HintMask::all();
+        for i in 0..MAX_BITS {
+            assert!(all_bits.get(i));
+        }
+        let odd_bits = HintMask::new(&[0b01010101; HINT_MASK_SIZE]).unwrap();
+        for i in 0..MAX_BITS {
+            assert_eq!(i & 1 != 0, odd_bits.get(i));
+        }
+        let mut cleared_bits = odd_bits;
+        for i in 0..MAX_BITS {
+            if i & 1 != 0 {
+                cleared_bits.clear(i);
+            }
+        }
+        assert_eq!(cleared_bits.mask, HintMask::default().mask);
     }
 }
