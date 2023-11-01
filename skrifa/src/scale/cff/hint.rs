@@ -476,7 +476,7 @@ struct HintMask {
 }
 
 impl HintMask {
-    pub fn new(bytes: &[u8]) -> Option<Self> {
+    fn new(bytes: &[u8]) -> Option<Self> {
         let len = bytes.len();
         if len > HINT_MASK_SIZE {
             return None;
@@ -487,18 +487,18 @@ impl HintMask {
         Some(mask)
     }
 
-    pub fn all() -> Self {
+    fn all() -> Self {
         Self {
             mask: [0xFF; HINT_MASK_SIZE],
             is_valid: true,
         }
     }
 
-    pub fn clear(&mut self, bit: usize) {
+    fn clear(&mut self, bit: usize) {
         self.mask[bit >> 3] &= !msb_mask(bit);
     }
 
-    pub fn get(&self, bit: usize) -> bool {
+    fn get(&self, bit: usize) -> bool {
         self.mask[bit >> 3] & msb_mask(bit) != 0
     }
 }
