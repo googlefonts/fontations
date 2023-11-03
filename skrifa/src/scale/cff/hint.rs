@@ -1,6 +1,9 @@
 //! CFF hinting.
 
-use read_fonts::{tables::postscript::dict::Blues, types::Fixed};
+use read_fonts::{
+    tables::postscript::{charstring::CommandSink, dict::Blues},
+    types::Fixed,
+};
 
 // "Default values for OS/2 typoAscender/Descender.."
 // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psblues.h#L98>
@@ -71,7 +74,7 @@ struct BlueZone {
 /// Note that hinter states depend on the scale, subfont index and
 /// variation coordinates of a glyph. They can be retained and reused
 /// if those values remain the same.
-#[derive(Copy, Clone, PartialEq)]
+#[derive(Copy, Clone, PartialEq, Default)]
 pub(crate) struct HintState {
     scale: Fixed,
     blue_scale: Fixed,
@@ -904,6 +907,183 @@ fn msb_mask(bit: usize) -> u8 {
     1 << (7 - (bit & 0x7))
 }
 
+pub(super) struct HintingSink<'a, S> {
+    state: &'a HintState,
+    sink: &'a mut S,
+    stem_hints: [StemHint; MAX_HINTS],
+    stem_count: u8,
+    mask: HintMask,
+    initial_map: HintMap,
+    map: HintMap,
+    /// Most recent move_to in character space.
+    start_point: Option<[Fixed; 2]>,
+    /// Most recent line_to. First two elements are coords in character
+    /// space and the last two are in device space.
+    pending_line: Option<[Fixed; 4]>,
+}
+
+impl<'a, S: CommandSink> HintingSink<'a, S> {
+    pub fn new(state: &'a HintState, sink: &'a mut S) -> Self {
+        let scale = state.scale;
+        Self {
+            state,
+            sink,
+            stem_hints: [StemHint::default(); MAX_HINTS],
+            stem_count: 0,
+            mask: HintMask::all(),
+            initial_map: HintMap::new(scale),
+            map: HintMap::new(scale),
+            start_point: None,
+            pending_line: None,
+        }
+    }
+
+    pub fn finish(&mut self) {
+        self.maybe_close_subpath();
+    }
+
+    fn maybe_close_subpath(&mut self) {
+        // This requires some explanation. The hint mask can be modified
+        // during charstring evaluation which changes the set of hints that
+        // are applied. FreeType ensures that the closing line for any subpath
+        // is transformed with the same hint map as the starting point for the
+        // subpath. This is done by stashing a copy of the hint map that is
+        // active when a new subpath is started. Unlike FreeType, we make use
+        // of close elements, so we can cheat a bit here and avoid the
+        // extra hintmap. If we're closing an open subpath and have a pending
+        // line and the line is not equal to the start point in character
+        // space, then we emit the saved device space coordinates for the
+        // line. If the coordinates do match in character space, we omit
+        // that line. The unconditional close command ensures that the
+        // start and end points coincide.
+        // Note: this doesn't apply to subpaths that end in cubics.
+        match (self.start_point.take(), self.pending_line.take()) {
+            (Some(start), Some([cs_x, cs_y, ds_x, ds_y])) => {
+                if start != [cs_x, cs_y] {
+                    self.sink.line_to(ds_x, ds_y);
+                }
+                self.sink.close();
+            }
+            (Some(_), _) => self.sink.close(),
+            _ => {}
+        }
+    }
+
+    fn flush_pending_line(&mut self) {
+        if let Some([_, _, x, y]) = self.pending_line.take() {
+            self.sink.line_to(x, y);
+        }
+    }
+
+    fn hint(&mut self, coord: Fixed) -> Fixed {
+        if !self.map.is_valid {
+            self.build_hint_map(Some(self.mask), Fixed::ZERO);
+        }
+        trunc(self.map.transform(coord))
+    }
+
+    fn scale(&self, coord: Fixed) -> Fixed {
+        trunc(coord * self.state.scale)
+    }
+
+    fn add_stem(&mut self, min: Fixed, max: Fixed) {
+        let index = self.stem_count as usize;
+        if index >= MAX_HINTS || self.map.is_valid {
+            return;
+        }
+        let stem = &mut self.stem_hints[index];
+        stem.min = min;
+        stem.max = max;
+        stem.is_used = false;
+        stem.ds_min = Fixed::ZERO;
+        stem.ds_max = Fixed::ZERO;
+        self.stem_count = index as u8 + 1;
+    }
+
+    fn build_hint_map(&mut self, mask: Option<HintMask>, origin: Fixed) {
+        self.map.build(
+            self.state,
+            mask,
+            Some(&mut self.initial_map),
+            &mut self.stem_hints[..self.stem_count as usize],
+            origin,
+            false,
+        );
+    }
+}
+
+impl<'a, S: CommandSink> CommandSink for HintingSink<'a, S> {
+    fn hstem(&mut self, min: Fixed, max: Fixed) {
+        self.add_stem(min, max);
+    }
+
+    fn hint_mask(&mut self, mask: &[u8]) {
+        // For invalid hint masks, FreeType assumes all hints are active.
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.c#L844>
+        let mask = HintMask::new(mask).unwrap_or_else(|| HintMask::all());
+        if mask != self.mask {
+            self.mask = mask;
+            self.map.is_valid = false;
+        }
+    }
+
+    fn counter_mask(&mut self, mask: &[u8]) {
+        // For counter masks, we build a temporary hint map "just to
+        // place and lock those stems participating in the counter
+        // mask." Building the map modifies the stem hint array as a
+        // side effect.
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2617>
+        let mask = HintMask::new(mask).unwrap_or_else(|| HintMask::all());
+        let mut map = HintMap::new(self.state.scale);
+        map.build(
+            self.state,
+            Some(mask),
+            Some(&mut self.initial_map),
+            &mut self.stem_hints[..self.stem_count as usize],
+            Fixed::ZERO,
+            false,
+        );
+    }
+
+    fn move_to(&mut self, x: Fixed, y: Fixed) {
+        self.maybe_close_subpath();
+        self.start_point = Some([x, y]);
+        let x = self.scale(x);
+        let y = self.hint(y);
+        self.sink.move_to(x, y);
+    }
+
+    fn line_to(&mut self, x: Fixed, y: Fixed) {
+        self.flush_pending_line();
+        let ds_x = self.scale(x);
+        let ds_y = self.hint(y);
+        self.pending_line = Some([x, y, ds_x, ds_y]);
+    }
+
+    fn curve_to(&mut self, cx1: Fixed, cy1: Fixed, cx2: Fixed, cy2: Fixed, x: Fixed, y: Fixed) {
+        self.flush_pending_line();
+        let cx1 = self.scale(cx1);
+        let cy1 = self.hint(cy1);
+        let cx2 = self.scale(cx2);
+        let cy2 = self.hint(cy2);
+        let x = self.scale(x);
+        let y = self.hint(y);
+        self.sink.curve_to(cx1, cy1, cx2, cy2, x, y);
+    }
+
+    fn close(&mut self) {
+        // We emit close commands based on the sequence of moves.
+        // See `maybe_close_subpath`
+    }
+}
+
+/// FreeType converts from 16.16 to 26.6 by truncation. We keep our
+/// values in 16.16 so simply zero the low 10 bits to match the
+/// precision when converting to f32.
+fn trunc(value: Fixed) -> Fixed {
+    Fixed::from_bits(value.to_bits() & !0x3FF)
+}
+
 fn half(value: Fixed) -> Fixed {
     Fixed::from_bits(value.to_bits() / 2)
 }
@@ -914,12 +1094,11 @@ fn twice(value: Fixed) -> Fixed {
 
 #[cfg(test)]
 mod tests {
-    use super::{HintMap, StemHint, GHOST_BOTTOM, GHOST_TOP, LOCKED};
-    use read_fonts::{types::F2Dot14, FontRef};
+    use read_fonts::{tables::postscript::charstring::CommandSink, types::F2Dot14, FontRef};
 
     use super::{
-        BlueZone, Blues, Fixed, Hint, HintMask, HintParams, HintState, HINT_MASK_SIZE, PAIR_BOTTOM,
-        PAIR_TOP,
+        BlueZone, Blues, Fixed, Hint, HintMap, HintMask, HintParams, HintState, HintingSink,
+        StemHint, GHOST_BOTTOM, GHOST_TOP, HINT_MASK_SIZE, LOCKED, PAIR_BOTTOM, PAIR_TOP,
     };
 
     fn make_hint_state() -> HintState {
@@ -1204,6 +1383,95 @@ mod tests {
                 map.transform(Fixed::from_bits(coord)),
                 Fixed::from_bits(expected)
             );
+        }
+    }
+
+    /// HintingSink is mostly pass-through. This test captures the logic
+    /// around omission of pending lines that match subpath start.
+    /// See HintingSink::maybe_close_subpath for details.
+    #[test]
+    fn hinting_sink_omits_closing_line_that_matches_start() {
+        let state = HintState {
+            scale: Fixed::ONE,
+            ..Default::default()
+        };
+        let mut path = Path::default();
+        let mut sink = HintingSink::new(&state, &mut path);
+        let move1_2 = [Fixed::from_f64(1.0), Fixed::from_f64(2.0)];
+        let line2_3 = [Fixed::from_f64(2.0), Fixed::from_f64(3.0)];
+        let line1_2 = [Fixed::from_f64(1.0), Fixed::from_f64(2.0)];
+        let line3_4 = [Fixed::from_f64(3.0), Fixed::from_f64(4.0)];
+        let curve = [
+            Fixed::from_f64(3.0),
+            Fixed::from_f64(4.0),
+            Fixed::from_f64(5.0),
+            Fixed::from_f64(6.0),
+            Fixed::from_f64(1.0),
+            Fixed::from_f64(2.0),
+        ];
+        // First subpath, closing line matches start
+        sink.move_to(move1_2[0], move1_2[1]);
+        sink.line_to(line2_3[0], line2_3[1]);
+        sink.line_to(line1_2[0], line1_2[1]);
+        // Second subpath, closing line does not match start
+        sink.move_to(move1_2[0], move1_2[1]);
+        sink.line_to(line2_3[0], line2_3[1]);
+        sink.line_to(line3_4[0], line3_4[1]);
+        // Third subpath, ends with cubic. Still emits a close command
+        // even though end point matches start.
+        sink.move_to(move1_2[0], move1_2[1]);
+        sink.line_to(line2_3[0], line2_3[1]);
+        sink.curve_to(curve[0], curve[1], curve[2], curve[3], curve[4], curve[5]);
+        sink.finish();
+        // Subpaths always end with a close command. If a final line coincides
+        // with the start of a subpath, it is omitted.
+        assert_eq!(
+            &path.0,
+            &[
+                // First subpath
+                MoveTo(move1_2),
+                LineTo(line2_3),
+                // line1_2 is omitted
+                Close,
+                // Second subpath
+                MoveTo(move1_2),
+                LineTo(line2_3),
+                LineTo(line3_4),
+                Close,
+                // Third subpath
+                MoveTo(move1_2),
+                LineTo(line2_3),
+                CurveTo(curve),
+                Close,
+            ]
+        );
+    }
+
+    #[derive(Copy, Clone, PartialEq, Debug)]
+    enum Command {
+        MoveTo([Fixed; 2]),
+        LineTo([Fixed; 2]),
+        CurveTo([Fixed; 6]),
+        Close,
+    }
+
+    use Command::*;
+
+    #[derive(Default)]
+    struct Path(Vec<Command>);
+
+    impl CommandSink for Path {
+        fn move_to(&mut self, x: Fixed, y: Fixed) {
+            self.0.push(MoveTo([x, y]));
+        }
+        fn line_to(&mut self, x: Fixed, y: Fixed) {
+            self.0.push(LineTo([x, y]));
+        }
+        fn curve_to(&mut self, cx0: Fixed, cy0: Fixed, cx1: Fixed, cy1: Fixed, x: Fixed, y: Fixed) {
+            self.0.push(CurveTo([cx0, cy0, cx1, cy1, x, y]));
+        }
+        fn close(&mut self) {
+            self.0.push(Close);
         }
     }
 }
