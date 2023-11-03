@@ -533,11 +533,7 @@ where
 
     fn close(&mut self) {
         if self.pending_move.is_none() {
-            if let Some((start_x, start_y)) = self.start {
-                if self.start != self.last {
-                    self.inner.line_to(start_x, start_y);
-                }
-            }
+            self.inner.close();
             self.start = None;
             self.last = None;
         }
@@ -655,10 +651,7 @@ mod tests {
         let font = FontRef::new(font_data).unwrap();
         let outlines = read_fonts::scaler_test::parse_glyph_outlines(expected_outlines);
         let scaler = super::Scaler::new(&font).unwrap();
-        let mut path = read_fonts::scaler_test::Path {
-            elements: vec![],
-            is_cff: true,
-        };
+        let mut path = read_fonts::scaler_test::Path::default();
         for expected_outline in &outlines {
             if expected_outline.size == 0.0 && !expected_outline.coords.is_empty() {
                 continue;
