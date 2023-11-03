@@ -128,3 +128,136 @@ impl Pen for RecordingPen {
         self.0.push(PenCommand::Close)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn regularize_case_1_close_commands() {
+        use PenCommand::*;
+        let mut recording = RecordingPen::default();
+        let mut pen = RegularizingPen::new(&mut recording, true);
+        // Subpath 1
+        pen.move_to(1.0, 2.0);
+        pen.line_to(42.0, 24.0);
+        pen.close();
+        // Subpath 2
+        pen.move_to(3.3, 4.4);
+        pen.line_to(100.0, 200.0);
+        pen.line_to(3.3, 4.4);
+        pen.close();
+        // Subpath 3 (with curve)
+        pen.move_to(3.3, 4.4);
+        pen.line_to(100.0, 200.0);
+        pen.curve_to(1.0, 2.0, 3.0, 4.0, 3.3, 4.4);
+        pen.close();
+        assert_eq!(
+            recording.0.as_slice(),
+            &[
+                // Subpath 1
+                MoveTo { x: 1.0, y: 2.0 },
+                LineTo { x: 42.0, y: 24.0 },
+                // Close is replace with LineTo
+                LineTo { x: 1.0, y: 2.0 },
+                // Subpath 2
+                MoveTo { x: 3.3, y: 4.4 },
+                LineTo { x: 100.0, y: 200.0 },
+                // Line end point already matches start point, so Close command
+                //  is ignored
+                LineTo { x: 3.3, y: 4.4 },
+                // Subpath 3 (with curve)
+                MoveTo { x: 3.3, y: 4.4 },
+                LineTo { x: 100.0, y: 200.0 },
+                // Curve end point already matches start point, so Close
+                // command is ignored
+                CurveTo {
+                    cx0: 1.0,
+                    cy0: 2.0,
+                    cx1: 3.0,
+                    cy1: 4.0,
+                    x: 3.3,
+                    y: 4.4
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn regularize_case_2_degenerates() {
+        use PenCommand::*;
+        let mut recording = RecordingPen::default();
+        let mut pen = RegularizingPen::new(&mut recording, true);
+        // Dropped: superceded by following move
+        pen.move_to(1.0, 2.0);
+        pen.move_to(4.5, 5.0);
+        // Dropped: line to previous move
+        pen.line_to(4.5, 5.0);
+        pen.curve_to(1.0, 2.0, 3.0, 4.0, 5.0, 6.0);
+        // Dropped: line to previous curve
+        pen.line_to(5.0, 6.0);
+        pen.close();
+        assert_eq!(
+            recording.0.as_slice(),
+            &[
+                MoveTo { x: 4.5, y: 5.0 },
+                CurveTo {
+                    cx0: 1.0,
+                    cy0: 2.0,
+                    cx1: 3.0,
+                    cy1: 4.0,
+                    x: 5.0,
+                    y: 6.0
+                },
+                LineTo { x: 4.5, y: 5.0 }
+            ]
+        );
+    }
+
+    #[test]
+    fn regularize_case_3_truncate_unscaled() {
+        use PenCommand::*;
+        let mut recording = RecordingPen::default();
+        // Note: false for second parameter denotes unscaled outline
+        let mut pen = RegularizingPen::new(&mut recording, false);
+        // Simulate computation for offcurve points that generate an implicit
+        // oncurve with fractional values:
+        // Two offcurve points with odd deltas
+        let offcurve1 = (4.0, 4.0);
+        let offcurve2 = (7.0, 9.0);
+        // Implicit oncurve at midpoint beteween offcurves
+        let implicit_oncurve = (
+            (offcurve1.0 + offcurve2.0) / 2.0,
+            (offcurve1.1 + offcurve2.1) / 2.0,
+        );
+        pen.move_to(1.5, 2.5);
+        pen.quad_to(
+            offcurve1.0,
+            offcurve1.1,
+            implicit_oncurve.0,
+            implicit_oncurve.1,
+        );
+        pen.quad_to(offcurve2.0, offcurve2.1, 10.0, 12.5);
+        // Our implicit oncurve has fractional components
+        assert_eq!(implicit_oncurve.0.fract(), 0.5);
+        assert_eq!(implicit_oncurve.1.fract(), 0.5);
+        assert_eq!(
+            recording.0.as_slice(),
+            &[
+                MoveTo { x: 1.0, y: 2.0 },
+                QuadTo {
+                    cx0: offcurve1.0,
+                    cy0: offcurve1.1,
+                    x: implicit_oncurve.0.trunc(),
+                    y: implicit_oncurve.1.trunc()
+                },
+                QuadTo {
+                    cx0: offcurve2.0,
+                    cy0: offcurve2.1,
+                    x: 10.0,
+                    y: 12.0
+                },
+            ]
+        );
+    }
+}
