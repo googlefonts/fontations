@@ -20,41 +20,44 @@ pub enum PathElement {
 #[derive(Default)]
 pub struct Path {
     pub elements: Vec<PathElement>,
-    pub is_cff: bool,
+    last_end: Option<[f32; 2]>,
 }
 
 impl Pen for Path {
     fn move_to(&mut self, x: f32, y: f32) {
         self.elements.push(PathElement::MoveTo([x, y]));
+        self.last_end = Some([x, y]);
     }
 
     fn line_to(&mut self, x: f32, y: f32) {
         self.elements.push(PathElement::LineTo([x, y]));
+        self.last_end = Some([x, y]);
     }
 
     fn quad_to(&mut self, x0: f32, y0: f32, x1: f32, y1: f32) {
-        self.elements.push(PathElement::QuadTo([x0, y0, x1, y1]))
+        self.elements.push(PathElement::QuadTo([x0, y0, x1, y1]));
+        self.last_end = Some([x1, y1]);
     }
 
     fn curve_to(&mut self, x0: f32, y0: f32, x1: f32, y1: f32, x2: f32, y2: f32) {
         self.elements
-            .push(PathElement::CurveTo([x0, y0, x1, y1, x2, y2]))
+            .push(PathElement::CurveTo([x0, y0, x1, y1, x2, y2]));
+        self.last_end = Some([x2, y2]);
     }
 
     fn close(&mut self) {
-        if !self.is_cff {
-            // FT_Outline_Decompose does not generate close commands, so for
-            // testing purposes, we insert a line to same point as the most
-            // recent move_to which copies FreeType's behavior.
-            //
-            // Except for CFF, which has its own logic for handling this :(
-            let last_move = self
-                .elements
-                .iter()
-                .rev()
-                .find(|element| matches!(*element, PathElement::MoveTo(_)))
-                .copied();
-            if let Some(PathElement::MoveTo(point)) = last_move {
+        // FT_Outline_Decompose does not generate close commands, so for
+        // testing purposes, we insert a line to same point as the most
+        // recent move_to (if the last command didn't end at the same point)
+        // which copies FreeType's behavior.
+        let last_move = self
+            .elements
+            .iter()
+            .rev()
+            .find(|element| matches!(*element, PathElement::MoveTo(_)))
+            .copied();
+        if let Some(PathElement::MoveTo(point)) = last_move {
+            if Some(point) != self.last_end {
                 self.elements.push(PathElement::LineTo(point));
             }
         }

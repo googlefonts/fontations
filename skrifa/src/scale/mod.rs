@@ -224,7 +224,6 @@ mod tests {
         compare_glyphs(
             font_test_data::VAZIRMATN_VAR,
             font_test_data::VAZIRMATN_VAR_GLYPHS,
-            false,
         );
     }
 
@@ -233,7 +232,6 @@ mod tests {
         compare_glyphs(
             font_test_data::CANTARELL_VF_TRIMMED,
             font_test_data::CANTARELL_VF_TRIMMED_GLYPHS,
-            true,
         );
     }
 
@@ -242,7 +240,6 @@ mod tests {
         compare_glyphs(
             font_test_data::NOTO_SERIF_DISPLAY_TRIMMED,
             font_test_data::NOTO_SERIF_DISPLAY_TRIMMED_GLYPHS,
-            true,
         );
     }
 
@@ -250,10 +247,7 @@ mod tests {
     fn overlap_flags() {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let mut cx = Context::new();
-        let mut path = scaler_test::Path {
-            elements: vec![],
-            is_cff: false,
-        };
+        let mut path = scaler_test::Path::default();
         let mut scaler = cx.new_scaler().build(&font);
         let glyph_count = font.maxp().unwrap().num_glyphs();
         // GID 2 is a composite glyph with the overlap bit on a component
@@ -271,14 +265,11 @@ mod tests {
         );
     }
 
-    fn compare_glyphs(font_data: &[u8], expected_outlines: &str, is_cff: bool) {
+    fn compare_glyphs(font_data: &[u8], expected_outlines: &str) {
         let font = FontRef::new(font_data).unwrap();
         let outlines = scaler_test::parse_glyph_outlines(expected_outlines);
         let mut cx = Context::new();
-        let mut path = scaler_test::Path {
-            elements: vec![],
-            is_cff,
-        };
+        let mut path = scaler_test::Path::default();
         for expected_outline in &outlines {
             if expected_outline.size == 0.0 && !expected_outline.coords.is_empty() {
                 continue;
