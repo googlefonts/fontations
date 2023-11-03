@@ -186,7 +186,7 @@ impl<'a> Scaler<'a> {
         subfont: &Subfont,
         glyph_id: GlyphId,
         coords: &[F2Dot14],
-        _hint: bool,
+        hint: bool,
         pen: &mut impl Pen,
     ) -> Result<(), Error> {
         let charstring_data = self
@@ -199,14 +199,28 @@ impl<'a> Scaler<'a> {
         let blend_state = subfont.blend_state(self, coords)?;
         let mut pen_sink = charstring::PenSink::new(pen);
         let mut simplifying_adapter = NopFilteringSink::new(&mut pen_sink);
-        let mut scaling_adapter = ScalingSink26Dot6::new(&mut simplifying_adapter, subfont.scale);
-        charstring::evaluate(
-            charstring_data,
-            self.global_subrs(),
-            subrs,
-            blend_state,
-            &mut scaling_adapter,
-        )?;
+        if hint {
+            let mut hinting_adapter =
+                super::hint::HintingSink::new(&subfont.hint_state, &mut simplifying_adapter);
+            charstring::evaluate(
+                charstring_data,
+                self.global_subrs(),
+                subrs,
+                blend_state,
+                &mut hinting_adapter,
+            )?;
+            hinting_adapter.finish();
+        } else {
+            let mut scaling_adapter =
+                ScalingSink26Dot6::new(&mut simplifying_adapter, subfont.scale);
+            charstring::evaluate(
+                charstring_data,
+                self.global_subrs(),
+                subrs,
+                blend_state,
+                &mut scaling_adapter,
+            )?;
+        }
         simplifying_adapter.finish();
         Ok(())
     }
