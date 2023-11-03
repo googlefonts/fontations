@@ -945,11 +945,10 @@ impl<'a, S: CommandSink> HintingSink<'a, S> {
     fn maybe_close_subpath(&mut self) {
         // This requires some explanation. The hint mask can be modified
         // during charstring evaluation which changes the set of hints that
-        // are applied. FreeType ensures that the closing line (this logic
-        // doesn't apply to cubics *shrug*) for any subpath is transformed
-        // with the same hint map as the starting point for the subpath.
-        // This is done by stashing a copy of the hint map that is active
-        // when a new subpath is started. Unlike FreeType, we make use
+        // are applied. FreeType ensures that the closing line for any subpath
+        // is transformed with the same hint map as the starting point for the
+        // subpath. This is done by stashing a copy of the hint map that is
+        // active when a new subpath is started. Unlike FreeType, we make use
         // of close elements, so we can cheat a bit here and avoid the
         // extra hintmap. If we're closing an open subpath and have a pending
         // line and the line is not equal to the start point in character
@@ -957,6 +956,7 @@ impl<'a, S: CommandSink> HintingSink<'a, S> {
         // line. If the coordinates do match in character space, we omit
         // that line. The unconditional close command ensures that the
         // start and end points coincide.
+        // Note: this doesn't apply to subpaths that end in cubics.
         match (self.start_point.take(), self.pending_line.take()) {
             (Some(start), Some([cs_x, cs_y, ds_x, ds_y])) => {
                 if start != [cs_x, cs_y] {
@@ -1077,8 +1077,9 @@ impl<'a, S: CommandSink> CommandSink for HintingSink<'a, S> {
     }
 }
 
-/// FreeType returns values in 26.6 but we keep them in 16.6. This
-/// simply zeroes out the low 10 bits so that we match.
+/// FreeType converts from 16.16 to 26.6 by truncation. We keep our
+/// values in 16.16 so simply zero the low 10 bits to match the
+/// precision when converting to f32.
 fn trunc(value: Fixed) -> Fixed {
     Fixed::from_bits(value.to_bits() & !0x3FF)
 }
