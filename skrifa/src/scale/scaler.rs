@@ -153,6 +153,8 @@ impl<'a> ScalerBuilder<'a> {
         Scaler {
             size,
             coords,
+            #[cfg(feature = "hinting")]
+            hint: self.hint,
             outlines,
         }
     }
@@ -204,6 +206,8 @@ impl<'a> ScalerBuilder<'a> {
 pub struct Scaler<'a> {
     size: f32,
     coords: &'a [NormalizedCoord],
+    #[cfg(feature = "hinting")]
+    hint: Option<Hinting>,
     outlines: Option<Outlines<'a>>,
 }
 
@@ -222,7 +226,14 @@ impl<'a> Scaler<'a> {
     /// in the given pen for the sequence of path commands that define the outline.
     pub fn outline(&mut self, glyph_id: GlyphId, pen: &mut impl Pen) -> Result<ScalerMetrics> {
         if let Some(outlines) = &mut self.outlines {
-            outlines.outline(glyph_id, self.size, self.coords, pen)
+            outlines.outline(
+                glyph_id,
+                self.size,
+                self.coords,
+                #[cfg(feature = "hinting")]
+                self.hint,
+                pen,
+            )
         } else {
             Err(Error::NoSources)
         }
@@ -243,6 +254,7 @@ impl<'a> Outlines<'a> {
         glyph_id: GlyphId,
         size: f32,
         coords: &'a [NormalizedCoord],
+        #[cfg(feature = "hinting")] hint: Option<Hinting>,
         pen: &mut impl Pen,
     ) -> Result<ScalerMetrics> {
         match self {
@@ -267,7 +279,13 @@ impl<'a> Outlines<'a> {
                 if subfont_index != subfont.index() {
                     *subfont = scaler.subfont(subfont_index, size, coords)?;
                 }
-                scaler.outline(subfont, glyph_id, coords, false, pen)?;
+                // CFF only has a single hinting mode and FT enables it
+                // if any of the hinting load flags are set.
+                #[cfg(feature = "hinting")]
+                let hint = hint.is_some();
+                #[cfg(not(feature = "hinting"))]
+                let hint = false;
+                scaler.outline(subfont, glyph_id, coords, hint, pen)?;
                 // CFF does not have overlap flags and hinting never adjusts
                 // horizontal metrics
                 Ok(ScalerMetrics::default())
