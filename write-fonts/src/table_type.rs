@@ -48,7 +48,7 @@ impl TableType {
         matches!(
             self,
             TableType::GposLookup(LookupType::PAIR_POS)
-                | TableType::GsubLookup(LookupType::MARK_TO_BASE)
+                | TableType::GposLookup(LookupType::MARK_TO_BASE)
         )
     }
 

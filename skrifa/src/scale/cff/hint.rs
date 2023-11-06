@@ -1,6 +1,9 @@
 //! CFF hinting.
 
-use read_fonts::{tables::postscript::dict::Blues, types::Fixed};
+use read_fonts::{
+    tables::postscript::{charstring::CommandSink, dict::Blues},
+    types::Fixed,
+};
 
 // "Default values for OS/2 typoAscender/Descender.."
 // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psblues.h#L98>
@@ -11,6 +14,20 @@ const ICF_BOTTOM: Fixed = Fixed::from_i32(-120);
 const MAX_BLUES: usize = 7;
 const MAX_OTHER_BLUES: usize = 5;
 const MAX_BLUE_ZONES: usize = MAX_BLUES + MAX_OTHER_BLUES;
+
+// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.h#L47>
+const MAX_HINTS: usize = 96;
+
+// One bit per stem hint
+// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.h#L80>
+const HINT_MASK_SIZE: usize = (MAX_HINTS + 7) / 8;
+
+// Constant for hint adjustment and em box hint placement.
+// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psblues.h#L114>
+const MIN_COUNTER: Fixed = Fixed::from_bits(0x8000);
+
+// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psfixed.h#L55>
+const EPSILON: Fixed = Fixed::from_bits(1);
 
 /// Parameters used to generate the stem and counter zones for the hinting
 /// algorithm.
@@ -57,7 +74,7 @@ struct BlueZone {
 /// Note that hinter states depend on the scale, subfont index and
 /// variation coordinates of a glyph. They can be retained and reused
 /// if those values remain the same.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Default)]
 pub(crate) struct HintState {
     scale: Fixed,
     blue_scale: Fixed,
@@ -334,7 +351,7 @@ const LOCKED: u8 = 0x10;
 const SYNTHETIC: u8 = 0x20;
 
 /// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psblues.h#L118>
-#[derive(Copy, Clone, Default)]
+#[derive(Copy, Clone, PartialEq, Default, Debug)]
 struct Hint {
     flags: u8,
     /// Index in original stem hint array (if not synthetic)
@@ -453,13 +470,636 @@ impl Hint {
     }
 }
 
+/// Collection of adjusted hint edges.
+///
+/// <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.h#L126>
+#[derive(Copy, Clone)]
+struct HintMap {
+    edges: [Hint; MAX_HINTS],
+    len: usize,
+    is_valid: bool,
+    scale: Fixed,
+}
+
+impl HintMap {
+    fn new(scale: Fixed) -> Self {
+        Self {
+            edges: [Hint::default(); MAX_HINTS],
+            len: 0,
+            is_valid: false,
+            scale,
+        }
+    }
+
+    fn clear(&mut self) {
+        self.len = 0;
+        self.is_valid = false;
+    }
+
+    /// Transform character space coordinate to device space.
+    ///
+    /// Based on <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.c#L331>
+    fn transform(&self, coord: Fixed) -> Fixed {
+        if self.len == 0 {
+            return coord * self.scale;
+        }
+        let limit = self.len - 1;
+        let mut i = 0;
+        while i < limit && coord >= self.edges[i + 1].cs_coord {
+            i += 1;
+        }
+        while i > 0 && coord < self.edges[i].cs_coord {
+            i -= 1;
+        }
+        let first_edge = &self.edges[0];
+        if i == 0 && coord < first_edge.cs_coord {
+            // Special case for points below first edge: use uniform scale
+            ((coord - first_edge.cs_coord) * self.scale) + first_edge.ds_coord
+        } else {
+            // Use highest edge where cs_coord >= edge.cs_coord
+            let edge = &self.edges[i];
+            ((coord - edge.cs_coord) * edge.scale) + edge.ds_coord
+        }
+    }
+
+    /// Insert hint edges into map, sorted by character space coordinate.
+    ///
+    /// Based on <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.c#L606>
+    fn insert(&mut self, bottom: &Hint, top: &Hint, initial: Option<&HintMap>) {
+        let (is_pair, mut first_edge) = if !bottom.is_valid() {
+            // Bottom is invalid: insert only top edge
+            (false, *top)
+        } else if !top.is_valid() {
+            // Top is invalid: insert only bottom edge
+            (false, *bottom)
+        } else {
+            // We have a valid pair!
+            (true, *bottom)
+        };
+        let mut second_edge = *top;
+        if is_pair && top.cs_coord < bottom.cs_coord {
+            // Paired edges must be in proper order. FT just ignores the hint.
+            return;
+        }
+        let edge_count = if is_pair { 2 } else { 1 };
+        if self.len + edge_count > MAX_HINTS {
+            // Won't fit. Again, ignore.
+            return;
+        }
+        // Find insertion index that keeps the edge list sorted
+        let mut insert_ix = 0;
+        while insert_ix < self.len {
+            if self.edges[insert_ix].cs_coord >= first_edge.cs_coord {
+                break;
+            }
+            insert_ix += 1;
+        }
+        // Discard hints that overlap in character space
+        if insert_ix < self.len {
+            let current = &self.edges[insert_ix];
+            // Existing edge is the same
+            if (current.cs_coord == first_edge.cs_coord)
+                // Pair straddles the next edge
+                || (is_pair && current.cs_coord <= second_edge.cs_coord)
+                // Inserting between paired edges 
+                || current.is_pair_top()
+            {
+                return;
+            }
+        }
+        // Recompute device space locations using initial hint map
+        if !first_edge.is_locked() {
+            if let Some(initial) = initial {
+                if is_pair {
+                    // Preserve stem width: position center of stem with
+                    // initial hint map and two edges with nominal scale
+                    let mid = initial.transform(half(second_edge.cs_coord + first_edge.cs_coord));
+                    let half_width = half(second_edge.cs_coord - first_edge.cs_coord) * self.scale;
+                    first_edge.ds_coord = mid - half_width;
+                    second_edge.ds_coord = mid + half_width;
+                } else {
+                    first_edge.ds_coord = initial.transform(first_edge.cs_coord);
+                }
+            }
+        }
+        // Now discard hints that overlap in device space:
+        if insert_ix > 0 && first_edge.ds_coord < self.edges[insert_ix - 1].ds_coord {
+            // Inserting after an existing edge
+            return;
+        }
+        if insert_ix < self.len
+            && ((is_pair && second_edge.ds_coord > self.edges[insert_ix].ds_coord)
+                || first_edge.ds_coord > self.edges[insert_ix].ds_coord)
+        {
+            // Inserting before an existing edge
+            return;
+        }
+        // If we're inserting in the middle, make room in the edge array
+        if insert_ix != self.len {
+            let mut src_index = self.len - 1;
+            let mut dst_index = self.len + edge_count - 1;
+            loop {
+                self.edges[dst_index] = self.edges[src_index];
+                if src_index == insert_ix {
+                    break;
+                }
+                src_index -= 1;
+                dst_index -= 1;
+            }
+        }
+        self.edges[insert_ix] = first_edge;
+        if is_pair {
+            self.edges[insert_ix + 1] = second_edge;
+        }
+        self.len += edge_count;
+    }
+
+    /// Adjust hint pairs so that one of the two edges is on a pixel boundary.
+    ///
+    /// Based on <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.c#L396>
+    fn adjust(&mut self) {
+        let mut saved = [(0usize, Fixed::ZERO); MAX_HINTS];
+        let mut saved_count = 0usize;
+        let mut i = 0;
+        // From FT with adjustments for variable names:
+        // "First pass is bottom-up (font hint order) without look-ahead.
+        // Locked edges are already adjusted.
+        // Unlocked edges begin with ds_coord from `initial_map'.
+        // Save edges that are not optimally adjusted in `saved' array,
+        // and process them in second pass."
+        let limit = self.len;
+        while i < limit {
+            let is_pair = self.edges[i].is_pair();
+            let j = if is_pair { i + 1 } else { i };
+            if !self.edges[i].is_locked() {
+                // We can adjust hint edges that are not locked
+                let frac_down = self.edges[i].ds_coord.fract();
+                let frac_up = self.edges[j].ds_coord.fract();
+                // There are four possibilities. We compute them all.
+                // (moves down are negative)
+                let down_move_down = Fixed::ZERO - frac_down;
+                let up_move_down = Fixed::ZERO - frac_up;
+                let down_move_up = if frac_down == Fixed::ZERO {
+                    Fixed::ZERO
+                } else {
+                    Fixed::ONE - frac_down
+                };
+                let up_move_up = if frac_up == Fixed::ZERO {
+                    Fixed::ZERO
+                } else {
+                    Fixed::ONE - frac_up
+                };
+                // Smallest move up
+                let move_up = down_move_up.min(up_move_up);
+                // Smallest move down
+                let move_down = down_move_down.max(up_move_down);
+                let mut save_edge = false;
+                let adjustment;
+                // Check for room to move up:
+                // 1. We're at the top of the array, or
+                // 2. The next edge is at or above the proposed move up
+                if j >= self.len - 1
+                    || self.edges[j + 1].ds_coord
+                        >= (self.edges[j].ds_coord + move_up + MIN_COUNTER)
+                {
+                    // Also check for room to move down...
+                    if i == 0
+                        || self.edges[i - 1].ds_coord
+                            <= (self.edges[i].ds_coord + move_down - MIN_COUNTER)
+                    {
+                        // .. and move the smallest distance
+                        adjustment = if -move_down < move_up {
+                            move_down
+                        } else {
+                            move_up
+                        };
+                    } else {
+                        adjustment = move_up;
+                    }
+                } else if i == 0
+                    || self.edges[i - 1].ds_coord
+                        <= (self.edges[i].ds_coord + move_down - MIN_COUNTER)
+                {
+                    // We can move down
+                    adjustment = move_down;
+                    // True if the move is not optimum
+                    save_edge = move_up < -move_down;
+                } else {
+                    // We can't move either way without overlapping
+                    adjustment = Fixed::ZERO;
+                    save_edge = true;
+                }
+                // Capture non-optimal adjustments and save them for a second
+                // pass. This is only possible if the edge above is unlocked
+                // and can be moved.
+                if save_edge && j < self.len - 1 && !self.edges[j + 1].is_locked() {
+                    // (index, desired adjustment)
+                    saved[saved_count] = (j, move_up - adjustment);
+                    saved_count += 1;
+                }
+                // Apply the adjustment
+                self.edges[i].ds_coord += adjustment;
+                if is_pair {
+                    self.edges[j].ds_coord += adjustment;
+                }
+            }
+            // Compute the new edge scale
+            if i > 0 && self.edges[i].cs_coord != self.edges[i - 1].cs_coord {
+                let a = self.edges[i];
+                let b = self.edges[i - 1];
+                self.edges[i - 1].scale = (a.ds_coord - b.ds_coord) / (a.cs_coord - b.cs_coord);
+            }
+            if is_pair {
+                if self.edges[j].cs_coord != self.edges[j - 1].cs_coord {
+                    let a = self.edges[j];
+                    let b = self.edges[j - 1];
+                    self.edges[j - 1].scale = (a.ds_coord - b.ds_coord) / (a.cs_coord - b.cs_coord);
+                }
+                i += 1;
+            }
+            i += 1;
+        }
+        // Second pass tries to move non-optimal edges up if the first
+        // pass created room
+        for (j, adjustment) in saved[..saved_count].iter().copied().rev() {
+            if self.edges[j + 1].ds_coord >= (self.edges[j].ds_coord + adjustment + MIN_COUNTER) {
+                self.edges[j].ds_coord += adjustment;
+                if self.edges[j].is_pair() {
+                    self.edges[j - 1].ds_coord += adjustment;
+                }
+            }
+        }
+    }
+
+    /// Builds a hintmap from hints and mask.
+    ///
+    /// If `initial_map` is invalid, this recurses one level to initialize
+    /// it. If `is_initial` is true, simply build the initial map.
+    ///
+    /// Based on <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.c#L814>
+    fn build(
+        &mut self,
+        state: &HintState,
+        mask: Option<HintMask>,
+        mut initial_map: Option<&mut HintMap>,
+        stems: &mut [StemHint],
+        origin: Fixed,
+        is_initial: bool,
+    ) {
+        let scale = state.scale;
+        let darken_y = Fixed::ZERO;
+        if !is_initial {
+            if let Some(initial_map) = &mut initial_map {
+                if !initial_map.is_valid {
+                    // Note: recursive call here to build the initial map if it
+                    // is provided and invalid
+                    initial_map.build(state, Some(HintMask::all()), None, stems, origin, true);
+                }
+            }
+        }
+        let initial_map = initial_map.map(|x| x as &HintMap);
+        self.clear();
+        // If the mask is missing or invalid, assume all hints are active
+        let mut mask = mask.unwrap_or_else(HintMask::all);
+        if !mask.is_valid {
+            mask = HintMask::all();
+        }
+        if state.do_em_box_hints {
+            // FreeType generates these during blues initialization. Do
+            // it here just to avoid carrying the extra state in the
+            // already large HintState struct.
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psblues.c#L160>
+            let mut bottom = Hint::default();
+            bottom.cs_coord = ICF_BOTTOM - EPSILON;
+            bottom.ds_coord = (bottom.cs_coord * scale).round() - MIN_COUNTER;
+            bottom.scale = scale;
+            bottom.flags = GHOST_BOTTOM | LOCKED | SYNTHETIC;
+            let mut top = Hint::default();
+            top.cs_coord = ICF_TOP + EPSILON + twice(state.darken_y);
+            top.ds_coord = (top.cs_coord * scale).round() + MIN_COUNTER;
+            top.scale = scale;
+            top.flags = GHOST_TOP | LOCKED | SYNTHETIC;
+            let invalid = Hint::default();
+            self.insert(&bottom, &invalid, initial_map);
+            self.insert(&invalid, &top, initial_map);
+        }
+        let mut tmp_mask = mask;
+        // FreeType iterates over the hint mask with some fancy bit logic. We
+        // do the simpler thing and loop over the stems.
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.c#L897>
+        for (i, stem) in stems.iter().enumerate() {
+            if !tmp_mask.get(i) {
+                continue;
+            }
+            let hint_ix = i as u8;
+            let mut bottom = Hint::default();
+            let mut top = Hint::default();
+            bottom.setup(stem, hint_ix, origin, scale, darken_y, true);
+            top.setup(stem, hint_ix, origin, scale, darken_y, false);
+            // Insert hints that are locked or captured by a blue zone
+            if bottom.is_locked() || top.is_locked() || state.capture(&mut bottom, &mut top) {
+                if is_initial {
+                    self.insert(&bottom, &top, None);
+                } else {
+                    self.insert(&bottom, &top, initial_map);
+                }
+                // Avoid processing this hint in the second pass
+                tmp_mask.clear(i);
+            }
+        }
+        if is_initial {
+            // Heuristic: insert a point at (0, 0) if it's not covered by a
+            // mapping. Ensures a lock at baseline for glyphs missing a
+            // baseline hint.
+            if self.len == 0
+                || self.edges[0].cs_coord > Fixed::ZERO
+                || self.edges[self.len - 1].cs_coord < Fixed::ZERO
+            {
+                let edge = Hint {
+                    flags: GHOST_BOTTOM | LOCKED | SYNTHETIC,
+                    scale,
+                    ..Default::default()
+                };
+                let invalid = Hint::default();
+                self.insert(&edge, &invalid, None);
+            }
+        } else {
+            // Insert hints that were skipped in the first pass
+            for (i, stem) in stems.iter().enumerate() {
+                if !tmp_mask.get(i) {
+                    continue;
+                }
+                let hint_ix = i as u8;
+                let mut bottom = Hint::default();
+                let mut top = Hint::default();
+                bottom.setup(stem, hint_ix, origin, scale, darken_y, true);
+                top.setup(stem, hint_ix, origin, scale, darken_y, false);
+                self.insert(&bottom, &top, initial_map);
+            }
+        }
+        // Adjust edges that are not locked to blue zones
+        self.adjust();
+        if !is_initial {
+            // Save position of edges that were used by the hint map.
+            for edge in &self.edges[..self.len] {
+                if edge.is_synthetic() {
+                    continue;
+                }
+                let stem = &mut stems[edge.index as usize];
+                if edge.is_top() {
+                    stem.ds_max = edge.ds_coord;
+                } else {
+                    stem.ds_min = edge.ds_coord;
+                }
+                stem.is_used = true;
+            }
+        }
+        self.is_valid = true;
+    }
+}
+
+/// Bitmask that specifies which hints are currently active.
+///
+/// "Each bit of the mask, starting with the most-significant bit of
+/// the first byte, represents the corresponding hint zone in the
+/// order in which the hints were declared at the beginning of
+/// the charstring."
+///
+/// See <https://adobe-type-tools.github.io/font-tech-notes/pdfs/5177.Type2.pdf#page=24>
+/// Also <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.h#L70>
+#[derive(Copy, Clone, PartialEq, Default)]
+struct HintMask {
+    mask: [u8; HINT_MASK_SIZE],
+    is_valid: bool,
+}
+
+impl HintMask {
+    fn new(bytes: &[u8]) -> Option<Self> {
+        let len = bytes.len();
+        if len > HINT_MASK_SIZE {
+            return None;
+        }
+        let mut mask = Self::default();
+        mask.mask[..len].copy_from_slice(&bytes[..len]);
+        mask.is_valid = true;
+        Some(mask)
+    }
+
+    fn all() -> Self {
+        Self {
+            mask: [0xFF; HINT_MASK_SIZE],
+            is_valid: true,
+        }
+    }
+
+    fn clear(&mut self, bit: usize) {
+        self.mask[bit >> 3] &= !msb_mask(bit);
+    }
+
+    fn get(&self, bit: usize) -> bool {
+        self.mask[bit >> 3] & msb_mask(bit) != 0
+    }
+}
+
+/// Returns a bit mask for the selected bit with the
+/// most significant bit at index 0.
+fn msb_mask(bit: usize) -> u8 {
+    1 << (7 - (bit & 0x7))
+}
+
+pub(super) struct HintingSink<'a, S> {
+    state: &'a HintState,
+    sink: &'a mut S,
+    stem_hints: [StemHint; MAX_HINTS],
+    stem_count: u8,
+    mask: HintMask,
+    initial_map: HintMap,
+    map: HintMap,
+    /// Most recent move_to in character space.
+    start_point: Option<[Fixed; 2]>,
+    /// Most recent line_to. First two elements are coords in character
+    /// space and the last two are in device space.
+    pending_line: Option<[Fixed; 4]>,
+}
+
+impl<'a, S: CommandSink> HintingSink<'a, S> {
+    pub fn new(state: &'a HintState, sink: &'a mut S) -> Self {
+        let scale = state.scale;
+        Self {
+            state,
+            sink,
+            stem_hints: [StemHint::default(); MAX_HINTS],
+            stem_count: 0,
+            mask: HintMask::all(),
+            initial_map: HintMap::new(scale),
+            map: HintMap::new(scale),
+            start_point: None,
+            pending_line: None,
+        }
+    }
+
+    pub fn finish(&mut self) {
+        self.maybe_close_subpath();
+    }
+
+    fn maybe_close_subpath(&mut self) {
+        // This requires some explanation. The hint mask can be modified
+        // during charstring evaluation which changes the set of hints that
+        // are applied. FreeType ensures that the closing line for any subpath
+        // is transformed with the same hint map as the starting point for the
+        // subpath. This is done by stashing a copy of the hint map that is
+        // active when a new subpath is started. Unlike FreeType, we make use
+        // of close elements, so we can cheat a bit here and avoid the
+        // extra hintmap. If we're closing an open subpath and have a pending
+        // line and the line is not equal to the start point in character
+        // space, then we emit the saved device space coordinates for the
+        // line. If the coordinates do match in character space, we omit
+        // that line. The unconditional close command ensures that the
+        // start and end points coincide.
+        // Note: this doesn't apply to subpaths that end in cubics.
+        match (self.start_point.take(), self.pending_line.take()) {
+            (Some(start), Some([cs_x, cs_y, ds_x, ds_y])) => {
+                if start != [cs_x, cs_y] {
+                    self.sink.line_to(ds_x, ds_y);
+                }
+                self.sink.close();
+            }
+            (Some(_), _) => self.sink.close(),
+            _ => {}
+        }
+    }
+
+    fn flush_pending_line(&mut self) {
+        if let Some([_, _, x, y]) = self.pending_line.take() {
+            self.sink.line_to(x, y);
+        }
+    }
+
+    fn hint(&mut self, coord: Fixed) -> Fixed {
+        if !self.map.is_valid {
+            self.build_hint_map(Some(self.mask), Fixed::ZERO);
+        }
+        trunc(self.map.transform(coord))
+    }
+
+    fn scale(&self, coord: Fixed) -> Fixed {
+        trunc(coord * self.state.scale)
+    }
+
+    fn add_stem(&mut self, min: Fixed, max: Fixed) {
+        let index = self.stem_count as usize;
+        if index >= MAX_HINTS || self.map.is_valid {
+            return;
+        }
+        let stem = &mut self.stem_hints[index];
+        stem.min = min;
+        stem.max = max;
+        stem.is_used = false;
+        stem.ds_min = Fixed::ZERO;
+        stem.ds_max = Fixed::ZERO;
+        self.stem_count = index as u8 + 1;
+    }
+
+    fn build_hint_map(&mut self, mask: Option<HintMask>, origin: Fixed) {
+        self.map.build(
+            self.state,
+            mask,
+            Some(&mut self.initial_map),
+            &mut self.stem_hints[..self.stem_count as usize],
+            origin,
+            false,
+        );
+    }
+}
+
+impl<'a, S: CommandSink> CommandSink for HintingSink<'a, S> {
+    fn hstem(&mut self, min: Fixed, max: Fixed) {
+        self.add_stem(min, max);
+    }
+
+    fn hint_mask(&mut self, mask: &[u8]) {
+        // For invalid hint masks, FreeType assumes all hints are active.
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.c#L844>
+        let mask = HintMask::new(mask).unwrap_or_else(|| HintMask::all());
+        if mask != self.mask {
+            self.mask = mask;
+            self.map.is_valid = false;
+        }
+    }
+
+    fn counter_mask(&mut self, mask: &[u8]) {
+        // For counter masks, we build a temporary hint map "just to
+        // place and lock those stems participating in the counter
+        // mask." Building the map modifies the stem hint array as a
+        // side effect.
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2617>
+        let mask = HintMask::new(mask).unwrap_or_else(|| HintMask::all());
+        let mut map = HintMap::new(self.state.scale);
+        map.build(
+            self.state,
+            Some(mask),
+            Some(&mut self.initial_map),
+            &mut self.stem_hints[..self.stem_count as usize],
+            Fixed::ZERO,
+            false,
+        );
+    }
+
+    fn move_to(&mut self, x: Fixed, y: Fixed) {
+        self.maybe_close_subpath();
+        self.start_point = Some([x, y]);
+        let x = self.scale(x);
+        let y = self.hint(y);
+        self.sink.move_to(x, y);
+    }
+
+    fn line_to(&mut self, x: Fixed, y: Fixed) {
+        self.flush_pending_line();
+        let ds_x = self.scale(x);
+        let ds_y = self.hint(y);
+        self.pending_line = Some([x, y, ds_x, ds_y]);
+    }
+
+    fn curve_to(&mut self, cx1: Fixed, cy1: Fixed, cx2: Fixed, cy2: Fixed, x: Fixed, y: Fixed) {
+        self.flush_pending_line();
+        let cx1 = self.scale(cx1);
+        let cy1 = self.hint(cy1);
+        let cx2 = self.scale(cx2);
+        let cy2 = self.hint(cy2);
+        let x = self.scale(x);
+        let y = self.hint(y);
+        self.sink.curve_to(cx1, cy1, cx2, cy2, x, y);
+    }
+
+    fn close(&mut self) {
+        // We emit close commands based on the sequence of moves.
+        // See `maybe_close_subpath`
+    }
+}
+
+/// FreeType converts from 16.16 to 26.6 by truncation. We keep our
+/// values in 16.16 so simply zero the low 10 bits to match the
+/// precision when converting to f32.
+fn trunc(value: Fixed) -> Fixed {
+    Fixed::from_bits(value.to_bits() & !0x3FF)
+}
+
+fn half(value: Fixed) -> Fixed {
+    Fixed::from_bits(value.to_bits() / 2)
+}
+
 fn twice(value: Fixed) -> Fixed {
     Fixed::from_bits(value.to_bits().wrapping_mul(2))
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{BlueZone, Blues, Fixed, Hint, HintParams, HintState, PAIR_BOTTOM, PAIR_TOP};
+    use read_fonts::{tables::postscript::charstring::CommandSink, types::F2Dot14, FontRef};
+
+    use super::{
+        BlueZone, Blues, Fixed, Hint, HintMap, HintMask, HintParams, HintState, HintingSink,
+        StemHint, GHOST_BOTTOM, GHOST_TOP, HINT_MASK_SIZE, LOCKED, PAIR_BOTTOM, PAIR_TOP,
+    };
 
     fn make_hint_state() -> HintState {
         fn make_blues(values: &[f64]) -> Blues {
@@ -628,6 +1268,210 @@ mod tests {
             assert!(state.capture(&mut bottom_edge, &mut top_edge));
             assert!(!bottom_edge.is_locked());
             assert!(top_edge.is_locked());
+        }
+    }
+
+    #[test]
+    fn hint_mask_ops() {
+        const MAX_BITS: usize = HINT_MASK_SIZE * 8;
+        let all_bits = HintMask::all();
+        for i in 0..MAX_BITS {
+            assert!(all_bits.get(i));
+        }
+        let odd_bits = HintMask::new(&[0b01010101; HINT_MASK_SIZE]).unwrap();
+        for i in 0..MAX_BITS {
+            assert_eq!(i & 1 != 0, odd_bits.get(i));
+        }
+        let mut cleared_bits = odd_bits;
+        for i in 0..MAX_BITS {
+            if i & 1 != 0 {
+                cleared_bits.clear(i);
+            }
+        }
+        assert_eq!(cleared_bits.mask, HintMask::default().mask);
+    }
+
+    #[test]
+    fn hint_mapping() {
+        let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
+        let cff_font = super::super::Scaler::new(&font).unwrap();
+        let state = cff_font
+            .subfont(0, 8.0, &[F2Dot14::from_f32(-1.0); 2])
+            .unwrap()
+            .hint_state;
+        let mut initial_map = HintMap::new(state.scale);
+        let mut map = HintMap::new(state.scale);
+        // Stem hints from Cantarell-VF.otf glyph id 2
+        let mut stems = [
+            StemHint {
+                min: Fixed::from_bits(1376256),
+                max: Fixed::ZERO,
+                ..Default::default()
+            },
+            StemHint {
+                min: Fixed::from_bits(16318464),
+                max: Fixed::from_bits(17563648),
+                ..Default::default()
+            },
+            StemHint {
+                min: Fixed::from_bits(45481984),
+                max: Fixed::from_bits(44171264),
+                ..Default::default()
+            },
+        ];
+        map.build(
+            &state,
+            Some(HintMask::all()),
+            Some(&mut initial_map),
+            &mut stems,
+            Fixed::ZERO,
+            false,
+        );
+        // FT generates the following hint map:
+        //
+        // index  csCoord  dsCoord  scale  flags
+        //   0       0.00     0.00    526  gbL
+        //   1     249.00   250.14    524  pb
+        //   1     268.00   238.22    592  pt
+        //   2     694.00   750.41    524  gtL
+        let expected_edges = [
+            Hint {
+                index: 0,
+                cs_coord: Fixed::from_f64(0.0),
+                ds_coord: Fixed::from_f64(0.0),
+                scale: Fixed::from_bits(526),
+                flags: GHOST_BOTTOM | LOCKED,
+            },
+            Hint {
+                index: 1,
+                cs_coord: Fixed::from_bits(16318464),
+                ds_coord: Fixed::from_bits(131072),
+                scale: Fixed::from_bits(524),
+                flags: PAIR_BOTTOM,
+            },
+            Hint {
+                index: 1,
+                cs_coord: Fixed::from_bits(17563648),
+                ds_coord: Fixed::from_bits(141028),
+                scale: Fixed::from_bits(592),
+                flags: PAIR_TOP,
+            },
+            Hint {
+                index: 2,
+                cs_coord: Fixed::from_bits(45481984),
+                ds_coord: Fixed::from_bits(393216),
+                scale: Fixed::from_bits(524),
+                flags: GHOST_TOP | LOCKED,
+            },
+        ];
+        assert_eq!(expected_edges, &map.edges[..map.len]);
+        // And FT generates the following mappings
+        let mappings = [
+            // (coord in font units, expected hinted coord in device space) in 16.16
+            (0, 0),             // 0 -> 0
+            (44302336, 382564), // 676 -> 5.828125
+            (45481984, 393216), // 694 -> 6
+            (16318464, 131072), // 249 -> 2
+            (17563648, 141028), // 268 -> 2.140625
+            (49676288, 426752), // 758 -> 6.5
+            (56754176, 483344), // 866 -> 7.375
+            (57868288, 492252), // 883 -> 7.5
+            (50069504, 429896), // 764 -> 6.546875
+        ];
+        for (coord, expected) in mappings {
+            assert_eq!(
+                map.transform(Fixed::from_bits(coord)),
+                Fixed::from_bits(expected)
+            );
+        }
+    }
+
+    /// HintingSink is mostly pass-through. This test captures the logic
+    /// around omission of pending lines that match subpath start.
+    /// See HintingSink::maybe_close_subpath for details.
+    #[test]
+    fn hinting_sink_omits_closing_line_that_matches_start() {
+        let state = HintState {
+            scale: Fixed::ONE,
+            ..Default::default()
+        };
+        let mut path = Path::default();
+        let mut sink = HintingSink::new(&state, &mut path);
+        let move1_2 = [Fixed::from_f64(1.0), Fixed::from_f64(2.0)];
+        let line2_3 = [Fixed::from_f64(2.0), Fixed::from_f64(3.0)];
+        let line1_2 = [Fixed::from_f64(1.0), Fixed::from_f64(2.0)];
+        let line3_4 = [Fixed::from_f64(3.0), Fixed::from_f64(4.0)];
+        let curve = [
+            Fixed::from_f64(3.0),
+            Fixed::from_f64(4.0),
+            Fixed::from_f64(5.0),
+            Fixed::from_f64(6.0),
+            Fixed::from_f64(1.0),
+            Fixed::from_f64(2.0),
+        ];
+        // First subpath, closing line matches start
+        sink.move_to(move1_2[0], move1_2[1]);
+        sink.line_to(line2_3[0], line2_3[1]);
+        sink.line_to(line1_2[0], line1_2[1]);
+        // Second subpath, closing line does not match start
+        sink.move_to(move1_2[0], move1_2[1]);
+        sink.line_to(line2_3[0], line2_3[1]);
+        sink.line_to(line3_4[0], line3_4[1]);
+        // Third subpath, ends with cubic. Still emits a close command
+        // even though end point matches start.
+        sink.move_to(move1_2[0], move1_2[1]);
+        sink.line_to(line2_3[0], line2_3[1]);
+        sink.curve_to(curve[0], curve[1], curve[2], curve[3], curve[4], curve[5]);
+        sink.finish();
+        // Subpaths always end with a close command. If a final line coincides
+        // with the start of a subpath, it is omitted.
+        assert_eq!(
+            &path.0,
+            &[
+                // First subpath
+                MoveTo(move1_2),
+                LineTo(line2_3),
+                // line1_2 is omitted
+                Close,
+                // Second subpath
+                MoveTo(move1_2),
+                LineTo(line2_3),
+                LineTo(line3_4),
+                Close,
+                // Third subpath
+                MoveTo(move1_2),
+                LineTo(line2_3),
+                CurveTo(curve),
+                Close,
+            ]
+        );
+    }
+
+    #[derive(Copy, Clone, PartialEq, Debug)]
+    enum Command {
+        MoveTo([Fixed; 2]),
+        LineTo([Fixed; 2]),
+        CurveTo([Fixed; 6]),
+        Close,
+    }
+
+    use Command::*;
+
+    #[derive(Default)]
+    struct Path(Vec<Command>);
+
+    impl CommandSink for Path {
+        fn move_to(&mut self, x: Fixed, y: Fixed) {
+            self.0.push(MoveTo([x, y]));
+        }
+        fn line_to(&mut self, x: Fixed, y: Fixed) {
+            self.0.push(LineTo([x, y]));
+        }
+        fn curve_to(&mut self, cx0: Fixed, cy0: Fixed, cx1: Fixed, cy1: Fixed, x: Fixed, y: Fixed) {
+            self.0.push(CurveTo([cx0, cy0, cx1, cy1, x, y]));
+        }
+        fn close(&mut self) {
+            self.0.push(Close);
         }
     }
 }

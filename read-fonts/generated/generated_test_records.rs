@@ -258,7 +258,9 @@ impl ContainsOffests {
         self.array_offset.get()
     }
 
-    /// Attempt to resolve [`array_offset`][Self::array_offset].
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn array<'a>(&self, data: FontData<'a>) -> Result<&'a [SimpleRecord], ReadError> {
         let args = self.off_array_count();
         self.array_offset().resolve_with_args(data, &args)
@@ -268,7 +270,9 @@ impl ContainsOffests {
         self.other_offset.get()
     }
 
-    /// Attempt to resolve [`other_offset`][Self::other_offset].
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn other<'a>(&self, data: FontData<'a>) -> Result<BasicTable<'a>, ReadError> {
         self.other_offset().resolve(data)
     }

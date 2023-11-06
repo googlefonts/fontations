@@ -105,7 +105,7 @@ pub struct EncodingRecord {
     pub platform_id: BigEndian<PlatformId>,
     /// Platform-specific encoding ID.
     pub encoding_id: BigEndian<u16>,
-    /// Byte offset from beginning of table to the subtable for this
+    /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
     /// encoding.
     pub subtable_offset: BigEndian<Offset32>,
 }
@@ -121,13 +121,17 @@ impl EncodingRecord {
         self.encoding_id.get()
     }
 
-    /// Byte offset from beginning of table to the subtable for this
+    /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
     /// encoding.
     pub fn subtable_offset(&self) -> Offset32 {
         self.subtable_offset.get()
     }
 
-    /// Attempt to resolve [`subtable_offset`][Self::subtable_offset].
+    /// Byte offset from beginning of the [`Cmap`] table to the subtable for this
+    /// encoding.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn subtable<'a>(&self, data: FontData<'a>) -> Result<CmapSubtable<'a>, ReadError> {
         self.subtable_offset().resolve(data)
     }
@@ -1614,11 +1618,11 @@ impl<'a> std::fmt::Debug for Cmap14<'a> {
 pub struct VariationSelector {
     /// Variation selector
     pub var_selector: BigEndian<Uint24>,
-    /// Offset from the start of the format 14 subtable to Default UVS
-    /// Table. May be 0.
+    /// Offset from the start of the [`Cmap14`] subtable to Default UVS
+    /// Table. May be NULL.
     pub default_uvs_offset: BigEndian<Nullable<Offset32>>,
-    /// Offset from the start of the format 14 subtable to Non-Default
-    /// UVS Table. May be 0.
+    /// Offset from the start of the [`Cmap14`] subtable to Non-Default
+    /// UVS Table. May be NULL.
     pub non_default_uvs_offset: BigEndian<Nullable<Offset32>>,
 }
 
@@ -1628,24 +1632,32 @@ impl VariationSelector {
         self.var_selector.get()
     }
 
-    /// Offset from the start of the format 14 subtable to Default UVS
-    /// Table. May be 0.
+    /// Offset from the start of the [`Cmap14`] subtable to Default UVS
+    /// Table. May be NULL.
     pub fn default_uvs_offset(&self) -> Nullable<Offset32> {
         self.default_uvs_offset.get()
     }
 
-    /// Attempt to resolve [`default_uvs_offset`][Self::default_uvs_offset].
+    /// Offset from the start of the [`Cmap14`] subtable to Default UVS
+    /// Table. May be NULL.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn default_uvs<'a>(&self, data: FontData<'a>) -> Option<Result<DefaultUvs<'a>, ReadError>> {
         self.default_uvs_offset().resolve(data)
     }
 
-    /// Offset from the start of the format 14 subtable to Non-Default
-    /// UVS Table. May be 0.
+    /// Offset from the start of the [`Cmap14`] subtable to Non-Default
+    /// UVS Table. May be NULL.
     pub fn non_default_uvs_offset(&self) -> Nullable<Offset32> {
         self.non_default_uvs_offset.get()
     }
 
-    /// Attempt to resolve [`non_default_uvs_offset`][Self::non_default_uvs_offset].
+    /// Offset from the start of the [`Cmap14`] subtable to Non-Default
+    /// UVS Table. May be NULL.
+    ///
+    /// The `data` argument should be retrieved from the parent table
+    /// By calling its `offset_data` method.
     pub fn non_default_uvs<'a>(
         &self,
         data: FontData<'a>,

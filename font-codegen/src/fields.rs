@@ -779,6 +779,29 @@ impl Field {
         quote!( self.shape.#shape_range_fn_name() #try_op )
     }
 
+    fn typed_offset_getter_docs(&self, has_data_arg: bool) -> TokenStream {
+        let raw_name = &self.name;
+        // If there's no arguments than we just link to the raw offset method
+        if !has_data_arg {
+            let docs = if self.is_array() {
+                format!(" A dynamically resolving wrapper for [`{raw_name}`][Self::{raw_name}].")
+            } else {
+                format!(" Attempt to resolve [`{raw_name}`][Self::{raw_name}].")
+            };
+            return quote!(#[doc = #docs]);
+        }
+
+        // if there is a data argument than we want to be more explicit
+        let original_docs = &self.attrs.docs;
+
+        quote! {
+            #(#original_docs)*
+            #[doc = ""]
+            #[doc = " The `data` argument should be retrieved from the parent table"]
+            #[doc = " By calling its `offset_data` method."]
+        }
+    }
+
     fn typed_offset_field_getter(
         &self,
         generic: Option<&syn::Ident>,
@@ -811,6 +834,7 @@ impl Field {
             let args = args.to_tokens_for_table_getter();
             quote!(let args = #args;)
         });
+        let docs = self.typed_offset_getter_docs(record.is_some());
 
         if self.is_array() {
             let OffsetTarget::Table(target_ident) = target else {
@@ -838,11 +862,9 @@ impl Field {
             }
 
             let bind_offsets = quote!( let offsets = self.#raw_name(); );
-            let docs =
-                format!(" A dynamically resolving wrapper for [`{raw_name}`][Self::{raw_name}].");
 
             Some(quote! {
-                #[doc = #docs]
+                #docs
                 pub fn #getter_name (&self #input_data_if_needed) -> #return_type #where_read_clause  {
                     #data_alias_if_needed
                     #bind_offsets
@@ -859,7 +881,6 @@ impl Field {
                 None => quote!(resolve(data)),
                 Some(_) => quote!(resolve_with_args(data, &args)),
             };
-            let docs = format!(" Attempt to resolve [`{raw_name}`][Self::{raw_name}].");
             let getter_impl = if self.is_version_dependent() {
                 // if this is nullable *and* version dependent we add a `?`
                 // to avoid returning Option<Option<_>>
@@ -869,7 +890,7 @@ impl Field {
                 quote!( self. #raw_name () .#resolve )
             };
             Some(quote! {
-                #[doc = #docs]
+                #docs
                 pub fn #getter_name #decl_lifetime_if_needed (&self #input_data_if_needed) -> #return_type #where_read_clause {
                     #data_alias_if_needed
                     #args_if_needed

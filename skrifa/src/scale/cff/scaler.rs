@@ -155,14 +155,17 @@ impl<'a> Scaler<'a> {
             // match FreeType
             Fixed::from_bits((size * 64.) as i32) / Fixed::from_bits(self.units_per_em as i32)
         };
-        let hint_state = HintState::new(&hint_params, scale);
+        // When hinting, use a modified scale factor
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L279>
+        let hint_scale = Fixed::from_bits((scale.to_bits() + 32) / 64);
+        let hint_state = HintState::new(&hint_params, hint_scale);
         Ok(Subfont {
             is_cff2: self.is_cff2(),
             index,
             _size: size,
             scale,
             subrs_offset,
-            _hint_state: hint_state,
+            hint_state,
             store_index,
         })
     }
@@ -183,7 +186,7 @@ impl<'a> Scaler<'a> {
         subfont: &Subfont,
         glyph_id: GlyphId,
         coords: &[F2Dot14],
-        _hint: bool,
+        hint: bool,
         pen: &mut impl Pen,
     ) -> Result<(), Error> {
         let charstring_data = self
@@ -196,14 +199,28 @@ impl<'a> Scaler<'a> {
         let blend_state = subfont.blend_state(self, coords)?;
         let mut pen_sink = charstring::PenSink::new(pen);
         let mut simplifying_adapter = NopFilteringSink::new(&mut pen_sink);
-        let mut scaling_adapter = ScalingSink26Dot6::new(&mut simplifying_adapter, subfont.scale);
-        charstring::evaluate(
-            charstring_data,
-            self.global_subrs(),
-            subrs,
-            blend_state,
-            &mut scaling_adapter,
-        )?;
+        if hint {
+            let mut hinting_adapter =
+                super::hint::HintingSink::new(&subfont.hint_state, &mut simplifying_adapter);
+            charstring::evaluate(
+                charstring_data,
+                self.global_subrs(),
+                subrs,
+                blend_state,
+                &mut hinting_adapter,
+            )?;
+            hinting_adapter.finish();
+        } else {
+            let mut scaling_adapter =
+                ScalingSink26Dot6::new(&mut simplifying_adapter, subfont.scale);
+            charstring::evaluate(
+                charstring_data,
+                self.global_subrs(),
+                subrs,
+                blend_state,
+                &mut scaling_adapter,
+            )?;
+        }
         simplifying_adapter.finish();
         Ok(())
     }
@@ -265,7 +282,7 @@ pub(crate) struct Subfont {
     _size: f32,
     scale: Fixed,
     subrs_offset: Option<usize>,
-    _hint_state: HintState,
+    pub(crate) hint_state: HintState,
     store_index: u16,
 }
 
@@ -530,11 +547,7 @@ where
 
     fn close(&mut self) {
         if self.pending_move.is_none() {
-            if let Some((start_x, start_y)) = self.start {
-                if self.start != self.last {
-                    self.inner.line_to(start_x, start_y);
-                }
-            }
+            self.inner.close();
             self.start = None;
             self.last = None;
         }
@@ -652,10 +665,7 @@ mod tests {
         let font = FontRef::new(font_data).unwrap();
         let outlines = read_fonts::scaler_test::parse_glyph_outlines(expected_outlines);
         let scaler = super::Scaler::new(&font).unwrap();
-        let mut path = read_fonts::scaler_test::Path {
-            elements: vec![],
-            is_cff: true,
-        };
+        let mut path = read_fonts::scaler_test::Path::default();
         for expected_outline in &outlines {
             if expected_outline.size == 0.0 && !expected_outline.coords.is_empty() {
                 continue;
