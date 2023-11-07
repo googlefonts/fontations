@@ -64,33 +64,35 @@ impl<'a> FreeTypeInstance<'a> {
         Some(Self { face, load_flags })
     }
 
+    pub fn is_scalable(&self) -> bool {
+        self.face.is_scalable()
+    }
+
     pub fn glyph_count(&self) -> u16 {
         self.face.num_glyphs() as u16
     }
 
     pub fn advance(&mut self, glyph_id: GlyphId) -> Option<f32> {
-        let mut advance: FT_Fixed = 0;
-        if unsafe {
-            FT_Get_Advance(
-                self.face.raw_mut(),
-                glyph_id.to_u16() as _,
-                self.load_flags.bits(),
-                &mut advance as *mut _,
-            )
-        } == 0
-        {
-            let mut advance = advance as f32;
-            if !self.load_flags.contains(LoadFlag::NO_SCALE) {
-                advance /= 65536.0;
-            }
-            return Some(advance);
+        let is_scaled = !self.load_flags.contains(LoadFlag::NO_SCALE);
+        let mut load_flags = self.load_flags();
+        if !is_scaled {
+            // Without this load flag, FT applies scale to linearHoriAdvance
+            load_flags |= LoadFlag::LINEAR_DESIGN;
         }
-        None
+        self.face
+            .load_glyph(glyph_id.to_u16() as u32, load_flags)
+            .ok()?;
+        let advance = self.face.glyph().linear_hori_advance() as f32;
+        Some(if is_scaled {
+            advance / 65536.0
+        } else {
+            advance
+        })
     }
 
     pub fn outline(&mut self, glyph_id: GlyphId, pen: &mut impl Pen) -> Option<()> {
         self.face
-            .load_glyph(glyph_id.to_u16() as u32, self.load_flags)
+            .load_glyph(glyph_id.to_u16() as u32, self.load_flags())
             .ok()?;
         let mut ft_pen = FreeTypePen {
             inner: pen,
@@ -112,6 +114,11 @@ impl<'a> FreeTypeInstance<'a> {
             );
         }
         Some(())
+    }
+
+    fn load_flags(&self) -> LoadFlag {
+        // LoadFlag isn't Copy or Clone?
+        LoadFlag::from_bits_truncate(self.load_flags.bits())
     }
 }
 
@@ -178,14 +185,4 @@ extern "C" fn ft_cubic_to(
     let (x, y) = pen.scale_point(to);
     pen.inner.curve_to(cx0, cy0, cx1, cy1, x, y);
     0
-}
-
-extern "C" {
-    // freetype-sys doesn't expose this function
-    pub fn FT_Get_Advance(
-        face: FT_Face,
-        gindex: FT_UInt,
-        load_flags: FT_Int32,
-        padvance: *mut FT_Fixed,
-    ) -> FT_Error;
 }

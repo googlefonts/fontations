@@ -8,6 +8,10 @@ pub fn compare_glyphs(
     (mut ft_instance, mut skrifa_instance): (FreeTypeInstance, SkrifaInstance),
     exit_on_fail: bool,
 ) -> bool {
+    if !ft_instance.is_scalable() {
+        // Don't run on bitmap fonts (yet)
+        return true;
+    }
     let glyph_count = skrifa_instance.glyph_count();
     let is_scaled = options.ppem != 0;
 
