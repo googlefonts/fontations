@@ -308,7 +308,10 @@ impl<'a> GlyphMetrics<'a> {
         } else if self.gvar.is_some() {
             advance += self.metric_deltas_from_gvar(glyph_id)[1];
         }
-        Some(self.fixed_scale.apply(advance))
+        // FT casts advance to FT_UShort after applying variation delta and
+        // before applying scale.
+        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/sfnt/ttmtx.c#L331>
+        Some(self.fixed_scale.apply(advance as u16 as i32))
     }
 
     /// Returns the left side bearing for the specified glyph.
@@ -371,16 +374,20 @@ impl<'a> GlyphMetrics<'a> {
 }
 
 #[derive(Copy, Clone)]
-struct FixedScaleFactor(Fixed);
+struct FixedScaleFactor(Option<Fixed>);
 
 impl FixedScaleFactor {
     #[inline(always)]
     fn apply(self, value: i32) -> f32 {
-        // Match FreeType metric scaling
-        // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/base/ftadvanc.c#L50>
-        self.0
-            .mul_div(Fixed::from_bits(value), Fixed::from_bits(64))
-            .to_f32()
+        if let Some(scale) = self.0 {
+            // Match FreeType metric scaling
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/base/ftadvanc.c#L50>
+            scale
+                .mul_div(Fixed::from_bits(value), Fixed::from_bits(64))
+                .to_f32()
+        } else {
+            value as f32
+        }
     }
 }
 
@@ -431,7 +438,7 @@ impl<'a> GvarMetricDeltas<'a> {
             }
         }
         metric_deltas[1] -= metric_deltas[0];
-        Some(metric_deltas.map(|x| x.to_i32()))
+        Some(metric_deltas.map(|x| x.to_f26dot6().to_i32()))
     }
 
     /// Returns the glyph id and associated point count that determines the
@@ -444,7 +451,12 @@ impl<'a> GvarMetricDeltas<'a> {
         if recurse_depth > crate::GLYF_COMPOSITE_RECURSION_LIMIT {
             return None;
         }
-        let glyph = self.loca.get_glyf(glyph_id, &self.glyf).ok()??;
+        let glyph = self.loca.get_glyf(glyph_id, &self.glyf).ok()?;
+        let Some(glyph) = glyph else {
+            // Empty glyphs might still contain gvar data that
+            // only affects phantom points
+            return Some((glyph_id, 0));
+        };
         match glyph {
             Glyph::Simple(simple) => {
                 // Simple glyphs always use their own metrics
