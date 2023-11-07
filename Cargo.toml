@@ -9,6 +9,7 @@ members = [
     "write-fonts",
     "otexplorer",
     "skrifa",
+    "fauntlet",
 ]
 
 [workspace.dependencies]
