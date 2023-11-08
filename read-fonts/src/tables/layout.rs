@@ -167,7 +167,7 @@ impl From<DeltaFormat> for i64 {
     }
 }
 
-impl ClassDefFormat1<'_> {
+impl<'a> ClassDefFormat1<'a> {
     /// Get the class for this glyph id
     pub fn get(&self, gid: GlyphId) -> u16 {
         if gid < self.start_glyph_id() {
@@ -179,9 +179,21 @@ impl ClassDefFormat1<'_> {
             .map(|x| x.get())
             .unwrap_or(0)
     }
+
+    /// Iterate over each glyph and its class.
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + 'a {
+        let start = self.start_glyph_id();
+        self.class_value_array()
+            .iter()
+            .enumerate()
+            .map(move |(i, val)| {
+                let gid = start.to_u16().saturating_add(i as u16);
+                (GlyphId::new(gid), val.get())
+            })
+    }
 }
 
-impl ClassDefFormat2<'_> {
+impl<'a> ClassDefFormat2<'a> {
     /// Get the class for this glyph id
     pub fn get(&self, gid: GlyphId) -> u16 {
         self.class_range_records()
@@ -192,6 +204,15 @@ impl ClassDefFormat2<'_> {
             })
             .unwrap_or(0)
     }
+
+    /// Iterate over each glyph and its class.
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + 'a {
+        self.class_range_records().iter().flat_map(|range| {
+            let start = range.start_glyph_id().to_u16();
+            let end = range.end_glyph_id().to_u16();
+            (start..=end).map(|gid| (GlyphId::new(gid), range.class()))
+        })
+    }
 }
 
 impl ClassDef<'_> {
@@ -201,6 +222,17 @@ impl ClassDef<'_> {
             ClassDef::Format1(table) => table.get(gid),
             ClassDef::Format2(table) => table.get(gid),
         }
+    }
+
+    /// Iterate over each glyph and its class.
+    ///
+    /// This will not include class 0 unless it has been explicitly assigned.
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, u16)> + '_ {
+        let (one, two) = match self {
+            ClassDef::Format1(inner) => (Some(inner.iter()), None),
+            ClassDef::Format2(inner) => (None, Some(inner.iter())),
+        };
+        one.into_iter().flatten().chain(two.into_iter().flatten())
     }
 }
 
