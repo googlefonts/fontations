@@ -15,8 +15,8 @@ pub use super::layout::{
 pub use value_record::ValueRecord;
 
 #[cfg(test)]
-#[path = "../tests/gpos.rs"]
-mod tests;
+#[path = "../tests/test_gpos.rs"]
+mod spec_tests;
 
 include!("../../generated/generated_gpos.rs");
 
