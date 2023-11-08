@@ -131,25 +131,15 @@ fn contextualposformat3() {
     assert_hex_eq!(test_data::CONTEXTUALPOSFORMAT3, &dumped);
 }
 
-//FIXME: turn this back on when we support device records
-//#[test]
-//fn valueformattable() {
-// // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-14-valueformat-table-and-valuerecord
-
-//#[rustfmt::skip]
-//let bytes = [
-//0x00, 0x01, 0x00, 0x0E, 0x00, 0x99, 0x00, 0x50, 0x00, 0xD2,
-//0x00, 0x18, 0x00, 0x20, 0x00, 0x02, 0x00, 0x01, 0x00, 0xC8,
-//0x00, 0xD1, 0x00, 0x00, 0x00, 0x0B, 0x00, 0x0F, 0x00, 0x01,
-//0x55, 0x40, 0x00, 0x0B, 0x00, 0x0F, 0x00, 0x01, 0x55, 0x40,
-//];
-
-//let table = SinglePosFormat1::read(&bytes).unwrap();
-//let table = table.to_owned_table().unwrap();
-//let dumped = crate::write::dump_table(&table).unwrap();
-
-//assert_hex_eq!(&bytes, &dumped);
-//}
+#[test]
+fn valueformattable() {
+    // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-14-valueformat-table-and-valuerecord
+    let table = SinglePosFormat1::read(test_data::VALUEFORMATTABLE.into()).unwrap();
+    let dumped = crate::write::dump_table(&table).unwrap();
+    let read_back = SinglePosFormat1::read(dumped.as_slice().into()).unwrap();
+    // we can't compare bytes because we deduplicate the device tables
+    assert_eq!(table, read_back);
+}
 
 #[test]
 fn anchorformat1() {
@@ -174,22 +164,15 @@ fn anchorformat2() {
     assert_hex_eq!(test_data::ANCHORFORMAT2, &dumped);
 }
 
-//FIXME: enable when we have device tables working
-//#[test]
-//fn anchorformat3() {
-// // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-17-anchorformat3-table
-
-//let bytes = [
-//0x00, 0x03, 0x01, 0x17, 0x05, 0x15, 0x00, 0x0A, 0x00, 0x14,
-//0x00, 0x0C, 0x00, 0x11, 0x00, 0x02, 0x11, 0x11, 0x22, 0x00,
-//0x00, 0x0C, 0x00, 0x11, 0x00, 0x02, 0x11, 0x11, 0x22, 0x00,
-//];
-//let table = AnchorFormat3::read(&bytes).unwrap();
-//let table = table.to_owned_obj(&[]).unwrap();
-//let dumped = crate::write::dump_table(&table).unwrap();
-
-//assert_hex_eq!(&bytes, &dumped);
-//}
+#[test]
+fn anchorformat3() {
+    // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-17-anchorformat3-table
+    let table = AnchorFormat3::read(test_data::ANCHORFORMAT3.into()).unwrap();
+    let dumped = crate::write::dump_table(&table).unwrap();
+    let read_back = AnchorFormat3::read(dumped.as_slice().into()).unwrap();
+    // we can't compare bytes since we deduplicate the device tables on write
+    assert_eq!(table, read_back)
+}
 
 // not from the spec; this is a general test that we don't write out versioned
 // fields inappropriately.
