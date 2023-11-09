@@ -577,6 +577,66 @@ impl<'a> ItemVariationStore<'a> {
         }
         Ok(((accum + 0x8000) >> 16) as i32)
     }
+
+    /// Computes the delta value in floating point for the specified index and set
+    /// of normalized variation coordinates.
+    ///
+    /// This requires a type parameter specifying the type of target value for the
+    /// delta.
+    pub fn compute_delta_f32<T: ItemDeltaTarget>(
+        &self,
+        index: DeltaSetIndex,
+        coords: &[F2Dot14],
+    ) -> Result<f32, ReadError> {
+        let data = match self.item_variation_data().get(index.outer as usize) {
+            Some(data) => data?,
+            None => return Ok(0.0),
+        };
+        let regions = self.variation_region_list()?.variation_regions();
+        let region_indices = data.region_indexes();
+        // Compute deltas in 32-bit floating point.
+        let mut accum = 0f32;
+        for (i, region_delta) in data.delta_set(index.inner).enumerate() {
+            let region_index = region_indices
+                .get(i)
+                .ok_or(ReadError::MalformedData(
+                    "invalid delta sets in ItemVariationStore",
+                ))?
+                .get() as usize;
+            let region = regions.get(region_index)?;
+            let scalar = region.compute_scalar_f32(coords);
+            accum += T::delta_to_f32(region_delta) * scalar;
+        }
+        Ok(accum)
+    }
+}
+
+pub trait ItemDeltaTarget {
+    fn delta_to_f32(delta: i32) -> f32;
+}
+
+impl ItemDeltaTarget for Fixed {
+    fn delta_to_f32(delta: i32) -> f32 {
+        Fixed::from_bits(delta).to_f32()
+    }
+}
+
+impl ItemDeltaTarget for FWord {
+    fn delta_to_f32(delta: i32) -> f32 {
+        delta as f32
+    }
+}
+
+impl ItemDeltaTarget for UfWord {
+    fn delta_to_f32(delta: i32) -> f32 {
+        delta as f32
+    }
+}
+
+impl ItemDeltaTarget for F2Dot14 {
+    fn delta_to_f32(delta: i32) -> f32 {
+        F2Dot14::from_bits(delta as i16).to_f32()
+    }
 }
 
 impl<'a> VariationRegion<'a> {
@@ -600,6 +660,30 @@ impl<'a> VariationRegion<'a> {
                 scalar = scalar.mul_div(coord - start, peak - start);
             } else {
                 scalar = scalar.mul_div(end - coord, end - peak);
+            }
+        }
+        scalar
+    }
+
+    /// Computes a floating point scalar value for this region and the
+    /// specified normalized variation coordinates.
+    pub fn compute_scalar_f32(&self, coords: &[F2Dot14]) -> f32 {
+        let mut scalar = 1.0;
+        for (i, axis_coords) in self.region_axes().iter().enumerate() {
+            let coord = coords.get(i).map(|coord| coord.to_f32()).unwrap_or(0.0);
+            let start = axis_coords.start_coord.get().to_f32();
+            let end = axis_coords.end_coord.get().to_f32();
+            let peak = axis_coords.peak_coord.get().to_f32();
+            if start > peak || peak > end || peak == 0.0 || start < 0.0 && end > 0.0 {
+                continue;
+            } else if coord < start || coord > end {
+                return 0.0;
+            } else if coord == peak {
+                continue;
+            } else if coord < peak {
+                scalar = (scalar * (coord - start)) / (peak - start);
+            } else {
+                scalar = (scalar * (end - coord)) / (end - peak);
             }
         }
         scalar

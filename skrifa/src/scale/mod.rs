@@ -148,9 +148,12 @@
 #![allow(dead_code)]
 
 mod cff;
+mod colr;
 mod error;
 mod glyf;
 mod scaler;
+
+pub use colr::print_color_glyph;
 
 pub use read_fonts::types::Pen;
 
