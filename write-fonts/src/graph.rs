@@ -862,7 +862,7 @@ impl Graph {
     fn actually_promote_subtables(&mut self, to_promote: &[ObjectId]) {
         fn make_extension(type_: LookupType, subtable_id: ObjectId) -> TableData {
             const EXT_FORMAT: u16 = 1;
-            let mut data = TableData::new(type_.promote().into());
+            let mut data = TableData::new(TableType::Named("ExtensionPosFormat1"));
             data.write(EXT_FORMAT);
             data.write(type_.to_raw());
             data.add_offset(subtable_id, 4, 0);
