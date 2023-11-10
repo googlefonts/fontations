@@ -194,6 +194,9 @@ impl LookupType {
 
     pub(crate) fn promote(self) -> Self {
         match self {
+            LookupType::Gpos(Self::GPOS_EXT_TYPE) | LookupType::Gsub(Self::GSUB_EXT_TYPE) => {
+                panic!("should never be promoting an extension subtable")
+            }
             LookupType::Gpos(_) => LookupType::Gpos(Self::GPOS_EXT_TYPE),
             LookupType::Gsub(_) => LookupType::Gsub(Self::GSUB_EXT_TYPE),
         }
