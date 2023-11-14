@@ -30,20 +30,19 @@ jobs:
       - name: check no println! or eprintln! statements
         run: resources/scripts/check_no_println.sh
 
-  # disabled temporarily pending fixing a crash in clippy
-  #clippy-lint:
-    #name: Clippy lints
-    #runs-on: ubuntu-latest
-    #steps:
-      #- uses: actions/checkout@v3
-      #- name: install stable toolchain
-        #uses: dtolnay/rust-toolchain@stable
+  clippy-lint:
+    name: Clippy lints
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: install stable toolchain
+        uses: dtolnay/rust-toolchain@stable
 
-      #- name: cargo clippy --all-features
-        #run: cargo clippy --all-features --all-targets -- -D warnings
+      - name: cargo clippy --all-features
+        run: cargo clippy --all-features --all-targets -- -D warnings
 
-      #- name: cargo clippy --no-default-features
-        #run: cargo clippy --all-targets --no-default-features -- -D warnings
+      - name: cargo clippy --no-default-features
+        run: cargo clippy --all-targets --no-default-features -- -D warnings
 
   test-stable:
     name: cargo test stable

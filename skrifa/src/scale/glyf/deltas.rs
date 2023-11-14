@@ -238,13 +238,11 @@ impl<'a> Jiggler<'a> {
         if range.is_empty() {
             return Some(());
         }
-        let RefPoints(ref1_ix, ref2_ix) = ref_points;
         // FreeType uses pointer tricks to handle x and y coords with a single piece of code.
         // Try a macro instead.
         macro_rules! interp_coord {
             ($coord:ident) => {
-                let mut ref1_ix = ref1_ix;
-                let mut ref2_ix = ref2_ix;
+                let RefPoints(mut ref1_ix, mut ref2_ix) = ref_points;
                 if self.points.get(ref1_ix)?.$coord > self.points.get(ref2_ix)?.$coord {
                     core::mem::swap(&mut ref1_ix, &mut ref2_ix);
                 }
