@@ -223,6 +223,7 @@ impl<'a> std::fmt::Debug for SubstitutionLookup<'a> {
 }
 
 /// LookupType 1: [Single Substitution](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#lookuptype-1-single-substitution-subtable) Subtable
+#[derive(Clone)]
 pub enum SingleSubst<'a> {
     Format1(SingleSubstFormat1<'a>),
     Format2(SingleSubstFormat2<'a>),

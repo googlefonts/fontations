@@ -379,6 +379,7 @@ impl<'a> std::fmt::Debug for DeltaSetIndexMapFormat1<'a> {
 }
 
 /// The [DeltaSetIndexMap](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#associating-target-items-to-variation-data) table
+#[derive(Clone)]
 pub enum DeltaSetIndexMap<'a> {
     Format0(DeltaSetIndexMapFormat0<'a>),
     Format1(DeltaSetIndexMapFormat1<'a>),
