@@ -236,6 +236,53 @@ impl ClassDef<'_> {
     }
 }
 
+impl<'a> Device<'a> {
+    /// Iterate over the decoded values for this device
+    pub fn iter(&self) -> impl Iterator<Item = i8> + 'a {
+        let format = self.delta_format();
+        let mut n = (self.end_size() - self.start_size()) as usize + 1;
+        let deltas_per_word = match format {
+            DeltaFormat::Local2BitDeltas => 8,
+            DeltaFormat::Local4BitDeltas => 4,
+            DeltaFormat::Local8BitDeltas => 2,
+            _ => 0,
+        };
+
+        self.delta_value().iter().flat_map(move |val| {
+            let iter = iter_packed_values(val.get(), format, n);
+            n = n.saturating_sub(deltas_per_word);
+            iter
+        })
+    }
+}
+
+fn iter_packed_values(raw: u16, format: DeltaFormat, n: usize) -> impl Iterator<Item = i8> {
+    let mut decoded = [None; 8];
+    let (mask, sign_mask, bits) = match format {
+        DeltaFormat::Local2BitDeltas => (0b11, 0b10, 2usize),
+        DeltaFormat::Local4BitDeltas => (0b1111, 0b1000, 4),
+        DeltaFormat::Local8BitDeltas => (0b1111_1111, 0b1000_0000, 8),
+        _ => (0, 0, 0),
+    };
+
+    let max_per_word = 16 / bits;
+    #[allow(clippy::needless_range_loop)] // enumerate() feels weird here
+    for i in 0..n.min(max_per_word) {
+        let mask = mask << ((16 - bits) - i * bits);
+        let val = (raw & mask) >> ((16 - bits) - i * bits);
+        let sign = val & sign_mask != 0;
+
+        let val = if sign {
+            // it is 2023 and I am googling to remember how twos compliment works
+            -((((!val) & mask) + 1) as i8)
+        } else {
+            val as i8
+        };
+        decoded[i] = Some(val)
+    }
+    decoded.into_iter().flatten()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -266,5 +313,30 @@ mod tests {
         assert_eq!(coverage.get(GlyphId::new(32)), Some(7));
         assert_eq!(coverage.get(GlyphId::new(39)), Some(14));
         assert_eq!(coverage.get(GlyphId::new(40)), None);
+    }
+
+    #[test]
+    fn delta_decode() {
+        // these examples come from the spec
+        assert_eq!(
+            iter_packed_values(0x123f, DeltaFormat::Local4BitDeltas, 4).collect::<Vec<_>>(),
+            &[1, 2, 3, -1]
+        );
+
+        assert_eq!(
+            iter_packed_values(0x5540, DeltaFormat::Local2BitDeltas, 5).collect::<Vec<_>>(),
+            &[1, 1, 1, 1, 1]
+        );
+    }
+
+    #[test]
+    fn delta_decode_all() {
+        // manually generated with write-fonts
+        let bytes: &[u8] = &[0, 7, 0, 13, 0, 3, 1, 244, 30, 245, 101, 8, 42, 0];
+        let device = Device::read(bytes.into()).unwrap();
+        assert_eq!(
+            device.iter().collect::<Vec<_>>(),
+            &[1i8, -12, 30, -11, 101, 8, 42]
+        );
     }
 }
