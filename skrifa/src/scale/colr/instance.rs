@@ -17,7 +17,7 @@ pub type PaintId = usize;
 /// Combination of a `COLR` table and a location in variation space for
 /// resolving paints.
 ///
-/// See [`Paint::resolve`], [`ColorStops::resolve`] and [`ClipBox::resolve`].
+/// See [`resolve_paint`], [`ColorStops::resolve`] and [`resolve_clip_box`].
 pub struct ColrInstance<'a> {
     colr: Colr<'a>,
     index_map: Option<DeltaSetIndexMap<'a>>,
