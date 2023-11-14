@@ -1,4 +1,6 @@
 mod instance;
-mod print;
 
-pub use print::print_color_glyph;
+pub use instance::{
+    resolve_clip_box, resolve_paint, ColorStops, ColrInstance, PaintId, ResolvedColorStop,
+    ResolvedPaint,
+};
