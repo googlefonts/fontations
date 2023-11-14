@@ -1149,6 +1149,7 @@ impl<'a> SomeRecord<'a> for RangeRecord {
 }
 
 /// [Coverage Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#coverage-table)
+#[derive(Clone)]
 pub enum CoverageTable<'a> {
     Format1(CoverageFormat1<'a>),
     Format2(CoverageFormat2<'a>),
@@ -1438,6 +1439,7 @@ impl<'a> SomeRecord<'a> for ClassRangeRecord {
 }
 
 /// A [Class Definition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#class-definition-table)
+#[derive(Clone)]
 pub enum ClassDef<'a> {
     Format1(ClassDefFormat1<'a>),
     Format2(ClassDefFormat2<'a>),
@@ -2343,6 +2345,7 @@ impl<'a> std::fmt::Debug for SequenceContextFormat3<'a> {
     }
 }
 
+#[derive(Clone)]
 pub enum SequenceContext<'a> {
     Format1(SequenceContextFormat1<'a>),
     Format2(SequenceContextFormat2<'a>),
@@ -3485,6 +3488,7 @@ impl<'a> std::fmt::Debug for ChainedSequenceContextFormat3<'a> {
     }
 }
 
+#[derive(Clone)]
 pub enum ChainedSequenceContext<'a> {
     Format1(ChainedSequenceContextFormat1<'a>),
     Format2(ChainedSequenceContextFormat2<'a>),
@@ -3760,6 +3764,7 @@ impl<'a> std::fmt::Debug for VariationIndex<'a> {
 }
 
 /// Either a [Device] table (in a non-variable font) or a [VariationIndex] table (in a variable font)
+#[derive(Clone)]
 pub enum DeviceOrVariationIndex<'a> {
     Device(Device<'a>),
     VariationIndex(VariationIndex<'a>),

@@ -686,6 +686,7 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
 
     Ok(quote! {
         #( #docs )*
+        #[derive(Clone)]
         pub enum #name<'a> {
             #( #variants ),*
         }

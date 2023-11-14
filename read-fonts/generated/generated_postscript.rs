@@ -198,6 +198,7 @@ impl<'a> std::fmt::Debug for Index2<'a> {
 }
 
 /// Associates a glyph identifier with a Font DICT.
+#[derive(Clone)]
 pub enum FdSelect<'a> {
     Format0(FdSelectFormat0<'a>),
     Format3(FdSelectFormat3<'a>),
