@@ -1,6 +1,6 @@
 use freetype::{
     face::LoadFlag,
-    ffi::{FT_Error, FT_Face, FT_Fixed, FT_Int32, FT_Long, FT_UInt, FT_Vector},
+    ffi::{FT_Long, FT_Vector},
     Face, Library,
 };
 use skrifa::{raw::FileRef, scale::Pen, GlyphId};

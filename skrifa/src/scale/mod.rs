@@ -256,11 +256,10 @@ mod tests {
         assert_eq!(
             expected_gids_with_overlap,
             (0..glyph_count)
-                .filter_map(|gid| scaler
-                    .outline(GlyphId::new(gid), &mut path)
+                .filter(|gid| scaler
+                    .outline(GlyphId::new(*gid), &mut path)
                     .unwrap()
-                    .has_overlaps
-                    .then_some(gid))
+                    .has_overlaps)
                 .collect::<Vec<_>>()
         );
     }
