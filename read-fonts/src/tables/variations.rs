@@ -925,4 +925,44 @@ mod tests {
         // in which case the iterator just keeps incrementing until u16::MAX
         assert_eq!(all_points.iter().count(), u16::MAX as _);
     }
+
+    /// We don't have a reference for our f32 delta computation, so this is
+    /// a sanity test to ensure that floating point deltas are within a
+    /// reasonable margin of the same in fixed point.
+    #[test]
+    fn ivs_f32_deltas_nearly_match_fixed_deltas() {
+        let font = FontRef::new(font_test_data::COLRV0V1_VARIABLE).unwrap();
+        let axis_count = font.fvar().unwrap().axis_count() as usize;
+        let colr = font.colr().unwrap();
+        let ivs = colr.item_variation_store().unwrap().unwrap();
+        // Generate a set of coords from -1 to 1 in 0.1 increments
+        for coord in (0..=20).map(|x| F2Dot14::from_f32((x as f32) / 10.0 - 1.0)) {
+            // For testing purposes, just splat the coord to all axes
+            let coords = vec![coord; axis_count];
+            for (outer_ix, data) in ivs.item_variation_data().iter().enumerate() {
+                let outer_ix = outer_ix as u16;
+                let Some(Ok(data)) = data else {
+                    continue;
+                };
+                for inner_ix in 0..data.item_count() {
+                    let delta_ix = DeltaSetIndex {
+                        outer: outer_ix,
+                        inner: inner_ix,
+                    };
+                    let fixed_delta = ivs.compute_delta(delta_ix, &coords).unwrap();
+                    // FWord here is not strictly correct because this
+                    // COLRv1 IVS contains deltas for varying types but
+                    // it's good enough for our sanity check
+                    let f32_delta = ivs.compute_delta_f32::<FWord>(delta_ix, &coords).unwrap();
+                    // We need to accept both rounding and truncation
+                    // to account for the additional accumulation of
+                    // fractional bits in floating point
+                    assert!(
+                        fixed_delta == f32_delta.round() as i32
+                            || fixed_delta == f32_delta.trunc() as i32
+                    );
+                }
+            }
+        }
+    }
 }
