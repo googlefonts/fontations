@@ -18,6 +18,7 @@ pub type PaintId = usize;
 /// resolving paints.
 ///
 /// See [`resolve_paint`], [`ColorStops::resolve`] and [`resolve_clip_box`].
+#[derive(Clone)]
 pub struct ColrInstance<'a> {
     colr: Colr<'a>,
     index_map: Option<DeltaSetIndexMap<'a>>,
