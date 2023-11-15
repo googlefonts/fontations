@@ -842,6 +842,7 @@ impl<'a> std::fmt::Debug for IndexSubtableArray<'a> {
 }
 
 /// [IndexSubtables](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#indexsubtables) format type.
+#[derive(Clone)]
 pub enum IndexSubtable<'a> {
     Format1(IndexSubtable1<'a>),
     Format2(IndexSubtable2<'a>),

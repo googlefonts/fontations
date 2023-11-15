@@ -1020,7 +1020,7 @@ impl<'a, S: CommandSink> CommandSink for HintingSink<'a, S> {
     fn hint_mask(&mut self, mask: &[u8]) {
         // For invalid hint masks, FreeType assumes all hints are active.
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/pshints.c#L844>
-        let mask = HintMask::new(mask).unwrap_or_else(|| HintMask::all());
+        let mask = HintMask::new(mask).unwrap_or_else(HintMask::all);
         if mask != self.mask {
             self.mask = mask;
             self.map.is_valid = false;
@@ -1033,7 +1033,7 @@ impl<'a, S: CommandSink> CommandSink for HintingSink<'a, S> {
         // mask." Building the map modifies the stem hint array as a
         // side effect.
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psintrp.c#L2617>
-        let mask = HintMask::new(mask).unwrap_or_else(|| HintMask::all());
+        let mask = HintMask::new(mask).unwrap_or_else(HintMask::all);
         let mut map = HintMap::new(self.state.scale);
         map.build(
             self.state,

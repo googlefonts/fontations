@@ -219,6 +219,7 @@ impl<'a> std::fmt::Debug for Table3<'a> {
     }
 }
 
+#[derive(Clone)]
 pub enum MyTable<'a> {
     Format1(Table1<'a>),
     MyFormat22(Table2<'a>),

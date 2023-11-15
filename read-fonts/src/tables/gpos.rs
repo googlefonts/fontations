@@ -15,8 +15,8 @@ pub use super::layout::{
 pub use value_record::ValueRecord;
 
 #[cfg(test)]
-#[path = "../tests/gpos.rs"]
-mod tests;
+#[path = "../tests/test_gpos.rs"]
+mod spec_tests;
 
 include!("../../generated/generated_gpos.rs");
 
@@ -28,3 +28,41 @@ pub type PositionSequenceContext<'a> = super::layout::SequenceContext<'a>;
 
 /// A GPOS [ChainedSequenceContext](super::layout::ChainedSequenceContext)
 pub type PositionChainContext<'a> = super::layout::ChainedSequenceContext<'a>;
+
+impl<'a> AnchorTable<'a> {
+    /// Horizontal value, in design units
+    pub fn x_coordinate(&self) -> i16 {
+        match self {
+            AnchorTable::Format1(inner) => inner.x_coordinate(),
+            AnchorTable::Format2(inner) => inner.x_coordinate(),
+            AnchorTable::Format3(inner) => inner.x_coordinate(),
+        }
+    }
+
+    /// Vertical value, in design units
+    pub fn y_coordinate(&self) -> i16 {
+        match self {
+            AnchorTable::Format1(inner) => inner.y_coordinate(),
+            AnchorTable::Format2(inner) => inner.y_coordinate(),
+            AnchorTable::Format3(inner) => inner.y_coordinate(),
+        }
+    }
+
+    /// Attempt to resolve the `Device` or `VariationIndex` table for the
+    /// x_coordinate, if present
+    pub fn x_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
+        match self {
+            AnchorTable::Format3(inner) => inner.x_device(),
+            _ => None,
+        }
+    }
+
+    /// Attempt to resolve the `Device` or `VariationIndex` table for the
+    /// y_coordinate, if present
+    pub fn y_device(&self) -> Option<Result<DeviceOrVariationIndex<'a>, ReadError>> {
+        match self {
+            AnchorTable::Format3(inner) => inner.y_device(),
+            _ => None,
+        }
+    }
+}

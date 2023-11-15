@@ -752,11 +752,10 @@ mod tests {
         assert_eq!(
             expected_gids_with_overlap,
             (0..glyph_count)
-                .filter_map(|gid| scaler
-                    .glyph(GlyphId::new(gid), false)
+                .filter(|gid| scaler
+                    .glyph(GlyphId::new(*gid), false)
                     .unwrap()
-                    .has_overlaps
-                    .then_some(gid))
+                    .has_overlaps)
                 .collect::<Vec<_>>()
         );
     }

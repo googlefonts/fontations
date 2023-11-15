@@ -2,6 +2,7 @@ use super::{FreeTypeInstance, InstanceOptions, RecordingPen, RegularizingPen, Sk
 use skrifa::GlyphId;
 use std::{io::Write, path::Path};
 
+#[allow(clippy::explicit_write)]
 pub fn compare_glyphs(
     path: &Path,
     options: &InstanceOptions,

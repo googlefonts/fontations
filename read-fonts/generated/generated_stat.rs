@@ -344,6 +344,7 @@ impl<'a> std::fmt::Debug for AxisValueArray<'a> {
 }
 
 /// [Axis Value Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-value-tables)
+#[derive(Clone)]
 pub enum AxisValue<'a> {
     Format1(AxisValueFormat1<'a>),
     Format2(AxisValueFormat2<'a>),

@@ -646,6 +646,7 @@ impl<'a> std::fmt::Debug for LigGlyph<'a> {
 }
 
 /// [Caret Value Tables](https://docs.microsoft.com/en-us/typography/opentype/spec/gdef#caret-value-tables)
+#[derive(Clone)]
 pub enum CaretValue<'a> {
     Format1(CaretValueFormat1<'a>),
     Format2(CaretValueFormat2<'a>),

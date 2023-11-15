@@ -1,3 +1,5 @@
+use crate::tables::layout::DeltaFormat;
+
 use super::*;
 use font_test_data::gpos as test_data;
 
@@ -194,25 +196,32 @@ fn sequencelookuprecord() {
     assert_eq!(record.lookup_list_index(), 1);
 }
 
-//FIXME: turn this back on when we support device records
-//#[test]
-//fn valueformattable() {
-// // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-14-valueformat-table-and-valuerecord
+#[test]
+fn valueformattable() {
+    // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-14-valueformat-table-and-valuerecord
 
-//#[rustfmt::skip]
-//let bytes = [
-//0x00, 0x01, 0x00, 0x0E, 0x00, 0x99, 0x00, 0x50, 0x00, 0xD2,
-//0x00, 0x18, 0x00, 0x20, 0x00, 0x02, 0x00, 0x01, 0x00, 0xC8,
-//0x00, 0xD1, 0x00, 0x00, 0x00, 0x0B, 0x00, 0x0F, 0x00, 0x01,
-//0x55, 0x40, 0x00, 0x0B, 0x00, 0x0F, 0x00, 0x01, 0x55, 0x40,
-//];
+    let table = SinglePosFormat1::read(test_data::VALUEFORMATTABLE.into()).unwrap();
+    assert_eq!(
+        table.value_format(),
+        ValueFormat::X_PLACEMENT
+            | ValueFormat::Y_ADVANCE
+            | ValueFormat::X_PLACEMENT_DEVICE
+            | ValueFormat::Y_ADVANCE_DEVICE
+    );
+    let record = table.value_record();
+    assert_eq!(record.y_advance(), Some(210));
+    let DeviceOrVariationIndex::Device(device) = record
+        .y_advance_device(table.offset_data())
+        .unwrap()
+        .unwrap()
+    else {
+        panic!("not a device");
+    };
 
-//let table = SinglePosFormat1::read(&bytes).unwrap();
-//let owned = table.to_owned_table().unwrap();
-//let dumped = crate::write::dump_table(&owned);
-
-//assert_hex_eq!(&bytes, &dumped);
-//}
+    assert_eq!((device.start_size(), device.end_size()), (11, 15));
+    assert_eq!(device.delta_format(), DeltaFormat::Local2BitDeltas);
+    assert_eq!(device.delta_value(), [0x5540]);
+}
 
 #[test]
 fn anchorformat1() {
@@ -232,24 +241,31 @@ fn anchorformat2() {
     assert_eq!(table.anchor_point(), 13);
 }
 
-//FIXME: enable when we have device tables working
-//#[test]
-//fn anchorformat3() {
-// // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-17-anchorformat3-table
+#[test]
+fn anchorformat3() {
+    // https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#example-17-anchorformat3-table
 
-//let bytes = [
-//0x00, 0x03, 0x01, 0x17, 0x05, 0x15, 0x00, 0x0A, 0x00, 0x14,
-//0x00, 0x0C, 0x00, 0x11, 0x00, 0x02, 0x11, 0x11, 0x22, 0x00,
-//0x00, 0x0C, 0x00, 0x11, 0x00, 0x02, 0x11, 0x11, 0x22, 0x00,
-//];
-//let table = AnchorFormat3::read(&bytes).unwrap();
-//let owned = table.to_owned_obj(&[]).unwrap();
-//let dumped = crate::write::dump_table(&owned);
+    let table = AnchorFormat3::read(test_data::ANCHORFORMAT3.into()).unwrap();
+    assert_eq!(table.x_coordinate(), 279);
+    assert_eq!(table.y_coordinate(), 1301);
 
-//assert_hex_eq!(&bytes, &dumped);
-//}
+    let x_dev = table.x_device().unwrap().unwrap();
+    let y_dev = table.y_device().unwrap().unwrap();
 
-//NOTE: I think the sample bites are missing the actual anchor tables??
+    let (DeviceOrVariationIndex::Device(x_dev), DeviceOrVariationIndex::Device(y_dev)) =
+        (x_dev, y_dev)
+    else {
+        panic!("missing device tables");
+    };
+
+    assert_eq!(x_dev.delta_format(), DeltaFormat::Local4BitDeltas);
+    assert_eq!(x_dev.delta_value(), [0x1111, 0x2200]);
+
+    assert_eq!(y_dev.delta_format(), DeltaFormat::Local4BitDeltas);
+    assert_eq!(y_dev.delta_value(), [0x1111, 0x2200]);
+}
+
+//NOTE: I think the sample bytes are missing the actual anchor tables??
 // and so we can't really round-trip this...
 //#[test]
 //fn markarraytable() {
@@ -261,4 +277,4 @@ fn anchorformat2() {
 //let dumped = crate::write::dump_table(&owned);
 
 //assert_hex_eq!(&bytes, &dumped);
-//}
+//}[1, 1, 1, 1, 1]

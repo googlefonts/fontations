@@ -26,12 +26,13 @@ enum Command {
     },
 }
 
+#[allow(clippy::explicit_write)]
 fn main() {
     // Pixels per em sizes. A size of 0 means an explicit unscaled comparison
     let ppem_sizes = [0, 8, 16, 50, 72, 113, 144];
 
     // Locations in normalized variation space
-    let var_locations = [-1.0, -0.32, 0.0, 0.42, 1.0].map(|c| F2Dot14::from_f32(c));
+    let var_locations = [-1.0, -0.32, 0.0, 0.42, 1.0].map(F2Dot14::from_f32);
 
     use clap::Parser as _;
     let args = Args::parse_from(wild::args());
@@ -48,7 +49,7 @@ fn main() {
                 if print_paths {
                     writeln!(std::io::stdout(), "[{font_path:?}]").unwrap();
                 }
-                if let Some(mut font_data) = fauntlet::Font::new(&font_path) {
+                if let Some(mut font_data) = fauntlet::Font::new(font_path) {
                     for font_ix in 0..font_data.count() {
                         for ppem in &ppem_sizes {
                             let axis_count = font_data.axis_count(font_ix) as usize;
@@ -61,7 +62,7 @@ fn main() {
                                         fauntlet::InstanceOptions::new(font_ix, *ppem, &coords);
                                     if let Some(instances) = font_data.instantiate(&options) {
                                         if !compare_glyphs(
-                                            &font_path,
+                                            font_path,
                                             &options,
                                             instances,
                                             exit_on_fail,
@@ -73,12 +74,8 @@ fn main() {
                             } else {
                                 let options = InstanceOptions::new(font_ix, *ppem, &[]);
                                 if let Some(instances) = font_data.instantiate(&options) {
-                                    if !compare_glyphs(
-                                        &font_path,
-                                        &options,
-                                        instances,
-                                        exit_on_fail,
-                                    ) {
+                                    if !compare_glyphs(font_path, &options, instances, exit_on_fail)
+                                    {
                                         ok.store(false, Ordering::Release);
                                     }
                                 }
