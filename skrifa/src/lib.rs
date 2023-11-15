@@ -24,10 +24,12 @@ pub mod scale;
 pub mod setting;
 pub mod string;
 
+mod color;
 mod provider;
 mod small_array;
 mod variation;
 
+pub use color::{ColorOutline, ColorOutlineCollection, ColorPainter, Transform};
 pub use variation::{Axis, AxisCollection, NamedInstance, NamedInstanceCollection};
 
 /// Useful collection of common types suitable for glob importing.

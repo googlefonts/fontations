@@ -148,7 +148,6 @@
 #![allow(dead_code)]
 
 mod cff;
-mod colr;
 mod error;
 mod glyf;
 mod scaler;
