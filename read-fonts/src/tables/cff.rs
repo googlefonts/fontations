@@ -5,6 +5,7 @@ include!("../../generated/generated_cff.rs");
 use super::postscript::{Index1, Latin1String, StringId};
 
 /// The [Compact Font Format](https://learn.microsoft.com/en-us/typography/opentype/spec/cff) table.
+#[derive(Clone)]
 pub struct Cff<'a> {
     header: CffHeader<'a>,
     names: Index1<'a>,
