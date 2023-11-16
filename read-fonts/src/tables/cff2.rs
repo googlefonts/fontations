@@ -5,6 +5,7 @@ include!("../../generated/generated_cff2.rs");
 use super::postscript::Index2;
 
 /// The [Compact Font Format (CFF) version 2](https://learn.microsoft.com/en-us/typography/opentype/spec/cff2) table
+#[derive(Clone)]
 pub struct Cff2<'a> {
     header: Cff2Header<'a>,
     global_subrs: Index2<'a>,

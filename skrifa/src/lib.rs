@@ -24,6 +24,7 @@ pub mod scale;
 pub mod setting;
 pub mod string;
 
+mod outline;
 mod provider;
 mod small_array;
 mod variation;
