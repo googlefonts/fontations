@@ -3,9 +3,9 @@ use super::{
     charmap::Charmap,
     instance::{LocationRef, Size},
     metrics::{GlyphMetrics, Metrics},
+    outline::OutlineCollection,
     string::{LocalizedStrings, StringId},
     variation::{AxisCollection, NamedInstanceCollection},
-    outline::OutlineCollection,
 };
 
 /// Interface for types that can provide font metadata.
@@ -48,7 +48,7 @@ pub trait MetadataProvider<'a>: raw::TableProvider<'a> + Sized {
     fn charmap(&self) -> Charmap<'a> {
         Charmap::new(self)
     }
-    
+
     /// Returns the collection of scalable glyph outlines.
     fn outlines(&self) -> OutlineCollection<'a> {
         OutlineCollection::new(self)

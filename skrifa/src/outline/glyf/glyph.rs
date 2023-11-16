@@ -54,8 +54,7 @@ impl<'a> ScalerGlyph<'a> {
         // Scaled, unscaled and (for hinting) original scaled points
         size += self.points * size_of::<Point<F26Dot6>>();
         // Unscaled and (if hinted) original scaled points
-        size +=
-            self.max_other_points * size_of::<Point<i32>>() * if hinting { 2 } else { 1 };
+        size += self.max_other_points * size_of::<Point<i32>>() * if hinting { 2 } else { 1 };
         // Contour end points
         size += self.contours * size_of::<u16>();
         // Point flags
@@ -80,7 +79,11 @@ impl<'a> ScalerGlyph<'a> {
     ///
     /// The size of the buffer must be at least as large as the size returned
     /// by [`Self::required_buffer_size`].
-    pub fn memory_from_buffer(&self, buf: &'a mut [u8], with_hinting: bool) -> Option<ScalerMemory<'a>> {
+    pub fn memory_from_buffer(
+        &self,
+        buf: &'a mut [u8],
+        with_hinting: bool,
+    ) -> Option<ScalerMemory<'a>> {
         ScalerMemory::new(self, buf, with_hinting)
     }
 }

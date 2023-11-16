@@ -25,21 +25,28 @@ pub struct Scaler {
     kind: ScalerKind,
 }
 
-impl Scaler {
-    pub(super) fn new(
-        outlines: &OutlineCollection,
-        size: Size,
-        location: LocationRef,
-        hinting: Option<Hinting>,
-    ) -> Option<Self> {
-        let mut instance = Self {
+impl Default for Scaler {
+    fn default() -> Self {
+        Self {
             size: Size::unscaled(),
             coords: vec![],
-            hinting,
+            hinting: None,
             kind: ScalerKind::None,
-        };
-        instance.reconfigure(outlines, size, location, hinting);
-        Some(instance)
+        }
+    }
+}
+
+impl Scaler {
+    pub fn size(&self) -> Size {
+        self.size
+    }
+
+    pub fn location(&self) -> LocationRef {
+        LocationRef::new(&self.coords)
+    }
+
+    pub fn hinting(&self) -> Option<Hinting> {
+        self.hinting
     }
 
     pub fn reconfigure(
@@ -75,7 +82,7 @@ impl Scaler {
         }
     }
 
-    pub fn scale(
+    pub(super) fn scale(
         &self,
         outline: &Outline,
         memory: Option<&mut [u8]>,
@@ -89,12 +96,14 @@ impl Scaler {
                     &mut scratch[..]
                 });
                 let mem = outline.memory_from_buffer(tmp_buf, self.hinting.is_some())?;
-                let scaled_outline = glyf.outline(
-                    mem,
-                    outline,
-                    self.size.ppem().unwrap_or_default(),
-                    &self.coords,
-                ).ok()?;
+                let scaled_outline = glyf
+                    .outline(
+                        mem,
+                        outline,
+                        self.size.ppem().unwrap_or_default(),
+                        &self.coords,
+                    )
+                    .ok()?;
                 scaled_outline.to_path(pen).ok()?;
                 Some(ScalerMetrics {
                     has_overlaps: outline.has_overlaps,
@@ -111,7 +120,8 @@ impl Scaler {
                     &self.coords,
                     self.hinting.is_some(),
                     pen,
-                ).ok()?;
+                )
+                .ok()?;
                 Some(ScalerMetrics::default())
             }
             _ => None,

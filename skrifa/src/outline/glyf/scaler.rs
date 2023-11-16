@@ -10,7 +10,7 @@ use read_fonts::{
         hvar::Hvar,
         loca::Loca,
     },
-    types::{F26Dot6, F2Dot14, Fixed, GlyphId, Point},
+    types::{BigEndian, F26Dot6, F2Dot14, Fixed, GlyphId, Point, Tag},
     TableProvider,
 };
 
@@ -27,6 +27,9 @@ pub struct Scaler<'a> {
     gvar: Option<Gvar<'a>>,
     hmtx: Hmtx<'a>,
     hvar: Option<Hvar<'a>>,
+    fpgm: &'a [u8],
+    prep: &'a [u8],
+    cvt: &'a [BigEndian<i16>],
     units_per_em: u16,
     has_var_lsb: bool,
 }
@@ -43,6 +46,18 @@ impl<'a> Scaler<'a> {
             glyf: font.glyf().ok()?,
             gvar: font.gvar().ok(),
             hmtx: font.hmtx().ok()?,
+            fpgm: font
+                .data_for_tag(Tag::new(b"fpgm"))
+                .unwrap_or_default()
+                .as_bytes(),
+            prep: font
+                .data_for_tag(Tag::new(b"prep"))
+                .unwrap_or_default()
+                .as_bytes(),
+            cvt: font
+                .data_for_tag(Tag::new(b"cvt "))
+                .and_then(|d| d.read_array(0..d.len()).ok())
+                .unwrap_or_default(),
             hvar,
             units_per_em: font.head().ok()?.units_per_em(),
             has_var_lsb,

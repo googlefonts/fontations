@@ -90,6 +90,14 @@ impl<'a> OutlineCollection<'a> {
         Self { kind }
     }
 
+    pub fn format(&self) -> Option<OutlineFormat> {
+        match &self.kind {
+            OutlineCollectionKind::Glyf(..) => Some(OutlineFormat::TrueType),
+            OutlineCollectionKind::Cff(..) => Some(OutlineFormat::PostScript),
+            _ => None,
+        }
+    }
+
     pub fn get(&self, glyph_id: GlyphId) -> Option<Outline<'a>> {
         match &self.kind {
             OutlineCollectionKind::None => None,
@@ -102,13 +110,17 @@ impl<'a> OutlineCollection<'a> {
         }
     }
 
-    pub fn scaler_instance(
+    /// Creates a new scaler with the given settings for this outline
+    /// collection.
+    pub fn scaler(
         &self,
         size: Size,
         location: impl Into<LocationRef<'a>>,
         hinting: Option<Hinting>,
     ) -> Option<Scaler> {
-        Scaler::new(self, size, location.into(), hinting)
+        let mut scaler = Scaler::default();
+        scaler.reconfigure(self, size, location.into(), hinting);
+        Some(scaler)
     }
 }
 
@@ -137,6 +149,12 @@ pub enum Hinting {
     /// horizontal direction. This is the default mode.
     #[default]
     VerticalSubpixel,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum OutlineFormat {
+    TrueType,
+    PostScript,
 }
 
 #[cfg(test)]
@@ -174,7 +192,7 @@ mod tests {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
         let outlines = font.outlines();
         let scaler = outlines
-            .scaler_instance(Size::unscaled(), LocationRef::default(), None)
+            .scaler(Size::unscaled(), LocationRef::default(), None)
             .unwrap();
         let mut path = scaler_test::Path::default();
         let glyph_count = font.maxp().unwrap().num_glyphs();
@@ -205,7 +223,7 @@ mod tests {
             path.elements.clear();
             let scaler = font
                 .outlines()
-                .scaler_instance(
+                .scaler(
                     Size::new(expected_outline.size),
                     expected_outline.coords.as_slice(),
                     None,

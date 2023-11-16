@@ -29,7 +29,7 @@ mod provider;
 mod small_array;
 mod variation;
 
-pub use outline::{Outline, OutlineCollection, Scaler, ScalerMetrics};
+pub use outline::{Hinting, Outline, OutlineCollection, OutlineFormat, Scaler, ScalerMetrics};
 pub use variation::{Axis, AxisCollection, NamedInstance, NamedInstanceCollection};
 
 /// Useful collection of common types suitable for glob importing.
@@ -42,7 +42,7 @@ pub mod prelude {
     };
 }
 
-pub use read_fonts::types::{GlyphId, Tag};
+pub use read_fonts::types::{GlyphId, Pen, Tag};
 
 #[doc(inline)]
 pub use provider::MetadataProvider;

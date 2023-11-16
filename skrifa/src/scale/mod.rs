@@ -147,15 +147,15 @@
 // Temporary until new scaler API is done.
 #![allow(dead_code)]
 
-mod cff;
 mod error;
-mod glyf;
 mod scaler;
 
 pub use read_fonts::types::Pen;
 
 pub use error::{Error, Result};
-pub use scaler::{Scaler, ScalerBuilder, ScalerMetrics};
+pub use scaler::{Scaler, ScalerBuilder};
+
+pub use crate::outline::{Hinting, ScalerMetrics};
 
 use super::{
     font::UniqueId,
@@ -163,27 +163,6 @@ use super::{
     setting::VariationSetting,
     GLYF_COMPOSITE_RECURSION_LIMIT,
 };
-
-/// Modes for hinting.
-///
-/// Only the `glyf` source supports all hinting modes.
-#[cfg(feature = "hinting")]
-#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
-pub enum Hinting {
-    /// "Full" hinting mode. May generate rough outlines and poor horizontal
-    /// spacing.
-    Full,
-    /// Light hinting mode. This prevents most movement in the horizontal
-    /// direction with the exception of a per-font backward compatibility
-    /// opt in.
-    Light,
-    /// Same as light, but with additional support for RGB subpixel rendering.
-    LightSubpixel,
-    /// Same as light subpixel, but always prevents adjustment in the
-    /// horizontal direction. This is the default mode.
-    #[default]
-    VerticalSubpixel,
-}
 
 /// Context for scaling glyphs.
 ///
