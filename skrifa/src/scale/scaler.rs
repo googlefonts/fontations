@@ -259,13 +259,13 @@ impl<'a> Outlines<'a> {
     ) -> Result<ScalerMetrics> {
         match self {
             Self::TrueType(scaler, buf) => {
-                let glyph = scaler.glyph(glyph_id, false)?;
-                let buf_size = glyph.required_buffer_size();
+                let glyph = scaler.glyph(glyph_id)?;
+                let buf_size = glyph.required_buffer_size(false);
                 if buf.len() < buf_size {
                     buf.resize(buf_size, 0);
                 }
                 let memory = glyph
-                    .memory_from_buffer(&mut buf[..])
+                    .memory_from_buffer(&mut buf[..], false)
                     .ok_or(Error::InsufficientMemory)?;
                 let outline = scaler.outline(memory, &glyph, size, coords)?;
                 outline.to_path(pen)?;

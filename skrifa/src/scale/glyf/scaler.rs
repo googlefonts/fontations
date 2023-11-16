@@ -10,7 +10,7 @@ use read_fonts::{
         hvar::Hvar,
         loca::Loca,
     },
-    types::{F26Dot6, F2Dot14, Fixed, GlyphId, Point},
+    types::{BigEndian, F26Dot6, F2Dot14, Fixed, GlyphId, Point, Tag},
     TableProvider,
 };
 
@@ -27,6 +27,9 @@ pub struct Scaler<'a> {
     gvar: Option<Gvar<'a>>,
     hmtx: Hmtx<'a>,
     hvar: Option<Hvar<'a>>,
+    fpgm: &'a [u8],
+    prep: &'a [u8],
+    cvt: &'a [BigEndian<i16>],
     units_per_em: u16,
     has_var_lsb: bool,
 }
@@ -44,12 +47,24 @@ impl<'a> Scaler<'a> {
             gvar: font.gvar().ok(),
             hmtx: font.hmtx().ok()?,
             hvar,
+            fpgm: font
+                .data_for_tag(Tag::new(b"fpgm"))
+                .unwrap_or_default()
+                .as_bytes(),
+            prep: font
+                .data_for_tag(Tag::new(b"prep"))
+                .unwrap_or_default()
+                .as_bytes(),
+            cvt: font
+                .data_for_tag(Tag::new(b"cvt "))
+                .and_then(|d| d.read_array(0..d.len()).ok())
+                .unwrap_or_default(),
             units_per_em: font.head().ok()?.units_per_em(),
             has_var_lsb,
         })
     }
 
-    pub fn glyph(&self, glyph_id: GlyphId, with_hinting: bool) -> Result<ScalerGlyph, Error> {
+    pub fn glyph(&self, glyph_id: GlyphId) -> Result<ScalerGlyph, Error> {
         let mut info = ScalerGlyph {
             glyph_id,
             has_variations: self.gvar.is_some(),
@@ -64,7 +79,6 @@ impl<'a> Scaler<'a> {
             info.points += PHANTOM_POINT_COUNT;
         }
         info.glyph = glyph;
-        info.has_hinting &= with_hinting;
         Ok(info)
     }
 
@@ -752,10 +766,7 @@ mod tests {
         assert_eq!(
             expected_gids_with_overlap,
             (0..glyph_count)
-                .filter(|gid| scaler
-                    .glyph(GlyphId::new(*gid), false)
-                    .unwrap()
-                    .has_overlaps)
+                .filter(|gid| scaler.glyph(GlyphId::new(*gid)).unwrap().has_overlaps)
                 .collect::<Vec<_>>()
         );
     }
