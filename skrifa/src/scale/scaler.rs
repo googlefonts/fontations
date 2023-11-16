@@ -142,7 +142,7 @@ impl<'a> ScalerBuilder<'a> {
         let outlines = if let Some(glyf) = glyf::Scaler::new(font) {
             Some(Outlines::TrueType(glyf, &mut self.context.outline_memory))
         } else {
-            cff::Scaler::new(font)
+            cff::Outlines::new(font)
                 .ok()
                 .and_then(|scaler| {
                     let first_subfont = scaler.subfont(0, size, coords).ok()?;
@@ -245,7 +245,7 @@ impl<'a> Scaler<'a> {
 #[allow(clippy::large_enum_variant)]
 enum Outlines<'a> {
     TrueType(glyf::Scaler<'a>, &'a mut Vec<u8>),
-    PostScript(cff::Scaler<'a>, cff::Subfont),
+    PostScript(cff::Outlines<'a>, cff::Subfont),
 }
 
 impl<'a> Outlines<'a> {

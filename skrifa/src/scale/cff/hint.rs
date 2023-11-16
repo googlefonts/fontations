@@ -1294,7 +1294,7 @@ mod tests {
     #[test]
     fn hint_mapping() {
         let font = FontRef::new(font_test_data::CANTARELL_VF_TRIMMED).unwrap();
-        let cff_font = super::super::Scaler::new(&font).unwrap();
+        let cff_font = super::super::Outlines::new(&font).unwrap();
         let state = cff_font
             .subfont(0, 8.0, &[F2Dot14::from_f32(-1.0); 2])
             .unwrap()
