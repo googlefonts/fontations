@@ -144,3 +144,25 @@ impl<'a> ColorOutlineCollection<'a> {
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use crate::MetadataProvider;
+    use read_fonts::{types::GlyphId, FontRef};
+
+    #[test]
+    fn colr_outline_iter_and_version() {
+        let font = FontRef::new(font_test_data::COLRV0V1_VARIABLE).unwrap();
+        let outlines = font.color_outlines();
+        // This font contains one COLRv0 glyph:
+        // <GlyphID id="166" name="colored_circles_v0"/>
+        let colrv0_outlines = [GlyphId::new(166)];
+        for (gid, outline) in outlines.iter() {
+            let expected_version = if colrv0_outlines.contains(&gid) { 0 } else { 1 };
+            assert_eq!(outline.version(), expected_version);
+        }
+        // <!-- BaseGlyphRecordCount=1 -->
+        // <!-- BaseGlyphCount=157 -->
+        assert_eq!(outlines.iter().count(), 158);
+    }
+}
