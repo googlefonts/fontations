@@ -22,11 +22,12 @@ pub struct ScalerMemory<'a> {
 }
 
 impl<'a> ScalerMemory<'a> {
-    pub(super) fn new(glyph: &ScalerGlyph, buf: &'a mut [u8]) -> Option<Self> {
+    pub(super) fn new(glyph: &ScalerGlyph, buf: &'a mut [u8], with_hinting: bool) -> Option<Self> {
+        let hinting = with_hinting && glyph.has_hinting;
         let (scaled, buf) = alloc_slice(buf, glyph.points)?;
         let (unscaled, buf) = alloc_slice(buf, glyph.max_other_points)?;
         // We only need original scaled points when hinting
-        let (original_scaled, buf) = if glyph.has_hinting {
+        let (original_scaled, buf) = if hinting {
             alloc_slice(buf, glyph.max_other_points)?
         } else {
             (Default::default(), buf)
@@ -157,9 +158,9 @@ mod tests {
             has_variations: true,
             has_overlaps: false,
         };
-        let required_size = outline_info.required_buffer_size();
+        let required_size = outline_info.required_buffer_size(false);
         let mut buf = vec![0u8; required_size];
-        let memory = ScalerMemory::new(&outline_info, &mut buf).unwrap();
+        let memory = ScalerMemory::new(&outline_info, &mut buf, false).unwrap();
         assert_eq!(memory.scaled.len(), outline_info.points);
         assert_eq!(memory.unscaled.len(), outline_info.max_other_points);
         // We don't allocate this buffer when hinting is disabled
@@ -190,8 +191,8 @@ mod tests {
         };
         // Required size adds 4 bytes slop to account for internal alignment
         // requirements. So subtract 5 to force a failure.
-        let not_enough = outline_info.required_buffer_size() - 5;
+        let not_enough = outline_info.required_buffer_size(false) - 5;
         let mut buf = vec![0u8; not_enough];
-        assert!(ScalerMemory::new(&outline_info, &mut buf).is_none());
+        assert!(ScalerMemory::new(&outline_info, &mut buf, false).is_none());
     }
 }

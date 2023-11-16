@@ -49,7 +49,7 @@ impl<'a> Scaler<'a> {
         })
     }
 
-    pub fn glyph(&self, glyph_id: GlyphId, with_hinting: bool) -> Result<ScalerGlyph, Error> {
+    pub fn glyph(&self, glyph_id: GlyphId, with_hinting: bool) -> Result<ScalerGlyph<'a>, Error> {
         let mut info = ScalerGlyph {
             glyph_id,
             has_variations: self.gvar.is_some(),

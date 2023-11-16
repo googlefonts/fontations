@@ -29,6 +29,7 @@ mod provider;
 mod small_array;
 mod variation;
 
+pub use outline::{Outline, OutlineCollection, Scaler, ScalerMetrics};
 pub use variation::{Axis, AxisCollection, NamedInstance, NamedInstanceCollection};
 
 /// Useful collection of common types suitable for glob importing.

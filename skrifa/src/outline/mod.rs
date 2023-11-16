@@ -8,16 +8,14 @@ mod error;
 mod glyf;
 mod scaler;
 
-use read_fonts::types::GlyphId;
 pub use read_fonts::types::Pen;
+use read_fonts::{types::GlyphId, TableProvider};
 
 pub use error::{Error, Result};
-pub use scaler::{Scaler, ScalerBuilder, ScalerMetrics};
+pub use scaler::{Scaler, ScalerMetrics};
 
 use super::{
-    font::UniqueId,
-    instance::{NormalizedCoord, Size},
-    setting::VariationSetting,
+    instance::{LocationRef, NormalizedCoord, Size},
     GLYF_COMPOSITE_RECURSION_LIMIT,
 };
 
@@ -31,38 +29,47 @@ impl<'a> Outline<'a> {
     /// components.
     pub fn has_overlaps(&self) -> bool {
         match &self.kind {
-            OutlineKind::Glyf(outline) => outline.has_overlaps,
+            OutlineKind::Glyf(_, outline) => outline.has_overlaps,
             _ => false,
         }
     }
 
     /// Returns a value indicating whether the outline has hinting
     /// instructions.
-    /// 
+    ///
     /// For CFF outlines, returns `None` since this is unknown prior
     /// to loading the outline.
     pub fn has_hinting(&self) -> Option<bool> {
         match &self.kind {
-            OutlineKind::Glyf(outline) => Some(outline.has_hinting),
+            OutlineKind::Glyf(_, outline) => Some(outline.has_hinting),
             _ => None,
         }
     }
 
     /// Returns the size (in bytes) of the temporary memory required to load
     /// this outline.
-    pub fn required_memory_size(&self) -> usize {
+    pub fn required_memory_size(&self, with_hinting: bool) -> usize {
         match &self.kind {
-            OutlineKind::Glyf(outline) => outline.required_buffer_size(),
+            OutlineKind::Glyf(_, outline) => outline.required_buffer_size(with_hinting),
             _ => 0,
         }
+    }
+
+    pub fn scale(
+        &self,
+        scaler: &Scaler,
+        memory: Option<&mut [u8]>,
+        pen: &mut impl Pen,
+    ) -> Option<ScalerMetrics> {
+        scaler.scale(self, memory, pen)
     }
 }
 
 #[derive(Clone)]
 enum OutlineKind<'a> {
-    Glyf(glyf::ScalerGlyph<'a>),
-    // Subfont index
-    Cff(u32),
+    Glyf(glyf::Scaler<'a>, glyf::ScalerGlyph<'a>),
+    // Second field is subfont index
+    Cff(cff::Scaler<'a>, GlyphId, u32),
 }
 
 /// Collection of scalable glyph outlines.
@@ -72,16 +79,36 @@ pub struct OutlineCollection<'a> {
 }
 
 impl<'a> OutlineCollection<'a> {
+    pub fn new(font: &impl TableProvider<'a>) -> Self {
+        let kind = if let Some(glyf) = glyf::Scaler::new(font) {
+            OutlineCollectionKind::Glyf(glyf)
+        } else if let Ok(cff) = cff::Scaler::new(font) {
+            OutlineCollectionKind::Cff(cff)
+        } else {
+            OutlineCollectionKind::None
+        };
+        Self { kind }
+    }
+
     pub fn get(&self, glyph_id: GlyphId) -> Option<Outline<'a>> {
         match &self.kind {
             OutlineCollectionKind::None => None,
-            OutlineCollectionKind::Glyf(glyf) => {
-                
-            }
-            OutlineCollectionKind::Cff(cff) => {
-
-            }
+            OutlineCollectionKind::Glyf(glyf) => Some(Outline {
+                kind: OutlineKind::Glyf(glyf.clone(), glyf.glyph(glyph_id, true).ok()?),
+            }),
+            OutlineCollectionKind::Cff(cff) => Some(Outline {
+                kind: OutlineKind::Cff(cff.clone(), glyph_id, cff.subfont_index(glyph_id)),
+            }),
         }
+    }
+
+    pub fn scaler_instance(
+        &self,
+        size: Size,
+        location: impl Into<LocationRef<'a>>,
+        hinting: Option<Hinting>,
+    ) -> Option<Scaler> {
+        Scaler::new(self, size, location.into(), hinting)
     }
 }
 
@@ -95,7 +122,6 @@ enum OutlineCollectionKind<'a> {
 /// Modes for hinting.
 ///
 /// Only the `glyf` source supports all hinting modes.
-#[cfg(feature = "hinting")]
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub enum Hinting {
     /// "Full" hinting mode. May generate rough outlines and poor horizontal
@@ -113,38 +139,10 @@ pub enum Hinting {
     VerticalSubpixel,
 }
 
-/// Context for scaling glyphs.
-///
-/// This type contains temporary memory buffers and various internal caches to
-/// accelerate the glyph scaling process.
-///
-/// See the [module level documentation](crate::scale#it-all-starts-with-a-context)
-/// for more detail.
-#[derive(Clone, Default, Debug)]
-pub struct Context {
-    /// Memory buffer for TrueType scaling buffers.
-    outline_memory: Vec<u8>,
-    /// Storage for normalized variation coordinates.
-    coords: Vec<NormalizedCoord>,
-    /// Storage for variation settings.
-    variations: Vec<VariationSetting>,
-}
-
-impl Context {
-    /// Creates a new glyph scaling context.
-    pub fn new() -> Self {
-        Self::default()
-    }
-
-    /// Returns a builder for configuring a glyph scaler.
-    pub fn new_scaler(&mut self) -> ScalerBuilder {
-        ScalerBuilder::new(self)
-    }
-}
-
 #[cfg(test)]
 mod tests {
-    use super::{Context, Size};
+    use super::*;
+    use crate::MetadataProvider;
     use read_fonts::{scaler_test, types::GlyphId, FontRef, TableProvider};
 
     #[test]
@@ -174,9 +172,11 @@ mod tests {
     #[test]
     fn overlap_flags() {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
-        let mut cx = Context::new();
+        let outlines = font.outlines();
+        let scaler = outlines
+            .scaler_instance(Size::unscaled(), LocationRef::default(), None)
+            .unwrap();
         let mut path = scaler_test::Path::default();
-        let mut scaler = cx.new_scaler().build(&font);
         let glyph_count = font.maxp().unwrap().num_glyphs();
         // GID 2 is a composite glyph with the overlap bit on a component
         // GID 3 is a simple glyph with the overlap bit on the first flag
@@ -184,8 +184,10 @@ mod tests {
         assert_eq!(
             expected_gids_with_overlap,
             (0..glyph_count)
-                .filter(|gid| scaler
-                    .outline(GlyphId::new(*gid), &mut path)
+                .filter(|gid| outlines
+                    .get(GlyphId::new(*gid))
+                    .unwrap()
+                    .scale(&scaler, None, &mut path)
                     .unwrap()
                     .has_overlaps)
                 .collect::<Vec<_>>()
@@ -194,22 +196,23 @@ mod tests {
 
     fn compare_glyphs(font_data: &[u8], expected_outlines: &str) {
         let font = FontRef::new(font_data).unwrap();
-        let outlines = scaler_test::parse_glyph_outlines(expected_outlines);
-        let mut cx = Context::new();
+        let expected_outlines = scaler_test::parse_glyph_outlines(expected_outlines);
         let mut path = scaler_test::Path::default();
-        for expected_outline in &outlines {
+        for expected_outline in &expected_outlines {
             if expected_outline.size == 0.0 && !expected_outline.coords.is_empty() {
                 continue;
             }
             path.elements.clear();
-            let mut scaler = cx
-                .new_scaler()
-                .size(Size::new(expected_outline.size))
-                .normalized_coords(&expected_outline.coords)
-                .build(&font);
-            scaler
-                .outline(expected_outline.glyph_id, &mut path)
+            let scaler = font
+                .outlines()
+                .scaler_instance(
+                    Size::new(expected_outline.size),
+                    expected_outline.coords.as_slice(),
+                    None,
+                )
                 .unwrap();
+            let outline = font.outlines().get(expected_outline.glyph_id).unwrap();
+            outline.scale(&scaler, None, &mut path).unwrap();
             if path.elements != expected_outline.path {
                 panic!(
                     "mismatch in glyph path for id {} (size: {}, coords: {:?}): path: {:?} expected_path: {:?}",

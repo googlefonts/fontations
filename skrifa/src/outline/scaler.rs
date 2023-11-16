@@ -1,14 +1,6 @@
 use super::{
-    cff, glyf, Context, Error, NormalizedCoord, Pen, Result, Size, UniqueId, VariationSetting,
-};
-
-#[cfg(feature = "hinting")]
-use super::Hinting;
-
-use core::borrow::Borrow;
-use read_fonts::{
-    types::{Fixed, GlyphId},
-    TableProvider,
+    cff, Hinting, LocationRef, NormalizedCoord, Outline, OutlineCollection, OutlineCollectionKind,
+    OutlineKind, Pen, Size,
 };
 
 /// Information and adjusted metrics generated while scaling a glyph.
@@ -25,271 +17,111 @@ pub struct ScalerMetrics {
     pub adjusted_advance_width: Option<f32>,
 }
 
-/// Builder for configuring a glyph scaler.
-///
-/// See the [module level documentation](crate::scale#building-a-scaler)
-/// for more detail.
-pub struct ScalerBuilder<'a> {
-    context: &'a mut Context,
-    cache_key: Option<UniqueId>,
+#[derive(Clone)]
+pub struct Scaler {
     size: Size,
-    #[cfg(feature = "hinting")]
-    hint: Option<Hinting>,
+    coords: Vec<NormalizedCoord>,
+    hinting: Option<Hinting>,
+    kind: ScalerKind,
 }
 
-impl<'a> ScalerBuilder<'a> {
-    /// Creates a new builder for configuring a scaler with the given context.
-    pub fn new(context: &'a mut Context) -> Self {
-        context.coords.clear();
-        context.variations.clear();
-        Self {
-            context,
-            cache_key: None,
+impl Scaler {
+    pub(super) fn new(
+        outlines: &OutlineCollection,
+        size: Size,
+        location: LocationRef,
+        hinting: Option<Hinting>,
+    ) -> Option<Self> {
+        let mut instance = Self {
             size: Size::unscaled(),
-            #[cfg(feature = "hinting")]
-            hint: None,
-        }
-    }
-
-    /// Sets a unique font identifier for hint state caching. Specifying `None` will
-    /// disable caching.
-    pub fn cache_key(mut self, key: Option<UniqueId>) -> Self {
-        self.cache_key = key;
-        self
-    }
-
-    /// Sets the requested font size.
-    ///
-    /// The default value is `Size::unscaled()` and outlines will be generated
-    /// in font units.
-    pub fn size(mut self, size: Size) -> Self {
-        self.size = size;
-        self
-    }
-
-    /// Sets the hinting mode.
-    ///
-    /// Passing `None` will disable hinting.
-    #[cfg(feature = "hinting")]
-    pub fn hint(mut self, hint: Option<Hinting>) -> Self {
-        self.hint = hint;
-        self
-    }
-
-    /// Specifies a variation with a set of normalized coordinates.
-    ///
-    /// This will clear any variations specified with the variations method.
-    pub fn normalized_coords<I>(self, coords: I) -> Self
-    where
-        I: IntoIterator,
-        I::Item: Borrow<NormalizedCoord>,
-    {
-        self.context.variations.clear();
-        self.context.coords.clear();
-        self.context
-            .coords
-            .extend(coords.into_iter().map(|v| *v.borrow()));
-        self
-    }
-
-    /// Appends the given sequence of variation settings. This will clear any
-    /// variations specified as normalized coordinates.
-    ///
-    /// This methods accepts any type which can be converted into an iterator
-    /// that yields a sequence of values that are convertible to
-    /// [`VariationSetting`]. Various conversions from tuples are provided.
-    ///
-    /// The following are all equivalent:
-    ///
-    /// ```
-    /// # use skrifa::{scale::*, setting::VariationSetting, Tag};
-    /// # let mut context = Context::new();
-    /// # let builder = context.new_scaler();
-    /// // slice of VariationSetting
-    /// builder.variation_settings(&[
-    ///     VariationSetting::new(Tag::new(b"wgth"), 720.0),
-    ///     VariationSetting::new(Tag::new(b"wdth"), 50.0),
-    /// ])
-    /// # ; let builder = context.new_scaler();
-    /// // slice of (Tag, f32)
-    /// builder.variation_settings(&[(Tag::new(b"wght"), 720.0), (Tag::new(b"wdth"), 50.0)])
-    /// # ; let builder = context.new_scaler();
-    /// // slice of (&str, f32)
-    /// builder.variation_settings(&[("wght", 720.0), ("wdth", 50.0)])
-    /// # ;
-    ///
-    /// ```
-    ///
-    /// Iterators that yield the above types are also accepted.
-    pub fn variation_settings<I>(self, settings: I) -> Self
-    where
-        I: IntoIterator,
-        I::Item: Into<VariationSetting>,
-    {
-        self.context.coords.clear();
-        self.context
-            .variations
-            .extend(settings.into_iter().map(|v| v.into()));
-        self
-    }
-
-    /// Builds a scaler using the currently configured settings
-    /// and the specified font.
-    pub fn build(mut self, font: &impl TableProvider<'a>) -> Scaler<'a> {
-        self.resolve_variations(font);
-        let coords = &self.context.coords[..];
-        let size = self.size.ppem().unwrap_or_default();
-        let outlines = if let Some(glyf) = glyf::Scaler::new(font) {
-            Some(Outlines::TrueType(glyf, &mut self.context.outline_memory))
-        } else {
-            cff::Scaler::new(font)
-                .ok()
-                .and_then(|scaler| {
-                    let first_subfont = scaler.subfont(0, size, coords).ok()?;
-                    Some((scaler, first_subfont))
-                })
-                .map(|(scaler, subfont)| Outlines::PostScript(scaler, subfont))
+            coords: vec![],
+            hinting,
+            kind: ScalerKind::None,
         };
-        Scaler {
-            size,
-            coords,
-            #[cfg(feature = "hinting")]
-            hint: self.hint,
-            outlines,
-        }
+        instance.reconfigure(outlines, size, location, hinting);
+        Some(instance)
     }
 
-    fn resolve_variations(&mut self, font: &impl TableProvider<'a>) {
-        if self.context.variations.is_empty() {
-            return; // nop
-        }
-        let Ok(fvar) = font.fvar() else {
-            return; // nop
-        };
-        let Ok(axes) = fvar.axes() else {
-            return; // nop
-        };
-        let avar_mappings = font.avar().ok().map(|avar| avar.axis_segment_maps());
-        let axis_count = fvar.axis_count() as usize;
-        self.context.coords.clear();
-        self.context
-            .coords
-            .resize(axis_count, NormalizedCoord::default());
-        for variation in &self.context.variations {
-            // To permit non-linear interpolation, iterate over all axes to ensure we match
-            // multiple axes with the same tag:
-            // https://github.com/PeterConstable/OT_Drafts/blob/master/NLI/UnderstandingNLI.md
-            // We accept quadratic behavior here to avoid dynamic allocation and with the assumption
-            // that fonts contain a relatively small number of axes.
-            for (i, axis) in axes
-                .iter()
-                .enumerate()
-                .filter(|(_, axis)| axis.axis_tag() == variation.selector)
-            {
-                let coord = axis.normalize(Fixed::from_f64(variation.value as f64));
-                let coord = avar_mappings
-                    .as_ref()
-                    .and_then(|mappings| mappings.get(i).transpose().ok())
-                    .flatten()
-                    .map(|mapping| mapping.apply(coord))
-                    .unwrap_or(coord);
-                self.context.coords[i] = coord.to_f2dot14();
-            }
-        }
-    }
-}
-
-/// Glyph scaler for a specific font and configuration.
-///
-/// See the [module level documentation](crate::scale#getting-an-outline)
-/// for more detail.
-pub struct Scaler<'a> {
-    size: f32,
-    coords: &'a [NormalizedCoord],
-    #[cfg(feature = "hinting")]
-    hint: Option<Hinting>,
-    outlines: Option<Outlines<'a>>,
-}
-
-impl<'a> Scaler<'a> {
-    /// Returns the current set of normalized coordinates in use by the scaler.
-    pub fn normalized_coords(&self) -> &'a [NormalizedCoord] {
-        self.coords
-    }
-
-    /// Returns true if the scaler has a source for simple outlines.
-    pub fn has_outlines(&self) -> bool {
-        self.outlines.is_some()
-    }
-
-    /// Loads a simple outline for the specified glyph identifier and invokes the functions
-    /// in the given pen for the sequence of path commands that define the outline.
-    pub fn outline(&mut self, glyph_id: GlyphId, pen: &mut impl Pen) -> Result<ScalerMetrics> {
-        if let Some(outlines) = &mut self.outlines {
-            outlines.outline(
-                glyph_id,
-                self.size,
-                self.coords,
-                #[cfg(feature = "hinting")]
-                self.hint,
-                pen,
-            )
-        } else {
-            Err(Error::NoSources)
-        }
-    }
-}
-
-// Clippy doesn't like the size discrepancy between the two variants. Ignore
-// for now: we'll replace this with a real cache.
-#[allow(clippy::large_enum_variant)]
-enum Outlines<'a> {
-    TrueType(glyf::Scaler<'a>, &'a mut Vec<u8>),
-    PostScript(cff::Scaler<'a>, cff::Subfont),
-}
-
-impl<'a> Outlines<'a> {
-    fn outline(
+    pub fn reconfigure(
         &mut self,
-        glyph_id: GlyphId,
-        size: f32,
-        coords: &'a [NormalizedCoord],
-        #[cfg(feature = "hinting")] hint: Option<Hinting>,
-        pen: &mut impl Pen,
-    ) -> Result<ScalerMetrics> {
-        match self {
-            Self::TrueType(scaler, buf) => {
-                let glyph = scaler.glyph(glyph_id, false)?;
-                let buf_size = glyph.required_buffer_size();
-                if buf.len() < buf_size {
-                    buf.resize(buf_size, 0);
+        outlines: &OutlineCollection,
+        size: Size,
+        location: LocationRef,
+        hinting: Option<Hinting>,
+    ) {
+        self.size = size;
+        self.coords.clear();
+        self.coords.extend_from_slice(location.coords());
+        self.hinting = hinting;
+        // Reuse instance kind memory if the font contains the same outline format
+        let current_kind = core::mem::replace(&mut self.kind, ScalerKind::None);
+        match &outlines.kind {
+            OutlineCollectionKind::Glyf(_) => {
+                self.kind = ScalerKind::Glyf();
+            }
+            OutlineCollectionKind::Cff(cff) => {
+                let mut subfonts = match current_kind {
+                    ScalerKind::Cff(subfonts) => subfonts,
+                    _ => vec![],
+                };
+                subfonts.clear();
+                let size = size.ppem().unwrap_or_default();
+                for i in 0..cff.subfont_count() {
+                    subfonts.push(cff.subfont(i, size, &self.coords).ok());
                 }
-                let memory = glyph
-                    .memory_from_buffer(&mut buf[..])
-                    .ok_or(Error::InsufficientMemory)?;
-                let outline = scaler.outline(memory, &glyph, size, coords)?;
-                outline.to_path(pen)?;
-                Ok(ScalerMetrics {
-                    has_overlaps: glyph.has_overlaps,
+                self.kind = ScalerKind::Cff(subfonts);
+            }
+            OutlineCollectionKind::None => {}
+        }
+    }
+
+    pub fn scale(
+        &self,
+        outline: &Outline,
+        memory: Option<&mut [u8]>,
+        pen: &mut impl Pen,
+    ) -> Option<ScalerMetrics> {
+        match (&self.kind, &outline.kind) {
+            (ScalerKind::Glyf(..), OutlineKind::Glyf(glyf, outline)) => {
+                let mut scratch = vec![];
+                let tmp_buf = memory.unwrap_or_else(|| {
+                    scratch.resize(outline.required_buffer_size(self.hinting.is_some()), 0);
+                    &mut scratch[..]
+                });
+                let mem = outline.memory_from_buffer(tmp_buf, self.hinting.is_some())?;
+                let scaled_outline = glyf.outline(
+                    mem,
+                    outline,
+                    self.size.ppem().unwrap_or_default(),
+                    &self.coords,
+                ).ok()?;
+                scaled_outline.to_path(pen).ok()?;
+                Some(ScalerMetrics {
+                    has_overlaps: outline.has_overlaps,
                     ..Default::default()
                 })
             }
-            Self::PostScript(scaler, subfont) => {
-                let subfont_index = scaler.subfont_index(glyph_id);
-                if subfont_index != subfont.index() {
-                    *subfont = scaler.subfont(subfont_index, size, coords)?;
-                }
-                // CFF only has a single hinting mode and FT enables it
-                // if any of the hinting load flags are set.
-                #[cfg(feature = "hinting")]
-                let hint = hint.is_some();
-                #[cfg(not(feature = "hinting"))]
-                let hint = false;
-                scaler.outline(subfont, glyph_id, coords, hint, pen)?;
-                // CFF does not have overlap flags and hinting never adjusts
-                // horizontal metrics
-                Ok(ScalerMetrics::default())
+            (ScalerKind::Cff(subfonts), OutlineKind::Cff(cff, glyph_id, subfont_ix)) => {
+                let Some(Some(subfont)) = subfonts.get(*subfont_ix as usize) else {
+                    return None; //Err(super::Error::NoSources);
+                };
+                cff.outline(
+                    subfont,
+                    *glyph_id,
+                    &self.coords,
+                    self.hinting.is_some(),
+                    pen,
+                ).ok()?;
+                Some(ScalerMetrics::default())
             }
+            _ => None,
         }
     }
+}
+
+#[derive(Clone)]
+enum ScalerKind {
+    None,
+    Glyf(),
+    Cff(Vec<Option<cff::Subfont>>),
 }
