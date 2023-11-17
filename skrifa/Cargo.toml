@@ -8,11 +8,6 @@ repository = "https://github.com/googlefonts/fontations"
 readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
 
-[features]
-default = ["scale"]
-scale = []
-hinting = []
-
 [dependencies]
 read-fonts = { version = "0.13.1", path = "../read-fonts" }
 

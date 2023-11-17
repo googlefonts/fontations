@@ -19,7 +19,6 @@ pub mod charmap;
 pub mod font;
 pub mod instance;
 pub mod metrics;
-#[cfg(feature = "scale")]
 pub mod scale;
 pub mod setting;
 pub mod string;

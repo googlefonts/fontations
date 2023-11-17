@@ -7,7 +7,7 @@ use read_fonts::{
     types::{F26Dot6, Fixed, GlyphId, Pen, Point},
 };
 
-use super::OutlineMemory;
+use super::{Hinting, OutlineMemory};
 
 /// Represents the information necessary to scale a glyph outline.
 ///
@@ -48,9 +48,9 @@ pub struct Outline<'a> {
 impl<'a> Outline<'a> {
     /// Returns the minimum size in bytes required to scale an outline based
     /// on the computed sizes.
-    pub fn required_buffer_size(&self, with_hinting: bool) -> usize {
+    pub fn required_buffer_size(&self, hinting: Hinting) -> usize {
         let mut size = 0;
-        let hinting = with_hinting && self.has_hinting;
+        let hinting = self.has_hinting && hinting != Hinting::None;
         // Scaled, unscaled and (for hinting) original scaled points
         size += self.points * size_of::<Point<F26Dot6>>();
         // Unscaled and (if hinted) original scaled points
@@ -82,9 +82,9 @@ impl<'a> Outline<'a> {
     pub fn memory_from_buffer(
         &self,
         buf: &'a mut [u8],
-        with_hinting: bool,
+        hinting: Hinting,
     ) -> Option<OutlineMemory<'a>> {
-        OutlineMemory::new(self, buf, with_hinting)
+        OutlineMemory::new(self, buf, hinting)
     }
 }
 

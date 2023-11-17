@@ -7,7 +7,7 @@ use read_fonts::{
     types::{F26Dot6, Fixed, Point},
 };
 
-use super::Outline;
+use super::{Hinting, Outline};
 
 /// Buffers used during glyph scaling.
 pub struct OutlineMemory<'a> {
@@ -22,11 +22,11 @@ pub struct OutlineMemory<'a> {
 }
 
 impl<'a> OutlineMemory<'a> {
-    pub(super) fn new(outline: &Outline, buf: &'a mut [u8], with_hinting: bool) -> Option<Self> {
+    pub(super) fn new(outline: &Outline, buf: &'a mut [u8], hinting: Hinting) -> Option<Self> {
         let (scaled, buf) = alloc_slice(buf, outline.points)?;
         let (unscaled, buf) = alloc_slice(buf, outline.max_other_points)?;
         // We only need original scaled points when hinting
-        let (original_scaled, buf) = if outline.has_hinting && with_hinting {
+        let (original_scaled, buf) = if outline.has_hinting && hinting != Hinting::None {
             alloc_slice(buf, outline.max_other_points)?
         } else {
             (Default::default(), buf)
@@ -157,9 +157,9 @@ mod tests {
             has_variations: true,
             has_overlaps: false,
         };
-        let required_size = outline_info.required_buffer_size(false);
+        let required_size = outline_info.required_buffer_size(Hinting::None);
         let mut buf = vec![0u8; required_size];
-        let memory = OutlineMemory::new(&outline_info, &mut buf, false).unwrap();
+        let memory = OutlineMemory::new(&outline_info, &mut buf, Hinting::None).unwrap();
         assert_eq!(memory.scaled.len(), outline_info.points);
         assert_eq!(memory.unscaled.len(), outline_info.max_other_points);
         // We don't allocate this buffer when hinting is disabled
@@ -190,8 +190,8 @@ mod tests {
         };
         // Required size adds 4 bytes slop to account for internal alignment
         // requirements. So subtract 5 to force a failure.
-        let not_enough = outline_info.required_buffer_size(false) - 5;
+        let not_enough = outline_info.required_buffer_size(Hinting::None) - 5;
         let mut buf = vec![0u8; not_enough];
-        assert!(OutlineMemory::new(&outline_info, &mut buf, false).is_none());
+        assert!(OutlineMemory::new(&outline_info, &mut buf, Hinting::None).is_none());
     }
 }

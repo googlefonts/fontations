@@ -9,7 +9,7 @@ pub use hint::HinterOutline;
 pub use mem::OutlineMemory;
 pub use outline::{Outline, ScaledOutline};
 
-use super::Error;
+use super::{Error, Hinting};
 
 use read_fonts::{
     tables::{
