@@ -25,6 +25,20 @@ use read_fonts::{
     TableProvider,
 };
 
+use read_fonts::{
+    tables::{
+        glyf::{
+            Anchor, CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, PointMarker, SimpleGlyph,
+        },
+        gvar::Gvar,
+        hmtx::Hmtx,
+        hvar::Hvar,
+        loca::Loca,
+    },
+    types::{BigEndian, F26Dot6, F2Dot14, Fixed, GlyphId, Point, Tag},
+    TableProvider,
+};
+
 /// Recursion limit for processing composite outlines.
 ///
 /// In reality, most fonts contain shallow composite graphs with a nesting
