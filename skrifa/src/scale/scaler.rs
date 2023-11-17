@@ -139,7 +139,7 @@ impl<'a> ScalerBuilder<'a> {
         self.resolve_variations(font);
         let coords = &self.context.coords[..];
         let size = self.size.ppem().unwrap_or_default();
-        let outlines = if let Some(glyf) = glyf::Scaler::new(font) {
+        let outlines = if let Some(glyf) = glyf::Outlines::new(font) {
             Some(Outlines::TrueType(glyf, &mut self.context.outline_memory))
         } else {
             cff::Outlines::new(font)
@@ -244,7 +244,7 @@ impl<'a> Scaler<'a> {
 // for now: we'll replace this with a real cache.
 #[allow(clippy::large_enum_variant)]
 enum Outlines<'a> {
-    TrueType(glyf::Scaler<'a>, &'a mut Vec<u8>),
+    TrueType(glyf::Outlines<'a>, &'a mut Vec<u8>),
     PostScript(cff::Outlines<'a>, cff::Subfont),
 }
 
@@ -259,7 +259,7 @@ impl<'a> Outlines<'a> {
     ) -> Result<ScalerMetrics> {
         match self {
             Self::TrueType(scaler, buf) => {
-                let glyph = scaler.glyph(glyph_id)?;
+                let glyph = scaler.outline(glyph_id)?;
                 let buf_size = glyph.required_buffer_size(false);
                 if buf.len() < buf_size {
                     buf.resize(buf_size, 0);
@@ -267,7 +267,7 @@ impl<'a> Outlines<'a> {
                 let memory = glyph
                     .memory_from_buffer(&mut buf[..], false)
                     .ok_or(Error::InsufficientMemory)?;
-                let outline = scaler.outline(memory, &glyph, size, coords)?;
+                let outline = scaler.scale(memory, &glyph, size, coords)?;
                 outline.to_path(pen)?;
                 Ok(ScalerMetrics {
                     has_overlaps: glyph.has_overlaps,
