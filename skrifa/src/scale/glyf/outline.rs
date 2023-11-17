@@ -7,14 +7,14 @@ use read_fonts::{
     types::{F26Dot6, Fixed, GlyphId, Pen, Point},
 };
 
-use super::ScalerMemory;
+use super::OutlineMemory;
 
-/// Represents the information necessary to scale a glyph.
+/// Represents the information necessary to scale a glyph outline.
 ///
 /// Contains a reference to the glyph data itself as well as metrics that
 /// can be used to compute the memory requirements for scaling the glyph.
 #[derive(Default)]
-pub struct ScalerGlyph<'a> {
+pub struct Outline<'a> {
     pub glyph_id: GlyphId,
     /// The associated top-level glyph for the outline.
     pub glyph: Option<Glyph<'a>>,
@@ -45,7 +45,7 @@ pub struct ScalerGlyph<'a> {
     pub has_overlaps: bool,
 }
 
-impl<'a> ScalerGlyph<'a> {
+impl<'a> Outline<'a> {
     /// Returns the minimum size in bytes required to scale an outline based
     /// on the computed sizes.
     pub fn required_buffer_size(&self, with_hinting: bool) -> usize {
@@ -83,19 +83,19 @@ impl<'a> ScalerGlyph<'a> {
         &self,
         buf: &'a mut [u8],
         with_hinting: bool,
-    ) -> Option<ScalerMemory<'a>> {
-        ScalerMemory::new(self, buf, with_hinting)
+    ) -> Option<OutlineMemory<'a>> {
+        OutlineMemory::new(self, buf, with_hinting)
     }
 }
 
 #[derive(Debug)]
-pub struct ScalerOutline<'a> {
+pub struct ScaledOutline<'a> {
     pub points: &'a mut [Point<F26Dot6>],
     pub flags: &'a mut [PointFlags],
     pub contours: &'a mut [u16],
 }
 
-impl<'a> ScalerOutline<'a> {
+impl<'a> ScaledOutline<'a> {
     pub fn to_path(&self, pen: &mut impl Pen) -> Result<(), ToPathError> {
         to_path(self.points, self.flags, self.contours, pen)
     }
