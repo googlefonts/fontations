@@ -167,9 +167,11 @@ use super::{
 /// Modes for hinting.
 ///
 /// Only the `glyf` source supports all hinting modes.
-#[cfg(feature = "hinting")]
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub enum Hinting {
+    /// Hinting is disabled.
+    #[default]
+    None,
     /// "Full" hinting mode. May generate rough outlines and poor horizontal
     /// spacing.
     Full,
@@ -181,7 +183,6 @@ pub enum Hinting {
     LightSubpixel,
     /// Same as light subpixel, but always prevents adjustment in the
     /// horizontal direction. This is the default mode.
-    #[default]
     VerticalSubpixel,
 }
 

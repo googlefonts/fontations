@@ -1,9 +1,7 @@
 use super::{
-    cff, glyf, Context, Error, NormalizedCoord, Pen, Result, Size, UniqueId, VariationSetting,
+    cff, glyf, Context, Error, Hinting, NormalizedCoord, Pen, Result, Size, UniqueId,
+    VariationSetting,
 };
-
-#[cfg(feature = "hinting")]
-use super::Hinting;
 
 use core::borrow::Borrow;
 use read_fonts::{
@@ -33,8 +31,7 @@ pub struct ScalerBuilder<'a> {
     context: &'a mut Context,
     cache_key: Option<UniqueId>,
     size: Size,
-    #[cfg(feature = "hinting")]
-    hint: Option<Hinting>,
+    hinting: Hinting,
 }
 
 impl<'a> ScalerBuilder<'a> {
@@ -46,8 +43,7 @@ impl<'a> ScalerBuilder<'a> {
             context,
             cache_key: None,
             size: Size::unscaled(),
-            #[cfg(feature = "hinting")]
-            hint: None,
+            hinting: Hinting::None,
         }
     }
 
@@ -70,9 +66,8 @@ impl<'a> ScalerBuilder<'a> {
     /// Sets the hinting mode.
     ///
     /// Passing `None` will disable hinting.
-    #[cfg(feature = "hinting")]
-    pub fn hint(mut self, hint: Option<Hinting>) -> Self {
-        self.hint = hint;
+    pub fn hint(mut self, hint: Hinting) -> Self {
+        self.hinting = hint;
         self
     }
 
@@ -153,8 +148,7 @@ impl<'a> ScalerBuilder<'a> {
         Scaler {
             size,
             coords,
-            #[cfg(feature = "hinting")]
-            hint: self.hint,
+            hinting: self.hinting,
             outlines,
         }
     }
@@ -206,8 +200,7 @@ impl<'a> ScalerBuilder<'a> {
 pub struct Scaler<'a> {
     size: f32,
     coords: &'a [NormalizedCoord],
-    #[cfg(feature = "hinting")]
-    hint: Option<Hinting>,
+    hinting: Hinting,
     outlines: Option<Outlines<'a>>,
 }
 
@@ -226,14 +219,7 @@ impl<'a> Scaler<'a> {
     /// in the given pen for the sequence of path commands that define the outline.
     pub fn outline(&mut self, glyph_id: GlyphId, pen: &mut impl Pen) -> Result<ScalerMetrics> {
         if let Some(outlines) = &mut self.outlines {
-            outlines.outline(
-                glyph_id,
-                self.size,
-                self.coords,
-                #[cfg(feature = "hinting")]
-                self.hint,
-                pen,
-            )
+            outlines.outline(glyph_id, self.size, self.coords, self.hinting, pen)
         } else {
             Err(Error::NoSources)
         }
@@ -254,18 +240,18 @@ impl<'a> Outlines<'a> {
         glyph_id: GlyphId,
         size: f32,
         coords: &'a [NormalizedCoord],
-        #[cfg(feature = "hinting")] hint: Option<Hinting>,
+        hinting: Hinting,
         pen: &mut impl Pen,
     ) -> Result<ScalerMetrics> {
         match self {
             Self::TrueType(scaler, buf) => {
                 let glyph = scaler.outline(glyph_id)?;
-                let buf_size = glyph.required_buffer_size(false);
+                let buf_size = glyph.required_buffer_size(hinting);
                 if buf.len() < buf_size {
                     buf.resize(buf_size, 0);
                 }
                 let memory = glyph
-                    .memory_from_buffer(&mut buf[..], false)
+                    .memory_from_buffer(&mut buf[..], hinting)
                     .ok_or(Error::InsufficientMemory)?;
                 let outline = scaler.scale(memory, &glyph, size, coords)?;
                 outline.to_path(pen)?;
@@ -281,11 +267,7 @@ impl<'a> Outlines<'a> {
                 }
                 // CFF only has a single hinting mode and FT enables it
                 // if any of the hinting load flags are set.
-                #[cfg(feature = "hinting")]
-                let hint = hint.is_some();
-                #[cfg(not(feature = "hinting"))]
-                let hint = false;
-                scaler.outline(subfont, glyph_id, coords, hint, pen)?;
+                scaler.outline(subfont, glyph_id, coords, hinting != Hinting::None, pen)?;
                 // CFF does not have overlap flags and hinting never adjusts
                 // horizontal metrics
                 Ok(ScalerMetrics::default())
