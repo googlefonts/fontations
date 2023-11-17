@@ -9,7 +9,7 @@ pub use hint::HinterOutline;
 pub use mem::OutlineMemory;
 pub use outline::{Outline, ScaledOutline};
 
-use super::{Error, Hinting};
+use super::{Hinting, ScalerError};
 
 use read_fonts::{
     tables::{
@@ -80,7 +80,7 @@ impl<'a> Outlines<'a> {
         })
     }
 
-    pub fn outline(&self, glyph_id: GlyphId) -> Result<Outline, Error> {
+    pub fn outline(&self, glyph_id: GlyphId) -> Result<Outline<'a>, ScalerError> {
         let mut info = Outline {
             glyph_id,
             has_variations: self.gvar.is_some(),
@@ -104,7 +104,7 @@ impl<'a> Outlines<'a> {
         info: &Outline,
         size: f32,
         coords: &'a [F2Dot14],
-    ) -> Result<ScaledOutline<'a>, Error> {
+    ) -> Result<ScaledOutline<'a>, ScalerError> {
         Scaler::new(self.clone(), memory, size, coords, |_| true, false)
             .scale(&info.glyph, info.glyph_id)
     }
@@ -116,7 +116,7 @@ impl<'a> Outlines<'a> {
         size: f32,
         coords: &'a [F2Dot14],
         hint_fn: impl FnMut(HinterOutline) -> bool,
-    ) -> Result<ScaledOutline<'a>, Error> {
+    ) -> Result<ScaledOutline<'a>, ScalerError> {
         Scaler::new(self.clone(), memory, size, coords, hint_fn, false)
             .scale(&info.glyph, info.glyph_id)
     }
@@ -129,9 +129,9 @@ impl<'a> Outlines<'a> {
         info: &mut Outline,
         component_depth: usize,
         recurse_depth: usize,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ScalerError> {
         if recurse_depth > COMPOSITE_RECURSION_LIMIT {
-            return Err(Error::RecursionLimitExceeded(info.glyph_id));
+            return Err(ScalerError::RecursionLimitExceeded(info.glyph_id));
         }
         match glyph {
             Glyph::Simple(simple) => {
@@ -284,7 +284,7 @@ where
         mut self,
         glyph: &Option<Glyph>,
         glyph_id: GlyphId,
-    ) -> Result<ScaledOutline<'a>, Error> {
+    ) -> Result<ScaledOutline<'a>, ScalerError> {
         self.load(glyph, glyph_id, 0)?;
         let outline = ScaledOutline {
             points: &mut self.memory.scaled[..self.point_count],
@@ -305,9 +305,9 @@ where
         glyph: &Option<Glyph>,
         glyph_id: GlyphId,
         recurse_depth: usize,
-    ) -> Result<(), Error> {
+    ) -> Result<(), ScalerError> {
         if recurse_depth > COMPOSITE_RECURSION_LIMIT {
-            return Err(Error::RecursionLimitExceeded(glyph_id));
+            return Err(ScalerError::RecursionLimitExceeded(glyph_id));
         }
         let glyph = match &glyph {
             Some(glyph) => glyph,
@@ -322,8 +322,8 @@ where
         }
     }
 
-    fn load_simple(&mut self, glyph: &SimpleGlyph, glyph_id: GlyphId) -> Result<(), Error> {
-        use Error::InsufficientMemory;
+    fn load_simple(&mut self, glyph: &SimpleGlyph, glyph_id: GlyphId) -> Result<(), ScalerError> {
+        use ScalerError::InsufficientMemory;
         // Compute the ranges for our point/flag buffers and slice them.
         let points_start = self.point_count;
         let point_count = glyph.num_points();
@@ -479,7 +479,7 @@ where
                 is_composite: false,
                 coords: self.coords,
             }) {
-                return Err(Error::HintingFailed(glyph_id));
+                return Err(ScalerError::HintingFailed(glyph_id));
             }
         }
         if points_start != 0 {
@@ -496,8 +496,8 @@ where
         glyph: &CompositeGlyph,
         glyph_id: GlyphId,
         recurse_depth: usize,
-    ) -> Result<(), Error> {
-        use Error::InsufficientMemory;
+    ) -> Result<(), ScalerError> {
+        use ScalerError::InsufficientMemory;
         let scale = self.scale;
         // The base indices of the points and contours for the current glyph.
         let point_base = self.point_count;
@@ -645,12 +645,12 @@ where
                         .memory
                         .scaled
                         .get(point_base + base_offset)
-                        .ok_or(Error::InvalidAnchorPoint(glyph_id, base))?;
+                        .ok_or(ScalerError::InvalidAnchorPoint(glyph_id, base))?;
                     let component_point = self
                         .memory
                         .scaled
                         .get(start_point + component_offset)
-                        .ok_or(Error::InvalidAnchorPoint(glyph_id, component))?;
+                        .ok_or(ScalerError::InvalidAnchorPoint(glyph_id, component))?;
                     *base_point - *component_point
                 }
             };
@@ -731,7 +731,7 @@ where
                     is_composite: true,
                     coords: self.coords,
                 }) {
-                    return Err(Error::HintingFailed(glyph_id));
+                    return Err(ScalerError::HintingFailed(glyph_id));
                 }
                 // Undo the contour shifts if we applied them above.
                 if point_base != 0 {

@@ -23,10 +23,14 @@ pub mod scale;
 pub mod setting;
 pub mod string;
 
+mod outline;
 mod provider;
 mod small_array;
 mod variation;
 
+pub use outline::{
+    Hinting, Outline, OutlineCollection, OutlineFormat, Scaler, ScalerError, ScalerMetrics,
+};
 pub use variation::{Axis, AxisCollection, NamedInstance, NamedInstanceCollection};
 
 /// Useful collection of common types suitable for glob importing.

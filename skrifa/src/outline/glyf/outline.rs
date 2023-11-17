@@ -13,7 +13,7 @@ use super::{Hinting, OutlineMemory};
 ///
 /// Contains a reference to the glyph data itself as well as metrics that
 /// can be used to compute the memory requirements for scaling the glyph.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub struct Outline<'a> {
     pub glyph_id: GlyphId,
     /// The associated top-level glyph for the outline.

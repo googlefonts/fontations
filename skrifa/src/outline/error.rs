@@ -7,7 +7,7 @@ use std::fmt;
 
 /// Errors that may occur when scaling glyphs.
 #[derive(Clone, Debug)]
-pub enum Error {
+pub enum ScalerError {
     /// No viable sources were available.
     NoSources,
     /// The requested glyph was not present in the font.
@@ -28,25 +28,25 @@ pub enum Error {
     Read(ReadError),
 }
 
-impl From<ToPathError> for Error {
+impl From<ToPathError> for ScalerError {
     fn from(e: ToPathError) -> Self {
         Self::ToPath(e)
     }
 }
 
-impl From<ReadError> for Error {
+impl From<ReadError> for ScalerError {
     fn from(e: ReadError) -> Self {
         Self::Read(e)
     }
 }
 
-impl From<PostScriptError> for Error {
+impl From<PostScriptError> for ScalerError {
     fn from(value: PostScriptError) -> Self {
         Self::PostScript(value)
     }
 }
 
-impl fmt::Display for Error {
+impl fmt::Display for ScalerError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::NoSources => write!(f, "No glyph sources are available for the given font"),
@@ -69,7 +69,7 @@ impl fmt::Display for Error {
     }
 }
 
-impl std::error::Error for Error {}
+impl std::error::Error for ScalerError {}
 
 /// Result type for errors that may occur when loading glyphs.
-pub type Result<T> = core::result::Result<T, Error>;
+pub type Result<T> = core::result::Result<T, ScalerError>;
