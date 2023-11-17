@@ -33,6 +33,25 @@ pub use outline::{
 };
 pub use variation::{Axis, AxisCollection, NamedInstance, NamedInstanceCollection};
 
+#[doc(inline)]
+pub use {
+    attribute::{Attributes, Stretch, Style, Weight},
+    charmap::{Charmap, MapVariant, MappingIndex as CharmapIndex},
+    instance::{Location, LocationRef, NormalizedCoord, Size},
+    font::FontRef,
+    read_fonts::TableProvider,
+    metrics::{Metrics, GlyphMetrics, Decoration as DecorationMetrics, BoundingBox},
+    setting::{Setting, VariationSetting},
+    string::{StringId, LocalizedString, LocalizedStrings},
+};
+
+/// Collection of embedded bitmap strikes.
+pub struct StrikeCollection {}
+
+/// Embedded bitmaps at a particular resolution and size.
+pub struct Strike {}
+
+
 /// Useful collection of common types suitable for glob importing.
 pub mod prelude {
     #[doc(no_inline)]

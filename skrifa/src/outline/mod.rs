@@ -19,6 +19,7 @@ use super::{
     GLYF_COMPOSITE_RECURSION_LIMIT,
 };
 
+/// A scalable glyph outline.
 #[derive(Clone)]
 pub struct Outline<'a> {
     kind: OutlineKind<'a>,
@@ -131,6 +132,7 @@ enum OutlineCollectionKind<'a> {
     Cff(cff::Outlines<'a>),
 }
 
+/// Source format for an outline collection.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum OutlineFormat {
     TrueType,

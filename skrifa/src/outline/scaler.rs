@@ -1,8 +1,8 @@
 //! Scaler instance state.
 
 use super::{
-    cff, Hinting, LocationRef, NormalizedCoord, Outline, OutlineCollection, OutlineCollectionKind,
-    OutlineKind, Pen, ScalerError, Size,
+    cff, glyf, Hinting, LocationRef, NormalizedCoord, Outline, OutlineCollection,
+    OutlineCollectionKind, OutlineKind, Pen, ScalerError, Size,
 };
 
 /// Information and adjusted metrics generated while scaling a glyph.
@@ -19,6 +19,7 @@ pub struct ScalerMetrics {
     pub adjusted_advance_width: Option<f32>,
 }
 
+/// Outline scaling state for a particular font instance.
 #[derive(Clone)]
 pub struct Scaler {
     size: Size,
@@ -39,18 +40,23 @@ impl Default for Scaler {
 }
 
 impl Scaler {
+    /// Returns the currently configured size.
     pub fn size(&self) -> Size {
         self.size
     }
 
+    /// Returns the currently configured normalized location in variation space.
     pub fn location(&self) -> LocationRef {
         LocationRef::new(&self.coords)
     }
 
+    /// Returns the currently configured hinting mode.
     pub fn hinting(&self) -> Hinting {
         self.hinting
     }
 
+    /// Resets the scaler state for a new font instance with the given
+    /// outline collection and settings.
     pub fn reconfigure(
         &mut self,
         outlines: &OutlineCollection,
@@ -62,7 +68,7 @@ impl Scaler {
         self.coords.clear();
         self.coords.extend_from_slice(location.coords());
         self.hinting = hinting;
-        // Reuse instance kind memory if the font contains the same outline format
+        // Reuse scaler kind memory if the font contains the same outline format
         let current_kind = core::mem::replace(&mut self.kind, ScalerKind::None);
         match &outlines.kind {
             OutlineCollectionKind::Glyf(_) => {
@@ -92,21 +98,26 @@ impl Scaler {
     ) -> Result<ScalerMetrics, ScalerError> {
         match (&self.kind, &outline.kind) {
             (ScalerKind::Glyf(..), OutlineKind::Glyf(glyf, outline)) => {
-                let mut scratch = vec![];
-                let tmp_buf = memory.unwrap_or_else(|| {
-                    scratch.resize(outline.required_buffer_size(self.hinting), 0);
-                    &mut scratch[..]
-                });
-                let mem = outline
-                    .memory_from_buffer(tmp_buf, self.hinting)
-                    .ok_or(ScalerError::InsufficientMemory)?;
-                let scaled_outline = glyf.scale(
-                    mem,
-                    outline,
-                    self.size.ppem().unwrap_or_default(),
-                    &self.coords,
-                )?;
-                scaled_outline.to_path(pen)?;
+                let scaler = GlyfScaler {
+                    outlines: glyf,
+                    outline: outline,
+                    size: self.size.ppem().unwrap_or_default(),
+                    coords: &self.coords,
+                    hinting: self.hinting,
+                };
+                match memory {
+                    Some(buf) => {
+                        scaler.scale(buf, pen)?;
+                    }
+                    _ => {
+                        let buf_size = outline.required_buffer_size(self.hinting);
+                        if buf_size <= GLYF_SCALER_STACK_BUFFER_SIZE {
+                            scale_glyf_with_stack_memory(&scaler, pen)?;
+                        } else {
+                            scaler.scale(&mut vec![0u8; buf_size], pen)?;
+                        }
+                    }
+                }
                 Ok(ScalerMetrics {
                     has_overlaps: outline.has_overlaps,
                     ..Default::default()
@@ -128,6 +139,41 @@ impl Scaler {
             _ => Err(ScalerError::NoSources),
         }
     }
+}
+
+struct GlyfScaler<'a> {
+    outlines: &'a glyf::Outlines<'a>,
+    outline: &'a glyf::Outline<'a>,
+    size: f32,
+    coords: &'a [NormalizedCoord],
+    hinting: Hinting,
+}
+
+impl<'a> GlyfScaler<'a> {
+    fn scale(&self, memory: &mut [u8], pen: &mut impl Pen) -> Result<(), ScalerError> {
+        let memory = self
+            .outline
+            .memory_from_buffer(memory, self.hinting)
+            .ok_or(ScalerError::InsufficientMemory)?;
+        let outline = self
+            .outlines
+            .scale(memory, self.outline, self.size, self.coords)?;
+        outline.to_path(pen)?;
+        Ok(())
+    }
+}
+
+const GLYF_SCALER_STACK_BUFFER_SIZE: usize = 4096;
+
+// Intentionally prevented from inlining to avoid the stack allocation and
+// zeroing when unnecessary
+#[inline(never)]
+fn scale_glyf_with_stack_memory(
+    scaler: &GlyfScaler,
+    pen: &mut impl Pen,
+) -> Result<(), ScalerError> {
+    let mut buf = [0u8; GLYF_SCALER_STACK_BUFFER_SIZE];
+    scaler.scale(&mut buf, pen)
 }
 
 #[derive(Clone)]
