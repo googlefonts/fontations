@@ -19,7 +19,7 @@ mod tests {
         assert_eq!(axis_record.axis_tag(), Tag::new(b"wght"));
         assert_eq!(axis_record.axis_name_id(), NameId::new(257));
         assert_eq!(axis_record.axis_ordering(), 0);
-        let axis_values = table.offset_to_axis_values().unwrap();
+        let axis_values = table.offset_to_axis_values().unwrap().unwrap();
         let axis_values = axis_values
             .axis_values()
             .iter()
