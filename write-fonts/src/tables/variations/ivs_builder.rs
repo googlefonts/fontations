@@ -42,6 +42,20 @@ pub struct VariationIndexRemapping {
     map: HashMap<TemporaryDeltaSetId, VariationIndex>,
 }
 
+/// Remapping temporary delta set identifiers to the final values.
+///
+/// This is called after the [`ItemVariationStore`] has been built, at which
+/// point any table containing a delta set index needs to be updated to point
+/// to the final value.
+///
+/// This trait should be implemented by any table that contains delta set indices,
+/// as well as for any of table containing such a table, which should recursively
+/// call it on the relevant subtables.
+pub trait RemapVariationIndices {
+    /// Remap any `TemporaryDeltaSetId`s to their final `VariationIndex` values
+    fn remap_variation_indices(&mut self, key_map: &VariationIndexRemapping);
+}
+
 /// Always sorted, so we can ensure equality
 ///
 /// Each tuple is (region index, delta value)
