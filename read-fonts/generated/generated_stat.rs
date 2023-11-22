@@ -121,13 +121,13 @@ impl<'a> Stat<'a> {
     /// start of the design axes value offsets array. If axisValueCount
     /// is zero, set to zero; if axisValueCount is greater than zero,
     /// must be greater than zero.
-    pub fn offset_to_axis_value_offsets(&self) -> Offset32 {
+    pub fn offset_to_axis_value_offsets(&self) -> Nullable<Offset32> {
         let range = self.shape.offset_to_axis_value_offsets_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Attempt to resolve [`offset_to_axis_value_offsets`][Self::offset_to_axis_value_offsets].
-    pub fn offset_to_axis_values(&self) -> Result<AxisValueArray<'a>, ReadError> {
+    pub fn offset_to_axis_values(&self) -> Option<Result<AxisValueArray<'a>, ReadError>> {
         let data = self.data;
         let args = self.axis_value_count();
         self.offset_to_axis_value_offsets()
