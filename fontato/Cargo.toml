@@ -1,0 +1,18 @@
+[package]
+name = "fontato"
+version = "0.1.0"
+edition = "2021"
+license = "MIT/Apache-2.0"
+description = "Reading and writing support for OpenType fonts."
+repository = "https://github.com/googlefonts/fontations"
+readme = "README.md"
+categories = ["text-processing"]
+
+[features]
+std = ["read-fonts/std"]
+write = ["write-fonts", "std"]
+
+[dependencies]
+font-types = { version = "0.4.1", path = "../font-types" }
+read-fonts = { version = "0.13.2", path = "../read-fonts" }
+write-fonts = { version = "0.18.0", path = "../write-fonts", optional = true }
