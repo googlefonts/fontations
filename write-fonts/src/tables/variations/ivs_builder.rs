@@ -74,6 +74,14 @@ impl VariationStoreBuilder {
         Default::default()
     }
 
+    /// Returns `true` if no deltas have been added to this builder
+    pub fn is_empty(&self) -> bool {
+        match &self.delta_sets {
+            DeltaSetStorage::Direct(val) => val.is_empty(),
+            DeltaSetStorage::Deduplicated(val) => val.is_empty(),
+        }
+    }
+
     /// Create a builder that does not share deltas between entries.
     ///
     /// This is used in HVAR, where it is possible to use glyph ids as the
