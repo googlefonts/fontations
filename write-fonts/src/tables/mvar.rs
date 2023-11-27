@@ -72,6 +72,18 @@ mod tests {
         mvar.metric_delta(Tag::new(tag), &coords).unwrap().to_f64()
     }
 
+    fn assert_value_record(actual: &read_mvar::ValueRecord, expected: ValueRecord) {
+        assert_eq!(actual.value_tag(), expected.value_tag);
+        assert_eq!(
+            actual.delta_set_outer_index(),
+            expected.delta_set_outer_index
+        );
+        assert_eq!(
+            actual.delta_set_inner_index(),
+            expected.delta_set_inner_index
+        );
+    }
+
     #[test]
     fn simple_smoke_test() {
         let [r1, r2, r3] = test_regions();
@@ -105,17 +117,19 @@ mod tests {
         assert_eq!(read.value_record_size(), 8);
         assert!(read.item_variation_store().is_some());
 
-        assert_eq!(read.value_records()[0].value_tag(), Tag::new(b"hasc"));
-        assert_eq!(read.value_records()[0].delta_set_outer_index(), 0);
-        assert_eq!(read.value_records()[0].delta_set_inner_index(), 1);
+        assert_value_record(
+            &read.value_records()[0],
+            ValueRecord::new(Tag::new(b"hasc"), 0, 1),
+        );
         assert_eq!(read_metric_delta(&read, b"hasc", &[0.0]), 0.0);
         // at axis coord 0.5, the interpolated delta will be half of r1's delta
         assert_eq!(read_metric_delta(&read, b"hasc", &[0.5]), 5.0);
         assert_eq!(read_metric_delta(&read, b"hasc", &[1.0]), 10.0);
 
-        assert_eq!(read.value_records()[1].value_tag(), Tag::new(b"hdsc"));
-        assert_eq!(read.value_records()[1].delta_set_outer_index(), 0);
-        assert_eq!(read.value_records()[1].delta_set_inner_index(), 0);
+        assert_value_record(
+            &read.value_records()[1],
+            ValueRecord::new(Tag::new(b"hdsc"), 0, 0),
+        );
         assert_eq!(read_metric_delta(&read, b"hdsc", &[0.0]), 0.0);
         // this coincides with the peak of intermediate region r2, hence != 30.0/2
         assert_eq!(read_metric_delta(&read, b"hdsc", &[0.5]), -20.0);
