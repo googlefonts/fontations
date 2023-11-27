@@ -1,6 +1,7 @@
 #![parse_module(read_fonts::tables::mvar)]
 
 /// The [MVAR (Metrics Variations)](https://docs.microsoft.com/en-us/typography/opentype/spec/mvar) table
+#[skip_constructor]
 #[tag = "MVAR"]
 table Mvar {
     /// Major version number of the horizontal metrics variations table — set to 1.
