@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ttFont sfntVersion="\x00\x01\x00\x00" ttLibVersion="4.43">
+<ttFont sfntVersion="\x00\x01\x00\x00" ttLibVersion="4.38">
 
   <GlyphOrder>
     <!-- The 'id' attribute is only for humans; it is ignored when parsed. -->
@@ -179,18 +179,20 @@
     <GlyphID id="173" name="circle_r300"/>
     <GlyphID id="174" name="circle_r350"/>
     <GlyphID id="175" name="solid_colorline_alpha"/>
+    <GlyphID id="176" name="paintcolrglyph_cycle_first"/>
+    <GlyphID id="177" name="paintcolrglyph_cycle_second"/>
   </GlyphOrder>
 
   <head>
     <!-- Most of this table will be recalculated by the compiler -->
     <tableVersion value="1.0"/>
     <fontRevision value="1.0"/>
-    <checkSumAdjustment value="0xa67722ff"/>
+    <checkSumAdjustment value="0xac0bb413"/>
     <magicNumber value="0x5f0f3cf5"/>
     <flags value="00000000 00000001"/>
     <unitsPerEm value="1000"/>
-    <created value="Tue Aug 16 14:28:26 2022"/>
-    <modified value="Tue Aug 16 14:28:26 2022"/>
+    <created value="Mon Nov 27 09:21:31 2023"/>
+    <modified value="Mon Nov 27 09:21:31 2023"/>
     <xMin value="0"/>
     <yMin value="0"/>
     <xMax value="1200"/>
@@ -225,7 +227,7 @@
   <maxp>
     <!-- Most of this table will be recalculated by the compiler -->
     <tableVersion value="0x10000"/>
-    <numGlyphs value="176"/>
+    <numGlyphs value="178"/>
     <maxPoints value="28"/>
     <maxContours value="4"/>
     <maxCompositePoints value="0"/>
@@ -363,6 +365,8 @@
     <mtx name="linear_repeat_0_1" width="1000" lsb="100"/>
     <mtx name="linear_repeat_0_1.5" width="1000" lsb="100"/>
     <mtx name="one" width="1000" lsb="184"/>
+    <mtx name="paintcolrglyph_cycle_first" width="1000" lsb="100"/>
+    <mtx name="paintcolrglyph_cycle_second" width="1000" lsb="100"/>
     <mtx name="radial_contained_gradient_extend_mode_pad" width="1000" lsb="0"/>
     <mtx name="radial_contained_gradient_extend_mode_reflect" width="1000" lsb="0"/>
     <mtx name="radial_contained_gradient_extend_mode_repeat" width="1000" lsb="0"/>
@@ -479,7 +483,7 @@
     </cmap_format_4>
     <cmap_format_4 platformID="3" platEncID="1" language="0">
     </cmap_format_4>
-    <cmap_format_12 platformID="3" platEncID="10" format="12" reserved="0" length="208" language="0" nGroups="16">
+    <cmap_format_12 platformID="3" platEncID="10" format="12" reserved="0" length="220" language="0" nGroups="17">
       <map code="0xf0100" name="linear_repeat_0_1"/><!-- ???? -->
       <map code="0xf0101" name="linear_repeat_0.2_0.8"/><!-- ???? -->
       <map code="0xf0102" name="linear_repeat_0_1.5"/><!-- ???? -->
@@ -650,6 +654,8 @@
       <map code="0xf0f05" name="circle_r300"/><!-- ???? -->
       <map code="0xf0f06" name="circle_r350"/><!-- ???? -->
       <map code="0xf1000" name="solid_colorline_alpha"/><!-- ???? -->
+      <map code="0xf1100" name="paintcolrglyph_cycle_first"/><!-- ???? -->
+      <map code="0xf1101" name="paintcolrglyph_cycle_second"/><!-- ???? -->
       <map code="0xfe001" name=".null"/><!-- ???? -->
       <map code="0xfe002" name="upem_box_glyph"/><!-- ???? -->
       <map code="0xfe003" name="cross_glyph"/><!-- ???? -->
@@ -1520,6 +1526,26 @@
         <pt x="184" y="466" on="1"/>
         <pt x="184" y="503" on="1"/>
         <pt x="290" y="543" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="paintcolrglyph_cycle_first" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="paintcolrglyph_cycle_second" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
       </contour>
       <instructions/>
     </TTGlyph>
@@ -2640,13 +2666,13 @@
       Regular
     </namerecord>
     <namerecord nameID="3" platformID="1" platEncID="0" langID="0x0" unicode="True">
-      COLRv1 Static Test Glyphs 2022-08-16T17:28:26.463214
+      COLRv1 Static Test Glyphs 2023-11-27T11:21:31.774236
     </namerecord>
     <namerecord nameID="4" platformID="1" platEncID="0" langID="0x0" unicode="True">
       COLRv1 Static Test Glyphs Regular
     </namerecord>
     <namerecord nameID="5" platformID="1" platEncID="0" langID="0x0" unicode="True">
-      2022-08-16T17:28:26.463214
+      2023-11-27T11:21:31.774236
     </namerecord>
     <namerecord nameID="6" platformID="1" platEncID="0" langID="0x0" unicode="True">
       COLRv1StaticTestGlyphs-Regular
@@ -2658,13 +2684,13 @@
       Regular
     </namerecord>
     <namerecord nameID="3" platformID="3" platEncID="1" langID="0x409">
-      COLRv1 Static Test Glyphs 2022-08-16T17:28:26.463214
+      COLRv1 Static Test Glyphs 2023-11-27T11:21:31.774236
     </namerecord>
     <namerecord nameID="4" platformID="3" platEncID="1" langID="0x409">
       COLRv1 Static Test Glyphs Regular
     </namerecord>
     <namerecord nameID="5" platformID="3" platEncID="1" langID="0x409">
-      2022-08-16T17:28:26.463214
+      2023-11-27T11:21:31.774236
     </namerecord>
     <namerecord nameID="6" platformID="3" platEncID="1" langID="0x409">
       COLRv1StaticTestGlyphs-Regular
@@ -2864,6 +2890,8 @@
       <psName name="circle_r300"/>
       <psName name="circle_r350"/>
       <psName name="solid_colorline_alpha"/>
+      <psName name="paintcolrglyph_cycle_first"/>
+      <psName name="paintcolrglyph_cycle_second"/>
     </extraNames>
   </post>
 
@@ -2913,7 +2941,7 @@
     </LayerRecordArray>
     <!-- LayerRecordCount=8 -->
     <BaseGlyphList>
-      <!-- BaseGlyphCount=157 -->
+      <!-- BaseGlyphCount=159 -->
       <BaseGlyphPaintRecord index="0">
         <BaseGlyph value="linear_repeat_0_1"/>
         <Paint Format="10"><!-- PaintGlyph -->
@@ -7145,6 +7173,18 @@
           <FirstLayerIndex value="64"/>
         </Paint>
       </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="157">
+        <BaseGlyph value="paintcolrglyph_cycle_first"/>
+        <Paint Format="11"><!-- PaintColrGlyph -->
+          <Glyph value="paintcolrglyph_cycle_second"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="158">
+        <BaseGlyph value="paintcolrglyph_cycle_second"/>
+        <Paint Format="11"><!-- PaintColrGlyph -->
+          <Glyph value="paintcolrglyph_cycle_first"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
     </BaseGlyphList>
     <LayerList>
       <!-- LayerCount=66 -->
@@ -8374,6 +8414,8 @@
         <Glyph value="linear_repeat_0.5_1.5"/>
         <Glyph value="linear_repeat_0_1"/>
         <Glyph value="linear_repeat_0_1.5"/>
+        <Glyph value="paintcolrglyph_cycle_first"/>
+        <Glyph value="paintcolrglyph_cycle_second"/>
         <ClipBox Format="1">
           <xMin value="100"/>
           <yMin value="250"/>
