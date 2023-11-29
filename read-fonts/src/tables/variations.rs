@@ -577,6 +577,66 @@ impl<'a> ItemVariationStore<'a> {
         }
         Ok(((accum + 0x8000) >> 16) as i32)
     }
+
+    /// Computes the delta value in floating point for the specified index and set
+    /// of normalized variation coordinates.
+    ///
+    /// This requires a type parameter specifying the type of target value for the
+    /// delta.
+    pub fn compute_delta_f32<T: ItemDeltaTarget>(
+        &self,
+        index: DeltaSetIndex,
+        coords: &[F2Dot14],
+    ) -> Result<f32, ReadError> {
+        let data = match self.item_variation_data().get(index.outer as usize) {
+            Some(data) => data?,
+            None => return Ok(0.0),
+        };
+        let regions = self.variation_region_list()?.variation_regions();
+        let region_indices = data.region_indexes();
+        // Compute deltas in 32-bit floating point.
+        let mut accum = 0f32;
+        for (i, region_delta) in data.delta_set(index.inner).enumerate() {
+            let region_index = region_indices
+                .get(i)
+                .ok_or(ReadError::MalformedData(
+                    "invalid delta sets in ItemVariationStore",
+                ))?
+                .get() as usize;
+            let region = regions.get(region_index)?;
+            let scalar = region.compute_scalar_f32(coords);
+            accum += T::delta_to_f32(region_delta) * scalar;
+        }
+        Ok(accum)
+    }
+}
+
+pub trait ItemDeltaTarget {
+    fn delta_to_f32(delta: i32) -> f32;
+}
+
+impl ItemDeltaTarget for Fixed {
+    fn delta_to_f32(delta: i32) -> f32 {
+        Fixed::from_bits(delta).to_f32()
+    }
+}
+
+impl ItemDeltaTarget for FWord {
+    fn delta_to_f32(delta: i32) -> f32 {
+        delta as f32
+    }
+}
+
+impl ItemDeltaTarget for UfWord {
+    fn delta_to_f32(delta: i32) -> f32 {
+        delta as f32
+    }
+}
+
+impl ItemDeltaTarget for F2Dot14 {
+    fn delta_to_f32(delta: i32) -> f32 {
+        F2Dot14::from_bits(delta as i16).to_f32()
+    }
 }
 
 impl<'a> VariationRegion<'a> {
@@ -600,6 +660,30 @@ impl<'a> VariationRegion<'a> {
                 scalar = scalar.mul_div(coord - start, peak - start);
             } else {
                 scalar = scalar.mul_div(end - coord, end - peak);
+            }
+        }
+        scalar
+    }
+
+    /// Computes a floating point scalar value for this region and the
+    /// specified normalized variation coordinates.
+    pub fn compute_scalar_f32(&self, coords: &[F2Dot14]) -> f32 {
+        let mut scalar = 1.0;
+        for (i, axis_coords) in self.region_axes().iter().enumerate() {
+            let coord = coords.get(i).map(|coord| coord.to_f32()).unwrap_or(0.0);
+            let start = axis_coords.start_coord.get().to_f32();
+            let end = axis_coords.end_coord.get().to_f32();
+            let peak = axis_coords.peak_coord.get().to_f32();
+            if start > peak || peak > end || peak == 0.0 || start < 0.0 && end > 0.0 {
+                continue;
+            } else if coord < start || coord > end {
+                return 0.0;
+            } else if coord == peak {
+                continue;
+            } else if coord < peak {
+                scalar = (scalar * (coord - start)) / (peak - start);
+            } else {
+                scalar = (scalar * (end - coord)) / (end - peak);
             }
         }
         scalar
@@ -840,5 +924,45 @@ mod tests {
         let (all_points, _) = PackedPointNumbers::split_off_front(ALL_POINTS);
         // in which case the iterator just keeps incrementing until u16::MAX
         assert_eq!(all_points.iter().count(), u16::MAX as _);
+    }
+
+    /// We don't have a reference for our f32 delta computation, so this is
+    /// a sanity test to ensure that floating point deltas are within a
+    /// reasonable margin of the same in fixed point.
+    #[test]
+    fn ivs_f32_deltas_nearly_match_fixed_deltas() {
+        let font = FontRef::new(font_test_data::COLRV0V1_VARIABLE).unwrap();
+        let axis_count = font.fvar().unwrap().axis_count() as usize;
+        let colr = font.colr().unwrap();
+        let ivs = colr.item_variation_store().unwrap().unwrap();
+        // Generate a set of coords from -1 to 1 in 0.1 increments
+        for coord in (0..=20).map(|x| F2Dot14::from_f32((x as f32) / 10.0 - 1.0)) {
+            // For testing purposes, just splat the coord to all axes
+            let coords = vec![coord; axis_count];
+            for (outer_ix, data) in ivs.item_variation_data().iter().enumerate() {
+                let outer_ix = outer_ix as u16;
+                let Some(Ok(data)) = data else {
+                    continue;
+                };
+                for inner_ix in 0..data.item_count() {
+                    let delta_ix = DeltaSetIndex {
+                        outer: outer_ix,
+                        inner: inner_ix,
+                    };
+                    let fixed_delta = ivs.compute_delta(delta_ix, &coords).unwrap();
+                    // FWord here is not strictly correct because this
+                    // COLRv1 IVS contains deltas for varying types but
+                    // it's good enough for our sanity check
+                    let f32_delta = ivs.compute_delta_f32::<FWord>(delta_ix, &coords).unwrap();
+                    // We need to accept both rounding and truncation
+                    // to account for the additional accumulation of
+                    // fractional bits in floating point
+                    assert!(
+                        fixed_delta == f32_delta.round() as i32
+                            || fixed_delta == f32_delta.trunc() as i32
+                    );
+                }
+            }
+        }
     }
 }
