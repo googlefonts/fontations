@@ -52,7 +52,7 @@ impl<'a> ColrInstance<'a> {
         // we do the same and just `unwrap_or_default` on var store
         // errors.
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/fc01e7dd/src/sfnt/ttcolr.c#L574>
-        let mut deltas = [FloatItemDelta::default(); N];
+        let mut deltas = [FloatItemDelta::ZERO; N];
         if self.coords.is_empty()
             || self.var_store.is_none()
             || var_index_base == NO_VARIATION_DELTAS

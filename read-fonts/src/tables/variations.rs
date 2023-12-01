@@ -587,7 +587,7 @@ impl<'a> ItemVariationStore<'a> {
     ) -> Result<FloatItemDelta, ReadError> {
         let data = match self.item_variation_data().get(index.outer as usize) {
             Some(data) => data?,
-            None => return Ok(FloatItemDelta(0.0)),
+            None => return Ok(FloatItemDelta::ZERO),
         };
         let regions = self.variation_region_list()?.variation_regions();
         let region_indices = data.region_indexes();
@@ -615,13 +615,7 @@ impl<'a> ItemVariationStore<'a> {
 pub struct FloatItemDelta(f64);
 
 impl FloatItemDelta {
-    /// Returns the underlying raw delta value.
-    ///
-    /// The meaning of this value is dependent on the type of the target to
-    /// which the delta will be applied.
-    pub fn raw(self) -> f64 {
-        self.0
-    }
+    pub const ZERO: Self = Self(0.0);
 }
 
 /// Trait for applying floating point item deltas to target values.
@@ -972,8 +966,8 @@ mod tests {
                     // truncation to account for the additional accumulation of
                     // fractional bits in floating point
                     assert!(
-                        orig_delta == float_delta.raw().round() as i32
-                            || orig_delta == float_delta.raw().trunc() as i32
+                        orig_delta == float_delta.0.round() as i32
+                            || orig_delta == float_delta.0.trunc() as i32
                     );
                     // For the fixed point types, check with an epsilon
                     const EPSILON: f32 = 1e12;
