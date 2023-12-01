@@ -3,9 +3,12 @@
 use read_fonts::{
     tables::{
         colr::*,
-        variations::{DeltaSetIndex, DeltaSetIndexMap, ItemVariationStore},
+        variations::{
+            DeltaSetIndex, DeltaSetIndexMap, FloatItemDelta, FloatItemDeltaTarget,
+            ItemVariationStore,
+        },
     },
-    types::{BoundingBox, F2Dot14, FWord, Fixed, GlyphId, Point, UfWord},
+    types::{BoundingBox, F2Dot14, GlyphId, Point},
     ReadError,
 };
 
@@ -42,14 +45,14 @@ impl<'a> ColrInstance<'a> {
 
     /// Computes a sequence of N variation deltas starting at the given
     /// `var_base` index.
-    fn var_deltas<const N: usize>(&self, var_index_base: u32, tys: [DeltaType; N]) -> [f32; N] {
+    fn var_deltas<const N: usize>(&self, var_index_base: u32) -> [FloatItemDelta; N] {
         // Magic value that indicates deltas should not be applied.
         const NO_VARIATION_DELTAS: u32 = 0xFFFFFFFF;
         // Note: FreeType never returns an error for these lookups, so
         // we do the same and just `unwrap_or_default` on var store
         // errors.
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/fc01e7dd/src/sfnt/ttcolr.c#L574>
-        let mut deltas = [0.0; N];
+        let mut deltas = [FloatItemDelta::default(); N];
         if self.coords.is_empty()
             || self.var_store.is_none()
             || var_index_base == NO_VARIATION_DELTAS
@@ -57,24 +60,17 @@ impl<'a> ColrInstance<'a> {
             return deltas;
         }
         let var_store = self.var_store.as_ref().unwrap();
-        let compute_delta = |ty: &DeltaType, delta_ix| {
-            match ty {
-                DeltaType::FWord => var_store.compute_delta_f32::<FWord>(delta_ix, self.coords),
-                DeltaType::UfWord => var_store.compute_delta_f32::<UfWord>(delta_ix, self.coords),
-                DeltaType::Fixed => var_store.compute_delta_f32::<Fixed>(delta_ix, self.coords),
-                DeltaType::F2Dot14 => var_store.compute_delta_f32::<F2Dot14>(delta_ix, self.coords),
-            }
-            .unwrap_or_default()
-        };
         if let Some(index_map) = self.index_map.as_ref() {
-            for (i, (ty, delta)) in tys.iter().zip(deltas.iter_mut()).enumerate() {
+            for (i, delta) in deltas.iter_mut().enumerate() {
                 let var_index = var_index_base + i as u32;
                 if let Ok(delta_ix) = index_map.get(var_index) {
-                    *delta = compute_delta(ty, delta_ix);
+                    *delta = var_store
+                        .compute_float_delta(delta_ix, self.coords)
+                        .unwrap_or_default();
                 }
             }
         } else {
-            for (i, (ty, delta)) in tys.iter().zip(deltas.iter_mut()).enumerate() {
+            for (i, delta) in deltas.iter_mut().enumerate() {
                 let var_index = var_index_base + i as u32;
                 // If we don't have a var index map, use our index as the inner
                 // component and set the outer to 0.
@@ -82,19 +78,13 @@ impl<'a> ColrInstance<'a> {
                     outer: 0,
                     inner: var_index as u16,
                 };
-                *delta = compute_delta(ty, delta_ix);
+                *delta = var_store
+                    .compute_float_delta(delta_ix, self.coords)
+                    .unwrap_or_default();
             }
         }
         deltas
     }
-}
-
-#[derive(Copy, Clone)]
-enum DeltaType {
-    FWord,
-    UfWord,
-    Fixed,
-    F2Dot14,
 }
 
 impl<'a> Deref for ColrInstance<'a> {
@@ -116,12 +106,12 @@ pub fn resolve_clip_box(instance: &ColrInstance, clip_box: &ClipBox) -> Bounding
             y_max: cbox.y_max().to_i16() as f32,
         },
         ClipBox::Format2(cbox) => {
-            let deltas = instance.var_deltas(cbox.var_index_base(), [DeltaType::FWord; 4]);
+            let deltas = instance.var_deltas::<4>(cbox.var_index_base());
             BoundingBox {
-                x_min: cbox.x_min().apply_delta(deltas[0]),
-                y_min: cbox.y_min().apply_delta(deltas[1]),
-                x_max: cbox.x_max().apply_delta(deltas[2]),
-                y_max: cbox.y_max().apply_delta(deltas[3]),
+                x_min: cbox.x_min().apply_float_delta(deltas[0]),
+                y_min: cbox.y_min().apply_float_delta(deltas[1]),
+                x_max: cbox.x_max().apply_float_delta(deltas[2]),
+                y_max: cbox.y_max().apply_float_delta(deltas[3]),
             }
         }
     }
@@ -186,11 +176,11 @@ impl<'a> ColorStops<'a> {
                 alpha: stop.alpha().to_f32(),
             })
             .chain(self.var_stops.iter().map(|stop| {
-                let deltas = instance.var_deltas(stop.var_index_base(), [DeltaType::F2Dot14; 2]);
+                let deltas = instance.var_deltas::<2>(stop.var_index_base());
                 ResolvedColorStop {
-                    offset: stop.stop_offset().apply_delta(deltas[0]),
+                    offset: stop.stop_offset().apply_float_delta(deltas[0]),
                     palette_index: stop.palette_index(),
-                    alpha: stop.alpha().apply_delta(deltas[1]),
+                    alpha: stop.alpha().apply_float_delta(deltas[1]),
                 }
             }))
     }
@@ -310,10 +300,10 @@ pub fn resolve_paint<'a>(
             alpha: solid.alpha().to_f32(),
         },
         Paint::VarSolid(solid) => {
-            let deltas = instance.var_deltas(solid.var_index_base(), [DeltaType::F2Dot14]);
+            let deltas = instance.var_deltas::<1>(solid.var_index_base());
             ResolvedPaint::Solid {
                 palette_index: solid.palette_index(),
-                alpha: solid.alpha().apply_delta(deltas[0]),
+                alpha: solid.alpha().apply_float_delta(deltas[0]),
             }
         }
         Paint::LinearGradient(gradient) => {
@@ -333,14 +323,14 @@ pub fn resolve_paint<'a>(
         Paint::VarLinearGradient(gradient) => {
             let color_line = gradient.color_line()?;
             let extend = color_line.extend();
-            let deltas = instance.var_deltas(gradient.var_index_base(), [DeltaType::FWord; 6]);
+            let deltas = instance.var_deltas::<6>(gradient.var_index_base());
             ResolvedPaint::LinearGradient {
-                x0: gradient.x0().apply_delta(deltas[0]),
-                y0: gradient.y0().apply_delta(deltas[1]),
-                x1: gradient.x1().apply_delta(deltas[2]),
-                y1: gradient.y1().apply_delta(deltas[3]),
-                x2: gradient.x2().apply_delta(deltas[4]),
-                y2: gradient.y2().apply_delta(deltas[5]),
+                x0: gradient.x0().apply_float_delta(deltas[0]),
+                y0: gradient.y0().apply_float_delta(deltas[1]),
+                x1: gradient.x1().apply_float_delta(deltas[2]),
+                y1: gradient.y1().apply_float_delta(deltas[3]),
+                x2: gradient.x2().apply_float_delta(deltas[4]),
+                y2: gradient.y2().apply_float_delta(deltas[5]),
                 color_stops: color_line.into(),
                 extend,
             }
@@ -362,24 +352,14 @@ pub fn resolve_paint<'a>(
         Paint::VarRadialGradient(gradient) => {
             let color_line = gradient.color_line()?;
             let extend = color_line.extend();
-            let deltas = instance.var_deltas(
-                gradient.var_index_base(),
-                [
-                    DeltaType::FWord,
-                    DeltaType::FWord,
-                    DeltaType::UfWord,
-                    DeltaType::FWord,
-                    DeltaType::FWord,
-                    DeltaType::UfWord,
-                ],
-            );
+            let deltas = instance.var_deltas::<6>(gradient.var_index_base());
             ResolvedPaint::RadialGradient {
-                x0: gradient.x0().apply_delta(deltas[0]),
-                y0: gradient.y0().apply_delta(deltas[1]),
-                radius0: gradient.radius0().apply_delta(deltas[2]),
-                x1: gradient.x1().apply_delta(deltas[3]),
-                y1: gradient.y1().apply_delta(deltas[4]),
-                radius1: gradient.radius1().apply_delta(deltas[5]),
+                x0: gradient.x0().apply_float_delta(deltas[0]),
+                y0: gradient.y0().apply_float_delta(deltas[1]),
+                radius0: gradient.radius0().apply_float_delta(deltas[2]),
+                x1: gradient.x1().apply_float_delta(deltas[3]),
+                y1: gradient.y1().apply_float_delta(deltas[4]),
+                radius1: gradient.radius1().apply_float_delta(deltas[5]),
                 color_stops: color_line.into(),
                 extend,
             }
@@ -399,20 +379,12 @@ pub fn resolve_paint<'a>(
         Paint::VarSweepGradient(gradient) => {
             let color_line = gradient.color_line()?;
             let extend = color_line.extend();
-            let deltas = instance.var_deltas(
-                gradient.var_index_base(),
-                [
-                    DeltaType::FWord,
-                    DeltaType::FWord,
-                    DeltaType::F2Dot14,
-                    DeltaType::F2Dot14,
-                ],
-            );
+            let deltas = instance.var_deltas::<4>(gradient.var_index_base());
             ResolvedPaint::SweepGradient {
-                center_x: gradient.center_x().apply_delta(deltas[0]),
-                center_y: gradient.center_y().apply_delta(deltas[1]),
-                start_angle: gradient.start_angle().apply_delta(deltas[2]),
-                end_angle: gradient.end_angle().apply_delta(deltas[3]),
+                center_x: gradient.center_x().apply_float_delta(deltas[0]),
+                center_y: gradient.center_y().apply_float_delta(deltas[1]),
+                start_angle: gradient.start_angle().apply_float_delta(deltas[2]),
+                end_angle: gradient.end_angle().apply_float_delta(deltas[3]),
                 color_stops: color_line.into(),
                 extend,
             }
@@ -440,14 +412,14 @@ pub fn resolve_paint<'a>(
         Paint::VarTransform(transform) => {
             let affine = transform.transform()?;
             let paint = transform.paint()?;
-            let deltas = instance.var_deltas(affine.var_index_base(), [DeltaType::Fixed; 6]);
+            let deltas = instance.var_deltas::<6>(affine.var_index_base());
             ResolvedPaint::Transform {
-                xx: affine.xx().apply_delta(deltas[0]),
-                yx: affine.yx().apply_delta(deltas[1]),
-                xy: affine.xy().apply_delta(deltas[2]),
-                yy: affine.yy().apply_delta(deltas[3]),
-                dx: affine.dx().apply_delta(deltas[4]),
-                dy: affine.dy().apply_delta(deltas[5]),
+                xx: affine.xx().apply_float_delta(deltas[0]),
+                yx: affine.yx().apply_float_delta(deltas[1]),
+                xy: affine.xy().apply_float_delta(deltas[2]),
+                yy: affine.yy().apply_float_delta(deltas[3]),
+                dx: affine.dx().apply_float_delta(deltas[4]),
+                dy: affine.dy().apply_float_delta(deltas[5]),
                 paint,
             }
         }
@@ -457,10 +429,10 @@ pub fn resolve_paint<'a>(
             paint: transform.paint()?,
         },
         Paint::VarTranslate(transform) => {
-            let deltas = instance.var_deltas(transform.var_index_base(), [DeltaType::FWord; 2]);
+            let deltas = instance.var_deltas::<2>(transform.var_index_base());
             ResolvedPaint::Translate {
-                dx: transform.dx().apply_delta(deltas[0]),
-                dy: transform.dy().apply_delta(deltas[1]),
+                dx: transform.dx().apply_float_delta(deltas[0]),
+                dy: transform.dy().apply_float_delta(deltas[1]),
                 paint: transform.paint()?,
             }
         }
@@ -471,10 +443,10 @@ pub fn resolve_paint<'a>(
             paint: transform.paint()?,
         },
         Paint::VarScale(transform) => {
-            let deltas = instance.var_deltas(transform.var_index_base(), [DeltaType::F2Dot14; 2]);
+            let deltas = instance.var_deltas::<2>(transform.var_index_base());
             ResolvedPaint::Scale {
-                scale_x: transform.scale_x().apply_delta(deltas[0]),
-                scale_y: transform.scale_y().apply_delta(deltas[1]),
+                scale_x: transform.scale_x().apply_float_delta(deltas[0]),
+                scale_y: transform.scale_y().apply_float_delta(deltas[1]),
                 around_center: None,
                 paint: transform.paint()?,
             }
@@ -489,21 +461,13 @@ pub fn resolve_paint<'a>(
             paint: transform.paint()?,
         },
         Paint::VarScaleAroundCenter(transform) => {
-            let deltas = instance.var_deltas(
-                transform.var_index_base(),
-                [
-                    DeltaType::F2Dot14,
-                    DeltaType::F2Dot14,
-                    DeltaType::FWord,
-                    DeltaType::FWord,
-                ],
-            );
+            let deltas = instance.var_deltas::<4>(transform.var_index_base());
             ResolvedPaint::Scale {
-                scale_x: transform.scale_x().apply_delta(deltas[0]),
-                scale_y: transform.scale_y().apply_delta(deltas[1]),
+                scale_x: transform.scale_x().apply_float_delta(deltas[0]),
+                scale_y: transform.scale_y().apply_float_delta(deltas[1]),
                 around_center: Some(Point::new(
-                    transform.center_x().apply_delta(deltas[2]),
-                    transform.center_y().apply_delta(deltas[3]),
+                    transform.center_x().apply_float_delta(deltas[2]),
+                    transform.center_y().apply_float_delta(deltas[3]),
                 )),
                 paint: transform.paint()?,
             }
@@ -518,8 +482,8 @@ pub fn resolve_paint<'a>(
             }
         }
         Paint::VarScaleUniform(transform) => {
-            let deltas = instance.var_deltas(transform.var_index_base(), [DeltaType::F2Dot14]);
-            let scale = transform.scale().apply_delta(deltas[0]);
+            let deltas = instance.var_deltas::<1>(transform.var_index_base());
+            let scale = transform.scale().apply_float_delta(deltas[0]);
             ResolvedPaint::Scale {
                 scale_x: scale,
                 scale_y: scale,
@@ -540,17 +504,14 @@ pub fn resolve_paint<'a>(
             }
         }
         Paint::VarScaleUniformAroundCenter(transform) => {
-            let deltas = instance.var_deltas(
-                transform.var_index_base(),
-                [DeltaType::F2Dot14, DeltaType::FWord, DeltaType::FWord],
-            );
-            let scale = transform.scale().apply_delta(deltas[0]);
+            let deltas = instance.var_deltas::<3>(transform.var_index_base());
+            let scale = transform.scale().apply_float_delta(deltas[0]);
             ResolvedPaint::Scale {
                 scale_x: scale,
                 scale_y: scale,
                 around_center: Some(Point::new(
-                    transform.center_x().apply_delta(deltas[1]),
-                    transform.center_y().apply_delta(deltas[2]),
+                    transform.center_x().apply_float_delta(deltas[1]),
+                    transform.center_y().apply_float_delta(deltas[2]),
                 )),
                 paint: transform.paint()?,
             }
@@ -561,9 +522,9 @@ pub fn resolve_paint<'a>(
             paint: transform.paint()?,
         },
         Paint::VarRotate(transform) => {
-            let deltas = instance.var_deltas(transform.var_index_base(), [DeltaType::F2Dot14]);
+            let deltas = instance.var_deltas::<1>(transform.var_index_base());
             ResolvedPaint::Rotate {
-                angle: transform.angle().apply_delta(deltas[0]),
+                angle: transform.angle().apply_float_delta(deltas[0]),
                 around_center: None,
                 paint: transform.paint()?,
             }
@@ -577,15 +538,12 @@ pub fn resolve_paint<'a>(
             paint: transform.paint()?,
         },
         Paint::VarRotateAroundCenter(transform) => {
-            let deltas = instance.var_deltas(
-                transform.var_index_base(),
-                [DeltaType::F2Dot14, DeltaType::FWord, DeltaType::FWord],
-            );
+            let deltas = instance.var_deltas::<3>(transform.var_index_base());
             ResolvedPaint::Rotate {
-                angle: transform.angle().apply_delta(deltas[0]),
+                angle: transform.angle().apply_float_delta(deltas[0]),
                 around_center: Some(Point::new(
-                    transform.center_x().apply_delta(deltas[1]),
-                    transform.center_y().apply_delta(deltas[2]),
+                    transform.center_x().apply_float_delta(deltas[1]),
+                    transform.center_y().apply_float_delta(deltas[2]),
                 )),
                 paint: transform.paint()?,
             }
@@ -597,10 +555,10 @@ pub fn resolve_paint<'a>(
             paint: transform.paint()?,
         },
         Paint::VarSkew(transform) => {
-            let deltas = instance.var_deltas(transform.var_index_base(), [DeltaType::F2Dot14; 2]);
+            let deltas = instance.var_deltas::<2>(transform.var_index_base());
             ResolvedPaint::Skew {
-                x_skew_angle: transform.x_skew_angle().apply_delta(deltas[0]),
-                y_skew_angle: transform.y_skew_angle().apply_delta(deltas[1]),
+                x_skew_angle: transform.x_skew_angle().apply_float_delta(deltas[0]),
+                y_skew_angle: transform.y_skew_angle().apply_float_delta(deltas[1]),
                 around_center: None,
                 paint: transform.paint()?,
             }
@@ -615,21 +573,13 @@ pub fn resolve_paint<'a>(
             paint: transform.paint()?,
         },
         Paint::VarSkewAroundCenter(transform) => {
-            let deltas = instance.var_deltas(
-                transform.var_index_base(),
-                [
-                    DeltaType::F2Dot14,
-                    DeltaType::F2Dot14,
-                    DeltaType::FWord,
-                    DeltaType::FWord,
-                ],
-            );
+            let deltas = instance.var_deltas::<4>(transform.var_index_base());
             ResolvedPaint::Skew {
-                x_skew_angle: transform.x_skew_angle().apply_delta(deltas[0]),
-                y_skew_angle: transform.y_skew_angle().apply_delta(deltas[1]),
+                x_skew_angle: transform.x_skew_angle().apply_float_delta(deltas[0]),
+                y_skew_angle: transform.y_skew_angle().apply_float_delta(deltas[1]),
                 around_center: Some(Point::new(
-                    transform.center_x().apply_delta(deltas[2]),
-                    transform.center_y().apply_delta(deltas[3]),
+                    transform.center_x().apply_float_delta(deltas[2]),
+                    transform.center_y().apply_float_delta(deltas[3]),
                 )),
                 paint: transform.paint()?,
             }
@@ -640,32 +590,4 @@ pub fn resolve_paint<'a>(
             backdrop_paint: composite.backdrop_paint()?,
         },
     })
-}
-
-trait ApplyDelta {
-    fn apply_delta(self, delta: f32) -> f32;
-}
-
-impl ApplyDelta for Fixed {
-    fn apply_delta(self, delta: f32) -> f32 {
-        self.to_f32() + delta
-    }
-}
-
-impl ApplyDelta for F2Dot14 {
-    fn apply_delta(self, delta: f32) -> f32 {
-        self.to_f32() + delta
-    }
-}
-
-impl ApplyDelta for FWord {
-    fn apply_delta(self, delta: f32) -> f32 {
-        self.to_i16() as f32 + delta
-    }
-}
-
-impl ApplyDelta for UfWord {
-    fn apply_delta(self, delta: f32) -> f32 {
-        self.to_u16() as f32 + delta
-    }
 }

@@ -580,22 +580,19 @@ impl<'a> ItemVariationStore<'a> {
 
     /// Computes the delta value in floating point for the specified index and set
     /// of normalized variation coordinates.
-    ///
-    /// This requires a type parameter specifying the type of target value for the
-    /// delta.
-    pub fn compute_delta_f32<T: ItemDeltaTarget>(
+    pub fn compute_float_delta(
         &self,
         index: DeltaSetIndex,
         coords: &[F2Dot14],
-    ) -> Result<f32, ReadError> {
+    ) -> Result<FloatItemDelta, ReadError> {
         let data = match self.item_variation_data().get(index.outer as usize) {
             Some(data) => data?,
-            None => return Ok(0.0),
+            None => return Ok(FloatItemDelta(0.0)),
         };
         let regions = self.variation_region_list()?.variation_regions();
         let region_indices = data.region_indexes();
-        // Compute deltas in 32-bit floating point.
-        let mut accum = 0f32;
+        // Compute deltas in 64-bit floating point.
+        let mut accum = 0f64;
         for (i, region_delta) in data.delta_set(index.inner).enumerate() {
             let region_index = region_indices
                 .get(i)
@@ -605,39 +602,56 @@ impl<'a> ItemVariationStore<'a> {
                 .get() as usize;
             let region = regions.get(region_index)?;
             let scalar = region.compute_scalar_f32(coords);
-            accum += T::delta_to_f32(region_delta) * scalar;
+            accum += region_delta as f64 * scalar as f64;
         }
-        Ok(accum)
+        Ok(FloatItemDelta(accum))
     }
 }
 
-pub trait ItemDeltaTarget {
-    fn delta_to_f32(delta: i32) -> f32;
-}
+/// Floating point item delta computed by an item variation store.
+///
+/// These can be applied to types that implement [`FloatItemDeltaTarget`].
+#[derive(Copy, Clone, Default, Debug)]
+pub struct FloatItemDelta(f64);
 
-impl ItemDeltaTarget for Fixed {
-    fn delta_to_f32(delta: i32) -> f32 {
-        Fixed::from_bits(delta).to_f32()
+impl FloatItemDelta {
+    /// Returns the underlying raw delta value.
+    ///
+    /// The meaning of this value is dependent on the type of the target to
+    /// which the delta will be applied.
+    pub fn raw(self) -> f64 {
+        self.0
     }
 }
 
-impl ItemDeltaTarget for FWord {
-    fn delta_to_f32(delta: i32) -> f32 {
-        delta as f32
+/// Trait for applying floating point item deltas to target values.
+pub trait FloatItemDeltaTarget {
+    fn apply_float_delta(&self, delta: FloatItemDelta) -> f32;
+}
+
+impl FloatItemDeltaTarget for Fixed {
+    fn apply_float_delta(&self, delta: FloatItemDelta) -> f32 {
+        const FIXED_TO_FLOAT: f64 = 1.0 / 65536.0;
+        self.to_f32() + (delta.0 * FIXED_TO_FLOAT) as f32
     }
 }
 
-impl ItemDeltaTarget for UfWord {
-    fn delta_to_f32(delta: i32) -> f32 {
-        delta as f32
+impl FloatItemDeltaTarget for FWord {
+    fn apply_float_delta(&self, delta: FloatItemDelta) -> f32 {
+        self.to_i16() as f32 + delta.0 as f32
     }
 }
 
-impl ItemDeltaTarget for F2Dot14 {
-    fn delta_to_f32(delta: i32) -> f32 {
-        // Region deltas may overflow i16 so convert directly to float
-        const F2DOT14_TO_F32: f32 = 1.0 / 16384.0;
-        delta as f32 * F2DOT14_TO_F32
+impl FloatItemDeltaTarget for UfWord {
+    fn apply_float_delta(&self, delta: FloatItemDelta) -> f32 {
+        self.to_u16() as f32 + delta.0 as f32
+    }
+}
+
+impl FloatItemDeltaTarget for F2Dot14 {
+    fn apply_float_delta(&self, delta: FloatItemDelta) -> f32 {
+        const F2DOT14_TO_FLOAT: f64 = 1.0 / 16384.0;
+        self.to_f32() + (delta.0 * F2DOT14_TO_FLOAT) as f32
     }
 }
 
@@ -928,11 +942,11 @@ mod tests {
         assert_eq!(all_points.iter().count(), u16::MAX as _);
     }
 
-    /// We don't have a reference for our f32 delta computation, so this is
+    /// We don't have a reference for our float delta computation, so this is
     /// a sanity test to ensure that floating point deltas are within a
     /// reasonable margin of the same in fixed point.
     #[test]
-    fn ivs_f32_deltas_nearly_match_fixed_deltas() {
+    fn ivs_float_deltas_nearly_match_fixed_deltas() {
         let font = FontRef::new(font_test_data::COLRV0V1_VARIABLE).unwrap();
         let axis_count = font.fvar().unwrap().axis_count() as usize;
         let colr = font.colr().unwrap();
@@ -953,21 +967,19 @@ mod tests {
                     };
                     // Check the deltas against all possible target values
                     let orig_delta = ivs.compute_delta(delta_ix, &coords).unwrap();
-                    // FWord/UfWord are equivalent because deltas are always signed
-                    let funit_delta = ivs.compute_delta_f32::<FWord>(delta_ix, &coords).unwrap();
+                    let float_delta = ivs.compute_float_delta(delta_ix, &coords).unwrap();
                     // For font unit types, we need to accept both rounding and
                     // truncation to account for the additional accumulation of
                     // fractional bits in floating point
                     assert!(
-                        orig_delta == funit_delta.round() as i32
-                            || orig_delta == funit_delta.trunc() as i32
+                        orig_delta == float_delta.raw().round() as i32
+                            || orig_delta == float_delta.raw().trunc() as i32
                     );
                     // For the fixed point types, check with an epsilon
                     const EPSILON: f32 = 1e12;
-                    let fixed_delta = ivs.compute_delta_f32::<Fixed>(delta_ix, &coords).unwrap();
+                    let fixed_delta = Fixed::ZERO.apply_float_delta(float_delta);
                     assert!((Fixed::from_bits(orig_delta).to_f32() - fixed_delta).abs() < EPSILON);
-                    let f2dot14_delta =
-                        ivs.compute_delta_f32::<F2Dot14>(delta_ix, &coords).unwrap();
+                    let f2dot14_delta = F2Dot14::ZERO.apply_float_delta(float_delta);
                     assert!(
                         (F2Dot14::from_bits(orig_delta as i16).to_f32() - f2dot14_delta).abs()
                             < EPSILON
