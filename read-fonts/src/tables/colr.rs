@@ -4,7 +4,7 @@ use super::variations::{DeltaSetIndexMap, ItemVariationStore};
 
 include!("../../generated/generated_colr.rs");
 
-/// Identifier used for representing a paint on the recursion blacklist.
+/// Unique paint identifier used for detecting cycles in the paint graph.
 pub type PaintId = usize;
 
 impl<'a> Colr<'a> {

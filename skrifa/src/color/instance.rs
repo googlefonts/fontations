@@ -14,7 +14,7 @@ use read_fonts::{
 
 use core::ops::{Deref, Range};
 
-/// Identifier used for representing a paint on the recursion blacklist.
+/// Unique paint identifier used for detecting cycles in the paint graph.
 pub type PaintId = usize;
 
 /// Combination of a `COLR` table and a location in variation space for
