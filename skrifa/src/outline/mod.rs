@@ -278,11 +278,17 @@ mod tests {
         let font_format_pairs = [
             (font_test_data::VAZIRMATN_VAR, OutlineFormat::Glyf),
             (font_test_data::CANTARELL_VF_TRIMMED, OutlineFormat::Cff2),
-            (font_test_data::NOTO_SERIF_DISPLAY_TRIMMED, OutlineFormat::Cff),
+            (
+                font_test_data::NOTO_SERIF_DISPLAY_TRIMMED,
+                OutlineFormat::Cff,
+            ),
             (font_test_data::COLRV0V1_VARIABLE, OutlineFormat::Glyf),
         ];
         for (font_data, format) in font_format_pairs {
-            assert_eq!(FontRef::new(font_data).unwrap().outlines().format(), Some(format));
+            assert_eq!(
+                FontRef::new(font_data).unwrap().outlines().format(),
+                Some(format)
+            );
         }
     }
 
