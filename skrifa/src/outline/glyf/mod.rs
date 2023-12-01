@@ -1,5 +1,8 @@
 //! Scaling support for TrueType outlines.
 
+// Remove when hinting is implemented
+#![allow(dead_code)]
+
 mod deltas;
 mod hint;
 mod mem;
@@ -9,7 +12,8 @@ pub use hint::HinterOutline;
 pub use mem::OutlineMemory;
 pub use outline::{Outline, ScaledOutline};
 
-use super::{Error, Hinting};
+use super::{Hinting, ScaleError};
+use crate::GLYF_COMPOSITE_RECURSION_LIMIT;
 
 use read_fonts::{
     tables::{
@@ -25,13 +29,6 @@ use read_fonts::{
     TableProvider,
 };
 
-/// Recursion limit for processing composite outlines.
-///
-/// In reality, most fonts contain shallow composite graphs with a nesting
-/// depth of 1 or 2. This is set as a hard limit to avoid stack overflow
-/// and infinite recursion.
-pub const COMPOSITE_RECURSION_LIMIT: usize = 32;
-
 /// Number of phantom points generated at the end of an outline.
 pub const PHANTOM_POINT_COUNT: usize = 4;
 
@@ -46,6 +43,12 @@ pub struct Outlines<'a> {
     fpgm: &'a [u8],
     prep: &'a [u8],
     cvt: &'a [BigEndian<i16>],
+    max_function_defs: u16,
+    max_instruction_defs: u16,
+    max_twilight_points: u16,
+    max_stack_elements: u16,
+    max_storage: u16,
+    glyph_count: u16,
     units_per_em: u16,
     has_var_lsb: bool,
 }
@@ -56,6 +59,26 @@ impl<'a> Outlines<'a> {
         let has_var_lsb = hvar
             .as_ref()
             .map(|hvar| hvar.lsb_mapping().is_some())
+            .unwrap_or_default();
+        let (
+            glyph_count,
+            max_function_defs,
+            max_instruction_defs,
+            max_twilight_points,
+            max_stack_elements,
+            max_storage,
+        ) = font
+            .maxp()
+            .map(|maxp| {
+                (
+                    maxp.num_glyphs(),
+                    maxp.max_function_defs().unwrap_or_default(),
+                    maxp.max_instruction_defs().unwrap_or_default(),
+                    maxp.max_twilight_points().unwrap_or_default(),
+                    maxp.max_stack_elements().unwrap_or_default(),
+                    maxp.max_storage().unwrap_or_default(),
+                )
+            })
             .unwrap_or_default();
         Some(Self {
             loca: font.loca(None).ok()?,
@@ -75,12 +98,18 @@ impl<'a> Outlines<'a> {
                 .data_for_tag(Tag::new(b"cvt "))
                 .and_then(|d| d.read_array(0..d.len()).ok())
                 .unwrap_or_default(),
+            max_function_defs,
+            max_instruction_defs,
+            max_twilight_points,
+            max_stack_elements,
+            max_storage,
+            glyph_count,
             units_per_em: font.head().ok()?.units_per_em(),
             has_var_lsb,
         })
     }
 
-    pub fn outline(&self, glyph_id: GlyphId) -> Result<Outline, Error> {
+    pub fn outline(&self, glyph_id: GlyphId) -> Result<Outline<'a>, ScaleError> {
         let mut info = Outline {
             glyph_id,
             has_variations: self.gvar.is_some(),
@@ -104,7 +133,7 @@ impl<'a> Outlines<'a> {
         info: &Outline,
         size: f32,
         coords: &'a [F2Dot14],
-    ) -> Result<ScaledOutline<'a>, Error> {
+    ) -> Result<ScaledOutline<'a>, ScaleError> {
         Scaler::new(self.clone(), memory, size, coords, |_| true, false)
             .scale(&info.glyph, info.glyph_id)
     }
@@ -116,7 +145,7 @@ impl<'a> Outlines<'a> {
         size: f32,
         coords: &'a [F2Dot14],
         hint_fn: impl FnMut(HinterOutline) -> bool,
-    ) -> Result<ScaledOutline<'a>, Error> {
+    ) -> Result<ScaledOutline<'a>, ScaleError> {
         Scaler::new(self.clone(), memory, size, coords, hint_fn, false)
             .scale(&info.glyph, info.glyph_id)
     }
@@ -129,9 +158,9 @@ impl<'a> Outlines<'a> {
         info: &mut Outline,
         component_depth: usize,
         recurse_depth: usize,
-    ) -> Result<(), Error> {
-        if recurse_depth > COMPOSITE_RECURSION_LIMIT {
-            return Err(Error::RecursionLimitExceeded(info.glyph_id));
+    ) -> Result<(), ScaleError> {
+        if recurse_depth > GLYF_COMPOSITE_RECURSION_LIMIT {
+            return Err(ScaleError::RecursionLimitExceeded(info.glyph_id));
         }
         match glyph {
             Glyph::Simple(simple) => {
@@ -284,7 +313,7 @@ where
         mut self,
         glyph: &Option<Glyph>,
         glyph_id: GlyphId,
-    ) -> Result<ScaledOutline<'a>, Error> {
+    ) -> Result<ScaledOutline<'a>, ScaleError> {
         self.load(glyph, glyph_id, 0)?;
         let outline = ScaledOutline {
             points: &mut self.memory.scaled[..self.point_count],
@@ -305,9 +334,9 @@ where
         glyph: &Option<Glyph>,
         glyph_id: GlyphId,
         recurse_depth: usize,
-    ) -> Result<(), Error> {
-        if recurse_depth > COMPOSITE_RECURSION_LIMIT {
-            return Err(Error::RecursionLimitExceeded(glyph_id));
+    ) -> Result<(), ScaleError> {
+        if recurse_depth > GLYF_COMPOSITE_RECURSION_LIMIT {
+            return Err(ScaleError::RecursionLimitExceeded(glyph_id));
         }
         let glyph = match &glyph {
             Some(glyph) => glyph,
@@ -322,8 +351,8 @@ where
         }
     }
 
-    fn load_simple(&mut self, glyph: &SimpleGlyph, glyph_id: GlyphId) -> Result<(), Error> {
-        use Error::InsufficientMemory;
+    fn load_simple(&mut self, glyph: &SimpleGlyph, glyph_id: GlyphId) -> Result<(), ScaleError> {
+        use ScaleError::InsufficientMemory;
         // Compute the ranges for our point/flag buffers and slice them.
         let points_start = self.point_count;
         let point_count = glyph.num_points();
@@ -479,7 +508,7 @@ where
                 is_composite: false,
                 coords: self.coords,
             }) {
-                return Err(Error::HintingFailed(glyph_id));
+                return Err(ScaleError::HintingFailed(glyph_id));
             }
         }
         if points_start != 0 {
@@ -496,8 +525,8 @@ where
         glyph: &CompositeGlyph,
         glyph_id: GlyphId,
         recurse_depth: usize,
-    ) -> Result<(), Error> {
-        use Error::InsufficientMemory;
+    ) -> Result<(), ScaleError> {
+        use ScaleError::InsufficientMemory;
         let scale = self.scale;
         // The base indices of the points and contours for the current glyph.
         let point_base = self.point_count;
@@ -645,12 +674,12 @@ where
                         .memory
                         .scaled
                         .get(point_base + base_offset)
-                        .ok_or(Error::InvalidAnchorPoint(glyph_id, base))?;
+                        .ok_or(ScaleError::InvalidAnchorPoint(glyph_id, base))?;
                     let component_point = self
                         .memory
                         .scaled
                         .get(start_point + component_offset)
-                        .ok_or(Error::InvalidAnchorPoint(glyph_id, component))?;
+                        .ok_or(ScaleError::InvalidAnchorPoint(glyph_id, component))?;
                     *base_point - *component_point
                 }
             };
@@ -731,7 +760,7 @@ where
                     is_composite: true,
                     coords: self.coords,
                 }) {
-                    return Err(Error::HintingFailed(glyph_id));
+                    return Err(ScaleError::HintingFailed(glyph_id));
                 }
                 // Undo the contour shifts if we applied them above.
                 if point_base != 0 {

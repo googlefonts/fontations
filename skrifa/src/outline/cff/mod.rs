@@ -63,7 +63,11 @@ impl<'a> Outlines<'a> {
         }
     }
 
-    fn from_cff(cff1: Cff<'a>, top_dict_index: usize, units_per_em: u16) -> Result<Self, Error> {
+    pub fn from_cff(
+        cff1: Cff<'a>,
+        top_dict_index: usize,
+        units_per_em: u16,
+    ) -> Result<Self, Error> {
         let top_dict_data = cff1.top_dicts().get(top_dict_index)?;
         let top_dict = TopDict::new(cff1.offset_data().as_bytes(), top_dict_data, false)?;
         Ok(Self {
@@ -73,7 +77,7 @@ impl<'a> Outlines<'a> {
         })
     }
 
-    fn from_cff2(cff2: Cff2<'a>, units_per_em: u16) -> Result<Self, Error> {
+    pub fn from_cff2(cff2: Cff2<'a>, units_per_em: u16) -> Result<Self, Error> {
         let table_data = cff2.offset_data().as_bytes();
         let top_dict = TopDict::new(table_data, cff2.top_dict_data(), true)?;
         Ok(Self {
@@ -164,8 +168,6 @@ impl<'a> Outlines<'a> {
         let hint_state = HintState::new(&hint_params, hint_scale);
         Ok(Subfont {
             is_cff2: self.is_cff2(),
-            index,
-            _size: size,
             scale,
             subrs_offset,
             hint_state,
@@ -282,8 +284,6 @@ enum Version<'a> {
 #[derive(Clone)]
 pub(crate) struct Subfont {
     is_cff2: bool,
-    index: u32,
-    _size: f32,
     scale: Fixed,
     subrs_offset: Option<usize>,
     pub(crate) hint_state: HintState,
@@ -291,10 +291,6 @@ pub(crate) struct Subfont {
 }
 
 impl Subfont {
-    pub fn index(&self) -> u32 {
-        self.index
-    }
-
     /// Returns the local subroutine index.
     pub fn subrs<'a>(&self, scaler: &Outlines<'a>) -> Result<Option<Index<'a>>, Error> {
         if let Some(subrs_offset) = self.subrs_offset {
