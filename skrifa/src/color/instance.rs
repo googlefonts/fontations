@@ -141,6 +141,7 @@ pub struct ResolvedColorStop {
 // was chosen over the obvious enum approach for simplicity in generating a
 // single concrete type for the `impl Iterator` return type of the `resolve`
 // method.
+#[derive(Clone)]
 pub struct ColorStops<'a> {
     stops: &'a [ColorStop],
     var_stops: &'a [VarColorStop],
@@ -285,10 +286,10 @@ pub enum ResolvedPaint<'a> {
 
 /// Resolves this paint with the given instance.
 ///
-/// Resolving means that all numeric values are converted to 16.16 fixed
-/// point, variation deltas are applied, and the various transform
-/// paints are collapsed into a single value for their category (transform,
-/// translate, scale, rotate and skew).
+/// Resolving means that all numeric values are converted to 32-bit floating
+/// point, variation deltas are applied (also computed fully in floating
+/// point), and the various transform paints are collapsed into a single value
+/// for their category (transform, translate, scale, rotate and skew).
 ///
 /// This provides a simpler type for consumers that are more interested
 /// in extracting the semantics of the graph rather than working with the
@@ -361,7 +362,17 @@ pub fn resolve_paint<'a>(
         Paint::VarRadialGradient(gradient) => {
             let color_line = gradient.color_line()?;
             let extend = color_line.extend();
-            let deltas = instance.var_deltas(gradient.var_index_base(), [DeltaType::FWord; 6]);
+            let deltas = instance.var_deltas(
+                gradient.var_index_base(),
+                [
+                    DeltaType::FWord,
+                    DeltaType::FWord,
+                    DeltaType::UfWord,
+                    DeltaType::FWord,
+                    DeltaType::FWord,
+                    DeltaType::UfWord,
+                ],
+            );
             ResolvedPaint::RadialGradient {
                 x0: gradient.x0().apply_delta(deltas[0]),
                 y0: gradient.y0().apply_delta(deltas[1]),

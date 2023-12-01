@@ -635,7 +635,9 @@ impl ItemDeltaTarget for UfWord {
 
 impl ItemDeltaTarget for F2Dot14 {
     fn delta_to_f32(delta: i32) -> f32 {
-        F2Dot14::from_bits(delta as i16).to_f32()
+        // Region deltas may overflow i16 so convert directly to float
+        const F2DOT14_TO_F32: f32 = 1.0 / 16384.0;
+        delta as f32 * F2DOT14_TO_F32
     }
 }
 
@@ -949,17 +951,26 @@ mod tests {
                         outer: outer_ix,
                         inner: inner_ix,
                     };
-                    let fixed_delta = ivs.compute_delta(delta_ix, &coords).unwrap();
-                    // FWord here is not strictly correct because this
-                    // COLRv1 IVS contains deltas for varying types but
-                    // it's good enough for our sanity check
-                    let f32_delta = ivs.compute_delta_f32::<FWord>(delta_ix, &coords).unwrap();
-                    // We need to accept both rounding and truncation
-                    // to account for the additional accumulation of
+                    // Check the deltas against all possible target values
+                    let orig_delta = ivs.compute_delta(delta_ix, &coords).unwrap();
+                    // FWord/UfWord are equivalent because deltas are always signed
+                    let funit_delta = ivs.compute_delta_f32::<FWord>(delta_ix, &coords).unwrap();
+                    // For font unit types, we need to accept both rounding and
+                    // truncation to account for the additional accumulation of
                     // fractional bits in floating point
                     assert!(
-                        fixed_delta == f32_delta.round() as i32
-                            || fixed_delta == f32_delta.trunc() as i32
+                        orig_delta == funit_delta.round() as i32
+                            || orig_delta == funit_delta.trunc() as i32
+                    );
+                    // For the fixed point types, check with an epsilon
+                    const EPSILON: f32 = 1e12;
+                    let fixed_delta = ivs.compute_delta_f32::<Fixed>(delta_ix, &coords).unwrap();
+                    assert!((Fixed::from_bits(orig_delta).to_f32() - fixed_delta).abs() < EPSILON);
+                    let f2dot14_delta =
+                        ivs.compute_delta_f32::<F2Dot14>(delta_ix, &coords).unwrap();
+                    assert!(
+                        (F2Dot14::from_bits(orig_delta as i16).to_f32() - f2dot14_delta).abs()
+                            < EPSILON
                     );
                 }
             }
