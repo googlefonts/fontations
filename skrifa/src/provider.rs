@@ -3,7 +3,7 @@ use super::{
     charmap::Charmap,
     instance::{LocationRef, Size},
     metrics::{GlyphMetrics, Metrics},
-    outline::OutlineCollection,
+    outline::OutlineGlyphCollection,
     string::{LocalizedStrings, StringId},
     variation::{AxisCollection, NamedInstanceCollection},
 };
@@ -53,9 +53,9 @@ pub trait MetadataProvider<'a>: raw::TableProvider<'a> + Sized {
     ///
     /// If the font contains multiple outline sources, this method prioritizes
     /// `glyf`, `CFF2` and `CFF` in that order. To select a specific outline
-    /// source, use the [`OutlineCollection::with_format`] method.
-    fn outlines(&self) -> OutlineCollection<'a> {
-        OutlineCollection::new(self)
+    /// source, use the [`OutlineGlyphCollection::with_format`] method.
+    fn outline_glyphs(&self) -> OutlineGlyphCollection<'a> {
+        OutlineGlyphCollection::new(self)
     }
 }
 

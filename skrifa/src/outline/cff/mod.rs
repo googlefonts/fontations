@@ -91,6 +91,15 @@ impl<'a> Outlines<'a> {
         matches!(self.version, Version::Version2(_))
     }
 
+    /// Returns the number of available glyphs.
+    pub fn len(&self) -> usize {
+        self.top_dict
+            .charstrings
+            .as_ref()
+            .map(|cs| cs.count() as usize)
+            .unwrap_or_default()
+    }
+
     /// Returns the number of available subfonts.
     pub fn subfont_count(&self) -> u32 {
         self.top_dict

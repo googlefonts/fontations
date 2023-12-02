@@ -29,8 +29,8 @@ mod small_array;
 mod variation;
 
 pub use outline::{
-    Hinting, NativeHinter, Outline, OutlineCollection, OutlineFormat, ScaleError, ScalerMemory,
-    ScalerMetrics,
+    Hinting, NativeHinter, OutlineGlyph, OutlineGlyphCollection, OutlineGlyphFormat, ScaleError,
+    ScalerMemory, ScalerMetrics,
 };
 pub use variation::{Axis, AxisCollection, NamedInstance, NamedInstanceCollection};
 
@@ -44,7 +44,7 @@ pub mod prelude {
     };
 }
 
-pub use read_fonts::types::{GlyphId, Tag};
+pub use read_fonts::types::{GlyphId, Pen as OutlinePen, Tag};
 
 #[doc(inline)]
 pub use provider::MetadataProvider;

@@ -109,6 +109,10 @@ impl<'a> Outlines<'a> {
         })
     }
 
+    pub fn len(&self) -> usize {
+        self.glyph_count as usize
+    }
+
     pub fn outline(&self, glyph_id: GlyphId) -> Result<Outline<'a>, ScaleError> {
         let mut info = Outline {
             glyph_id,

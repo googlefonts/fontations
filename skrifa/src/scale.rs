@@ -301,7 +301,7 @@ impl<'a> ScalerBuilder<'a> {
     pub fn build(mut self, font: &impl TableProvider<'a>) -> Scaler<'a> {
         self.resolve_variations(font);
         let coords = &self.context.coords[..];
-        let outlines = outline::OutlineCollection::new(font);
+        let outlines = outline::OutlineGlyphCollection::new(font);
         Scaler {
             outlines,
             size: self.size,
@@ -354,7 +354,7 @@ impl<'a> ScalerBuilder<'a> {
 /// See the [module level documentation](crate::scale#getting-an-outline)
 /// for more detail.
 pub struct Scaler<'a> {
-    outlines: outline::OutlineCollection<'a>,
+    outlines: outline::OutlineGlyphCollection<'a>,
     size: Size,
     coords: &'a [NormalizedCoord],
 }

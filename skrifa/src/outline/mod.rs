@@ -5,7 +5,6 @@ mod error;
 mod glyf;
 mod native_hint;
 
-pub use read_fonts::types::Pen;
 use read_fonts::{types::GlyphId, TableProvider};
 
 pub use error::ScaleError;
@@ -13,12 +12,12 @@ pub use native_hint::NativeHinter;
 
 use super::{
     instance::{LocationRef, NormalizedCoord, Size},
-    GLYF_COMPOSITE_RECURSION_LIMIT,
+    OutlinePen, GLYF_COMPOSITE_RECURSION_LIMIT,
 };
 
-/// Source format for an outline collection.
+/// Source format for an outline glyph.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum OutlineFormat {
+pub enum OutlineGlyphFormat {
     /// TrueType outlines sourced from the `glyf` table.
     Glyf,
     /// PostScript outlines sourced from the `CFF` table.
@@ -56,7 +55,7 @@ pub enum ScalerMemory<'a> {
     /// The scaler will allocate temporary memory from the given buffer.
     ///
     /// To compute the required size of this buffer, use the
-    /// [`Outline::scaler_memory_size`] method.
+    /// [`OutlineGlyph::scaler_memory_size`] method.
     User(&'a mut [u8]),
 }
 
@@ -76,26 +75,26 @@ pub struct ScalerMetrics {
 
 /// A scalable glyph outline.
 #[derive(Clone)]
-pub struct Outline<'a> {
+pub struct OutlineGlyph<'a> {
     kind: OutlineKind<'a>,
 }
 
-impl<'a> Outline<'a> {
+impl<'a> OutlineGlyph<'a> {
     /// Returns the underlying source format for this outline.
-    pub fn format(&self) -> OutlineFormat {
+    pub fn format(&self) -> OutlineGlyphFormat {
         match &self.kind {
-            OutlineKind::Glyf(..) => OutlineFormat::Glyf,
+            OutlineKind::Glyf(..) => OutlineGlyphFormat::Glyf,
             OutlineKind::Cff(cff, ..) => {
                 if cff.is_cff2() {
-                    OutlineFormat::Cff2
+                    OutlineGlyphFormat::Cff2
                 } else {
-                    OutlineFormat::Cff
+                    OutlineGlyphFormat::Cff
                 }
             }
         }
     }
 
-    /// Returns a valid indicating if the outline may contain overlapping
+    /// Returns a value indicating if the outline may contain overlapping
     /// contours or components.
     ///
     /// For CFF outlines, returns `None` since this information is unavailable.
@@ -127,13 +126,14 @@ impl<'a> Outline<'a> {
         }
     }
 
-    /// Scales the outline and emits the path commands to the given pen.
+    /// Scales the outline glyph and emits the resulting path commands to the
+    /// given pen.
     pub fn scale(
         &self,
         size: Size,
         location: impl Into<LocationRef<'a>>,
         mut memory: ScalerMemory,
-        pen: &mut impl Pen,
+        pen: &mut impl OutlinePen,
     ) -> Result<ScalerMetrics, ScaleError> {
         let ppem = size.ppem().unwrap_or_default();
         let coords = location.into().coords();
@@ -169,11 +169,11 @@ enum OutlineKind<'a> {
 
 /// Collection of scalable glyph outlines.
 #[derive(Clone)]
-pub struct OutlineCollection<'a> {
+pub struct OutlineGlyphCollection<'a> {
     kind: OutlineCollectionKind<'a>,
 }
 
-impl<'a> OutlineCollection<'a> {
+impl<'a> OutlineGlyphCollection<'a> {
     /// Creates a new outline collection for the given font.
     pub fn new(font: &impl TableProvider<'a>) -> Self {
         let kind = if let Some(glyf) = glyf::Outlines::new(font) {
@@ -188,14 +188,17 @@ impl<'a> OutlineCollection<'a> {
 
     /// Creates a new outline collection for the given font and outline
     /// format.
-    pub fn with_format(font: &impl TableProvider<'a>, format: OutlineFormat) -> Option<Self> {
+    ///
+    /// Returns `None` if the font does not contain outlines in the requested
+    /// format.
+    pub fn with_format(font: &impl TableProvider<'a>, format: OutlineGlyphFormat) -> Option<Self> {
         let kind = match format {
-            OutlineFormat::Glyf => OutlineCollectionKind::Glyf(glyf::Outlines::new(font)?),
-            OutlineFormat::Cff => {
+            OutlineGlyphFormat::Glyf => OutlineCollectionKind::Glyf(glyf::Outlines::new(font)?),
+            OutlineGlyphFormat::Cff => {
                 let upem = font.head().ok()?.units_per_em();
                 OutlineCollectionKind::Cff(cff::Outlines::from_cff(font.cff().ok()?, 0, upem).ok()?)
             }
-            OutlineFormat::Cff2 => {
+            OutlineGlyphFormat::Cff2 => {
                 let upem = font.head().ok()?.units_per_em();
                 OutlineCollectionKind::Cff(cff::Outlines::from_cff2(font.cff2().ok()?, upem).ok()?)
             }
@@ -204,28 +207,43 @@ impl<'a> OutlineCollection<'a> {
     }
 
     /// Returns the underlying format of the source outline tables.
-    pub fn format(&self) -> Option<OutlineFormat> {
+    pub fn format(&self) -> Option<OutlineGlyphFormat> {
         match &self.kind {
-            OutlineCollectionKind::Glyf(..) => Some(OutlineFormat::Glyf),
+            OutlineCollectionKind::Glyf(..) => Some(OutlineGlyphFormat::Glyf),
             OutlineCollectionKind::Cff(cff) => cff
                 .is_cff2()
-                .then_some(OutlineFormat::Cff2)
-                .or(Some(OutlineFormat::Cff)),
+                .then_some(OutlineGlyphFormat::Cff2)
+                .or(Some(OutlineGlyphFormat::Cff)),
             _ => None,
         }
     }
 
     /// Returns the outline for the given glyph identifier.
-    pub fn get(&self, glyph_id: GlyphId) -> Option<Outline<'a>> {
+    pub fn get(&self, glyph_id: GlyphId) -> Option<OutlineGlyph<'a>> {
         match &self.kind {
             OutlineCollectionKind::None => None,
-            OutlineCollectionKind::Glyf(glyf) => Some(Outline {
+            OutlineCollectionKind::Glyf(glyf) => Some(OutlineGlyph {
                 kind: OutlineKind::Glyf(glyf.clone(), glyf.outline(glyph_id).ok()?),
             }),
-            OutlineCollectionKind::Cff(cff) => Some(Outline {
+            OutlineCollectionKind::Cff(cff) => Some(OutlineGlyph {
                 kind: OutlineKind::Cff(cff.clone(), glyph_id, cff.subfont_index(glyph_id)),
             }),
         }
+    }
+
+    /// Returns an iterator over all the outline glyphs in the collection.
+    pub fn iter(&self) -> impl Iterator<Item = (GlyphId, OutlineGlyph<'a>)> + 'a + Clone {
+        let len = match &self.kind {
+            OutlineCollectionKind::Glyf(glyf) => glyf.len(),
+            OutlineCollectionKind::Cff(cff) => cff.len(),
+            _ => 0,
+        } as u16;
+        let copy = self.clone();
+        (0..len).filter_map(move |gid| {
+            let gid = GlyphId::new(gid);
+            let glyph = copy.get(gid)?;
+            Some((gid, glyph))
+        })
     }
 }
 
@@ -274,19 +292,22 @@ mod tests {
     use read_fonts::{scaler_test, types::GlyphId, FontRef, TableProvider};
 
     #[test]
-    fn outline_formats() {
+    fn outline_glyph_formats() {
         let font_format_pairs = [
-            (font_test_data::VAZIRMATN_VAR, OutlineFormat::Glyf),
-            (font_test_data::CANTARELL_VF_TRIMMED, OutlineFormat::Cff2),
+            (font_test_data::VAZIRMATN_VAR, OutlineGlyphFormat::Glyf),
+            (
+                font_test_data::CANTARELL_VF_TRIMMED,
+                OutlineGlyphFormat::Cff2,
+            ),
             (
                 font_test_data::NOTO_SERIF_DISPLAY_TRIMMED,
-                OutlineFormat::Cff,
+                OutlineGlyphFormat::Cff,
             ),
-            (font_test_data::COLRV0V1_VARIABLE, OutlineFormat::Glyf),
+            (font_test_data::COLRV0V1_VARIABLE, OutlineGlyphFormat::Glyf),
         ];
         for (font_data, format) in font_format_pairs {
             assert_eq!(
-                FontRef::new(font_data).unwrap().outlines().format(),
+                FontRef::new(font_data).unwrap().outline_glyphs().format(),
                 Some(format)
             );
         }
@@ -319,7 +340,7 @@ mod tests {
     #[test]
     fn overlap_flags() {
         let font = FontRef::new(font_test_data::VAZIRMATN_VAR).unwrap();
-        let outlines = font.outlines();
+        let outlines = font.outline_glyphs();
         let glyph_count = font.maxp().unwrap().num_glyphs();
         // GID 2 is a composite glyph with the overlap bit on a component
         // GID 3 is a simple glyph with the overlap bit on the first flag
@@ -343,7 +364,7 @@ mod tests {
                 continue;
             }
             path.elements.clear();
-            font.outlines()
+            font.outline_glyphs()
                 .get(expected_outline.glyph_id)
                 .unwrap()
                 .scale(

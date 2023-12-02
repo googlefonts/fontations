@@ -1,8 +1,8 @@
 //! Support for applying embedded hinting instructions.
 
 use super::{
-    cff, Hinting, LocationRef, NormalizedCoord, Outline, OutlineCollection, OutlineCollectionKind,
-    OutlineKind, Pen, ScaleError, ScalerMemory, ScalerMetrics, Size,
+    cff, Hinting, LocationRef, NormalizedCoord, OutlineCollectionKind, OutlineGlyph,
+    OutlineGlyphCollection, OutlineKind, OutlinePen, ScaleError, ScalerMemory, ScalerMetrics, Size,
 };
 
 /// Hinter that uses information embedded in the font to perform grid-fitting.
@@ -18,7 +18,7 @@ impl NativeHinter {
     /// Creates a new native hinter for the given outline collection, size,
     /// location in variation space and hinting mode.
     pub fn new<'a>(
-        outlines: &OutlineCollection,
+        outline_glyphs: &OutlineGlyphCollection,
         size: Size,
         location: impl Into<LocationRef<'a>>,
         hinting: Hinting,
@@ -29,7 +29,7 @@ impl NativeHinter {
             hinting: Hinting::None,
             kind: HinterKind::None,
         };
-        hinter.reconfigure(outlines, size, location, hinting)?;
+        hinter.reconfigure(outline_glyphs, size, location, hinting)?;
         Ok(hinter)
     }
 
@@ -52,7 +52,7 @@ impl NativeHinter {
     /// outline collection and settings.
     pub fn reconfigure<'a>(
         &mut self,
-        outlines: &OutlineCollection,
+        outlines: &OutlineGlyphCollection,
         size: Size,
         location: impl Into<LocationRef<'a>>,
         hinting: Hinting,
@@ -84,18 +84,18 @@ impl NativeHinter {
         Ok(())
     }
 
-    /// Scales and hints the outline and emits the path commands to the given
-    /// pen.
+    /// Scales and hints the outline glyph and emits the resulting path
+    /// commands to the given pen.
     pub fn scale(
         &self,
-        outline: &Outline,
+        glyph: &OutlineGlyph,
         mut memory: ScalerMemory,
-        pen: &mut impl Pen,
+        pen: &mut impl OutlinePen,
     ) -> Result<ScalerMetrics, ScaleError> {
         let ppem = self.size.ppem().unwrap_or_default();
         let coords = self.coords.as_slice();
         let hinting = self.hinting;
-        match (&self.kind, &outline.kind) {
+        match (&self.kind, &glyph.kind) {
             (HinterKind::Glyf(..), OutlineKind::Glyf(glyf, outline)) => {
                 memory.with_glyf_memory(outline, hinting, |buf| {
                     let mem = outline
