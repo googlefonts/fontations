@@ -23,6 +23,7 @@ pub mod scale;
 pub mod setting;
 pub mod string;
 
+mod color;
 mod provider;
 mod small_array;
 mod variation;
