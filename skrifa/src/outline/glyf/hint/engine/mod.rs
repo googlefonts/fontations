@@ -471,7 +471,7 @@ impl<'a> Engine<'a> {
             let opcode = ins.opcode;
             match opcode {
                 op::SVTCA0..=op::SFVTCA1 => {
-                    let aa = ((opcode as i32 & 1) << 14) as i32;
+                    let aa = ((opcode as i32 & 1) << 14);
                     let bb = aa ^ 0x4000;
                     if opcode < 4 {
                         self.graphics.proj_vector = Point::new(aa, bb);
@@ -1409,8 +1409,8 @@ impl<'a> Engine<'a> {
                         let p = {
                             let p2 = self.graphics.zp0().original(self.graphics.rp0)?;
                             let p1 = self.graphics.zp1_mut().original_mut(point_ix)?;
-                            p1.x = p2.x + mul(cvt_distance, fv.x as i32);
-                            p1.y = p2.y + mul(cvt_distance, fv.y as i32);
+                            p1.x = p2.x + mul(cvt_distance, fv.x);
+                            p1.y = p2.y + mul(cvt_distance, fv.y);
                             *p1
                         };
                         *self.graphics.zp1_mut().point_mut(point_ix)? = p;
@@ -1476,7 +1476,7 @@ impl<'a> Engine<'a> {
                         let mut index = !0;
                         for i in 0..self.idefs.len() {
                             let idef = self.idefs.get(i)?;
-                            if idef.is_active() && idef.opcode() == Some(opcode as u8) {
+                            if idef.is_active() && idef.opcode() == Some(opcode) {
                                 index = i;
                                 break;
                             }
@@ -1486,14 +1486,14 @@ impl<'a> Engine<'a> {
                             let rec = CallRecord {
                                 caller_program: program,
                                 return_pc: ins.pc + 1,
-                                current_count: count as u32,
+                                current_count: 1,
                                 definition: def,
                             };
                             self.call_stack.push(rec)?;
                             decoder = Decoder::new(
                                 def.program(),
                                 programs[def.program() as usize],
-                                def.range().start as usize,
+                                def.range().start,
                             );
                         } else {
                             return Err(HintErrorKind::InvalidOpcode(opcode));
@@ -1565,7 +1565,7 @@ impl<'a> Engine<'a> {
         let mut count = 0u32;
         loop {
             let Some(decoded) = decoder.maybe_next() else {
-                if self.call_stack.len() > 0 {
+                if !self.call_stack.is_empty() {
                     return Err(HintError::new(&decoder, HintErrorKind::CallStackUnderflow));
                 }
                 break;
@@ -1600,15 +1600,13 @@ impl<'a> Engine<'a> {
                 }
                 println!();
             }
-            match self.dispatch(&programs, program, &mut decoder, &ins) {
-                Err(kind) => {
-                    return Err(HintError {
-                        program: cur_program,
-                        pc: cur_pc,
-                        kind,
-                    });
-                }
-                Ok(()) => {}
+
+            if let Err(kind) = self.dispatch(&programs, program, &mut decoder, &ins) {
+                return Err(HintError {
+                    program: cur_program,
+                    pc: cur_pc,
+                    kind,
+                });
             }
             if TRACE {
                 // if trpt < self.glyph.points.len() {

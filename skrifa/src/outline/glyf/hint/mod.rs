@@ -89,9 +89,9 @@ pub struct HintInstance {
 }
 
 impl HintInstance {
-    pub fn init<'a>(
+    pub fn init(
         &mut self,
-        outlines: &Outlines<'a>,
+        outlines: &Outlines,
         scale: i32,
         ppem: u16,
         mode: Hinting,
@@ -211,7 +211,7 @@ impl HintInstance {
     }
 
     /// Captures limits, resizes buffers and scales the CVT.
-    fn setup_state<'a>(&mut self, outlines: &Outlines<'a>, scale: i32) -> Option<()> {
+    fn setup_state(&mut self, outlines: &Outlines, scale: i32) -> Option<()> {
         self.axis_count = outlines
             .gvar
             .as_ref()

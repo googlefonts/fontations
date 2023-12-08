@@ -22,12 +22,12 @@ pub struct CallStack {
 }
 
 impl CallStack {
-    pub fn is_empty(&self) -> bool {
-        self.top == 0
-    }
-
     pub fn len(&self) -> usize {
         self.top
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.top == 0
     }
 
     pub fn records(&self) -> &[CallRecord] {

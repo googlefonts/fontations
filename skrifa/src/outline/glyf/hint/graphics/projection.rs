@@ -6,14 +6,14 @@ impl GraphicsState<'_> {
     /// Should be called whenever projection vectors are modified.
     pub fn update_projection_state(&mut self) {
         if self.freedom_vector.x == 0x4000 {
-            self.fdotp = self.proj_vector.x as i32;
+            self.fdotp = self.proj_vector.x;
         } else if self.freedom_vector.y == 0x4000 {
-            self.fdotp = self.proj_vector.y as i32;
+            self.fdotp = self.proj_vector.y;
         } else {
-            let px = self.proj_vector.x as i32;
-            let py = self.proj_vector.y as i32;
-            let fx = self.freedom_vector.x as i32;
-            let fy = self.freedom_vector.y as i32;
+            let px = self.proj_vector.x;
+            let py = self.proj_vector.y;
+            let fx = self.freedom_vector.x;
+            let fy = self.freedom_vector.y;
             self.fdotp = (px * fx + py * fy) >> 14;
         }
         self.proj_axes = CoordAxis::Both;
@@ -49,7 +49,7 @@ impl GraphicsState<'_> {
             CoordAxis::Both => {
                 let x = v1.x - v2.x;
                 let y = v1.y - v2.y;
-                dot14(x, y, self.proj_vector.x as i32, self.proj_vector.y as i32)
+                dot14(x, y, self.proj_vector.x, self.proj_vector.y)
             }
         }
     }
@@ -65,8 +65,8 @@ impl GraphicsState<'_> {
                 dot14(
                     x,
                     y,
-                    self.dual_proj_vector.x as i32,
-                    self.dual_proj_vector.y as i32,
+                    self.dual_proj_vector.x,
+                    self.dual_proj_vector.y,
                 )
             }
         }

@@ -14,6 +14,16 @@ impl<'a> ValueStack<'a> {
         Self { values, top: 0 }
     }
 
+    /// Returns the depth of the stack
+    /// <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#returns-the-depth-of-the-stack>
+    pub fn len(&self) -> usize {
+        self.top
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.top == 0
+    }
+
     pub fn values(&self) -> &[i32] {
         &self.values[..self.top]
     }
@@ -77,12 +87,6 @@ impl<'a> ValueStack<'a> {
         let b = self.pop()?;
         let a = self.pop()?;
         self.push(op(a, b)?)
-    }
-
-    /// Returns the depth of the stack
-    /// <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#returns-the-depth-of-the-stack>
-    pub fn len(&self) -> usize {
-        self.top
     }
 
     /// Clear the entire stack
