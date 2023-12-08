@@ -17,7 +17,7 @@ table Mvar {
     value_record_count: u16,
     /// Offset in bytes from the start of this table to the item variation store table. If valueRecordCount is zero, set to zero; if valueRecordCount is greater than zero, must be greater than zero.
     #[nullable]
-    item_variation_store_offset: Offset32<ItemVariationStore>,
+    item_variation_store_offset: Offset16<ItemVariationStore>,
     /// Array of value records that identify target items and the associated delta-set index for each. The valueTag records must be in binary order of their valueTag field.
     #[count($value_record_count)]
     value_records: [ValueRecord],
