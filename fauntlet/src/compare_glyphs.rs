@@ -22,6 +22,9 @@ pub fn compare_glyphs(
     let mut ok = true;
 
     for gid in 0..glyph_count {
+        // if gid != 0 {
+        //     continue;
+        // }
         let gid = GlyphId::new(gid);
         let ft_advance = ft_instance.advance(gid);
         let skrifa_advance = skrifa_instance.advance(gid);

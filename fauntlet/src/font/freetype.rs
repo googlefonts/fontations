@@ -3,7 +3,7 @@ use freetype::{
     ffi::{FT_Long, FT_Vector},
     Face, Library,
 };
-use skrifa::{raw::FileRef, scale::Pen, GlyphId};
+use skrifa::{raw::FileRef, scale::Pen, GlyphId, Hinting};
 
 use std::ffi::{c_int, c_void};
 
@@ -29,11 +29,17 @@ pub struct FreeTypeInstance<'a> {
 
 impl<'a> FreeTypeInstance<'a> {
     pub fn new(face: &'a mut Face<SharedFontData>, options: &InstanceOptions) -> Option<Self> {
-        let mut load_flags = LoadFlag::NO_AUTOHINT | LoadFlag::NO_HINTING | LoadFlag::NO_BITMAP;
+        let mut load_flags = LoadFlag::NO_AUTOHINT | LoadFlag::NO_BITMAP;
+        match options.hinting {
+            Hinting::None => load_flags |= LoadFlag::NO_HINTING,
+            Hinting::LightSubpixel => load_flags |= LoadFlag::TARGET_LCD,
+            Hinting::Light | Hinting::Full => {}
+            Hinting::VerticalSubpixel => unimplemented!(),
+        };
         if options.ppem != 0 {
             face.set_pixel_sizes(options.ppem, options.ppem).ok()?;
         } else {
-            load_flags |= LoadFlag::NO_SCALE;
+            load_flags |= LoadFlag::NO_SCALE | LoadFlag::NO_HINTING;
         }
         if !options.coords.is_empty() {
             let mut ft_coords = vec![];

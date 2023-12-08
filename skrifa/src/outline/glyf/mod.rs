@@ -8,7 +8,7 @@ mod hint;
 mod mem;
 mod outline;
 
-pub use hint::HinterOutline;
+pub use hint::{HintInstance, HinterOutline};
 pub use mem::OutlineMemory;
 pub use outline::{Outline, ScaledOutline};
 
@@ -131,6 +131,18 @@ impl<'a> Outlines<'a> {
         Ok(info)
     }
 
+    pub fn compute_scale(&self, size: f32) -> (bool, F26Dot6) {
+        if size > 0.0 && self.units_per_em > 0 {
+            (
+                true,
+                F26Dot6::from_bits((size * 64.) as i32)
+                    / F26Dot6::from_bits(self.units_per_em as i32),
+            )
+        } else {
+            (false, F26Dot6::from_bits(0x10000))
+        }
+    }
+
     pub fn scale(
         &self,
         memory: OutlineMemory<'a>,
@@ -150,7 +162,7 @@ impl<'a> Outlines<'a> {
         coords: &'a [F2Dot14],
         hint_fn: impl FnMut(HinterOutline) -> bool,
     ) -> Result<ScaledOutline<'a>, ScaleError> {
-        Scaler::new(self.clone(), memory, size, coords, hint_fn, false)
+        Scaler::new(self.clone(), memory, size, coords, hint_fn, true)
             .scale(&info.glyph, info.glyph_id)
     }
 }
@@ -288,15 +300,7 @@ where
         hint_fn: H,
         is_hinted: bool,
     ) -> Self {
-        let (is_scaled, scale) = if size > 0.0 && outlines.units_per_em > 0 {
-            (
-                true,
-                F26Dot6::from_bits((size * 64.) as i32)
-                    / F26Dot6::from_bits(outlines.units_per_em as i32),
-            )
-        } else {
-            (false, F26Dot6::from_bits(0x10000))
-        };
+        let (is_scaled, scale) = outlines.compute_scale(size);
         Self {
             outlines,
             memory,
@@ -709,7 +713,7 @@ where
                     .get_mut(point_range.clone())
                     .ok_or(InsufficientMemory)?;
                 // Append the current phantom points to the outline.
-                let phantom_start = self.point_count;
+                let phantom_start = point_range.len() - 4;
                 for (i, phantom) in self.phantom.iter().enumerate() {
                     scaled[phantom_start + i] = *phantom;
                     flags[phantom_start + i] = Default::default();
@@ -737,7 +741,7 @@ where
                     .get_mut(contour_base..self.contour_count)
                     .ok_or(InsufficientMemory)?;
                 // Round the phantom points.
-                for p in &mut scaled[self.point_count..] {
+                for p in &mut scaled[phantom_start..] {
                     p.x = p.x.round();
                     p.y = p.y.round();
                 }

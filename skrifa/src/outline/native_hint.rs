@@ -1,7 +1,7 @@
 //! Support for applying embedded hinting instructions.
 
 use super::{
-    cff, Hinting, LocationRef, NormalizedCoord, OutlineCollectionKind, OutlineGlyph,
+    cff, glyf, Hinting, LocationRef, NormalizedCoord, OutlineCollectionKind, OutlineGlyph,
     OutlineGlyphCollection, OutlineKind, OutlinePen, ScaleError, ScalerMemory, ScalerMetrics, Size,
 };
 
@@ -64,8 +64,17 @@ impl NativeHinter {
         // Reuse memory if the font contains the same outline format
         let current_kind = core::mem::replace(&mut self.kind, HinterKind::None);
         match &outlines.kind {
-            OutlineCollectionKind::Glyf(_) => {
-                self.kind = HinterKind::Glyf();
+            OutlineCollectionKind::Glyf(glyf) => {
+                let mut hint_instance = match current_kind {
+                    HinterKind::Glyf(instance) => instance,
+                    _ => glyf::HintInstance::default(),
+                };
+                let ppem = size.ppem().unwrap_or(0.0);
+                let scale = glyf.compute_scale(ppem).1.to_bits();
+                hint_instance
+                    .init(glyf, scale, ppem as u16, hinting, &self.coords)
+                    .ok_or(ScaleError::HintingFailed(Default::default()))?;
+                self.kind = HinterKind::Glyf(hint_instance);
             }
             OutlineCollectionKind::Cff(cff) => {
                 let mut subfonts = match current_kind {
@@ -96,12 +105,18 @@ impl NativeHinter {
         let coords = self.coords.as_slice();
         let hinting = self.hinting;
         match (&self.kind, &glyph.kind) {
-            (HinterKind::Glyf(..), OutlineKind::Glyf(glyf, outline)) => {
+            (HinterKind::Glyf(hint_instance), OutlineKind::Glyf(glyf, outline)) => {
+                if hint_instance.is_hinting_disabled() {
+                    return glyph.scale(self.size(), self.location(), memory, pen);
+                }
                 memory.with_glyf_memory(outline, hinting, |buf| {
                     let mem = outline
                         .memory_from_buffer(buf, hinting)
                         .ok_or(ScaleError::InsufficientMemory)?;
-                    let scaled_outline = glyf.scale(mem, outline, ppem, coords)?;
+                    let scaled_outline =
+                        glyf.scale_hinted(mem, outline, ppem, coords, |mut hint_outline| {
+                            hint_instance.hint(glyf, &mut hint_outline).is_some()
+                        })?;
                     scaled_outline.to_path(pen)?;
                     Ok(ScalerMetrics {
                         has_overlaps: outline.has_overlaps,
@@ -130,6 +145,6 @@ impl NativeHinter {
 #[derive(Clone)]
 enum HinterKind {
     None,
-    Glyf(),
+    Glyf(glyf::HintInstance),
     Cff(Vec<cff::Subfont>),
 }

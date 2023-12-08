@@ -3,7 +3,7 @@ use std::io::Write;
 use rayon::prelude::*;
 
 use fauntlet::{compare_glyphs, InstanceOptions};
-use skrifa::raw::types::F2Dot14;
+use skrifa::{raw::types::F2Dot14, Hinting};
 
 #[derive(clap::Parser, Debug)]
 struct Args {
@@ -29,7 +29,7 @@ enum Command {
 #[allow(clippy::explicit_write)]
 fn main() {
     // Pixels per em sizes. A size of 0 means an explicit unscaled comparison
-    let ppem_sizes = [0, 8, 16, 50, 72, 113, 144];
+    let ppem_sizes = [16, 50, 72, 113, 144];
 
     // Locations in normalized variation space
     let var_locations = [-1.0, -0.32, 0.0, 0.42, 1.0].map(F2Dot14::from_f32);
@@ -45,6 +45,7 @@ fn main() {
         } => {
             use std::sync::atomic::{AtomicBool, Ordering};
             let ok = AtomicBool::new(true);
+            let hinting = Hinting::Light;
             files.par_iter().for_each(|font_path| {
                 if print_paths {
                     writeln!(std::io::stdout(), "[{font_path:?}]").unwrap();
@@ -58,8 +59,9 @@ fn main() {
                                 for coord in &var_locations {
                                     coords.clear();
                                     coords.extend(std::iter::repeat(*coord).take(axis_count));
-                                    let options =
-                                        fauntlet::InstanceOptions::new(font_ix, *ppem, &coords);
+                                    let options = fauntlet::InstanceOptions::new(
+                                        font_ix, *ppem, &coords, hinting,
+                                    );
                                     if let Some(instances) = font_data.instantiate(&options) {
                                         if !compare_glyphs(
                                             font_path,
@@ -72,7 +74,7 @@ fn main() {
                                     }
                                 }
                             } else {
-                                let options = InstanceOptions::new(font_ix, *ppem, &[]);
+                                let options = InstanceOptions::new(font_ix, *ppem, &[], hinting);
                                 if let Some(instances) = font_data.instantiate(&options) {
                                     if !compare_glyphs(font_path, &options, instances, exit_on_fail)
                                     {

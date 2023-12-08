@@ -7,7 +7,7 @@ use std::{
 use ::freetype::{Face, Library};
 use ::skrifa::{
     raw::{types::F2Dot14, FontRef, TableProvider},
-    scale,
+    Hinting,
 };
 
 mod freetype;
@@ -21,14 +21,16 @@ pub struct InstanceOptions<'a> {
     pub index: usize,
     pub ppem: u32,
     pub coords: &'a [F2Dot14],
+    pub hinting: Hinting,
 }
 
 impl<'a> InstanceOptions<'a> {
-    pub fn new(index: usize, ppem: u32, coords: &'a [F2Dot14]) -> Self {
+    pub fn new(index: usize, ppem: u32, coords: &'a [F2Dot14], hinting: Hinting) -> Self {
         Self {
             index,
             ppem,
             coords,
+            hinting,
         }
     }
 }
@@ -39,7 +41,6 @@ pub struct Font {
     // Just to keep the FT_Library alive
     _ft_library: Library,
     ft_faces: Vec<Face<SharedFontData>>,
-    skrifa_cx: scale::Context,
 }
 
 impl Font {
@@ -53,7 +54,6 @@ impl Font {
             data,
             _ft_library,
             ft_faces,
-            skrifa_cx: scale::Context::new(),
         })
     }
 
@@ -83,7 +83,7 @@ impl Font {
     ) -> Option<(FreeTypeInstance, SkrifaInstance)> {
         let face = self.ft_faces.get_mut(options.index)?;
         let ft_instance = FreeTypeInstance::new(face, options)?;
-        let skrifa_instance = SkrifaInstance::new(&self.data, options, &mut self.skrifa_cx)?;
+        let skrifa_instance = SkrifaInstance::new(&self.data, options)?;
         Some((ft_instance, skrifa_instance))
     }
 }
