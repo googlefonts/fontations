@@ -2,9 +2,10 @@
 
 mod call_stack;
 mod code;
+mod cow_slice;
 mod engine;
 mod error;
-mod graphics;
+mod graphics_state;
 mod math;
 mod value_stack;
 
@@ -17,12 +18,12 @@ use crate::scale::Hinting;
 
 use super::Outlines;
 
-use self::engine::{CvtOrStorage, Engine, MaybeMut};
-
 pub use call_stack::{CallRecord, CallStack};
-pub use code::{CodeDefinition, DecodeError, Decoder};
+pub use code::{CodeDefinition, CodeDefinitionSlice, Decoder};
+pub use cow_slice::CowSlice;
+pub use engine::Engine;
 pub use error::{HintError, HintErrorKind};
-pub use graphics::{
+pub use graphics_state::{
     CoordAxis, GraphicsState, RetainedGraphicsState, RoundMode, RoundState, Zone, ZoneData,
 };
 pub use value_stack::ValueStack;
@@ -32,7 +33,7 @@ pub use value_stack::ValueStack;
 /// Captures interpreter state that is set by the control value program.
 #[derive(Copy, Clone, Debug)]
 pub struct InstanceState {
-    pub graphics: graphics::RetainedGraphicsState,
+    pub graphics: graphics_state::RetainedGraphicsState,
     pub ppem: u16,
     pub scale: i32,
     pub compat: bool,
@@ -96,8 +97,8 @@ impl HintInstance {
         ppem: u16,
         mode: Hinting,
         coords: &[F2Dot14],
-    ) -> Option<()> {
-        self.setup_state(outlines, scale)?;
+    ) -> Result<(), HintError> {
+        self.setup_state(outlines, scale);
         let twilight_len = self.max_twilight_points as usize;
         // Temporary buffers. For now just allocate them.
         let mut stack_buffer = vec![0; self.max_stack as usize];
@@ -117,17 +118,17 @@ impl HintInstance {
         let stack = ValueStack::new(&mut stack_buffer);
         let mut interp = Engine::new(
             stack,
-            CvtOrStorage::new_mut(&mut self.storage),
-            CvtOrStorage::new_mut(&mut self.cvt),
-            MaybeMut::Mut(&mut self.functions),
-            MaybeMut::Mut(&mut self.instructions),
+            CowSlice::new_mut(&mut self.storage),
+            CowSlice::new_mut(&mut self.cvt),
+            CodeDefinitionSlice::Mut(&mut self.functions),
+            CodeDefinitionSlice::Mut(&mut self.instructions),
             twilight_zone,
             glyph_zone,
             coords,
             self.axis_count,
         );
         if !outlines.fpgm.is_empty() {
-            interp.run_fpgm(&mut self.state, outlines.fpgm);
+            interp.run_fpgm(&mut self.state, outlines.fpgm)?;
         }
         if !outlines.prep.is_empty() {
             interp.run_prep(
@@ -139,7 +140,7 @@ impl HintInstance {
                 scale,
             );
         }
-        Some(())
+        Ok(())
     }
 
     pub fn is_hinting_disabled(&self) -> bool {
@@ -185,10 +186,10 @@ impl HintInstance {
         let mut cvt = vec![0i32; self.cvt.len()];
         let mut interp = Engine::new(
             stack,
-            CvtOrStorage::new(&self.storage, &mut storage),
-            CvtOrStorage::new(&self.cvt, &mut cvt),
-            MaybeMut::Ref(&self.functions),
-            MaybeMut::Ref(&self.instructions),
+            CowSlice::new(&self.storage, &mut storage),
+            CowSlice::new(&self.cvt, &mut cvt),
+            CodeDefinitionSlice::Ref(&self.functions),
+            CodeDefinitionSlice::Ref(&self.instructions),
             twilight_zone,
             glyph_zone,
             glyph.coords,
@@ -211,7 +212,7 @@ impl HintInstance {
     }
 
     /// Captures limits, resizes buffers and scales the CVT.
-    fn setup_state(&mut self, outlines: &Outlines, scale: i32) -> Option<()> {
+    fn setup_state(&mut self, outlines: &Outlines, scale: i32) {
         self.axis_count = outlines
             .gvar
             .as_ref()
@@ -242,6 +243,5 @@ impl HintInstance {
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/truetype/ttinterp.c#L356>
         self.max_stack = outlines.max_stack_elements + 32;
         self.state = InstanceState::default();
-        Some(())
     }
 }

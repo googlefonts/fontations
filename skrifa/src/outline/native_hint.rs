@@ -73,6 +73,7 @@ impl NativeHinter {
                 let scale = glyf.compute_scale(ppem).1.to_bits();
                 hint_instance
                     .init(glyf, scale, ppem as u16, hinting, &self.coords)
+                    .ok()
                     .ok_or(ScaleError::HintingFailed(Default::default()))?;
                 self.kind = HinterKind::Glyf(hint_instance);
             }

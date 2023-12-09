@@ -62,12 +62,7 @@ impl GraphicsState<'_> {
             CoordAxis::Both => {
                 let x = v1.x - v2.x;
                 let y = v1.y - v2.y;
-                dot14(
-                    x,
-                    y,
-                    self.dual_proj_vector.x,
-                    self.dual_proj_vector.y,
-                )
+                dot14(x, y, self.dual_proj_vector.x, self.dual_proj_vector.y)
             }
         }
     }

@@ -8,14 +8,14 @@ impl<'a> Engine<'a> {
         &mut self,
         programs: &[&'a [u8]; 3],
         program: Program,
-        mut decoder: &mut Decoder<'a>,
+        decoder: &mut Decoder<'a>,
         ins: &Instruction<'a>,
     ) -> Result<(), HintErrorKind> {
         use super::super::code::opcodes as op;
         let opcode = ins.opcode;
         match opcode {
             op::SVTCA0..=op::SFVTCA1 => {
-                let aa = ((opcode as i32 & 1) << 14) as i32;
+                let aa = (opcode as i32 & 1) << 14;
                 let bb = aa ^ 0x4000;
                 if opcode < 4 {
                     self.graphics.proj_vector = Point::new(aa, bb);
@@ -148,7 +148,7 @@ impl<'a> Engine<'a> {
             op::RTG => self.graphics.round_state.mode = RoundMode::Grid,
             op::RTHG => self.graphics.round_state.mode = RoundMode::HalfGrid,
             op::SMD => self.graphics.min_distance = self.value_stack.pop()?,
-            op::ELSE => self.op_else(&mut decoder)?,
+            op::ELSE => self.op_else(decoder)?,
             op::SCVTCI => self.graphics.control_value_cutin = self.value_stack.pop()?,
             op::SSWCI => self.graphics.single_width_cutin = self.value_stack.pop()?,
             op::SSW => self.graphics.single_width = self.value_stack.pop()?,
@@ -345,8 +345,8 @@ impl<'a> Engine<'a> {
                     || self.graphics.zp1 == Zone::Twilight
                     || self.graphics.zp2 == Zone::Twilight;
                 let a = self.value_stack.pop()?;
-                let dx = mul14(a, self.graphics.freedom_vector.x as i32);
-                let dy = mul14(a, self.graphics.freedom_vector.y as i32);
+                let dx = mul14(a, self.graphics.freedom_vector.x);
+                let dy = mul14(a, self.graphics.freedom_vector.y);
                 let mut iters = core::mem::replace(&mut self.graphics.loop_counter, 1);
                 while iters > 0 {
                     let point = self.value_stack.pop_usize()?;
@@ -451,8 +451,8 @@ impl<'a> Engine<'a> {
                     let fv = self.graphics.freedom_vector;
                     let z = self.graphics.zp0_mut();
                     let original_point = z.original_mut(point_ix)?;
-                    original_point.x = mul14(distance, fv.x as i32);
-                    original_point.y = mul14(distance, fv.y as i32);
+                    original_point.x = mul14(distance, fv.x);
+                    original_point.y = mul14(distance, fv.y);
                     *z.point_mut(point_ix)? = *original_point;
                 }
                 let original_distance = self
@@ -543,7 +543,7 @@ impl<'a> Engine<'a> {
             op::NEQ => self.op_neq()?,
             op::ODD => self.op_odd()?,
             op::EVEN => self.op_even()?,
-            op::IF => self.op_if(&mut decoder)?,
+            op::IF => self.op_if(decoder)?,
             op::EIF => self.op_eif()?,
             op::AND => self.op_and()?,
             op::OR => self.op_or()?,
@@ -658,9 +658,9 @@ impl<'a> Engine<'a> {
                 self.graphics.round_state.phase >>= 8;
                 self.graphics.round_state.threshold >>= 8;
             }
-            op::JROT => self.op_jrot(&mut decoder)?,
-            op::JMPR => self.op_jmpr(&mut decoder)?,
-            op::JROF => self.op_jrof(&mut decoder)?,
+            op::JROT => self.op_jrot(decoder)?,
+            op::JMPR => self.op_jmpr(decoder)?,
+            op::JROF => self.op_jrof(decoder)?,
             op::ROFF => self.graphics.round_state.mode = RoundMode::Off,
             op::RUTG => self.graphics.round_state.mode = RoundMode::UpToGrid,
             op::RDTG => self.graphics.round_state.mode = RoundMode::DownToGrid,
@@ -935,8 +935,8 @@ impl<'a> Engine<'a> {
                     let p = {
                         let p2 = self.graphics.zp0().original(self.graphics.rp0)?;
                         let p1 = self.graphics.zp1_mut().original_mut(point_ix)?;
-                        p1.x = p2.x + mul(cvt_distance, fv.x as i32);
-                        p1.y = p2.y + mul(cvt_distance, fv.y as i32);
+                        p1.x = p2.x + mul(cvt_distance, fv.x);
+                        p1.y = p2.y + mul(cvt_distance, fv.y);
                         *p1
                     };
                     *self.graphics.zp1_mut().point_mut(point_ix)? = p;
@@ -1002,7 +1002,7 @@ impl<'a> Engine<'a> {
                     let mut index = !0;
                     for i in 0..self.idefs.len() {
                         let idef = self.idefs.get(i)?;
-                        if idef.is_active() && idef.opcode() == Some(opcode as u8) {
+                        if idef.is_active() && idef.opcode() == Some(opcode) {
                             index = i;
                             break;
                         }
@@ -1019,7 +1019,7 @@ impl<'a> Engine<'a> {
                         *decoder = Decoder::new(
                             def.program(),
                             programs[def.program() as usize],
-                            def.range().start as usize,
+                            def.range().start,
                         );
                     } else {
                         return Err(HintErrorKind::InvalidOpcode(opcode));

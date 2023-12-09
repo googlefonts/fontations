@@ -1,3 +1,4 @@
+use super::HintErrorKind;
 use core::ops::Range;
 
 /// Type alias for a TrueType opcode.
@@ -78,6 +79,46 @@ impl CodeDefinition {
     /// For an instruction definition, returns the assigned opcode.
     pub fn opcode(&self) -> Option<u8> {
         self.opcode.try_into().ok()
+    }
+}
+
+pub enum CodeDefinitionSlice<'a> {
+    Ref(&'a [CodeDefinition]),
+    Mut(&'a mut [CodeDefinition]),
+}
+
+impl<'a> CodeDefinitionSlice<'a> {
+    pub fn len(&self) -> usize {
+        match self {
+            Self::Ref(defs) => defs.len(),
+            Self::Mut(defs) => defs.len(),
+        }
+    }
+
+    pub fn get(&self, index: usize) -> Result<CodeDefinition, HintErrorKind> {
+        match self {
+            Self::Ref(defs) => defs.get(index).copied(),
+            Self::Mut(defs) => defs.get(index).copied(),
+        }
+        .ok_or(HintErrorKind::InvalidDefintionIndex(index))
+    }
+
+    pub fn set(&mut self, index: usize, value: CodeDefinition) -> Result<(), HintErrorKind> {
+        match self {
+            Self::Mut(defs) => {
+                *defs
+                    .get_mut(index)
+                    .ok_or(HintErrorKind::InvalidDefintionIndex(index))? = value
+            }
+            _ => return Err(HintErrorKind::DefinitionInGlyphProgram),
+        }
+        Ok(())
+    }
+
+    pub fn reset(&mut self) {
+        if let Self::Mut(defs) = self {
+            defs.fill(Default::default())
+        }
     }
 }
 
@@ -162,22 +203,22 @@ impl<'a> Decoder<'a> {
     /// Decodes the next instruction.
     ///
     /// Returns `None` at the end of the bytecode stream.
-    pub fn maybe_next(&mut self) -> Option<Result<Instruction<'a>, DecodeError>> {
+    pub fn maybe_next(&mut self) -> Option<Result<Instruction<'a>, HintErrorKind>> {
         Some(self.next_inner(*self.bytecode.get(self.pc)?))
     }
 
     /// Decodes the next instruction.
     ///
     /// Returns `None` at the end of the bytecode stream.
-    pub fn next(&mut self) -> Result<Instruction<'a>, DecodeError> {
+    pub fn next(&mut self) -> Result<Instruction<'a>, HintErrorKind> {
         let opcode = *self
             .bytecode
             .get(self.pc)
-            .ok_or(DecodeError::UnexpectedEndOfBytecode)?;
+            .ok_or(HintErrorKind::UnexpectedEndOfBytecode)?;
         self.next_inner(opcode)
     }
 
-    fn next_inner(&mut self, opcode: Opcode) -> Result<Instruction<'a>, DecodeError> {
+    fn next_inner(&mut self, opcode: Opcode) -> Result<Instruction<'a>, HintErrorKind> {
         let mut opcode_len = LENGTH_TABLE[opcode as usize] as i32;
         let mut arg_size = 0;
         if opcode_len < 0 {
@@ -185,7 +226,7 @@ impl<'a> Decoder<'a> {
                 .bytecode
                 .get(self.pc + 1)
                 .copied()
-                .ok_or(DecodeError::UnexpectedEndOfBytecode)?;
+                .ok_or(HintErrorKind::UnexpectedEndOfBytecode)?;
             opcode_len = 2 - opcode_len * next_byte as i32;
             arg_size = 1;
         }
@@ -198,7 +239,7 @@ impl<'a> Decoder<'a> {
             arguments.raw = self
                 .bytecode
                 .get(arg_start..arg_start + arg_count)
-                .ok_or(DecodeError::UnexpectedEndOfBytecode)?;
+                .ok_or(HintErrorKind::UnexpectedEndOfBytecode)?;
             arguments.is_words = (opcodes::PUSHW000..=opcodes::PUSHW111).contains(&opcode)
                 || opcode == opcodes::NPUSHW;
             if arguments.is_words {
@@ -214,12 +255,6 @@ impl<'a> Decoder<'a> {
             arguments,
         })
     }
-}
-
-/// Errors that can occur during instruction decoding.
-#[derive(Copy, Clone, Debug)]
-pub enum DecodeError {
-    UnexpectedEndOfBytecode,
 }
 
 /// Raw TrueType instruction opcodes.

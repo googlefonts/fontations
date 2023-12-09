@@ -1,10 +1,10 @@
 //! Hinting error definitions.
 
-use super::code::{DecodeError, Program};
+use super::code::Program;
 
 #[derive(Clone, Debug)]
 pub enum HintErrorKind {
-    Decode(DecodeError),
+    UnexpectedEndOfBytecode,
     InvalidOpcode(u8),
     DefinitionInGlyphProgram,
     NestedDefinition,
@@ -23,12 +23,6 @@ pub enum HintErrorKind {
     InvalidZoneIndex(i32),
     NegativeLoopCounter,
     InvalidJump,
-}
-
-impl From<DecodeError> for HintErrorKind {
-    fn from(value: DecodeError) -> Self {
-        Self::Decode(value)
-    }
 }
 
 #[derive(Clone, Debug)]

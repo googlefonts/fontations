@@ -8,7 +8,7 @@ use read_fonts::{
 use super::{
     super::{
         error::HintErrorKind,
-        graphics::CoordAxis,
+        graphics_state::CoordAxis,
         math::{div, mul},
     },
     GraphicsState,
@@ -251,11 +251,11 @@ impl<'a> ZoneData<'a> {
                     let (first, second) = self
                         .points
                         .get_mut(p1..=p2)
-                        .ok_or(InvalidPointIndex(p1))?
+                        .ok_or(InvalidPointRange(p1, p2 + 1))?
                         .split_at_mut(p - p1);
                     for point in first
                         .iter_mut()
-                        .chain(second.get_mut(1..).ok_or(InvalidPointIndex(p2))?)
+                        .chain(second.get_mut(1..).ok_or(InvalidPointIndex(p - p1))?)
                     {
                         point.$coord += delta;
                     }
