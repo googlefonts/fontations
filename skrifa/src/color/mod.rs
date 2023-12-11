@@ -282,12 +282,7 @@ impl<'a> ColorGlyph<'a> {
                 let resolved_bounding_box = get_clipbox_font_units(&instance, *glyph_id).ok()?;
                 resolved_bounding_box.map(|bounding_box| {
                     let scale_factor = size.linear_scale((*upem).clone().unwrap_or(0));
-                    BoundingBox {
-                        x_min: bounding_box.x_min * scale_factor,
-                        y_min: bounding_box.y_min * scale_factor,
-                        x_max: bounding_box.x_max * scale_factor,
-                        y_max: bounding_box.y_max * scale_factor,
-                    }
+                    bounding_box.scale(scale_factor)
                 })
             }
             _ => todo!(),

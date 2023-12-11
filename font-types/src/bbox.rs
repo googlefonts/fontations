@@ -1,4 +1,4 @@
-use core::ops::{Mul, MulAssign};
+use core::ops::Mul;
 
 /// Minimum and maximum extents of a rectangular region.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
@@ -17,11 +17,17 @@ pub struct BoundingBox<T> {
     pub y_max: T,
 }
 
-impl<T> BoundingBox<T> where T: MulAssign + Mul + Copy {
-    pub fn scale(&mut self, factor : T)  {
-        self.x_min *= factor;
-        self.y_min *= factor;
-        self.x_max *= factor;
-        self.y_max *= factor;
+/// Return a BoundingBox scaled by a scale factor of the same type as the stored bounds.
+impl<T> BoundingBox<T>
+where
+    T: Mul<Output = T> + Copy,
+{
+    pub fn scale(&self, factor: T) -> Self {
+        Self {
+            x_min: self.x_min * factor,
+            y_min: self.y_min * factor,
+            x_max: self.x_max * factor,
+            y_max: self.y_max * factor,
+        }
     }
 }
