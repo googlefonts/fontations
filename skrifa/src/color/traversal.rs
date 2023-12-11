@@ -10,7 +10,7 @@ use super::{
     instance::{
         resolve_clip_box, resolve_paint, ColorStops, ColrInstance, ResolvedColorStop, ResolvedPaint,
     },
-    ColorError, ColorPainter, ColorStop, ColrGlyphDrawResult, FillType,
+    PaintError, ColorPainter, ColorStop, ColrGlyphDrawResult, FillType,
 };
 
 pub(crate) fn get_clipbox_font_units(
@@ -44,14 +44,14 @@ pub(crate) fn traverse_with_callbacks(
     instance: &ColrInstance,
     painter: &mut impl ColorPainter,
     visited_set: &mut HashSet<usize>,
-) -> Result<(), ColorError> {
+) -> Result<(), PaintError> {
     match paint {
         ResolvedPaint::ColrLayers { range } => {
             for layer_index in range.clone() {
                 // Perform cycle detection with paint id here, second part of the tuple.
                 let (layer_paint, paint_id) = (*instance).v1_layer(layer_index)?;
                 if !visited_set.insert(paint_id) {
-                    return Err(ColorError::PaintCycleDetected);
+                    return Err(PaintError::PaintCycleDetected);
                 }
                 traverse_with_callbacks(
                     &resolve_paint(instance, &layer_paint)?,
@@ -369,7 +369,7 @@ pub(crate) fn traverse_with_callbacks(
         ResolvedPaint::ColrGlyph { glyph_id } => match (*instance).v1_base_glyph(*glyph_id)? {
             Some((base_glyph, base_glyph_paint_id)) => {
                 if !visited_set.insert(base_glyph_paint_id) {
-                    return Err(ColorError::PaintCycleDetected);
+                    return Err(PaintError::PaintCycleDetected);
                 }
 
                 let draw_result = painter.draw_color_glyph(*glyph_id)?;
@@ -397,7 +397,7 @@ pub(crate) fn traverse_with_callbacks(
                 visited_set.remove(&base_glyph_paint_id);
                 result
             }
-            None => Err(ColorError::NoColrV1GlyphForId(*glyph_id)),
+            None => Err(PaintError::GlyphNotFound(*glyph_id)),
         },
         ResolvedPaint::Transform {
             paint: next_paint, ..

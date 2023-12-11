@@ -55,37 +55,38 @@ use traversal::{get_clipbox_font_units, traverse_with_callbacks};
 
 pub use transform::Transform;
 
-use crate::prelude::LocationRef;
+use crate::prelude::{LocationRef, Size};
 
 use self::instance::{resolve_paint, PaintId};
 
-/// An error during drawing a COLR glyph. This covers inconsistencies
-/// in the COLRv1 paint graph as well as downstream
+/// An error during drawing a COLR glyph. 
+/// 
+/// This covers inconsistencies in the COLRv1 paint graph as well as downstream
 /// parse errors from read-fonts.
 #[derive(Debug, Clone)]
-pub enum ColorError {
+pub enum PaintError {
     ParseError(ReadError),
-    NoColrV1GlyphForId(GlyphId),
+    GlyphNotFound(GlyphId),
     PaintCycleDetected,
 }
 
-impl std::fmt::Display for ColorError {
+impl std::fmt::Display for PaintError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            ColorError::ParseError(read_error) => {
+            PaintError::ParseError(read_error) => {
                 write!(f, "Error parsing font data: {read_error}")
             }
-            ColorError::NoColrV1GlyphForId(glyph_id) => {
+            PaintError::GlyphNotFound(glyph_id) => {
                 write!(f, "No COLRv1 glyph found for glyph id: {glyph_id}")
             }
-            ColorError::PaintCycleDetected => write!(f, "Paint cycle detected in COLRv1 glyph."),
+            PaintError::PaintCycleDetected => write!(f, "Paint cycle detected in COLRv1 glyph."),
         }
     }
 }
 
-impl From<ReadError> for ColorError {
+impl From<ReadError> for PaintError {
     fn from(value: ReadError) -> Self {
-        ColorError::ParseError(value)
+        PaintError::ParseError(value)
     }
 }
 
@@ -248,11 +249,11 @@ impl<'a> ColorPaintable<'a> {
     /// none for the particular glyph.  The `size` argument can optionally be used
     /// to scale the bounding box to a particular font size. `location` allows
     /// specifycing a variation instance.
-    pub fn get_bounding_box(
+    pub fn bounding_box(
         &self,
         location: impl Into<LocationRef<'a>>,
-        size: Option<f32>,
-    ) -> Result<Option<BoundingBox<f32>>, ColorError> {
+        size: Size,
+    ) -> Result<Option<BoundingBox<f32>>, PaintError> {
         let instance = instance::ColrInstance::new(self.colr.clone(), location.into().coords());
 
         match &self.root_paint_ref {
@@ -261,7 +262,7 @@ impl<'a> ColorPaintable<'a> {
                 let resolved_bounding_box = get_clipbox_font_units(&instance, *glyph_id)?;
 
                 let scaled_clipbox = resolved_bounding_box.map(|bounding_box| {
-                    let scale_factor = size.map(|size| size / upem as f32).unwrap_or(1.0);
+                    let scale_factor = size.linear_scale(upem);
                     BoundingBox {
                         x_min: bounding_box.x_min * scale_factor,
                         y_min: bounding_box.y_min * scale_factor,
@@ -296,7 +297,7 @@ impl<'a> ColorPaintable<'a> {
         &self,
         location: impl Into<LocationRef<'a>>,
         painter: &mut impl ColorPainter,
-    ) -> Result<(), ColorError> {
+    ) -> Result<(), PaintError> {
         let instance = instance::ColrInstance::new(self.colr.clone(), location.into().coords());
         match &self.root_paint_ref {
             ColorPaintableRoot::V1Paint(paint, paint_id, glyph_id, _) => {
