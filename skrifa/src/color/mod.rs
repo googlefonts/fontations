@@ -8,8 +8,8 @@
 //! # use read_fonts::GlyphId;
 //! # fn get_colr_bb(font: read_fonts::FontRef, color_painter_impl : &mut ColorPainter, glyph_id : GlyphId) {
 //! match font.color_glyphs()
-//!       .get_type(glyph_id, ColorGlyphFormat::ColrV1)?
-//!       .get_bounding_box(&[], size)
+//!       .get_with_format(glyph_id, ColorGlyphFormat::ColrV1)?
+//!       .bounding_box(&[], size)
 //!       .ok()?
 //! {
 //! Some(bounding_box) => {
@@ -90,17 +90,20 @@ impl From<ReadError> for PaintError {
     }
 }
 
-#[derive(Clone, Debug, Default)]
+/// A color stop of a gradient.
+///
+/// All gradient callbacks of [`ColorPainter`] normalize color stops to be in the range of 0
+/// to 1.
+#[derive(Clone, PartialEq, Debug, Default)]
+#[cfg_attr(test, derive(Serialize, Deserialize))]
 // This repr(C) is required so that C-side FFI's
 // are able to cast the ColorStop slice to a C-side array pointer.
 #[repr(C)]
-#[derive(PartialEq)]
-#[cfg_attr(test, derive(Serialize, Deserialize))]
-/// A color stop of a gradient. All gradient callbacks of [`ColorPainter`] normalize color stops to be in the range of 0
-/// to 1. `palette_index` specifies a color from the CPAL table, to be multiplied with `alpha` before use.
 pub struct ColorStop {
     pub offset: f32,
+    /// Specifies a color from the `CPAL` table.
     pub palette_index: u16,
+    /// Additional alpha value, to be multiplied with the color above before use.
     pub alpha: f32,
 }
 
@@ -117,11 +120,12 @@ pub struct ColorStop {
 // client side to `.collect()` from the provided iterator before passing it to
 // drawing API.
 //
-/// Used for encapsulating the different types of fills that may occur in a
-/// COLRv1 glyph. The client receives the information about the fill type in the
+/// A fill type of a COLRv1 glyph (solid fill or various gradient types).
+///
+/// The client receives the information about the fill type in the
 /// [`fill``](ColorPainter::fill) callback of the [`ColorPainter`] trait.
 #[derive(Debug, PartialEq)]
-pub enum FillType<'a> {
+pub enum Brush<'a> {
     /// A solid fill with the color specified by `palette_index`. The respective
     /// color from the CPAL table then needs to be multiplied with `alpha`.
     Solid { palette_index: u16, alpha: f32 },
@@ -165,21 +169,29 @@ pub enum FillType<'a> {
     },
 }
 
-/// Result type used in [`draw_color_glyph`](ColorPainter::draw_color_glyph)
-/// through which the client can signal whether a COLRv1 glyph referenced by
-/// another COLRv1 glyph can be drawn from cache or whether the glyphs subgraph
-/// should be traversed.
-pub enum ColrGlyphDrawResult {
-    ColrGlyphDrawn,
-    ColrGlyphDrawingNotImpl,
+/// Signals success of request to draw a COLRv1 sub glyph from cache.
+///
+/// Result of [`paint_cached_color_glyph`](ColorPainter::paint_cached_color_glyph)
+/// through which the client signals whether a COLRv1 glyph referenced by
+/// another COLRv1 glyph was drawn from cache or whether the glyph's subgraph
+/// should be traversed by the skria side COLRv1 implementation.
+pub enum PaintCachedColorGlyph {
+    /// The specified COLRv1 glyph has been successfully painted client side.
+    Ok,
+    /// The client does not implement drawing COLRv1 glyphs from cache and the
+    /// Fontations side COLRv1 implementation is asked to traverse the
+    /// respective PaintColorGlyph sub graph.
+    Unimplemented,
 }
 
-/// A group of required callbacks to be provided by the client. Each callback is
-/// executing a particular drawing or canvas transformation operation. The
-/// trait's callback functions are invoked when [`paint`](ColorGlyph::paint) is
-/// called with a [`ColorPainter`] trait object. The documentation for each
-/// function describes what actions are to be executed using the client side 2D
-/// graphics API, usually by performing some kind of canvas operation.
+/// A group of required painting callbacks to be provided by the client.
+///
+/// Each callback is executing a particular drawing or canvas transformation
+/// operation. The trait's callback functions are invoked when
+/// [`paint`](ColorGlyph::paint) is called with a [`ColorPainter`] trait
+/// object. The documentation for each function describes what actions are to be
+/// executed using the client side 2D graphics API, usually by performing some
+/// kind of canvas operation.
 pub trait ColorPainter {
     /// Push the specified transform by concatenating it to the current
     /// transformation matrix.
@@ -198,13 +210,13 @@ pub trait ColorPainter {
     fn pop_clip(&mut self);
 
     /// Fill the current clip area with the specified gradient fill.
-    fn fill(&mut self, fill_type: FillType);
+    fn fill(&mut self, brush: Brush);
 
     /// Optionally implement this method: Draw an unscaled COLRv1 glyph given
     /// the current transformation matrix (as accumulated by
     /// [`push_transform`](ColorPainter::push_transform) calls).
-    fn draw_color_glyph(&mut self, _glyph: GlyphId) -> Result<ColrGlyphDrawResult, ReadError> {
-        Ok(ColrGlyphDrawResult::ColrGlyphDrawingNotImpl)
+    fn paint_cached_color_glyph(&mut self, _glyph: GlyphId) -> Result<PaintCachedColorGlyph, PaintError> {
+        Ok(PaintCachedColorGlyph::Unimplemented)
     }
 
     // TODO(drott): Add an optimized callback function combining clip, fill and transforms.
@@ -237,7 +249,7 @@ enum ColorGlyphRoot<'a> {
 impl<'a> ColorGlyph<'a> {
     /// Returns the version of the color table from which this outline was
     /// selected.
-    pub fn glyph_format(&self) -> ColorGlyphFormat {
+    pub fn format(&self) -> ColorGlyphFormat {
         match &self.root_paint_ref {
             ColorGlyphRoot::V0Range(_) => ColorGlyphFormat::ColrV0,
             ColorGlyphRoot::V1Paint(..) => ColorGlyphFormat::ColrV1,
@@ -380,7 +392,7 @@ mod tests {
     use crate::{prelude::LocationRef, MetadataProvider};
     use read_fonts::{types::BoundingBox, FontRef};
 
-    use super::{ColorPainter, CompositeMode, FillType, GlyphId, Transform};
+    use super::{ColorPainter, CompositeMode, Brush, GlyphId, Transform};
 
     #[test]
     fn has_colrv1_glyph_test() {
@@ -414,7 +426,7 @@ mod tests {
         fn push_clip_glyph(&mut self, _glyph: GlyphId) {}
         fn push_clip_box(&mut self, _clip_box: BoundingBox<f32>) {}
         fn pop_clip(&mut self) {}
-        fn fill(&mut self, _brush: FillType) {}
+        fn fill(&mut self, _brush: Brush) {}
         fn push_layer(&mut self, _composite_mode: CompositeMode) {}
         fn pop_layer(&mut self) {}
     }

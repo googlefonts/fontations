@@ -18,7 +18,7 @@ use std::{
 use crate::{
     color::{
         transform::Transform, traversal_tests::test_glyph_defs::*, ColorPainter, ColorStop,
-        FillType,
+        Brush,
     },
     setting::VariationSetting,
     MetadataProvider,
@@ -30,17 +30,17 @@ struct PaintDump {
     ops: Vec<PaintOps>,
 }
 
-impl From<FillType<'_>> for BrushParams {
-    fn from(brush: FillType) -> Self {
+impl From<Brush<'_>> for BrushParams {
+    fn from(brush: Brush) -> Self {
         match brush {
-            FillType::Solid {
+            Brush::Solid {
                 palette_index,
                 alpha,
             } => BrushParams::Solid {
                 palette_index,
                 alpha,
             },
-            FillType::LinearGradient {
+            Brush::LinearGradient {
                 p0,
                 p1,
                 color_stops,
@@ -51,7 +51,7 @@ impl From<FillType<'_>> for BrushParams {
                 color_stops: color_stops.to_vec(),
                 extend,
             },
-            FillType::RadialGradient {
+            Brush::RadialGradient {
                 c0,
                 r0,
                 c1,
@@ -66,7 +66,7 @@ impl From<FillType<'_>> for BrushParams {
                 color_stops: color_stops.to_vec(),
                 extend,
             },
-            FillType::SweepGradient {
+            Brush::SweepGradient {
                 c0,
                 start_angle,
                 end_angle,
@@ -182,7 +182,7 @@ impl ColorPainter for PaintDump {
         self.ops.push(PaintOps::PopClip);
     }
 
-    fn fill(&mut self, brush: FillType) {
+    fn fill(&mut self, brush: Brush) {
         self.ops.push(PaintOps::FillBrush {
             brush: brush.into(),
         });

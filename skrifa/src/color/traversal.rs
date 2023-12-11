@@ -10,7 +10,7 @@ use super::{
     instance::{
         resolve_clip_box, resolve_paint, ColorStops, ColrInstance, ResolvedColorStop, ResolvedPaint,
     },
-    PaintError, ColorPainter, ColorStop, ColrGlyphDrawResult, FillType,
+    PaintError, ColorPainter, ColorStop, PaintCachedColorGlyph, Brush,
 };
 
 pub(crate) fn get_clipbox_font_units(
@@ -67,7 +67,7 @@ pub(crate) fn traverse_with_callbacks(
             palette_index,
             alpha,
         } => {
-            painter.fill(FillType::Solid {
+            painter.fill(Brush::Solid {
                 palette_index: *palette_index,
                 alpha: *alpha,
             });
@@ -106,7 +106,7 @@ pub(crate) fn traverse_with_callbacks(
             // the last color, depending on the direction.
             // For now, just use the first color.
             if p1 == p0 || p2 == p0 || cross_product(p1 - p0, p2 - p0) == 0.0 {
-                painter.fill(FillType::Solid {
+                painter.fill(Brush::Solid {
                     palette_index: resolved_stops[0].palette_index,
                     alpha: resolved_stops[0].alpha,
                 });
@@ -168,7 +168,7 @@ pub(crate) fn traverse_with_callbacks(
                         }
                     }
 
-                    painter.fill(FillType::LinearGradient {
+                    painter.fill(Brush::LinearGradient {
                         p0,
                         p1: p3,
                         color_stops: resolved_stops.as_slice(),
@@ -244,7 +244,7 @@ pub(crate) fn traverse_with_callbacks(
                         }
                     }
 
-                    painter.fill(FillType::RadialGradient {
+                    painter.fill(Brush::RadialGradient {
                         c0,
                         r0: radius0,
                         c1,
@@ -343,7 +343,7 @@ pub(crate) fn traverse_with_callbacks(
                         }
                     }
 
-                    painter.fill(FillType::SweepGradient {
+                    painter.fill(Brush::SweepGradient {
                         c0: Point::new(*center_x, *center_y),
                         start_angle: start_angle_scaled,
                         end_angle: end_angle_scaled,
@@ -372,10 +372,10 @@ pub(crate) fn traverse_with_callbacks(
                     return Err(PaintError::PaintCycleDetected);
                 }
 
-                let draw_result = painter.draw_color_glyph(*glyph_id)?;
+                let draw_result = painter.paint_cached_color_glyph(*glyph_id)?;
                 let result = match draw_result {
-                    ColrGlyphDrawResult::ColrGlyphDrawn => Ok(()),
-                    ColrGlyphDrawResult::ColrGlyphDrawingNotImpl => {
+                    PaintCachedColorGlyph::Ok => Ok(()),
+                    PaintCachedColorGlyph::Unimplemented => {
                         let clipbox = get_clipbox_font_units(instance, *glyph_id)?;
 
                         if let Some(rect) = clipbox {
