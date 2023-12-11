@@ -9,11 +9,11 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
 /// A transformation matrix to be applied to the drawing canvas.  
-/// 
-/// Factors are specified in column-order, meaning that 
-/// for a vector `(x,y)` the transformed position `x'` of the vector 
+///
+/// Factors are specified in column-order, meaning that
+/// for a vector `(x,y)` the transformed position `x'` of the vector
 /// is calculated by
-/// `x' = xx * x + xy * y + dx`, 
+/// `x' = xx * x + xy * y + dx`,
 /// and the transformed position y' is calculated by
 /// `y' = yx * x + yy * y + dy`.
 pub struct Transform {

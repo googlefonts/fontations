@@ -215,7 +215,10 @@ pub trait ColorPainter {
     /// Optionally implement this method: Draw an unscaled COLRv1 glyph given
     /// the current transformation matrix (as accumulated by
     /// [`push_transform`](ColorPainter::push_transform) calls).
-    fn paint_cached_color_glyph(&mut self, _glyph: GlyphId) -> Result<PaintCachedColorGlyph, PaintError> {
+    fn paint_cached_color_glyph(
+        &mut self,
+        _glyph: GlyphId,
+    ) -> Result<PaintCachedColorGlyph, PaintError> {
         Ok(PaintCachedColorGlyph::Unimplemented)
     }
 
@@ -270,8 +273,7 @@ impl<'a> ColorGlyph<'a> {
 
         match &self.root_paint_ref {
             ColorGlyphRoot::V1Paint(_paint, _paint_id, glyph_id, upem) => {
-                let resolved_bounding_box =
-                    get_clipbox_font_units(&instance, *glyph_id).unwrap_or_default();
+                let resolved_bounding_box = get_clipbox_font_units(&instance, *glyph_id).ok()?;
                 resolved_bounding_box.map(|bounding_box| {
                     let scale_factor = size.linear_scale((*upem).clone().unwrap_or(0));
                     BoundingBox {
@@ -392,7 +394,7 @@ mod tests {
     use crate::{prelude::LocationRef, MetadataProvider};
     use read_fonts::{types::BoundingBox, FontRef};
 
-    use super::{ColorPainter, CompositeMode, Brush, GlyphId, Transform};
+    use super::{Brush, ColorPainter, CompositeMode, GlyphId, Transform};
 
     #[test]
     fn has_colrv1_glyph_test() {

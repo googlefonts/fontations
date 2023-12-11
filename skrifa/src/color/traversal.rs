@@ -10,7 +10,7 @@ use super::{
     instance::{
         resolve_clip_box, resolve_paint, ColorStops, ColrInstance, ResolvedColorStop, ResolvedPaint,
     },
-    PaintError, ColorPainter, ColorStop, PaintCachedColorGlyph, Brush,
+    Brush, ColorPainter, ColorStop, PaintCachedColorGlyph, PaintError,
 };
 
 pub(crate) fn get_clipbox_font_units(
@@ -459,7 +459,7 @@ mod tests {
     };
 
     use crate::{
-        color::{traversal::get_clipbox_font_units, instance::ColrInstance},
+        color::{instance::ColrInstance, traversal::get_clipbox_font_units},
         MetadataProvider,
     };
 
