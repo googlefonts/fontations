@@ -1,7 +1,7 @@
 use super::{
     attribute::Attributes,
     charmap::Charmap,
-    color::ColorPaintableCollection,
+    color::ColorGlyphCollection,
     instance::{LocationRef, Size},
     metrics::{GlyphMetrics, Metrics},
     string::{LocalizedStrings, StringId},
@@ -50,8 +50,8 @@ pub trait MetadataProvider<'a>: raw::TableProvider<'a> + Sized {
     }
 
     // Returns a collection of paintable color glyphs.
-    fn color_paintables(&self) -> ColorPaintableCollection<'a> {
-        ColorPaintableCollection::new(self)
+    fn color_glyphs(&self) -> ColorGlyphCollection<'a> {
+        ColorGlyphCollection::new(self)
     }
 }
 

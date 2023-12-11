@@ -251,13 +251,13 @@ fn colrv1_traversal_test(set_name: &str, test_chars: &[char], settings: &[(&str,
     let paint_dumps_iter = test_gids.map(|gid| {
         let mut color_painter = PaintDump::new(gid.to_u16());
 
-        let colrv1_paintable = font
-            .color_paintables()
-            .get_type(gid, crate::color::ColorPaintableType::ColrV1);
+        let colrv1_glyph = font
+            .color_glyphs()
+            .get_with_format(gid, crate::color::ColorGlyphFormat::ColrV1);
 
-        assert!(colrv1_paintable.is_some());
+        assert!(colrv1_glyph.is_some());
 
-        let result = colrv1_paintable
+        let result = colrv1_glyph
             .unwrap()
             .paint(location.coords(), &mut color_painter);
 

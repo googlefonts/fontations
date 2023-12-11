@@ -4,11 +4,11 @@
 //! ## Retrieve the clip box of a COLRv1 glyph if it has one:
 //!
 //! ```
-//! # use skrifa::{scale::*, instance::Size, color::{ColorPaintableType, ColorPainter}};
+//! # use skrifa::{scale::*, instance::Size, color::{ColorGlyphFormat, ColorPainter}};
 //! # use read_fonts::GlyphId;
 //! # fn get_colr_bb(font: read_fonts::FontRef, color_painter_impl : &mut ColorPainter, glyph_id : GlyphId) {
-//! match font.color_paintables()
-//!       .get_type(glyph_id, ColorPaintableType::ColrV1)?
+//! match font.color_glyphs()
+//!       .get_type(glyph_id, ColorGlyphFormat::ColrV1)?
 //!       .get_bounding_box(&[], size)
 //!       .ok()?
 //! {
@@ -24,11 +24,11 @@
 //!
 //! ## Paint a COLRv1 glyph given a font, and a glyph id and a [`ColorPainter`] implementation:
 //! ```
-//! # use skrifa::{scale::*, instance::Size, color::{ColorPaintableType, ColorPainter}};
+//! # use skrifa::{scale::*, instance::Size, color::{ColorGlyphFormat, ColorPainter}};
 //! # use read_fonts::GlyphId;
 //! # fn paint_colr(font: read_fonts::FontRef, color_painter_impl : &mut ColorPainter, glyph_id : GlyphId) -> Result<(), ColorError> {
-//! let color_paintable = font.color_paintables().get_type(glyph_id, ColorPaintableType::ColrV1)?;
-//! color_paintable.paint(&[], color_painter_impl)?
+//! let color_glyph = font.color_glyphs().get_type(glyph_id, ColorGlyphFormat::ColrV1)?;
+//! color_glyph.paint(&[], color_painter_impl)?
 //! # }
 //! ```
 //!
@@ -59,8 +59,8 @@ use crate::prelude::{LocationRef, Size};
 
 use self::instance::{resolve_paint, PaintId};
 
-/// An error during drawing a COLR glyph. 
-/// 
+/// An error during drawing a COLR glyph.
+///
 /// This covers inconsistencies in the COLRv1 paint graph as well as downstream
 /// parse errors from read-fonts.
 #[derive(Debug, Clone)]
@@ -176,7 +176,7 @@ pub enum ColrGlyphDrawResult {
 
 /// A group of required callbacks to be provided by the client. Each callback is
 /// executing a particular drawing or canvas transformation operation. The
-/// trait's callback functions are invoked when [`paint`](ColorPaintable::paint) is
+/// trait's callback functions are invoked when [`paint`](ColorGlyph::paint) is
 /// called with a [`ColorPainter`] trait object. The documentation for each
 /// function describes what actions are to be executed using the client side 2D
 /// graphics API, usually by performing some kind of canvas operation.
@@ -215,36 +215,36 @@ pub trait ColorPainter {
     fn pop_layer(&mut self);
 }
 
-/// Distinguishes available color glyph types.
-pub enum ColorPaintableType {
+/// Distinguishes available color glyph formats.
+pub enum ColorGlyphFormat {
     ColrV0,
     ColrV1,
 }
 
 /// A representation of a color glyph that can be painted through a sequence of [`ColorPainter`] callbacks.
 #[derive(Clone)]
-pub struct ColorPaintable<'a> {
+pub struct ColorGlyph<'a> {
     colr: colr::Colr<'a>,
-    root_paint_ref: ColorPaintableRoot<'a>,
+    root_paint_ref: ColorGlyphRoot<'a>,
 }
 
 #[derive(Clone)]
-enum ColorPaintableRoot<'a> {
+enum ColorGlyphRoot<'a> {
     V0Range(Range<usize>),
     V1Paint(colr::Paint<'a>, PaintId, GlyphId, Result<u16, ReadError>),
 }
 
-impl<'a> ColorPaintable<'a> {
+impl<'a> ColorGlyph<'a> {
     /// Returns the version of the color table from which this outline was
     /// selected.
-    pub fn paintable_type(&self) -> ColorPaintableType {
+    pub fn glyph_format(&self) -> ColorGlyphFormat {
         match &self.root_paint_ref {
-            ColorPaintableRoot::V0Range(_) => ColorPaintableType::ColrV0,
-            ColorPaintableRoot::V1Paint(..) => ColorPaintableType::ColrV1,
+            ColorGlyphRoot::V0Range(_) => ColorGlyphFormat::ColrV0,
+            ColorGlyphRoot::V1Paint(..) => ColorGlyphFormat::ColrV1,
         }
     }
 
-    /// Returns the bounding box. For COLRv1 paintables, this is clipbox of the
+    /// Returns the bounding box. For COLRv1 glyphs, this is clipbox of the
     /// specified COLRv1 glyph, or `None` if there is
     /// none for the particular glyph.  The `size` argument can optionally be used
     /// to scale the bounding box to a particular font size. `location` allows
@@ -253,24 +253,22 @@ impl<'a> ColorPaintable<'a> {
         &self,
         location: impl Into<LocationRef<'a>>,
         size: Size,
-    ) -> Result<Option<BoundingBox<f32>>, PaintError> {
+    ) -> Option<BoundingBox<f32>> {
         let instance = instance::ColrInstance::new(self.colr.clone(), location.into().coords());
 
         match &self.root_paint_ref {
-            ColorPaintableRoot::V1Paint(_paint, _paint_id, glyph_id, upem) => {
-                let upem = (*upem).clone()?;
-                let resolved_bounding_box = get_clipbox_font_units(&instance, *glyph_id)?;
-
-                let scaled_clipbox = resolved_bounding_box.map(|bounding_box| {
-                    let scale_factor = size.linear_scale(upem);
+            ColorGlyphRoot::V1Paint(_paint, _paint_id, glyph_id, upem) => {
+                let resolved_bounding_box =
+                    get_clipbox_font_units(&instance, *glyph_id).unwrap_or_default();
+                resolved_bounding_box.map(|bounding_box| {
+                    let scale_factor = size.linear_scale((*upem).clone().unwrap_or(0));
                     BoundingBox {
                         x_min: bounding_box.x_min * scale_factor,
                         y_min: bounding_box.y_min * scale_factor,
                         x_max: bounding_box.x_max * scale_factor,
                         y_max: bounding_box.y_max * scale_factor,
                     }
-                });
-                Ok(scaled_clipbox)
+                })
             }
             _ => todo!(),
         }
@@ -300,7 +298,7 @@ impl<'a> ColorPaintable<'a> {
     ) -> Result<(), PaintError> {
         let instance = instance::ColrInstance::new(self.colr.clone(), location.into().coords());
         match &self.root_paint_ref {
-            ColorPaintableRoot::V1Paint(paint, paint_id, glyph_id, _) => {
+            ColorGlyphRoot::V1Paint(paint, paint_id, glyph_id, _) => {
                 let clipbox = get_clipbox_font_units(&instance, *glyph_id)?;
 
                 if let Some(rect) = clipbox {
@@ -326,14 +324,14 @@ impl<'a> ColorPaintable<'a> {
     }
 }
 
-/// Collection of paintable color glyphs.
+/// Collection of color glyphs.
 #[derive(Clone)]
-pub struct ColorPaintableCollection<'a> {
+pub struct ColorGlyphCollection<'a> {
     colr: Option<colr::Colr<'a>>,
     upem: Result<u16, ReadError>,
 }
 
-impl<'a> ColorPaintableCollection<'a> {
+impl<'a> ColorGlyphCollection<'a> {
     /// Creates a new collection of paintable color glyphs for the given font.
     pub fn new(font: &impl TableProvider<'a>) -> Self {
         let colr = font.colr().ok();
@@ -342,33 +340,37 @@ impl<'a> ColorPaintableCollection<'a> {
         Self { colr, upem }
     }
 
-    /// Returns the paintable color glyph representation for the given glyph identifier.
-    pub fn get_type(
+    /// Returns the color glyph representation for the given glyph identifier,
+    /// given a specific format.
+    pub fn get_with_format(
         &self,
         glyph_id: GlyphId,
-        paintable_type: ColorPaintableType,
-    ) -> Option<ColorPaintable<'a>> {
+        glyph_format: ColorGlyphFormat,
+    ) -> Option<ColorGlyph<'a>> {
         let colr = self.colr.clone()?;
 
-        let root_paint_ref = match paintable_type {
-            ColorPaintableType::ColrV0 => {
+        let root_paint_ref = match glyph_format {
+            ColorGlyphFormat::ColrV0 => {
                 let layer_range = colr.v0_base_glyph(glyph_id).ok()??;
-                ColorPaintableRoot::V0Range(layer_range)
+                ColorGlyphRoot::V0Range(layer_range)
             }
-            ColorPaintableType::ColrV1 => {
+            ColorGlyphFormat::ColrV1 => {
                 let (paint, paint_id) = colr.v1_base_glyph(glyph_id).ok()??;
-                ColorPaintableRoot::V1Paint(paint, paint_id, glyph_id, self.upem.clone())
+                ColorGlyphRoot::V1Paint(paint, paint_id, glyph_id, self.upem.clone())
             }
         };
-        Some(ColorPaintable {
+        Some(ColorGlyph {
             colr,
             root_paint_ref,
         })
     }
 
-    pub fn get_most_expressive(&self, glyph_id: GlyphId) -> Option<ColorPaintable<'a>> {
-        self.get_type(glyph_id, ColorPaintableType::ColrV1)
-            .or_else(|| self.get_type(glyph_id, ColorPaintableType::ColrV0))
+    /// Returns a color glyph representation for the given glyph identifier if
+    /// available, preferring a COLRv1 representation over a COLRv0
+    /// representation.
+    pub fn get(&self, glyph_id: GlyphId) -> Option<ColorGlyph<'a>> {
+        self.get_with_format(glyph_id, ColorGlyphFormat::ColrV1)
+            .or_else(|| self.get_with_format(glyph_id, ColorGlyphFormat::ColrV0))
     }
 }
 
@@ -384,13 +386,13 @@ mod tests {
     fn has_colrv1_glyph_test() {
         let colr_font = font_test_data::COLRV0V1_VARIABLE;
         let font = FontRef::new(colr_font).unwrap();
-        let get_colrv1_paintable = |glyph_id| {
-            font.color_paintables()
-                .get_type(glyph_id, crate::color::ColorPaintableType::ColrV1)
+        let get_colrv1_glyph = |glyph_id| {
+            font.color_glyphs()
+                .get_with_format(glyph_id, crate::color::ColorGlyphFormat::ColrV1)
         };
 
-        assert!(get_colrv1_paintable(GlyphId::new(166)).is_none());
-        assert!(get_colrv1_paintable(GlyphId::new(167)).is_some());
+        assert!(get_colrv1_glyph(GlyphId::new(166)).is_none());
+        assert!(get_colrv1_glyph(GlyphId::new(167)).is_some());
     }
     struct DummyColorPainter {}
 
@@ -421,14 +423,14 @@ mod tests {
     fn paintcolrglyph_cycle_test() {
         let colr_font = font_test_data::COLRV0V1_VARIABLE;
         let font = FontRef::new(colr_font).unwrap();
-        let colrv1_paintable = font
-            .color_paintables()
-            .get_type(GlyphId::new(176), crate::color::ColorPaintableType::ColrV1);
+        let colrv1_glyph = font
+            .color_glyphs()
+            .get_with_format(GlyphId::new(176), crate::color::ColorGlyphFormat::ColrV1);
 
-        assert!(colrv1_paintable.is_some());
+        assert!(colrv1_glyph.is_some());
         let mut color_painter = DummyColorPainter::new();
 
-        let result = colrv1_paintable
+        let result = colrv1_glyph
             .unwrap()
             .paint(LocationRef::default(), &mut color_painter);
         // Expected to fail with an error as the glyph contains a paint cycle.
