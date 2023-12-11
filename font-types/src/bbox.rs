@@ -1,3 +1,5 @@
+use core::ops::{Mul, MulAssign};
+
 /// Minimum and maximum extents of a rectangular region.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -13,4 +15,13 @@ pub struct BoundingBox<T> {
     /// which is used by fonts, this represents the top of the
     /// region.
     pub y_max: T,
+}
+
+impl<T> BoundingBox<T> where T: MulAssign + Mul + Copy {
+    pub fn scale(&mut self, factor : T)  {
+        self.x_min *= factor;
+        self.y_min *= factor;
+        self.x_max *= factor;
+        self.y_max *= factor;
+    }
 }
