@@ -4,31 +4,36 @@
 //! ## Retrieve the clip box of a COLRv1 glyph if it has one:
 //!
 //! ```
-//! # use skrifa::{scale::*, instance::Size, color::{ColorGlyphFormat, ColorPainter}};
-//! # use read_fonts::GlyphId;
-//! # fn get_colr_bb(font: read_fonts::FontRef, color_painter_impl : &mut ColorPainter, glyph_id : GlyphId) {
+//! # use core::result::Result;
+//! # use skrifa::{scale::*, instance::{Size, Location}, color::{ColorGlyphFormat, ColorPainter, PaintError}, MetadataProvider};
+//! # use read_fonts::types::GlyphId;
+//! # fn get_colr_bb(font: read_fonts::FontRef, color_painter_impl : &mut impl ColorPainter, glyph_id : GlyphId, size: Size) -> Result<(), PaintError> {
 //! match font.color_glyphs()
-//!       .get_with_format(glyph_id, ColorGlyphFormat::ColrV1)?
-//!       .bounding_box(&[], size)
-//!       .ok()?
+//!       .get_with_format(glyph_id, ColorGlyphFormat::ColrV1)
+//!       .expect("Glyph not found.")
+//!       .bounding_box(&Location::default(), size)
 //! {
-//! Some(bounding_box) => {
-//!     println!("Bounding box is {:?}", bounding_box);
+//!   Some(bounding_box) => {
+//!       println!("Bounding box is {:?}", bounding_box);
+//!   }
+//!   None => {
+//!       println!("Glyph has no clip box.");
+//!   }
 //! }
-//! None => {
-//!     println!("Glyph has no clip box.")
-//! }
-//! }
+//! # Ok(())
 //! # }
 //! ```
 //!
 //! ## Paint a COLRv1 glyph given a font, and a glyph id and a [`ColorPainter`] implementation:
 //! ```
-//! # use skrifa::{scale::*, instance::Size, color::{ColorGlyphFormat, ColorPainter}};
-//! # use read_fonts::GlyphId;
-//! # fn paint_colr(font: read_fonts::FontRef, color_painter_impl : &mut ColorPainter, glyph_id : GlyphId) -> Result<(), ColorError> {
-//! let color_glyph = font.color_glyphs().get_type(glyph_id, ColorGlyphFormat::ColrV1)?;
-//! color_glyph.paint(&[], color_painter_impl)?
+//! # use core::result::Result;
+//! # use skrifa::{scale::*, instance::{Size, Location}, color::{ColorGlyphFormat, ColorPainter, PaintError}, MetadataProvider};
+//! # use read_fonts::types::GlyphId;
+//! # fn paint_colr(font: read_fonts::FontRef, color_painter_impl : &mut impl ColorPainter, glyph_id : GlyphId) -> Result<(), PaintError> {
+//! let color_glyph = font.color_glyphs()
+//!                     .get_with_format(glyph_id, ColorGlyphFormat::ColrV1)
+//!                     .expect("Glyph not found");
+//! color_glyph.paint(&Location::default(), color_painter_impl)
 //! # }
 //! ```
 //!
@@ -43,8 +48,9 @@ use raw::tables::colr;
 #[cfg(test)]
 use serde::{Deserialize, Serialize};
 
+pub use read_fonts::tables::colr::{CompositeMode, Extend};
+
 use read_fonts::{
-    tables::colr::{CompositeMode, Extend},
     types::{BoundingBox, GlyphId, Point},
     ReadError, TableProvider,
 };
