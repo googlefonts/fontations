@@ -32,10 +32,9 @@
 //! # }
 //! ```
 //!
-pub mod instance;
-pub mod transforms;
-
-pub(crate) mod colrv1_traversal;
+mod instance;
+mod transform;
+mod traversal;
 
 #[cfg(test)]
 mod traversal_tests;
@@ -52,9 +51,9 @@ use read_fonts::{
 
 use std::{collections::HashSet, fmt::Debug, ops::Range};
 
-use colrv1_traversal::{get_clipbox_font_units, traverse_with_callbacks};
+use traversal::{get_clipbox_font_units, traverse_with_callbacks};
 
-pub use transforms::Transform;
+pub use transform::Transform;
 
 use crate::prelude::LocationRef;
 

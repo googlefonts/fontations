@@ -104,14 +104,11 @@ pub(crate) fn traverse_with_callbacks(
             // If p0p1 or p0p2 are degenerate probably nothing should be drawn.
             // If p0p1 and p0p2 are parallel then one side is the first color and the other side is
             // the last color, depending on the direction.
-            // For now, just use the first color. The client should draw a single color if the color stops array only has 1 entry.
+            // For now, just use the first color.
             if p1 == p0 || p2 == p0 || cross_product(p1 - p0, p2 - p0) == 0.0 {
-                resolved_stops.resize(1, ColorStop::default());
-                painter.fill(FillType::LinearGradient {
-                    p0,
-                    p1,
-                    color_stops: resolved_stops.as_slice(),
-                    extend: *extend,
+                painter.fill(FillType::Solid {
+                    palette_index: resolved_stops[0].palette_index,
+                    alpha: resolved_stops[0].alpha,
                 });
                 return Ok(());
             }
@@ -462,7 +459,7 @@ mod tests {
     };
 
     use crate::{
-        color::{colrv1_traversal::get_clipbox_font_units, instance::ColrInstance},
+        color::{traversal::get_clipbox_font_units, instance::ColrInstance},
         MetadataProvider,
     };
 

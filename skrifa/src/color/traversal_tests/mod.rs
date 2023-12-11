@@ -17,7 +17,7 @@ use std::{
 
 use crate::{
     color::{
-        transforms::Transform, traversal_tests::test_glyph_defs::*, ColorPainter, ColorStop,
+        transform::Transform, traversal_tests::test_glyph_defs::*, ColorPainter, ColorStop,
         FillType,
     },
     setting::VariationSetting,
