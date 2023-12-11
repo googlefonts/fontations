@@ -1,6 +1,7 @@
 use super::{
     attribute::Attributes,
     charmap::Charmap,
+    color::ColorGlyphCollection,
     instance::{LocationRef, Size},
     metrics::{GlyphMetrics, Metrics},
     string::{LocalizedStrings, StringId},
@@ -46,6 +47,11 @@ pub trait MetadataProvider<'a>: raw::TableProvider<'a> + Sized {
     /// Returns the character to nominal glyph identifier mapping.
     fn charmap(&self) -> Charmap<'a> {
         Charmap::new(self)
+    }
+
+    // Returns a collection of paintable color glyphs.
+    fn color_glyphs(&self) -> ColorGlyphCollection<'a> {
+        ColorGlyphCollection::new(self)
     }
 }
 

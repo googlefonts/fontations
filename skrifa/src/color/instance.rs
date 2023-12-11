@@ -141,6 +141,10 @@ impl<'a> ColorStops<'a> {
     pub fn len(&self) -> usize {
         self.stops.len() + self.var_stops.len()
     }
+
+    pub fn is_empty(&self) -> bool {
+        self.stops.is_empty() && self.var_stops.is_empty()
+    }
 }
 
 impl<'a> From<ColorLine<'a>> for ColorStops<'a> {
