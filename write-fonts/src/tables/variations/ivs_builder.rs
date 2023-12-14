@@ -1,7 +1,7 @@
 //! Building the ItemVariationStore
 
 use std::{
-    collections::{BinaryHeap, HashMap},
+    collections::{BinaryHeap, HashMap, HashSet},
     fmt::{Debug, Display},
 };
 
@@ -119,15 +119,42 @@ impl VariationStoreBuilder {
         *self.all_regions.entry(region).or_insert(next_idx)
     }
 
-    fn make_region_list(&self) -> VariationRegionList {
+    fn make_region_list(&self, subtables: &mut [Option<ItemVariationData>]) -> VariationRegionList {
+        // collect the set of region indices actually used by each ItemVariationData
+        let used_regions = subtables
+            .iter()
+            .flatten()
+            .flat_map(|var_data| var_data.region_indexes.iter())
+            .map(|idx| *idx as usize)
+            .collect::<HashSet<_>>();
+        // prune unused regions and keep track of old index to new index
         let mut region_list = self
             .all_regions
             .iter()
-            .map(|(reg, idx)| (idx, reg.to_owned()))
+            .filter_map(|(reg, idx)| {
+                if used_regions.contains(idx) {
+                    Some((idx, reg.to_owned()))
+                } else {
+                    None
+                }
+            })
             .collect::<Vec<_>>();
         region_list.sort_unstable();
-        let region_list = region_list.into_iter().map(|(_, reg)| reg).collect();
-        VariationRegionList::new(region_list)
+        let mut new_regions = Vec::new();
+        let mut region_map = HashMap::new();
+        for (old_idx, reg) in region_list.into_iter() {
+            region_map.insert(*old_idx as u16, new_regions.len() as u16);
+            new_regions.push(reg);
+        }
+        // remap the region indexes in each subtable
+        for var_data in subtables.iter_mut().flatten() {
+            var_data.region_indexes = var_data
+                .region_indexes
+                .iter()
+                .map(|idx| region_map[idx])
+                .collect();
+        }
+        VariationRegionList::new(new_regions)
     }
 
     fn encoder(&self) -> Encoder {
@@ -140,14 +167,14 @@ impl VariationStoreBuilder {
     /// assigned delta set Ids to their final `VariationIndex` values.
     pub fn build(self) -> (ItemVariationStore, VariationIndexRemapping) {
         let mut key_map = VariationIndexRemapping::default();
-        let subtables = if matches!(self.delta_sets, DeltaSetStorage::Direct(_)) {
+        let mut subtables = if matches!(self.delta_sets, DeltaSetStorage::Direct(_)) {
             vec![self.build_unoptimized(&mut key_map)]
         } else {
             let mut encoder = self.encoder();
             encoder.optimize();
             encoder.encode(&mut key_map)
         };
-        let region_list = self.make_region_list();
+        let region_list = self.make_region_list(&mut subtables);
         (ItemVariationStore::new(region_list, subtables), key_map)
     }
 
