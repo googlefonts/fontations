@@ -1401,4 +1401,31 @@ mod tests {
         // glyph 4 should map to deltaset [0, 100]
         assert_eq!(varidx_map, vec![0, 2, 0, 2, 1]);
     }
+
+    #[test]
+    fn prune_unused_regions() {
+        // https://github.com/googlefonts/fontations/issues/733
+        let r0 = VariationRegion::new(vec![reg_coords(-1.0, -0.5, 0.0)]);
+        let r1 = VariationRegion::new(vec![reg_coords(-1.0, -1.0, 0.0)]);
+        let r2 = VariationRegion::new(vec![reg_coords(0.0, 0.5, 1.0)]);
+        let r3 = VariationRegion::new(vec![reg_coords(0.0, 1.0, 1.0)]);
+        let mut builder = VariationStoreBuilder::new();
+        builder.add_deltas(vec![
+            (r0.clone(), 0),
+            (r1.clone(), 50),
+            (r2.clone(), 0),
+            (r3.clone(), 100),
+        ]);
+        let (store, _) = builder.build();
+
+        // not 4 regions, since only 2 are actually used
+        assert_eq!(store.variation_region_list.variation_regions.len(), 2);
+        assert_eq!(store.item_variation_data.len(), 1);
+
+        let var_data = store.item_variation_data[0].as_ref().unwrap();
+        assert_eq!(var_data.item_count, 1);
+        assert_eq!(var_data.word_delta_count, 0);
+        assert_eq!(var_data.region_indexes, vec![0, 1]); // not 1, 3
+        assert_eq!(var_data.delta_sets, vec![50, 100]);
+    }
 }
