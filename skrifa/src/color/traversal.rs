@@ -453,10 +453,10 @@ pub(crate) fn traverse_v0_range(
     painter: &mut impl ColorPainter,
 ) -> Result<(), PaintError> {
     for layer_index in range.clone() {
-        let layer = (*instance).v0_layer(layer_index)?;
-        painter.push_clip_glyph(layer.0);
+        let (layer_index, palette_index) = (*instance).v0_layer(layer_index)?;
+        painter.push_clip_glyph(layer_index);
         painter.fill(Brush::Solid {
-            palette_index: layer.1,
+            palette_index: palette_index,
             alpha: 1.0,
         });
         painter.pop_clip();
