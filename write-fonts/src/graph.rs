@@ -625,9 +625,9 @@ impl Graph {
     /// Ported from the [find_space_roots] method in HarfBuzz.
     ///
     /// [find_space_roots]: https://github.com/harfbuzz/harfbuzz/blob/main/src/graph/graph.hh#L508
-    fn find_space_roots_hb(&self) -> (HashSet<ObjectId>, HashSet<ObjectId>) {
+    fn find_space_roots_hb(&self) -> (HashSet<ObjectId>, BTreeSet<ObjectId>) {
         let mut visited = HashSet::new();
-        let mut roots = HashSet::new();
+        let mut roots = BTreeSet::new();
 
         let mut queue = VecDeque::from([self.root]);
 
@@ -679,7 +679,7 @@ impl Graph {
     fn find_connected_nodes_hb(
         &self,
         id: ObjectId,
-        targets: &mut HashSet<ObjectId>,
+        targets: &mut BTreeSet<ObjectId>,
         visited: &mut HashSet<ObjectId>,
         connected: &mut BTreeSet<ObjectId>,
     ) {
@@ -729,7 +729,6 @@ impl Graph {
         log::debug!("moved {} roots to {next_space:?}", roots.len(),);
         self.num_roots_per_space.insert(next_space, roots.len());
         let mut id_map = HashMap::new();
-        //let mut made_changes = false;
         for (id, incoming_edges_in_subgraph) in &subgraph {
             // there are edges to this object from outside the subgraph; dupe it.
             if *incoming_edges_in_subgraph < self.nodes[id].parents.len() {
