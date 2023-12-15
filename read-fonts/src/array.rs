@@ -24,7 +24,7 @@ pub struct ComputedArray<'a, T: ReadArgs> {
 impl<'a, T: ComputeSize> ComputedArray<'a, T> {
     pub fn new(data: FontData<'a>, args: T::Args) -> Self {
         let item_len = T::compute_size(&args);
-        let len = data.len() / item_len;
+        let len = data.len().checked_div(item_len).unwrap_or(0);
         ComputedArray {
             item_len,
             len,
@@ -33,6 +33,7 @@ impl<'a, T: ComputeSize> ComputedArray<'a, T> {
         }
     }
 
+    /// The number of items in the array
     pub fn len(&self) -> usize {
         self.len
     }
