@@ -162,3 +162,29 @@ pub(crate) const CLIPBOX: &[char] = &[
 pub(crate) const GRADIENT_P2_SKEWED: &[char] = &['\u{f0d00}'];
 pub(crate) const VARIABLE_ALPHA: &[char] = &['\u{f1000}'];
 pub(crate) const NO_CYCLE_MULTI_COLRGLYPH: &[char] = &['\u{f1200}'];
+pub(crate) const SWEEP_COINCIDENT: &[char] = &[
+    '\u{f1300}',
+    '\u{f1301}',
+    '\u{f1302}',
+    '\u{f1303}',
+    '\u{f1304}',
+    '\u{f1305}',
+    '\u{f1306}',
+    '\u{f1307}',
+    '\u{f1308}',
+    '\u{f1309}',
+    '\u{f130a}',
+    '\u{f130b}',
+    '\u{f130c}',
+    '\u{f130d}',
+    '\u{f130e}',
+    '\u{f130f}',
+    '\u{f1310}',
+    '\u{f1311}',
+    '\u{f1312}',
+    '\u{f1313}',
+    '\u{f1314}',
+    '\u{f1315}',
+    '\u{f1316}',
+    '\u{f1317}',
+];

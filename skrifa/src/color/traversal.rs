@@ -304,13 +304,11 @@ pub(crate) fn traverse_with_callbacks(
                     // spot is painted with the first color, everything after this spot is painted with
                     // the last color. Not adding this stop will skip the projection and result in
                     // specifying non-normalized color stops to the shader.
-                    let mut stop_inserted = false;
                     if color_stop_range == 0.0 && extend == &Extend::Pad {
                         let mut offset_last = last_stop.clone();
                         offset_last.offset += 1.0;
                         resolved_stops.push(offset_last);
                         color_stop_range = 1.0;
-                        stop_inserted = true;
                     }
 
                     debug_assert!(color_stop_range != 0.0);
@@ -332,9 +330,7 @@ pub(crate) fn traverse_with_callbacks(
                     start_angle_scaled = 360.0 - start_angle_scaled;
                     end_angle_scaled = 360.0 - end_angle_scaled;
 
-                    if start_angle_scaled > end_angle_scaled
-                        || (start_angle_scaled == end_angle_scaled && !stop_inserted)
-                    {
+                    if start_angle_scaled >= end_angle_scaled {
                         (start_angle_scaled, end_angle_scaled) =
                             (end_angle_scaled, start_angle_scaled);
                         resolved_stops.reverse();
