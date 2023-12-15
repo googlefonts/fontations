@@ -456,7 +456,7 @@ pub(crate) fn traverse_v0_range(
         let (layer_index, palette_index) = (*instance).v0_layer(layer_index)?;
         painter.push_clip_glyph(layer_index);
         painter.fill(Brush::Solid {
-            palette_index: palette_index,
+            palette_index,
             alpha: 1.0,
         });
         painter.pop_clip();
