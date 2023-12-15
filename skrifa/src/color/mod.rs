@@ -57,7 +57,7 @@ use read_fonts::{
 
 use std::{collections::HashSet, fmt::Debug, ops::Range};
 
-use traversal::{get_clipbox_font_units, traverse_with_callbacks};
+use traversal::{get_clipbox_font_units, traverse_v0_range, traverse_with_callbacks};
 
 pub use transform::Transform;
 
@@ -237,6 +237,7 @@ pub trait ColorPainter {
 }
 
 /// Distinguishes available color glyph formats.
+#[derive(Clone, Copy)]
 pub enum ColorGlyphFormat {
     ColrV0,
     ColrV1,
@@ -334,7 +335,10 @@ impl<'a> ColorGlyph<'a> {
                 }
                 Ok(())
             }
-            _ => todo!(),
+            ColorGlyphRoot::V0Range(range) => {
+                traverse_v0_range(range, &instance, painter)?;
+                Ok(())
+            }
         }
     }
 }

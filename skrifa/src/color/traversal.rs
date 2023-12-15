@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::HashSet};
+use std::{cmp::Ordering, collections::HashSet, ops::Range};
 
 use read_fonts::{
     tables::colr::{CompositeMode, Extend},
@@ -445,6 +445,23 @@ pub(crate) fn traverse_with_callbacks(
             result
         }
     }
+}
+
+pub(crate) fn traverse_v0_range(
+    range: &Range<usize>,
+    instance: &ColrInstance,
+    painter: &mut impl ColorPainter,
+) -> Result<(), PaintError> {
+    for layer_index in range.clone() {
+        let layer = (*instance).v0_layer(layer_index)?;
+        painter.push_clip_glyph(layer.0);
+        painter.fill(Brush::Solid {
+            palette_index: layer.1,
+            alpha: 1.0,
+        });
+        painter.pop_clip();
+    }
+    Ok(())
 }
 
 #[cfg(test)]

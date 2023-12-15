@@ -188,3 +188,4 @@ pub(crate) const SWEEP_COINCIDENT: &[char] = &[
     '\u{f1316}',
     '\u{f1317}',
 ];
+pub(crate) const COLORED_CIRCLES_V0: &[char] = &['\u{F0E00}'];
