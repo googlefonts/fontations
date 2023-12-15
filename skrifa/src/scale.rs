@@ -144,7 +144,7 @@
 //! [lyon](https://github.com/nical/lyon) or
 //! [pathfinder](https://github.com/servo/pathfinder) for GPU rendering.
 
-pub use super::outline::{Hinting, ScaleError as Error, ScalerMetrics};
+pub use super::outline::{AdjustedMetrics as ScalerMetrics, DrawError as Error};
 pub use read_fonts::types::Pen;
 
 use core::borrow::Borrow;
@@ -163,6 +163,28 @@ use super::{
 
 /// Result type for errors that may occur when loading glyphs.
 pub type Result<T> = core::result::Result<T, Error>;
+
+/// Modes for hinting.
+///
+/// Only the `glyf` source supports all hinting modes.
+#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+pub enum Hinting {
+    /// Hinting is disabled.
+    #[default]
+    None,
+    /// "Full" hinting mode. May generate rough outlines and poor horizontal
+    /// spacing.
+    Full,
+    /// Light hinting mode. This prevents most movement in the horizontal
+    /// direction with the exception of a per-font backward compatibility
+    /// opt in.
+    Light,
+    /// Same as light, but with additional support for RGB subpixel rendering.
+    LightSubpixel,
+    /// Same as light subpixel, but always prevents adjustment in the
+    /// horizontal direction. This is the default mode.
+    VerticalSubpixel,
+}
 
 /// Context for scaling glyphs.
 ///
@@ -377,7 +399,7 @@ impl<'a> Scaler<'a> {
             .outlines
             .get(glyph_id)
             .ok_or(Error::GlyphNotFound(glyph_id))?;
-        outline.scale(self.size, self.coords, outline::ScalerMemory::Auto, pen)
+        outline.draw((self.size, self.coords), pen)
     }
 }
 

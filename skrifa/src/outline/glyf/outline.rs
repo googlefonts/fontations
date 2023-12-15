@@ -7,7 +7,7 @@ use read_fonts::{
     types::{F26Dot6, Fixed, GlyphId, Pen, Point},
 };
 
-use super::{Hinting, OutlineMemory};
+use super::{super::Hinting, OutlineMemory};
 
 /// Represents the information necessary to scale a glyph outline.
 ///
@@ -50,7 +50,7 @@ impl<'a> Outline<'a> {
     /// on the computed sizes.
     pub fn required_buffer_size(&self, hinting: Hinting) -> usize {
         let mut size = 0;
-        let hinting = self.has_hinting && hinting != Hinting::None;
+        let hinting = self.has_hinting && hinting == Hinting::Native;
         // Scaled, unscaled and (for hinting) original scaled points
         size += self.points * size_of::<Point<F26Dot6>>();
         // Unscaled and (if hinted) original scaled points
@@ -93,9 +93,18 @@ pub struct ScaledOutline<'a> {
     pub points: &'a mut [Point<F26Dot6>],
     pub flags: &'a mut [PointFlags],
     pub contours: &'a mut [u16],
+    pub phantom_points: [Point<F26Dot6>; 4],
 }
 
 impl<'a> ScaledOutline<'a> {
+    pub fn adjusted_lsb(&self) -> F26Dot6 {
+        self.phantom_points[0].x
+    }
+
+    pub fn adjusted_advance_width(&self) -> F26Dot6 {
+        self.phantom_points[1].x - self.phantom_points[0].x
+    }
+
     pub fn to_path(&self, pen: &mut impl Pen) -> Result<(), ToPathError> {
         to_path(self.points, self.flags, self.contours, pen)
     }

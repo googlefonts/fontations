@@ -7,7 +7,7 @@ use read_fonts::{
     types::{F26Dot6, Fixed, Point},
 };
 
-use super::{Hinting, Outline};
+use super::{super::Hinting, Outline};
 
 /// Buffers used during glyph scaling.
 pub struct OutlineMemory<'a> {
@@ -26,7 +26,7 @@ impl<'a> OutlineMemory<'a> {
         let (scaled, buf) = alloc_slice(buf, outline.points)?;
         let (unscaled, buf) = alloc_slice(buf, outline.max_other_points)?;
         // We only need original scaled points when hinting
-        let (original_scaled, buf) = if outline.has_hinting && hinting != Hinting::None {
+        let (original_scaled, buf) = if outline.has_hinting && hinting == Hinting::Native {
             alloc_slice(buf, outline.max_other_points)?
         } else {
             (Default::default(), buf)

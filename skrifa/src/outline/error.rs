@@ -5,9 +5,9 @@ use read_fonts::{
 
 use std::fmt;
 
-/// Errors that may occur when scaling glyphs.
+/// Errors that may occur when drawing glyphs.
 #[derive(Clone, Debug)]
-pub enum ScaleError {
+pub enum DrawError {
     /// No viable sources were available.
     NoSources,
     /// The requested glyph was not present in the font.
@@ -28,25 +28,25 @@ pub enum ScaleError {
     Read(ReadError),
 }
 
-impl From<ToPathError> for ScaleError {
+impl From<ToPathError> for DrawError {
     fn from(e: ToPathError) -> Self {
         Self::ToPath(e)
     }
 }
 
-impl From<ReadError> for ScaleError {
+impl From<ReadError> for DrawError {
     fn from(e: ReadError) -> Self {
         Self::Read(e)
     }
 }
 
-impl From<PostScriptError> for ScaleError {
+impl From<PostScriptError> for DrawError {
     fn from(value: PostScriptError) -> Self {
         Self::PostScript(value)
     }
 }
 
-impl fmt::Display for ScaleError {
+impl fmt::Display for DrawError {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Self::NoSources => write!(f, "No glyph sources are available for the given font"),
@@ -69,4 +69,4 @@ impl fmt::Display for ScaleError {
     }
 }
 
-impl std::error::Error for ScaleError {}
+impl std::error::Error for DrawError {}

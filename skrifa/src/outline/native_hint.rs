@@ -1,35 +1,55 @@
 //! Support for applying embedded hinting instructions.
 
 use super::{
-    cff, Hinting, LocationRef, NormalizedCoord, OutlineCollectionKind, OutlineGlyph,
-    OutlineGlyphCollection, OutlineKind, OutlinePen, ScaleError, ScalerMemory, ScalerMetrics, Size,
+    cff, AdjustedMetrics, DrawError, Hinting, LocationRef, NormalizedCoord, OutlineCollectionKind,
+    OutlineGlyph, OutlineGlyphCollection, OutlineKind, OutlinePen, Size,
 };
 
-/// Hinter that uses information embedded in the font to perform grid-fitting.
+/// Modes for native hinting.
+///
+/// Only the `glyf` format supports all hinting modes.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum NativeHinting {
+    /// "Full" hinting mode. May generate rough outlines and poor horizontal
+    /// spacing.
+    Full,
+    /// Light hinting mode. This prevents most movement in the horizontal
+    /// direction with the exception of a per-font backward compatibility
+    /// opt in.
+    Light,
+    /// Same as light, but with additional support for RGB subpixel rendering.
+    LightSubpixel,
+    /// Same as light subpixel, but always prevents adjustment in the
+    /// horizontal direction. This is the default mode.
+    VerticalSubpixel,
+}
+
+/// Hinting instance that uses information embedded in the font to perform
+/// grid-fitting.
 #[derive(Clone)]
-pub struct NativeHinter {
+pub struct NativeHintingInstance {
     size: Size,
     coords: Vec<NormalizedCoord>,
-    hinting: Hinting,
+    mode: NativeHinting,
     kind: HinterKind,
 }
 
-impl NativeHinter {
-    /// Creates a new native hinter for the given outline collection, size,
-    /// location in variation space and hinting mode.
+impl NativeHintingInstance {
+    /// Creates a new native hinting instance for the given outline
+    /// collection, size, location in variation space and hinting mode.
     pub fn new<'a>(
         outline_glyphs: &OutlineGlyphCollection,
         size: Size,
         location: impl Into<LocationRef<'a>>,
-        hinting: Hinting,
-    ) -> Result<Self, ScaleError> {
+        mode: NativeHinting,
+    ) -> Result<Self, DrawError> {
         let mut hinter = Self {
             size: Size::unscaled(),
             coords: vec![],
-            hinting: Hinting::None,
+            mode,
             kind: HinterKind::None,
         };
-        hinter.reconfigure(outline_glyphs, size, location, hinting)?;
+        hinter.reconfigure(outline_glyphs, size, location, mode)?;
         Ok(hinter)
     }
 
@@ -44,8 +64,8 @@ impl NativeHinter {
     }
 
     /// Returns the currently configured hinting mode.
-    pub fn hinting(&self) -> Hinting {
-        self.hinting
+    pub fn mode(&self) -> NativeHinting {
+        self.mode
     }
 
     /// Resets the hinter state for a new font instance with the given
@@ -55,12 +75,12 @@ impl NativeHinter {
         outlines: &OutlineGlyphCollection,
         size: Size,
         location: impl Into<LocationRef<'a>>,
-        hinting: Hinting,
-    ) -> Result<(), ScaleError> {
+        mode: NativeHinting,
+    ) -> Result<(), DrawError> {
         self.size = size;
         self.coords.clear();
         self.coords.extend_from_slice(location.into().coords());
-        self.hinting = hinting;
+        self.mode = mode;
         // Reuse memory if the font contains the same outline format
         let current_kind = core::mem::replace(&mut self.kind, HinterKind::None);
         match &outlines.kind {
@@ -84,45 +104,37 @@ impl NativeHinter {
         Ok(())
     }
 
-    /// Scales and hints the outline glyph and emits the resulting path
-    /// commands to the given pen.
-    pub fn scale(
+    pub(super) fn draw_hinted(
         &self,
         glyph: &OutlineGlyph,
-        mut memory: ScalerMemory,
+        memory: Option<&mut [u8]>,
         pen: &mut impl OutlinePen,
-    ) -> Result<ScalerMetrics, ScaleError> {
+    ) -> Result<AdjustedMetrics, DrawError> {
         let ppem = self.size.ppem().unwrap_or_default();
         let coords = self.coords.as_slice();
-        let hinting = self.hinting;
         match (&self.kind, &glyph.kind) {
             (HinterKind::Glyf(..), OutlineKind::Glyf(glyf, outline)) => {
-                memory.with_glyf_memory(outline, hinting, |buf| {
+                super::with_glyf_memory(outline, Hinting::Native, memory, |buf| {
                     let mem = outline
-                        .memory_from_buffer(buf, hinting)
-                        .ok_or(ScaleError::InsufficientMemory)?;
+                        .memory_from_buffer(buf, Hinting::Native)
+                        .ok_or(DrawError::InsufficientMemory)?;
                     let scaled_outline = glyf.scale(mem, outline, ppem, coords)?;
                     scaled_outline.to_path(pen)?;
-                    Ok(ScalerMetrics {
+                    Ok(AdjustedMetrics {
                         has_overlaps: outline.has_overlaps,
-                        ..Default::default()
+                        lsb: Some(scaled_outline.adjusted_lsb().to_f32()),
+                        advance_width: Some(scaled_outline.adjusted_advance_width().to_f32()),
                     })
                 })
             }
             (HinterKind::Cff(subfonts), OutlineKind::Cff(cff, glyph_id, subfont_ix)) => {
                 let Some(subfont) = subfonts.get(*subfont_ix as usize) else {
-                    return Err(ScaleError::NoSources);
+                    return Err(DrawError::NoSources);
                 };
-                cff.outline(
-                    subfont,
-                    *glyph_id,
-                    &self.coords,
-                    self.hinting != Hinting::None,
-                    pen,
-                )?;
-                Ok(ScalerMetrics::default())
+                cff.outline(subfont, *glyph_id, &self.coords, true, pen)?;
+                Ok(AdjustedMetrics::default())
             }
-            _ => Err(ScaleError::NoSources),
+            _ => Err(DrawError::NoSources),
         }
     }
 }
