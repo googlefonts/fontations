@@ -577,6 +577,76 @@ impl<'a> ItemVariationStore<'a> {
         }
         Ok(((accum + 0x8000) >> 16) as i32)
     }
+
+    /// Computes the delta value in floating point for the specified index and set
+    /// of normalized variation coordinates.
+    pub fn compute_float_delta(
+        &self,
+        index: DeltaSetIndex,
+        coords: &[F2Dot14],
+    ) -> Result<FloatItemDelta, ReadError> {
+        let data = match self.item_variation_data().get(index.outer as usize) {
+            Some(data) => data?,
+            None => return Ok(FloatItemDelta::ZERO),
+        };
+        let regions = self.variation_region_list()?.variation_regions();
+        let region_indices = data.region_indexes();
+        // Compute deltas in 64-bit floating point.
+        let mut accum = 0f64;
+        for (i, region_delta) in data.delta_set(index.inner).enumerate() {
+            let region_index = region_indices
+                .get(i)
+                .ok_or(ReadError::MalformedData(
+                    "invalid delta sets in ItemVariationStore",
+                ))?
+                .get() as usize;
+            let region = regions.get(region_index)?;
+            let scalar = region.compute_scalar_f32(coords);
+            accum += region_delta as f64 * scalar as f64;
+        }
+        Ok(FloatItemDelta(accum))
+    }
+}
+
+/// Floating point item delta computed by an item variation store.
+///
+/// These can be applied to types that implement [`FloatItemDeltaTarget`].
+#[derive(Copy, Clone, Default, Debug)]
+pub struct FloatItemDelta(f64);
+
+impl FloatItemDelta {
+    pub const ZERO: Self = Self(0.0);
+}
+
+/// Trait for applying floating point item deltas to target values.
+pub trait FloatItemDeltaTarget {
+    fn apply_float_delta(&self, delta: FloatItemDelta) -> f32;
+}
+
+impl FloatItemDeltaTarget for Fixed {
+    fn apply_float_delta(&self, delta: FloatItemDelta) -> f32 {
+        const FIXED_TO_FLOAT: f64 = 1.0 / 65536.0;
+        self.to_f32() + (delta.0 * FIXED_TO_FLOAT) as f32
+    }
+}
+
+impl FloatItemDeltaTarget for FWord {
+    fn apply_float_delta(&self, delta: FloatItemDelta) -> f32 {
+        self.to_i16() as f32 + delta.0 as f32
+    }
+}
+
+impl FloatItemDeltaTarget for UfWord {
+    fn apply_float_delta(&self, delta: FloatItemDelta) -> f32 {
+        self.to_u16() as f32 + delta.0 as f32
+    }
+}
+
+impl FloatItemDeltaTarget for F2Dot14 {
+    fn apply_float_delta(&self, delta: FloatItemDelta) -> f32 {
+        const F2DOT14_TO_FLOAT: f64 = 1.0 / 16384.0;
+        self.to_f32() + (delta.0 * F2DOT14_TO_FLOAT) as f32
+    }
 }
 
 impl<'a> VariationRegion<'a> {
@@ -600,6 +670,30 @@ impl<'a> VariationRegion<'a> {
                 scalar = scalar.mul_div(coord - start, peak - start);
             } else {
                 scalar = scalar.mul_div(end - coord, end - peak);
+            }
+        }
+        scalar
+    }
+
+    /// Computes a floating point scalar value for this region and the
+    /// specified normalized variation coordinates.
+    pub fn compute_scalar_f32(&self, coords: &[F2Dot14]) -> f32 {
+        let mut scalar = 1.0;
+        for (i, axis_coords) in self.region_axes().iter().enumerate() {
+            let coord = coords.get(i).map(|coord| coord.to_f32()).unwrap_or(0.0);
+            let start = axis_coords.start_coord.get().to_f32();
+            let end = axis_coords.end_coord.get().to_f32();
+            let peak = axis_coords.peak_coord.get().to_f32();
+            if start > peak || peak > end || peak == 0.0 || start < 0.0 && end > 0.0 {
+                continue;
+            } else if coord < start || coord > end {
+                return 0.0;
+            } else if coord == peak {
+                continue;
+            } else if coord < peak {
+                scalar = (scalar * (coord - start)) / (peak - start);
+            } else {
+                scalar = (scalar * (end - coord)) / (end - peak);
             }
         }
         scalar
@@ -840,5 +934,52 @@ mod tests {
         let (all_points, _) = PackedPointNumbers::split_off_front(ALL_POINTS);
         // in which case the iterator just keeps incrementing until u16::MAX
         assert_eq!(all_points.iter().count(), u16::MAX as _);
+    }
+
+    /// We don't have a reference for our float delta computation, so this is
+    /// a sanity test to ensure that floating point deltas are within a
+    /// reasonable margin of the same in fixed point.
+    #[test]
+    fn ivs_float_deltas_nearly_match_fixed_deltas() {
+        let font = FontRef::new(font_test_data::COLRV0V1_VARIABLE).unwrap();
+        let axis_count = font.fvar().unwrap().axis_count() as usize;
+        let colr = font.colr().unwrap();
+        let ivs = colr.item_variation_store().unwrap().unwrap();
+        // Generate a set of coords from -1 to 1 in 0.1 increments
+        for coord in (0..=20).map(|x| F2Dot14::from_f32((x as f32) / 10.0 - 1.0)) {
+            // For testing purposes, just splat the coord to all axes
+            let coords = vec![coord; axis_count];
+            for (outer_ix, data) in ivs.item_variation_data().iter().enumerate() {
+                let outer_ix = outer_ix as u16;
+                let Some(Ok(data)) = data else {
+                    continue;
+                };
+                for inner_ix in 0..data.item_count() {
+                    let delta_ix = DeltaSetIndex {
+                        outer: outer_ix,
+                        inner: inner_ix,
+                    };
+                    // Check the deltas against all possible target values
+                    let orig_delta = ivs.compute_delta(delta_ix, &coords).unwrap();
+                    let float_delta = ivs.compute_float_delta(delta_ix, &coords).unwrap();
+                    // For font unit types, we need to accept both rounding and
+                    // truncation to account for the additional accumulation of
+                    // fractional bits in floating point
+                    assert!(
+                        orig_delta == float_delta.0.round() as i32
+                            || orig_delta == float_delta.0.trunc() as i32
+                    );
+                    // For the fixed point types, check with an epsilon
+                    const EPSILON: f32 = 1e12;
+                    let fixed_delta = Fixed::ZERO.apply_float_delta(float_delta);
+                    assert!((Fixed::from_bits(orig_delta).to_f32() - fixed_delta).abs() < EPSILON);
+                    let f2dot14_delta = F2Dot14::ZERO.apply_float_delta(float_delta);
+                    assert!(
+                        (F2Dot14::from_bits(orig_delta as i16).to_f32() - f2dot14_delta).abs()
+                            < EPSILON
+                    );
+                }
+            }
+        }
     }
 }

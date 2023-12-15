@@ -20,7 +20,7 @@ pub struct Stat {
     /// start of the design axes value offsets array. If axisValueCount
     /// is zero, set to zero; if axisValueCount is greater than zero,
     /// must be greater than zero.
-    pub offset_to_axis_values: OffsetMarker<Vec<OffsetMarker<AxisValue>>, WIDTH_32>,
+    pub offset_to_axis_values: NullableOffsetMarker<Vec<OffsetMarker<AxisValue>>, WIDTH_32>,
     /// Name ID used as fallback when projection of names into a
     /// particular font model produces a subfamily name containing only
     /// elidable elements.

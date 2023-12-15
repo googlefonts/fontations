@@ -794,13 +794,15 @@ impl Graph {
         let mut to_isolate = BTreeMap::new();
         for overflow in overflows {
             let parent_space = self.nodes[&overflow.parent].space;
-            debug_assert_eq!(parent_space, self.nodes[&overflow.child].space);
             // we only isolate subgraphs in wide-space
             if !parent_space.is_custom() || self.num_roots_per_space[&parent_space] < 2 {
                 continue;
             }
+            // if parent space is custom it means all children should also be
+            // in the same custom space.
+            assert_eq!(parent_space, self.nodes[&overflow.child].space);
             let root = self.find_root_of_space(overflow.parent);
-            debug_assert_eq!(self.nodes[&root].space, parent_space);
+            assert_eq!(self.nodes[&root].space, parent_space);
             to_isolate
                 .entry(parent_space)
                 .or_insert_with(BTreeSet::new)
@@ -862,7 +864,7 @@ impl Graph {
     fn actually_promote_subtables(&mut self, to_promote: &[ObjectId]) {
         fn make_extension(type_: LookupType, subtable_id: ObjectId) -> TableData {
             const EXT_FORMAT: u16 = 1;
-            let mut data = TableData::new(type_.promote().into());
+            let mut data = TableData::new(TableType::Named("ExtensionPosFormat1"));
             data.write(EXT_FORMAT);
             data.write(type_.to_raw());
             data.add_offset(subtable_id, 4, 0);

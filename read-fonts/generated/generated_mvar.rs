@@ -31,7 +31,7 @@ impl MvarMarker {
     }
     fn item_variation_store_offset_byte_range(&self) -> Range<usize> {
         let start = self.value_record_count_byte_range().end;
-        start..start + Offset32::RAW_BYTE_LEN
+        start..start + Offset16::RAW_BYTE_LEN
     }
     fn value_records_byte_range(&self) -> Range<usize> {
         let start = self.item_variation_store_offset_byte_range().end;
@@ -51,7 +51,7 @@ impl<'a> FontRead<'a> for Mvar<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         let value_record_count: u16 = cursor.read()?;
-        cursor.advance::<Offset32>();
+        cursor.advance::<Offset16>();
         let value_records_byte_len = value_record_count as usize * ValueRecord::RAW_BYTE_LEN;
         cursor.advance_by(value_records_byte_len);
         cursor.finish(MvarMarker {
@@ -84,7 +84,7 @@ impl<'a> Mvar<'a> {
     }
 
     /// Offset in bytes from the start of this table to the item variation store table. If valueRecordCount is zero, set to zero; if valueRecordCount is greater than zero, must be greater than zero.
-    pub fn item_variation_store_offset(&self) -> Nullable<Offset32> {
+    pub fn item_variation_store_offset(&self) -> Nullable<Offset16> {
         let range = self.shape.item_variation_store_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
