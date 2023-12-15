@@ -58,7 +58,7 @@ pub trait MetadataProvider<'a>: raw::TableProvider<'a> + Sized {
     fn outline_glyphs(&self) -> OutlineGlyphCollection<'a> {
         OutlineGlyphCollection::new(self)
     }
-    
+
     // Returns a collection of paintable color glyphs.
     fn color_glyphs(&self) -> ColorGlyphCollection<'a> {
         ColorGlyphCollection::new(self)
