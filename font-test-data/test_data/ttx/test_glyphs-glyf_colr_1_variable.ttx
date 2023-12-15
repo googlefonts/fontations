@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<ttFont sfntVersion="\x00\x01\x00\x00" ttLibVersion="4.38">
+<ttFont sfntVersion="\x00\x01\x00\x00" ttLibVersion="4.43">
 
   <GlyphOrder>
     <!-- The 'id' attribute is only for humans; it is ignored when parsed. -->
@@ -182,18 +182,42 @@
     <GlyphID id="176" name="paintcolrglyph_cycle_first"/>
     <GlyphID id="177" name="paintcolrglyph_cycle_second"/>
     <GlyphID id="178" name="no_cycle_multi_colrglyph"/>
+    <GlyphID id="179" name="sweep_coincident_angles_forward_blue_red_pad"/>
+    <GlyphID id="180" name="sweep_coincident_angles_forward_blue_red_reflect"/>
+    <GlyphID id="181" name="sweep_coincident_angles_forward_blue_red_repeat"/>
+    <GlyphID id="182" name="sweep_coincident_angles_forward_linen_gray_pad"/>
+    <GlyphID id="183" name="sweep_coincident_angles_forward_linen_gray_reflect"/>
+    <GlyphID id="184" name="sweep_coincident_angles_forward_linen_gray_repeat"/>
+    <GlyphID id="185" name="sweep_coincident_angles_reverse_blue_red_pad"/>
+    <GlyphID id="186" name="sweep_coincident_angles_reverse_blue_red_reflect"/>
+    <GlyphID id="187" name="sweep_coincident_angles_reverse_blue_red_repeat"/>
+    <GlyphID id="188" name="sweep_coincident_angles_reverse_linen_gray_pad"/>
+    <GlyphID id="189" name="sweep_coincident_angles_reverse_linen_gray_reflect"/>
+    <GlyphID id="190" name="sweep_coincident_angles_reverse_linen_gray_repeat"/>
+    <GlyphID id="191" name="sweep_coincident_stops_forward_blue_red_pad"/>
+    <GlyphID id="192" name="sweep_coincident_stops_forward_blue_red_reflect"/>
+    <GlyphID id="193" name="sweep_coincident_stops_forward_blue_red_repeat"/>
+    <GlyphID id="194" name="sweep_coincident_stops_forward_linen_gray_pad"/>
+    <GlyphID id="195" name="sweep_coincident_stops_forward_linen_gray_reflect"/>
+    <GlyphID id="196" name="sweep_coincident_stops_forward_linen_gray_repeat"/>
+    <GlyphID id="197" name="sweep_coincident_stops_reverse_blue_red_pad"/>
+    <GlyphID id="198" name="sweep_coincident_stops_reverse_blue_red_reflect"/>
+    <GlyphID id="199" name="sweep_coincident_stops_reverse_blue_red_repeat"/>
+    <GlyphID id="200" name="sweep_coincident_stops_reverse_linen_gray_pad"/>
+    <GlyphID id="201" name="sweep_coincident_stops_reverse_linen_gray_reflect"/>
+    <GlyphID id="202" name="sweep_coincident_stops_reverse_linen_gray_repeat"/>
   </GlyphOrder>
 
   <head>
     <!-- Most of this table will be recalculated by the compiler -->
     <tableVersion value="1.0"/>
     <fontRevision value="1.0"/>
-    <checkSumAdjustment value="0xc8f21069"/>
+    <checkSumAdjustment value="0x84e071f"/>
     <magicNumber value="0x5f0f3cf5"/>
     <flags value="00000000 00000001"/>
     <unitsPerEm value="1000"/>
-    <created value="Fri Dec  1 11:10:45 2023"/>
-    <modified value="Fri Dec  1 11:10:45 2023"/>
+    <created value="Fri Dec 15 15:08:59 2023"/>
+    <modified value="Fri Dec 15 15:08:59 2023"/>
     <xMin value="0"/>
     <yMin value="0"/>
     <xMax value="1200"/>
@@ -228,7 +252,7 @@
   <maxp>
     <!-- Most of this table will be recalculated by the compiler -->
     <tableVersion value="0x10000"/>
-    <numGlyphs value="179"/>
+    <numGlyphs value="203"/>
     <maxPoints value="28"/>
     <maxContours value="4"/>
     <maxCompositePoints value="0"/>
@@ -464,6 +488,30 @@
     <mtx name="sweep_90_45_reflect_wide" width="1000" lsb="0"/>
     <mtx name="sweep_90_45_repeat_narrow" width="1000" lsb="0"/>
     <mtx name="sweep_90_45_repeat_wide" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_angles_forward_blue_red_pad" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_angles_forward_blue_red_reflect" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_angles_forward_blue_red_repeat" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_angles_forward_linen_gray_pad" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_angles_forward_linen_gray_reflect" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_angles_forward_linen_gray_repeat" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_angles_reverse_blue_red_pad" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_angles_reverse_blue_red_reflect" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_angles_reverse_blue_red_repeat" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_angles_reverse_linen_gray_pad" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_angles_reverse_linen_gray_reflect" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_angles_reverse_linen_gray_repeat" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_stops_forward_blue_red_pad" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_stops_forward_blue_red_reflect" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_stops_forward_blue_red_repeat" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_stops_forward_linen_gray_pad" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_stops_forward_linen_gray_reflect" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_stops_forward_linen_gray_repeat" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_stops_reverse_blue_red_pad" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_stops_reverse_blue_red_reflect" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_stops_reverse_blue_red_repeat" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_stops_reverse_linen_gray_pad" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_stops_reverse_linen_gray_reflect" width="1000" lsb="0"/>
+    <mtx name="sweep_coincident_stops_reverse_linen_gray_repeat" width="1000" lsb="0"/>
     <mtx name="transform_matrix_0.9659_0.2588_-0.2588_0.9659_0_0" width="1000" lsb="0"/>
     <mtx name="transform_matrix_1.0_0.0_0.6_1.0_-300.0_0.0" width="1000" lsb="0"/>
     <mtx name="transform_matrix_1.5_0_0_1.5_0_0" width="1000" lsb="0"/>
@@ -485,7 +533,7 @@
     </cmap_format_4>
     <cmap_format_4 platformID="3" platEncID="1" language="0">
     </cmap_format_4>
-    <cmap_format_12 platformID="3" platEncID="10" format="12" reserved="0" length="232" language="0" nGroups="18">
+    <cmap_format_12 platformID="3" platEncID="10" format="12" reserved="0" length="244" language="0" nGroups="19">
       <map code="0xf0100" name="linear_repeat_0_1"/><!-- ???? -->
       <map code="0xf0101" name="linear_repeat_0.2_0.8"/><!-- ???? -->
       <map code="0xf0102" name="linear_repeat_0_1.5"/><!-- ???? -->
@@ -659,6 +707,30 @@
       <map code="0xf1100" name="paintcolrglyph_cycle_first"/><!-- ???? -->
       <map code="0xf1101" name="paintcolrglyph_cycle_second"/><!-- ???? -->
       <map code="0xf1200" name="no_cycle_multi_colrglyph"/><!-- ???? -->
+      <map code="0xf1300" name="sweep_coincident_angles_forward_blue_red_pad"/><!-- ???? -->
+      <map code="0xf1301" name="sweep_coincident_angles_forward_blue_red_reflect"/><!-- ???? -->
+      <map code="0xf1302" name="sweep_coincident_angles_forward_blue_red_repeat"/><!-- ???? -->
+      <map code="0xf1303" name="sweep_coincident_angles_forward_linen_gray_pad"/><!-- ???? -->
+      <map code="0xf1304" name="sweep_coincident_angles_forward_linen_gray_reflect"/><!-- ???? -->
+      <map code="0xf1305" name="sweep_coincident_angles_forward_linen_gray_repeat"/><!-- ???? -->
+      <map code="0xf1306" name="sweep_coincident_angles_reverse_blue_red_pad"/><!-- ???? -->
+      <map code="0xf1307" name="sweep_coincident_angles_reverse_blue_red_reflect"/><!-- ???? -->
+      <map code="0xf1308" name="sweep_coincident_angles_reverse_blue_red_repeat"/><!-- ???? -->
+      <map code="0xf1309" name="sweep_coincident_angles_reverse_linen_gray_pad"/><!-- ???? -->
+      <map code="0xf130a" name="sweep_coincident_angles_reverse_linen_gray_reflect"/><!-- ???? -->
+      <map code="0xf130b" name="sweep_coincident_angles_reverse_linen_gray_repeat"/><!-- ???? -->
+      <map code="0xf130c" name="sweep_coincident_stops_forward_blue_red_pad"/><!-- ???? -->
+      <map code="0xf130d" name="sweep_coincident_stops_forward_blue_red_reflect"/><!-- ???? -->
+      <map code="0xf130e" name="sweep_coincident_stops_forward_blue_red_repeat"/><!-- ???? -->
+      <map code="0xf130f" name="sweep_coincident_stops_forward_linen_gray_pad"/><!-- ???? -->
+      <map code="0xf1310" name="sweep_coincident_stops_forward_linen_gray_reflect"/><!-- ???? -->
+      <map code="0xf1311" name="sweep_coincident_stops_forward_linen_gray_repeat"/><!-- ???? -->
+      <map code="0xf1312" name="sweep_coincident_stops_reverse_blue_red_pad"/><!-- ???? -->
+      <map code="0xf1313" name="sweep_coincident_stops_reverse_blue_red_reflect"/><!-- ???? -->
+      <map code="0xf1314" name="sweep_coincident_stops_reverse_blue_red_repeat"/><!-- ???? -->
+      <map code="0xf1315" name="sweep_coincident_stops_reverse_linen_gray_pad"/><!-- ???? -->
+      <map code="0xf1316" name="sweep_coincident_stops_reverse_linen_gray_reflect"/><!-- ???? -->
+      <map code="0xf1317" name="sweep_coincident_stops_reverse_linen_gray_repeat"/><!-- ???? -->
       <map code="0xfe001" name=".null"/><!-- ???? -->
       <map code="0xfe002" name="upem_box_glyph"/><!-- ???? -->
       <map code="0xfe003" name="cross_glyph"/><!-- ???? -->
@@ -2513,6 +2585,246 @@
       <instructions/>
     </TTGlyph>
 
+    <TTGlyph name="sweep_coincident_angles_forward_blue_red_pad" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_angles_forward_blue_red_reflect" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_angles_forward_blue_red_repeat" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_angles_forward_linen_gray_pad" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_angles_forward_linen_gray_reflect" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_angles_forward_linen_gray_repeat" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_angles_reverse_blue_red_pad" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_angles_reverse_blue_red_reflect" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_angles_reverse_blue_red_repeat" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_angles_reverse_linen_gray_pad" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_angles_reverse_linen_gray_reflect" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_angles_reverse_linen_gray_repeat" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_stops_forward_blue_red_pad" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_stops_forward_blue_red_reflect" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_stops_forward_blue_red_repeat" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_stops_forward_linen_gray_pad" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_stops_forward_linen_gray_reflect" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_stops_forward_linen_gray_repeat" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_stops_reverse_blue_red_pad" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_stops_reverse_blue_red_reflect" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_stops_reverse_blue_red_repeat" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_stops_reverse_linen_gray_pad" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_stops_reverse_linen_gray_reflect" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
+    <TTGlyph name="sweep_coincident_stops_reverse_linen_gray_repeat" xMin="0" yMin="0" xMax="1000" yMax="1000">
+      <contour>
+        <pt x="0" y="0" on="1"/>
+        <pt x="0" y="1000" on="1"/>
+        <pt x="1000" y="1000" on="1"/>
+        <pt x="1000" y="0" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>
+
     <TTGlyph name="transform_matrix_0.9659_0.2588_-0.2588_0.9659_0_0" xMin="0" yMin="0" xMax="1000" yMax="1000">
       <contour>
         <pt x="0" y="0" on="1"/>
@@ -2679,13 +2991,13 @@
       Regular
     </namerecord>
     <namerecord nameID="3" platformID="1" platEncID="0" langID="0x0" unicode="True">
-      COLRv1 Variable Test Glyphs 2023-12-01T13:10:45.413573
+      COLRv1 Variable Test Glyphs 2023-12-15T17:08:59.919624
     </namerecord>
     <namerecord nameID="4" platformID="1" platEncID="0" langID="0x0" unicode="True">
       COLRv1 Variable Test Glyphs Regular
     </namerecord>
     <namerecord nameID="5" platformID="1" platEncID="0" langID="0x0" unicode="True">
-      2023-12-01T13:10:45.413573
+      2023-12-15T17:08:59.919624
     </namerecord>
     <namerecord nameID="6" platformID="1" platEncID="0" langID="0x0" unicode="True">
       COLRv1VariableTestGlyphs-Regular
@@ -2829,13 +3141,13 @@
       Regular
     </namerecord>
     <namerecord nameID="3" platformID="3" platEncID="1" langID="0x409">
-      COLRv1 Variable Test Glyphs 2023-12-01T13:10:45.413573
+      COLRv1 Variable Test Glyphs 2023-12-15T17:08:59.919624
     </namerecord>
     <namerecord nameID="4" platformID="3" platEncID="1" langID="0x409">
       COLRv1 Variable Test Glyphs Regular
     </namerecord>
     <namerecord nameID="5" platformID="3" platEncID="1" langID="0x409">
-      2023-12-01T13:10:45.413573
+      2023-12-15T17:08:59.919624
     </namerecord>
     <namerecord nameID="6" platformID="3" platEncID="1" langID="0x409">
       COLRv1VariableTestGlyphs-Regular
@@ -3170,6 +3482,30 @@
       <psName name="paintcolrglyph_cycle_first"/>
       <psName name="paintcolrglyph_cycle_second"/>
       <psName name="no_cycle_multi_colrglyph"/>
+      <psName name="sweep_coincident_angles_forward_blue_red_pad"/>
+      <psName name="sweep_coincident_angles_forward_blue_red_reflect"/>
+      <psName name="sweep_coincident_angles_forward_blue_red_repeat"/>
+      <psName name="sweep_coincident_angles_forward_linen_gray_pad"/>
+      <psName name="sweep_coincident_angles_forward_linen_gray_reflect"/>
+      <psName name="sweep_coincident_angles_forward_linen_gray_repeat"/>
+      <psName name="sweep_coincident_angles_reverse_blue_red_pad"/>
+      <psName name="sweep_coincident_angles_reverse_blue_red_reflect"/>
+      <psName name="sweep_coincident_angles_reverse_blue_red_repeat"/>
+      <psName name="sweep_coincident_angles_reverse_linen_gray_pad"/>
+      <psName name="sweep_coincident_angles_reverse_linen_gray_reflect"/>
+      <psName name="sweep_coincident_angles_reverse_linen_gray_repeat"/>
+      <psName name="sweep_coincident_stops_forward_blue_red_pad"/>
+      <psName name="sweep_coincident_stops_forward_blue_red_reflect"/>
+      <psName name="sweep_coincident_stops_forward_blue_red_repeat"/>
+      <psName name="sweep_coincident_stops_forward_linen_gray_pad"/>
+      <psName name="sweep_coincident_stops_forward_linen_gray_reflect"/>
+      <psName name="sweep_coincident_stops_forward_linen_gray_repeat"/>
+      <psName name="sweep_coincident_stops_reverse_blue_red_pad"/>
+      <psName name="sweep_coincident_stops_reverse_blue_red_reflect"/>
+      <psName name="sweep_coincident_stops_reverse_blue_red_repeat"/>
+      <psName name="sweep_coincident_stops_reverse_linen_gray_pad"/>
+      <psName name="sweep_coincident_stops_reverse_linen_gray_reflect"/>
+      <psName name="sweep_coincident_stops_reverse_linen_gray_repeat"/>
     </extraNames>
   </post>
 
@@ -3219,7 +3555,7 @@
     </LayerRecordArray>
     <!-- LayerRecordCount=8 -->
     <BaseGlyphList>
-      <!-- BaseGlyphCount=160 -->
+      <!-- BaseGlyphCount=184 -->
       <BaseGlyphPaintRecord index="0">
         <BaseGlyph value="linear_repeat_0_1"/>
         <Paint Format="10"><!-- PaintGlyph -->
@@ -7893,6 +8229,870 @@
           <FirstLayerIndex value="66"/>
         </Paint>
       </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="160">
+        <BaseGlyph value="sweep_coincident_angles_forward_blue_red_pad"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="pad"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.0"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.3333"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.6667"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="1.0"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="90.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="161">
+        <BaseGlyph value="sweep_coincident_angles_forward_blue_red_reflect"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="reflect"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.0"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.3333"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.6667"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="1.0"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="90.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="162">
+        <BaseGlyph value="sweep_coincident_angles_forward_blue_red_repeat"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="repeat"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.0"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.3333"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.6667"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="1.0"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="90.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="163">
+        <BaseGlyph value="sweep_coincident_angles_forward_linen_gray_pad"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="pad"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.0"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.3333"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.6667"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="1.0"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="90.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="164">
+        <BaseGlyph value="sweep_coincident_angles_forward_linen_gray_reflect"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="reflect"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.0"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.3333"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.6667"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="1.0"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="90.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="165">
+        <BaseGlyph value="sweep_coincident_angles_forward_linen_gray_repeat"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="repeat"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.0"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.3333"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.6667"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="1.0"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="90.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="166">
+        <BaseGlyph value="sweep_coincident_angles_reverse_blue_red_pad"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="pad"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.0"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.3333"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.6667"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="1.0"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="90.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="167">
+        <BaseGlyph value="sweep_coincident_angles_reverse_blue_red_reflect"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="reflect"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.0"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.3333"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.6667"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="1.0"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="90.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="168">
+        <BaseGlyph value="sweep_coincident_angles_reverse_blue_red_repeat"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="repeat"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.0"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.3333"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.6667"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="1.0"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="90.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="169">
+        <BaseGlyph value="sweep_coincident_angles_reverse_linen_gray_pad"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="pad"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.0"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.3333"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.6667"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="1.0"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="90.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="170">
+        <BaseGlyph value="sweep_coincident_angles_reverse_linen_gray_reflect"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="reflect"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.0"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.3333"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.6667"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="1.0"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="90.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="171">
+        <BaseGlyph value="sweep_coincident_angles_reverse_linen_gray_repeat"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="repeat"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.0"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.3333"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.6667"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="1.0"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="90.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="172">
+        <BaseGlyph value="sweep_coincident_stops_forward_blue_red_pad"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="pad"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="45.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="173">
+        <BaseGlyph value="sweep_coincident_stops_forward_blue_red_reflect"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="reflect"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="45.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="174">
+        <BaseGlyph value="sweep_coincident_stops_forward_blue_red_repeat"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="repeat"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="45.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="175">
+        <BaseGlyph value="sweep_coincident_stops_forward_linen_gray_pad"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="pad"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="45.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="176">
+        <BaseGlyph value="sweep_coincident_stops_forward_linen_gray_reflect"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="reflect"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="45.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="177">
+        <BaseGlyph value="sweep_coincident_stops_forward_linen_gray_repeat"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="repeat"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="45.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="178">
+        <BaseGlyph value="sweep_coincident_stops_reverse_blue_red_pad"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="pad"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="45.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="179">
+        <BaseGlyph value="sweep_coincident_stops_reverse_blue_red_reflect"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="reflect"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="45.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="180">
+        <BaseGlyph value="sweep_coincident_stops_reverse_blue_red_repeat"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="repeat"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="45.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="181">
+        <BaseGlyph value="sweep_coincident_stops_reverse_linen_gray_pad"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="pad"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="45.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="182">
+        <BaseGlyph value="sweep_coincident_stops_reverse_linen_gray_reflect"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="reflect"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="45.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
+      <BaseGlyphPaintRecord index="183">
+        <BaseGlyph value="sweep_coincident_stops_reverse_linen_gray_repeat"/>
+        <Paint Format="10"><!-- PaintGlyph -->
+          <Paint Format="8"><!-- PaintSweepGradient -->
+            <ColorLine>
+              <Extend value="repeat"/>
+              <!-- StopCount=4 -->
+              <ColorStop index="0">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="8"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="1">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="0"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="2">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="4"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+              <ColorStop index="3">
+                <StopOffset value="0.5"/>
+                <PaletteIndex value="7"/>
+                <Alpha value="1.0"/>
+              </ColorStop>
+            </ColorLine>
+            <centerX value="500"/>
+            <centerY value="600"/>
+            <startAngle value="45.0"/>
+            <endAngle value="90.0"/>
+          </Paint>
+          <Glyph value="circle_r350"/>
+        </Paint>
+      </BaseGlyphPaintRecord>
     </BaseGlyphList>
     <LayerList>
       <!-- LayerCount=71 -->
@@ -9184,6 +10384,30 @@
         <Glyph value="sweep_90_45_reflect_wide"/>
         <Glyph value="sweep_90_45_repeat_narrow"/>
         <Glyph value="sweep_90_45_repeat_wide"/>
+        <Glyph value="sweep_coincident_angles_forward_blue_red_pad"/>
+        <Glyph value="sweep_coincident_angles_forward_blue_red_reflect"/>
+        <Glyph value="sweep_coincident_angles_forward_blue_red_repeat"/>
+        <Glyph value="sweep_coincident_angles_forward_linen_gray_pad"/>
+        <Glyph value="sweep_coincident_angles_forward_linen_gray_reflect"/>
+        <Glyph value="sweep_coincident_angles_forward_linen_gray_repeat"/>
+        <Glyph value="sweep_coincident_angles_reverse_blue_red_pad"/>
+        <Glyph value="sweep_coincident_angles_reverse_blue_red_reflect"/>
+        <Glyph value="sweep_coincident_angles_reverse_blue_red_repeat"/>
+        <Glyph value="sweep_coincident_angles_reverse_linen_gray_pad"/>
+        <Glyph value="sweep_coincident_angles_reverse_linen_gray_reflect"/>
+        <Glyph value="sweep_coincident_angles_reverse_linen_gray_repeat"/>
+        <Glyph value="sweep_coincident_stops_forward_blue_red_pad"/>
+        <Glyph value="sweep_coincident_stops_forward_blue_red_reflect"/>
+        <Glyph value="sweep_coincident_stops_forward_blue_red_repeat"/>
+        <Glyph value="sweep_coincident_stops_forward_linen_gray_pad"/>
+        <Glyph value="sweep_coincident_stops_forward_linen_gray_reflect"/>
+        <Glyph value="sweep_coincident_stops_forward_linen_gray_repeat"/>
+        <Glyph value="sweep_coincident_stops_reverse_blue_red_pad"/>
+        <Glyph value="sweep_coincident_stops_reverse_blue_red_reflect"/>
+        <Glyph value="sweep_coincident_stops_reverse_blue_red_repeat"/>
+        <Glyph value="sweep_coincident_stops_reverse_linen_gray_pad"/>
+        <Glyph value="sweep_coincident_stops_reverse_linen_gray_reflect"/>
+        <Glyph value="sweep_coincident_stops_reverse_linen_gray_repeat"/>
         <ClipBox Format="1">
           <xMin value="0"/>
           <yMin value="0"/>
@@ -28488,6 +29712,30 @@
       <Map glyph="sweep_90_45_reflect_wide" outer="0" inner="0"/>
       <Map glyph="sweep_90_45_repeat_narrow" outer="0" inner="0"/>
       <Map glyph="sweep_90_45_repeat_wide" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_angles_forward_blue_red_pad" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_angles_forward_blue_red_reflect" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_angles_forward_blue_red_repeat" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_angles_forward_linen_gray_pad" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_angles_forward_linen_gray_reflect" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_angles_forward_linen_gray_repeat" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_angles_reverse_blue_red_pad" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_angles_reverse_blue_red_reflect" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_angles_reverse_blue_red_repeat" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_angles_reverse_linen_gray_pad" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_angles_reverse_linen_gray_reflect" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_angles_reverse_linen_gray_repeat" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_stops_forward_blue_red_pad" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_stops_forward_blue_red_reflect" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_stops_forward_blue_red_repeat" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_stops_forward_linen_gray_pad" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_stops_forward_linen_gray_reflect" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_stops_forward_linen_gray_repeat" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_stops_reverse_blue_red_pad" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_stops_reverse_blue_red_reflect" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_stops_reverse_blue_red_repeat" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_stops_reverse_linen_gray_pad" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_stops_reverse_linen_gray_reflect" outer="0" inner="0"/>
+      <Map glyph="sweep_coincident_stops_reverse_linen_gray_repeat" outer="0" inner="0"/>
       <Map glyph="transform_matrix_0.9659_0.2588_-0.2588_0.9659_0_0" outer="0" inner="0"/>
       <Map glyph="transform_matrix_1.0_0.0_0.6_1.0_-300.0_0.0" outer="0" inner="0"/>
       <Map glyph="transform_matrix_1.5_0_0_1.5_0_0" outer="0" inner="0"/>
