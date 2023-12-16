@@ -51,23 +51,6 @@ impl TupleVariationHeader {
     }
 }
 
-impl VariationRegionList {
-    fn compute_axis_count(&self) -> usize {
-        let count = self
-            .variation_regions
-            .first()
-            .map(|reg| reg.region_axes.len())
-            .unwrap_or(0);
-        //TODO: check this at validation time
-        debug_assert!(self
-            .variation_regions
-            .iter()
-            .map(|reg| reg.region_axes.len())
-            .all(|n| n == count));
-        count
-    }
-}
-
 /// <https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-point-numbers>
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]

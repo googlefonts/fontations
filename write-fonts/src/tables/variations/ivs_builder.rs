@@ -17,11 +17,14 @@ type TemporaryDeltaSetId = u32;
 ///
 /// This handles assigning VariationIndex values to unique sets of deltas and
 /// grouping delta sets into [ItemVariationData] subtables.
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Debug)]
 pub struct VariationStoreBuilder {
     // region -> index map
     all_regions: HashMap<VariationRegion, usize>,
     delta_sets: DeltaSetStorage,
+    // must match fvar. We require the user to pass this in because we cannot
+    // infer it in the case where no deltas are added to the builder.
+    axis_count: u16,
 }
 
 /// A collection of delta sets.
@@ -70,8 +73,12 @@ impl VariationStoreBuilder {
     /// data. To use implicit indices, use [`new_with_implicit_indices`] instead.
     ///
     /// [`new_with_implicit_indices`]: VariationStoreBuilder::new_with_implicit_indices
-    pub fn new() -> Self {
-        Default::default()
+    pub fn new(axis_count: u16) -> Self {
+        Self {
+            axis_count,
+            delta_sets: DeltaSetStorage::Deduplicated(Default::default()),
+            all_regions: Default::default(),
+        }
     }
 
     /// Returns `true` if no deltas have been added to this builder
@@ -87,8 +94,9 @@ impl VariationStoreBuilder {
     /// This is used in HVAR, where it is possible to use glyph ids as the
     /// 'inner index', and to generate a single ItemVariationData subtable
     /// with one entry per item.
-    pub fn new_with_implicit_indices() -> Self {
+    pub fn new_with_implicit_indices(axis_count: u16) -> Self {
         VariationStoreBuilder {
+            axis_count,
             all_regions: Default::default(),
             delta_sets: DeltaSetStorage::Direct(Default::default()),
         }
@@ -154,7 +162,7 @@ impl VariationStoreBuilder {
                 .map(|idx| region_map[idx])
                 .collect();
         }
-        VariationRegionList::new(new_regions)
+        VariationRegionList::new(self.axis_count, new_regions)
     }
 
     fn encoder(&self) -> Encoder {
@@ -976,7 +984,7 @@ mod tests {
     fn smoke_test() {
         let [r1, r2, r3] = test_regions();
 
-        let mut builder = VariationStoreBuilder::default();
+        let mut builder = VariationStoreBuilder::new(2);
         builder.add_deltas(vec![(r1.clone(), 512), (r2, 266), (r3.clone(), 1115)]);
         builder.add_deltas(vec![(r3.clone(), 20)]);
         builder.add_deltas(vec![(r3.clone(), 21)]);
@@ -1006,7 +1014,7 @@ mod tests {
     fn key_mapping() {
         let [r1, r2, r3] = test_regions();
 
-        let mut builder = VariationStoreBuilder::default();
+        let mut builder = VariationStoreBuilder::new(2);
         let k1 = builder.add_deltas(vec![(r1.clone(), 5), (r2, 1000), (r3.clone(), 1500)]);
         let k2 = builder.add_deltas(vec![(r1.clone(), -3), (r3.clone(), 20)]);
         let k3 = builder.add_deltas(vec![(r1.clone(), -12), (r3.clone(), 7)]);
@@ -1050,7 +1058,7 @@ mod tests {
 
         // make two encodings that have the same total cost, but different shape
 
-        let mut builder = VariationStoreBuilder::default();
+        let mut builder = VariationStoreBuilder::new(2);
         // shape (2, 1, 0)
         builder.add_deltas(vec![(r1.clone(), 1000), (r2.clone(), 5)]);
         builder.add_deltas(vec![(r1.clone(), 1013), (r2.clone(), 20)]);
@@ -1096,7 +1104,7 @@ mod tests {
     fn to_binary() {
         let [r1, r2, r3] = test_regions();
 
-        let mut builder = VariationStoreBuilder::default();
+        let mut builder = VariationStoreBuilder::new(2);
         builder.add_deltas(vec![(r1.clone(), 512), (r2, 1000), (r3.clone(), 265)]);
         builder.add_deltas(vec![(r1.clone(), -3), (r3.clone(), 20)]);
         builder.add_deltas(vec![(r1.clone(), -12), (r3.clone(), 7)]);
@@ -1133,7 +1141,7 @@ mod tests {
         let _ = env_logger::builder().is_test(true).try_init();
         let [r1, r2, r3] = test_regions();
 
-        let mut builder = VariationStoreBuilder::default();
+        let mut builder = VariationStoreBuilder::new(2);
         let k1 = builder.add_deltas(vec![(r1.clone(), 5), (r2, 10), (r3.clone(), 15)]);
         let k2 = builder.add_deltas(vec![(r1.clone(), -12), (r3.clone(), 7)]);
         let k3 = builder.add_deltas(vec![(r1.clone(), -12), (r3.clone(), 7)]);
@@ -1154,7 +1162,7 @@ mod tests {
     #[allow(clippy::redundant_clone)]
     fn long_deltas_split() {
         let [r1, r2, _] = test_regions();
-        let mut builder = VariationStoreBuilder::default();
+        let mut builder = VariationStoreBuilder::new(2);
         // short
         builder.add_deltas(vec![(r1.clone(), 1), (r2.clone(), 2)]);
         builder.add_deltas(vec![(r1.clone(), 3), (r2.clone(), 4)]);
@@ -1172,7 +1180,7 @@ mod tests {
     #[allow(clippy::redundant_clone)]
     fn long_deltas_combine() {
         let [r1, r2, _] = test_regions();
-        let mut builder = VariationStoreBuilder::default();
+        let mut builder = VariationStoreBuilder::new(2);
         // short
         builder.add_deltas(vec![(r1.clone(), 1), (r2.clone(), 2)]);
         builder.add_deltas(vec![(r1.clone(), 3), (r2.clone(), 4)]);
@@ -1195,7 +1203,7 @@ mod tests {
     fn combine_many_shapes() {
         let _ = env_logger::builder().is_test(true).try_init();
         let [r1, r2, r3] = test_regions();
-        let mut builder = VariationStoreBuilder::default();
+        let mut builder = VariationStoreBuilder::new(2);
         // orchestrate a failure case:
         // - we want to combine
         builder.add_deltas(vec![(r1.clone(), 0xffff + 5)]); // (L--)
@@ -1221,7 +1229,7 @@ mod tests {
     fn combine_two_big_fellas() {
         let _ = env_logger::builder().is_test(true).try_init();
         let [r1, r2, r3] = test_regions();
-        let mut builder = VariationStoreBuilder::default();
+        let mut builder = VariationStoreBuilder::new(2);
         // we only combine two of these, since that saves 2 bytes, but adding
         // the third is too expensive
         builder.add_deltas(vec![(r1.clone(), 0xffff + 5)]); // (L--)
@@ -1257,7 +1265,7 @@ mod tests {
     fn ensure_zero_deltas_dont_write() {
         let _ = env_logger::builder().is_test(true).try_init();
         let [r1, r2, _] = test_regions();
-        let mut builder = VariationStoreBuilder::default();
+        let mut builder = VariationStoreBuilder::new(2);
         builder.add_deltas(vec![(r1.clone(), 0), (r2.clone(), 4)]);
         let _ = builder.build();
     }
@@ -1268,7 +1276,7 @@ mod tests {
     fn ensure_all_zeros_dont_write() {
         let _ = env_logger::builder().is_test(true).try_init();
         let [r1, r2, _] = test_regions();
-        let mut builder = VariationStoreBuilder::default();
+        let mut builder = VariationStoreBuilder::new(2);
         builder.add_deltas(vec![(r1.clone(), 0), (r2.clone(), 0)]);
         let _ = builder.build();
     }
@@ -1278,7 +1286,7 @@ mod tests {
         let r0 = VariationRegion::new(vec![reg_coords(0.0, 0.5, 1.0)]);
         let r1 = VariationRegion::new(vec![reg_coords(0.5, 1.0, 1.0)]);
 
-        let mut builder = VariationStoreBuilder::default();
+        let mut builder = VariationStoreBuilder::new(1);
         builder.add_deltas(vec![(r0.clone(), 1), (r1.clone(), 2)]);
         // 256 won't fit in a u8 thus we expect the deltas for the column corresponding
         // to r1 will be packed as u16
@@ -1321,7 +1329,7 @@ mod tests {
         let r0 = VariationRegion::new(vec![reg_coords(0.0, 0.5, 1.0)]);
         let r1 = VariationRegion::new(vec![reg_coords(0.5, 1.0, 1.0)]);
 
-        let mut builder = VariationStoreBuilder::new_with_implicit_indices();
+        let mut builder = VariationStoreBuilder::new_with_implicit_indices(1);
         builder.add_deltas(vec![(r0.clone(), 1), (r1.clone(), 2)]);
         // 256 won't fit in a u8 thus we expect the deltas for the column corresponding
         // to r1 will be packed as u16
@@ -1390,7 +1398,7 @@ mod tests {
     fn no_duplicate_zero_delta_sets() {
         let r0 = VariationRegion::new(vec![reg_coords(0.0, 5.0, 1.0)]);
         let r1 = VariationRegion::new(vec![reg_coords(0.5, 1.0, 1.0)]);
-        let mut builder = VariationStoreBuilder::new();
+        let mut builder = VariationStoreBuilder::new(1);
         let varidxes = vec![
             // first glyph has no variations (e.g. .notdef only defined at default location)
             // but we still need to add it to the variation store to reserve an index so
@@ -1436,7 +1444,7 @@ mod tests {
         let r1 = VariationRegion::new(vec![reg_coords(-1.0, -1.0, 0.0)]);
         let r2 = VariationRegion::new(vec![reg_coords(0.0, 0.5, 1.0)]);
         let r3 = VariationRegion::new(vec![reg_coords(0.0, 1.0, 1.0)]);
-        let mut builder = VariationStoreBuilder::new();
+        let mut builder = VariationStoreBuilder::new(1);
         builder.add_deltas(vec![
             (r0.clone(), 0),
             (r1.clone(), 50),
