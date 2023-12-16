@@ -94,7 +94,6 @@ flags u8 EntryFormat {
 table VariationRegionList {
     /// The number of variation axes for this font. This must be the
     /// same number as axisCount in the 'fvar' table.
-    #[compile(self.compute_axis_count())]
     axis_count: u16,
     /// The number of variation region tables in the variation region
     /// list. Must be less than 32,768.

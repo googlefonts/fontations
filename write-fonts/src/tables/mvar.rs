@@ -87,7 +87,7 @@ mod tests {
     #[test]
     fn simple_smoke_test() {
         let [r1, r2, r3] = test_regions();
-        let mut builder = VariationStoreBuilder::new();
+        let mut builder = VariationStoreBuilder::new(1);
         let delta_ids = vec![
             // deltas for horizontal ascender 'hasc' only defined for 1 region
             builder.add_deltas(vec![(r1, 10)]),

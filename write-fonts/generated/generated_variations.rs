@@ -359,21 +359,27 @@ impl FontWrite for EntryFormat {
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct VariationRegionList {
+    /// The number of variation axes for this font. This must be the
+    /// same number as axisCount in the 'fvar' table.
+    pub axis_count: u16,
     /// Array of variation regions.
     pub variation_regions: Vec<VariationRegion>,
 }
 
 impl VariationRegionList {
     /// Construct a new `VariationRegionList`
-    pub fn new(variation_regions: Vec<VariationRegion>) -> Self {
-        Self { variation_regions }
+    pub fn new(axis_count: u16, variation_regions: Vec<VariationRegion>) -> Self {
+        Self {
+            axis_count,
+            variation_regions,
+        }
     }
 }
 
 impl FontWrite for VariationRegionList {
     #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
-        (self.compute_axis_count() as u16).write_into(writer);
+        self.axis_count.write_into(writer);
         (array_len(&self.variation_regions).unwrap() as u16).write_into(writer);
         self.variation_regions.write_into(writer);
     }
@@ -404,6 +410,7 @@ impl<'a> FromObjRef<read_fonts::tables::variations::VariationRegionList<'a>>
     ) -> Self {
         let offset_data = obj.offset_data();
         VariationRegionList {
+            axis_count: obj.axis_count(),
             variation_regions: obj
                 .variation_regions()
                 .iter()
