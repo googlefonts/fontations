@@ -92,7 +92,7 @@ impl<'a> Outlines<'a> {
     }
 
     /// Returns the number of available glyphs.
-    pub fn len(&self) -> usize {
+    pub fn glyph_count(&self) -> usize {
         self.top_dict
             .charstrings
             .as_ref()
@@ -195,7 +195,7 @@ impl<'a> Outlines<'a> {
     /// discrete steps to allow for caching.
     ///
     /// The result is emitted to the specified pen.
-    pub fn outline(
+    pub fn draw(
         &self,
         subfont: &Subfont,
         glyph_id: GlyphId,
@@ -688,7 +688,7 @@ mod tests {
                 )
                 .unwrap();
             scaler
-                .outline(
+                .draw(
                     &subfont,
                     expected_outline.glyph_id,
                     &expected_outline.coords,

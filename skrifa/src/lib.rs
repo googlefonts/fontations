@@ -21,6 +21,7 @@ pub mod font;
 pub mod instance;
 pub mod metrics;
 pub mod outline;
+#[doc(hidden)]
 pub mod scale;
 pub mod setting;
 pub mod string;

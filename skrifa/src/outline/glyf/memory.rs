@@ -26,7 +26,7 @@ impl<'a> OutlineMemory<'a> {
         let (scaled, buf) = alloc_slice(buf, outline.points)?;
         let (unscaled, buf) = alloc_slice(buf, outline.max_other_points)?;
         // We only need original scaled points when hinting
-        let (original_scaled, buf) = if outline.has_hinting && hinting == Hinting::Native {
+        let (original_scaled, buf) = if outline.has_hinting && hinting == Hinting::Embedded {
             alloc_slice(buf, outline.max_other_points)?
         } else {
             (Default::default(), buf)

@@ -50,7 +50,7 @@ impl<'a> Outline<'a> {
     /// on the computed sizes.
     pub fn required_buffer_size(&self, hinting: Hinting) -> usize {
         let mut size = 0;
-        let hinting = self.has_hinting && hinting == Hinting::Native;
+        let hinting = self.has_hinting && hinting == Hinting::Embedded;
         // Scaled, unscaled and (for hinting) original scaled points
         size += self.points * size_of::<Point<F26Dot6>>();
         // Unscaled and (if hinted) original scaled points

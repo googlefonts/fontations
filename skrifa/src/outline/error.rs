@@ -1,9 +1,13 @@
-use read_fonts::{
-    tables::glyf::ToPathError, tables::postscript::Error as PostScriptError, types::GlyphId,
+//! Error types associated with outlines.
+
+use read_fonts::types::GlyphId;
+
+pub use read_fonts::{
+    tables::{glyf::ToPathError, postscript::Error as CffError},
     ReadError,
 };
 
-use std::fmt;
+use core::fmt;
 
 /// Errors that may occur when drawing glyphs.
 #[derive(Clone, Debug)]
@@ -21,7 +25,7 @@ pub enum DrawError {
     /// An anchor point had invalid indices.
     InvalidAnchorPoint(GlyphId, u16),
     /// Error occurred while loading a PostScript (CFF/CFF2) glyph.
-    PostScript(PostScriptError),
+    PostScript(CffError),
     /// Conversion from outline to path failed.
     ToPath(ToPathError),
     /// Error occured when reading font data.
@@ -40,8 +44,8 @@ impl From<ReadError> for DrawError {
     }
 }
 
-impl From<PostScriptError> for DrawError {
-    fn from(value: PostScriptError) -> Self {
+impl From<CffError> for DrawError {
+    fn from(value: CffError) -> Self {
         Self::PostScript(value)
     }
 }

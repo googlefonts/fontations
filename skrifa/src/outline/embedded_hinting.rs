@@ -5,11 +5,11 @@ use super::{
     OutlineGlyph, OutlineGlyphCollection, OutlineKind, OutlinePen, Size,
 };
 
-/// Modes for native hinting.
+/// Modes for embedded hinting.
 ///
 /// Only the `glyf` format supports all hinting modes.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum NativeHinting {
+pub enum EmbeddedHinting {
     /// "Full" hinting mode. May generate rough outlines and poor horizontal
     /// spacing.
     Full,
@@ -27,21 +27,21 @@ pub enum NativeHinting {
 /// Hinting instance that uses information embedded in the font to perform
 /// grid-fitting.
 #[derive(Clone)]
-pub struct NativeHintingInstance {
+pub struct EmbeddedHintingInstance {
     size: Size,
     coords: Vec<NormalizedCoord>,
-    mode: NativeHinting,
+    mode: EmbeddedHinting,
     kind: HinterKind,
 }
 
-impl NativeHintingInstance {
-    /// Creates a new native hinting instance for the given outline
+impl EmbeddedHintingInstance {
+    /// Creates a new embedded hinting instance for the given outline
     /// collection, size, location in variation space and hinting mode.
     pub fn new<'a>(
         outline_glyphs: &OutlineGlyphCollection,
         size: Size,
         location: impl Into<LocationRef<'a>>,
-        mode: NativeHinting,
+        mode: EmbeddedHinting,
     ) -> Result<Self, DrawError> {
         let mut hinter = Self {
             size: Size::unscaled(),
@@ -64,7 +64,7 @@ impl NativeHintingInstance {
     }
 
     /// Returns the currently configured hinting mode.
-    pub fn mode(&self) -> NativeHinting {
+    pub fn mode(&self) -> EmbeddedHinting {
         self.mode
     }
 
@@ -75,7 +75,7 @@ impl NativeHintingInstance {
         outlines: &OutlineGlyphCollection,
         size: Size,
         location: impl Into<LocationRef<'a>>,
-        mode: NativeHinting,
+        mode: EmbeddedHinting,
     ) -> Result<(), DrawError> {
         self.size = size;
         self.coords.clear();
@@ -85,7 +85,7 @@ impl NativeHintingInstance {
         let current_kind = core::mem::replace(&mut self.kind, HinterKind::None);
         match &outlines.kind {
             OutlineCollectionKind::Glyf(_) => {
-                self.kind = HinterKind::Glyf();
+                self.kind = HinterKind::Glyf;
             }
             OutlineCollectionKind::Cff(cff) => {
                 let mut subfonts = match current_kind {
@@ -104,7 +104,7 @@ impl NativeHintingInstance {
         Ok(())
     }
 
-    pub(super) fn draw_hinted(
+    pub(super) fn draw(
         &self,
         glyph: &OutlineGlyph,
         memory: Option<&mut [u8]>,
@@ -113,12 +113,12 @@ impl NativeHintingInstance {
         let ppem = self.size.ppem().unwrap_or_default();
         let coords = self.coords.as_slice();
         match (&self.kind, &glyph.kind) {
-            (HinterKind::Glyf(..), OutlineKind::Glyf(glyf, outline)) => {
-                super::with_glyf_memory(outline, Hinting::Native, memory, |buf| {
+            (HinterKind::Glyf, OutlineKind::Glyf(glyf, outline)) => {
+                super::with_glyf_memory(outline, Hinting::Embedded, memory, |buf| {
                     let mem = outline
-                        .memory_from_buffer(buf, Hinting::Native)
+                        .memory_from_buffer(buf, Hinting::Embedded)
                         .ok_or(DrawError::InsufficientMemory)?;
-                    let scaled_outline = glyf.scale(mem, outline, ppem, coords)?;
+                    let scaled_outline = glyf.draw(mem, outline, ppem, coords)?;
                     scaled_outline.to_path(pen)?;
                     Ok(AdjustedMetrics {
                         has_overlaps: outline.has_overlaps,
@@ -131,7 +131,7 @@ impl NativeHintingInstance {
                 let Some(subfont) = subfonts.get(*subfont_ix as usize) else {
                     return Err(DrawError::NoSources);
                 };
-                cff.outline(subfont, *glyph_id, &self.coords, true, pen)?;
+                cff.draw(subfont, *glyph_id, &self.coords, true, pen)?;
                 Ok(AdjustedMetrics::default())
             }
             _ => Err(DrawError::NoSources),
@@ -141,7 +141,9 @@ impl NativeHintingInstance {
 
 #[derive(Clone)]
 enum HinterKind {
+    /// Represents a hinting instance that is associated with an empty outline
+    /// collection.
     None,
-    Glyf(),
+    Glyf,
     Cff(Vec<cff::Subfont>),
 }

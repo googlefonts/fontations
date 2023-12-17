@@ -5,11 +5,11 @@
 
 mod deltas;
 mod hint;
-mod mem;
+mod memory;
 mod outline;
 
 pub use hint::HinterOutline;
-pub use mem::OutlineMemory;
+pub use memory::OutlineMemory;
 pub use outline::{Outline, ScaledOutline};
 
 use super::DrawError;
@@ -109,87 +109,87 @@ impl<'a> Outlines<'a> {
         })
     }
 
-    pub fn len(&self) -> usize {
+    pub fn glyph_count(&self) -> usize {
         self.glyph_count as usize
     }
 
     pub fn outline(&self, glyph_id: GlyphId) -> Result<Outline<'a>, DrawError> {
-        let mut info = Outline {
+        let mut outline = Outline {
             glyph_id,
             has_variations: self.gvar.is_some(),
             ..Default::default()
         };
         let glyph = self.loca.get_glyf(glyph_id, &self.glyf)?;
         if glyph.is_none() {
-            return Ok(info);
+            return Ok(outline);
         }
-        self.glyph_rec(glyph.as_ref().unwrap(), &mut info, 0, 0)?;
-        if info.points != 0 {
-            info.points += PHANTOM_POINT_COUNT;
+        self.outline_rec(glyph.as_ref().unwrap(), &mut outline, 0, 0)?;
+        if outline.points != 0 {
+            outline.points += PHANTOM_POINT_COUNT;
         }
-        info.glyph = glyph;
-        Ok(info)
+        outline.glyph = glyph;
+        Ok(outline)
     }
 
-    pub fn scale(
+    pub fn draw(
         &self,
         memory: OutlineMemory<'a>,
-        info: &Outline,
+        outline: &Outline,
         size: f32,
         coords: &'a [F2Dot14],
     ) -> Result<ScaledOutline<'a>, DrawError> {
         Scaler::new(self.clone(), memory, size, coords, |_| true, false)
-            .scale(&info.glyph, info.glyph_id)
+            .scale(&outline.glyph, outline.glyph_id)
     }
 
-    pub fn scale_hinted(
+    pub fn draw_hinted(
         &self,
         memory: OutlineMemory<'a>,
-        info: &Outline,
+        outline: &Outline,
         size: f32,
         coords: &'a [F2Dot14],
         hint_fn: impl FnMut(HinterOutline) -> bool,
     ) -> Result<ScaledOutline<'a>, DrawError> {
         Scaler::new(self.clone(), memory, size, coords, hint_fn, false)
-            .scale(&info.glyph, info.glyph_id)
+            .scale(&outline.glyph, outline.glyph_id)
     }
 }
 
 impl<'a> Outlines<'a> {
-    fn glyph_rec(
+    fn outline_rec(
         &self,
         glyph: &Glyph,
-        info: &mut Outline,
+        outline: &mut Outline,
         component_depth: usize,
         recurse_depth: usize,
     ) -> Result<(), DrawError> {
         if recurse_depth > GLYF_COMPOSITE_RECURSION_LIMIT {
-            return Err(DrawError::RecursionLimitExceeded(info.glyph_id));
+            return Err(DrawError::RecursionLimitExceeded(outline.glyph_id));
         }
         match glyph {
             Glyph::Simple(simple) => {
                 let num_points = simple.num_points();
                 let num_points_with_phantom = num_points + PHANTOM_POINT_COUNT;
-                info.max_simple_points = info.max_simple_points.max(num_points_with_phantom);
-                info.points += num_points;
-                info.contours += simple.end_pts_of_contours().len();
-                info.has_hinting = info.has_hinting || simple.instruction_length() != 0;
-                info.max_other_points = info.max_other_points.max(num_points_with_phantom);
-                info.has_overlaps |= simple.has_overlapping_contours();
+                outline.max_simple_points = outline.max_simple_points.max(num_points_with_phantom);
+                outline.points += num_points;
+                outline.contours += simple.end_pts_of_contours().len();
+                outline.has_hinting = outline.has_hinting || simple.instruction_length() != 0;
+                outline.max_other_points = outline.max_other_points.max(num_points_with_phantom);
+                outline.has_overlaps |= simple.has_overlapping_contours();
             }
             Glyph::Composite(composite) => {
                 let (mut count, instructions) = composite.count_and_instructions();
                 count += PHANTOM_POINT_COUNT;
-                let point_base = info.points;
+                let point_base = outline.points;
                 for (component, flags) in composite.component_glyphs_and_flags() {
-                    info.has_overlaps |= flags.contains(CompositeGlyphFlags::OVERLAP_COMPOUND);
+                    outline.has_overlaps |= flags.contains(CompositeGlyphFlags::OVERLAP_COMPOUND);
                     let component_glyph = self.loca.get_glyf(component, &self.glyf)?;
                     let Some(component_glyph) = component_glyph else {
                         continue;
                     };
-                    self.glyph_rec(
+                    self.outline_rec(
                         &component_glyph,
-                        info,
+                        outline,
                         component_depth + count,
                         recurse_depth + 1,
                     )?;
@@ -198,12 +198,14 @@ impl<'a> Outlines<'a> {
                 if has_hinting {
                     // We only need the "other points" buffers if the
                     // composite glyph has instructions.
-                    let num_points_in_composite = info.points - point_base + PHANTOM_POINT_COUNT;
-                    info.max_other_points = info.max_other_points.max(num_points_in_composite);
+                    let num_points_in_composite = outline.points - point_base + PHANTOM_POINT_COUNT;
+                    outline.max_other_points =
+                        outline.max_other_points.max(num_points_in_composite);
                 }
-                info.max_component_delta_stack =
-                    info.max_component_delta_stack.max(component_depth + count);
-                info.has_hinting = info.has_hinting || has_hinting;
+                outline.max_component_delta_stack = outline
+                    .max_component_delta_stack
+                    .max(component_depth + count);
+                outline.has_hinting = outline.has_hinting || has_hinting;
             }
         }
         Ok(())
@@ -710,7 +712,7 @@ where
                     .get_mut(point_range.clone())
                     .ok_or(InsufficientMemory)?;
                 // Append the current phantom points to the outline.
-                let phantom_start = self.point_count;
+                let phantom_start = point_range.len() - PHANTOM_POINT_COUNT;
                 for (i, phantom) in self.phantom.iter().enumerate() {
                     scaled[phantom_start + i] = *phantom;
                     flags[phantom_start + i] = Default::default();
@@ -738,7 +740,7 @@ where
                     .get_mut(contour_base..self.contour_count)
                     .ok_or(InsufficientMemory)?;
                 // Round the phantom points.
-                for p in &mut scaled[self.point_count..] {
+                for p in &mut scaled[phantom_start..] {
                     p.x = p.x.round();
                     p.y = p.y.round();
                 }
