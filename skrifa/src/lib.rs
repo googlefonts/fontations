@@ -20,6 +20,8 @@ pub mod color;
 pub mod font;
 pub mod instance;
 pub mod metrics;
+pub mod outline;
+#[doc(hidden)]
 pub mod scale;
 pub mod setting;
 pub mod string;
@@ -29,10 +31,9 @@ mod provider;
 mod small_array;
 mod variation;
 
-pub use outline::{
-    Hinting, NativeHinter, OutlineGlyph, OutlineGlyphCollection, OutlineGlyphFormat, ScaleError,
-    ScalerMemory, ScalerMetrics,
-};
+#[doc(inline)]
+pub use outline::{OutlineGlyph, OutlineGlyphCollection};
+
 pub use variation::{Axis, AxisCollection, NamedInstance, NamedInstanceCollection};
 
 /// Useful collection of common types suitable for glob importing.
