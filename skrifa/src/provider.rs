@@ -4,6 +4,7 @@ use super::{
     color::ColorGlyphCollection,
     instance::{LocationRef, Size},
     metrics::{GlyphMetrics, Metrics},
+    outline::OutlineGlyphCollection,
     string::{LocalizedStrings, StringId},
     variation::{AxisCollection, NamedInstanceCollection},
 };
@@ -47,6 +48,15 @@ pub trait MetadataProvider<'a>: raw::TableProvider<'a> + Sized {
     /// Returns the character to nominal glyph identifier mapping.
     fn charmap(&self) -> Charmap<'a> {
         Charmap::new(self)
+    }
+
+    /// Returns the collection of scalable glyph outlines.
+    ///
+    /// If the font contains multiple outline sources, this method prioritizes
+    /// `glyf`, `CFF2` and `CFF` in that order. To select a specific outline
+    /// source, use the [`OutlineGlyphCollection::with_format`] method.
+    fn outline_glyphs(&self) -> OutlineGlyphCollection<'a> {
+        OutlineGlyphCollection::new(self)
     }
 
     // Returns a collection of paintable color glyphs.

@@ -20,6 +20,8 @@ pub mod color;
 pub mod font;
 pub mod instance;
 pub mod metrics;
+pub mod outline;
+#[doc(hidden)]
 pub mod scale;
 pub mod setting;
 pub mod string;
@@ -27,6 +29,9 @@ pub mod string;
 mod provider;
 mod small_array;
 mod variation;
+
+#[doc(inline)]
+pub use outline::{OutlineGlyph, OutlineGlyphCollection};
 
 pub use variation::{Axis, AxisCollection, NamedInstance, NamedInstanceCollection};
 
