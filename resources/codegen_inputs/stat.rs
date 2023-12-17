@@ -30,8 +30,9 @@ table Stat {
     /// start of the design axes value offsets array. If axisValueCount
     /// is zero, set to zero; if axisValueCount is greater than zero,
     /// must be greater than zero.
+    #[nullable]
     #[read_offset_with($axis_value_count)]
-    #[compile_type(OffsetMarker<Vec<OffsetMarker<AxisValue>>, WIDTH_32>)]
+    #[compile_type(NullableOffsetMarker<Vec<OffsetMarker<AxisValue>>, WIDTH_32>)]
     #[to_owned(convert_axis_value_offsets(obj.offset_to_axis_values()))]
     offset_to_axis_value_offsets: Offset32<AxisValueArray>,
     /// Name ID used as fallback when projection of names into a

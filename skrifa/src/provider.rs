@@ -1,6 +1,7 @@
 use super::{
     attribute::Attributes,
     charmap::Charmap,
+    color::ColorGlyphCollection,
     instance::{LocationRef, Size},
     metrics::{GlyphMetrics, Metrics},
     outline::OutlineGlyphCollection,
@@ -56,6 +57,11 @@ pub trait MetadataProvider<'a>: raw::TableProvider<'a> + Sized {
     /// source, use the [`OutlineGlyphCollection::with_format`] method.
     fn outline_glyphs(&self) -> OutlineGlyphCollection<'a> {
         OutlineGlyphCollection::new(self)
+    }
+
+    // Returns a collection of paintable color glyphs.
+    fn color_glyphs(&self) -> ColorGlyphCollection<'a> {
+        ColorGlyphCollection::new(self)
     }
 }
 
