@@ -57,7 +57,7 @@ use read_fonts::{
 
 use std::{collections::HashSet, fmt::Debug, ops::Range};
 
-use traversal::{get_clipbox_font_units, traverse_with_callbacks};
+use traversal::{get_clipbox_font_units, traverse_v0_range, traverse_with_callbacks};
 
 pub use transform::Transform;
 
@@ -228,7 +228,8 @@ pub trait ColorPainter {
         Ok(PaintCachedColorGlyph::Unimplemented)
     }
 
-    // TODO(drott): Add an optimized callback function combining clip, fill and transforms.
+    // TODO(https://github.com/googlefonts/fontations/issues/746):
+    // Add an optimized callback function combining clip, fill and transforms.
 
     /// Open a new layer, and merge the layer down using `composite_mode` when
     /// [`pop_layer`](ColorPainter::pop_layer) is called, signalling that this layer is done drawing.
@@ -237,6 +238,7 @@ pub trait ColorPainter {
 }
 
 /// Distinguishes available color glyph formats.
+#[derive(Clone, Copy)]
 pub enum ColorGlyphFormat {
     ColrV0,
     ColrV1,
@@ -334,7 +336,10 @@ impl<'a> ColorGlyph<'a> {
                 }
                 Ok(())
             }
-            _ => todo!(),
+            ColorGlyphRoot::V0Range(range) => {
+                traverse_v0_range(range, &instance, painter)?;
+                Ok(())
+            }
         }
     }
 }

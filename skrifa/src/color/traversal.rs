@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::HashSet};
+use std::{cmp::Ordering, collections::HashSet, ops::Range};
 
 use read_fonts::{
     tables::colr::{CompositeMode, Extend},
@@ -445,6 +445,25 @@ pub(crate) fn traverse_with_callbacks(
             result
         }
     }
+}
+
+pub(crate) fn traverse_v0_range(
+    range: &Range<usize>,
+    instance: &ColrInstance,
+    painter: &mut impl ColorPainter,
+) -> Result<(), PaintError> {
+    for layer_index in range.clone() {
+        let (layer_index, palette_index) = (*instance).v0_layer(layer_index)?;
+        // TODO(https://github.com/googlefonts/fontations/issues/746):
+        // Use optimized callback function combining clip, fill and transforms.
+        painter.push_clip_glyph(layer_index);
+        painter.fill(Brush::Solid {
+            palette_index,
+            alpha: 1.0,
+        });
+        painter.pop_clip();
+    }
+    Ok(())
 }
 
 #[cfg(test)]
