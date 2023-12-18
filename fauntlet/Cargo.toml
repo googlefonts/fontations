@@ -9,7 +9,7 @@ readme = "README.md"
 publish = false
 
 [dependencies]
-skrifa = { version = "0.15.0", path = "../skrifa" }
+skrifa = { version = "0.15.1", path = "../skrifa" }
 freetype-rs = "0.32.0"
 memmap2 = "0.5.10"
 rayon = "1.8.0"
