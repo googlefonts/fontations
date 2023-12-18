@@ -228,7 +228,8 @@ pub trait ColorPainter {
         Ok(PaintCachedColorGlyph::Unimplemented)
     }
 
-    // TODO(drott): Add an optimized callback function combining clip, fill and transforms.
+    // TODO(https://github.com/googlefonts/fontations/issues/746):
+    // Add an optimized callback function combining clip, fill and transforms.
 
     /// Open a new layer, and merge the layer down using `composite_mode` when
     /// [`pop_layer`](ColorPainter::pop_layer) is called, signalling that this layer is done drawing.
