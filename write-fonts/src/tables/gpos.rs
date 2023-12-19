@@ -25,7 +25,7 @@ mod value_record;
 pub use value_record::ValueRecord;
 
 /// A GPOS lookup list table.
-type PositionLookupList = LookupList<PositionLookup>;
+pub type PositionLookupList = LookupList<PositionLookup>;
 
 super::layout::table_newtype!(
     PositionSequenceContext,
