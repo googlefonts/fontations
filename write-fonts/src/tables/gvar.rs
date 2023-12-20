@@ -4,6 +4,8 @@ include!("../../generated/generated_gvar.rs");
 
 use std::collections::HashMap;
 
+use indexmap::IndexMap;
+
 use crate::{collections::HasLen, OffsetMarker};
 
 use super::variations::{
@@ -230,7 +232,7 @@ impl GlyphVariations {
     ///
     /// (issue <https://github.com/googlefonts/fontations/issues/634>)
     fn compute_shared_points(&self) -> Option<PackedPointNumbers> {
-        let mut point_number_counts = HashMap::new();
+        let mut point_number_counts = IndexMap::new();
         // count how often each set of numbers occurs
         for deltas in &self.variations {
             // for each set points, get compiled size + number of occurances
