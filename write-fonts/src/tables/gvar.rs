@@ -168,6 +168,30 @@ impl Gvar {
     }
 }
 
+/// Like [Iterator::max_by_key][1] but returns the first instead of last in case of a tie.
+///
+/// Intended to match Python's [max()][2] behavior.
+///
+/// [1]: https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.max_by_key
+/// [2]: https://docs.python.org/3/library/functions.html#max
+fn max_by_first_key<I, B, F>(iter: I, mut key: F) -> Option<I::Item>
+where
+    I: Iterator,
+    B: Ord,
+    F: FnMut(&I::Item) -> B,
+{
+    iter.fold(None, |max_elem: Option<(_, _)>, item| {
+        let item_key = key(&item);
+        match &max_elem {
+            // current item's key not greater than max key so far, keep max unchanged
+            Some((_, max_key)) if item_key <= *max_key => max_elem,
+            // either no max yet, or a new max found, update max
+            _ => Some((item, item_key)),
+        }
+    })
+    .map(|(item, _)| item)
+}
+
 impl GlyphVariations {
     /// Construct a new set of variation deltas for a glyph.
     pub fn new(gid: GlyphId, variations: Vec<GlyphDeltas>) -> Self {
@@ -244,13 +268,17 @@ impl GlyphVariations {
                 });
             *count += 1;
         }
-
-        // find the one that saves the most bytes
-        let (pts, _) = point_number_counts
-            .into_iter()
-            // no use sharing points if they only occur once
-            .filter(|(_, (_, count))| *count > 1)
-            .max_by_key(|(_, (size, count))| (*count - 1) * *size)?;
+        // find the one that saves the most bytes; if multiple are tied, pick the
+        // first one like python max() does (Rust's max_by_key() would pick the last),
+        // so that we match the behavior of fonttools
+        let (pts, _) = max_by_first_key(
+            point_number_counts
+                .clone()
+                .into_iter()
+                // no use sharing points if they only occur once
+                .filter(|(_, (_, count))| *count > 1),
+            |(_, (size, count))| (*count - 1) * *size,
+        )?;
 
         Some(pts.to_owned())
     }
