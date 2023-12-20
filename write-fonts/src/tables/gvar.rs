@@ -273,7 +273,6 @@ impl GlyphVariations {
         // so that we match the behavior of fonttools
         let (pts, _) = max_by_first_key(
             point_number_counts
-                .clone()
                 .into_iter()
                 // no use sharing points if they only occur once
                 .filter(|(_, (_, count))| *count > 1),
