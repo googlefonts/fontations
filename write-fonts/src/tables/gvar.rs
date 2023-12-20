@@ -970,6 +970,143 @@ mod tests {
         );
     }
 
+    #[test]
+    fn compute_shared_points_is_deterministic() {
+        // The deltas for glyph "etatonos.sc.ss06" in GoogleSans-VF are such that the
+        // TupleVariationStore's shared set of point numbers could potentionally be
+        // computed as either PackedPointNumbers::All or PackedPointNumbers::Some([1, 3])
+        // without affecting the size (or correctness) of the serialized data.
+        // However we want to ensure that the result is deterministic, and doesn't
+        // depend on e.g. HashMap random iteration order.
+        // https://github.com/googlefonts/fontc/issues/647
+        let _ = env_logger::builder().is_test(true).try_init();
+        let variations = GlyphVariations::new(
+            GlyphId::NOTDEF,
+            vec![
+                GlyphDeltas::new(
+                    Tuple::new(vec![
+                        F2Dot14::from_f32(-1.0),
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(0.0),
+                    ]),
+                    vec![
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(-17, -4),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(-28, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(1.0),
+                        F2Dot14::from_f32(0.0),
+                    ]),
+                    vec![
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(0, -10),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(34, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(-1.0),
+                    ]),
+                    vec![
+                        GlyphDelta::required(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(1.0),
+                    ]),
+                    vec![
+                        GlyphDelta::required(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![
+                        F2Dot14::from_f32(-1.0),
+                        F2Dot14::from_f32(1.0),
+                        F2Dot14::from_f32(0.0),
+                    ]),
+                    vec![
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(-1, 10),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(-9, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![
+                        F2Dot14::from_f32(-1.0),
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(-1.0),
+                    ]),
+                    vec![
+                        GlyphDelta::required(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![
+                        F2Dot14::from_f32(-1.0),
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(1.0),
+                    ]),
+                    vec![
+                        GlyphDelta::required(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
+            ],
+        );
+
+        assert_eq!(
+            variations.compute_shared_points(),
+            // Also PackedPointNumbers::All would work, but Some([1, 3]) happens
+            // to be the first one that fits the bill when iterating over the
+            // tuple variations in the order they are listed for this glyph.
+            Some(PackedPointNumbers::Some(vec![1, 3]))
+        );
+    }
+
     // when using short offsets we store (real offset / 2), so all offsets must
     // be even, which means when we have an odd number of bytes we have to pad.
     fn make_31_bytes_of_variation_data() -> Vec<GlyphDeltas> {
