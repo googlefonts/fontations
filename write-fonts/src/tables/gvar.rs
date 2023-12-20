@@ -4,6 +4,8 @@ include!("../../generated/generated_gvar.rs");
 
 use std::collections::HashMap;
 
+use indexmap::IndexMap;
+
 use crate::{collections::HasLen, OffsetMarker};
 
 use super::variations::{
@@ -166,6 +168,30 @@ impl Gvar {
     }
 }
 
+/// Like [Iterator::max_by_key][1] but returns the first instead of last in case of a tie.
+///
+/// Intended to match Python's [max()][2] behavior.
+///
+/// [1]: https://doc.rust-lang.org/std/iter/trait.Iterator.html#method.max_by_key
+/// [2]: https://docs.python.org/3/library/functions.html#max
+fn max_by_first_key<I, B, F>(iter: I, mut key: F) -> Option<I::Item>
+where
+    I: Iterator,
+    B: Ord,
+    F: FnMut(&I::Item) -> B,
+{
+    iter.fold(None, |max_elem: Option<(_, _)>, item| {
+        let item_key = key(&item);
+        match &max_elem {
+            // current item's key not greater than max key so far, keep max unchanged
+            Some((_, max_key)) if item_key <= *max_key => max_elem,
+            // either no max yet, or a new max found, update max
+            _ => Some((item, item_key)),
+        }
+    })
+    .map(|(item, _)| item)
+}
+
 impl GlyphVariations {
     /// Construct a new set of variation deltas for a glyph.
     pub fn new(gid: GlyphId, variations: Vec<GlyphDeltas>) -> Self {
@@ -230,7 +256,7 @@ impl GlyphVariations {
     ///
     /// (issue <https://github.com/googlefonts/fontations/issues/634>)
     fn compute_shared_points(&self) -> Option<PackedPointNumbers> {
-        let mut point_number_counts = HashMap::new();
+        let mut point_number_counts = IndexMap::new();
         // count how often each set of numbers occurs
         for deltas in &self.variations {
             // for each set points, get compiled size + number of occurances
@@ -242,13 +268,16 @@ impl GlyphVariations {
                 });
             *count += 1;
         }
-
-        // find the one that saves the most bytes
-        let (pts, _) = point_number_counts
-            .into_iter()
-            // no use sharing points if they only occur once
-            .filter(|(_, (_, count))| *count > 1)
-            .max_by_key(|(_, (size, count))| (*count - 1) * *size)?;
+        // find the one that saves the most bytes; if multiple are tied, pick the
+        // first one like python max() does (Rust's max_by_key() would pick the last),
+        // so that we match the behavior of fonttools
+        let (pts, _) = max_by_first_key(
+            point_number_counts
+                .into_iter()
+                // no use sharing points if they only occur once
+                .filter(|(_, (_, count))| *count > 1),
+            |(_, (size, count))| (*count - 1) * *size,
+        )?;
 
         Some(pts.to_owned())
     }
@@ -966,6 +995,143 @@ mod tests {
         );
         assert_eq!(
             built.per_tuple_data[1].private_point_numbers,
+            Some(PackedPointNumbers::Some(vec![1, 3]))
+        );
+    }
+
+    #[test]
+    fn compute_shared_points_is_deterministic() {
+        // The deltas for glyph "etatonos.sc.ss06" in GoogleSans-VF are such that the
+        // TupleVariationStore's shared set of point numbers could potentionally be
+        // computed as either PackedPointNumbers::All or PackedPointNumbers::Some([1, 3])
+        // without affecting the size (or correctness) of the serialized data.
+        // However we want to ensure that the result is deterministic, and doesn't
+        // depend on e.g. HashMap random iteration order.
+        // https://github.com/googlefonts/fontc/issues/647
+        let _ = env_logger::builder().is_test(true).try_init();
+        let variations = GlyphVariations::new(
+            GlyphId::NOTDEF,
+            vec![
+                GlyphDeltas::new(
+                    Tuple::new(vec![
+                        F2Dot14::from_f32(-1.0),
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(0.0),
+                    ]),
+                    vec![
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(-17, -4),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(-28, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(1.0),
+                        F2Dot14::from_f32(0.0),
+                    ]),
+                    vec![
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(0, -10),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(34, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(-1.0),
+                    ]),
+                    vec![
+                        GlyphDelta::required(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(1.0),
+                    ]),
+                    vec![
+                        GlyphDelta::required(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![
+                        F2Dot14::from_f32(-1.0),
+                        F2Dot14::from_f32(1.0),
+                        F2Dot14::from_f32(0.0),
+                    ]),
+                    vec![
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(-1, 10),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::required(-9, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![
+                        F2Dot14::from_f32(-1.0),
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(-1.0),
+                    ]),
+                    vec![
+                        GlyphDelta::required(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![
+                        F2Dot14::from_f32(-1.0),
+                        F2Dot14::from_f32(0.0),
+                        F2Dot14::from_f32(1.0),
+                    ]),
+                    vec![
+                        GlyphDelta::required(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                        GlyphDelta::optional(0, 0),
+                    ],
+                    None,
+                ),
+            ],
+        );
+
+        assert_eq!(
+            variations.compute_shared_points(),
+            // Also PackedPointNumbers::All would work, but Some([1, 3]) happens
+            // to be the first one that fits the bill when iterating over the
+            // tuple variations in the order they are listed for this glyph.
             Some(PackedPointNumbers::Some(vec![1, 3]))
         );
     }
