@@ -76,6 +76,7 @@ pub enum PaintError {
     ParseError(ReadError),
     GlyphNotFound(GlyphId),
     PaintCycleDetected,
+    FillGlyphOptimizationFailed,
 }
 
 impl std::fmt::Display for PaintError {
@@ -88,6 +89,10 @@ impl std::fmt::Display for PaintError {
                 write!(f, "No COLRv1 glyph found for glyph id: {glyph_id}")
             }
             PaintError::PaintCycleDetected => write!(f, "Paint cycle detected in COLRv1 glyph."),
+            PaintError::FillGlyphOptimizationFailed => write!(
+                f,
+                "Failed to combine clip glyph and fill into optimized single operation."
+            ),
         }
     }
 }
@@ -192,6 +197,20 @@ pub enum PaintCachedColorGlyph {
     Unimplemented,
 }
 
+/// Result of [`fill_glyph_supported()`](ColorPainter::fill_glyph_supported).
+///
+/// Result of [`fill_glyph_supported()`](ColorPainter::fill_glyph_supported)
+/// through which the client signals whether an optimized glyph filling function
+/// is implemented that combines clip and fill with a
+/// [`brush`](Brush).
+#[derive(PartialEq)]
+pub enum FillGlyph {
+    /// The combined clip and fill operation is supported on the client side.
+    Supported,
+    /// The client does not implement the combined clip and fill operation.
+    Unimplemented,
+}
+
 /// A group of required painting callbacks to be provided by the client.
 ///
 /// Each callback is executing a particular drawing or canvas transformation
@@ -218,7 +237,27 @@ pub trait ColorPainter {
     fn pop_clip(&mut self);
 
     /// Fill the current clip area with the specified gradient fill.
-    fn fill(&mut self, brush: Brush);
+    fn fill(&mut self, brush: Brush<'_>);
+
+    /// Queries from the client whether the optimized
+    /// [`fill_glyph()`](ColorPainter::fill_glyph) operation is supported.
+    fn fill_glyph_supported(&self) -> FillGlyph {
+        FillGlyph::Unimplemented
+    }
+
+    /// Combined clip and fill operation.
+    ///
+    /// Apply the clip path determined by the specified `glyph_id`,
+    /// then fill it with the specified [`brush`](Brush), applying the `_transform`
+    /// transformation matrix to the brush.
+    fn fill_glyph(
+        &mut self,
+        _glyph_id: GlyphId,
+        _transform: Transform,
+        _brush: Brush<'_>,
+    ) -> Result<(), PaintError> {
+        Err(PaintError::FillGlyphOptimizationFailed)
+    }
 
     /// Optionally implement this method: Draw an unscaled COLRv1 glyph given
     /// the current transformation matrix (as accumulated by
@@ -229,9 +268,6 @@ pub trait ColorPainter {
     ) -> Result<PaintCachedColorGlyph, PaintError> {
         Ok(PaintCachedColorGlyph::Unimplemented)
     }
-
-    // TODO(https://github.com/googlefonts/fontations/issues/746):
-    // Add an optimized callback function combining clip, fill and transforms.
 
     /// Open a new layer, and merge the layer down using `composite_mode` when
     /// [`pop_layer`](ColorPainter::pop_layer) is called, signalling that this layer is done drawing.

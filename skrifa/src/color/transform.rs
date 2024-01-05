@@ -1,4 +1,6 @@
 //! Contains a [`Transform`] object holding values of an affine transformation matrix.
+use std::ops::MulAssign;
+
 use read_fonts::ReadError;
 
 use super::instance::ResolvedPaint;
@@ -8,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(test, derive(Serialize, Deserialize))]
-/// A transformation matrix to be applied to the drawing canvas.  
+/// A transformation matrix to be applied to the drawing canvas.
 ///
 /// Factors are specified in column-order, meaning that
 /// for a vector `(x,y)` the transformed position `x'` of the vector
@@ -23,6 +25,23 @@ pub struct Transform {
     pub yy: f32,
     pub dx: f32,
     pub dy: f32,
+}
+
+impl MulAssign for Transform {
+    fn mul_assign(&mut self, rhs: Self) {
+        fn muladdmul(a: f32, b: f32, c: f32, d: f32) -> f32 {
+            a * b + c * d
+        }
+        let tmp = Self {
+            xx: muladdmul(self.xx, rhs.xx, self.xy, rhs.yx),
+            xy: muladdmul(self.xx, rhs.xy, self.xy, rhs.yy),
+            dx: muladdmul(self.xx, rhs.dx, self.xy, rhs.dy) + self.dx,
+            yx: muladdmul(self.yx, rhs.xx, self.yy, rhs.yx),
+            yy: muladdmul(self.yx, rhs.xy, self.yy, rhs.yy),
+            dy: muladdmul(self.yx, rhs.dx, self.yy, rhs.dy) + self.dy,
+        };
+        *self = tmp;
+    }
 }
 
 impl Default for Transform {
