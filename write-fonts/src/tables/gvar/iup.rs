@@ -428,7 +428,7 @@ fn iup_contour_optimize(
     // Get the easy cases out of the way
     // Easy: all points are the same or there are no points
     // This covers the case when there is only one point
-    let Some(first_delta) = deltas.get(0) else {
+    let Some(first_delta) = deltas.first() else {
         return Ok(Vec::new());
     };
     if deltas.iter().all(|d| d == first_delta) {
