@@ -324,7 +324,7 @@ impl<'a> ColorGlyph<'a> {
                     painter.push_clip_box(rect);
                 }
 
-                let mut visited_set = HashSet::with_hasher(NonRandomHasherState {});
+                let mut visited_set = HashSet::with_hasher(NonRandomHasherState);
                 visited_set.insert(*paint_id);
                 traverse_with_callbacks(
                     &resolve_paint(&instance, paint)?,
