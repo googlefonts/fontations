@@ -1,10 +1,11 @@
 use ::skrifa::{
+    outline::{EmbeddedHinting, EmbeddedHintingInstance},
     prelude::{LocationRef, Size},
     raw::{
         types::{F2Dot14, Pen},
         FontRef, TableProvider,
     },
-    GlyphId, Hinting, MetadataProvider, NativeHinter, OutlineGlyphCollection, ScalerMemory,
+    GlyphId, MetadataProvider, OutlineGlyphCollection,
 };
 use skrifa::Tag;
 
@@ -15,7 +16,7 @@ pub struct SkrifaInstance<'a> {
     ppem: f32,
     coords: Vec<F2Dot14>,
     outlines: OutlineGlyphCollection<'a>,
-    hinter: Option<NativeHinter>,
+    hinter: Option<EmbeddedHintingInstance>,
 }
 
 impl<'a> SkrifaInstance<'a> {
@@ -44,8 +45,16 @@ impl<'a> SkrifaInstance<'a> {
             Size::unscaled()
         };
         let outlines = font.outline_glyphs();
-        let hinter = if options.ppem != 0 && options.hinting != Hinting::None {
-            Some(NativeHinter::new(&outlines, size, options.coords, options.hinting).unwrap())
+        let hinter = if options.ppem != 0 && options.hinting != None {
+            Some(
+                EmbeddedHintingInstance::new(
+                    &outlines,
+                    size,
+                    options.coords,
+                    options.hinting.unwrap(),
+                )
+                .unwrap(),
+            )
         } else {
             None
         };
@@ -74,15 +83,10 @@ impl<'a> SkrifaInstance<'a> {
     pub fn outline(&mut self, glyph_id: GlyphId, pen: &mut impl Pen) -> Option<()> {
         let outline = self.outlines.get(glyph_id)?;
         if let Some(hinter) = self.hinter.as_ref() {
-            hinter.scale(&outline, ScalerMemory::Auto, pen).unwrap();
+            outline.draw(hinter, pen).ok()?;
         } else {
             outline
-                .scale(
-                    Size::new(self.ppem),
-                    self.coords.as_slice(),
-                    ScalerMemory::Auto,
-                    pen,
-                )
+                .draw((Size::new(self.ppem), self.coords.as_slice()), pen)
                 .ok()?;
         }
         Some(())

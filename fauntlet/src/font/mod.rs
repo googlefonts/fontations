@@ -6,8 +6,8 @@ use std::{
 
 use ::freetype::{Face, Library};
 use ::skrifa::{
+    outline::EmbeddedHinting,
     raw::{types::F2Dot14, FontRef, TableProvider},
-    Hinting,
 };
 
 mod freetype;
@@ -21,11 +21,16 @@ pub struct InstanceOptions<'a> {
     pub index: usize,
     pub ppem: u32,
     pub coords: &'a [F2Dot14],
-    pub hinting: Hinting,
+    pub hinting: Option<EmbeddedHinting>,
 }
 
 impl<'a> InstanceOptions<'a> {
-    pub fn new(index: usize, ppem: u32, coords: &'a [F2Dot14], hinting: Hinting) -> Self {
+    pub fn new(
+        index: usize,
+        ppem: u32,
+        coords: &'a [F2Dot14],
+        hinting: Option<EmbeddedHinting>,
+    ) -> Self {
         Self {
             index,
             ppem,

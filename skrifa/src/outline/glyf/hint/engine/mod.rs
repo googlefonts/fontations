@@ -8,7 +8,7 @@ mod logical;
 mod stack;
 mod storage;
 
-use crate::{prelude::NormalizedCoord, scale::Hinting};
+use crate::prelude::NormalizedCoord;
 
 use super::call_stack::{CallRecord, CallStack};
 use super::code::{CodeDefinition, CodeDefinitionSlice, Decoder, Instruction, Program};
@@ -17,7 +17,7 @@ use super::graphics_state::{CoordAxis, GraphicsState, RetainedGraphicsState, Rou
 use super::value_stack::ValueStack;
 use super::InstanceState;
 use super::{math::*, HintError};
-use super::{CowSlice, Zone, ZoneData};
+use super::{Cvt, EmbeddedHinting, Storage, Zone, ZoneData};
 
 pub type Point = super::Point<i32>;
 pub type OpResult = Result<(), HintErrorKind>;
@@ -27,8 +27,8 @@ pub const TRACE: bool = false;
 /// TrueType hinting engine.
 pub struct Engine<'a> {
     value_stack: ValueStack<'a>,
-    storage: CowSlice<'a>,
-    cvt: CowSlice<'a>,
+    storage: Storage<'a>,
+    cvt: Cvt<'a>,
     fdefs: CodeDefinitionSlice<'a>,
     idefs: CodeDefinitionSlice<'a>,
     instance: InstanceState,
@@ -42,9 +42,6 @@ pub struct Engine<'a> {
     did_iup_x: bool,
     did_iup_y: bool,
     is_v35: bool,
-    is_subpixel: bool,
-    is_grayscale: bool,
-    is_grayscale_cleartype: bool,
     backward_compat_enabled: bool,
     is_pedantic: bool,
 }
@@ -54,8 +51,8 @@ impl<'a> Engine<'a> {
     #[allow(clippy::too_many_arguments)]
     pub fn new(
         value_stack: ValueStack<'a>,
-        storage: CowSlice<'a>,
-        cvt: CowSlice<'a>,
+        storage: impl Into<Storage<'a>>,
+        cvt: impl Into<Cvt<'a>>,
         function_defs: CodeDefinitionSlice<'a>,
         instruction_defs: CodeDefinitionSlice<'a>,
         twilight: ZoneData<'a>,
@@ -66,8 +63,8 @@ impl<'a> Engine<'a> {
         Self {
             value_stack,
             call_stack: CallStack::default(),
-            storage,
-            cvt,
+            storage: storage.into(),
+            cvt: cvt.into(),
             fdefs: function_defs,
             idefs: instruction_defs,
             coords,
@@ -83,9 +80,6 @@ impl<'a> Engine<'a> {
             did_iup_x: false,
             did_iup_y: false,
             is_v35: false,
-            is_subpixel: true,
-            is_grayscale: true,
-            is_grayscale_cleartype: true,
             backward_compat_enabled: false,
             is_pedantic: false,
         }
@@ -101,7 +95,7 @@ impl<'a> Engine<'a> {
         self.idefs.reset();
         state.ppem = 0;
         state.scale = 0;
-        state.mode = Hinting::VerticalSubpixel;
+        state.mode = EmbeddedHinting::default();
         state.graphics = RetainedGraphicsState::default();
         self.graphics = GraphicsState::default();
         let res = self.execute_all(programs, Program::Font, false);
@@ -114,7 +108,7 @@ impl<'a> Engine<'a> {
     pub fn run_prep<'b>(
         &mut self,
         state: &'b mut InstanceState,
-        mode: Hinting,
+        mode: EmbeddedHinting,
         fpgm: &'a [u8],
         prep: &'a [u8],
         ppem: u16,
@@ -321,26 +315,14 @@ impl<'a> Engine<'a> {
         if decoder.bytecode.is_empty() {
             return Ok(0);
         }
-        let (v35, grayscale, subpixel, grayscale_cleartype) = match self.instance.mode {
-            Hinting::None => return Ok(0),
-            Hinting::Full => (true, true, false, false),
-            Hinting::Light => (false, false, true, true),
-            Hinting::LightSubpixel => (false, false, true, false),
-            Hinting::VerticalSubpixel => (false, false, true, false),
-        };
-        self.is_v35 = v35;
-        self.is_subpixel = subpixel;
-        if self.instance.mode == Hinting::VerticalSubpixel {
+        self.is_v35 = false;
+        self.backward_compat_enabled = false;
+        if self.instance.mode.retain_linear_metrics() {
             self.backward_compat_enabled = true;
-        } else if !v35 && subpixel {
+        } else if self.instance.mode.is_antialiased() {
             self.backward_compat_enabled = (self.graphics.instruct_control & 0x4) == 0;
-        } else {
-            self.backward_compat_enabled = false;
         }
         self.is_composite = is_composite;
-        self.is_grayscale = grayscale;
-        self.is_grayscale_cleartype = grayscale_cleartype;
-        // self.backward_compat_enabled = true;
         self.instance.compat = self.backward_compat_enabled;
         self.graphics.update_projection_state();
         self.graphics.reset_zone_pointers();

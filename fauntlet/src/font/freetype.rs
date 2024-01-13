@@ -3,7 +3,12 @@ use freetype::{
     ffi::{FT_Long, FT_Vector},
     Face, Library,
 };
-use skrifa::{raw::FileRef, scale::Pen, GlyphId, Hinting};
+use skrifa::{
+    outline::{EmbeddedHinting, LcdLayout},
+    raw::FileRef,
+    scale::Pen,
+    GlyphId,
+};
 
 use std::ffi::{c_int, c_void};
 
@@ -22,6 +27,17 @@ pub fn collect_faces(data: &SharedFontData) -> Option<(Library, Vec<Face<SharedF
     Some((library, faces))
 }
 
+fn load_flags_from_hinting(mode: EmbeddedHinting) -> LoadFlag {
+    match mode {
+        EmbeddedHinting::Aliased => LoadFlag::TARGET_MONO,
+        EmbeddedHinting::AntiAliased { lcd_subpixel, .. } => match lcd_subpixel {
+            Some(LcdLayout::Horizontal) => LoadFlag::TARGET_LCD,
+            Some(LcdLayout::Vertical) => LoadFlag::TARGET_LCD_V,
+            None => LoadFlag::TARGET_NORMAL,
+        },
+    }
+}
+
 pub struct FreeTypeInstance<'a> {
     face: &'a mut Face<SharedFontData>,
     load_flags: LoadFlag,
@@ -31,10 +47,8 @@ impl<'a> FreeTypeInstance<'a> {
     pub fn new(face: &'a mut Face<SharedFontData>, options: &InstanceOptions) -> Option<Self> {
         let mut load_flags = LoadFlag::NO_AUTOHINT | LoadFlag::NO_BITMAP;
         match options.hinting {
-            Hinting::None => load_flags |= LoadFlag::NO_HINTING,
-            Hinting::LightSubpixel => load_flags |= LoadFlag::TARGET_LCD,
-            Hinting::Light | Hinting::Full => {}
-            Hinting::VerticalSubpixel => unimplemented!(),
+            None => load_flags |= LoadFlag::NO_HINTING,
+            Some(hinting) => load_flags |= load_flags_from_hinting(hinting),
         };
         if options.ppem != 0 {
             face.set_pixel_sizes(options.ppem, options.ppem).ok()?;

@@ -163,7 +163,7 @@ impl<'a> Outlines<'a> {
         hint_fn: impl FnMut(HinterOutline) -> bool,
     ) -> Result<ScaledOutline<'a>, DrawError> {
         Scaler::new(self.clone(), memory, size, coords, hint_fn, true)
-            .scale(&info.glyph, info.glyph_id)
+            .scale(&outline.glyph, outline.glyph_id)
     }
 }
 

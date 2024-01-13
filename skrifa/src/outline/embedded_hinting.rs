@@ -1,27 +1,54 @@
 //! Support for applying embedded hinting instructions.
 
 use super::{
-    cff, AdjustedMetrics, DrawError, Hinting, LocationRef, NormalizedCoord, OutlineCollectionKind,
-    OutlineGlyph, OutlineGlyphCollection, OutlineKind, OutlinePen, Size,
+    cff, glyf, AdjustedMetrics, DrawError, Hinting, LocationRef, NormalizedCoord,
+    OutlineCollectionKind, OutlineGlyph, OutlineGlyphCollection, OutlineKind, OutlinePen, Size,
 };
 
-/// Modes for embedded hinting.
+/// Modes that control hinting when using embedded instructions.
 ///
 /// Only the `glyf` format supports all hinting modes.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum EmbeddedHinting {
-    /// "Full" hinting mode. May generate rough outlines and poor horizontal
-    /// spacing.
-    Full,
-    /// Light hinting mode. This prevents most movement in the horizontal
-    /// direction with the exception of a per-font backward compatibility
-    /// opt in.
-    Light,
-    /// Same as light, but with additional support for RGB subpixel rendering.
-    LightSubpixel,
-    /// Same as light subpixel, but always prevents adjustment in the
-    /// horizontal direction. This is the default mode.
-    VerticalSubpixel,
+    /// Strong hinting mode that should only be used for aliased, monochromatic
+    /// rasterization.
+    ///
+    /// Corresponds to `FT_LOAD_TARGET_MONO` in FreeType.
+    Aliased,
+    /// Lighter hinting mode that is intended for anti-aliased rasterization.
+    AntiAliased {
+        /// If set, enables support for optimized hinting that takes advantage
+        /// of subpixel layouts in LCD displays and corresponds to
+        /// `FT_LOAD_TARGET_LCD` or `FT_LOAD_TARGET_LCD_V` in FreeType.
+        ///
+        /// If unset, corresponds to `FT_LOAD_TARGET_NORMAL` in FreeType.
+        lcd_subpixel: Option<LcdLayout>,
+        /// If true, prevents adjustment of the outline in the horizontal
+        /// direction and preserves inter-glyph spacing.
+        retain_linear_metrics: bool,
+    },
+}
+
+impl Default for EmbeddedHinting {
+    fn default() -> Self {
+        Self::AntiAliased {
+            lcd_subpixel: None,
+            retain_linear_metrics: false,
+        }
+    }
+}
+
+/// Specifies direction of pixel layout for LCD based subpixel hinting.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum LcdLayout {
+    /// Subpixels are ordered horizontally.
+    ///
+    /// Corresponds to `FT_LOAD_TARGET_LCD` in FreeType.
+    Horizontal,
+    /// Subpixels are ordered vertically.
+    ///
+    /// Corresponds to `FT_LOAD_TARGET_LCD_V` in FreeType.
+    Vertical,
 }
 
 /// Hinting instance that uses information embedded in the font to perform
@@ -84,8 +111,18 @@ impl EmbeddedHintingInstance {
         // Reuse memory if the font contains the same outline format
         let current_kind = core::mem::replace(&mut self.kind, HinterKind::None);
         match &outlines.kind {
-            OutlineCollectionKind::Glyf(_) => {
-                self.kind = HinterKind::Glyf;
+            OutlineCollectionKind::Glyf(glyf) => {
+                let mut hint_instance = match current_kind {
+                    HinterKind::Glyf(instance) => instance,
+                    _ => glyf::HintInstance::default(),
+                };
+                let ppem = size.ppem().unwrap_or(0.0);
+                let scale = glyf.compute_scale(ppem).1.to_bits();
+                hint_instance
+                    .init(glyf, scale, ppem as u16, mode, &self.coords)
+                    .ok()
+                    .ok_or(DrawError::HintingFailed(Default::default()))?;
+                self.kind = HinterKind::Glyf(hint_instance);
             }
             OutlineCollectionKind::Cff(cff) => {
                 let mut subfonts = match current_kind {
@@ -113,12 +150,15 @@ impl EmbeddedHintingInstance {
         let ppem = self.size.ppem().unwrap_or_default();
         let coords = self.coords.as_slice();
         match (&self.kind, &glyph.kind) {
-            (HinterKind::Glyf, OutlineKind::Glyf(glyf, outline)) => {
+            (HinterKind::Glyf(instance), OutlineKind::Glyf(glyf, outline)) => {
                 super::with_glyf_memory(outline, Hinting::Embedded, memory, |buf| {
                     let mem = outline
                         .memory_from_buffer(buf, Hinting::Embedded)
                         .ok_or(DrawError::InsufficientMemory)?;
-                    let scaled_outline = glyf.draw(mem, outline, ppem, coords)?;
+                    let scaled_outline =
+                        glyf.draw_hinted(mem, outline, ppem, coords, |mut hint_outline| {
+                            instance.hint(glyf, &mut hint_outline).is_some()
+                        })?;
                     scaled_outline.to_path(pen)?;
                     Ok(AdjustedMetrics {
                         has_overlaps: outline.has_overlaps,
@@ -144,6 +184,6 @@ enum HinterKind {
     /// Represents a hinting instance that is associated with an empty outline
     /// collection.
     None,
-    Glyf,
+    Glyf(glyf::HintInstance),
     Cff(Vec<cff::Subfont>),
 }

@@ -14,13 +14,13 @@ use read_fonts::{
     types::{F26Dot6, F2Dot14, Fixed, Point},
 };
 
-use crate::scale::Hinting;
+use crate::outline::{EmbeddedHinting, LcdLayout};
 
 use super::Outlines;
 
 pub use call_stack::{CallRecord, CallStack};
 pub use code::{CodeDefinition, CodeDefinitionSlice, Decoder};
-pub use cow_slice::CowSlice;
+pub use cow_slice::{CowSlice, Cvt, Storage};
 pub use engine::Engine;
 pub use error::{HintError, HintErrorKind};
 pub use graphics_state::{
@@ -37,7 +37,7 @@ pub struct InstanceState {
     pub ppem: u16,
     pub scale: i32,
     pub compat: bool,
-    pub mode: Hinting,
+    pub mode: EmbeddedHinting,
 }
 
 impl Default for InstanceState {
@@ -47,7 +47,7 @@ impl Default for InstanceState {
             ppem: 0,
             scale: 0,
             compat: false,
-            mode: Hinting::VerticalSubpixel,
+            mode: EmbeddedHinting::default(),
         }
     }
 }
@@ -95,7 +95,7 @@ impl HintInstance {
         outlines: &Outlines,
         scale: i32,
         ppem: u16,
-        mode: Hinting,
+        mode: EmbeddedHinting,
         coords: &[F2Dot14],
     ) -> Result<(), HintError> {
         self.setup_state(outlines, scale);
@@ -243,5 +243,49 @@ impl HintInstance {
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/truetype/ttinterp.c#L356>
         self.max_stack = outlines.max_stack_elements + 32;
         self.state = InstanceState::default();
+    }
+}
+
+impl EmbeddedHinting {
+    fn is_grayscale(&self) -> bool {
+        false
+    }
+
+    fn is_aliased(&self) -> bool {
+        matches!(self, Self::Aliased)
+    }
+
+    fn is_antialiased(&self) -> bool {
+        matches!(self, Self::AntiAliased { .. })
+    }
+
+    fn is_grayscale_cleartype(&self) -> bool {
+        matches!(
+            self,
+            Self::AntiAliased {
+                lcd_subpixel: None,
+                ..
+            }
+        )
+    }
+
+    fn is_vertical_lcd(&self) -> bool {
+        matches!(
+            self,
+            Self::AntiAliased {
+                lcd_subpixel: Some(LcdLayout::Vertical),
+                ..
+            }
+        )
+    }
+
+    fn retain_linear_metrics(&self) -> bool {
+        matches!(
+            self,
+            Self::AntiAliased {
+                retain_linear_metrics: true,
+                ..
+            }
+        )
     }
 }

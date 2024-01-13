@@ -3,7 +3,7 @@ use std::io::Write;
 use rayon::prelude::*;
 
 use fauntlet::{compare_glyphs, InstanceOptions};
-use skrifa::{raw::types::F2Dot14, Hinting};
+use skrifa::{outline::EmbeddedHinting, raw::types::F2Dot14};
 
 #[derive(clap::Parser, Debug)]
 struct Args {
@@ -45,7 +45,10 @@ fn main() {
         } => {
             use std::sync::atomic::{AtomicBool, Ordering};
             let ok = AtomicBool::new(true);
-            let hinting = Hinting::Light;
+            let hinting = Some(EmbeddedHinting::AntiAliased {
+                lcd_subpixel: None,
+                retain_linear_metrics: false,
+            });
             files.par_iter().for_each(|font_path| {
                 if print_paths {
                     writeln!(std::io::stdout(), "[{font_path:?}]").unwrap();

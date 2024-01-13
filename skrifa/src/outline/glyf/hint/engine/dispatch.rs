@@ -1,5 +1,5 @@
 use super::{
-    super::math::*, CallRecord, CodeDefinition, CoordAxis, Decoder, Engine, HintErrorKind, Hinting,
+    super::math::*, CallRecord, CodeDefinition, CoordAxis, Decoder, Engine, HintErrorKind,
     Instruction, Point, PointDisplacement, Program, RoundMode, Zone,
 };
 
@@ -762,42 +762,77 @@ impl<'a> Engine<'a> {
                 self.graphics.update_projection_state();
             }
             op::GETINFO => {
-                let a = self.value_stack.pop()?;
-                let mut k = 0;
-                if (a & 1) != 0 {
-                    k = if self.is_v35 { 35 } else { 42 };
+                // See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#get-information>
+                let selector = self.value_stack.pop()?;
+                let mut result = 0;
+                // Interpreter version
+                // selector bit: 1
+                // result bits: 0-7
+                const VERSION_SELECTOR_BIT: i32 = 1 << 0;
+                if (selector & VERSION_SELECTOR_BIT) != 0 {
+                    result = if self.is_v35 { 35 } else { 42 };
                 }
-                if (a & 2) != 0 && self.is_rotated {
-                    k |= 1 << 8;
+                // Font variations
+                // selector bit: 3
+                // result bit: 10
+                const FONT_VARIATIONS_SELECTOR_BIT: i32 = 1 << 3;
+                const FONT_VARIATIONS_RESULT_MASK: i32 = 1 << 10;
+                if (selector & FONT_VARIATIONS_SELECTOR_BIT) != 0 && !self.coords.is_empty() {
+                    result |= FONT_VARIATIONS_RESULT_MASK;
                 }
-                if (a & 8) != 0 && !self.coords.is_empty() {
-                    k |= 1 << 10;
-                }
-                if (a & 32) != 0 && self.is_grayscale {
-                    k |= 1 << 12;
-                }
-                if !self.is_v35 && self.is_subpixel {
-                    if (a & 64) != 0 {
-                        k |= 1 << 13;
+                // The following only apply for interpreter version 40
+                // and antialiased hinting
+                if !self.is_v35 && self.instance.mode.is_antialiased() {
+                    // Subpixel hinting (cleartype enabled)
+                    // selector bit: 6
+                    // result bit: 13
+                    // (always enabled)
+                    const SUBPIXEL_HINTING_SELECTOR_BIT: i32 = 1 << 6;
+                    const SUBPIXEL_HINTING_RESULT_MASK: i32 = 1 << 13;
+                    if (selector & SUBPIXEL_HINTING_SELECTOR_BIT) != 0 {
+                        result |= SUBPIXEL_HINTING_RESULT_MASK;
                     }
-                    // if (a & 256) != 0 && false
-                    // /* self.vertical_lcd */
-                    // {
-                    //     k |= 1 << 15;
-                    // }
-                    if (a & 1024) != 0 {
-                        k |= 1 << 17;
+                    // Vertical LCD subpixels?
+                    // selector bit: 8
+                    // result bit: 15
+                    const VERTICAL_LCD_SELECTOR_BIT: i32 = 1 << 8;
+                    const VERTICAL_LCD_RESULT_MASK: i32 = 1 << 15;
+                    if (selector & VERSION_SELECTOR_BIT) != 0
+                        && self.instance.mode.is_vertical_lcd()
+                    {
+                        result |= VERTICAL_LCD_RESULT_MASK;
                     }
-                    // remove me
-                    if (a & 2048) != 0 && self.is_subpixel {
-                        k |= 1 << 18;
+                    // Subpixel positioned?
+                    // selector bit: 10
+                    // result bit: 17
+                    // (always enabled)
+                    const SUBPIXEL_POSITIONED_SELECTOR_BIT: i32 = 1 << 10;
+                    const SUBPIXEL_POSITIONED_RESULT_MASK: i32 = 1 << 17;
+                    if (selector & SUBPIXEL_POSITIONED_SELECTOR_BIT) != 0 {
+                        result |= SUBPIXEL_POSITIONED_RESULT_MASK;
                     }
-
-                    if (a & 4096) != 0 && self.is_grayscale_cleartype {
-                        k |= 1 << 19;
+                    // Symmetrical smoothing
+                    // selector bit: 11
+                    // result bit: 18
+                    const SYMMETRICAL_SMOOTHING_SELECTOR_BIT: i32 = 1 << 11;
+                    const SYMMETRICAL_SMOOTHING_RESULT_MASK: i32 = 1 << 18;
+                    if (selector & SYMMETRICAL_SMOOTHING_SELECTOR_BIT) != 0
+                        && !self.instance.mode.retain_linear_metrics()
+                    {
+                        result |= SYMMETRICAL_SMOOTHING_RESULT_MASK;
+                    }
+                    // ClearType hinting and grayscale rendering
+                    // selector bit: 12
+                    // result bit: 19
+                    const GRAYSCALE_CLEARTYPE_SELECTOR_BIT: i32 = 1 << 12;
+                    const GRAYSCALE_CLEARTYPE_RESULT_MASK: i32 = 1 << 19;
+                    if (selector & GRAYSCALE_CLEARTYPE_SELECTOR_BIT) != 0
+                        && self.instance.mode.is_grayscale_cleartype()
+                    {
+                        result |= 1 << 19;
                     }
                 }
-                self.value_stack.push(k)?;
+                self.value_stack.push(result)?;
             }
             op::IDEF => {
                 if program == Program::Glyph {
@@ -849,9 +884,7 @@ impl<'a> Engine<'a> {
                 } else {
                     self.graphics.instruct_control &= !(af as u8);
                     self.graphics.instruct_control |= value as u8;
-                    if selector == 3
-                        && !self.is_v35
-                        && self.instance.mode != Hinting::VerticalSubpixel
+                    if selector == 3 && !self.is_v35 && !self.instance.mode.retain_linear_metrics()
                     {
                         self.backward_compat_enabled = value != 4;
                     }
