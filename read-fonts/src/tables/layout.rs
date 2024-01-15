@@ -202,7 +202,7 @@ impl<'a> ClassDefFormat2<'a> {
             Err(ix) => ix.saturating_sub(1),
         };
         if let Some(record) = records.get(ix) {
-            if gid >= record.start_glyph_id() && gid <= record.end_glyph_id() {
+            if (record.start_glyph_id()..=record.end_glyph_id()).contains(&gid) {
                 return record.class();
             }
         }
