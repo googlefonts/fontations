@@ -90,7 +90,7 @@ impl Gvar {
 
         fn compute_shared_peak_tuples(glyphs: &[GlyphVariations]) -> Vec<Tuple> {
             const MAX_SHARED_TUPLES: usize = 4095;
-            let mut peak_tuple_counts = HashMap::new();
+            let mut peak_tuple_counts = IndexMap::new();
             for glyph in glyphs {
                 glyph.count_peak_tuples(&mut peak_tuple_counts);
             }
@@ -98,7 +98,10 @@ impl Gvar {
                 .into_iter()
                 .filter(|(_, n)| *n > 1)
                 .collect::<Vec<_>>();
-            to_share.sort_unstable_by_key(|(_, n)| std::cmp::Reverse(*n));
+            // prefer IndexMap::sort_by_key over HashMap::sort_unstable_by_key so the
+            // order of the shared tuples with equal count doesn't change randomly
+            // but is kept stable to ensure builds are deterministic.
+            to_share.sort_by_key(|(_, n)| std::cmp::Reverse(*n));
             to_share.truncate(MAX_SHARED_TUPLES);
             to_share.into_iter().map(|(t, _)| t.to_owned()).collect()
         }
@@ -226,7 +229,7 @@ impl GlyphVariations {
         self.variations.first().map(|var| var.peak_tuple.len())
     }
 
-    fn count_peak_tuples<'a>(&'a self, counter: &mut HashMap<&'a Tuple, usize>) {
+    fn count_peak_tuples<'a>(&'a self, counter: &mut IndexMap<&'a Tuple, usize>) {
         for tuple in &self.variations {
             *counter.entry(&tuple.peak_tuple).or_default() += 1;
         }
@@ -1237,5 +1240,45 @@ mod tests {
         assert_test_offset_packing(4095, true);
         assert_test_offset_packing(4096, false);
         assert_test_offset_packing(4097, false);
+    }
+
+    #[test]
+    fn shared_tuples_stable_order() {
+        // Test that shared tuples are sorted stably and builds reproducible
+        // https://github.com/googlefonts/fontc/issues/647
+        let mut variations = Vec::new();
+        for i in 0..2 {
+            variations.push(GlyphVariations::new(
+                GlyphId::new(i),
+                vec![
+                    GlyphDeltas::new(
+                        Tuple::new(vec![F2Dot14::from_f32(1.0)]),
+                        vec![GlyphDelta::required(10, 20)],
+                        None,
+                    ),
+                    GlyphDeltas::new(
+                        Tuple::new(vec![F2Dot14::from_f32(-1.0)]),
+                        vec![GlyphDelta::required(-10, -20)],
+                        None,
+                    ),
+                ],
+            ))
+        }
+        for _ in 0..10 {
+            let table = Gvar::new(variations.clone()).unwrap();
+            let bytes = crate::dump_table(&table).unwrap();
+            let gvar = read_fonts::tables::gvar::Gvar::read(FontData::new(&bytes)).unwrap();
+
+            assert_eq!(gvar.shared_tuple_count(), 2);
+            assert_eq!(
+                gvar.shared_tuples()
+                    .unwrap()
+                    .tuples()
+                    .iter()
+                    .map(|t| t.unwrap().values.to_vec())
+                    .collect::<Vec<_>>(),
+                vec![vec![F2Dot14::from_f32(1.0)], vec![F2Dot14::from_f32(-1.0)]]
+            );
+        }
     }
 }
