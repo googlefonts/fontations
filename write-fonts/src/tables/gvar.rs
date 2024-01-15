@@ -1238,4 +1238,44 @@ mod tests {
         assert_test_offset_packing(4096, false);
         assert_test_offset_packing(4097, false);
     }
+
+    #[test]
+    fn shared_tuples_stable_order() {
+        // Test that shared tuples are sorted stably and builds reproducible
+        // https://github.com/googlefonts/fontc/issues/647
+        let mut variations = Vec::new();
+        for i in 0..2 {
+            variations.push(GlyphVariations::new(
+                GlyphId::new(i),
+                vec![
+                    GlyphDeltas::new(
+                        Tuple::new(vec![F2Dot14::from_f32(1.0)]),
+                        vec![GlyphDelta::required(10, 20)],
+                        None,
+                    ),
+                    GlyphDeltas::new(
+                        Tuple::new(vec![F2Dot14::from_f32(-1.0)]),
+                        vec![GlyphDelta::required(-10, -20)],
+                        None,
+                    ),
+                ],
+            ))
+        }
+        for _ in 0..10 {
+            let table = Gvar::new(variations.clone()).unwrap();
+            let bytes = crate::dump_table(&table).unwrap();
+            let gvar = read_fonts::tables::gvar::Gvar::read(FontData::new(&bytes)).unwrap();
+
+            assert_eq!(gvar.shared_tuple_count(), 2);
+            assert_eq!(
+                gvar.shared_tuples()
+                    .unwrap()
+                    .tuples()
+                    .iter()
+                    .map(|t| t.unwrap().values.to_vec())
+                    .collect::<Vec<_>>(),
+                vec![vec![F2Dot14::from_f32(1.0)], vec![F2Dot14::from_f32(-1.0)]]
+            );
+        }
+    }
 }
