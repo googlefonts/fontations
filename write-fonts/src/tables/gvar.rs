@@ -90,7 +90,7 @@ impl Gvar {
 
         fn compute_shared_peak_tuples(glyphs: &[GlyphVariations]) -> Vec<Tuple> {
             const MAX_SHARED_TUPLES: usize = 4095;
-            let mut peak_tuple_counts = HashMap::new();
+            let mut peak_tuple_counts = IndexMap::new();
             for glyph in glyphs {
                 glyph.count_peak_tuples(&mut peak_tuple_counts);
             }
@@ -98,7 +98,10 @@ impl Gvar {
                 .into_iter()
                 .filter(|(_, n)| *n > 1)
                 .collect::<Vec<_>>();
-            to_share.sort_unstable_by_key(|(_, n)| std::cmp::Reverse(*n));
+            // prefer IndexMap::sort_by_key over HashMap::sort_unstable_by_key so the
+            // order of the shared tuples with equal count doesn't change randomly
+            // but is kept stable to ensure builds are deterministic.
+            to_share.sort_by_key(|(_, n)| std::cmp::Reverse(*n));
             to_share.truncate(MAX_SHARED_TUPLES);
             to_share.into_iter().map(|(t, _)| t.to_owned()).collect()
         }
@@ -226,7 +229,7 @@ impl GlyphVariations {
         self.variations.first().map(|var| var.peak_tuple.len())
     }
 
-    fn count_peak_tuples<'a>(&'a self, counter: &mut HashMap<&'a Tuple, usize>) {
+    fn count_peak_tuples<'a>(&'a self, counter: &mut IndexMap<&'a Tuple, usize>) {
         for tuple in &self.variations {
             *counter.entry(&tuple.peak_tuple).or_default() += 1;
         }
