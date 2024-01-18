@@ -41,13 +41,7 @@ pub struct GlyfLocaBuilder {
 /// A trait encompassing [`Glyph`], [`SimpleGlyph`] and [`CompositeGlyph`]
 ///
 /// This is a marker trait to ensure that only glyphs are passed to [`GlyfLocaBuilder`].
-pub trait SomeGlyph: Validate + FontWrite {
-    /// Returns `true` if the glyph contains no contours or components.
-    ///
-    /// If a glyph is empty, we do not need to write any data at all for the glyph,
-    /// and we insert a duplicate value in the loca table.
-    fn is_empty(&self) -> bool;
-}
+pub trait SomeGlyph: Validate + FontWrite {}
 
 impl GlyfLocaBuilder {
     /// Construct a new builder for the 'glyf' and 'loca' tables.
@@ -65,10 +59,8 @@ impl GlyfLocaBuilder {
     /// The glyph is validated and compiled immediately, so that the caller can
     /// associate any errors with a particular glyph.
     pub fn add_glyph(&mut self, glyph: &impl SomeGlyph) -> Result<&mut Self, Error> {
-        if !glyph.is_empty() {
-            glyph.validate()?;
-            glyph.write_into(&mut self.glyph_writer);
-        }
+        glyph.validate()?;
+        glyph.write_into(&mut self.glyph_writer);
         let pos = self.glyph_writer.current_data().bytes.len();
         self.raw_loca.push(pos as u32);
         Ok(self)
@@ -89,23 +81,11 @@ impl GlyfLocaBuilder {
     }
 }
 
-impl SomeGlyph for SimpleGlyph {
-    fn is_empty(&self) -> bool {
-        self.contours().is_empty()
-    }
-}
+impl SomeGlyph for SimpleGlyph {}
 
-impl SomeGlyph for CompositeGlyph {
-    fn is_empty(&self) -> bool {
-        self.components().is_empty()
-    }
-}
+impl SomeGlyph for CompositeGlyph {}
 
-impl SomeGlyph for Glyph {
-    fn is_empty(&self) -> bool {
-        self.is_empty()
-    }
-}
+impl SomeGlyph for Glyph {}
 
 impl Default for GlyfLocaBuilder {
     fn default() -> Self {
@@ -133,11 +113,10 @@ mod tests {
             path.line_to((0., 0.));
             path
         }
-        let notdef = BezPath::new();
         let square = kurbo::Rect::from_points((5., 5.), (100., 100.)).into_path(0.1);
         let triangle = make_triangle();
 
-        let glyph0 = SimpleGlyph::from_bezpath(&notdef).unwrap();
+        let glyph0 = Glyph::Empty;
         let glyph1 = SimpleGlyph::from_bezpath(&square).unwrap();
         let glyph2 = SimpleGlyph::from_bezpath(&triangle).unwrap();
         let gid1 = GlyphId::new(1);

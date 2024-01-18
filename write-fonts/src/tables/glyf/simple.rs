@@ -235,6 +235,10 @@ impl FontWrite for SimpleGlyph {
         assert!(self.contours.len() < i16::MAX as usize);
         assert!(self._instructions.len() < u16::MAX as usize);
         let n_contours = self.contours.len() as i16;
+        if n_contours == 0 {
+            // we don't bother writing empty glyphs
+            return;
+        }
         n_contours.write_into(writer);
         self.bbox.write_into(writer);
         // now write end points of contours:
