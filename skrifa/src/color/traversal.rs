@@ -481,13 +481,13 @@ pub(crate) fn traverse_v0_range(
 
 #[cfg(test)]
 mod tests {
-    use read_fonts::{
-        types::{BoundingBox, GlyphId},
-        FontRef, TableProvider,
-    };
+    use read_fonts::{types::BoundingBox, FontRef, TableProvider};
 
     use crate::{
-        color::{instance::ColrInstance, traversal::get_clipbox_font_units},
+        color::{
+            instance::ColrInstance, traversal::get_clipbox_font_units,
+            traversal_tests::test_glyph_defs::CLIPBOX,
+        },
         MetadataProvider,
     };
 
@@ -495,7 +495,7 @@ mod tests {
     fn clipbox_test() {
         let colr_font = font_test_data::COLRV0V1_VARIABLE;
         let font = FontRef::new(colr_font).unwrap();
-        let test_glyph_id = GlyphId::new(154);
+        let test_glyph_id = font.charmap().map(CLIPBOX[0]).unwrap();
         let upem = font.head().unwrap().units_per_em();
 
         let base_bounding_box = BoundingBox {

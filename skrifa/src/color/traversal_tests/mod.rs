@@ -359,6 +359,7 @@ variable_alpha_var1:VARIABLE_ALPHA,&[("APH1", -0.7)],
 variable_alpha_var2:VARIABLE_ALPHA,&[("APH2", -0.7), ("APH3", -0.2)],
 nocycle_multi_colrglyph:NO_CYCLE_MULTI_COLRGLYPH,&[],
 sweep_coincident:SWEEP_COINCIDENT,&[],
+paint_glyph_nested:PAINT_GLYPH_NESTED,&[],
 );
 
 macro_rules! colrv0_traversal_tests {

@@ -399,22 +399,29 @@ impl<'a> ColorGlyphCollection<'a> {
 #[cfg(test)]
 mod tests {
 
-    use crate::{prelude::LocationRef, MetadataProvider};
+    use crate::{
+        color::traversal_tests::test_glyph_defs::PAINTCOLRGLYPH_CYCLE, prelude::LocationRef,
+        MetadataProvider,
+    };
+
     use read_fonts::{types::BoundingBox, FontRef};
 
     use super::{Brush, ColorPainter, CompositeMode, GlyphId, Transform};
+    use crate::color::traversal_tests::test_glyph_defs::{COLORED_CIRCLES_V0, COLORED_CIRCLES_V1};
 
     #[test]
     fn has_colrv1_glyph_test() {
         let colr_font = font_test_data::COLRV0V1_VARIABLE;
         let font = FontRef::new(colr_font).unwrap();
-        let get_colrv1_glyph = |glyph_id| {
-            font.color_glyphs()
-                .get_with_format(glyph_id, crate::color::ColorGlyphFormat::ColrV1)
+        let get_colrv1_glyph = |codepoint: &[char]| {
+            font.charmap().map(codepoint[0]).and_then(|glyph_id| {
+                font.color_glyphs()
+                    .get_with_format(glyph_id, crate::color::ColorGlyphFormat::ColrV1)
+            })
         };
 
-        assert!(get_colrv1_glyph(GlyphId::new(166)).is_none());
-        assert!(get_colrv1_glyph(GlyphId::new(167)).is_some());
+        assert!(get_colrv1_glyph(COLORED_CIRCLES_V0).is_none());
+        assert!(get_colrv1_glyph(COLORED_CIRCLES_V1).is_some());
     }
     struct DummyColorPainter {}
 
@@ -445,9 +452,10 @@ mod tests {
     fn paintcolrglyph_cycle_test() {
         let colr_font = font_test_data::COLRV0V1_VARIABLE;
         let font = FontRef::new(colr_font).unwrap();
+        let cycle_glyph_id = font.charmap().map(PAINTCOLRGLYPH_CYCLE[0]).unwrap();
         let colrv1_glyph = font
             .color_glyphs()
-            .get_with_format(GlyphId::new(176), crate::color::ColorGlyphFormat::ColrV1);
+            .get_with_format(cycle_glyph_id, crate::color::ColorGlyphFormat::ColrV1);
 
         assert!(colrv1_glyph.is_some());
         let mut color_painter = DummyColorPainter::new();
