@@ -36,6 +36,8 @@ impl TopLevelTable for Glyf {
 /// A simple or composite glyph
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Glyph {
+    /// An empty glyph gets an entry in `loca`, but no data is written to `glyf`
+    Empty,
     Simple(SimpleGlyph),
     Composite(CompositeGlyph),
 }
@@ -55,18 +57,11 @@ pub struct Bbox {
 
 impl Glyph {
     /// The bounding box for the glyph
-    pub fn bbox(&self) -> Bbox {
+    pub fn bbox(&self) -> Option<Bbox> {
         match self {
-            Glyph::Simple(glyph) => glyph.bbox,
-            Glyph::Composite(glyph) => glyph.bbox,
-        }
-    }
-
-    /// 'true' if the glyph contains no contours or components
-    pub fn is_empty(&self) -> bool {
-        match self {
-            Glyph::Simple(glyph) => glyph.contours().is_empty(),
-            Glyph::Composite(glyph) => glyph.components().is_empty(),
+            Glyph::Empty => None,
+            Glyph::Simple(glyph) => Some(glyph.bbox),
+            Glyph::Composite(glyph) => Some(glyph.bbox),
         }
     }
 }
@@ -132,7 +127,11 @@ impl<'a> FontRead<'a> for Glyph {
 
 impl From<SimpleGlyph> for Glyph {
     fn from(value: SimpleGlyph) -> Self {
-        Glyph::Simple(value)
+        if value.contours().is_empty() {
+            Glyph::Empty
+        } else {
+            Glyph::Simple(value)
+        }
     }
 }
 
@@ -145,6 +144,7 @@ impl From<CompositeGlyph> for Glyph {
 impl Validate for Glyph {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         match self {
+            Glyph::Empty => (),
             Glyph::Simple(glyph) => glyph.validate_impl(ctx),
             Glyph::Composite(glyph) => glyph.validate_impl(ctx),
         }
@@ -154,6 +154,7 @@ impl Validate for Glyph {
 impl FontWrite for Glyph {
     fn write_into(&self, writer: &mut crate::TableWriter) {
         match self {
+            Glyph::Empty => (),
             Glyph::Simple(glyph) => glyph.write_into(writer),
             Glyph::Composite(glyph) => glyph.write_into(writer),
         }
