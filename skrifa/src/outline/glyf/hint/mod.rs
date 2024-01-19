@@ -1,12 +1,16 @@
 //! TrueType hinting.
 
+mod error;
+mod graphics_state;
+mod math;
+
 use read_fonts::{
     tables::glyf::PointFlags,
     types::{F26Dot6, F2Dot14, Point},
 };
 
 /// Outline data that is passed to the hinter.
-pub struct HinterOutline<'a> {
+pub struct HintOutline<'a> {
     pub unscaled: &'a mut [Point<i32>],
     pub scaled: &'a mut [Point<F26Dot6>],
     pub original_scaled: &'a mut [Point<F26Dot6>],
