@@ -1110,6 +1110,50 @@ pub enum Glyph<'a> {
     Composite(CompositeGlyph<'a>),
 }
 
+impl<'a> Glyph<'a> {
+    /// If the number of contours is greater than or equal to zero,
+    /// this is a simple glyph. If negative, this is a composite glyph
+    /// — the value -1 should be used for composite glyphs.
+    pub fn number_of_contours(&self) -> i16 {
+        match self {
+            Self::Simple(item) => item.number_of_contours(),
+            Self::Composite(item) => item.number_of_contours(),
+        }
+    }
+
+    /// Minimum x for coordinate data.
+    pub fn x_min(&self) -> i16 {
+        match self {
+            Self::Simple(item) => item.x_min(),
+            Self::Composite(item) => item.x_min(),
+        }
+    }
+
+    /// Minimum y for coordinate data.
+    pub fn y_min(&self) -> i16 {
+        match self {
+            Self::Simple(item) => item.y_min(),
+            Self::Composite(item) => item.y_min(),
+        }
+    }
+
+    /// Maximum x for coordinate data.
+    pub fn x_max(&self) -> i16 {
+        match self {
+            Self::Simple(item) => item.x_max(),
+            Self::Composite(item) => item.x_max(),
+        }
+    }
+
+    /// Maximum y for coordinate data.
+    pub fn y_max(&self) -> i16 {
+        match self {
+            Self::Simple(item) => item.y_max(),
+            Self::Composite(item) => item.y_max(),
+        }
+    }
+}
+
 impl<'a> FontRead<'a> for Glyph<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: i16 = data.read_at(0usize)?;

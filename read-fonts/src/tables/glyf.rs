@@ -5,25 +5,6 @@ use types::{F26Dot6, Pen, Point};
 
 include!("../../generated/generated_glyf.rs");
 
-macro_rules! field_getter {
-    ($field:ident, $ty:ty) => {
-        pub fn $field(&self) -> $ty {
-            match self {
-                Self::Simple(table) => table.$field(),
-                Self::Composite(table) => table.$field(),
-            }
-        }
-    };
-}
-
-impl<'a> Glyph<'a> {
-    field_getter!(number_of_contours, i16);
-    field_getter!(x_min, i16);
-    field_getter!(x_max, i16);
-    field_getter!(y_min, i16);
-    field_getter!(y_max, i16);
-}
-
 /// Marker bits for point flags that are set during variation delta
 /// processing and hinting.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]

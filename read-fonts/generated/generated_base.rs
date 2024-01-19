@@ -932,6 +932,26 @@ pub enum BaseCoord<'a> {
     Format3(BaseCoordFormat3<'a>),
 }
 
+impl<'a> BaseCoord<'a> {
+    /// Format identifier — format = 1
+    pub fn base_coord_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.base_coord_format(),
+            Self::Format2(item) => item.base_coord_format(),
+            Self::Format3(item) => item.base_coord_format(),
+        }
+    }
+
+    /// X or Y value, in design units
+    pub fn coordinate(&self) -> i16 {
+        match self {
+            Self::Format1(item) => item.coordinate(),
+            Self::Format2(item) => item.coordinate(),
+            Self::Format3(item) => item.coordinate(),
+        }
+    }
+}
+
 impl<'a> FontRead<'a> for BaseCoord<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;

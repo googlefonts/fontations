@@ -685,20 +685,23 @@ impl Field {
         type_tokens
     }
 
-    pub(crate) fn table_getter(&self, generic: Option<&syn::Ident>) -> Option<TokenStream> {
+    pub(crate) fn table_getter_return_type(&self) -> Option<TokenStream> {
         if !self.has_getter() {
             return None;
         }
-
+        let return_type = self.raw_getter_return_type();
+        if self.is_version_dependent() {
+            Some(quote!(Option<#return_type>))
+        } else {
+            Some(return_type)
+        }
+    }
+    pub(crate) fn table_getter(&self, generic: Option<&syn::Ident>) -> Option<TokenStream> {
+        let return_type = self.table_getter_return_type()?;
         let name = &self.name;
         let is_array = self.is_array();
         let is_var_array = self.is_var_array();
         let is_versioned = self.is_version_dependent();
-
-        let mut return_type = self.raw_getter_return_type();
-        if is_versioned {
-            return_type = quote!(Option<#return_type>);
-        }
 
         let range_stmt = self.getter_range_stmt();
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {

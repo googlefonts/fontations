@@ -576,6 +576,35 @@ pub enum AnchorTable<'a> {
     Format3(AnchorFormat3<'a>),
 }
 
+impl<'a> AnchorTable<'a> {
+    /// Format identifier, = 1
+    pub fn anchor_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.anchor_format(),
+            Self::Format2(item) => item.anchor_format(),
+            Self::Format3(item) => item.anchor_format(),
+        }
+    }
+
+    /// Horizontal value, in design units
+    pub fn x_coordinate(&self) -> i16 {
+        match self {
+            Self::Format1(item) => item.x_coordinate(),
+            Self::Format2(item) => item.x_coordinate(),
+            Self::Format3(item) => item.x_coordinate(),
+        }
+    }
+
+    /// Vertical value, in design units
+    pub fn y_coordinate(&self) -> i16 {
+        match self {
+            Self::Format1(item) => item.y_coordinate(),
+            Self::Format2(item) => item.y_coordinate(),
+            Self::Format3(item) => item.y_coordinate(),
+        }
+    }
+}
+
 impl<'a> FontRead<'a> for AnchorTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
@@ -1054,6 +1083,32 @@ pub enum SinglePos<'a> {
     Format2(SinglePosFormat2<'a>),
 }
 
+impl<'a> SinglePos<'a> {
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.pos_format(),
+            Self::Format2(item) => item.pos_format(),
+        }
+    }
+
+    /// Offset to Coverage table, from beginning of SinglePos subtable.
+    pub fn coverage_offset(&self) -> Offset16 {
+        match self {
+            Self::Format1(item) => item.coverage_offset(),
+            Self::Format2(item) => item.coverage_offset(),
+        }
+    }
+
+    /// Defines the types of data in the ValueRecord.
+    pub fn value_format(&self) -> ValueFormat {
+        match self {
+            Self::Format1(item) => item.value_format(),
+            Self::Format2(item) => item.value_format(),
+        }
+    }
+}
+
 impl<'a> FontRead<'a> for SinglePos<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
@@ -1336,6 +1391,42 @@ impl<'a> std::fmt::Debug for SinglePosFormat2<'a> {
 pub enum PairPos<'a> {
     Format1(PairPosFormat1<'a>),
     Format2(PairPosFormat2<'a>),
+}
+
+impl<'a> PairPos<'a> {
+    /// Format identifier: format = 1
+    pub fn pos_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.pos_format(),
+            Self::Format2(item) => item.pos_format(),
+        }
+    }
+
+    /// Offset to Coverage table, from beginning of PairPos subtable.
+    pub fn coverage_offset(&self) -> Offset16 {
+        match self {
+            Self::Format1(item) => item.coverage_offset(),
+            Self::Format2(item) => item.coverage_offset(),
+        }
+    }
+
+    /// Defines the types of data in valueRecord1 — for the first
+    /// glyph in the pair (may be zero).
+    pub fn value_format1(&self) -> ValueFormat {
+        match self {
+            Self::Format1(item) => item.value_format1(),
+            Self::Format2(item) => item.value_format1(),
+        }
+    }
+
+    /// Defines the types of data in valueRecord2 — for the second
+    /// glyph in the pair (may be zero).
+    pub fn value_format2(&self) -> ValueFormat {
+        match self {
+            Self::Format1(item) => item.value_format2(),
+            Self::Format2(item) => item.value_format2(),
+        }
+    }
 }
 
 impl<'a> FontRead<'a> for PairPos<'a> {

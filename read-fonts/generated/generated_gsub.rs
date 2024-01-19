@@ -229,6 +229,25 @@ pub enum SingleSubst<'a> {
     Format2(SingleSubstFormat2<'a>),
 }
 
+impl<'a> SingleSubst<'a> {
+    /// Format identifier: format = 1
+    pub fn subst_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.subst_format(),
+            Self::Format2(item) => item.subst_format(),
+        }
+    }
+
+    /// Offset to Coverage table, from beginning of substitution
+    /// subtable
+    pub fn coverage_offset(&self) -> Offset16 {
+        match self {
+            Self::Format1(item) => item.coverage_offset(),
+            Self::Format2(item) => item.coverage_offset(),
+        }
+    }
+}
+
 impl<'a> FontRead<'a> for SingleSubst<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;

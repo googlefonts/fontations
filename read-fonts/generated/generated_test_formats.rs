@@ -226,6 +226,16 @@ pub enum MyTable<'a> {
     Format3(Table3<'a>),
 }
 
+impl<'a> MyTable<'a> {
+    pub fn format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.format(),
+            Self::MyFormat22(item) => item.format(),
+            Self::Format3(item) => item.format(),
+        }
+    }
+}
+
 impl<'a> FontRead<'a> for MyTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;

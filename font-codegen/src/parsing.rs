@@ -1,6 +1,8 @@
 //! raw parsing code
 
-use std::{backtrace::Backtrace, collections::HashMap, fmt::Display, ops::Deref, str::FromStr};
+use std::{
+    backtrace::Backtrace, collections::HashMap, fmt::Display, hash::Hash, ops::Deref, str::FromStr,
+};
 
 use font_types::Tag;
 use indexmap::IndexMap;
@@ -326,7 +328,7 @@ impl InlineExpr {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum FieldType {
     Offset {
         typ: syn::Ident,
@@ -352,7 +354,7 @@ pub(crate) enum FieldType {
     VarLenArray(CustomArray),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum OffsetTarget {
     Table(syn::Ident),
     Array(Box<FieldType>),
@@ -364,6 +366,21 @@ pub(crate) struct CustomArray {
     span: Span,
     inner: syn::Ident,
     lifetime: Option<syn::Lifetime>,
+}
+
+impl PartialEq for CustomArray {
+    fn eq(&self, other: &Self) -> bool {
+        self.inner == other.inner && self.lifetime == other.lifetime
+    }
+}
+
+impl Eq for CustomArray {}
+
+impl Hash for CustomArray {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.inner.hash(state);
+        self.lifetime.hash(state);
+    }
 }
 
 impl CustomArray {

@@ -205,6 +205,17 @@ pub enum FdSelect<'a> {
     Format4(FdSelectFormat4<'a>),
 }
 
+impl<'a> FdSelect<'a> {
+    /// Format = 0.
+    pub fn format(&self) -> u8 {
+        match self {
+            Self::Format0(item) => item.format(),
+            Self::Format3(item) => item.format(),
+            Self::Format4(item) => item.format(),
+        }
+    }
+}
+
 impl<'a> FontRead<'a> for FdSelect<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
