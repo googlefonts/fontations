@@ -232,7 +232,12 @@ fn should_rebaseline() -> bool {
 // To regenerate the baselines, set the enviroment variable `REBASELINE_COLRV1_TESTS`
 // when running tests, for example like this:
 // $ REBASELINE_COLRV1_TESTS=1 cargo test color::traversal
-fn colrv1_traversal_test(set_name: &str, test_chars: &[char], settings: &[(&str, f32)]) {
+fn colrv1_traversal_test(
+    set_name: &str,
+    test_chars: &[char],
+    settings: &[(&str, f32)],
+    required_format: crate::color::ColorGlyphFormat,
+) {
     let colr_font = font_test_data::COLRV0V1_VARIABLE;
     let font = FontRef::new(colr_font).unwrap();
 
@@ -250,13 +255,11 @@ fn colrv1_traversal_test(set_name: &str, test_chars: &[char], settings: &[(&str,
     let paint_dumps_iter = test_gids.map(|gid| {
         let mut color_painter = PaintDump::new(gid.to_u16());
 
-        let colrv1_glyph = font
-            .color_glyphs()
-            .get_with_format(gid, crate::color::ColorGlyphFormat::ColrV1);
+        let color_glyph = font.color_glyphs().get_with_format(gid, required_format);
 
-        assert!(colrv1_glyph.is_some());
+        assert!(color_glyph.is_some());
 
-        let result = colrv1_glyph
+        let result = color_glyph
             .unwrap()
             .paint(location.coords(), &mut color_painter);
 
@@ -302,7 +305,7 @@ macro_rules! colrv1_traversal_tests {
         $(
             #[test]
             fn $test_name() {
-                colrv1_traversal_test(stringify!($glyph_set), $glyph_set, $settings);
+                colrv1_traversal_test(stringify!($glyph_set), $glyph_set, $settings, crate::color::ColorGlyphFormat::ColrV1);
             }
         )*
     }
@@ -356,4 +359,20 @@ variable_alpha_var1:VARIABLE_ALPHA,&[("APH1", -0.7)],
 variable_alpha_var2:VARIABLE_ALPHA,&[("APH2", -0.7), ("APH3", -0.2)],
 nocycle_multi_colrglyph:NO_CYCLE_MULTI_COLRGLYPH,&[],
 sweep_coincident:SWEEP_COINCIDENT,&[],
+paint_glyph_nested:PAINT_GLYPH_NESTED,&[],
+);
+
+macro_rules! colrv0_traversal_tests {
+    ($($test_name:ident: $glyph_set:ident,)*) => {
+    $(
+        #[test]
+        fn $test_name() {
+            colrv1_traversal_test(stringify!($glyph_set), $glyph_set, &[], crate::color::ColorGlyphFormat::ColrV0);
+        }
+    )*
+}
+}
+
+colrv0_traversal_tests!(
+    colored_circles:COLORED_CIRCLES_V0,
 );

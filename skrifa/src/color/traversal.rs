@@ -1,4 +1,7 @@
-use std::{cmp::Ordering, collections::HashSet};
+use std::{
+    cmp::Ordering, collections::hash_map::DefaultHasher, collections::HashSet, hash::BuildHasher,
+    ops::Range,
+};
 
 use read_fonts::{
     tables::colr::{CompositeMode, Extend},
@@ -12,6 +15,16 @@ use super::{
     },
     Brush, ColorPainter, ColorStop, PaintCachedColorGlyph, PaintError,
 };
+
+// Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=1516634.
+pub(crate) struct NonRandomHasherState;
+
+impl BuildHasher for NonRandomHasherState {
+    type Hasher = DefaultHasher;
+    fn build_hasher(&self) -> DefaultHasher {
+        DefaultHasher::new()
+    }
+}
 
 pub(crate) fn get_clipbox_font_units(
     colr_instance: &ColrInstance,
@@ -43,7 +56,7 @@ pub(crate) fn traverse_with_callbacks(
     paint: &ResolvedPaint,
     instance: &ColrInstance,
     painter: &mut impl ColorPainter,
-    visited_set: &mut HashSet<usize>,
+    visited_set: &mut HashSet<usize, NonRandomHasherState>,
 ) -> Result<(), PaintError> {
     match paint {
         ResolvedPaint::ColrLayers { range } => {
@@ -447,15 +460,34 @@ pub(crate) fn traverse_with_callbacks(
     }
 }
 
+pub(crate) fn traverse_v0_range(
+    range: &Range<usize>,
+    instance: &ColrInstance,
+    painter: &mut impl ColorPainter,
+) -> Result<(), PaintError> {
+    for layer_index in range.clone() {
+        let (layer_index, palette_index) = (*instance).v0_layer(layer_index)?;
+        // TODO(https://github.com/googlefonts/fontations/issues/746):
+        // Use optimized callback function combining clip, fill and transforms.
+        painter.push_clip_glyph(layer_index);
+        painter.fill(Brush::Solid {
+            palette_index,
+            alpha: 1.0,
+        });
+        painter.pop_clip();
+    }
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
-    use read_fonts::{
-        types::{BoundingBox, GlyphId},
-        FontRef, TableProvider,
-    };
+    use read_fonts::{types::BoundingBox, FontRef, TableProvider};
 
     use crate::{
-        color::{instance::ColrInstance, traversal::get_clipbox_font_units},
+        color::{
+            instance::ColrInstance, traversal::get_clipbox_font_units,
+            traversal_tests::test_glyph_defs::CLIPBOX,
+        },
         MetadataProvider,
     };
 
@@ -463,7 +495,7 @@ mod tests {
     fn clipbox_test() {
         let colr_font = font_test_data::COLRV0V1_VARIABLE;
         let font = FontRef::new(colr_font).unwrap();
-        let test_glyph_id = GlyphId::new(154);
+        let test_glyph_id = font.charmap().map(CLIPBOX[0]).unwrap();
         let upem = font.head().unwrap().units_per_em();
 
         let base_bounding_box = BoundingBox {

@@ -14,7 +14,7 @@ use super::layout::{
 mod tests;
 
 /// A GSUB lookup list table.
-type SubstitutionLookupList = LookupList<SubstitutionLookup>;
+pub type SubstitutionLookupList = LookupList<SubstitutionLookup>;
 
 super::layout::table_newtype!(
     SubstitutionSequenceContext,
