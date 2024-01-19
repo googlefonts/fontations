@@ -8,7 +8,7 @@ use core::ops::{Deref, DerefMut};
 use read_fonts::types::Point;
 
 pub use {
-    round::{RoundMode, RoundState},
+    round::RoundState,
     zone::{Zone, ZonePointer},
 };
 
