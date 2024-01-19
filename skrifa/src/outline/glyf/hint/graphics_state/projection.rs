@@ -101,8 +101,10 @@ mod tests {
 
     #[test]
     fn project_one_axis() {
-        let mut state = GraphicsState::default();
-        state.proj_vector = math::normalize14(1, 0);
+        let mut state = GraphicsState {
+            proj_vector: math::normalize14(1, 0),
+            ..Default::default()
+        };
         state.update_projection_state();
         assert_eq!(state.proj_axis, CoordAxis::X);
         assert_eq!(state.proj_vector, Point::new(0x4000, 0));
@@ -117,8 +119,10 @@ mod tests {
 
     #[test]
     fn project_both_axes() {
-        let mut state = GraphicsState::default();
-        state.proj_vector = math::normalize14(0x4000, 0x4000);
+        let mut state = GraphicsState {
+            proj_vector: math::normalize14(0x4000, 0x4000),
+            ..Default::default()
+        };
         state.update_projection_state();
         assert_eq!(state.proj_axis, CoordAxis::Both);
         let cases = &[
