@@ -385,6 +385,33 @@ pub enum DeltaSetIndexMap<'a> {
     Format1(DeltaSetIndexMapFormat1<'a>),
 }
 
+impl<'a> DeltaSetIndexMap<'a> {
+    /// DeltaSetIndexMap format: set to 0.
+    pub fn format(&self) -> u8 {
+        match self {
+            Self::Format0(item) => item.format(),
+            Self::Format1(item) => item.format(),
+        }
+    }
+
+    /// A packed field that describes the compressed representation of
+    /// delta-set indices. See details below.
+    pub fn entry_format(&self) -> EntryFormat {
+        match self {
+            Self::Format0(item) => item.entry_format(),
+            Self::Format1(item) => item.entry_format(),
+        }
+    }
+
+    /// The delta-set index mapping data. See details below.
+    pub fn map_data(&self) -> &'a [u8] {
+        match self {
+            Self::Format0(item) => item.map_data(),
+            Self::Format1(item) => item.map_data(),
+        }
+    }
+}
+
 impl<'a> FontRead<'a> for DeltaSetIndexMap<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;

@@ -1155,6 +1155,16 @@ pub enum CoverageTable<'a> {
     Format2(CoverageFormat2<'a>),
 }
 
+impl<'a> CoverageTable<'a> {
+    /// Format identifier — format = 1
+    pub fn coverage_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.coverage_format(),
+            Self::Format2(item) => item.coverage_format(),
+        }
+    }
+}
+
 impl<'a> FontRead<'a> for CoverageTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
@@ -1443,6 +1453,16 @@ impl<'a> SomeRecord<'a> for ClassRangeRecord {
 pub enum ClassDef<'a> {
     Format1(ClassDefFormat1<'a>),
     Format2(ClassDefFormat2<'a>),
+}
+
+impl<'a> ClassDef<'a> {
+    /// Format identifier — format = 1
+    pub fn class_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.class_format(),
+            Self::Format2(item) => item.class_format(),
+        }
+    }
 }
 
 impl<'a> FontRead<'a> for ClassDef<'a> {
@@ -2350,6 +2370,17 @@ pub enum SequenceContext<'a> {
     Format1(SequenceContextFormat1<'a>),
     Format2(SequenceContextFormat2<'a>),
     Format3(SequenceContextFormat3<'a>),
+}
+
+impl<'a> SequenceContext<'a> {
+    /// Format identifier: format = 1
+    pub fn format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.format(),
+            Self::Format2(item) => item.format(),
+            Self::Format3(item) => item.format(),
+        }
+    }
 }
 
 impl<'a> FontRead<'a> for SequenceContext<'a> {
@@ -3493,6 +3524,17 @@ pub enum ChainedSequenceContext<'a> {
     Format1(ChainedSequenceContextFormat1<'a>),
     Format2(ChainedSequenceContextFormat2<'a>),
     Format3(ChainedSequenceContextFormat3<'a>),
+}
+
+impl<'a> ChainedSequenceContext<'a> {
+    /// Format identifier: format = 1
+    pub fn format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.format(),
+            Self::Format2(item) => item.format(),
+            Self::Format3(item) => item.format(),
+        }
+    }
 }
 
 impl<'a> FontRead<'a> for ChainedSequenceContext<'a> {

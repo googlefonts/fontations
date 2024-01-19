@@ -1,6 +1,9 @@
 //! codegen for table objects
 
+use std::collections::HashMap;
+
 use crate::{fields::FieldConstructorInfo, parsing::logged_syn_error};
+use indexmap::IndexMap;
 use proc_macro2::{Span, TokenStream};
 use quote::{quote, ToTokens};
 
@@ -593,6 +596,72 @@ fn generate_format_constructors(item: &TableFormat, items: &Items) -> syn::Resul
     })
 }
 
+fn generate_format_shared_getters(item: &TableFormat, items: &Items) -> syn::Result<TokenStream> {
+    // okay so we want to identify the getters that exist on all variants.
+    let all_variants = item
+        .variants
+        .iter()
+        .map(|var| {
+            let type_name = var.type_name();
+            match items.get(type_name) {
+                Some(Item::Table(item)) => Ok(item),
+                _ => Err(logged_syn_error(
+                    type_name.span(),
+                    "must be a table defined in this file",
+                )),
+            }
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    // okay so now we have all of the actual inner types, and we need to find which
+    // getters are shared between all of them
+    let mut field_counts = IndexMap::new();
+    let mut all_fields = HashMap::new();
+    for table in &all_variants {
+        for field in table.fields.iter().filter(|fld| fld.has_getter()) {
+            let key = (&field.name, &field.typ);
+            // we have to convert the tokens to a string to get hash/ord/etc
+            *field_counts.entry(key).or_insert(0usize) += 1;
+            all_fields.entry(&field.name).or_insert(field);
+        }
+    }
+
+    let shared_fields = field_counts
+        .into_iter()
+        .filter(|(_, count)| *count == all_variants.len())
+        .map(|((name, _), _)| all_fields.get(name).unwrap())
+        .collect::<Vec<_>>();
+
+    let getters = shared_fields
+        .iter()
+        .map(|fld| generate_format_getter_for_shared_field(item, fld));
+
+    // now we have a collection of fields present on all variants, and
+    // we need to actually generate the wrapping getter
+
+    Ok(quote!( #( #getters )* ))
+}
+
+fn generate_format_getter_for_shared_field(item: &TableFormat, field: &Field) -> TokenStream {
+    let docs = &field.attrs.docs;
+    let method_name = &field.name;
+    let return_type = field.table_getter_return_type();
+    let arms = item.variants.iter().map(|variant| {
+        let var_name = &variant.name;
+        quote!(Self::#var_name(item) => item.#method_name(), )
+    });
+
+    // but we also need to handle offset getters, and that's a pain
+
+    quote! {
+        #( #docs )*
+        pub fn #method_name(&self) -> #return_type {
+            match self {
+                #( #arms )*
+            }
+        }
+    }
+}
+
 fn generate_format_from_obj(
     item: &TableFormat,
     parse_module: &syn::Path,
@@ -628,7 +697,7 @@ fn generate_format_from_obj(
     })
 }
 
-pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStream> {
+pub(crate) fn generate_format_group(item: &TableFormat, items: &Items) -> syn::Result<TokenStream> {
     let name = &item.name;
     let docs = &item.attrs.docs;
     let variants = item
@@ -684,12 +753,23 @@ pub(crate) fn generate_format_group(item: &TableFormat) -> syn::Result<TokenStre
         .map(|lit| lit.base10_parse::<usize>().unwrap())
         .unwrap_or(0);
 
+    let getters = generate_format_shared_getters(item, items)?;
+    let getters = (!getters.is_empty()).then(|| {
+        quote! {
+            impl<'a> #name<'a> {
+                #getters
+            }
+        }
+    });
+
     Ok(quote! {
         #( #docs )*
         #[derive(Clone)]
         pub enum #name<'a> {
             #( #variants ),*
         }
+
+        #getters
 
         impl<'a> FontRead<'a> for #name<'a> {
             fn read(data: FontData<'a>) -> Result<Self, ReadError> {

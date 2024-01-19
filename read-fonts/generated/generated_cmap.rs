@@ -231,6 +231,23 @@ pub enum CmapSubtable<'a> {
     Format14(Cmap14<'a>),
 }
 
+impl<'a> CmapSubtable<'a> {
+    /// Format number is set to 0.
+    pub fn format(&self) -> u16 {
+        match self {
+            Self::Format0(item) => item.format(),
+            Self::Format2(item) => item.format(),
+            Self::Format4(item) => item.format(),
+            Self::Format6(item) => item.format(),
+            Self::Format8(item) => item.format(),
+            Self::Format10(item) => item.format(),
+            Self::Format12(item) => item.format(),
+            Self::Format13(item) => item.format(),
+            Self::Format14(item) => item.format(),
+        }
+    }
+}
+
 impl<'a> FontRead<'a> for CmapSubtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;

@@ -653,6 +653,17 @@ pub enum CaretValue<'a> {
     Format3(CaretValueFormat3<'a>),
 }
 
+impl<'a> CaretValue<'a> {
+    /// Format identifier: format = 1
+    pub fn caret_value_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.caret_value_format(),
+            Self::Format2(item) => item.caret_value_format(),
+            Self::Format3(item) => item.caret_value_format(),
+        }
+    }
+}
+
 impl<'a> FontRead<'a> for CaretValue<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;

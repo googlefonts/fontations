@@ -71,7 +71,7 @@ pub(crate) fn generate_parse_module(items: &Items) -> Result<proc_macro2::TokenS
             Item::Record(item) => record::generate(item, items)?,
             Item::Table(item) => table::generate(item)?,
             Item::GenericGroup(item) => table::generate_group(item)?,
-            Item::Format(item) => table::generate_format_group(item)?,
+            Item::Format(item) => table::generate_format_group(item, items)?,
             Item::RawEnum(item) => flags_enums::generate_raw_enum(item),
             Item::Flags(item) => flags_enums::generate_flags(item),
             Item::Extern(..) => Default::default(),

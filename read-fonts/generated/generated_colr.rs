@@ -785,6 +785,48 @@ pub enum ClipBox<'a> {
     Format2(ClipBoxFormat2<'a>),
 }
 
+impl<'a> ClipBox<'a> {
+    /// Set to 1.
+    pub fn format(&self) -> u8 {
+        match self {
+            Self::Format1(item) => item.format(),
+            Self::Format2(item) => item.format(),
+        }
+    }
+
+    /// Minimum x of clip box.
+    pub fn x_min(&self) -> FWord {
+        match self {
+            Self::Format1(item) => item.x_min(),
+            Self::Format2(item) => item.x_min(),
+        }
+    }
+
+    /// Minimum y of clip box.
+    pub fn y_min(&self) -> FWord {
+        match self {
+            Self::Format1(item) => item.y_min(),
+            Self::Format2(item) => item.y_min(),
+        }
+    }
+
+    /// Maximum x of clip box.
+    pub fn x_max(&self) -> FWord {
+        match self {
+            Self::Format1(item) => item.x_max(),
+            Self::Format2(item) => item.x_max(),
+        }
+    }
+
+    /// Maximum y of clip box.
+    pub fn y_max(&self) -> FWord {
+        match self {
+            Self::Format1(item) => item.y_max(),
+            Self::Format2(item) => item.y_max(),
+        }
+    }
+}
+
 impl<'a> FontRead<'a> for ClipBox<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u8 = data.read_at(0usize)?;
@@ -1523,6 +1565,46 @@ pub enum Paint<'a> {
     SkewAroundCenter(PaintSkewAroundCenter<'a>),
     VarSkewAroundCenter(PaintVarSkewAroundCenter<'a>),
     Composite(PaintComposite<'a>),
+}
+
+impl<'a> Paint<'a> {
+    /// Set to 1.
+    pub fn format(&self) -> u8 {
+        match self {
+            Self::ColrLayers(item) => item.format(),
+            Self::Solid(item) => item.format(),
+            Self::VarSolid(item) => item.format(),
+            Self::LinearGradient(item) => item.format(),
+            Self::VarLinearGradient(item) => item.format(),
+            Self::RadialGradient(item) => item.format(),
+            Self::VarRadialGradient(item) => item.format(),
+            Self::SweepGradient(item) => item.format(),
+            Self::VarSweepGradient(item) => item.format(),
+            Self::Glyph(item) => item.format(),
+            Self::ColrGlyph(item) => item.format(),
+            Self::Transform(item) => item.format(),
+            Self::VarTransform(item) => item.format(),
+            Self::Translate(item) => item.format(),
+            Self::VarTranslate(item) => item.format(),
+            Self::Scale(item) => item.format(),
+            Self::VarScale(item) => item.format(),
+            Self::ScaleAroundCenter(item) => item.format(),
+            Self::VarScaleAroundCenter(item) => item.format(),
+            Self::ScaleUniform(item) => item.format(),
+            Self::VarScaleUniform(item) => item.format(),
+            Self::ScaleUniformAroundCenter(item) => item.format(),
+            Self::VarScaleUniformAroundCenter(item) => item.format(),
+            Self::Rotate(item) => item.format(),
+            Self::VarRotate(item) => item.format(),
+            Self::RotateAroundCenter(item) => item.format(),
+            Self::VarRotateAroundCenter(item) => item.format(),
+            Self::Skew(item) => item.format(),
+            Self::VarSkew(item) => item.format(),
+            Self::SkewAroundCenter(item) => item.format(),
+            Self::VarSkewAroundCenter(item) => item.format(),
+            Self::Composite(item) => item.format(),
+        }
+    }
 }
 
 impl<'a> FontRead<'a> for Paint<'a> {

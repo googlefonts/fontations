@@ -352,6 +352,39 @@ pub enum AxisValue<'a> {
     Format4(AxisValueFormat4<'a>),
 }
 
+impl<'a> AxisValue<'a> {
+    /// Format identifier — set to 1.
+    pub fn format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.format(),
+            Self::Format2(item) => item.format(),
+            Self::Format3(item) => item.format(),
+            Self::Format4(item) => item.format(),
+        }
+    }
+
+    /// Flags — see below for details.
+    pub fn flags(&self) -> AxisValueTableFlags {
+        match self {
+            Self::Format1(item) => item.flags(),
+            Self::Format2(item) => item.flags(),
+            Self::Format3(item) => item.flags(),
+            Self::Format4(item) => item.flags(),
+        }
+    }
+
+    /// The name ID for entries in the 'name' table that provide a
+    /// display string for this attribute value.
+    pub fn value_name_id(&self) -> NameId {
+        match self {
+            Self::Format1(item) => item.value_name_id(),
+            Self::Format2(item) => item.value_name_id(),
+            Self::Format3(item) => item.value_name_id(),
+            Self::Format4(item) => item.value_name_id(),
+        }
+    }
+}
+
 impl<'a> FontRead<'a> for AxisValue<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;

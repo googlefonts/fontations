@@ -851,6 +851,41 @@ pub enum IndexSubtable<'a> {
     Format5(IndexSubtable5<'a>),
 }
 
+impl<'a> IndexSubtable<'a> {
+    /// Format of this IndexSubTable.
+    pub fn index_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.index_format(),
+            Self::Format2(item) => item.index_format(),
+            Self::Format3(item) => item.index_format(),
+            Self::Format4(item) => item.index_format(),
+            Self::Format5(item) => item.index_format(),
+        }
+    }
+
+    /// Format of EBDT image data.
+    pub fn image_format(&self) -> u16 {
+        match self {
+            Self::Format1(item) => item.image_format(),
+            Self::Format2(item) => item.image_format(),
+            Self::Format3(item) => item.image_format(),
+            Self::Format4(item) => item.image_format(),
+            Self::Format5(item) => item.image_format(),
+        }
+    }
+
+    /// Offset to image data in EBDT table.
+    pub fn image_data_offset(&self) -> u32 {
+        match self {
+            Self::Format1(item) => item.image_data_offset(),
+            Self::Format2(item) => item.image_data_offset(),
+            Self::Format3(item) => item.image_data_offset(),
+            Self::Format4(item) => item.image_data_offset(),
+            Self::Format5(item) => item.image_data_offset(),
+        }
+    }
+}
+
 impl<'a> FontRead<'a> for IndexSubtable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let format: u16 = data.read_at(0usize)?;
