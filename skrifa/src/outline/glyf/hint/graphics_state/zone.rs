@@ -6,11 +6,7 @@ use read_fonts::{
 };
 
 use super::{
-    super::{
-        error::HintErrorKind,
-        graphics_state::CoordAxis,
-        math::{div, mul},
-    },
+    super::{error::HintErrorKind, graphics_state::CoordAxis, math},
     GraphicsState,
 };
 
@@ -21,13 +17,13 @@ use HintErrorKind::{InvalidPointIndex, InvalidPointRange};
 /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructing_glyphs#zones>
 #[derive(Copy, Clone, PartialEq, Default, Debug)]
 #[repr(u8)]
-pub enum Zone {
+pub enum ZonePointer {
     Twilight = 0,
     #[default]
     Glyph = 1,
 }
 
-impl Zone {
+impl ZonePointer {
     pub fn is_twilight(self) -> bool {
         self == Self::Twilight
     }
@@ -37,7 +33,7 @@ impl Zone {
     }
 }
 
-impl TryFrom<i32> for Zone {
+impl TryFrom<i32> for ZonePointer {
     type Error = HintErrorKind;
 
     fn try_from(value: i32) -> Result<Self, Self::Error> {
@@ -53,7 +49,7 @@ impl TryFrom<i32> for Zone {
 ///
 /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructing_glyphs#zones>
 #[derive(Default, Debug)]
-pub struct ZoneData<'a> {
+pub struct Zone<'a> {
     pub unscaled: &'a mut [Point<i32>],
     pub original: &'a mut [Point<i32>],
     pub points: &'a mut [Point<i32>],
@@ -61,7 +57,7 @@ pub struct ZoneData<'a> {
     pub contours: &'a [u16],
 }
 
-impl<'a> ZoneData<'a> {
+impl<'a> Zone<'a> {
     /// Creates a new hinting zone.
     pub fn new(
         unscaled: &'a mut [Point<i32>],
@@ -186,8 +182,10 @@ impl<'a> ZoneData<'a> {
         Ok(())
     }
 
-    pub fn iup(&mut self, is_x: bool) -> Result<(), HintErrorKind> {
-        let coord_axis = if is_x { CoordAxis::X } else { CoordAxis::Y };
+    /// Interpolate untouched points.
+    ///
+    /// Based on <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6391>
+    pub fn iup(&mut self, axis: CoordAxis) -> Result<(), HintErrorKind> {
         let mut point = 0;
         for i in 0..self.contours.len() {
             let mut end_point = self.contour(i)? as usize;
@@ -195,7 +193,7 @@ impl<'a> ZoneData<'a> {
             if end_point >= self.points.len() {
                 end_point = self.points.len() - 1;
             }
-            while point <= end_point && !self.is_touched(point, coord_axis)? {
+            while point <= end_point && !self.is_touched(point, axis)? {
                 point += 1;
             }
             if point <= end_point {
@@ -203,17 +201,17 @@ impl<'a> ZoneData<'a> {
                 let mut cur_touched = point;
                 point += 1;
                 while point <= end_point {
-                    if self.is_touched(point, coord_axis)? {
-                        self.iup_interpolate(is_x, cur_touched + 1, point - 1, cur_touched, point)?;
+                    if self.is_touched(point, axis)? {
+                        self.iup_interpolate(axis, cur_touched + 1, point - 1, cur_touched, point)?;
                         cur_touched = point;
                     }
                     point += 1;
                 }
                 if cur_touched == first_touched {
-                    self.iup_shift(is_x, first_point, end_point, cur_touched)?;
+                    self.iup_shift(axis, first_point, end_point, cur_touched)?;
                 } else {
                     self.iup_interpolate(
-                        is_x,
+                        axis,
                         cur_touched + 1,
                         end_point,
                         cur_touched,
@@ -221,7 +219,7 @@ impl<'a> ZoneData<'a> {
                     )?;
                     if first_touched > 0 {
                         self.iup_interpolate(
-                            is_x,
+                            axis,
                             first_point,
                             first_touched - 1,
                             cur_touched,
@@ -234,9 +232,13 @@ impl<'a> ZoneData<'a> {
         Ok(())
     }
 
+    /// Shift the range of points p1..=p2 based on the delta given by the
+    /// reference point p.
+    ///
+    /// Based on <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6262>
     fn iup_shift(
         &mut self,
-        is_x: bool,
+        axis: CoordAxis,
         p1: usize,
         p2: usize,
         p: usize,
@@ -262,7 +264,7 @@ impl<'a> ZoneData<'a> {
                 }
             };
         }
-        if is_x {
+        if axis == CoordAxis::X {
             shift_coord!(x);
         } else {
             shift_coord!(y);
@@ -270,9 +272,13 @@ impl<'a> ZoneData<'a> {
         Ok(())
     }
 
+    /// Interpolate the range of points p1..=p2 based on the deltas
+    /// given by the two reference points.
+    ///
+    /// Based on <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6284>
     fn iup_interpolate(
         &mut self,
-        is_x: bool,
+        axis: CoordAxis,
         p1: usize,
         p2: usize,
         mut ref1: usize,
@@ -327,7 +333,7 @@ impl<'a> ZoneData<'a> {
                         };
                     }
                 } else {
-                    let scale = div(cur2 - cur1, orus2 - orus1);
+                    let scale = math::div(cur2 - cur1, orus2 - orus1);
                     for ((orig, unscaled), point) in iter {
                         let a = orig.$coord;
                         point.$coord = if a <= org1 {
@@ -335,13 +341,13 @@ impl<'a> ZoneData<'a> {
                         } else if a >= org2 {
                             a + delta2
                         } else {
-                            cur1 + mul(unscaled.$coord - orus1, scale)
+                            cur1 + math::mul(unscaled.$coord - orus1, scale)
                         };
                     }
                 }
             };
         }
-        if is_x {
+        if axis == CoordAxis::X {
             interpolate_coord!(x);
         } else {
             interpolate_coord!(y);
@@ -352,48 +358,147 @@ impl<'a> ZoneData<'a> {
 
 impl<'a> GraphicsState<'a> {
     pub fn reset_zone_pointers(&mut self) {
-        self.zp0 = Zone::default();
-        self.zp1 = Zone::default();
-        self.zp2 = Zone::default();
+        self.zp0 = ZonePointer::default();
+        self.zp1 = ZonePointer::default();
+        self.zp2 = ZonePointer::default();
     }
 
     #[inline(always)]
-    pub fn zone(&self, zone: Zone) -> &ZoneData<'a> {
-        &self.zone_data[zone as usize]
+    pub fn zone(&self, pointer: ZonePointer) -> &Zone<'a> {
+        &self.zones[pointer as usize]
     }
 
     #[inline(always)]
-    pub fn zone_mut(&mut self, zone: Zone) -> &mut ZoneData<'a> {
-        &mut self.zone_data[zone as usize]
+    pub fn zone_mut(&mut self, pointer: ZonePointer) -> &mut Zone<'a> {
+        &mut self.zones[pointer as usize]
     }
 
     #[inline(always)]
-    pub fn zp0(&self) -> &ZoneData<'a> {
+    pub fn zp0(&self) -> &Zone<'a> {
         self.zone(self.zp0)
     }
 
     #[inline(always)]
-    pub fn zp0_mut(&mut self) -> &mut ZoneData<'a> {
+    pub fn zp0_mut(&mut self) -> &mut Zone<'a> {
         self.zone_mut(self.zp0)
     }
 
     #[inline(always)]
-    pub fn zp1(&self) -> &ZoneData {
+    pub fn zp1(&self) -> &Zone {
         self.zone(self.zp1)
     }
 
     #[inline(always)]
-    pub fn zp1_mut(&mut self) -> &mut ZoneData<'a> {
+    pub fn zp1_mut(&mut self) -> &mut Zone<'a> {
         self.zone_mut(self.zp1)
     }
 
     #[inline(always)]
-    pub fn zp2(&self) -> &ZoneData {
+    pub fn zp2(&self) -> &Zone {
         self.zone(self.zp2)
     }
 
     #[inline(always)]
-    pub fn zp2_mut(&mut self) -> &mut ZoneData<'a> {
+    pub fn zp2_mut(&mut self) -> &mut Zone<'a> {
         self.zone_mut(self.zp2)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{CoordAxis, Zone};
+    use raw::{
+        tables::glyf::{PointFlags, PointMarker},
+        types::Point,
+    };
+
+    #[test]
+    fn flip_on_curve_point() {
+        let on_curve = PointFlags::on_curve();
+        let off_curve = PointFlags::off_curve_quad();
+        let mut zone = Zone {
+            unscaled: &mut [],
+            original: &mut [],
+            points: &mut [],
+            contours: &[],
+            flags: &mut [on_curve, off_curve, off_curve, on_curve],
+        };
+        for i in 0..4 {
+            zone.flip_on_curve(i).unwrap();
+        }
+        assert_eq!(zone.flags, &[off_curve, on_curve, on_curve, off_curve]);
+    }
+
+    #[test]
+    fn set_on_curve_regions() {
+        let on_curve = PointFlags::on_curve();
+        let off_curve = PointFlags::off_curve_quad();
+        let mut zone = Zone {
+            unscaled: &mut [],
+            original: &mut [],
+            points: &mut [],
+            contours: &[],
+            flags: &mut [on_curve, off_curve, off_curve, on_curve],
+        };
+        zone.set_on_curve(0, 2, true).unwrap();
+        zone.set_on_curve(2, 4, false).unwrap();
+        assert_eq!(zone.flags, &[on_curve, on_curve, off_curve, off_curve]);
+    }
+
+    #[test]
+    fn iup_shift() {
+        let [untouched, touched] = point_markers();
+        // A single touched point shifts the whole contour
+        let mut zone = Zone {
+            unscaled: &mut [],
+            original: &mut [Point::new(0, 0), Point::new(10, 10), Point::new(20, 20)],
+            points: &mut [Point::new(-5, -20), Point::new(10, 10), Point::new(20, 20)],
+            contours: &[3],
+            flags: &mut [touched, untouched, untouched],
+        };
+        zone.iup(CoordAxis::X).unwrap();
+        assert_eq!(
+            zone.points,
+            &[Point::new(-5, -20), Point::new(5, 10), Point::new(15, 20)]
+        );
+        zone.iup(CoordAxis::Y).unwrap();
+        assert_eq!(
+            zone.points,
+            &[Point::new(-5, -20), Point::new(5, -10), Point::new(15, 0)]
+        );
+    }
+
+    #[test]
+    fn iup_interpolate() {
+        let [untouched, touched] = point_markers();
+        // Two touched points interpolates the intermediate point(s)
+        let mut zone = Zone {
+            unscaled: &mut [
+                Point::new(0, 0),
+                Point::new(500, 500),
+                Point::new(1000, 1000),
+            ],
+            original: &mut [Point::new(0, 0), Point::new(10, 10), Point::new(20, 20)],
+            points: &mut [Point::new(-5, -20), Point::new(10, 10), Point::new(27, 56)],
+            contours: &[3],
+            flags: &mut [touched, untouched, touched],
+        };
+        zone.iup(CoordAxis::X).unwrap();
+        assert_eq!(
+            zone.points,
+            &[Point::new(-5, -20), Point::new(11, 10), Point::new(27, 56)]
+        );
+        zone.iup(CoordAxis::Y).unwrap();
+        assert_eq!(
+            zone.points,
+            &[Point::new(-5, -20), Point::new(11, 18), Point::new(27, 56)]
+        );
+    }
+
+    fn point_markers() -> [PointFlags; 2] {
+        let untouched = PointFlags::default();
+        let mut touched = untouched;
+        touched.set_marker(PointMarker::TOUCHED);
+        [untouched, touched]
     }
 }

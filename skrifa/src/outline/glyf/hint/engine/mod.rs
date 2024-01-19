@@ -8,6 +8,7 @@ mod logical;
 mod stack;
 mod storage;
 
+use crate::outline::glyf::Outlines;
 use crate::prelude::NormalizedCoord;
 
 use super::call_stack::{CallRecord, CallStack};
@@ -17,20 +18,46 @@ use super::graphics_state::{CoordAxis, GraphicsState, RetainedGraphicsState, Rou
 use super::value_stack::ValueStack;
 use super::InstanceState;
 use super::{math::*, HintError};
-use super::{Cvt, EmbeddedHinting, Storage, Zone, ZoneData};
+use super::{Cvt, EmbeddedHinting, Storage, Zone, ZonePointer};
 
 pub type Point = super::Point<i32>;
 pub type OpResult = Result<(), HintErrorKind>;
 
 pub const TRACE: bool = false;
 
+pub struct LoopLimitTracker {
+    max_loop_calls: usize,
+    max_backward_jumps: usize,
+    loop_calls: usize,
+    backward_jumps: usize,
+}
+
+impl LoopLimitTracker {
+    pub fn new(outlines: &Outlines, point_count: Option<usize>) -> Self {
+        // Compute limits for loop calls and backward jumps.
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6955>
+        let mut max_loop_calls = if let Some(point_count) = point_count {
+            (point_count * 10).max(50) + (outlines.cvt.len() / 10).max(50)
+        } else {
+            300 + 22 * outlines.cvt.len()
+        };
+        max_loop_calls = max_loop_calls.min(100 * outlines.glyph_count());
+        Self {
+            max_loop_calls,
+            max_backward_jumps: max_loop_calls,
+            loop_calls: 0,
+            backward_jumps: 0,
+        }
+    }
+}
+
 /// TrueType hinting engine.
 pub struct Engine<'a> {
     value_stack: ValueStack<'a>,
     storage: Storage<'a>,
     cvt: Cvt<'a>,
-    fdefs: CodeDefinitionSlice<'a>,
-    idefs: CodeDefinitionSlice<'a>,
+    function_defs: CodeDefinitionSlice<'a>,
+    instruction_defs: CodeDefinitionSlice<'a>,
     instance: InstanceState,
     graphics: GraphicsState<'a>,
     coords: &'a [NormalizedCoord],
@@ -55,8 +82,8 @@ impl<'a> Engine<'a> {
         cvt: impl Into<Cvt<'a>>,
         function_defs: CodeDefinitionSlice<'a>,
         instruction_defs: CodeDefinitionSlice<'a>,
-        twilight: ZoneData<'a>,
-        glyph: ZoneData<'a>,
+        twilight: Zone<'a>,
+        glyph: Zone<'a>,
         coords: &'a [NormalizedCoord],
         axis_count: u16,
     ) -> Self {
@@ -65,13 +92,13 @@ impl<'a> Engine<'a> {
             call_stack: CallStack::default(),
             storage: storage.into(),
             cvt: cvt.into(),
-            fdefs: function_defs,
-            idefs: instruction_defs,
+            function_defs,
+            instruction_defs,
             coords,
             axis_count,
             instance: InstanceState::default(),
             graphics: GraphicsState {
-                zone_data: [twilight, glyph],
+                zones: [twilight, glyph],
                 ..Default::default()
             },
             y_scale: 0,
@@ -85,14 +112,14 @@ impl<'a> Engine<'a> {
         }
     }
 
-    pub fn run_fpgm<'b>(
+    pub fn run_font_program<'b>(
         &mut self,
         state: &'b mut InstanceState,
         fpgm: &'a [u8],
     ) -> Result<u32, HintError> {
         let programs = [fpgm, &[], &[]];
-        self.fdefs.reset();
-        self.idefs.reset();
+        self.function_defs.reset();
+        self.instruction_defs.reset();
         state.ppem = 0;
         state.scale = 0;
         state.mode = EmbeddedHinting::default();
@@ -105,7 +132,7 @@ impl<'a> Engine<'a> {
         res
     }
 
-    pub fn run_prep<'b>(
+    pub fn run_cv_program<'b>(
         &mut self,
         state: &'b mut InstanceState,
         mode: EmbeddedHinting,
@@ -115,7 +142,7 @@ impl<'a> Engine<'a> {
         scale: i32,
     ) -> bool {
         let programs = [fpgm, prep, &[]];
-        self.graphics.zone_mut(Zone::Twilight).clear();
+        self.graphics.zone_mut(ZonePointer::Twilight).clear();
         state.mode = mode;
         state.ppem = ppem;
         state.scale = scale;
@@ -133,7 +160,7 @@ impl<'a> Engine<'a> {
         }
     }
 
-    pub fn run<'b>(
+    pub fn run_glyph_program<'b>(
         &mut self,
         state: &'b mut InstanceState,
         fpgm: &'a [u8],
@@ -146,7 +173,6 @@ impl<'a> Engine<'a> {
         if is_composite {
             self.y_scale = 1 << 16;
         }
-        //self.graphics = GraphicsState::default();
         if state.graphics.instruct_control & 2 == 0 {
             self.graphics.retained = state.graphics;
         } else {
@@ -168,23 +194,23 @@ impl<'a> Engine<'a> {
 impl<'a> Engine<'a> {
     fn move_original(
         &mut self,
-        zone: Zone,
+        zone: ZonePointer,
         point_ix: usize,
         distance: i32,
     ) -> Result<(), HintErrorKind> {
         let fdotp = self.graphics.fdotp;
         let fv = self.graphics.freedom_vector;
-        let fv_axes = self.graphics.freedom_axes;
+        let fv_axes = self.graphics.freedom_axis;
         let point = self.graphics.zone_mut(zone).original_mut(point_ix)?;
         match fv_axes {
             CoordAxis::X => point.x += distance,
             CoordAxis::Y => point.y += distance,
             CoordAxis::Both => {
                 if fv.x != 0 {
-                    point.x += muldiv(distance, fv.x, fdotp);
+                    point.x += mul_div(distance, fv.x, fdotp);
                 }
                 if fv.y != 0 {
-                    point.y += muldiv(distance, fv.y, fdotp);
+                    point.y += mul_div(distance, fv.y, fdotp);
                 }
             }
         }
@@ -193,7 +219,7 @@ impl<'a> Engine<'a> {
 
     fn move_point(
         &mut self,
-        zone: Zone,
+        zone: ZonePointer,
         point_ix: usize,
         distance: i32,
     ) -> Result<(), HintErrorKind> {
@@ -203,7 +229,7 @@ impl<'a> Engine<'a> {
         let iupy = self.did_iup_y;
         let fdotp = self.graphics.fdotp;
         let fv = self.graphics.freedom_vector;
-        let fv_axes = self.graphics.freedom_axes;
+        let fv_axes = self.graphics.freedom_axis;
         let zone = self.graphics.zone_mut(zone);
         let point = zone.point_mut(point_ix)?;
         match fv_axes {
@@ -222,13 +248,13 @@ impl<'a> Engine<'a> {
             CoordAxis::Both => {
                 if fv.x != 0 {
                     if legacy || !bc {
-                        point.x += muldiv(distance, fv.x, fdotp);
+                        point.x += mul_div(distance, fv.x, fdotp);
                     }
                     zone.touch(point_ix, CoordAxis::X)?;
                 }
                 if fv.y != 0 {
                     if !(!legacy && bc && iupx && iupy) {
-                        zone.point_mut(point_ix)?.y += muldiv(distance, fv.y, fdotp);
+                        zone.point_mut(point_ix)?.y += mul_div(distance, fv.y, fdotp);
                     }
                     zone.touch(point_ix, CoordAxis::Y)?;
                 }
@@ -285,8 +311,8 @@ impl<'a> Engine<'a> {
         let distance = self.graphics.project(point, original_point);
         let fv = self.graphics.freedom_vector;
         let fdotp = self.graphics.fdotp;
-        let dx = muldiv(distance, fv.x, fdotp);
-        let dy = muldiv(distance, fv.y, fdotp);
+        let dx = mul_div(distance, fv.x, fdotp);
+        let dy = mul_div(distance, fv.y, fdotp);
         Ok(PointDisplacement {
             zone,
             point_ix,
@@ -297,7 +323,7 @@ impl<'a> Engine<'a> {
 }
 
 struct PointDisplacement {
-    pub zone: Zone,
+    pub zone: ZonePointer,
     pub point_ix: usize,
     pub dx: i32,
     pub dy: i32,
@@ -316,11 +342,12 @@ impl<'a> Engine<'a> {
             return Ok(0);
         }
         self.is_v35 = false;
-        self.backward_compat_enabled = false;
         if self.instance.mode.retain_linear_metrics() {
             self.backward_compat_enabled = true;
         } else if self.instance.mode.is_antialiased() {
             self.backward_compat_enabled = (self.graphics.instruct_control & 0x4) == 0;
+        } else {
+            self.backward_compat_enabled = false;
         }
         self.is_composite = is_composite;
         self.instance.compat = self.backward_compat_enabled;
@@ -342,7 +369,6 @@ impl<'a> Engine<'a> {
             };
             let cur_program = decoder.program;
             let cur_pc = decoder.pc;
-
             let ins = match decoded {
                 Ok(ins) => ins,
                 Err(kind) => {

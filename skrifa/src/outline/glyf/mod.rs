@@ -8,7 +8,7 @@ mod hint;
 mod memory;
 mod outline;
 
-pub use hint::{HintInstance, HinterOutline};
+pub use hint::{HintInstance, HintOutline};
 pub use memory::OutlineMemory;
 pub use outline::{Outline, ScaledOutline};
 
@@ -160,7 +160,7 @@ impl<'a> Outlines<'a> {
         outline: &Outline,
         size: f32,
         coords: &'a [F2Dot14],
-        hint_fn: impl FnMut(HinterOutline) -> bool,
+        hint_fn: impl FnMut(HintOutline) -> bool,
     ) -> Result<ScaledOutline<'a>, DrawError> {
         Scaler::new(self.clone(), memory, size, coords, hint_fn, true)
             .scale(&outline.glyph, outline.glyph_id)
@@ -292,7 +292,7 @@ struct Scaler<'a, H> {
 
 impl<'a, H> Scaler<'a, H>
 where
-    H: FnMut(HinterOutline) -> bool,
+    H: FnMut(HintOutline) -> bool,
 {
     fn new(
         outlines: Outlines<'a>,
@@ -502,13 +502,15 @@ where
                 .original_scaled
                 .get_mut(..other_points_end)
                 .ok_or(InsufficientMemory)?;
-            original_scaled.copy_from_slice(scaled);
+            for (scaled_point, original_point) in scaled.iter().zip(original_scaled.iter_mut()) {
+                *original_point = scaled_point.map(|x| x.to_bits());
+            }
             // When hinting, round the phantom points.
             for point in &mut scaled[phantom_start..] {
                 point.x = point.x.round();
                 point.y = point.y.round();
             }
-            if !(self.hint_fn)(HinterOutline {
+            if !(self.hint_fn)(HintOutline {
                 unscaled,
                 scaled,
                 original_scaled,
@@ -737,7 +739,10 @@ where
                     .original_scaled
                     .get_mut(..other_points_end)
                     .ok_or(InsufficientMemory)?;
-                original_scaled.copy_from_slice(scaled);
+                for (scaled_point, original_point) in scaled.iter().zip(original_scaled.iter_mut())
+                {
+                    *original_point = scaled_point.map(|x| x.to_bits());
+                }
                 let contours = self
                     .memory
                     .contours
@@ -760,7 +765,7 @@ where
                         *contour -= delta;
                     }
                 }
-                if !(self.hint_fn)(HinterOutline {
+                if !(self.hint_fn)(HintOutline {
                     unscaled,
                     scaled,
                     original_scaled,

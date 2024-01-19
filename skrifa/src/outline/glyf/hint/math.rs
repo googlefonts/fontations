@@ -1,4 +1,8 @@
-use read_fonts::types::Point;
+//! Fixed point math helpers that are specific to TrueType hinting.
+//!
+//! These are reimplemented in terms of font-types types when possible.
+
+use read_fonts::types::{Fixed, Point};
 
 pub fn floor(x: i32) -> i32 {
     x & !63
@@ -8,65 +12,11 @@ pub fn round(x: i32) -> i32 {
     floor(x + 32)
 }
 
-#[inline(always)]
-pub fn mul(a: i32, b: i32) -> i32 {
-    let ab = a as i64 * b as i64;
-    ((ab + 0x8000 - i64::from(ab < 0)) >> 16) as i32
-}
-
-pub fn div(mut a: i32, mut b: i32) -> i32 {
-    let mut sign = 1;
-    if a < 0 {
-        a = -a;
-        sign = -1;
-    }
-    if b < 0 {
-        b = -b;
-        sign = -sign;
-    }
-    let q = if b == 0 {
-        0x7FFFFFFF
-    } else {
-        ((((a as u64) << 16) + ((b as u64) >> 1)) / (b as u64)) as u32
-    };
-    if sign < 0 {
-        -(q as i32)
-    } else {
-        q as i32
-    }
-}
-
-pub fn muldiv(mut a: i32, mut b: i32, mut c: i32) -> i32 {
-    let mut sign = 1;
-    if a < 0 {
-        a = -a;
-        sign = -1;
-    }
-    if b < 0 {
-        b = -b;
-        sign = -sign;
-    }
-    if c < 0 {
-        c = -c;
-        sign = -sign;
-    }
-    let d = if c > 0 {
-        ((a as i64) * (b as i64) + ((c as i64) >> 1)) / c as i64
-    } else {
-        0x7FFFFFFF
-    };
-    if sign < 0 {
-        -(d as i32)
-    } else {
-        d as i32
-    }
-}
-
 pub fn ceil(x: i32) -> i32 {
     floor(x + 63)
 }
 
-pub fn floor_pad(x: i32, n: i32) -> i32 {
+fn floor_pad(x: i32, n: i32) -> i32 {
     x & !(n - 1)
 }
 
@@ -74,7 +24,26 @@ pub fn round_pad(x: i32, n: i32) -> i32 {
     floor_pad(x + n / 2, n)
 }
 
-pub fn muldiv_no_round(mut a: i32, mut b: i32, mut c: i32) -> i32 {
+#[inline(always)]
+pub fn mul(a: i32, b: i32) -> i32 {
+    (Fixed::from_bits(a) * Fixed::from_bits(b)).to_bits()
+}
+
+pub fn div(a: i32, b: i32) -> i32 {
+    (Fixed::from_bits(a) / Fixed::from_bits(b)).to_bits()
+}
+
+/// Fixed point multiply and divide: a * b / c
+pub fn mul_div(a: i32, b: i32, c: i32) -> i32 {
+    Fixed::from_bits(a)
+        .mul_div(Fixed::from_bits(b), Fixed::from_bits(c))
+        .to_bits()
+}
+
+/// Fixed point multiply and divide without rounding: a * b / c
+///
+/// Based on <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/ftcalc.c#L200>
+pub fn mul_div_no_round(mut a: i32, mut b: i32, mut c: i32) -> i32 {
     let mut s = 1;
     if a < 0 {
         a = -a;
@@ -100,20 +69,18 @@ pub fn muldiv_no_round(mut a: i32, mut b: i32, mut c: i32) -> i32 {
     }
 }
 
+/// Multiplication for 2.14 fixed point.
+///
+/// Based on <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L1234>
 pub fn mul14(a: i32, b: i32) -> i32 {
     let mut v = a as i64 * b as i64;
     v += 0x2000 + (v >> 63);
     (v >> 14) as i32
 }
 
-pub fn dot14(ax: i32, ay: i32, bx: i32, by: i32) -> i32 {
-    let mut v1 = ax as i64 * bx as i64;
-    let v2 = ay as i64 * by as i64;
-    v1 += v2;
-    v1 += 0x2000 + (v1 >> 63);
-    (v1 >> 14) as i32
-}
-
+/// Normalize a vector in 2.14 fixed point.
+///
+/// Direct port of <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/base/ftcalc.c#L800>
 pub fn normalize14(x: i32, y: i32) -> Point<i32> {
     use core::num::Wrapping;
     let (mut sx, mut sy) = (Wrapping(1i32), Wrapping(1i32));

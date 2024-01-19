@@ -13,7 +13,7 @@ use super::{super::Hinting, Outline};
 pub struct OutlineMemory<'a> {
     pub unscaled: &'a mut [Point<i32>],
     pub scaled: &'a mut [Point<F26Dot6>],
-    pub original_scaled: &'a mut [Point<F26Dot6>],
+    pub original_scaled: &'a mut [Point<i32>],
     pub contours: &'a mut [u16],
     pub flags: &'a mut [PointFlags],
     pub deltas: &'a mut [Point<Fixed>],

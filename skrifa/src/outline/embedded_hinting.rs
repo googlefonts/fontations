@@ -119,7 +119,7 @@ impl EmbeddedHintingInstance {
                 let ppem = size.ppem().unwrap_or(0.0);
                 let scale = glyf.compute_scale(ppem).1.to_bits();
                 hint_instance
-                    .init(glyf, scale, ppem as u16, mode, &self.coords)
+                    .reconfigure(glyf, scale, ppem as u16, mode, &self.coords)
                     .ok()
                     .ok_or(DrawError::HintingFailed(Default::default()))?;
                 self.kind = HinterKind::Glyf(hint_instance);

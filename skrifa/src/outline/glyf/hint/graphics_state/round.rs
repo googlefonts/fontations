@@ -1,9 +1,6 @@
 //! Rounding state.
 
-use super::{
-    super::math::{ceil, floor, round, round_pad},
-    GraphicsState,
-};
+use super::GraphicsState;
 
 /// Rounding strategies supported by the interpreter.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
@@ -51,43 +48,50 @@ impl Default for RoundState {
 
 impl RoundState {
     pub fn round(&self, distance: i32) -> i32 {
+        use super::super::math;
         use RoundMode::*;
         match self.mode {
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L1958>
             HalfGrid => {
                 if distance >= 0 {
-                    (floor(distance) + 32).max(0)
+                    (math::floor(distance) + 32).max(0)
                 } else {
-                    (-(floor(-distance) + 32)).min(0)
+                    (-(math::floor(-distance) + 32)).min(0)
                 }
             }
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L1913>
             Grid => {
                 if distance >= 0 {
-                    round(distance).max(0)
+                    math::round(distance).max(0)
                 } else {
-                    (-round(-distance)).min(0)
+                    (-math::round(-distance)).min(0)
                 }
             }
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2094>
             DoubleGrid => {
                 if distance >= 0 {
-                    round_pad(distance, 32).max(0)
+                    math::round_pad(distance, 32).max(0)
                 } else {
-                    (-round_pad(-distance, 32)).min(0)
+                    (-math::round_pad(-distance, 32)).min(0)
                 }
             }
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2005>
             DownToGrid => {
                 if distance >= 0 {
-                    floor(distance).max(0)
+                    math::floor(distance).max(0)
                 } else {
-                    (-floor(-distance)).min(0)
+                    (-math::floor(-distance)).min(0)
                 }
             }
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2049>
             UpToGrid => {
                 if distance >= 0 {
-                    ceil(distance).max(0)
+                    math::ceil(distance).max(0)
                 } else {
-                    (-ceil(-distance)).min(0)
+                    (-math::ceil(-distance)).min(0)
                 }
             }
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2145>
             Super => {
                 if distance >= 0 {
                     let val =
@@ -107,6 +111,7 @@ impl RoundState {
                     }
                 }
             }
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2199>
             Super45 => {
                 if distance >= 0 {
                     let val = (((distance + (self.threshold - self.phase)) / self.period)
@@ -128,6 +133,7 @@ impl RoundState {
                     }
                 }
             }
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L1870>
             Off => distance,
         }
     }
@@ -136,5 +142,72 @@ impl RoundState {
 impl GraphicsState<'_> {
     pub fn round(&self, distance: i32) -> i32 {
         self.round_state.round(distance)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{RoundMode, RoundState};
+
+    #[test]
+    fn round_to_grid() {
+        round_cases(
+            RoundMode::Grid,
+            &[(0, 0), (32, 64), (-32, -64), (64, 64), (50, 64)],
+        );
+    }
+
+    #[test]
+    fn round_to_half_grid() {
+        round_cases(
+            RoundMode::HalfGrid,
+            &[(0, 32), (32, 32), (-32, -32), (64, 96), (50, 32)],
+        );
+    }
+
+    #[test]
+    fn round_to_double_grid() {
+        round_cases(
+            RoundMode::DoubleGrid,
+            &[(0, 0), (32, 32), (-32, -32), (64, 64), (50, 64)],
+        );
+    }
+
+    #[test]
+    fn round_down_to_grid() {
+        round_cases(
+            RoundMode::DownToGrid,
+            &[(0, 0), (32, 0), (-32, 0), (64, 64), (50, 0)],
+        );
+    }
+
+    #[test]
+    fn round_up_to_grid() {
+        round_cases(
+            RoundMode::UpToGrid,
+            &[(0, 0), (32, 64), (-32, -64), (64, 64), (50, 64)],
+        );
+    }
+
+    #[test]
+    fn round_off() {
+        round_cases(
+            RoundMode::Off,
+            &[(0, 0), (32, 32), (-32, -32), (64, 64), (50, 50)],
+        );
+    }
+
+    fn round_cases(mode: RoundMode, cases: &[(i32, i32)]) {
+        for (value, expected) in cases.iter().copied() {
+            let state = RoundState {
+                mode,
+                ..Default::default()
+            };
+            let result = state.round(value);
+            assert_eq!(
+                result, expected,
+                "mismatch in rounding: {mode:?}({value}) = {result} (expected {expected})"
+            );
+        }
     }
 }

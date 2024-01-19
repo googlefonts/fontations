@@ -98,7 +98,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#jump-relative-on-true>
     pub(super) fn op_jrot(&mut self, decoder: &mut Decoder) -> OpResult {
         let e = self.value_stack.pop()?;
-        self.do_dump(e != 0, decoder)
+        self.do_jump(e != 0, decoder)
     }
 
     /// Jump.
@@ -115,7 +115,7 @@ impl<'a> Engine<'a> {
     ///
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#jump>
     pub(super) fn op_jmpr(&mut self, decoder: &mut Decoder) -> OpResult {
-        self.do_dump(true, decoder)
+        self.do_jump(true, decoder)
     }
 
     /// Jump relative on false.
@@ -146,10 +146,10 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#jump-relative-on-false>
     pub(super) fn op_jrof(&mut self, decoder: &mut Decoder) -> OpResult {
         let e = self.value_stack.pop()?;
-        self.do_dump(e == 0, decoder)
+        self.do_jump(e == 0, decoder)
     }
 
-    fn do_dump(&mut self, test: bool, decoder: &mut Decoder) -> OpResult {
+    fn do_jump(&mut self, test: bool, decoder: &mut Decoder) -> OpResult {
         // Offset is relative to previous jump instruction and decoder is
         // already pointing to next instruction, so subtract one
         let jump_offset = self.value_stack.pop()? - 1;

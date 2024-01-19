@@ -5,7 +5,7 @@
 // 10 instructions
 
 use super::{
-    super::math::{ceil, floor, muldiv, muldiv_no_round},
+    super::math::{ceil, floor, mul_div, mul_div_no_round},
     super::HintErrorKind,
     Engine, OpResult,
 };
@@ -52,7 +52,7 @@ impl<'a> Engine<'a> {
             if b == 0 {
                 Err(HintErrorKind::DivideByZero)
             } else {
-                Ok(muldiv_no_round(a, 64, b))
+                Ok(mul_div_no_round(a, 64, b))
             }
         })
     }
@@ -67,7 +67,7 @@ impl<'a> Engine<'a> {
     ///
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#multiply>
     pub(super) fn op_mul(&mut self) -> OpResult {
-        self.value_stack.apply_binary(|a, b| Ok(muldiv(a, b, 64)))
+        self.value_stack.apply_binary(|a, b| Ok(mul_div(a, b, 64)))
     }
 
     /// ABS[] (0x64)

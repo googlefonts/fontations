@@ -1,6 +1,6 @@
 use super::{
     super::math::*, CallRecord, CodeDefinition, CoordAxis, Decoder, Engine, HintErrorKind,
-    Instruction, Point, PointDisplacement, Program, RoundMode, Zone,
+    Instruction, Point, PointDisplacement, Program, RoundMode, ZonePointer,
 };
 
 impl<'a> Engine<'a> {
@@ -99,12 +99,12 @@ impl<'a> Engine<'a> {
                 let day = pa1.y - pa0.y;
                 let dx = pb0.x - pa0.x;
                 let dy = pb0.y - pa0.y;
-                let discriminant = muldiv(dax, -dby, 0x40) + muldiv(day, dbx, 0x40);
-                let dp = muldiv(dax, dbx, 0x40) + muldiv(day, dby, 0x40);
+                let discriminant = mul_div(dax, -dby, 0x40) + mul_div(day, dbx, 0x40);
+                let dp = mul_div(dax, dbx, 0x40) + mul_div(day, dby, 0x40);
                 if 19 * discriminant.abs() > dp.abs() {
-                    let v = muldiv(dx, -dby, 0x40) + muldiv(dy, dbx, 0x40);
-                    let x = muldiv(v, dax, discriminant);
-                    let y = muldiv(v, day, discriminant);
+                    let v = mul_div(dx, -dby, 0x40) + mul_div(dy, dbx, 0x40);
+                    let x = mul_div(v, dax, discriminant);
+                    let y = mul_div(v, day, discriminant);
                     let point = self.graphics.zp2_mut().point_mut(point_ix)?;
                     point.x = pa0.x + x;
                     point.y = pa0.y + y;
@@ -120,19 +120,19 @@ impl<'a> Engine<'a> {
             op::SRP2 => self.graphics.rp2 = self.value_stack.pop()? as usize,
             op::SZP0 => {
                 let z = self.value_stack.pop()?;
-                self.graphics.zp0 = Zone::try_from(z)?;
+                self.graphics.zp0 = ZonePointer::try_from(z)?;
             }
             op::SZP1 => {
                 let z = self.value_stack.pop()?;
-                self.graphics.zp1 = Zone::try_from(z)?;
+                self.graphics.zp1 = ZonePointer::try_from(z)?;
             }
             op::SZP2 => {
                 let z = self.value_stack.pop()?;
-                self.graphics.zp2 = Zone::try_from(z)?;
+                self.graphics.zp2 = ZonePointer::try_from(z)?;
             }
             op::SZPS => {
                 let z = self.value_stack.pop()?;
-                let zp = Zone::try_from(z)?;
+                let zp = ZonePointer::try_from(z)?;
                 self.graphics.zp0 = zp;
                 self.graphics.zp1 = zp;
                 self.graphics.zp2 = zp;
@@ -191,7 +191,7 @@ impl<'a> Engine<'a> {
                     (self.value_stack.pop_usize()?, 1)
                 };
                 if call_count > 0 {
-                    let def = self.fdefs.get(def_ix)?;
+                    let def = self.function_defs.get(def_ix)?;
                     if !def.is_active() {
                         return Err(HintErrorKind::InvalidDefintionIndex(def_ix));
                     }
@@ -213,7 +213,7 @@ impl<'a> Engine<'a> {
             }
             op::FDEF => {
                 let def_ix = self.value_stack.pop_usize()?;
-                if program == Program::Glyph || def_ix >= self.fdefs.len() {
+                if program == Program::Glyph || def_ix >= self.function_defs.len() {
                     return Err(HintErrorKind::DefinitionInGlyphProgram);
                 }
                 let start = ins.pc + 1;
@@ -225,7 +225,7 @@ impl<'a> Engine<'a> {
                         }
                         op::ENDF => {
                             let def = CodeDefinition::new(program, start..decoder.pc, None);
-                            self.fdefs.set(def_ix, def)?;
+                            self.function_defs.set(def_ix, def)?;
                             break;
                         }
                         _ => {}
@@ -260,20 +260,24 @@ impl<'a> Engine<'a> {
                 self.graphics.rp1 = point_ix;
             }
             op::IUP0 | op::IUP1 => {
-                let is_x = (opcode & 1) != 0;
+                let axis = if (opcode & 1) != 0 {
+                    CoordAxis::X
+                } else {
+                    CoordAxis::Y
+                };
                 let mut run = true;
                 if !self.is_v35 && self.backward_compat_enabled {
                     if self.did_iup_x && self.did_iup_y {
                         run = false;
                     }
-                    if is_x {
+                    if axis == CoordAxis::X {
                         self.did_iup_x = true;
                     } else {
                         self.did_iup_y = true;
                     }
                 }
                 if run {
-                    self.graphics.zone_mut(Zone::Glyph).iup(is_x)?;
+                    self.graphics.zone_mut(ZonePointer::Glyph).iup(axis)?;
                 }
             }
             op::SHP0 | op::SHP1 => {
@@ -288,7 +292,7 @@ impl<'a> Engine<'a> {
             }
             op::SHC0 | op::SHC1 => {
                 let contour_ix = self.value_stack.pop_usize()?;
-                let bound = if self.graphics.zp2 == Zone::Twilight {
+                let bound = if self.graphics.zp2 == ZonePointer::Twilight {
                     1
                 } else {
                     self.graphics.zp2().contours.len()
@@ -303,7 +307,7 @@ impl<'a> Engine<'a> {
                     let z = self.graphics.zp2();
                     start = z.contour(contour_ix - 1)? as usize + 1;
                 }
-                let limit = if self.graphics.zp2 == Zone::Twilight {
+                let limit = if self.graphics.zp2 == ZonePointer::Twilight {
                     self.graphics.zp2().points.len()
                 } else {
                     let z = self.graphics.zp2();
@@ -321,9 +325,9 @@ impl<'a> Engine<'a> {
                 }
                 let point_disp =
                     self.point_displacement(opcode, self.graphics.rp1, self.graphics.rp2)?;
-                let limit = if self.graphics.zp2 == Zone::Twilight {
+                let limit = if self.graphics.zp2 == ZonePointer::Twilight {
                     self.graphics.zp2().points.len()
-                } else if self.graphics.zp2 == Zone::Glyph
+                } else if self.graphics.zp2 == ZonePointer::Glyph
                     && !self.graphics.zp2().contours.is_empty()
                 {
                     let z = self.graphics.zp2();
@@ -341,9 +345,9 @@ impl<'a> Engine<'a> {
                 }
             }
             op::SHPIX => {
-                let in_twilight = self.graphics.zp0 == Zone::Twilight
-                    || self.graphics.zp1 == Zone::Twilight
-                    || self.graphics.zp2 == Zone::Twilight;
+                let in_twilight = self.graphics.zp0 == ZonePointer::Twilight
+                    || self.graphics.zp1 == ZonePointer::Twilight
+                    || self.graphics.zp2 == ZonePointer::Twilight;
                 let a = self.value_stack.pop()?;
                 let dx = mul14(a, self.graphics.freedom_vector.x);
                 let dy = mul14(a, self.graphics.freedom_vector.y);
@@ -365,9 +369,9 @@ impl<'a> Engine<'a> {
                 }
             }
             op::IP => {
-                let in_twilight = self.graphics.zp0 == Zone::Twilight
-                    || self.graphics.zp1 == Zone::Twilight
-                    || self.graphics.zp2 == Zone::Twilight;
+                let in_twilight = self.graphics.zp0 == ZonePointer::Twilight
+                    || self.graphics.zp1 == ZonePointer::Twilight
+                    || self.graphics.zp2 == ZonePointer::Twilight;
                 let orus_base = if in_twilight {
                     self.graphics.zp0().original(self.graphics.rp1)?
                 } else {
@@ -401,7 +405,7 @@ impl<'a> Engine<'a> {
                     let mut new_distance = 0;
                     if original_distance != 0 {
                         if old_range != 0 {
-                            new_distance = muldiv(original_distance, cur_range, old_range);
+                            new_distance = mul_div(original_distance, cur_range, old_range);
                         } else {
                             new_distance = original_distance;
                         }
@@ -412,7 +416,7 @@ impl<'a> Engine<'a> {
             op::MSIRP0 | op::MSIRP1 => {
                 let dist = self.value_stack.pop()?;
                 let point_ix = self.value_stack.pop_usize()?;
-                if self.graphics.zp1 == Zone::Twilight {
+                if self.graphics.zp1 == ZonePointer::Twilight {
                     *self.graphics.zp1_mut().point_mut(point_ix)? =
                         self.graphics.zp0().original(self.graphics.rp0)?;
                     self.move_original(self.graphics.zp1, point_ix, dist)?;
@@ -447,7 +451,7 @@ impl<'a> Engine<'a> {
                 let cvt_entry = self.value_stack.pop_usize()?;
                 let point_ix = self.value_stack.pop_usize()?;
                 let mut distance = self.cvt.get(cvt_entry)?;
-                if self.graphics.zp0 == Zone::Twilight {
+                if self.graphics.zp0 == ZonePointer::Twilight {
                     let fv = self.graphics.freedom_vector;
                     let z = self.graphics.zp0_mut();
                     let original_point = z.original_mut(point_ix)?;
@@ -492,8 +496,8 @@ impl<'a> Engine<'a> {
                     .graphics
                     .project(self.graphics.zp2().point(point_ix)?, Point::default());
                 self.move_point(self.graphics.zp2, point_ix, distance.wrapping_sub(a))?;
-                if self.graphics.zp2 == Zone::Twilight {
-                    let twilight = self.graphics.zone_mut(Zone::Twilight);
+                if self.graphics.zp2 == ZonePointer::Twilight {
+                    let twilight = self.graphics.zone_mut(ZonePointer::Twilight);
                     *twilight.original_mut(point_ix)? = twilight.point(point_ix)?;
                 }
             }
@@ -505,7 +509,8 @@ impl<'a> Engine<'a> {
                         self.graphics.zp0().point(point2_ix)?,
                         self.graphics.zp1().point(point1_ix)?,
                     )
-                } else if self.graphics.zp0 == Zone::Twilight || self.graphics.zp1 == Zone::Twilight
+                } else if self.graphics.zp0 == ZonePointer::Twilight
+                    || self.graphics.zp1 == ZonePointer::Twilight
                 {
                     self.graphics.dual_project(
                         self.graphics.zp0().original(point2_ix)?,
@@ -529,7 +534,7 @@ impl<'a> Engine<'a> {
                 self.value_stack.push(if self.is_v35 {
                     self.instance.ppem as i32
                 } else {
-                    muldiv(self.instance.ppem as i32, 64 * 72, 72)
+                    mul_div(self.instance.ppem as i32, 64 * 72, 72)
                 })?;
             }
             op::FLIPON => self.graphics.auto_flip = true,
@@ -674,7 +679,9 @@ impl<'a> Engine<'a> {
                     let mut iters = core::mem::replace(&mut self.graphics.loop_counter, 1);
                     while iters > 0 {
                         let point = self.value_stack.pop_usize()?;
-                        self.graphics.zone_mut(Zone::Glyph).flip_on_curve(point)?;
+                        self.graphics
+                            .zone_mut(ZonePointer::Glyph)
+                            .flip_on_curve(point)?;
                         iters -= 1;
                     }
                 }
@@ -689,7 +696,7 @@ impl<'a> Engine<'a> {
                     if first_point_ix > last_point_ix {
                         return Err(HintErrorKind::InvalidPointIndex(first_point_ix));
                     }
-                    self.graphics.zone_mut(Zone::Glyph).set_on_curve(
+                    self.graphics.zone_mut(ZonePointer::Glyph).set_on_curve(
                         first_point_ix,
                         last_point_ix + 1,
                         opcode == op::FLIPRGON,
@@ -840,14 +847,16 @@ impl<'a> Engine<'a> {
                 }
                 let def_ix = self.value_stack.pop_usize()?;
                 let mut index = !0;
-                for i in 0..self.idefs.len() {
-                    if !self.idefs.get(i)?.is_active() {
+                for i in 0..self.instruction_defs.len() {
+                    if !self.instruction_defs.get(i)?.is_active() {
                         index = i;
                         break;
                     }
                 }
                 if index == !0 {
-                    return Err(HintErrorKind::InvalidDefintionIndex(self.idefs.len()));
+                    return Err(HintErrorKind::InvalidDefintionIndex(
+                        self.instruction_defs.len(),
+                    ));
                 }
                 let start = ins.pc + 1;
                 while let Some(next_ins) = decoder.maybe_next() {
@@ -859,7 +868,7 @@ impl<'a> Engine<'a> {
                         op::ENDF => {
                             let def =
                                 CodeDefinition::new(program, start..decoder.pc, Some(def_ix as u8));
-                            self.idefs.set(index, def)?;
+                            self.instruction_defs.set(index, def)?;
                             break;
                         }
                         _ => {}
@@ -896,7 +905,9 @@ impl<'a> Engine<'a> {
             op::MDRP00000..=op::MDRP11111 => {
                 let point_ix = self.value_stack.pop_usize()?;
                 let mut original_distance;
-                if self.graphics.zp0 == Zone::Twilight || self.graphics.zp1 == Zone::Twilight {
+                if self.graphics.zp0 == ZonePointer::Twilight
+                    || self.graphics.zp1 == ZonePointer::Twilight
+                {
                     original_distance = self.graphics.dual_project(
                         self.graphics.zp1().original(point_ix)?,
                         self.graphics.zp0().original(self.graphics.rp0)?,
@@ -963,7 +974,7 @@ impl<'a> Engine<'a> {
                 if delta < cutin {
                     cvt_distance = if cvt_distance >= 0 { value } else { -value };
                 }
-                if self.graphics.zp1 == Zone::Twilight {
+                if self.graphics.zp1 == ZonePointer::Twilight {
                     let fv = self.graphics.freedom_vector;
                     let p = {
                         let p2 = self.graphics.zp0().original(self.graphics.rp0)?;
@@ -1033,15 +1044,15 @@ impl<'a> Engine<'a> {
                     self.value_stack.push(17)?;
                 } else {
                     let mut index = !0;
-                    for i in 0..self.idefs.len() {
-                        let idef = self.idefs.get(i)?;
+                    for i in 0..self.instruction_defs.len() {
+                        let idef = self.instruction_defs.get(i)?;
                         if idef.is_active() && idef.opcode() == Some(opcode) {
                             index = i;
                             break;
                         }
                     }
                     if index != !0 {
-                        let def = self.idefs.get(index)?;
+                        let def = self.instruction_defs.get(index)?;
                         let rec = CallRecord {
                             caller_program: program,
                             return_pc: ins.pc + 1,

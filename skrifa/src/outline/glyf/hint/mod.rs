@@ -24,32 +24,20 @@ pub use cow_slice::{CowSlice, Cvt, Storage};
 pub use engine::Engine;
 pub use error::{HintError, HintErrorKind};
 pub use graphics_state::{
-    CoordAxis, GraphicsState, RetainedGraphicsState, RoundMode, RoundState, Zone, ZoneData,
+    CoordAxis, GraphicsState, RetainedGraphicsState, RoundMode, RoundState, Zone, ZonePointer,
 };
 pub use value_stack::ValueStack;
 
 /// The persistent instance state.
 ///
 /// Captures interpreter state that is set by the control value program.
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Default, Debug)]
 pub struct InstanceState {
     pub graphics: graphics_state::RetainedGraphicsState,
     pub ppem: u16,
     pub scale: i32,
     pub compat: bool,
     pub mode: EmbeddedHinting,
-}
-
-impl Default for InstanceState {
-    fn default() -> Self {
-        Self {
-            graphics: Default::default(),
-            ppem: 0,
-            scale: 0,
-            compat: false,
-            mode: EmbeddedHinting::default(),
-        }
-    }
 }
 
 impl InstanceState {
@@ -65,10 +53,10 @@ impl InstanceState {
 }
 
 /// Outline data that is passed to the hinter.
-pub struct HinterOutline<'a> {
+pub struct HintOutline<'a> {
     pub unscaled: &'a mut [Point<i32>],
     pub scaled: &'a mut [Point<F26Dot6>],
-    pub original_scaled: &'a mut [Point<F26Dot6>],
+    pub original_scaled: &'a mut [Point<i32>],
     pub flags: &'a mut [PointFlags],
     pub contours: &'a [u16],
     pub phantom: &'a mut [Point<F26Dot6>],
@@ -90,7 +78,7 @@ pub struct HintInstance {
 }
 
 impl HintInstance {
-    pub fn init(
+    pub fn reconfigure(
         &mut self,
         outlines: &Outlines,
         scale: i32,
@@ -98,7 +86,7 @@ impl HintInstance {
         mode: EmbeddedHinting,
         coords: &[F2Dot14],
     ) -> Result<(), HintError> {
-        self.setup_state(outlines, scale);
+        self.setup(outlines, scale);
         let twilight_len = self.max_twilight_points as usize;
         // Temporary buffers. For now just allocate them.
         let mut stack_buffer = vec![0; self.max_stack as usize];
@@ -107,16 +95,16 @@ impl HintInstance {
         let mut twilight_points = vec![Point::default(); twilight_len];
         let mut twilight_flags = vec![PointFlags::default(); twilight_len];
         let twilight_contours = [self.max_twilight_points];
-        let twilight_zone = ZoneData::new(
+        let twilight_zone = Zone::new(
             &mut twilight_unscaled,
             &mut twilight_original,
             &mut twilight_points,
             &mut twilight_flags,
             &twilight_contours,
         );
-        let glyph_zone = ZoneData::new(&mut [], &mut [], &mut [], &mut [], &[]);
+        let glyph_zone = Zone::default();
         let stack = ValueStack::new(&mut stack_buffer);
-        let mut interp = Engine::new(
+        let mut engine = Engine::new(
             stack,
             CowSlice::new_mut(&mut self.storage),
             CowSlice::new_mut(&mut self.cvt),
@@ -128,10 +116,10 @@ impl HintInstance {
             self.axis_count,
         );
         if !outlines.fpgm.is_empty() {
-            interp.run_fpgm(&mut self.state, outlines.fpgm)?;
+            engine.run_font_program(&mut self.state, outlines.fpgm)?;
         }
         if !outlines.prep.is_empty() {
-            interp.run_prep(
+            engine.run_cv_program(
                 &mut self.state,
                 mode,
                 outlines.fpgm,
@@ -147,7 +135,7 @@ impl HintInstance {
         self.state.graphics.instruct_control & 1 != 0
     }
 
-    pub fn hint(&self, outlines: &Outlines, glyph: &mut HinterOutline) -> Option<bool> {
+    pub fn hint(&self, outlines: &Outlines, outline: &mut HintOutline) -> Option<bool> {
         let twilight_len = self.max_twilight_points as usize;
         // Temporary buffers. For now just allocate them.
         let mut stack_buffer = vec![0; self.max_stack as usize];
@@ -156,30 +144,32 @@ impl HintInstance {
         let mut twilight_points = vec![Point::default(); twilight_len];
         let mut twilight_flags = vec![PointFlags::default(); twilight_len];
         let twilight_contours = [self.max_twilight_points];
-        let twilight_zone = ZoneData::new(
+        let twilight_zone = Zone::new(
             &mut twilight_unscaled,
             &mut twilight_original,
             &mut twilight_points,
             &mut twilight_flags,
             &twilight_contours,
         );
-        let (scaled, original, phantom) = unsafe {
-            use core::slice::from_raw_parts_mut;
-            (
-                from_raw_parts_mut(glyph.scaled.as_mut_ptr() as *mut _, glyph.scaled.len()),
-                from_raw_parts_mut(
-                    glyph.original_scaled.as_mut_ptr() as *mut _,
-                    glyph.original_scaled.len(),
-                ),
-                from_raw_parts_mut(glyph.phantom.as_mut_ptr() as *mut _, glyph.phantom.len()),
-            )
+        // SAFETY: We're casting &mut [Point<F26Dot6>] to &mut [Point<i32>].
+        // The Point type is repr(C) and contains two fields with no padding.
+        // The component types are bit layout equivalent.
+        let scaled = unsafe {
+            let slice = core::slice::from_raw_parts_mut(
+                outline.scaled.as_mut_ptr() as *mut _,
+                outline.scaled.len(),
+            );
+            // Set outline.scaled to an emtpy slice to avoid the potential
+            // for mutable aliasing.
+            outline.scaled = &mut [];
+            slice
         };
-        let glyph_zone = ZoneData::new(
-            glyph.unscaled,
-            original,
+        let glyph_zone = Zone::new(
+            outline.unscaled,
+            outline.original_scaled,
             scaled,
-            glyph.flags,
-            glyph.contours,
+            outline.flags,
+            outline.contours,
         );
         let stack = ValueStack::new(&mut stack_buffer);
         let mut storage = vec![0i32; self.storage.len()];
@@ -192,27 +182,27 @@ impl HintInstance {
             CodeDefinitionSlice::Ref(&self.instructions),
             twilight_zone,
             glyph_zone,
-            glyph.coords,
+            outline.coords,
             self.axis_count,
         );
         let mut instance_state = self.state;
-        let result = interp.run(
+        let result = interp.run_glyph_program(
             &mut instance_state,
             outlines.fpgm,
             outlines.prep,
-            glyph.bytecode,
-            glyph.is_composite,
+            outline.bytecode,
+            outline.is_composite,
         );
         if !self.state.compat_enabled() {
             for (i, p) in (scaled[scaled.len() - 4..]).iter().enumerate() {
-                phantom[i] = *p;
+                outline.phantom[i] = p.map(F26Dot6::from_bits);
             }
         }
         Some(result)
     }
 
     /// Captures limits, resizes buffers and scales the CVT.
-    fn setup_state(&mut self, outlines: &Outlines, scale: i32) {
+    fn setup(&mut self, outlines: &Outlines, scale: i32) {
         self.axis_count = outlines
             .gvar
             .as_ref()
@@ -238,8 +228,9 @@ impl HintInstance {
         self.storage.clear();
         self.storage.resize(outlines.max_storage as usize, 0);
         // Add 4 for phantom points
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttobjs.c#L1188>
         self.max_twilight_points = outlines.max_twilight_points + 4;
-        // Add 32 to match FreeType
+        // Add 32 to match FreeType's heuristic for buggy fonts
         // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/truetype/ttinterp.c#L356>
         self.max_stack = outlines.max_stack_elements + 32;
         self.state = InstanceState::default();

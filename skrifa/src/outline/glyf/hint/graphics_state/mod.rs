@@ -7,10 +7,12 @@ mod zone;
 use core::ops::{Deref, DerefMut};
 use read_fonts::types::Point;
 
-pub use round::{RoundMode, RoundState};
-pub use zone::{Zone, ZoneData};
+pub use {
+    round::{RoundMode, RoundState},
+    zone::{Zone, ZonePointer},
+};
 
-/// Describes the axes to which a measurement, movement or rounding
+/// Describes the axis to which a measurement, movement or rounding
 /// operation applies.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 pub enum CoordAxis {
@@ -32,8 +34,8 @@ pub struct GraphicsState<'a> {
     ///
     /// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM04/Chap4.html#projection%20vector>
     pub proj_vector: Point<i32>,
-    /// Current axes for the projection vector.
-    pub proj_axes: CoordAxis,
+    /// Current axis for the projection vector.
+    pub proj_axis: CoordAxis,
     /// A second projection vector set to a line defined by the original
     /// outline location of two points. The dual projection vector is used
     /// when it is necessary to measure distances from the scaled outline
@@ -41,14 +43,14 @@ pub struct GraphicsState<'a> {
     ///
     /// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM04/Chap4.html#dual%20projection%20vector>
     pub dual_proj_vector: Point<i32>,
-    /// Current axes for the dual projection vector.
-    pub dual_proj_axes: CoordAxis,
+    /// Current axis for the dual projection vector.
+    pub dual_proj_axis: CoordAxis,
     /// A unit vector that establishes an axis along which points can move.
     ///
     /// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM04/Chap4.html#freedom%20vector>
     pub freedom_vector: Point<i32>,
-    /// Current axes for point movement.
-    pub freedom_axes: CoordAxis,
+    /// Current axis for point movement.
+    pub freedom_axis: CoordAxis,
     /// Dot product of freedom and projection vectors.
     pub fdotp: i32,
     /// Determines the manner in which values are rounded.
@@ -76,19 +78,19 @@ pub struct GraphicsState<'a> {
     /// First zone pointer.
     ///
     /// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM04/Chap4.html#zp0>
-    pub zp0: Zone,
+    pub zp0: ZonePointer,
     /// Second zone pointer.
     ///
     /// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM04/Chap4.html#zp1>
-    pub zp1: Zone,
+    pub zp1: ZonePointer,
     /// Third zone pointer.
     ///
     /// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM04/Chap4.html#zp2>
-    pub zp2: Zone,
+    pub zp2: ZonePointer,
     /// Outline data for each zone.
     ///
     /// This array contains the twilight and glyph zones, in that order.
-    pub zone_data: [ZoneData<'a>; 2],
+    pub zones: [Zone<'a>; 2],
 }
 
 impl Default for GraphicsState<'_> {
@@ -97,36 +99,22 @@ impl Default for GraphicsState<'_> {
         Self {
             retained: RetainedGraphicsState::default(),
             proj_vector: vector,
-            proj_axes: CoordAxis::Both,
+            proj_axis: CoordAxis::Both,
             dual_proj_vector: vector,
-            dual_proj_axes: CoordAxis::Both,
+            dual_proj_axis: CoordAxis::Both,
             freedom_vector: vector,
-            freedom_axes: CoordAxis::Both,
+            freedom_axis: CoordAxis::Both,
             fdotp: 0x4000,
             round_state: RoundState::default(),
             rp0: 0,
             rp1: 0,
             rp2: 0,
             loop_counter: 1,
-            zone_data: [ZoneData::default(), ZoneData::default()],
-            zp0: Zone::default(),
-            zp1: Zone::default(),
-            zp2: Zone::default(),
+            zones: [Zone::default(), Zone::default()],
+            zp0: ZonePointer::default(),
+            zp1: ZonePointer::default(),
+            zp2: ZonePointer::default(),
         }
-    }
-}
-
-impl Deref for GraphicsState<'_> {
-    type Target = RetainedGraphicsState;
-
-    fn deref(&self) -> &Self::Target {
-        &self.retained
-    }
-}
-
-impl DerefMut for GraphicsState<'_> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.retained
     }
 }
 
@@ -141,11 +129,7 @@ impl DerefMut for GraphicsState<'_> {
 pub struct RetainedGraphicsState {
     /// Controls whether the sign of control value table entries will be
     /// changed to match the sign of the actual distance measurement with
-    /// which it is compared
-    ///
-    /// Default: TRUE
-    /// Set with: FLIPOFF, FLIPOFF
-    /// Affects: MIAP, MIRP
+    /// which it is compared.
     ///
     /// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM04/Chap4.html#auto%20flip>
     pub auto_flip: bool,
@@ -209,5 +193,19 @@ impl Default for RetainedGraphicsState {
             single_width_cutin: 0,
             single_width: 0,
         }
+    }
+}
+
+impl Deref for GraphicsState<'_> {
+    type Target = RetainedGraphicsState;
+
+    fn deref(&self) -> &Self::Target {
+        &self.retained
+    }
+}
+
+impl DerefMut for GraphicsState<'_> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.retained
     }
 }
