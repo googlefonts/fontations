@@ -248,12 +248,12 @@ pub trait ColorPainter {
     /// Combined clip and fill operation.
     ///
     /// Apply the clip path determined by the specified `glyph_id`,
-    /// then fill it with the specified [`brush`](Brush), applying the `_transform`
-    /// transformation matrix to the brush.
+    /// then fill it with the specified [`brush`](Brush), applying the
+    /// `_brush_transform` transformation matrix to the brush.
     fn fill_glyph(
         &mut self,
         _glyph_id: GlyphId,
-        _transform: Transform,
+        _brush_transform: Transform,
         _brush: Brush<'_>,
     ) -> Result<(), PaintError> {
         Err(PaintError::FillGlyphOptimizationFailed)
