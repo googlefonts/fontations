@@ -53,7 +53,7 @@ fn make_sorted_resolved_stops(stops: &ColorStops, instance: &ColrInstance) -> Ve
 }
 
 struct CollectFillGlyphPainter<'a> {
-    brush_transform: Transform,
+    brush_transform: Option<Transform>,
     glyph_id: GlyphId,
     parent_painter: &'a mut dyn ColorPainter,
     pub optimization_result: Result<(), PaintError>,
@@ -62,7 +62,7 @@ struct CollectFillGlyphPainter<'a> {
 impl<'a> CollectFillGlyphPainter<'a> {
     fn new(parent_painter: &'a mut dyn ColorPainter, glyph_id: GlyphId) -> Self {
         Self {
-            brush_transform: Transform::default(),
+            brush_transform: None,
             glyph_id,
             parent_painter,
             optimization_result: Ok(()),
@@ -73,7 +73,14 @@ impl<'a> CollectFillGlyphPainter<'a> {
 impl<'a> ColorPainter for CollectFillGlyphPainter<'a> {
     fn push_transform(&mut self, transform: Transform) {
         if self.optimization_result.is_ok() {
-            self.brush_transform *= transform;
+            match self.brush_transform {
+                None => {
+                    self.brush_transform = Some(transform);
+                }
+                Some(ref mut existing_transform) => {
+                    *existing_transform *= transform;
+                }
+            }
         }
     }
 
@@ -545,7 +552,7 @@ pub(crate) fn traverse_v0_range(
         if painter.fill_glyph_supported() == FillGlyph::Supported {
             painter.fill_glyph(
                 layer_index,
-                Transform::default(),
+                None,
                 Brush::Solid {
                     palette_index,
                     alpha: 1.0,

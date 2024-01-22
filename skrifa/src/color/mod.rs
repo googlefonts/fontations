@@ -253,7 +253,7 @@ pub trait ColorPainter {
     fn fill_glyph(
         &mut self,
         _glyph_id: GlyphId,
-        _brush_transform: Transform,
+        _brush_transform: Option<Transform>,
         _brush: Brush<'_>,
     ) -> Result<(), PaintError> {
         Err(PaintError::FillGlyphOptimizationFailed)

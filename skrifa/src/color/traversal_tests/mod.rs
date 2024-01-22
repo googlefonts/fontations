@@ -209,12 +209,12 @@ impl ColorPainter for PaintDump {
     fn fill_glyph(
         &mut self,
         glyph_id: GlyphId,
-        transform: Transform,
+        transform: Option<Transform>,
         brush: Brush,
     ) -> Result<(), super::PaintError> {
         self.ops.push(PaintOps::FillGlyph {
             gid: glyph_id.to_u16(),
-            transform: transform.into(),
+            transform: transform.unwrap_or_default().into(),
             brush: brush.into(),
         });
         Ok(())
