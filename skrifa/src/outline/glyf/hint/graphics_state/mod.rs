@@ -95,6 +95,8 @@ pub struct GraphicsState<'a> {
 
 impl Default for GraphicsState<'_> {
     fn default() -> Self {
+        // For table of default values, see <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_graphics_state>
+        // All vectors are set to the x-axis (normalized in 2.14)
         let vector = Point::new(0x4000, 0);
         Self {
             retained: RetainedGraphicsState::default(),
@@ -181,12 +183,16 @@ pub struct RetainedGraphicsState {
 
 impl Default for RetainedGraphicsState {
     fn default() -> Self {
+        // For table of default values, see <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_graphics_state>
         Self {
             auto_flip: true,
+            // 17/16 pixels in 26.6
+            // (17 * 64 / 16) = 68
             control_value_cutin: 68,
             delta_base: 9,
             delta_shift: 3,
             instruct_control: 0,
+            // 1 pixel in 26.6
             min_distance: 64,
             scan_control: false,
             scan_type: 0,
