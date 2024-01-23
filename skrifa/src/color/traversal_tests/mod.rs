@@ -202,10 +202,6 @@ impl ColorPainter for PaintDump {
         });
     }
 
-    fn fill_glyph_supported(&self) -> super::FillGlyph {
-        super::FillGlyph::Supported
-    }
-
     fn fill_glyph(
         &mut self,
         glyph_id: GlyphId,

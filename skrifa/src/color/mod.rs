@@ -197,20 +197,6 @@ pub enum PaintCachedColorGlyph {
     Unimplemented,
 }
 
-/// Result of [`fill_glyph_supported()`](ColorPainter::fill_glyph_supported).
-///
-/// Result of [`fill_glyph_supported()`](ColorPainter::fill_glyph_supported)
-/// through which the client signals whether an optimized glyph filling function
-/// is implemented that combines clip and fill with a
-/// [`brush`](Brush).
-#[derive(PartialEq)]
-pub enum FillGlyph {
-    /// The combined clip and fill operation is supported on the client side.
-    Supported,
-    /// The client does not implement the combined clip and fill operation.
-    Unimplemented,
-}
-
 /// A group of required painting callbacks to be provided by the client.
 ///
 /// Each callback is executing a particular drawing or canvas transformation
@@ -239,24 +225,32 @@ pub trait ColorPainter {
     /// Fill the current clip area with the specified gradient fill.
     fn fill(&mut self, brush: Brush<'_>);
 
-    /// Queries from the client whether the optimized
-    /// [`fill_glyph()`](ColorPainter::fill_glyph) operation is supported.
-    fn fill_glyph_supported(&self) -> FillGlyph {
-        FillGlyph::Unimplemented
-    }
-
     /// Combined clip and fill operation.
     ///
-    /// Apply the clip path determined by the specified `glyph_id`,
-    /// then fill it with the specified [`brush`](Brush), applying the
-    /// `_brush_transform` transformation matrix to the brush.
+    /// Apply the clip path determined by the specified `glyph_id`, then fill it
+    /// with the specified [`brush`](Brush), applying the `_brush_transform`
+    /// transformation matrix to the brush. The default implementation works
+    /// based on existing methods in this trait. It is recommend for clients to
+    /// override this implementaition with a custom combined clip and fill
+    /// operation. It is likely that this will result in performance gains
+    /// depending on performance characteristics of the 2D graphics stack that
+    /// these calls are mapped to.
     fn fill_glyph(
         &mut self,
-        _glyph_id: GlyphId,
-        _brush_transform: Option<Transform>,
-        _brush: Brush<'_>,
+        glyph_id: GlyphId,
+        brush_transform: Option<Transform>,
+        brush: Brush<'_>,
     ) -> Result<(), PaintError> {
-        Err(PaintError::FillGlyphOptimizationFailed)
+        self.push_clip_glyph(glyph_id);
+        if let Some(wrap_in_transform) = brush_transform {
+            self.push_transform(wrap_in_transform);
+            self.fill(brush);
+            self.pop_transform();
+        } else {
+            self.fill(brush);
+        }
+        self.pop_clip();
+        Ok(())
     }
 
     /// Optionally implement this method: Draw an unscaled COLRv1 glyph given

@@ -13,7 +13,7 @@ use super::{
     instance::{
         resolve_clip_box, resolve_paint, ColorStops, ColrInstance, ResolvedColorStop, ResolvedPaint,
     },
-    Brush, ColorPainter, ColorStop, FillGlyph, PaintCachedColorGlyph, PaintError, Transform,
+    Brush, ColorPainter, ColorStop, PaintCachedColorGlyph, PaintError, Transform,
 };
 
 // Workaround for https://bugs.chromium.org/p/chromium/issues/detail?id=1516634.
@@ -433,19 +433,16 @@ pub(crate) fn traverse_with_callbacks(
         }
 
         ResolvedPaint::Glyph { glyph_id, paint } => {
-            let mut result = Err(PaintError::FillGlyphOptimizationFailed);
-            if painter.fill_glyph_supported() == FillGlyph::Supported {
-                let mut optimizer = CollectFillGlyphPainter::new(painter, *glyph_id);
-                result = traverse_with_callbacks(
-                    &resolve_paint(instance, paint)?,
-                    instance,
-                    &mut optimizer,
-                    visited_set,
-                )
-                .and(optimizer.optimization_result)
-            }
+            let mut optimizer = CollectFillGlyphPainter::new(painter, *glyph_id);
+            let mut result = traverse_with_callbacks(
+                &resolve_paint(instance, paint)?,
+                instance,
+                &mut optimizer,
+                visited_set,
+            );
 
-            if result.is_err() {
+            // In case the optimization was not successful, just push a clip, and continue unoptimized traversal.
+            if let Err(PaintError::FillGlyphOptimizationFailed) = optimizer.optimization_result {
                 painter.push_clip_glyph(*glyph_id);
                 result = traverse_with_callbacks(
                     &resolve_paint(instance, paint)?,
@@ -455,6 +452,7 @@ pub(crate) fn traverse_with_callbacks(
                 );
                 painter.pop_clip();
             }
+
             result
         }
         ResolvedPaint::ColrGlyph { glyph_id } => match (*instance).v1_base_glyph(*glyph_id)? {
@@ -549,23 +547,14 @@ pub(crate) fn traverse_v0_range(
 ) -> Result<(), PaintError> {
     for layer_index in range.clone() {
         let (layer_index, palette_index) = (*instance).v0_layer(layer_index)?;
-        if painter.fill_glyph_supported() == FillGlyph::Supported {
-            painter.fill_glyph(
-                layer_index,
-                None,
-                Brush::Solid {
-                    palette_index,
-                    alpha: 1.0,
-                },
-            )?;
-        } else {
-            painter.push_clip_glyph(layer_index);
-            painter.fill(Brush::Solid {
+        painter.fill_glyph(
+            layer_index,
+            None,
+            Brush::Solid {
                 palette_index,
                 alpha: 1.0,
-            });
-            painter.pop_clip();
-        }
+            },
+        )?;
     }
     Ok(())
 }
