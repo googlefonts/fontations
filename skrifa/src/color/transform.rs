@@ -18,6 +18,7 @@ use serde::{Deserialize, Serialize};
 /// `x' = xx * x + xy * y + dx`,
 /// and the transformed position y' is calculated by
 /// `y' = yx * x + yy * y + dy`.
+#[derive(Copy)]
 pub struct Transform {
     pub xx: f32,
     pub yx: f32,
@@ -29,7 +30,7 @@ pub struct Transform {
 
 impl MulAssign for Transform {
     fn mul_assign(&mut self, rhs: Self) {
-        *self = self.clone() * rhs;
+        *self = *self * rhs;
     }
 }
 
