@@ -231,7 +231,6 @@ pub trait ColorPainter {
     /// with the specified [`brush`](Brush), applying the `_brush_transform`
     /// transformation matrix to the brush. The default implementation works
     /// based on existing methods in this trait. It is recommend for clients to
-    /// override this implementaition with a custom combined clip and fill
     /// operation. It is likely that this will result in performance gains
     /// depending on performance characteristics of the 2D graphics stack that
     /// these calls are mapped to.
