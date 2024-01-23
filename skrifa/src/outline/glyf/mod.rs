@@ -8,7 +8,7 @@ mod hint;
 mod memory;
 mod outline;
 
-pub use hint::HinterOutline;
+pub use hint::HintOutline;
 pub use memory::OutlineMemory;
 pub use outline::{Outline, ScaledOutline};
 
@@ -148,7 +148,7 @@ impl<'a> Outlines<'a> {
         outline: &Outline,
         size: f32,
         coords: &'a [F2Dot14],
-        hint_fn: impl FnMut(HinterOutline) -> bool,
+        hint_fn: impl FnMut(HintOutline) -> bool,
     ) -> Result<ScaledOutline<'a>, DrawError> {
         Scaler::new(self.clone(), memory, size, coords, hint_fn, false)
             .scale(&outline.glyph, outline.glyph_id)
@@ -280,7 +280,7 @@ struct Scaler<'a, H> {
 
 impl<'a, H> Scaler<'a, H>
 where
-    H: FnMut(HinterOutline) -> bool,
+    H: FnMut(HintOutline) -> bool,
 {
     fn new(
         outlines: Outlines<'a>,
@@ -504,7 +504,7 @@ where
                 point.x = point.x.round();
                 point.y = point.y.round();
             }
-            if !(self.hint_fn)(HinterOutline {
+            if !(self.hint_fn)(HintOutline {
                 unscaled,
                 scaled,
                 original_scaled,
@@ -756,7 +756,7 @@ where
                         *contour -= delta;
                     }
                 }
-                if !(self.hint_fn)(HinterOutline {
+                if !(self.hint_fn)(HintOutline {
                     unscaled,
                     scaled,
                     original_scaled,
