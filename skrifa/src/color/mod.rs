@@ -218,7 +218,34 @@ pub trait ColorPainter {
     fn pop_clip(&mut self);
 
     /// Fill the current clip area with the specified gradient fill.
-    fn fill(&mut self, brush: Brush);
+    fn fill(&mut self, brush: Brush<'_>);
+
+    /// Combined clip and fill operation.
+    ///
+    /// Apply the clip path determined by the specified `glyph_id`, then fill it
+    /// with the specified [`brush`](Brush), applying the `_brush_transform`
+    /// transformation matrix to the brush. The default implementation works
+    /// based on existing methods in this trait. It is recommended for clients
+    /// to override the default implementaition with a custom combined clip and
+    /// fill operation. In this way overriding likely results in performance
+    /// gains depending on performance characteristics of the 2D graphics stack
+    /// that these calls are mapped to.
+    fn fill_glyph(
+        &mut self,
+        glyph_id: GlyphId,
+        brush_transform: Option<Transform>,
+        brush: Brush<'_>,
+    ) {
+        self.push_clip_glyph(glyph_id);
+        if let Some(wrap_in_transform) = brush_transform {
+            self.push_transform(wrap_in_transform);
+            self.fill(brush);
+            self.pop_transform();
+        } else {
+            self.fill(brush);
+        }
+        self.pop_clip();
+    }
 
     /// Optionally implement this method: Draw an unscaled COLRv1 glyph given
     /// the current transformation matrix (as accumulated by
@@ -229,9 +256,6 @@ pub trait ColorPainter {
     ) -> Result<PaintCachedColorGlyph, PaintError> {
         Ok(PaintCachedColorGlyph::Unimplemented)
     }
-
-    // TODO(https://github.com/googlefonts/fontations/issues/746):
-    // Add an optimized callback function combining clip, fill and transforms.
 
     /// Open a new layer, and merge the layer down using `composite_mode` when
     /// [`pop_layer`](ColorPainter::pop_layer) is called, signalling that this layer is done drawing.
