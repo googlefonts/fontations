@@ -56,7 +56,7 @@ struct CollectFillGlyphPainter<'a> {
     brush_transform: Option<Transform>,
     glyph_id: GlyphId,
     parent_painter: &'a mut dyn ColorPainter,
-    pub optimization_result: Result<(), PaintError>,
+    pub optimization_success: bool,
 }
 
 impl<'a> CollectFillGlyphPainter<'a> {
@@ -65,14 +65,14 @@ impl<'a> CollectFillGlyphPainter<'a> {
             brush_transform: None,
             glyph_id,
             parent_painter,
-            optimization_result: Ok(()),
+            optimization_success: true,
         }
     }
 }
 
 impl<'a> ColorPainter for CollectFillGlyphPainter<'a> {
     fn push_transform(&mut self, transform: Transform) {
-        if self.optimization_result.is_ok() {
+        if self.optimization_success {
             match self.brush_transform {
                 None => {
                     self.brush_transform = Some(transform);
@@ -92,31 +92,30 @@ impl<'a> ColorPainter for CollectFillGlyphPainter<'a> {
     }
 
     fn fill(&mut self, brush: Brush<'_>) {
-        if self.optimization_result.is_ok() {
-            self.optimization_result =
-                self.parent_painter
-                    .fill_glyph(self.glyph_id, self.brush_transform.clone(), brush);
+        if self.optimization_success {
+            self.parent_painter
+                .fill_glyph(self.glyph_id, self.brush_transform.clone(), brush);
         }
     }
 
     fn push_clip_glyph(&mut self, _: GlyphId) {
-        self.optimization_result = Err(PaintError::FillGlyphOptimizationFailed);
+        self.optimization_success = false;
     }
 
     fn push_clip_box(&mut self, _: BoundingBox<f32>) {
-        self.optimization_result = Err(PaintError::FillGlyphOptimizationFailed);
+        self.optimization_success = false;
     }
 
     fn pop_clip(&mut self) {
-        self.optimization_result = Err(PaintError::FillGlyphOptimizationFailed);
+        self.optimization_success = false;
     }
 
     fn push_layer(&mut self, _: CompositeMode) {
-        self.optimization_result = Err(PaintError::FillGlyphOptimizationFailed);
+        self.optimization_success = false;
     }
 
     fn pop_layer(&mut self) {
-        self.optimization_result = Err(PaintError::FillGlyphOptimizationFailed);
+        self.optimization_success = false;
     }
 }
 
@@ -442,7 +441,7 @@ pub(crate) fn traverse_with_callbacks(
             );
 
             // In case the optimization was not successful, just push a clip, and continue unoptimized traversal.
-            if let Err(PaintError::FillGlyphOptimizationFailed) = optimizer.optimization_result {
+            if !optimizer.optimization_success {
                 painter.push_clip_glyph(*glyph_id);
                 result = traverse_with_callbacks(
                     &resolve_paint(instance, paint)?,
@@ -554,7 +553,7 @@ pub(crate) fn traverse_v0_range(
                 palette_index,
                 alpha: 1.0,
             },
-        )?;
+        );
     }
     Ok(())
 }

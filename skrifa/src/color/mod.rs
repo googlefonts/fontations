@@ -76,7 +76,6 @@ pub enum PaintError {
     ParseError(ReadError),
     GlyphNotFound(GlyphId),
     PaintCycleDetected,
-    FillGlyphOptimizationFailed,
 }
 
 impl std::fmt::Display for PaintError {
@@ -89,10 +88,6 @@ impl std::fmt::Display for PaintError {
                 write!(f, "No COLRv1 glyph found for glyph id: {glyph_id}")
             }
             PaintError::PaintCycleDetected => write!(f, "Paint cycle detected in COLRv1 glyph."),
-            PaintError::FillGlyphOptimizationFailed => write!(
-                f,
-                "Failed to combine clip glyph and fill into optimized single operation."
-            ),
         }
     }
 }
@@ -230,16 +225,17 @@ pub trait ColorPainter {
     /// Apply the clip path determined by the specified `glyph_id`, then fill it
     /// with the specified [`brush`](Brush), applying the `_brush_transform`
     /// transformation matrix to the brush. The default implementation works
-    /// based on existing methods in this trait. It is recommend for clients to
-    /// operation. It is likely that this will result in performance gains
-    /// depending on performance characteristics of the 2D graphics stack that
-    /// these calls are mapped to.
+    /// based on existing methods in this trait. It is recommended for clients
+    /// to override the default implementaition with a custom combined clip and
+    /// fill operation. In this way overriding likely results in performance
+    /// gains depending on performance characteristics of the 2D graphics stack
+    /// that these calls are mapped to.
     fn fill_glyph(
         &mut self,
         glyph_id: GlyphId,
         brush_transform: Option<Transform>,
         brush: Brush<'_>,
-    ) -> Result<(), PaintError> {
+    ) {
         self.push_clip_glyph(glyph_id);
         if let Some(wrap_in_transform) = brush_transform {
             self.push_transform(wrap_in_transform);
@@ -249,7 +245,6 @@ pub trait ColorPainter {
             self.fill(brush);
         }
         self.pop_clip();
-        Ok(())
     }
 
     /// Optionally implement this method: Draw an unscaled COLRv1 glyph given
