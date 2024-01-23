@@ -94,7 +94,7 @@ impl<'a> ColorPainter for CollectFillGlyphPainter<'a> {
     fn fill(&mut self, brush: Brush<'_>) {
         if self.optimization_success {
             self.parent_painter
-                .fill_glyph(self.glyph_id, self.brush_transform.clone(), brush);
+                .fill_glyph(self.glyph_id, self.brush_transform, brush);
         }
     }
 
