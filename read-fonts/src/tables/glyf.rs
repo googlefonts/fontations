@@ -17,15 +17,15 @@ impl PointMarker {
 
     /// Marker that signifies that the x coordinate of a point has been touched
     /// by an IUP hinting instruction.
-    pub const TOUCHED_X: Self = Self(0x8);
+    pub const TOUCHED_X: Self = Self(0x10);
 
     /// Marker that signifies that the y coordinate of a point has been touched
     /// by an IUP hinting instruction.
-    pub const TOUCHED_Y: Self = Self(0x10);
+    pub const TOUCHED_Y: Self = Self(0x20);
 
     /// Marker that signifies that the both coordinates of a point has been touched
     /// by an IUP hinting instruction.
-    pub const TOUCHED: Self = Self(0x8 | 0x10);
+    pub const TOUCHED: Self = Self(Self::TOUCHED_X.0 | Self::TOUCHED_Y.0);
 }
 
 /// Flags describing the properties of a point.
@@ -40,9 +40,9 @@ pub struct PointFlags(u8);
 impl PointFlags {
     // Note: OFF_CURVE_QUAD is signified by the absence of both ON_CURVE
     // and OFF_CURVE_CUBIC bits, per FreeType and TrueType convention.
-    const CURVE_MASK: u8 = 0x81;
     const ON_CURVE: u8 = 0x1;
     const OFF_CURVE_CUBIC: u8 = 0x8;
+    const CURVE_MASK: u8 = Self::ON_CURVE | Self::OFF_CURVE_CUBIC;
 
     /// Creates a new on curve point flag.
     pub fn on_curve() -> Self {
@@ -1051,5 +1051,22 @@ mod tests {
             make_xform(2.0, 0., 1.0, 1.0).compute_flags(),
             CompositeGlyphFlags::WE_HAVE_A_TWO_BY_TWO
         );
+    }
+
+    #[test]
+    fn point_flags_and_marker_bits() {
+        let bits = [
+            PointFlags::OFF_CURVE_CUBIC,
+            PointFlags::ON_CURVE,
+            PointMarker::HAS_DELTA.0,
+            PointMarker::TOUCHED_X.0,
+            PointMarker::TOUCHED_Y.0,
+        ];
+        // Ensure bits don't overlap
+        for (i, a) in bits.iter().enumerate() {
+            for b in &bits[i + 1..] {
+                assert_eq!(a & b, 0);
+            }
+        }
     }
 }
