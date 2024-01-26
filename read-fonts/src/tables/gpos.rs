@@ -12,6 +12,7 @@ pub use super::layout::{
     ClassDef, CoverageTable, Device, DeviceOrVariationIndex, FeatureList, FeatureVariations,
     Lookup, ScriptList,
 };
+use super::layout::{ExtensionLookup, LookupFlag, Subtables};
 pub use value_record::ValueRecord;
 
 #[cfg(test)]
@@ -45,6 +46,95 @@ impl<'a> AnchorTable<'a> {
         match self {
             AnchorTable::Format3(inner) => inner.y_device(),
             _ => None,
+        }
+    }
+}
+
+impl<'a, T: FontRead<'a>> ExtensionLookup<'a, T> for ExtensionPosFormat1<'a, T> {
+    fn extension(&self) -> Result<T, ReadError> {
+        self.extension()
+    }
+}
+
+type PosSubtables<'a, T> = Subtables<'a, T, ExtensionPosFormat1<'a, T>>;
+
+/// The subtables from a GPOS lookup.
+///
+/// This type is a convenience that removes the need to dig into the
+/// [`PositionLookup`] enum in order to access subtables, and it also abstracts
+/// away the distinction between extension and non-extension lookups.
+pub enum PositionSubtables<'a> {
+    Single(PosSubtables<'a, SinglePos<'a>>),
+    Pair(PosSubtables<'a, PairPos<'a>>),
+    Cursive(PosSubtables<'a, CursivePosFormat1<'a>>),
+    MarkToBase(PosSubtables<'a, MarkBasePosFormat1<'a>>),
+    MarkToLig(PosSubtables<'a, MarkLigPosFormat1<'a>>),
+    MarkToMark(PosSubtables<'a, MarkMarkPosFormat1<'a>>),
+    Contextual(PosSubtables<'a, PositionSequenceContext<'a>>),
+    ChainContextual(PosSubtables<'a, PositionChainContext<'a>>),
+}
+
+impl<'a> PositionLookup<'a> {
+    pub fn lookup_flag(&self) -> LookupFlag {
+        self.to_untyped().lookup_flag()
+    }
+
+    /// Different enumerations for GSUB and GPOS
+    pub fn lookup_type(&self) -> u16 {
+        self.to_untyped().lookup_type()
+    }
+
+    pub fn mark_filtering_set(&self) -> u16 {
+        self.to_untyped().mark_filtering_set()
+    }
+
+    /// Return the subtables for this lookup.
+    ///
+    /// This method handles both extension and non-extension lookups, and saves
+    /// the caller needing to dig into the `PositionLookup` enum itself.
+    pub fn subtables(&self) -> Result<PositionSubtables<'a>, ReadError> {
+        let raw_lookup = self.to_untyped();
+        let offsets = raw_lookup.subtable_offsets();
+        let data = raw_lookup.offset_data();
+        match raw_lookup.lookup_type() {
+            1 => Ok(PositionSubtables::Single(Subtables::new(offsets, data))),
+            2 => Ok(PositionSubtables::Pair(Subtables::new(offsets, data))),
+            3 => Ok(PositionSubtables::Cursive(Subtables::new(offsets, data))),
+            4 => Ok(PositionSubtables::MarkToBase(Subtables::new(offsets, data))),
+            5 => Ok(PositionSubtables::MarkToLig(Subtables::new(offsets, data))),
+            6 => Ok(PositionSubtables::MarkToMark(Subtables::new(offsets, data))),
+            7 => Ok(PositionSubtables::Contextual(Subtables::new(offsets, data))),
+            8 => Ok(PositionSubtables::ChainContextual(Subtables::new(
+                offsets, data,
+            ))),
+            9 => {
+                let first = offsets.first().ok_or(ReadError::OutOfBounds)?.get();
+                let ext: ExtensionPosFormat1<()> = first.resolve(data)?;
+                match ext.extension_lookup_type() {
+                    1 => Ok(PositionSubtables::Single(Subtables::new_ext(offsets, data))),
+                    2 => Ok(PositionSubtables::Pair(Subtables::new_ext(offsets, data))),
+                    3 => Ok(PositionSubtables::Cursive(Subtables::new_ext(
+                        offsets, data,
+                    ))),
+                    4 => Ok(PositionSubtables::MarkToBase(Subtables::new_ext(
+                        offsets, data,
+                    ))),
+                    5 => Ok(PositionSubtables::MarkToLig(Subtables::new_ext(
+                        offsets, data,
+                    ))),
+                    6 => Ok(PositionSubtables::MarkToMark(Subtables::new_ext(
+                        offsets, data,
+                    ))),
+                    7 => Ok(PositionSubtables::Contextual(Subtables::new_ext(
+                        offsets, data,
+                    ))),
+                    8 => Ok(PositionSubtables::ChainContextual(Subtables::new_ext(
+                        offsets, data,
+                    ))),
+                    other => Err(ReadError::InvalidFormat(other as _)),
+                }
+            }
+            other => Err(ReadError::InvalidFormat(other as _)),
         }
     }
 }
