@@ -63,6 +63,21 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                        }
                    }
                }
+
+               // we also generate a conversion from typed to untyped, which
+               // we use to write convenience methods on the wrapper
+               impl<'a, #t> #raw_name<'a, #t> {
+                   #[allow(dead_code)]
+                   pub(crate) fn to_untyped(&self) -> #raw_name<'a, ()> {
+                       let TableRef { data, #shape_name} = self;
+                       TableRef {
+                           shape: #marker_name {
+                               #( #shape_fields, )*
+                               offset_type: std::marker::PhantomData,
+                           }, data: *data,
+                       }
+                   }
+               }
         }
     });
 
@@ -194,6 +209,7 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
     let mut variant_decls = Vec::new();
     let mut read_match_arms = Vec::new();
     let mut dyn_inner_arms = Vec::new();
+    let mut to_untyped_arms = Vec::new();
     for var in &item.variants {
         let var_name = &var.name;
         let type_id = &var.type_id;
@@ -202,6 +218,7 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
         read_match_arms
             .push(quote! { #type_id => Ok(#name :: #var_name (untyped.into_concrete())) });
         dyn_inner_arms.push(quote! { #name :: #var_name(table) => table });
+        to_untyped_arms.push(quote! { #name :: #var_name(inner) => inner.to_untyped()  });
     }
 
     Ok(quote! {
@@ -216,6 +233,15 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
                 match untyped.#type_field() {
                     #( #read_match_arms, )*
                     other => Err(ReadError::InvalidFormat(other.into())),
+                }
+            }
+        }
+
+        impl<'a> #name <'a> {
+            #[allow(dead_code)]
+            pub(crate) fn to_untyped(&self) -> #inner<'a, ()> {
+                match self {
+                    #( #to_untyped_arms, )*
                 }
             }
         }

@@ -697,6 +697,20 @@ impl<'a> LookupList<'a, ()> {
     }
 }
 
+impl<'a, T> LookupList<'a, T> {
+    #[allow(dead_code)]
+    pub(crate) fn to_untyped(&self) -> LookupList<'a, ()> {
+        let TableRef { data, shape } = self;
+        TableRef {
+            shape: LookupListMarker {
+                lookup_offsets_byte_len: shape.lookup_offsets_byte_len,
+                offset_type: std::marker::PhantomData,
+            },
+            data: *data,
+        }
+    }
+}
+
 /// [Lookup List Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#lookup-list-table)
 pub type LookupList<'a, T> = TableRef<'a, LookupListMarker<T>>;
 
@@ -824,6 +838,20 @@ impl<'a> Lookup<'a, ()> {
                 offset_type: std::marker::PhantomData,
             },
             data,
+        }
+    }
+}
+
+impl<'a, T> Lookup<'a, T> {
+    #[allow(dead_code)]
+    pub(crate) fn to_untyped(&self) -> Lookup<'a, ()> {
+        let TableRef { data, shape } = self;
+        TableRef {
+            shape: LookupMarker {
+                subtable_offsets_byte_len: shape.subtable_offsets_byte_len,
+                offset_type: std::marker::PhantomData,
+            },
+            data: *data,
         }
     }
 }

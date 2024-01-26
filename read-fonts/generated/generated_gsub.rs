@@ -189,6 +189,22 @@ impl<'a> FontRead<'a> for SubstitutionLookup<'a> {
     }
 }
 
+impl<'a> SubstitutionLookup<'a> {
+    #[allow(dead_code)]
+    pub(crate) fn to_untyped(&self) -> Lookup<'a, ()> {
+        match self {
+            SubstitutionLookup::Single(inner) => inner.to_untyped(),
+            SubstitutionLookup::Multiple(inner) => inner.to_untyped(),
+            SubstitutionLookup::Alternate(inner) => inner.to_untyped(),
+            SubstitutionLookup::Ligature(inner) => inner.to_untyped(),
+            SubstitutionLookup::Contextual(inner) => inner.to_untyped(),
+            SubstitutionLookup::ChainContextual(inner) => inner.to_untyped(),
+            SubstitutionLookup::Extension(inner) => inner.to_untyped(),
+            SubstitutionLookup::Reverse(inner) => inner.to_untyped(),
+        }
+    }
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> SubstitutionLookup<'a> {
     fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
@@ -1244,6 +1260,19 @@ impl<'a> ExtensionSubstFormat1<'a, ()> {
     }
 }
 
+impl<'a, T> ExtensionSubstFormat1<'a, T> {
+    #[allow(dead_code)]
+    pub(crate) fn to_untyped(&self) -> ExtensionSubstFormat1<'a, ()> {
+        let TableRef { data, .. } = self;
+        TableRef {
+            shape: ExtensionSubstFormat1Marker {
+                offset_type: std::marker::PhantomData,
+            },
+            data: *data,
+        }
+    }
+}
+
 /// [Extension Substitution Subtable Format 1](https://learn.microsoft.com/en-us/typography/opentype/spec/gsub#71-extension-substitution-subtable-format-1)
 pub type ExtensionSubstFormat1<'a, T> = TableRef<'a, ExtensionSubstFormat1Marker<T>>;
 
@@ -1330,6 +1359,21 @@ impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
             6 => Ok(ExtensionSubtable::ChainContextual(untyped.into_concrete())),
             8 => Ok(ExtensionSubtable::Reverse(untyped.into_concrete())),
             other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> ExtensionSubtable<'a> {
+    #[allow(dead_code)]
+    pub(crate) fn to_untyped(&self) -> ExtensionSubstFormat1<'a, ()> {
+        match self {
+            ExtensionSubtable::Single(inner) => inner.to_untyped(),
+            ExtensionSubtable::Multiple(inner) => inner.to_untyped(),
+            ExtensionSubtable::Alternate(inner) => inner.to_untyped(),
+            ExtensionSubtable::Ligature(inner) => inner.to_untyped(),
+            ExtensionSubtable::Contextual(inner) => inner.to_untyped(),
+            ExtensionSubtable::ChainContextual(inner) => inner.to_untyped(),
+            ExtensionSubtable::Reverse(inner) => inner.to_untyped(),
         }
     }
 }

@@ -191,6 +191,23 @@ impl<'a> FontRead<'a> for PositionLookup<'a> {
     }
 }
 
+impl<'a> PositionLookup<'a> {
+    #[allow(dead_code)]
+    pub(crate) fn to_untyped(&self) -> Lookup<'a, ()> {
+        match self {
+            PositionLookup::Single(inner) => inner.to_untyped(),
+            PositionLookup::Pair(inner) => inner.to_untyped(),
+            PositionLookup::Cursive(inner) => inner.to_untyped(),
+            PositionLookup::MarkToBase(inner) => inner.to_untyped(),
+            PositionLookup::MarkToLig(inner) => inner.to_untyped(),
+            PositionLookup::MarkToMark(inner) => inner.to_untyped(),
+            PositionLookup::Contextual(inner) => inner.to_untyped(),
+            PositionLookup::ChainContextual(inner) => inner.to_untyped(),
+            PositionLookup::Extension(inner) => inner.to_untyped(),
+        }
+    }
+}
+
 #[cfg(feature = "traversal")]
 impl<'a> PositionLookup<'a> {
     fn dyn_inner(&self) -> &(dyn SomeTable<'a> + 'a) {
@@ -3604,6 +3621,19 @@ impl<'a> ExtensionPosFormat1<'a, ()> {
     }
 }
 
+impl<'a, T> ExtensionPosFormat1<'a, T> {
+    #[allow(dead_code)]
+    pub(crate) fn to_untyped(&self) -> ExtensionPosFormat1<'a, ()> {
+        let TableRef { data, .. } = self;
+        TableRef {
+            shape: ExtensionPosFormat1Marker {
+                offset_type: std::marker::PhantomData,
+            },
+            data: *data,
+        }
+    }
+}
+
 /// [Extension Positioning Subtable Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/gpos#extension-positioning-subtable-format-1)
 pub type ExtensionPosFormat1<'a, T> = TableRef<'a, ExtensionPosFormat1Marker<T>>;
 
@@ -3692,6 +3722,22 @@ impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
             7 => Ok(ExtensionSubtable::Contextual(untyped.into_concrete())),
             8 => Ok(ExtensionSubtable::ChainContextual(untyped.into_concrete())),
             other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+impl<'a> ExtensionSubtable<'a> {
+    #[allow(dead_code)]
+    pub(crate) fn to_untyped(&self) -> ExtensionPosFormat1<'a, ()> {
+        match self {
+            ExtensionSubtable::Single(inner) => inner.to_untyped(),
+            ExtensionSubtable::Pair(inner) => inner.to_untyped(),
+            ExtensionSubtable::Cursive(inner) => inner.to_untyped(),
+            ExtensionSubtable::MarkToBase(inner) => inner.to_untyped(),
+            ExtensionSubtable::MarkToLig(inner) => inner.to_untyped(),
+            ExtensionSubtable::MarkToMark(inner) => inner.to_untyped(),
+            ExtensionSubtable::Contextual(inner) => inner.to_untyped(),
+            ExtensionSubtable::ChainContextual(inner) => inner.to_untyped(),
         }
     }
 }
