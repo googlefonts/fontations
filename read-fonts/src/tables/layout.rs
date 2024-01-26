@@ -24,6 +24,69 @@ impl<'a, T: FontRead<'a>> Lookup<'a, T> {
     }
 }
 
+/// A trait that abstracts the behaviour of an extension subtable
+///
+/// This is necessary because GPOS and GSUB have different concrete types
+/// for their extension lookups.
+pub trait ExtensionLookup<'a, T: FontRead<'a>>: FontRead<'a> {
+    fn extension(&self) -> Result<T, ReadError>;
+}
+
+/// an array of subtables, maybe behind extension lookups
+///
+/// This is used to implement more ergonomic access to lookup subtables for
+/// GPOS & GSUB lookup tables.
+pub enum Subtables<'a, T: FontRead<'a>, Ext: ExtensionLookup<'a, T>> {
+    Subtable(ArrayOfOffsets<'a, T>),
+    Extension(ArrayOfOffsets<'a, Ext>),
+}
+
+impl<'a, T: FontRead<'a>, Ext: ExtensionLookup<'a, T>> Subtables<'a, T, Ext> {
+    /// create a new subtables array given offests to non-extension subtables
+    pub(crate) fn new(offsets: &'a [BigEndian<Offset16>], data: FontData<'a>) -> Self {
+        Subtables::Subtable(ArrayOfOffsets::new(offsets, data, ()))
+    }
+
+    /// create a new subtables array given offsets to extension subtables
+    pub(crate) fn new_ext(offsets: &'a [BigEndian<Offset16>], data: FontData<'a>) -> Self {
+        Subtables::Extension(ArrayOfOffsets::new(offsets, data, ()))
+    }
+
+    /// The number of subtables in this collection
+    pub fn len(&self) -> usize {
+        match self {
+            Subtables::Subtable(inner) => inner.len(),
+            Subtables::Extension(inner) => inner.len(),
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    /// Return the subtable at the given index
+    pub fn get(&self, idx: usize) -> Result<T, ReadError> {
+        match self {
+            Subtables::Subtable(inner) => inner.get(idx),
+            Subtables::Extension(inner) => inner.get(idx).and_then(|ext| ext.extension()),
+        }
+    }
+
+    /// Return an iterator over all the subtables in the collection
+    pub fn iter(&self) -> impl Iterator<Item = Result<T, ReadError>> + 'a {
+        let (left, right) = match self {
+            Subtables::Subtable(inner) => (Some(inner.iter()), None),
+            Subtables::Extension(inner) => (
+                None,
+                Some(inner.iter().map(|ext| ext.and_then(|ext| ext.extension()))),
+            ),
+        };
+        left.into_iter()
+            .flatten()
+            .chain(right.into_iter().flatten())
+    }
+}
+
 /// An enum for different possible tables referenced by [Feature::feature_params_offset]
 pub enum FeatureParams<'a> {
     StylisticSet(StylisticSetParams<'a>),
