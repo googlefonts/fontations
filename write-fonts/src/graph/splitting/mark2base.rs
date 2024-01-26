@@ -288,7 +288,10 @@ mod tests {
     use std::ops::Range;
 
     use font_types::GlyphId;
-    use read_fonts::{tables::layout::LookupFlag, FontRead};
+    use read_fonts::{
+        tables::{gpos::PositionSubtables, layout::LookupFlag},
+        FontRead,
+    };
 
     use crate::{
         tables::{
@@ -526,22 +529,11 @@ mod tests {
         assert_eq!(read_back.lookup_count(), 1);
         let lookup = read_back.lookups().get(0).unwrap();
 
-        let subtables: Vec<_> = match lookup {
-            rgpos::PositionLookup::MarkToBase(lookup) => {
-                lookup.subtables().iter().map(|sub| sub.unwrap()).collect()
-            }
-            rgpos::PositionLookup::Extension(lookup) => lookup
-                .subtables()
-                .iter()
-                .map(|sub| {
-                    let Ok(rgpos::ExtensionSubtable::MarkToBase(ext_sub)) = sub else {
-                        panic!("wrong extension type");
-                    };
-                    ext_sub.extension().unwrap()
-                })
-                .collect(),
-            _ => panic!("bad lookup type"),
+        let subtables: Vec<_> = match lookup.subtables().unwrap() {
+            PositionSubtables::MarkToBase(subs) => subs.iter().map(|sub| sub.unwrap()).collect(),
+            _ => panic!("wrong lookup type"),
         };
+
         assert_eq!(subtables.len(), 7);
 
         // now we want to check to see that one of our variation index tables is correct.

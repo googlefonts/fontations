@@ -494,8 +494,11 @@ mod tests {
     use std::collections::BTreeMap;
 
     use read_fonts::{
-        tables::{gpos::ValueFormat, layout::LookupFlag},
-        FontData, FontRead, ResolveOffset,
+        tables::{
+            gpos::{PositionSubtables, ValueFormat},
+            layout::LookupFlag,
+        },
+        FontData, FontRead,
     };
 
     use super::*;
@@ -795,33 +798,14 @@ mod tests {
         let rlookuplist = rgpos::PositionLookupList::read(FontData::new(&bytes)).unwrap();
         assert_eq!(rlookuplist.lookup_count(), 1);
         let rlookup = rlookuplist.lookups().get(0).unwrap();
-        let subtables: Vec<_> = match rlookup {
-            rgpos::PositionLookup::Pair(pairpos) => pairpos
-                .subtables()
-                .iter()
-                .map(|sub| match sub {
-                    Ok(rgpos::PairPos::Format2(sub)) => sub,
-                    _ => panic!("wrong subtable type"),
-                })
-                .collect(),
-            rgpos::PositionLookup::Extension(lookup) => lookup
-                .subtables()
-                .iter()
-                .map(|sub| {
-                    let Ok(rgpos::ExtensionSubtable::Pair(ext_sub)) = sub else {
-                        panic!("wrong extension")
-                    };
-                    let data = ext_sub.offset_data();
-                    ext_sub
-                        .extension_offset()
-                        .resolve::<rgpos::PairPosFormat2>(data)
-                        .unwrap()
-                })
-                .collect(),
+        let subtables = match rlookup.subtables().unwrap() {
+            PositionSubtables::Pair(subs) => subs.iter().map(|sub| match sub.unwrap() {
+                rgpos::PairPos::Format2(sub) => sub,
+                rgpos::PairPos::Format1(_) => panic!("wrong subtable type"),
+            }),
             _ => panic!("wrong lookup type"),
         };
         let total_c2recs: usize = subtables
-            .iter()
             .map(|sub| {
                 sub.class1_records()
                     .iter()
