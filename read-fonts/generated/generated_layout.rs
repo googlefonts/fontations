@@ -699,7 +699,8 @@ impl<'a> LookupList<'a, ()> {
 
 impl<'a, T> LookupList<'a, T> {
     #[allow(dead_code)]
-    pub(crate) fn to_untyped(&self) -> LookupList<'a, ()> {
+    /// Replace the specific generic type on this implementation with `()`
+    pub(crate) fn of_unit_type(&self) -> LookupList<'a, ()> {
         let TableRef { data, shape } = self;
         TableRef {
             shape: LookupListMarker {
@@ -844,7 +845,8 @@ impl<'a> Lookup<'a, ()> {
 
 impl<'a, T> Lookup<'a, T> {
     #[allow(dead_code)]
-    pub(crate) fn to_untyped(&self) -> Lookup<'a, ()> {
+    /// Replace the specific generic type on this implementation with `()`
+    pub(crate) fn of_unit_type(&self) -> Lookup<'a, ()> {
         let TableRef { data, shape } = self;
         TableRef {
             shape: LookupMarker {

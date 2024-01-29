@@ -191,16 +191,19 @@ impl<'a> FontRead<'a> for SubstitutionLookup<'a> {
 
 impl<'a> SubstitutionLookup<'a> {
     #[allow(dead_code)]
-    pub(crate) fn to_untyped(&self) -> Lookup<'a, ()> {
+    /// Return the inner table, removing the specific generics.
+    ///
+    /// This lets us return a single concrete type we can call methods on.
+    pub(crate) fn of_unit_type(&self) -> Lookup<'a, ()> {
         match self {
-            SubstitutionLookup::Single(inner) => inner.to_untyped(),
-            SubstitutionLookup::Multiple(inner) => inner.to_untyped(),
-            SubstitutionLookup::Alternate(inner) => inner.to_untyped(),
-            SubstitutionLookup::Ligature(inner) => inner.to_untyped(),
-            SubstitutionLookup::Contextual(inner) => inner.to_untyped(),
-            SubstitutionLookup::ChainContextual(inner) => inner.to_untyped(),
-            SubstitutionLookup::Extension(inner) => inner.to_untyped(),
-            SubstitutionLookup::Reverse(inner) => inner.to_untyped(),
+            SubstitutionLookup::Single(inner) => inner.of_unit_type(),
+            SubstitutionLookup::Multiple(inner) => inner.of_unit_type(),
+            SubstitutionLookup::Alternate(inner) => inner.of_unit_type(),
+            SubstitutionLookup::Ligature(inner) => inner.of_unit_type(),
+            SubstitutionLookup::Contextual(inner) => inner.of_unit_type(),
+            SubstitutionLookup::ChainContextual(inner) => inner.of_unit_type(),
+            SubstitutionLookup::Extension(inner) => inner.of_unit_type(),
+            SubstitutionLookup::Reverse(inner) => inner.of_unit_type(),
         }
     }
 }
@@ -1262,7 +1265,8 @@ impl<'a> ExtensionSubstFormat1<'a, ()> {
 
 impl<'a, T> ExtensionSubstFormat1<'a, T> {
     #[allow(dead_code)]
-    pub(crate) fn to_untyped(&self) -> ExtensionSubstFormat1<'a, ()> {
+    /// Replace the specific generic type on this implementation with `()`
+    pub(crate) fn of_unit_type(&self) -> ExtensionSubstFormat1<'a, ()> {
         let TableRef { data, .. } = self;
         TableRef {
             shape: ExtensionSubstFormat1Marker {
@@ -1365,15 +1369,18 @@ impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
 
 impl<'a> ExtensionSubtable<'a> {
     #[allow(dead_code)]
-    pub(crate) fn to_untyped(&self) -> ExtensionSubstFormat1<'a, ()> {
+    /// Return the inner table, removing the specific generics.
+    ///
+    /// This lets us return a single concrete type we can call methods on.
+    pub(crate) fn of_unit_type(&self) -> ExtensionSubstFormat1<'a, ()> {
         match self {
-            ExtensionSubtable::Single(inner) => inner.to_untyped(),
-            ExtensionSubtable::Multiple(inner) => inner.to_untyped(),
-            ExtensionSubtable::Alternate(inner) => inner.to_untyped(),
-            ExtensionSubtable::Ligature(inner) => inner.to_untyped(),
-            ExtensionSubtable::Contextual(inner) => inner.to_untyped(),
-            ExtensionSubtable::ChainContextual(inner) => inner.to_untyped(),
-            ExtensionSubtable::Reverse(inner) => inner.to_untyped(),
+            ExtensionSubtable::Single(inner) => inner.of_unit_type(),
+            ExtensionSubtable::Multiple(inner) => inner.of_unit_type(),
+            ExtensionSubtable::Alternate(inner) => inner.of_unit_type(),
+            ExtensionSubtable::Ligature(inner) => inner.of_unit_type(),
+            ExtensionSubtable::Contextual(inner) => inner.of_unit_type(),
+            ExtensionSubtable::ChainContextual(inner) => inner.of_unit_type(),
+            ExtensionSubtable::Reverse(inner) => inner.of_unit_type(),
         }
     }
 }
