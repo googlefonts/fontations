@@ -62,15 +62,5 @@ mod mock {
             f(self);
             assert_eq!(self.value_stack.pop().ok(), Some(expected_result.into()));
         }
-
-        /// Helper to push values to the stack, invoke a callback and check
-        /// the expected result.    
-        pub(super) fn test_exec2(&mut self, push: &[i32], mut f: impl FnMut(&mut Engine)) -> i32 {
-            for &val in push {
-                self.value_stack.push(val).unwrap();
-            }
-            f(self);
-            self.value_stack.pop().unwrap()
-        }
     }
 }
