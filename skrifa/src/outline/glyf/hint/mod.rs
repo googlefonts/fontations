@@ -1,8 +1,11 @@
 //! TrueType hinting.
 
+mod code_state;
+mod engine;
 mod error;
 mod graphics_state;
 mod math;
+mod value_stack;
 
 use read_fonts::{
     tables::glyf::PointFlags,
