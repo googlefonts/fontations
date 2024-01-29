@@ -146,7 +146,7 @@ impl<'a> Engine<'a> {
     /// unsigned integer in the range (0..255), and pushes them onto the stack.
     /// n itself is not pushed onto the stack.
     ///
-    /// PUSHB[abc] (0xB0 - 0xB7)
+    /// PUSHB\[abc\] (0xB0 - 0xB7)
     ///
     /// Takes the specified number of bytes from the instruction stream and
     /// pushes them onto the interpreter stack.
@@ -155,7 +155,7 @@ impl<'a> Engine<'a> {
     /// from 1 to 8, 1 is automatically added to the ABC figure to obtain the
     /// actual number of bytes pushed.
     ///
-    /// PUSHW[abc] (0xB8 - 0xBF)
+    /// PUSHW\[abc\] (0xB8 - 0xBF)
     ///
     /// Takes the specified number of words from the instruction stream and
     /// pushes them onto the interpreter stack.
