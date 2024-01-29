@@ -36,6 +36,8 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
         }
     });
 
+    let of_unit_docs = " Replace the specific generic type on this implementation with `()`";
+
     // In the presence of a generic param we only impl FontRead for Name<()>,
     // and then use into() to convert it to the concrete generic type.
     let impl_into_generic = generic.as_ref().map(|t| {
@@ -68,7 +70,8 @@ pub(crate) fn generate(item: &Table) -> syn::Result<TokenStream> {
                // we use to write convenience methods on the wrapper
                impl<'a, #t> #raw_name<'a, #t> {
                    #[allow(dead_code)]
-                   pub(crate) fn to_untyped(&self) -> #raw_name<'a, ()> {
+                   #[doc = #of_unit_docs]
+                   pub(crate) fn of_unit_type(&self) -> #raw_name<'a, ()> {
                        let TableRef { data, #shape_name} = self;
                        TableRef {
                            shape: #marker_name {
@@ -209,7 +212,7 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
     let mut variant_decls = Vec::new();
     let mut read_match_arms = Vec::new();
     let mut dyn_inner_arms = Vec::new();
-    let mut to_untyped_arms = Vec::new();
+    let mut of_unit_arms = Vec::new();
     for var in &item.variants {
         let var_name = &var.name;
         let type_id = &var.type_id;
@@ -218,8 +221,14 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
         read_match_arms
             .push(quote! { #type_id => Ok(#name :: #var_name (untyped.into_concrete())) });
         dyn_inner_arms.push(quote! { #name :: #var_name(table) => table });
-        to_untyped_arms.push(quote! { #name :: #var_name(inner) => inner.to_untyped()  });
+        of_unit_arms.push(quote! { #name :: #var_name(inner) => inner.of_unit_type()  });
     }
+
+    let of_unit_docs = &[
+        " Return the inner table, removing the specific generics.",
+        "",
+        " This lets us return a single concrete type we can call methods on.",
+    ];
 
     Ok(quote! {
         #( #docs)*
@@ -239,9 +248,10 @@ pub(crate) fn generate_group(item: &GenericGroup) -> syn::Result<TokenStream> {
 
         impl<'a> #name <'a> {
             #[allow(dead_code)]
-            pub(crate) fn to_untyped(&self) -> #inner<'a, ()> {
+            #(  #[doc = #of_unit_docs] )*
+            pub(crate) fn of_unit_type(&self) -> #inner<'a, ()> {
                 match self {
-                    #( #to_untyped_arms, )*
+                    #( #of_unit_arms, )*
                 }
             }
         }

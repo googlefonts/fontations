@@ -48,16 +48,16 @@ pub enum SubstitutionSubtables<'a> {
 
 impl<'a> SubstitutionLookup<'a> {
     pub fn lookup_flag(&self) -> LookupFlag {
-        self.to_untyped().lookup_flag()
+        self.of_unit_type().lookup_flag()
     }
 
     /// Different enumerations for GSUB and GPOS
     pub fn lookup_type(&self) -> u16 {
-        self.to_untyped().lookup_type()
+        self.of_unit_type().lookup_type()
     }
 
     pub fn mark_filtering_set(&self) -> u16 {
-        self.to_untyped().mark_filtering_set()
+        self.of_unit_type().mark_filtering_set()
     }
 
     /// Return the subtables for this lookup.
@@ -65,7 +65,7 @@ impl<'a> SubstitutionLookup<'a> {
     /// This method handles both extension and non-extension lookups, and saves
     /// the caller needing to dig into the `SubstitutionLookup` enum itself.
     pub fn subtables(&self) -> Result<SubstitutionSubtables<'a>, ReadError> {
-        let raw_lookup = self.to_untyped();
+        let raw_lookup = self.of_unit_type();
         let offsets = raw_lookup.subtable_offsets();
         let data = raw_lookup.offset_data();
         match raw_lookup.lookup_type() {

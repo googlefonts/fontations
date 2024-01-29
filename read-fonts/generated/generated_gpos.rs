@@ -193,17 +193,20 @@ impl<'a> FontRead<'a> for PositionLookup<'a> {
 
 impl<'a> PositionLookup<'a> {
     #[allow(dead_code)]
-    pub(crate) fn to_untyped(&self) -> Lookup<'a, ()> {
+    /// Return the inner table, removing the specific generics.
+    ///
+    /// This lets us return a single concrete type we can call methods on.
+    pub(crate) fn of_unit_type(&self) -> Lookup<'a, ()> {
         match self {
-            PositionLookup::Single(inner) => inner.to_untyped(),
-            PositionLookup::Pair(inner) => inner.to_untyped(),
-            PositionLookup::Cursive(inner) => inner.to_untyped(),
-            PositionLookup::MarkToBase(inner) => inner.to_untyped(),
-            PositionLookup::MarkToLig(inner) => inner.to_untyped(),
-            PositionLookup::MarkToMark(inner) => inner.to_untyped(),
-            PositionLookup::Contextual(inner) => inner.to_untyped(),
-            PositionLookup::ChainContextual(inner) => inner.to_untyped(),
-            PositionLookup::Extension(inner) => inner.to_untyped(),
+            PositionLookup::Single(inner) => inner.of_unit_type(),
+            PositionLookup::Pair(inner) => inner.of_unit_type(),
+            PositionLookup::Cursive(inner) => inner.of_unit_type(),
+            PositionLookup::MarkToBase(inner) => inner.of_unit_type(),
+            PositionLookup::MarkToLig(inner) => inner.of_unit_type(),
+            PositionLookup::MarkToMark(inner) => inner.of_unit_type(),
+            PositionLookup::Contextual(inner) => inner.of_unit_type(),
+            PositionLookup::ChainContextual(inner) => inner.of_unit_type(),
+            PositionLookup::Extension(inner) => inner.of_unit_type(),
         }
     }
 }
@@ -3623,7 +3626,8 @@ impl<'a> ExtensionPosFormat1<'a, ()> {
 
 impl<'a, T> ExtensionPosFormat1<'a, T> {
     #[allow(dead_code)]
-    pub(crate) fn to_untyped(&self) -> ExtensionPosFormat1<'a, ()> {
+    /// Replace the specific generic type on this implementation with `()`
+    pub(crate) fn of_unit_type(&self) -> ExtensionPosFormat1<'a, ()> {
         let TableRef { data, .. } = self;
         TableRef {
             shape: ExtensionPosFormat1Marker {
@@ -3728,16 +3732,19 @@ impl<'a> FontRead<'a> for ExtensionSubtable<'a> {
 
 impl<'a> ExtensionSubtable<'a> {
     #[allow(dead_code)]
-    pub(crate) fn to_untyped(&self) -> ExtensionPosFormat1<'a, ()> {
+    /// Return the inner table, removing the specific generics.
+    ///
+    /// This lets us return a single concrete type we can call methods on.
+    pub(crate) fn of_unit_type(&self) -> ExtensionPosFormat1<'a, ()> {
         match self {
-            ExtensionSubtable::Single(inner) => inner.to_untyped(),
-            ExtensionSubtable::Pair(inner) => inner.to_untyped(),
-            ExtensionSubtable::Cursive(inner) => inner.to_untyped(),
-            ExtensionSubtable::MarkToBase(inner) => inner.to_untyped(),
-            ExtensionSubtable::MarkToLig(inner) => inner.to_untyped(),
-            ExtensionSubtable::MarkToMark(inner) => inner.to_untyped(),
-            ExtensionSubtable::Contextual(inner) => inner.to_untyped(),
-            ExtensionSubtable::ChainContextual(inner) => inner.to_untyped(),
+            ExtensionSubtable::Single(inner) => inner.of_unit_type(),
+            ExtensionSubtable::Pair(inner) => inner.of_unit_type(),
+            ExtensionSubtable::Cursive(inner) => inner.of_unit_type(),
+            ExtensionSubtable::MarkToBase(inner) => inner.of_unit_type(),
+            ExtensionSubtable::MarkToLig(inner) => inner.of_unit_type(),
+            ExtensionSubtable::MarkToMark(inner) => inner.of_unit_type(),
+            ExtensionSubtable::Contextual(inner) => inner.of_unit_type(),
+            ExtensionSubtable::ChainContextual(inner) => inner.of_unit_type(),
         }
     }
 }
