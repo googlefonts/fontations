@@ -573,7 +573,10 @@ impl HintMap {
                 if is_pair {
                     // Preserve stem width: position center of stem with
                     // initial hint map and two edges with nominal scale
-                    let mid = initial.transform(half(second_edge.cs_coord + first_edge.cs_coord));
+                    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/psaux/pshints.c#L693>
+                    let mid = initial.transform(
+                        first_edge.cs_coord + half(second_edge.cs_coord - first_edge.cs_coord),
+                    );
                     let half_width = half(second_edge.cs_coord - first_edge.cs_coord) * self.scale;
                     first_edge.ds_coord = mid - half_width;
                     second_edge.ds_coord = mid + half_width;
@@ -1384,6 +1387,106 @@ mod tests {
                 Fixed::from_bits(expected)
             );
         }
+    }
+
+    #[test]
+    fn hint_map_midpoint_bug() {
+        // Captures a hinting bug where the midpoint was computed incorrectly
+        // when inserting a hint pair with an unlocked first edge.
+        // This is appeared in KawkabMono-Bold v0.501 <https://github.com/aiaf/kawkab-mono/tree/v0.501>
+        // in glyph id 950.
+        // This test initializes hinting state for that font/glyph at size 74
+        // and ensures that the captured hint edges match FreeType.
+        let mut state = HintState {
+            scale: Fixed::from_bits(4850),
+            supress_overshoot: false,
+            do_em_box_hints: false,
+            blue_scale: Fixed::from_bits(2425),
+            blue_fuzz: Fixed::from_bits(458752),
+            boost: Fixed::ZERO,
+            zone_count: 6,
+            ..Default::default()
+        };
+        state.zones[0] = BlueZone {
+            cs_bottom_edge: Fixed::from_bits(-983040),
+            is_bottom: true,
+            ..Default::default()
+        };
+        state.zones[1] = BlueZone {
+            cs_bottom_edge: Fixed::from_bits(28180480),
+            cs_top_edge: Fixed::from_bits(29229056),
+            cs_flat_edge: Fixed::from_bits(28180480),
+            ds_flat_edge: Fixed::from_bits(2097152),
+            ..Default::default()
+        };
+        state.zones[2] = BlueZone {
+            cs_bottom_edge: Fixed::from_bits(39321600),
+            cs_top_edge: Fixed::from_bits(40370176),
+            cs_flat_edge: Fixed::from_bits(39321600),
+            ds_flat_edge: Fixed::from_bits(2883584),
+            ..Default::default()
+        };
+        state.zones[3] = BlueZone {
+            cs_bottom_edge: Fixed::from_bits(58327040),
+            cs_top_edge: Fixed::from_bits(59375616),
+            cs_flat_edge: Fixed::from_bits(58327040),
+            ds_flat_edge: Fixed::from_bits(4325376),
+            ..Default::default()
+        };
+        state.zones[4] = BlueZone {
+            cs_bottom_edge: Fixed::from_bits(85196800),
+            cs_top_edge: Fixed::from_bits(86245376),
+            cs_flat_edge: Fixed::from_bits(85196800),
+            ds_flat_edge: Fixed::from_bits(6291456),
+            ..Default::default()
+        };
+        state.zones[5] = BlueZone {
+            cs_bottom_edge: Fixed::from_bits(-43646976),
+            cs_top_edge: Fixed::from_bits(-42598400),
+            cs_flat_edge: Fixed::from_bits(-42598400),
+            ds_flat_edge: Fixed::from_bits(-3145728),
+            is_bottom: true,
+        };
+        let mut stem_hints = [StemHint {
+            min: Fixed::from_bits(1237843968),
+            max: Fixed::from_bits(1244397568),
+            ..Default::default()
+        }];
+        let mut initial_map = HintMap::new(state.scale);
+        let mut map = HintMap::new(state.scale);
+        map.build(
+            &state,
+            None,
+            Some(&mut initial_map),
+            &mut stem_hints,
+            Fixed::ZERO,
+            false,
+        );
+        // FreeType generates the following hint map:
+        //
+        // index  csCoord   dsCoord  scale  flags
+        // 0     18888.00  18890.58   4850  pb
+        // 0     18988.00  18990.58   4850  pt
+        assert_eq!(map.len, 2);
+        assert_eq!(
+            &map.edges[..2],
+            &[
+                Hint {
+                    index: 0,
+                    cs_coord: Fixed::from_bits(1237843968),
+                    ds_coord: Fixed::from_bits(91619328),
+                    scale: state.scale,
+                    flags: PAIR_BOTTOM,
+                },
+                Hint {
+                    index: 0,
+                    cs_coord: Fixed::from_bits(1244397568),
+                    ds_coord: Fixed::from_bits(92104328),
+                    scale: state.scale,
+                    flags: PAIR_TOP,
+                }
+            ]
+        );
     }
 
     /// HintingSink is mostly pass-through. This test captures the logic
