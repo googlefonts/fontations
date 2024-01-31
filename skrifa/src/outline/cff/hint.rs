@@ -573,7 +573,9 @@ impl HintMap {
                 if is_pair {
                     // Preserve stem width: position center of stem with
                     // initial hint map and two edges with nominal scale
-                    let mid = initial.transform(half(second_edge.cs_coord + first_edge.cs_coord));
+                    // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/psaux/pshints.c#L693>
+                    let mid =
+                        initial.transform(midpoint(first_edge.cs_coord, second_edge.cs_coord));
                     let half_width = half(second_edge.cs_coord - first_edge.cs_coord) * self.scale;
                     first_edge.ds_coord = mid - half_width;
                     second_edge.ds_coord = mid + half_width;
@@ -1092,6 +1094,12 @@ fn twice(value: Fixed) -> Fixed {
     Fixed::from_bits(value.to_bits().wrapping_mul(2))
 }
 
+/// Computes midpoint between `a` and `b`, avoiding overflow if the sum
+/// of the high 16 bits exceeds `i16::MAX`.
+fn midpoint(a: Fixed, b: Fixed) -> Fixed {
+    a + half(b - a)
+}
+
 #[cfg(test)]
 mod tests {
     use read_fonts::{tables::postscript::charstring::CommandSink, types::F2Dot14, FontRef};
@@ -1384,6 +1392,20 @@ mod tests {
                 Fixed::from_bits(expected)
             );
         }
+    }
+
+    #[test]
+    fn midpoint_avoids_overflow() {
+        // We encountered an overflow in the HintMap::insert midpoint
+        // calculation for glyph id 950 at size 74 in
+        // KawkabMono-Bold v0.501 <https://github.com/aiaf/kawkab-mono/tree/v0.501>.
+        // Test that our midpoint function doesn't overflow when the sum of
+        // the high 16 bits of the two values exceeds i16::MAX.
+        let a = i16::MAX as i32;
+        let b = a - 1;
+        assert!(a + b > i16::MAX as i32);
+        let mid = super::midpoint(Fixed::from_i32(a), Fixed::from_i32(b));
+        assert_eq!((a + b) / 2, mid.to_bits() >> 16);
     }
 
     /// HintingSink is mostly pass-through. This test captures the logic
