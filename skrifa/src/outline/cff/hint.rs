@@ -1102,6 +1102,7 @@ mod tests {
     use super::{
         BlueZone, Blues, Fixed, Hint, HintMap, HintMask, HintParams, HintState, HintingSink,
         StemHint, GHOST_BOTTOM, GHOST_TOP, HINT_MASK_SIZE, LOCKED, PAIR_BOTTOM, PAIR_TOP,
+        SYNTHETIC,
     };
 
     fn make_hint_state() -> HintState {
@@ -1390,78 +1391,40 @@ mod tests {
     }
 
     #[test]
-    fn hint_map_midpoint_bug() {
-        // Captures a hinting bug where the midpoint was computed incorrectly
+    fn hint_map_insert_potential_overflow() {
+        // Captures a hinting bug where the midpoint computation might overflow
         // when inserting a hint pair with an unlocked first edge.
         // This is appeared in KawkabMono-Bold v0.501 <https://github.com/aiaf/kawkab-mono/tree/v0.501>
-        // in glyph id 950.
-        // This test initializes hinting state for that font/glyph at size 74
+        // in glyph id 950 at size 74.
+        // This test initializes hinting state for that font/glyph/size
         // and ensures that the captured hint edges match FreeType.
-        let mut state = HintState {
-            scale: Fixed::from_bits(4850),
-            supress_overshoot: false,
-            do_em_box_hints: false,
-            blue_scale: Fixed::from_bits(2425),
-            blue_fuzz: Fixed::from_bits(458752),
-            boost: Fixed::ZERO,
-            zone_count: 6,
+        let scale = Fixed::from_bits(4850);
+        let mut initial_map = HintMap::new(scale);
+        initial_map.edges[0] = Hint {
+            flags: SYNTHETIC | LOCKED | GHOST_BOTTOM,
+            scale,
             ..Default::default()
         };
-        state.zones[0] = BlueZone {
-            cs_bottom_edge: Fixed::from_bits(-983040),
-            is_bottom: true,
-            ..Default::default()
+        initial_map.len = 1;
+        let mut map = HintMap::new(scale);
+        // The sum of the high 16-bits of these two hints is > i16::MAX
+        // which caused an overflow in the original code
+        let bottom = Hint {
+            index: 0,
+            flags: PAIR_BOTTOM,
+            cs_coord: Fixed::from_bits(1237843968),
+            ds_coord: Fixed::from_bits(91606800),
+            scale,
         };
-        state.zones[1] = BlueZone {
-            cs_bottom_edge: Fixed::from_bits(28180480),
-            cs_top_edge: Fixed::from_bits(29229056),
-            cs_flat_edge: Fixed::from_bits(28180480),
-            ds_flat_edge: Fixed::from_bits(2097152),
-            ..Default::default()
+        let top = Hint {
+            index: 0,
+            flags: PAIR_TOP,
+            cs_coord: Fixed::from_bits(1244397568),
+            ds_coord: Fixed::from_bits(92091800),
+            scale,
         };
-        state.zones[2] = BlueZone {
-            cs_bottom_edge: Fixed::from_bits(39321600),
-            cs_top_edge: Fixed::from_bits(40370176),
-            cs_flat_edge: Fixed::from_bits(39321600),
-            ds_flat_edge: Fixed::from_bits(2883584),
-            ..Default::default()
-        };
-        state.zones[3] = BlueZone {
-            cs_bottom_edge: Fixed::from_bits(58327040),
-            cs_top_edge: Fixed::from_bits(59375616),
-            cs_flat_edge: Fixed::from_bits(58327040),
-            ds_flat_edge: Fixed::from_bits(4325376),
-            ..Default::default()
-        };
-        state.zones[4] = BlueZone {
-            cs_bottom_edge: Fixed::from_bits(85196800),
-            cs_top_edge: Fixed::from_bits(86245376),
-            cs_flat_edge: Fixed::from_bits(85196800),
-            ds_flat_edge: Fixed::from_bits(6291456),
-            ..Default::default()
-        };
-        state.zones[5] = BlueZone {
-            cs_bottom_edge: Fixed::from_bits(-43646976),
-            cs_top_edge: Fixed::from_bits(-42598400),
-            cs_flat_edge: Fixed::from_bits(-42598400),
-            ds_flat_edge: Fixed::from_bits(-3145728),
-            is_bottom: true,
-        };
-        let mut stem_hints = [StemHint {
-            min: Fixed::from_bits(1237843968),
-            max: Fixed::from_bits(1244397568),
-            ..Default::default()
-        }];
-        let mut initial_map = HintMap::new(state.scale);
-        let mut map = HintMap::new(state.scale);
-        map.build(
-            &state,
-            None,
-            Some(&mut initial_map),
-            &mut stem_hints,
-            Fixed::ZERO,
-            false,
-        );
+        map.insert(&bottom, &top, Some(&initial_map));
+        map.adjust();
         // FreeType generates the following hint map:
         //
         // index  csCoord   dsCoord  scale  flags
@@ -1475,14 +1438,14 @@ mod tests {
                     index: 0,
                     cs_coord: Fixed::from_bits(1237843968),
                     ds_coord: Fixed::from_bits(91619328),
-                    scale: state.scale,
+                    scale,
                     flags: PAIR_BOTTOM,
                 },
                 Hint {
                     index: 0,
                     cs_coord: Fixed::from_bits(1244397568),
                     ds_coord: Fixed::from_bits(92104328),
-                    scale: state.scale,
+                    scale,
                     flags: PAIR_TOP,
                 }
             ]
