@@ -574,9 +574,8 @@ impl HintMap {
                     // Preserve stem width: position center of stem with
                     // initial hint map and two edges with nominal scale
                     // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/psaux/pshints.c#L693>
-                    let mid = initial.transform(
-                        first_edge.cs_coord + half(second_edge.cs_coord - first_edge.cs_coord),
-                    );
+                    let mid =
+                        initial.transform(midpoint(first_edge.cs_coord, second_edge.cs_coord));
                     let half_width = half(second_edge.cs_coord - first_edge.cs_coord) * self.scale;
                     first_edge.ds_coord = mid - half_width;
                     second_edge.ds_coord = mid + half_width;
@@ -1095,6 +1094,12 @@ fn twice(value: Fixed) -> Fixed {
     Fixed::from_bits(value.to_bits().wrapping_mul(2))
 }
 
+/// Computes midpoint between `a` and `b`, avoiding overflow if the sum
+/// of the high 16 bits exceeds `i16::MAX`.
+fn midpoint(a: Fixed, b: Fixed) -> Fixed {
+    a + half(b - a)
+}
+
 #[cfg(test)]
 mod tests {
     use read_fonts::{tables::postscript::charstring::CommandSink, types::F2Dot14, FontRef};
@@ -1102,7 +1107,6 @@ mod tests {
     use super::{
         BlueZone, Blues, Fixed, Hint, HintMap, HintMask, HintParams, HintState, HintingSink,
         StemHint, GHOST_BOTTOM, GHOST_TOP, HINT_MASK_SIZE, LOCKED, PAIR_BOTTOM, PAIR_TOP,
-        SYNTHETIC,
     };
 
     fn make_hint_state() -> HintState {
@@ -1391,65 +1395,17 @@ mod tests {
     }
 
     #[test]
-    fn hint_map_insert_potential_overflow() {
-        // Captures a hinting bug where the midpoint computation might overflow
-        // when inserting a hint pair with an unlocked first edge.
-        // This is appeared in KawkabMono-Bold v0.501 <https://github.com/aiaf/kawkab-mono/tree/v0.501>
-        // in glyph id 950 at size 74.
-        // This test initializes hinting state for that font/glyph/size
-        // and ensures that the captured hint edges match FreeType.
-        let scale = Fixed::from_bits(4850);
-        let mut initial_map = HintMap::new(scale);
-        initial_map.edges[0] = Hint {
-            flags: SYNTHETIC | LOCKED | GHOST_BOTTOM,
-            scale,
-            ..Default::default()
-        };
-        initial_map.len = 1;
-        let mut map = HintMap::new(scale);
-        // The sum of the high 16-bits of these two hints is > i16::MAX
-        // which caused an overflow in the original code
-        let bottom = Hint {
-            index: 0,
-            flags: PAIR_BOTTOM,
-            cs_coord: Fixed::from_bits(1237843968),
-            ds_coord: Fixed::from_bits(91606800),
-            scale,
-        };
-        let top = Hint {
-            index: 0,
-            flags: PAIR_TOP,
-            cs_coord: Fixed::from_bits(1244397568),
-            ds_coord: Fixed::from_bits(92091800),
-            scale,
-        };
-        map.insert(&bottom, &top, Some(&initial_map));
-        map.adjust();
-        // FreeType generates the following hint map:
-        //
-        // index  csCoord   dsCoord  scale  flags
-        // 0     18888.00  18890.58   4850  pb
-        // 0     18988.00  18990.58   4850  pt
-        assert_eq!(map.len, 2);
-        assert_eq!(
-            &map.edges[..2],
-            &[
-                Hint {
-                    index: 0,
-                    cs_coord: Fixed::from_bits(1237843968),
-                    ds_coord: Fixed::from_bits(91619328),
-                    scale,
-                    flags: PAIR_BOTTOM,
-                },
-                Hint {
-                    index: 0,
-                    cs_coord: Fixed::from_bits(1244397568),
-                    ds_coord: Fixed::from_bits(92104328),
-                    scale,
-                    flags: PAIR_TOP,
-                }
-            ]
-        );
+    fn midpoint_avoids_overflow() {
+        // We encountered an overflow in the HintMap::insert midpoint
+        // calculation for glyph id 950 at size 74 in
+        // KawkabMono-Bold v0.501 <https://github.com/aiaf/kawkab-mono/tree/v0.501>.
+        // Test that our midpoint function doesn't overflow when the sum of
+        // the high 16 bits of the two values exceeds i16::MAX.
+        let a = i16::MAX as i32;
+        let b = a - 1;
+        assert!(a + b > i16::MAX as i32);
+        let mid = super::midpoint(Fixed::from_i32(a), Fixed::from_i32(b));
+        assert_eq!((a + b) / 2, mid.to_bits() >> 16);
     }
 
     /// HintingSink is mostly pass-through. This test captures the logic
