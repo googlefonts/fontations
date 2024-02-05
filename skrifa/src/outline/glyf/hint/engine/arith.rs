@@ -1,8 +1,8 @@
 //! Arithmetic and math instructions.
 //!
+//! Implements 10 instructions.
+//!
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#arithmetic-and-math-instructions>
-
-// 10 instructions
 
 use super::{super::math, Engine, HintErrorKind, OpResult};
 

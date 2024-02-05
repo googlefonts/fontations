@@ -1,8 +1,8 @@
 //! Managing the graphics state.
 //!
+//! Implements 45 instructions.
+//!
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#managing-the-graphics-state>
-
-// 45 instructions
 
 use read_fonts::types::Point;
 
