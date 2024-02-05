@@ -2,7 +2,7 @@
 //!  
 //! Skrifa is a mid level library that provides access to various types
 //! of [`metadata`](MetadataProvider) contained in a font as well as support
-//! for [`scaling`](scale) (extraction) of glyph outlines.
+//! for loading glyph [`outlines`](outline).
 //!
 //! It is described as "mid level" because the library is designed to sit
 //! above low level font parsing (provided by [`read-fonts`](https://crates.io/crates/read-fonts))
@@ -32,7 +32,6 @@ mod variation;
 
 #[doc(inline)]
 pub use outline::{OutlineGlyph, OutlineGlyphCollection};
-
 pub use variation::{Axis, AxisCollection, NamedInstance, NamedInstanceCollection};
 
 /// Useful collection of common types suitable for glob importing.
@@ -45,7 +44,10 @@ pub mod prelude {
     };
 }
 
-pub use read_fonts::types::{GlyphId, Tag};
+pub use read_fonts::{
+    types::{GlyphId, Tag},
+    FontRef,
+};
 
 #[doc(inline)]
 pub use provider::MetadataProvider;
