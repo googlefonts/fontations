@@ -1,9 +1,9 @@
 //! Managing the stack and pushing data onto the interpreter stack.
 //!
+//! Implements 26 instructions.
+//!
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#managing-the-stack>
 //! and <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#pushing-data-onto-the-interpreter-stack>
-
-// 26 instructions
 
 use super::{super::code_state::Args, Engine, OpResult};
 

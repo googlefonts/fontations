@@ -8,7 +8,7 @@ use core::ops::{Deref, DerefMut};
 use read_fonts::types::Point;
 
 pub use {
-    round::RoundState,
+    round::{RoundMode, RoundState},
     zone::{Zone, ZonePointer},
 };
 
@@ -91,6 +91,13 @@ pub struct GraphicsState<'a> {
     ///
     /// This array contains the twilight and glyph zones, in that order.
     pub zones: [Zone<'a>; 2],
+    /// If true, enables a set of backward compabitility heuristics.
+    /// Otherwise, the interpreter operates in "native ClearType mode".
+    ///
+    /// Defaults to true.
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.h#L344>
+    pub backward_compatibility: bool,
 }
 
 impl Default for GraphicsState<'_> {
@@ -112,10 +119,11 @@ impl Default for GraphicsState<'_> {
             rp1: 0,
             rp2: 0,
             loop_counter: 1,
-            zones: [Zone::default(), Zone::default()],
             zp0: ZonePointer::default(),
             zp1: ZonePointer::default(),
             zp2: ZonePointer::default(),
+            zones: [Zone::default(), Zone::default()],
+            backward_compatibility: true,
         }
     }
 }
@@ -179,6 +187,15 @@ pub struct RetainedGraphicsState {
     ///
     /// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM04/Chap4.html#single_width_value>
     pub single_width: i32,
+    /// The scale factor for the current instance. Conversion from font units
+    /// to 26.6 for current ppem.
+    pub scale: i32,
+    /// The nominal pixels per em value for the current instance.
+    pub ppem: i32,
+    /// True if a rotation is being applied.
+    pub is_rotated: bool,
+    /// True if a non-uniform scale is being applied.
+    pub is_stretched: bool,
 }
 
 impl Default for RetainedGraphicsState {
@@ -198,6 +215,10 @@ impl Default for RetainedGraphicsState {
             scan_type: 0,
             single_width_cutin: 0,
             single_width: 0,
+            scale: 0,
+            ppem: 0,
+            is_rotated: false,
+            is_stretched: false,
         }
     }
 }

@@ -1,8 +1,8 @@
 //! Logical functions.
 //!
+//! Implements 11 instructions.
+//!
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#logical-functions>
-
-// 11 instructions
 
 use super::{Engine, OpResult};
 
