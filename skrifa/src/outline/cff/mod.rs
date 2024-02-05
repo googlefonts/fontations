@@ -135,7 +135,12 @@ impl<'a> Outlines<'a> {
     ///
     /// The index of a subfont for a particular glyph can be retrieved with
     /// the [`subfont_index`](Self::subfont_index) method.
-    pub fn subfont(&self, index: u32, size: f32, coords: &[F2Dot14]) -> Result<Subfont, Error> {
+    pub fn subfont(
+        &self,
+        index: u32,
+        size: Option<f32>,
+        coords: &[F2Dot14],
+    ) -> Result<Subfont, Error> {
         let private_dict_range = self.private_dict_range(index)?;
         let private_dict_data = self.offset_data().read_array(private_dict_range.clone())?;
         let mut hint_params = HintParams::default();
@@ -164,12 +169,13 @@ impl<'a> Outlines<'a> {
                 _ => {}
             }
         }
-        let scale = if size <= 0.0 {
-            Fixed::ONE
-        } else {
-            // Note: we do an intermediate scale to 26.6 to ensure we
-            // match FreeType
-            Fixed::from_bits((size * 64.) as i32) / Fixed::from_bits(self.units_per_em as i32)
+        let scale = match size {
+            Some(ppem) if self.units_per_em > 0 => {
+                // Note: we do an intermediate scale to 26.6 to ensure we
+                // match FreeType
+                Fixed::from_bits((ppem * 64.) as i32) / Fixed::from_bits(self.units_per_em as i32)
+            }
+            _ => Fixed::ONE,
         };
         // When hinting, use a modified scale factor
         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/psaux/psft.c#L279>
@@ -672,22 +678,23 @@ mod tests {
     /// fonts), locations in variation space.
     fn compare_glyphs(font_data: &[u8], expected_outlines: &str) {
         let font = FontRef::new(font_data).unwrap();
-        let outlines = read_fonts::scaler_test::parse_glyph_outlines(expected_outlines);
-        let scaler = super::Outlines::new(&font).unwrap();
+        let expected_outlines = read_fonts::scaler_test::parse_glyph_outlines(expected_outlines);
+        let outlines = super::Outlines::new(&font).unwrap();
         let mut path = read_fonts::scaler_test::Path::default();
-        for expected_outline in &outlines {
+        for expected_outline in &expected_outlines {
             if expected_outline.size == 0.0 && !expected_outline.coords.is_empty() {
                 continue;
             }
+            let size = (expected_outline.size != 0.0).then_some(expected_outline.size);
             path.elements.clear();
-            let subfont = scaler
+            let subfont = outlines
                 .subfont(
-                    scaler.subfont_index(expected_outline.glyph_id),
-                    expected_outline.size,
+                    outlines.subfont_index(expected_outline.glyph_id),
+                    size,
                     &expected_outline.coords,
                 )
                 .unwrap();
-            scaler
+            outlines
                 .draw(
                     &subfont,
                     expected_outline.glyph_id,

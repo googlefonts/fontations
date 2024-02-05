@@ -463,9 +463,14 @@ mod tests {
                 continue;
             }
             path.elements.clear();
+            let size = if expected_outline.size != 0.0 {
+                Size::new(expected_outline.size)
+            } else {
+                Size::unscaled()
+            };
             let mut scaler = cx
                 .new_scaler()
-                .size(Size::new(expected_outline.size))
+                .size(size)
                 .normalized_coords(&expected_outline.coords)
                 .build(&font);
             scaler

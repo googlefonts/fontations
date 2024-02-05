@@ -135,7 +135,7 @@ impl<'a> Outlines<'a> {
         &self,
         memory: OutlineMemory<'a>,
         outline: &Outline,
-        size: f32,
+        size: Option<f32>,
         coords: &'a [F2Dot14],
     ) -> Result<ScaledOutline<'a>, DrawError> {
         Scaler::new(self.clone(), memory, size, coords, |_| true, false)
@@ -146,7 +146,7 @@ impl<'a> Outlines<'a> {
         &self,
         memory: OutlineMemory<'a>,
         outline: &Outline,
-        size: f32,
+        size: Option<f32>,
         coords: &'a [F2Dot14],
         hint_fn: impl FnMut(HintOutline) -> bool,
     ) -> Result<ScaledOutline<'a>, DrawError> {
@@ -285,19 +285,18 @@ where
     fn new(
         outlines: Outlines<'a>,
         memory: OutlineMemory<'a>,
-        size: f32,
+        size: Option<f32>,
         coords: &'a [F2Dot14],
         hint_fn: H,
         is_hinted: bool,
     ) -> Self {
-        let (is_scaled, scale) = if size > 0.0 && outlines.units_per_em > 0 {
-            (
+        let (is_scaled, scale) = match size {
+            Some(ppem) if outlines.units_per_em > 0 => (
                 true,
-                F26Dot6::from_bits((size * 64.) as i32)
+                F26Dot6::from_bits((ppem * 64.) as i32)
                     / F26Dot6::from_bits(outlines.units_per_em as i32),
-            )
-        } else {
-            (false, F26Dot6::from_bits(0x10000))
+            ),
+            _ => (false, F26Dot6::from_bits(0x10000)),
         };
         Self {
             outlines,

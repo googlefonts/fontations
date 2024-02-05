@@ -16,28 +16,25 @@ pub type NormalizedCoord = read_fonts::types::F2Dot14;
 /// To retrieve metrics and outlines in font units, use the [unscaled](Self::unscaled)
 /// construtor on this type.
 #[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
-pub struct Size(f32);
+pub struct Size(Option<f32>);
 
 impl Size {
     /// Creates a new font size from the given value in pixels per em units.
-    ///
-    /// Providing a value `<= 0.0` is equivalent to creating an unscaled size
-    /// and will result in metrics and outlines generated in font units.
     pub fn new(ppem: f32) -> Self {
-        Self(ppem)
+        Self(Some(ppem))
     }
 
     /// Creates a new font size for generating unscaled metrics or outlines in
     /// font units.
     pub fn unscaled() -> Self {
-        Self(0.0)
+        Self(None)
     }
 
     /// Returns the raw size in pixels per em units.
     ///
     /// Results in `None` if the size is unscaled.
     pub fn ppem(self) -> Option<f32> {
-        (self.0 > 0.0).then_some(self.0)
+        self.0
     }
 
     /// Computes a linear scale factor for this font size and the given units
@@ -46,10 +43,9 @@ impl Size {
     ///
     /// Returns 1.0 for an unscaled size or when `units_per_em` is 0.
     pub fn linear_scale(self, units_per_em: u16) -> f32 {
-        if self.0 > 0.0 && units_per_em != 0 {
-            self.0 / units_per_em as f32
-        } else {
-            1.0
+        match self.0 {
+            Some(ppem) if units_per_em != 0 => ppem / units_per_em as f32,
+            _ => 1.0,
         }
     }
 
@@ -62,12 +58,15 @@ impl Size {
         // 2) this value is divided by UPEM:
         //    (here, scaled_h=height and h=upem)
         //    <https://gitlab.freedesktop.org/freetype/freetype/-/blob/49781ab72b2dfd0f78172023921d08d08f323ade/src/base/ftobjs.c#L3312>
-        if self.0 > 0.0 && units_per_em > 0 {
-            Fixed::from_bits((self.0 * 64.) as i32) / Fixed::from_bits(units_per_em as i32)
-        } else {
-            // This is an identity scale for the pattern
-            // `mul_div(value, scale, 64)`
-            Fixed::from_bits(0x10000 * 64)
+        match self.0 {
+            Some(ppem) if units_per_em > 0 => {
+                Fixed::from_bits((ppem * 64.) as i32) / Fixed::from_bits(units_per_em as i32)
+            }
+            _ => {
+                // This is an identity scale for the pattern
+                // `mul_div(value, scale, 64)`
+                Fixed::from_bits(0x10000 * 64)
+            }
         }
     }
 }

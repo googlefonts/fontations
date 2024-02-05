@@ -93,9 +93,9 @@ impl EmbeddedHintingInstance {
                     _ => vec![],
                 };
                 subfonts.clear();
-                let size = size.ppem().unwrap_or_default();
+                let ppem = size.ppem();
                 for i in 0..cff.subfont_count() {
-                    subfonts.push(cff.subfont(i, size, &self.coords)?);
+                    subfonts.push(cff.subfont(i, ppem, &self.coords)?);
                 }
                 self.kind = HinterKind::Cff(subfonts);
             }
@@ -110,7 +110,7 @@ impl EmbeddedHintingInstance {
         memory: Option<&mut [u8]>,
         pen: &mut impl OutlinePen,
     ) -> Result<AdjustedMetrics, DrawError> {
-        let ppem = self.size.ppem().unwrap_or_default();
+        let ppem = self.size.ppem();
         let coords = self.coords.as_slice();
         match (&self.kind, &glyph.kind) {
             (HinterKind::Glyf, OutlineKind::Glyf(glyf, outline)) => {
