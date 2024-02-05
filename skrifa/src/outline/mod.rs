@@ -1,4 +1,82 @@
 //! Loading, scaling and hinting of glyph outlines.
+//!
+//! This module provides support for retrieving (optinally scaled and hinted)
+//! glyph outlines in the form of vector paths.
+//!
+//! # Drawing a glyph
+//!
+//! Generating SVG style path data for a character (this assumes a local
+//! variable `font` of type [`FontRef`](crate::FontRef)):
+//!
+//! ```rust
+//! use skrifa::{
+//!     instance::{LocationRef, Size},
+//!     outline::{DrawSettings, OutlinePen},
+//!     FontRef, MetadataProvider,
+//! };
+//!
+//! # fn wrapper(font: FontRef) {
+//! // First, grab the set of outline glyphs from the font.
+//! let outlines = font.outline_glyphs();
+//!
+//! // Find the glyph identifier for our character.
+//! let glyph_id = font.charmap().map('Q').unwrap();
+//!
+//! // Grab the outline glyph.
+//! let glyph = outlines.get(glyph_id).unwrap();
+//!
+//! // Define how we want the glyph to be drawn. This creates
+//! // settings for an instance without hinting at a size of
+//! // 16px with no variations applied.
+//! let settings = DrawSettings::unhinted(Size::new(16.0), LocationRef::default());
+//!
+//! // Alternatively, we can apply variations like so:
+//! let var_location = font.axes().location(&[("wght", 650.0), ("wdth", 100.0)]);
+//! let settings = DrawSettings::unhinted(Size::new(16.0), &var_location);
+//!
+//! // At this point, we need a "sink" to receive the resulting path. This
+//! // is done by creating an implementation of the OutlinePen trait.
+//!
+//! // Let's make one that generates SVG path data.
+//! #[derive(Default)]
+//! struct SvgPath(String);
+//!
+//! // Implement the OutlinePen trait for this type. This emits the appropriate
+//! // SVG path commands for each element type.
+//! impl OutlinePen for SvgPath {
+//!     fn move_to(&mut self, x: f32, y: f32) {
+//!         self.0.push_str(&format!("M{x:.1},{y:.1} "));
+//!     }
+//!
+//!     fn line_to(&mut self, x: f32, y: f32) {
+//!         self.0.push_str(&format!("L{x:.1},{y:.1} "));
+//!     }
+//!
+//!     fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
+//!         self.0
+//!             .push_str(&format!("Q{cx0:.1},{cy0:.1} {x:.1},{y:.1} "));
+//!     }
+//!
+//!     fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+//!         self.0.push_str(&format!(
+//!             "C{cx0:.1},{cy0:.1} {cx1:.1},{cy1:.1} {x:.1},{y:.1} "
+//!         ));
+//!     }
+//!
+//!     fn close(&mut self) {
+//!         self.0.push_str("Z ");
+//!     }
+//! }
+//! // Now, construct an instance of our pen.
+//! let mut svg_path = SvgPath::default();
+//!
+//! // And draw the glyph!
+//! glyph.draw(settings, &mut svg_path).unwrap();
+//!
+//! // See what we've drawn.
+//! println!("{}", svg_path.0);
+//! # }
+//! ```
 
 mod cff;
 mod embedded_hinting;
