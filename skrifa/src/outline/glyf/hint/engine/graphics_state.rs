@@ -514,7 +514,7 @@ impl<'a> Engine<'a> {
         if n < 0 {
             return Err(HintErrorKind::NegativeLoopCounter);
         }
-        // As FreeType, heuristically limit the number of loops to 16 bits.
+        // As in FreeType, heuristically limit the number of loops to 16 bits.
         self.graphics_state.loop_counter = (n as u32).min(0xFFFF);
         Ok(())
     }
@@ -630,13 +630,13 @@ impl<'a> Engine<'a> {
                     *scan_control = false;
                 }
                 if (n & 0x1000) != 0 && is_rotated {
-                    // Bit 12: Set scan_control to FALSE unless the glyph is
-                    // rotated.
+                    // Bit 12: Set scan_control to FALSE based on rotation
+                    // state.
                     *scan_control = false;
                 }
                 if (n & 0x2000) != 0 && is_stretched {
-                    // Bit 13: Set scan_control to FALSE unless the glyph is
-                    // stretched.
+                    // Bit 13: Set scan_control to FALSE based on stretched
+                    // state.
                     *scan_control = false;
                 }
             }
@@ -790,7 +790,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4376>
     pub(super) fn op_sds(&mut self) -> OpResult {
         let n = self.value_stack.pop()?;
-        if n > 6 {
+        if n as u32 > 6 {
             Err(HintErrorKind::InvalidStackValue(n))
         } else {
             self.graphics_state.delta_shift = n as u16;
