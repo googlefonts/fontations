@@ -1,10 +1,14 @@
 //! TrueType bytecode interpreter.
 
 mod arith;
+mod graphics_state;
 mod logical;
 mod stack;
 
-use super::{error::HintErrorKind, graphics_state::GraphicsState, value_stack::ValueStack};
+use super::{
+    code_state::ProgramKind, error::HintErrorKind, graphics_state::GraphicsState,
+    value_stack::ValueStack,
+};
 
 pub type OpResult = Result<(), HintErrorKind>;
 
@@ -12,6 +16,7 @@ pub type OpResult = Result<(), HintErrorKind>;
 pub struct Engine<'a> {
     graphics_state: GraphicsState<'a>,
     value_stack: ValueStack<'a>,
+    initial_program: ProgramKind,
 }
 
 #[cfg(test)]
@@ -19,7 +24,7 @@ use mock::MockEngine;
 
 #[cfg(test)]
 mod mock {
-    use super::{Engine, GraphicsState, ValueStack};
+    use super::{Engine, GraphicsState, ProgramKind, ValueStack};
 
     /// Mock engine for testing.
     pub(super) struct MockEngine {
@@ -37,6 +42,7 @@ mod mock {
             Engine {
                 graphics_state: GraphicsState::default(),
                 value_stack: ValueStack::new(&mut self.value_stack),
+                initial_program: ProgramKind::Font,
             }
         }
     }
