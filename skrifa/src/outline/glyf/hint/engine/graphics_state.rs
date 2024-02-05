@@ -71,7 +71,7 @@ impl<'a> Engine<'a> {
     ///
     /// SFVTL\[a\] (0x08 - 0x09)
     ///
-    /// Sets the projection_vector to a unit vector parallel or perpendicular
+    /// Sets the freedom_vector to a unit vector parallel or perpendicular
     /// to the line segment from point p1 to point p2.
     ///
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#set-freedom_vector-to-line>
@@ -567,7 +567,7 @@ impl<'a> Engine<'a> {
                 self.graphics_state.instruct_control |= value as u8;
             }
             // Allow an exception in the glyph program for selector 3 which can
-            // temporarily disable backward compability mode.
+            // temporarily disable backward compatibility mode.
             (ProgramKind::Glyph, 3) => {
                 self.graphics_state.backward_compatibility = value != 4;
             }
@@ -593,49 +593,49 @@ impl<'a> Engine<'a> {
         // Bits 0-7 represent the threshold value for ppem.
         let threshold = n & 0xFF;
         match threshold {
-            // A value of FF in bits 0-7 means invoke dropout_control for all
+            // A value of FF in bits 0-7 means invoke scan_control for all
             // sizes.
             0xFF => self.graphics_state.scan_control = true,
-            // A value of 0 in bits 0-7 means never invoke dropout_control.
+            // A value of 0 in bits 0-7 means never invoke scan_control.
             0 => self.graphics_state.scan_control = false,
             _ => {
                 let ppem = self.graphics_state.ppem;
                 let is_rotated = self.graphics_state.is_rotated;
                 let is_stretched = self.graphics_state.is_stretched;
                 let scan_control = &mut self.graphics_state.scan_control;
-                // Bits 8-13 are used to turn on dropout_control in cases where
+                // Bits 8-13 are used to turn on scan_control in cases where
                 // the specified conditions are met. Bits 8, 9 and 10 are used
-                // to turn on the dropout_control mode (assuming other
+                // to turn on the scan_control mode (assuming other
                 // conditions do not block it). Bits 11, 12, and 13 are used to
                 // turn off the dropout mode unless other conditions force it
                 if (n & 0x100) != 0 && ppem <= threshold {
-                    // Bit 8: Set dropout_control to TRUE if other conditions
+                    // Bit 8: Set scan_control to TRUE if other conditions
                     // do not block and ppem is less than or equal to the
                     // threshold value.
                     *scan_control = true;
                 }
                 if (n & 0x200) != 0 && is_rotated {
-                    // Bit 9: Set dropout_control to TRUE if other conditions
+                    // Bit 9: Set scan_control to TRUE if other conditions
                     // do not block and the glyph is rotated
                     *scan_control = true;
                 }
                 if (n & 0x400) != 0 && is_stretched {
-                    // Bit 10: Set dropout_control to TRUE if other conditions
+                    // Bit 10: Set scan_control to TRUE if other conditions
                     // do not block and the glyph is stretched.
                     *scan_control = true;
                 }
                 if (n & 0x800) != 0 && ppem > threshold {
-                    // Bit 11: Set dropout_control to FALSE unless ppem is less
+                    // Bit 11: Set scan_control to FALSE unless ppem is less
                     // than or equal to the threshold value.
                     *scan_control = false;
                 }
                 if (n & 0x1000) != 0 && is_rotated {
-                    // Bit 12: Set dropout_control to FALSE unless the glyph is
+                    // Bit 12: Set scan_control to FALSE unless the glyph is
                     // rotated.
                     *scan_control = false;
                 }
                 if (n & 0x2000) != 0 && is_stretched {
-                    // Bit 13: Set dropout_control to FALSE unless the glyph is
+                    // Bit 13: Set scan_control to FALSE unless the glyph is
                     // stretched.
                     *scan_control = false;
                 }
@@ -756,7 +756,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#set-angle_weight>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4349>
     pub(super) fn op_sangw(&mut self) -> OpResult {
-        // totally unsupported
+        // totally unsupported but we still need to pop the stack value
         let _weight = self.value_stack.pop()?;
         Ok(())
     }
@@ -819,4 +819,312 @@ fn line_vector(p1: Point<i32>, p2: Point<i32>, is_parallel: bool) -> Point<i32> 
         a = -c;
     }
     math::normalize14(a, b)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        super::{
+            super::graphics_state::{Zone, ZonePointer},
+            MockEngine,
+        },
+        HintErrorKind, Point, ProgramKind, RoundMode,
+    };
+    use read_fonts::types::F2Dot14;
+
+    // Some helpful constants for testing vectors
+    const ONE: i32 = F2Dot14::ONE.to_bits() as i32;
+
+    const X_AXIS: Point<i32> = Point::new(ONE, 0);
+    const Y_AXIS: Point<i32> = Point::new(0, ONE);
+
+    #[test]
+    fn set_vectors_to_coord_axis() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        // freedom and projection vector to y axis
+        engine.op_svtca(0x00).unwrap();
+        assert_eq!(engine.graphics_state.freedom_vector, Y_AXIS);
+        assert_eq!(engine.graphics_state.proj_vector, Y_AXIS);
+        // freedom and projection vector to x axis
+        engine.op_svtca(0x01).unwrap();
+        assert_eq!(engine.graphics_state.freedom_vector, X_AXIS);
+        assert_eq!(engine.graphics_state.proj_vector, X_AXIS);
+        // projection vector to y axis
+        engine.op_svtca(0x02).unwrap();
+        assert_eq!(engine.graphics_state.proj_vector, Y_AXIS);
+        // projection vector to x axis
+        engine.op_svtca(0x03).unwrap();
+        assert_eq!(engine.graphics_state.proj_vector, X_AXIS);
+        // freedom vector to y axis
+        engine.op_svtca(0x04).unwrap();
+        assert_eq!(engine.graphics_state.freedom_vector, Y_AXIS);
+        // freedom vector to x axis
+        engine.op_svtca(0x05).unwrap();
+        assert_eq!(engine.graphics_state.freedom_vector, X_AXIS);
+    }
+
+    #[test]
+    fn set_get_vectors_from_stack() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        // projection vector
+        engine.value_stack.push(X_AXIS.x).unwrap();
+        engine.value_stack.push(X_AXIS.y).unwrap();
+        engine.op_spvfs().unwrap();
+        assert_eq!(engine.graphics_state.proj_vector, X_AXIS);
+        engine.op_gpv().unwrap();
+        let y = engine.value_stack.pop().unwrap();
+        let x = engine.value_stack.pop().unwrap();
+        assert_eq!(Point::new(x, y), X_AXIS);
+        // freedom vector
+        engine.value_stack.push(Y_AXIS.x).unwrap();
+        engine.value_stack.push(Y_AXIS.y).unwrap();
+        engine.op_sfvfs().unwrap();
+        assert_eq!(engine.graphics_state.freedom_vector, Y_AXIS);
+        engine.op_gfv().unwrap();
+        let y = engine.value_stack.pop().unwrap();
+        let x = engine.value_stack.pop().unwrap();
+        assert_eq!(Point::new(x, y), Y_AXIS);
+    }
+
+    #[test]
+    fn set_vectors_to_line() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        // Set up a zone for testing and set all the zone pointers to it.
+        let points = &mut [Point::new(0, 0), Point::new(64, 0)];
+        let original = &mut [Point::new(0, 64), Point::new(0, -64)];
+        engine.graphics_state.zones[1] = Zone {
+            points,
+            original,
+            unscaled: &mut [],
+            flags: &mut [],
+            contours: &[],
+        };
+        engine.value_stack.push(1).unwrap();
+        engine.op_szps().unwrap();
+        // First, push point indices (a few times for reuse)
+        for _ in 0..6 {
+            engine.value_stack.push(1).unwrap();
+            engine.value_stack.push(0).unwrap();
+        }
+        // SPVTL: set projection vector to line:
+        {
+            // (parallel)
+            engine.op_svtl(0x6).unwrap();
+            assert_eq!(engine.graphics_state.proj_vector, X_AXIS);
+            // (perpendicular)
+            engine.op_svtl(0x7).unwrap();
+            assert_eq!(engine.graphics_state.proj_vector, Point::new(0, ONE));
+        }
+        // SFVTL: set freedom vector to line:
+        {
+            // (parallel)
+            engine.op_svtl(0x8).unwrap();
+            assert_eq!(engine.graphics_state.freedom_vector, X_AXIS);
+            // (perpendicular)
+            engine.op_svtl(0x9).unwrap();
+            assert_eq!(engine.graphics_state.freedom_vector, Point::new(0, ONE));
+        }
+        // SDPVTL: set dual projection vector to line:
+        {
+            // (parallel)
+            engine.op_sdpvtl(0x86).unwrap();
+            assert_eq!(engine.graphics_state.dual_proj_vector, Point::new(0, -ONE));
+            // (perpendicular)
+            engine.op_sdpvtl(0x87).unwrap();
+            assert_eq!(engine.graphics_state.dual_proj_vector, Point::new(ONE, 0));
+        }
+    }
+
+    /// Lots of little tests for instructions that just set fields on
+    /// the graphics state.
+    #[test]
+    fn simple_state_setting() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        // srp0
+        engine.value_stack.push(111).unwrap();
+        engine.op_srp0().unwrap();
+        assert_eq!(engine.graphics_state.rp0, 111);
+        // srp1
+        engine.value_stack.push(222).unwrap();
+        engine.op_srp1().unwrap();
+        assert_eq!(engine.graphics_state.rp1, 222);
+        // srp2
+        engine.value_stack.push(333).unwrap();
+        engine.op_srp2().unwrap();
+        assert_eq!(engine.graphics_state.rp2, 333);
+        // zp0
+        engine.value_stack.push(1).unwrap();
+        engine.op_szp0().unwrap();
+        assert_eq!(engine.graphics_state.zp0, ZonePointer::Glyph);
+        // zp1
+        engine.value_stack.push(0).unwrap();
+        engine.op_szp1().unwrap();
+        assert_eq!(engine.graphics_state.zp1, ZonePointer::Twilight);
+        // zp2
+        engine.value_stack.push(1).unwrap();
+        engine.op_szp2().unwrap();
+        assert_eq!(engine.graphics_state.zp2, ZonePointer::Glyph);
+        // zps
+        engine.value_stack.push(0).unwrap();
+        engine.op_szps().unwrap();
+        assert_eq!(
+            [
+                engine.graphics_state.zp0,
+                engine.graphics_state.zp1,
+                engine.graphics_state.zp2
+            ],
+            [ZonePointer::Twilight; 3]
+        );
+        // zp failure
+        engine.value_stack.push(2).unwrap();
+        assert!(matches!(
+            engine.op_szps(),
+            Err(HintErrorKind::InvalidZoneIndex(2))
+        ));
+        // rtg
+        engine.op_rtg().unwrap();
+        assert_eq!(engine.graphics_state.round_state.mode, RoundMode::Grid);
+        // rtdg
+        engine.op_rtdg().unwrap();
+        assert_eq!(
+            engine.graphics_state.round_state.mode,
+            RoundMode::DoubleGrid
+        );
+        // rdtg
+        engine.op_rdtg().unwrap();
+        assert_eq!(
+            engine.graphics_state.round_state.mode,
+            RoundMode::DownToGrid
+        );
+        // rutg
+        engine.op_rutg().unwrap();
+        assert_eq!(engine.graphics_state.round_state.mode, RoundMode::UpToGrid);
+        // roff
+        engine.op_roff().unwrap();
+        assert_eq!(engine.graphics_state.round_state.mode, RoundMode::Off);
+        // sround
+        engine.value_stack.push(0).unwrap();
+        engine.op_sround().unwrap();
+        assert_eq!(engine.graphics_state.round_state.mode, RoundMode::Super);
+        // s45round
+        engine.value_stack.push(0).unwrap();
+        engine.op_s45round().unwrap();
+        assert_eq!(engine.graphics_state.round_state.mode, RoundMode::Super45);
+        // sloop
+        engine.value_stack.push(10).unwrap();
+        engine.op_sloop().unwrap();
+        assert_eq!(engine.graphics_state.loop_counter, 10);
+        // loop variable cannot be negative
+        engine.value_stack.push(-10).unwrap();
+        assert!(matches!(
+            engine.op_sloop(),
+            Err(HintErrorKind::NegativeLoopCounter)
+        ));
+        // smd
+        engine.value_stack.push(64).unwrap();
+        engine.op_smd().unwrap();
+        assert_eq!(engine.graphics_state.min_distance, 64);
+        // scantype
+        engine.value_stack.push(50).unwrap();
+        engine.op_scantype().unwrap();
+        assert_eq!(engine.graphics_state.scan_type, 50);
+        // scvtci
+        engine.value_stack.push(128).unwrap();
+        engine.op_scvtci().unwrap();
+        assert_eq!(engine.graphics_state.control_value_cutin, 128);
+        // sswci
+        engine.value_stack.push(100).unwrap();
+        engine.op_sswci().unwrap();
+        assert_eq!(engine.graphics_state.single_width_cutin, 100);
+        // ssw
+        engine.graphics_state.scale = 64;
+        engine.value_stack.push(100).unwrap();
+        engine.op_ssw().unwrap();
+        assert_eq!(
+            engine.graphics_state.single_width,
+            super::math::mul(100, engine.graphics_state.scale)
+        );
+        // flipoff
+        engine.op_flipoff().unwrap();
+        assert!(!engine.graphics_state.auto_flip);
+        // flipon
+        engine.op_flipon().unwrap();
+        assert!(engine.graphics_state.auto_flip);
+        // sdb
+        engine.value_stack.push(172).unwrap();
+        engine.op_sdb().unwrap();
+        assert_eq!(engine.graphics_state.delta_base, 172);
+        // sds
+        engine.value_stack.push(4).unwrap();
+        engine.op_sds().unwrap();
+        assert_eq!(engine.graphics_state.delta_shift, 4);
+        // delta_shift has a max value of 6
+        engine.value_stack.push(7).unwrap();
+        assert!(matches!(
+            engine.op_sds(),
+            Err(HintErrorKind::InvalidStackValue(7))
+        ));
+    }
+
+    #[test]
+    fn instctrl() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        engine.initial_program = ProgramKind::ControlValue;
+        // selectors 1..=3 are valid and values for each selector
+        // can be 0, which disables the field, or 1 << (selector - 1) to
+        // enable it
+        for selector in 1..=3 {
+            // enable first
+            let enable_mask = (1 << (selector - 1)) as u8;
+            engine.value_stack.push(enable_mask as i32).unwrap();
+            engine.value_stack.push(selector).unwrap();
+            engine.op_instctrl().unwrap();
+            assert!(engine.graphics_state.instruct_control & enable_mask != 0);
+            // now disable
+            engine.value_stack.push(0).unwrap();
+            engine.value_stack.push(selector).unwrap();
+            engine.op_instctrl().unwrap();
+            assert!(engine.graphics_state.instruct_control & enable_mask == 0);
+        }
+        // in glyph programs, selector 3 can be used to toggle
+        // backward_compatibility
+        engine.initial_program = ProgramKind::Glyph;
+        // enabling this flag opts into "native ClearType mode"
+        // which disables backward compatibility
+        engine.value_stack.push((3 - 1) << 1).unwrap();
+        engine.value_stack.push(3).unwrap();
+        engine.op_instctrl().unwrap();
+        assert!(!engine.graphics_state.backward_compatibility);
+        // and disabling it enables backward compatibility
+        engine.value_stack.push(0).unwrap();
+        engine.value_stack.push(3).unwrap();
+        engine.op_instctrl().unwrap();
+        assert!(engine.graphics_state.backward_compatibility);
+    }
+
+    #[test]
+    fn scanctrl() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        // Example modes from specification:
+        // 0x0000   No dropout control is invoked
+        engine.value_stack.push(0x0000).unwrap();
+        engine.op_scanctrl().unwrap();
+        assert!(!engine.graphics_state.scan_control);
+        // 0x01FF   Always do dropout control
+        engine.value_stack.push(0x01FF).unwrap();
+        engine.op_scanctrl().unwrap();
+        assert!(engine.graphics_state.scan_control);
+        // 0x0A10   Do dropout control if the glyph is rotated and has less than 16 pixels per-em
+        engine.value_stack.push(0x0A10).unwrap();
+        engine.graphics_state.is_rotated = true;
+        engine.graphics_state.ppem = 12;
+        engine.op_scanctrl().unwrap();
+        assert!(engine.graphics_state.scan_control);
+    }
 }
