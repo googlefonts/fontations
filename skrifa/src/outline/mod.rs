@@ -230,7 +230,7 @@ impl<'a> OutlineGlyph<'a> {
         memory: Option<&mut [u8]>,
         pen: &mut impl OutlinePen,
     ) -> Result<AdjustedMetrics, DrawError> {
-        let ppem = size.ppem().unwrap_or_default();
+        let ppem = size.ppem();
         let coords = location.into().coords();
         match &self.kind {
             OutlineKind::Glyf(glyf, outline) => {
@@ -462,15 +462,17 @@ mod tests {
             if expected_outline.size == 0.0 && !expected_outline.coords.is_empty() {
                 continue;
             }
+            let size = if expected_outline.size != 0.0 {
+                Size::new(expected_outline.size)
+            } else {
+                Size::unscaled()
+            };
             path.elements.clear();
             font.outline_glyphs()
                 .get(expected_outline.glyph_id)
                 .unwrap()
                 .draw(
-                    DrawSettings::unhinted(
-                        Size::new(expected_outline.size),
-                        expected_outline.coords.as_slice(),
-                    ),
+                    DrawSettings::unhinted(size, expected_outline.coords.as_slice()),
                     &mut path,
                 )
                 .unwrap();
