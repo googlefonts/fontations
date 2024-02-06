@@ -1,6 +1,6 @@
 //! Loading, scaling and hinting of glyph outlines.
 //!
-//! This module provides support for retrieving (optinally scaled and hinted)
+//! This module provides support for retrieving (optionally scaled and hinted)
 //! glyph outlines in the form of vector paths.
 //!
 //! # Drawing a glyph
