@@ -1,6 +1,8 @@
 //! Value stack for TrueType interpreter.
+//!
+use read_fonts::tables::truetype::bytecode::InlineOperands;
 
-use super::{code_state::Args, error::HintErrorKind};
+use super::error::HintErrorKind;
 
 use HintErrorKind::{ValueStackOverflow, ValueStackUnderflow};
 
@@ -50,15 +52,15 @@ impl<'a> ValueStack<'a> {
     /// Implements the PUSHB[], PUSHW[], NPUSHB[] and NPUSHW[] instructions.
     ///
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#pushing-data-onto-the-interpreter-stack>
-    pub fn push_args(&mut self, args: &Args) -> Result<(), HintErrorKind> {
-        let push_count = args.len();
+    pub fn push_inline_operands(&mut self, operands: &InlineOperands) -> Result<(), HintErrorKind> {
+        let push_count = operands.len();
         let stack_base = self.top;
         for (stack_value, value) in self
             .values
             .get_mut(stack_base..stack_base + push_count)
             .ok_or(ValueStackOverflow)?
             .iter_mut()
-            .zip(args.values())
+            .zip(operands.values())
         {
             *stack_value = value;
         }
@@ -201,7 +203,8 @@ impl<'a> ValueStack<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::code_state::MockArgs, HintErrorKind, ValueStack};
+    use super::{HintErrorKind, ValueStack};
+    use read_fonts::tables::truetype::bytecode::MockInlineOperands;
 
     // The following are macros because functions can't return a new ValueStack
     // with a borrowed parameter.
@@ -239,8 +242,8 @@ mod tests {
     fn push_args() {
         let mut stack = make_empty_stack!(&mut [0; 32]);
         let values = [-5, 2, 2845, 92, -26, 42, i16::MIN, i16::MAX];
-        let mock_args = MockArgs::from_words(&values);
-        stack.push_args(&mock_args.args()).unwrap();
+        let mock_args = MockInlineOperands::from_words(&values);
+        stack.push_inline_operands(&mock_args.operands()).unwrap();
         let mut popped = vec![];
         while !stack.is_empty() {
             popped.push(stack.pop().unwrap());
