@@ -1,12 +1,15 @@
 //! Hinting error definitions.
 
-use read_fonts::tables::truetype::bytecode::DecodeError;
+use read_fonts::tables::truetype::bytecode::{DecodeError, Opcode};
+
+use super::code_state::ProgramKind;
+use crate::GlyphId;
 
 /// Errors that may occur when interpreting TrueType bytecode.
 #[derive(Clone, Debug)]
 pub enum HintErrorKind {
     UnexpectedEndOfBytecode,
-    InvalidOpcode(u8),
+    UnhandledOpcode(Opcode),
     DefinitionInGlyphProgram,
     NestedDefinition,
     InvalidDefintionIndex(usize),
@@ -30,7 +33,7 @@ impl core::fmt::Display for HintErrorKind {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Self::UnexpectedEndOfBytecode => write!(f, "unexpected end of bytecode"),
-            Self::InvalidOpcode(opcode) => write!(f, "invalid instruction opcode {opcode}"),
+            Self::UnhandledOpcode(opcode) => write!(f, "unhandled instruction opcode {opcode}"),
             Self::DefinitionInGlyphProgram => {
                 write!(f, "FDEF or IDEF instruction present in glyph program")
             }
@@ -77,5 +80,33 @@ impl core::fmt::Display for HintErrorKind {
 impl From<DecodeError> for HintErrorKind {
     fn from(_: DecodeError) -> Self {
         Self::UnexpectedEndOfBytecode
+    }
+}
+
+/// Hinting error with additional context.
+#[derive(Clone, Debug)]
+pub struct HintError {
+    pub program: ProgramKind,
+    pub glyph_id: Option<GlyphId>,
+    pub pc: usize,
+    pub kind: HintErrorKind,
+}
+
+impl core::fmt::Display for HintError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.program {
+            ProgramKind::ControlValue => write!(f, "prep")?,
+            ProgramKind::Font => write!(f, "fpgm")?,
+            ProgramKind::Glyph => {
+                write!(f, "glyf[")?;
+                if let Some(glyph_id) = self.glyph_id {
+                    write!(f, "{}", glyph_id.to_u16())?;
+                } else {
+                    write!(f, "?")?;
+                }
+                write!(f, "]")?
+            }
+        }
+        write!(f, "+{}: {}", self.pc, self.kind)
     }
 }

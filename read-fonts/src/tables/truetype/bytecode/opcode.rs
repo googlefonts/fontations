@@ -297,6 +297,12 @@ impl Opcode {
     }
 }
 
+impl std::fmt::Display for Opcode {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "{}", self.name())
+    }
+}
+
 use Opcode::*;
 
 const OPCODE_FROM_BYTE: [Opcode; 256] = [
