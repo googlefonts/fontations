@@ -8,6 +8,8 @@ pub use super::layout::{
 };
 use super::layout::{ExtensionLookup, LookupFlag, Subtables};
 
+#[cfg(feature = "std")]
+mod closure;
 #[cfg(test)]
 #[path = "../tests/test_gsub.rs"]
 mod tests;
