@@ -4,17 +4,29 @@ use read_fonts::tables::truetype::bytecode::Opcode;
 
 use super::{Engine, HintError, HintErrorKind, Instruction};
 
+/// Maximum number of instructions we will execute in `Engine::run()`. This
+/// is used to ensure termination of a hinting program.
+/// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/include/freetype/config/ftoption.h#L744>
+const MAX_RUN_INSTRUCTIONS: usize = 1_000_000;
+
 impl<'a> Engine<'a> {
     /// Decodes and dispatches all instructions until completion or error.
-    ///
-    /// On success, returns the number of instructions executed.
-    pub fn run(&mut self) -> Result<usize, HintError> {
+    pub fn run(&mut self) -> Result<(), HintError> {
         let mut count = 0;
         while let Some(ins) = self.decode() {
-            self.dispatch(&ins?)?;
+            let ins = ins?;
+            self.dispatch(&ins)?;
             count += 1;
+            if count > MAX_RUN_INSTRUCTIONS {
+                return Err(HintError {
+                    program: self.initial_program,
+                    glyph_id: None,
+                    pc: ins.pc,
+                    kind: HintErrorKind::ExceededExecutionBudget,
+                });
+            }
         }
-        Ok(count)
+        Ok(())
     }
 
     /// Decodes the next instruction from the current program.
@@ -45,9 +57,7 @@ impl<'a> Engine<'a> {
         let opcode = ins.opcode;
         let raw_opcode = opcode as u8;
         match ins.opcode {
-            SVTCA0 | SVTCA1 | SPVTCA0 | SPVTCA1 | SFVTCA0 | SFVTCA1 => {
-                self.op_svtca(ins.opcode as u8)?
-            }
+            SVTCA0 | SVTCA1 | SPVTCA0 | SPVTCA1 | SFVTCA0 | SFVTCA1 => self.op_svtca(raw_opcode)?,
             SPVTL0 | SPVTL1 | SFVTL0 | SFVTL1 => self.op_svtl(raw_opcode)?,
             SPVFS => self.op_spvfs()?,
             SFVFS => self.op_sfvfs()?,

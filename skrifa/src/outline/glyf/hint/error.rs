@@ -27,6 +27,7 @@ pub enum HintErrorKind {
     InvalidZoneIndex(i32),
     NegativeLoopCounter,
     InvalidJump,
+    ExceededExecutionBudget,
 }
 
 impl core::fmt::Display for HintErrorKind {
@@ -73,6 +74,7 @@ impl core::fmt::Display for HintErrorKind {
                 write!(f, "attempt to set the loop counter to a negative value")
             }
             Self::InvalidJump => write!(f, "the target of a jump instruction was invalid"),
+            Self::ExceededExecutionBudget => write!(f, "too many instructions executed"),
         }
     }
 }
