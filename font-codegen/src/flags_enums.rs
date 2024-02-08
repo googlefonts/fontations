@@ -337,14 +337,17 @@ pub(crate) fn generate_raw_enum(raw: &RawEnum) -> TokenStream {
         quote!(#value => Self::#name,)
     });
 
+    let docstring = " If font data is malformed we will map unknown values to this variant";
     quote! {
         #( #docs )*
         #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
         #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
         #[repr(#typ)]
+        #[allow(clippy::manual_non_exhaustive)]
         pub enum #name {
             #( #variants )*
             #[doc(hidden)]
+            #[doc = #docstring]
             Unknown,
         }
 

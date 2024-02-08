@@ -225,6 +225,7 @@ impl<'a> std::fmt::Debug for Gdef<'a> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u16)]
+#[allow(clippy::manual_non_exhaustive)]
 pub enum GlyphClassDef {
     #[default]
     Base = 1,
@@ -232,6 +233,7 @@ pub enum GlyphClassDef {
     Mark = 3,
     Component = 4,
     #[doc(hidden)]
+    /// If font data is malformed we will map unknown values to this variant
     Unknown,
 }
 

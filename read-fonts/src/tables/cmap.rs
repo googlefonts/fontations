@@ -267,13 +267,13 @@ impl<'a> Cmap14<'a> {
         let selector_records = self.var_selector();
         // Variation selector records are sorted in order of var_selector. Binary search to find
         // the appropriate record.
-        let selector_record = match selector_records.binary_search_by(|rec| {
-            let rec_selector: u32 = rec.var_selector().into();
-            rec_selector.cmp(&selector)
-        }) {
-            Ok(idx) => selector_records.get(idx)?,
-            _ => return None,
-        };
+        let selector_record = selector_records
+            .binary_search_by(|rec| {
+                let rec_selector: u32 = rec.var_selector().into();
+                rec_selector.cmp(&selector)
+            })
+            .ok()
+            .and_then(|idx| selector_records.get(idx))?;
         // If a default UVS table is present in this selector record, binary search on the ranges
         // (start_unicode_value, start_unicode_value + additional_count) to find the requested codepoint.
         // If found, ignore the selector and return a value indicating that the default cmap mapping

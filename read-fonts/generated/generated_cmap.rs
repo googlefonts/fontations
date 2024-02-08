@@ -172,6 +172,7 @@ impl<'a> SomeRecord<'a> for EncodingRecord {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u16)]
+#[allow(clippy::manual_non_exhaustive)]
 pub enum PlatformId {
     #[default]
     Unicode = 0,
@@ -180,6 +181,7 @@ pub enum PlatformId {
     Windows = 3,
     Custom = 4,
     #[doc(hidden)]
+    /// If font data is malformed we will map unknown values to this variant
     Unknown,
 }
 
