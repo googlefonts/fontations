@@ -41,7 +41,7 @@ pub enum Subtables<'a, T: FontRead<'a>, Ext: ExtensionLookup<'a, T>> {
     Extension(ArrayOfOffsets<'a, Ext>),
 }
 
-impl<'a, T: FontRead<'a>, Ext: ExtensionLookup<'a, T>> Subtables<'a, T, Ext> {
+impl<'a, T: FontRead<'a> + 'a, Ext: ExtensionLookup<'a, T> + 'a> Subtables<'a, T, Ext> {
     /// create a new subtables array given offests to non-extension subtables
     pub(crate) fn new(offsets: &'a [BigEndian<Offset16>], data: FontData<'a>) -> Self {
         Subtables::Subtable(ArrayOfOffsets::new(offsets, data, ()))
