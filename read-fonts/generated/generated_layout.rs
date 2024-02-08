@@ -3612,6 +3612,7 @@ impl<'a> SomeTable<'a> for ChainedSequenceContext<'a> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u16)]
+#[allow(clippy::manual_non_exhaustive)]
 pub enum DeltaFormat {
     /// Signed 2-bit value, 8 values per uint16
     #[default]
@@ -3623,6 +3624,7 @@ pub enum DeltaFormat {
     /// VariationIndex table, contains a delta-set index pair.
     VariationIndex = 0x8000,
     #[doc(hidden)]
+    /// If font data is malformed we will map unknown values to this variant
     Unknown,
 }
 

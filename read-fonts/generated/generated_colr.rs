@@ -1489,12 +1489,14 @@ impl<'a> std::fmt::Debug for VarColorLine<'a> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u8)]
+#[allow(clippy::manual_non_exhaustive)]
 pub enum Extend {
     #[default]
     Pad = 0,
     Repeat = 1,
     Reflect = 2,
     #[doc(hidden)]
+    /// If font data is malformed we will map unknown values to this variant
     Unknown,
 }
 
@@ -5603,6 +5605,7 @@ impl<'a> std::fmt::Debug for PaintComposite<'a> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u8)]
+#[allow(clippy::manual_non_exhaustive)]
 pub enum CompositeMode {
     Clear = 0,
     Src = 1,
@@ -5634,6 +5637,7 @@ pub enum CompositeMode {
     HslColor = 26,
     HslLuminosity = 27,
     #[doc(hidden)]
+    /// If font data is malformed we will map unknown values to this variant
     Unknown,
 }
 

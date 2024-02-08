@@ -8,6 +8,7 @@ use crate::codegen_prelude::*;
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u16)]
+#[allow(clippy::manual_non_exhaustive)]
 pub enum MyEnum1 {
     /// doc me baby
     /// docington bear
@@ -15,6 +16,7 @@ pub enum MyEnum1 {
     ItsAZero = 0,
     ItsAOne = 1,
     #[doc(hidden)]
+    /// If font data is malformed we will map unknown values to this variant
     Unknown,
 }
 
@@ -52,12 +54,14 @@ impl<'a> From<MyEnum1> for FieldType<'a> {
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(u16)]
+#[allow(clippy::manual_non_exhaustive)]
 pub enum MyEnum2 {
     ItsATwo = 2,
     /// A very important three
     #[default]
     ItsAThree = 3,
     #[doc(hidden)]
+    /// If font data is malformed we will map unknown values to this variant
     Unknown,
 }
 
