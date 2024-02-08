@@ -1,12 +1,17 @@
 //! TrueType bytecode interpreter.
 
 mod arith;
+mod dispatch;
 mod graphics_state;
 mod logical;
 mod stack;
 
+use read_fonts::tables::glyf::bytecode::{Decoder, Instruction};
+
 use super::{
-    code_state::ProgramKind, error::HintErrorKind, graphics_state::GraphicsState,
+    code_state::ProgramKind,
+    error::{HintError, HintErrorKind},
+    graphics_state::GraphicsState,
     value_stack::ValueStack,
 };
 
@@ -17,6 +22,7 @@ pub struct Engine<'a> {
     graphics_state: GraphicsState<'a>,
     value_stack: ValueStack<'a>,
     initial_program: ProgramKind,
+    decoder: Decoder<'a>,
 }
 
 #[cfg(test)]
@@ -24,7 +30,7 @@ use mock::MockEngine;
 
 #[cfg(test)]
 mod mock {
-    use super::{Engine, GraphicsState, ProgramKind, ValueStack};
+    use super::{Decoder, Engine, GraphicsState, ProgramKind, ValueStack};
 
     /// Mock engine for testing.
     pub(super) struct MockEngine {
@@ -43,6 +49,7 @@ mod mock {
                 graphics_state: GraphicsState::default(),
                 value_stack: ValueStack::new(&mut self.value_stack),
                 initial_program: ProgramKind::Font,
+                decoder: Decoder::new(&[], 0),
             }
         }
     }

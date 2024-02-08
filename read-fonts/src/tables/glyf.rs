@@ -1,5 +1,7 @@
 //! The [glyf (Glyph Data)](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf) table
 
+pub mod bytecode;
+
 use std::fmt;
 use types::{F26Dot6, Pen, Point};
 
