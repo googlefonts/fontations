@@ -76,8 +76,8 @@ impl<'a> Engine<'a> {
             RTG => self.op_rtg()?,
             RTHG => self.op_rthg()?,
             SMD => self.op_smd()?,
-            // ELSE => {}
-            // JMPR => {}
+            ELSE => self.op_else()?,
+            JMPR => self.op_jmpr()?,
             SCVTCI => self.op_scvtci()?,
             SSWCI => self.op_sswci()?,
             DUP => self.op_dup()?,
@@ -123,8 +123,8 @@ impl<'a> Engine<'a> {
             NEQ => self.op_neq()?,
             ODD => self.op_odd()?,
             EVEN => self.op_even()?,
-            // IF => {}
-            // EIF => {}
+            IF => self.op_if()?,
+            EIF => self.op_eif()?,
             AND => self.op_and()?,
             OR => self.op_or()?,
             NOT => self.op_not()?,
@@ -147,8 +147,8 @@ impl<'a> Engine<'a> {
             // DELTAC1 | DELTAC2 | DELTAC3 => {}
             SROUND => self.op_sround()?,
             S45ROUND => self.op_s45round()?,
-            // JROT => {}
-            // JROF => {}
+            JROT => self.op_jrot()?,
+            JROF => self.op_jrof()?,
             ROFF => self.op_roff()?,
             // ? 0x7B
             RUTG => self.op_rutg()?,
