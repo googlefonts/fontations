@@ -1,9 +1,5 @@
 //! State for managing active programs and decoding instructions.
 
-mod args;
-
-pub use args::Args;
-
 /// Describes the source for a piece of bytecode.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 #[repr(u8)]
@@ -18,6 +14,3 @@ pub enum ProgramKind {
     /// Glyph specified program. Stored per-glyph in the `glyf` table.
     Glyph = 2,
 }
-
-#[cfg(test)]
-pub(crate) use args::MockArgs;

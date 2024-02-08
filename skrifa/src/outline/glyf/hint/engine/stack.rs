@@ -5,7 +5,9 @@
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#managing-the-stack>
 //! and <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#pushing-data-onto-the-interpreter-stack>
 
-use super::{super::code_state::Args, Engine, OpResult};
+use read_fonts::tables::truetype::bytecode::InlineOperands;
+
+use super::{Engine, OpResult};
 
 impl<'a> Engine<'a> {
     /// Duplicate top stack element.
@@ -166,29 +168,30 @@ impl<'a> Engine<'a> {
     ///
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#pushing-data-onto-the-interpreter-stack>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L3858>
-    pub(super) fn op_push(&mut self, args: &Args) -> OpResult {
-        self.value_stack.push_args(args)
+    pub(super) fn op_push(&mut self, operands: &InlineOperands) -> OpResult {
+        self.value_stack.push_inline_operands(operands)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::super::{super::code_state::MockArgs, MockEngine};
+    use super::super::MockEngine;
+    use read_fonts::tables::truetype::bytecode::MockInlineOperands;
 
     #[test]
     fn stack_ops() {
         let mut mock = MockEngine::new();
         let mut engine = mock.engine();
-        let byte_args = MockArgs::from_bytes(&[2, 4, 6, 8]);
-        let word_args = MockArgs::from_words(&[-2000, 4000, -6000, 8000]);
+        let byte_args = MockInlineOperands::from_bytes(&[2, 4, 6, 8]);
+        let word_args = MockInlineOperands::from_words(&[-2000, 4000, -6000, 8000]);
         let initial_stack = byte_args
-            .args()
+            .operands()
             .values()
-            .chain(word_args.args().values())
+            .chain(word_args.operands().values())
             .collect::<Vec<_>>();
         // Push instructions
-        engine.op_push(&byte_args.args()).unwrap();
-        engine.op_push(&word_args.args()).unwrap();
+        engine.op_push(&byte_args.operands()).unwrap();
+        engine.op_push(&word_args.operands()).unwrap();
         assert_eq!(engine.value_stack.values(), initial_stack);
         // DEPTH[]
         engine.op_depth().unwrap();

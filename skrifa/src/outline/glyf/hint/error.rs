@@ -1,5 +1,7 @@
 //! Hinting error definitions.
 
+use read_fonts::tables::truetype::bytecode::DecodeError;
+
 /// Errors that may occur when interpreting TrueType bytecode.
 #[derive(Clone, Debug)]
 pub enum HintErrorKind {
@@ -69,5 +71,11 @@ impl core::fmt::Display for HintErrorKind {
             }
             Self::InvalidJump => write!(f, "the target of a jump instruction was invalid"),
         }
+    }
+}
+
+impl From<DecodeError> for HintErrorKind {
+    fn from(_: DecodeError) -> Self {
+        Self::UnexpectedEndOfBytecode
     }
 }
