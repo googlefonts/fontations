@@ -686,9 +686,9 @@ mod tests {
             FullName(StringId::new(394)),
             FamilyName(StringId::new(395)),
             FontBbox([-693.0, -470.0, 2797.0, 1048.0].map(Fixed::from_f64)),
-            Charset(519),
-            PrivateDictRange(551..589),
-            CharstringsOffset(523),
+            Charset(517),
+            PrivateDictRange(549..587),
+            CharstringsOffset(521),
         ];
         assert_eq!(&entries, expected);
     }
