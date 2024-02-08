@@ -5,7 +5,7 @@ use super::{InlineOperands, Instruction, Opcode};
 /// An error returned by [`Decoder::decode`] if the end of the bytecode
 /// stream is reached unexpectedly.
 #[derive(Copy, Clone, Debug)]
-pub struct DecodeError(());
+pub struct DecodeError;
 
 impl std::fmt::Display for DecodeError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -43,8 +43,8 @@ impl<'a> Decoder<'a> {
         // of inline operands and |opcode_len| is the size of each operand.
         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L7046>
         if opcode_len < 0 {
-            let inline_count = *self.bytecode.get(self.pc + 1).ok_or(DecodeError(()))?;
-            opcode_len = -opcode_len * inline_count as i32 + 2;
+            let inline_count = *self.bytecode.get(self.pc + 1).ok_or(DecodeError)?;
+            opcode_len = opcode_len.abs() * inline_count as i32 + 2;
             count_len = 1;
         }
         let opcode_len = opcode_len as usize;
@@ -58,7 +58,7 @@ impl<'a> Decoder<'a> {
             inline_operands.bytes = self
                 .bytecode
                 .get(inline_start..inline_start + inline_size)
-                .ok_or(DecodeError(()))?;
+                .ok_or(DecodeError)?;
             inline_operands.is_words = opcode.is_push_words();
         }
         self.pc += opcode_len;

@@ -1,6 +1,6 @@
 //! Hinting error definitions.
 
-use read_fonts::tables::truetype::bytecode::{DecodeError, Opcode};
+use read_fonts::tables::glyf::bytecode::{DecodeError, Opcode};
 
 use super::code_state::ProgramKind;
 use crate::GlyphId;

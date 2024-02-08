@@ -1,6 +1,6 @@
 //! Value stack for TrueType interpreter.
 //!
-use read_fonts::tables::truetype::bytecode::InlineOperands;
+use read_fonts::tables::glyf::bytecode::InlineOperands;
 
 use super::error::HintErrorKind;
 
@@ -204,7 +204,7 @@ impl<'a> ValueStack<'a> {
 #[cfg(test)]
 mod tests {
     use super::{HintErrorKind, ValueStack};
-    use read_fonts::tables::truetype::bytecode::MockInlineOperands;
+    use read_fonts::tables::glyf::bytecode::MockInlineOperands;
 
     // The following are macros because functions can't return a new ValueStack
     // with a borrowed parameter.

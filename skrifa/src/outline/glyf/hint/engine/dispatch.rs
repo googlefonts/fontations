@@ -1,6 +1,6 @@
 //! Instruction decoding and dispatch.
 
-use read_fonts::tables::truetype::bytecode::Opcode;
+use read_fonts::tables::glyf::bytecode::Opcode;
 
 use super::{Engine, HintError, HintErrorKind, Instruction};
 

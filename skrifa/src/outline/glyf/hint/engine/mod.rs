@@ -6,7 +6,7 @@ mod graphics_state;
 mod logical;
 mod stack;
 
-use read_fonts::tables::truetype::bytecode::{Decoder, Instruction};
+use read_fonts::tables::glyf::bytecode::{Decoder, Instruction};
 
 use super::{
     code_state::ProgramKind,

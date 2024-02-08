@@ -5,7 +5,7 @@
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#managing-the-stack>
 //! and <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#pushing-data-onto-the-interpreter-stack>
 
-use read_fonts::tables::truetype::bytecode::InlineOperands;
+use read_fonts::tables::glyf::bytecode::InlineOperands;
 
 use super::{Engine, OpResult};
 
@@ -176,7 +176,7 @@ impl<'a> Engine<'a> {
 #[cfg(test)]
 mod tests {
     use super::super::MockEngine;
-    use read_fonts::tables::truetype::bytecode::MockInlineOperands;
+    use read_fonts::tables::glyf::bytecode::MockInlineOperands;
 
     #[test]
     fn stack_ops() {
