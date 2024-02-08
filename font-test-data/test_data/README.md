@@ -1,8 +1,17 @@
 # test files
 
-This directory contains files used for testing. The masters are the ttx files;
-these are human readable/editable. From these, we generate the binary ttf
-files that are the actual test inputs.
+This directory contains files used for testing.
+
+## ttx
+
+The `ttx` directory contains ttx files describing test cases. These are compiled
+and stored in the `ttf` directory; the `ttf` files are the actual test inputs.
+
+## fea
+
+The `fea` directory contains fea files describing test cases. Similarly to ttx,
+these are compiled and stored in the `ttf` directory. Each test case is
+comprised of a FEA file and a corresponding glyph list.
 
 ## extracted data
 The extracted directory contains text files holding data computed by FreeType
