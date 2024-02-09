@@ -13,8 +13,9 @@ use crate::{
 };
 
 use super::{
-    AlternateSubstFormat1, Gsub, LigatureSubstFormat1, MultipleSubstFormat1, SingleSubst,
-    SingleSubstFormat1, SingleSubstFormat2, SubstitutionSubtables,
+    AlternateSubstFormat1, Gsub, LigatureSubstFormat1, MultipleSubstFormat1,
+    ReverseChainSingleSubstFormat1, SingleSubst, SingleSubstFormat1, SingleSubstFormat2,
+    SubstitutionSubtables,
 };
 
 /// A trait for tables which participate in closure
@@ -64,6 +65,7 @@ impl<'a> GlyphClosure for SubstitutionSubtables<'a> {
             SubstitutionSubtables::Multiple(tables) => tables.add_reachable_glyphs(glyphs),
             SubstitutionSubtables::Alternate(tables) => tables.add_reachable_glyphs(glyphs),
             SubstitutionSubtables::Ligature(tables) => tables.add_reachable_glyphs(glyphs),
+            SubstitutionSubtables::Reverse(tables) => tables.add_reachable_glyphs(glyphs),
             _ => Ok(()),
         }
     }
@@ -178,6 +180,28 @@ impl<'a> GlyphClosure for LigatureSubstFormat1<'a> {
     }
 }
 
+impl GlyphClosure for ReverseChainSingleSubstFormat1<'_> {
+    fn add_reachable_glyphs(&self, glyphs: &mut HashSet<GlyphId>) -> Result<(), ReadError> {
+        for coverage in self
+            .backtrack_coverages()
+            .iter()
+            .chain(self.lookahead_coverages().iter())
+        {
+            if !coverage?.iter().any(|gid| glyphs.contains(&gid)) {
+                return Ok(());
+            }
+        }
+
+        for (gid, sub) in self.coverage()?.iter().zip(self.substitute_glyph_ids()) {
+            if glyphs.contains(&gid) {
+                glyphs.insert(sub.get());
+            }
+        }
+
+        Ok(())
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -261,7 +285,7 @@ mod tests {
         assert_closure_result!(
             glyph_map,
             result,
-            &["a", "A", "b", "c", "d", "a_a", "a.1", "a.2"]
+            &["a", "A", "b", "c", "d", "a_a", "a.1", "a.2", "a.3"]
         );
     }
 
