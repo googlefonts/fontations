@@ -20,4 +20,8 @@ feature test {
     lookup alt_sub {
         sub a from [a.1 a.2];
     } alt_sub;
+
+    lookup rev_single_sub {
+        rsub a a' by a.3;
+    } rev_single_sub;
 } test;
