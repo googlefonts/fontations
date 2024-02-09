@@ -8,14 +8,18 @@ use std::collections::HashSet;
 use font_types::GlyphId;
 
 use crate::{
-    tables::layout::{ExtensionLookup, Subtables},
+    tables::layout::{
+        ChainedSequenceContextFormat1, ChainedSequenceContextFormat2,
+        ChainedSequenceContextFormat3, ExtensionLookup, SequenceContextFormat1,
+        SequenceContextFormat2, SequenceContextFormat3, Subtables,
+    },
     FontRead, ReadError,
 };
 
 use super::{
-    AlternateSubstFormat1, Gsub, LigatureSubstFormat1, MultipleSubstFormat1,
-    ReverseChainSingleSubstFormat1, SingleSubst, SingleSubstFormat1, SingleSubstFormat2,
-    SubstitutionSubtables,
+    AlternateSubstFormat1, ChainedSequenceContext, ClassDef, Gsub, LigatureSubstFormat1,
+    MultipleSubstFormat1, ReverseChainSingleSubstFormat1, SequenceContext, SingleSubst,
+    SingleSubstFormat1, SingleSubstFormat2, SubstitutionSubtables,
 };
 
 /// A trait for tables which participate in closure
@@ -49,12 +53,43 @@ impl<'a> Gsub<'a> {
     }
 
     fn closure_glyphs_once(&self, glyphs: &mut HashSet<GlyphId>) -> Result<(), ReadError> {
+        let lookups_to_use = self.find_reachable_lookups(glyphs)?;
         let lookup_list = self.lookup_list()?;
-        for lookup in lookup_list.lookups().iter() {
+        for (i, lookup) in lookup_list.lookups().iter().enumerate() {
+            if !lookups_to_use.contains(&(i as u16)) {
+                continue;
+            }
             let subtables = lookup?.subtables()?;
             subtables.add_reachable_glyphs(glyphs)?;
         }
         Ok(())
+    }
+
+    fn find_reachable_lookups(&self, glyphs: &HashSet<GlyphId>) -> Result<HashSet<u16>, ReadError> {
+        let feature_list = self.feature_list()?;
+        let lookup_list = self.lookup_list()?;
+        // first we want to get the lookups that are directly referenced by a feature
+        let mut lookup_ids = HashSet::with_capacity(lookup_list.lookup_count() as _);
+        for rec in feature_list.feature_records() {
+            let feat = rec.feature(feature_list.offset_data())?;
+            lookup_ids.extend(feat.lookup_list_indices().iter().map(|idx| idx.get()));
+        }
+
+        // and now we need to add lookups referenced by contextual lookups,
+        // IFF they are reachable via the current set of glyphs:
+        for lookup in lookup_list.lookups().iter() {
+            let subtables = lookup?.subtables()?;
+            match subtables {
+                SubstitutionSubtables::Contextual(tables) => tables
+                    .iter()
+                    .try_for_each(|t| t?.add_reachable_lookups(glyphs, &mut lookup_ids)),
+                SubstitutionSubtables::ChainContextual(tables) => tables
+                    .iter()
+                    .try_for_each(|t| t?.add_reachable_lookups(glyphs, &mut lookup_ids)),
+                _ => Ok(()),
+            }?;
+        }
+        Ok(lookup_ids)
     }
 }
 
@@ -202,6 +237,226 @@ impl GlyphClosure for ReverseChainSingleSubstFormat1<'_> {
     }
 }
 
+impl SequenceContext<'_> {
+    fn add_reachable_lookups(
+        &self,
+        glyphs: &HashSet<GlyphId>,
+        lookups: &mut HashSet<u16>,
+    ) -> Result<(), ReadError> {
+        match self {
+            SequenceContext::Format1(table) => table.add_reachable_lookups(glyphs, lookups),
+            SequenceContext::Format2(table) => table.add_reachable_lookups(glyphs, lookups),
+            SequenceContext::Format3(table) => table.add_reachable_lookups(glyphs, lookups),
+        }
+    }
+}
+
+impl SequenceContextFormat1<'_> {
+    fn add_reachable_lookups(
+        &self,
+        glyphs: &HashSet<GlyphId>,
+        lookups: &mut HashSet<u16>,
+    ) -> Result<(), ReadError> {
+        let coverage = self.coverage()?;
+        for seq in coverage
+            .iter()
+            .zip(self.seq_rule_sets().iter())
+            .filter_map(|(gid, seq)| seq.filter(|_| glyphs.contains(&gid)))
+        {
+            for rule in seq?.seq_rules().iter() {
+                let rule = rule?;
+                if rule
+                    .input_sequence()
+                    .iter()
+                    .all(|gid| glyphs.contains(&gid.get()))
+                {
+                    lookups.extend(
+                        rule.seq_lookup_records()
+                            .iter()
+                            .map(|rec| rec.lookup_list_index()),
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl SequenceContextFormat2<'_> {
+    fn add_reachable_lookups(
+        &self,
+        glyphs: &HashSet<GlyphId>,
+        lookups: &mut HashSet<u16>,
+    ) -> Result<(), ReadError> {
+        let classdef = self.class_def()?;
+        let our_classes = make_class_set(glyphs, &classdef);
+        for seq in self
+            .class_seq_rule_sets()
+            .iter()
+            .enumerate()
+            .filter_map(|(i, seq)| seq.filter(|_| our_classes.contains(&(i as u16))))
+        {
+            for rule in seq?.class_seq_rules().iter() {
+                let rule = rule?;
+                if rule
+                    .input_sequence()
+                    .iter()
+                    .all(|class_id| our_classes.contains(&class_id.get()))
+                {
+                    lookups.extend(
+                        rule.seq_lookup_records()
+                            .iter()
+                            .map(|rec| rec.lookup_list_index()),
+                    )
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl SequenceContextFormat3<'_> {
+    fn add_reachable_lookups(
+        &self,
+        glyphs: &HashSet<GlyphId>,
+        lookups: &mut HashSet<u16>,
+    ) -> Result<(), ReadError> {
+        for coverage in self.coverages().iter() {
+            if !coverage?.iter().any(|gid| glyphs.contains(&gid)) {
+                return Ok(());
+            }
+        }
+        lookups.extend(
+            self.seq_lookup_records()
+                .iter()
+                .map(|rec| rec.lookup_list_index()),
+        );
+        Ok(())
+    }
+}
+
+impl ChainedSequenceContext<'_> {
+    fn add_reachable_lookups(
+        &self,
+        glyphs: &HashSet<GlyphId>,
+        lookups: &mut HashSet<u16>,
+    ) -> Result<(), ReadError> {
+        match self {
+            ChainedSequenceContext::Format1(table) => table.add_reachable_lookups(glyphs, lookups),
+            ChainedSequenceContext::Format2(table) => table.add_reachable_lookups(glyphs, lookups),
+            ChainedSequenceContext::Format3(table) => table.add_reachable_lookups(glyphs, lookups),
+        }
+    }
+}
+
+impl ChainedSequenceContextFormat1<'_> {
+    fn add_reachable_lookups(
+        &self,
+        glyphs: &HashSet<GlyphId>,
+        lookups: &mut HashSet<u16>,
+    ) -> Result<(), ReadError> {
+        let coverage = self.coverage()?;
+        for seq in coverage
+            .iter()
+            .zip(self.chained_seq_rule_sets().iter())
+            .filter_map(|(gid, seq)| seq.filter(|_| glyphs.contains(&gid)))
+        {
+            for rule in seq?.chained_seq_rules().iter() {
+                let rule = rule?;
+                if rule
+                    .input_sequence()
+                    .iter()
+                    .chain(rule.backtrack_sequence())
+                    .chain(rule.lookahead_sequence())
+                    .all(|gid| glyphs.contains(&gid.get()))
+                {
+                    lookups.extend(
+                        rule.seq_lookup_records()
+                            .iter()
+                            .map(|rec| rec.lookup_list_index()),
+                    );
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl ChainedSequenceContextFormat2<'_> {
+    fn add_reachable_lookups(
+        &self,
+        glyphs: &HashSet<GlyphId>,
+        lookups: &mut HashSet<u16>,
+    ) -> Result<(), ReadError> {
+        let input = self.input_class_def()?;
+        let backtrack = self.backtrack_class_def()?;
+        let lookahead = self.lookahead_class_def()?;
+
+        let input_classes = make_class_set(glyphs, &input);
+        let backtrack_classes = make_class_set(glyphs, &backtrack);
+        let lookahead_classes = make_class_set(glyphs, &lookahead);
+        for seq in self
+            .chained_class_seq_rule_sets()
+            .iter()
+            .enumerate()
+            .filter_map(|(i, seq)| seq.filter(|_| input_classes.contains(&(i as u16))))
+        {
+            for rule in seq?.chained_class_seq_rules().iter() {
+                let rule = rule?;
+                if rule
+                    .input_sequence()
+                    .iter()
+                    .all(|cls| input_classes.contains(&cls.get()))
+                    && rule
+                        .backtrack_sequence()
+                        .iter()
+                        .all(|cls| backtrack_classes.contains(&cls.get()))
+                    && rule
+                        .lookahead_sequence()
+                        .iter()
+                        .all(|cls| lookahead_classes.contains(&cls.get()))
+                {
+                    lookups.extend(
+                        rule.seq_lookup_records()
+                            .iter()
+                            .map(|rec| rec.lookup_list_index()),
+                    )
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
+impl ChainedSequenceContextFormat3<'_> {
+    fn add_reachable_lookups(
+        &self,
+        glyphs: &HashSet<GlyphId>,
+        lookups: &mut HashSet<u16>,
+    ) -> Result<(), ReadError> {
+        for coverage in self
+            .backtrack_coverages()
+            .iter()
+            .chain(self.input_coverages().iter())
+            .chain(self.lookahead_coverages().iter())
+        {
+            if !coverage?.iter().any(|gid| glyphs.contains(&gid)) {
+                return Ok(());
+            }
+        }
+        lookups.extend(
+            self.seq_lookup_records()
+                .iter()
+                .map(|rec| rec.lookup_list_index()),
+        );
+        Ok(())
+    }
+}
+
+fn make_class_set(glyphs: &HashSet<GlyphId>, classdef: &ClassDef) -> HashSet<u16> {
+    glyphs.iter().map(|gid| classdef.get(*gid)).collect()
+}
+
 #[cfg(test)]
 mod tests {
     use std::collections::HashMap;
@@ -299,5 +554,47 @@ mod tests {
         let glyph_map = GlyphMap::new(test_data::RECURSIVE_GLYPHS);
         let result = compute_closure(&gsub, &glyph_map, &["a"]);
         assert_closure_result!(glyph_map, result, &["a", "b", "c", "d"]);
+    }
+
+    #[test]
+    fn contextual_lookups() {
+        let gsub = get_gsub(test_data::CONTEXTUAL);
+        let glyph_map = GlyphMap::new(test_data::CONTEXTUAL_GLYPHS);
+
+        // these match the lookups but not the context
+        let nop = compute_closure(&gsub, &glyph_map, &["three", "four", "e", "f"]);
+        assert_closure_result!(glyph_map, nop, &["three", "four", "e", "f"]);
+
+        let gsub6f1 = compute_closure(
+            &gsub,
+            &glyph_map,
+            &["one", "two", "three", "four", "five", "six", "seven"],
+        );
+        assert_closure_result!(
+            glyph_map,
+            gsub6f1,
+            &["one", "two", "three", "four", "five", "six", "seven", "X", "Y"]
+        );
+
+        let gsub6f3 = compute_closure(&gsub, &glyph_map, &["space", "e"]);
+        assert_closure_result!(glyph_map, gsub6f3, &["space", "e", "e.2"]);
+
+        let gsub5f3 = compute_closure(&gsub, &glyph_map, &["f", "g"]);
+        assert_closure_result!(glyph_map, gsub5f3, &["f", "g", "f.2"]);
+    }
+
+    #[test]
+    fn recursive_context() {
+        let gsub = get_gsub(test_data::RECURSIVE_CONTEXTUAL);
+        let glyph_map = GlyphMap::new(test_data::RECURSIVE_CONTEXTUAL_GLYPHS);
+
+        let nop = compute_closure(&gsub, &glyph_map, &["b", "B"]);
+        assert_closure_result!(glyph_map, nop, &["b", "B"]);
+
+        let full = compute_closure(&gsub, &glyph_map, &["a", "b", "c"]);
+        assert_closure_result!(glyph_map, full, &["a", "b", "c", "B", "B.2", "B.3"]);
+
+        let intermediate = compute_closure(&gsub, &glyph_map, &["a", "B.2"]);
+        assert_closure_result!(glyph_map, intermediate, &["a", "B.2", "B.3"]);
     }
 }
