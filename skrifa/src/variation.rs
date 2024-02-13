@@ -78,6 +78,9 @@ impl Axis {
 
 /// Collection of axes in a variable font.
 ///
+/// Converts user ([fvar](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar))
+/// locations to normalized locations. See [`Self::location`].
+///
 /// See the [`Axis`] type for more detail.
 #[derive(Clone)]
 pub struct AxisCollection<'a> {
