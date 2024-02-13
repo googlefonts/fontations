@@ -73,7 +73,7 @@ impl Size {
 
 /// Reference to an ordered sequence of normalized variation coordinates.
 ///
-/// To convert from user coordinates see [`skrifa::AxisCollection::location`].
+/// To convert from user coordinates see [`crate::AxisCollection::location`].
 ///
 /// This type represents a position in the variation space where each
 /// coordinate corresponds to an axis (in the same order as the `fvar` table)
@@ -137,7 +137,7 @@ const MAX_INLINE_COORDS: usize = 8;
 
 /// Ordered sequence of normalized variation coordinates.
 ///
-/// To produce from user coordinates see [`skrifa::AxisCollection::location`].
+/// To produce from user coordinates see [`crate::AxisCollection::location`].
 ///
 /// This is an owned version of [`LocationRef`]. See the documentation on that
 /// type for more detail.
