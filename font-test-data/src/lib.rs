@@ -60,6 +60,10 @@ pub mod closure {
         include_bytes!("../test_data/ttf/recursive_context_closure.ttf");
     pub static RECURSIVE_CONTEXTUAL_GLYPHS: &str =
         include_str!("../test_data/fea/recursive_context_closure_glyphs.txt");
+    pub static VARIATIONS_CLOSURE: &[u8] =
+        include_bytes!("../test_data/ttf/variations_closure.ttf");
+    pub static VARIATIONS_GLYPHS: &str =
+        include_str!("../test_data/fea/variations_closure_glyphs.txt");
 }
 
 pub mod post {
