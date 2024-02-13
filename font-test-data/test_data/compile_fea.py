@@ -1,14 +1,24 @@
 import sys
 import os
 
-from fontTools.ttLib import TTFont
+from fontTools.ttLib import TTFont, newTable
+from fontTools.fontBuilder import addFvar
 
 from fontTools.feaLib.builder import addOpenTypeFeatures
+
+VARFONT_AXES = [
+    ("wght", 200, 200, 1000, "Weight"),
+    ("wdth", 100, 100, 200, "Width"),
+]
 
 def makeTTFont(glyph_list_path):
     glyphs = get_glyph_list(glyph_list_path)
     font = TTFont()
     font.setGlyphOrder(glyphs)
+    # hack, but no need to modify the existing test files
+    if "variations" in glyph_list_path:
+        font["name"] = newTable("name")
+        addFvar(font, VARFONT_AXES, [])
     return font
 
 def get_glyph_list(path):
