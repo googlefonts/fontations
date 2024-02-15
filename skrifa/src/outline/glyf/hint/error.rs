@@ -2,7 +2,7 @@
 
 use read_fonts::tables::glyf::bytecode::{DecodeError, Opcode};
 
-use super::code_state::ProgramKind;
+use super::program::Program;
 use crate::GlyphId;
 
 /// Errors that may occur when interpreting TrueType bytecode.
@@ -12,7 +12,8 @@ pub enum HintErrorKind {
     UnhandledOpcode(Opcode),
     DefinitionInGlyphProgram,
     NestedDefinition,
-    InvalidDefintionIndex(usize),
+    TooManyDefinitions,
+    InvalidDefintion(usize),
     ValueStackOverflow,
     ValueStackUnderflow,
     CallStackOverflow,
@@ -36,16 +37,16 @@ impl core::fmt::Display for HintErrorKind {
             Self::UnexpectedEndOfBytecode => write!(f, "unexpected end of bytecode"),
             Self::UnhandledOpcode(opcode) => write!(f, "unhandled instruction opcode {opcode}"),
             Self::DefinitionInGlyphProgram => {
-                write!(f, "FDEF or IDEF instruction present in glyph program")
+                write!(
+                    f,
+                    "function or instruction definition present in glyph program"
+                )
             }
-            Self::NestedDefinition => write!(
-                f,
-                "FDEF or IDEF instruction present in another FDEF or IDEF block"
-            ),
-            Self::InvalidDefintionIndex(index) => write!(
-                f,
-                "invalid function or instruction definition index {index}"
-            ),
+            Self::NestedDefinition => write!(f, "nested function or instruction definition"),
+            Self::TooManyDefinitions => write!(f, "too many function or instruction definitions"),
+            Self::InvalidDefintion(key) => {
+                write!(f, "function or instruction definition {key} not found")
+            }
             Self::ValueStackOverflow => write!(f, "value stack overflow"),
             Self::ValueStackUnderflow => write!(f, "value stack underflow"),
             Self::CallStackOverflow => write!(f, "call stack overflow"),
@@ -88,7 +89,7 @@ impl From<DecodeError> for HintErrorKind {
 /// Hinting error with additional context.
 #[derive(Clone, Debug)]
 pub struct HintError {
-    pub program: ProgramKind,
+    pub program: Program,
     pub glyph_id: Option<GlyphId>,
     pub pc: usize,
     pub kind: HintErrorKind,
@@ -97,9 +98,9 @@ pub struct HintError {
 impl core::fmt::Display for HintError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.program {
-            ProgramKind::ControlValue => write!(f, "prep")?,
-            ProgramKind::Font => write!(f, "fpgm")?,
-            ProgramKind::Glyph => {
+            Program::ControlValue => write!(f, "prep")?,
+            Program::Font => write!(f, "fpgm")?,
+            Program::Glyph => {
                 write!(f, "glyf[")?;
                 if let Some(glyph_id) = self.glyph_id {
                     write!(f, "{}", glyph_id.to_u16())?;

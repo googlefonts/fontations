@@ -11,9 +11,9 @@ use read_fonts::tables::glyf::bytecode::{Decoder, Instruction};
 
 use super::{
     super::Outlines,
-    code_state::ProgramKind,
     error::{HintError, HintErrorKind},
     graphics_state::GraphicsState,
+    program::Program,
     value_stack::ValueStack,
 };
 
@@ -23,7 +23,7 @@ pub type OpResult = Result<(), HintErrorKind>;
 pub struct Engine<'a> {
     graphics_state: GraphicsState<'a>,
     value_stack: ValueStack<'a>,
-    initial_program: ProgramKind,
+    initial_program: Program,
     decoder: Decoder<'a>,
     loop_budget: LoopBudget,
 }
@@ -83,7 +83,7 @@ use mock::MockEngine;
 
 #[cfg(test)]
 mod mock {
-    use super::{Decoder, Engine, GraphicsState, LoopBudget, ProgramKind, ValueStack};
+    use super::{Decoder, Engine, GraphicsState, LoopBudget, Program, ValueStack};
 
     /// Mock engine for testing.
     pub(super) struct MockEngine {
@@ -101,7 +101,7 @@ mod mock {
             Engine {
                 graphics_state: GraphicsState::default(),
                 value_stack: ValueStack::new(&mut self.value_stack),
-                initial_program: ProgramKind::Font,
+                initial_program: Program::Font,
                 decoder: Decoder::new(&[], 0),
                 loop_budget: LoopBudget {
                     limit: 10,

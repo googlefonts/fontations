@@ -3,7 +3,7 @@
 /// Describes the source for a piece of bytecode.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 #[repr(u8)]
-pub enum ProgramKind {
+pub enum Program {
     /// Program that initializes the function and instruction tables. Stored
     /// in the `fpgm` table.
     #[default]

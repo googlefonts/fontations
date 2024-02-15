@@ -1,10 +1,11 @@
 //! TrueType hinting.
 
-mod code_state;
+mod definition;
 mod engine;
 mod error;
 mod graphics_state;
 mod math;
+mod program;
 mod value_stack;
 
 use read_fonts::{
