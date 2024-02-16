@@ -1,5 +1,6 @@
 //! TrueType hinting.
 
+mod call_stack;
 mod definition;
 mod engine;
 mod error;
