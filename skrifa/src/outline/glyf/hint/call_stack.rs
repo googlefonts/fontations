@@ -22,39 +22,39 @@ pub struct CallRecord {
 #[derive(Default)]
 pub struct CallStack {
     records: [CallRecord; MAX_DEPTH],
-    top: usize,
+    len: usize,
 }
 
 impl CallStack {
     pub fn len(&self) -> usize {
-        self.top
+        self.len
     }
 
     pub fn is_empty(&self) -> bool {
-        self.top == 0
+        self.len == 0
     }
 
     pub fn records(&self) -> &[CallRecord] {
-        &self.records[..self.top]
+        &self.records[..self.len]
     }
 
     pub fn push(&mut self, record: CallRecord) -> Result<(), HintErrorKind> {
         let top = self
             .records
-            .get_mut(self.top)
+            .get_mut(self.len)
             .ok_or(HintErrorKind::CallStackOverflow)?;
         *top = record;
-        self.top += 1;
+        self.len += 1;
         Ok(())
     }
 
     pub fn peek(&self) -> Option<&CallRecord> {
-        self.records.get(self.top.checked_sub(1)?)
+        self.records.get(self.len.checked_sub(1)?)
     }
 
     pub fn pop(&mut self) -> Result<CallRecord, HintErrorKind> {
         let record = *self.peek().ok_or(HintErrorKind::CallStackUnderflow)?;
-        self.top -= 1;
+        self.len -= 1;
         Ok(record)
     }
 }
@@ -64,29 +64,42 @@ mod tests {
     use super::*;
 
     #[test]
-    fn stack_ops() {
+    fn stack_overflow() {
         let mut stack = CallStack::default();
-        for i in 0..32 {
-            stack
-                .push(CallRecord {
-                    caller_program: Program::Glyph,
-                    return_pc: 0,
-                    current_count: 1,
-                    definition: Definition::new(Program::Font, 0..i, i as i32),
-                })
-                .unwrap();
+        for i in 0..MAX_DEPTH {
+            stack.push(record_with_key(i)).unwrap();
         }
         assert!(matches!(
             stack.push(CallRecord::default()),
             Err(HintErrorKind::CallStackOverflow)
         ));
-        assert_eq!(stack.peek().unwrap().definition.key(), 31);
-        for i in (0..32).rev() {
-            assert_eq!(stack.pop().unwrap().definition.key(), i);
-        }
+    }
+
+    #[test]
+    fn stack_underflow() {
         assert!(matches!(
-            stack.pop(),
+            CallStack::default().pop(),
             Err(HintErrorKind::CallStackUnderflow)
         ));
+    }
+
+    #[test]
+    fn stack_push_pop() {
+        let mut stack = CallStack::default();
+        for i in 0..MAX_DEPTH {
+            stack.push(record_with_key(i)).unwrap();
+        }
+        for i in (0..MAX_DEPTH).rev() {
+            assert_eq!(stack.pop().unwrap().definition.key(), i as i32);
+        }
+    }
+
+    fn record_with_key(key: usize) -> CallRecord {
+        CallRecord {
+            caller_program: Program::Glyph,
+            return_pc: 0,
+            current_count: 1,
+            definition: Definition::new(Program::Font, 0..0, key as i32),
+        }
     }
 }
