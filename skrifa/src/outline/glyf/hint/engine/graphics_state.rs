@@ -7,7 +7,7 @@
 use read_fonts::types::Point;
 
 use super::{
-    super::{code_state::ProgramKind, graphics_state::RoundMode, math},
+    super::{graphics_state::RoundMode, math, program::Program},
     Engine, HintErrorKind, OpResult,
 };
 
@@ -562,13 +562,13 @@ impl<'a> Engine<'a> {
         }
         match (self.initial_program, selector) {
             // Typically, this instruction can only be executed in the prep table.
-            (ProgramKind::ControlValue, _) => {
+            (Program::ControlValue, _) => {
                 self.graphics_state.instruct_control &= !(selector_flag as u8);
                 self.graphics_state.instruct_control |= value as u8;
             }
             // Allow an exception in the glyph program for selector 3 which can
             // temporarily disable backward compatibility mode.
-            (ProgramKind::Glyph, 3) => {
+            (Program::Glyph, 3) => {
                 self.graphics_state.backward_compatibility = value != 4;
             }
             _ => {}
@@ -828,7 +828,7 @@ mod tests {
             super::graphics_state::{Zone, ZonePointer},
             MockEngine,
         },
-        HintErrorKind, Point, ProgramKind, RoundMode,
+        HintErrorKind, Point, Program, RoundMode,
     };
     use read_fonts::types::F2Dot14;
 
@@ -1074,7 +1074,7 @@ mod tests {
     fn instctrl() {
         let mut mock = MockEngine::new();
         let mut engine = mock.engine();
-        engine.initial_program = ProgramKind::ControlValue;
+        engine.initial_program = Program::ControlValue;
         // selectors 1..=3 are valid and values for each selector
         // can be 0, which disables the field, or 1 << (selector - 1) to
         // enable it
@@ -1093,7 +1093,7 @@ mod tests {
         }
         // in glyph programs, selector 3 can be used to toggle
         // backward_compatibility
-        engine.initial_program = ProgramKind::Glyph;
+        engine.initial_program = Program::Glyph;
         // enabling this flag opts into "native ClearType mode"
         // which disables backward compatibility
         engine.value_stack.push((3 - 1) << 1).unwrap();
