@@ -560,7 +560,7 @@ impl<'a> Engine<'a> {
         if !(1..=3).contains(&selector) || (value != 0 && value != selector_flag) {
             return Ok(());
         }
-        match (self.initial_program, selector) {
+        match (self.program.initial, selector) {
             // Typically, this instruction can only be executed in the prep table.
             (Program::ControlValue, _) => {
                 self.graphics_state.instruct_control &= !(selector_flag as u8);
@@ -1074,7 +1074,7 @@ mod tests {
     fn instctrl() {
         let mut mock = MockEngine::new();
         let mut engine = mock.engine();
-        engine.initial_program = Program::ControlValue;
+        engine.program.initial = Program::ControlValue;
         // selectors 1..=3 are valid and values for each selector
         // can be 0, which disables the field, or 1 << (selector - 1) to
         // enable it
@@ -1093,7 +1093,7 @@ mod tests {
         }
         // in glyph programs, selector 3 can be used to toggle
         // backward_compatibility
-        engine.initial_program = Program::Glyph;
+        engine.program.initial = Program::Glyph;
         // enabling this flag opts into "native ClearType mode"
         // which disables backward compatibility
         engine.value_stack.push((3 - 1) << 1).unwrap();

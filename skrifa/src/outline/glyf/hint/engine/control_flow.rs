@@ -172,13 +172,18 @@ impl<'a> Engine<'a> {
                 }
                 self.loop_budget.doing_backward_jump()?;
             }
-            self.decoder.pc = self.decoder.pc.wrapping_add_signed(jump_offset as isize);
+            self.program.decoder.pc = self
+                .program
+                .decoder
+                .pc
+                .wrapping_add_signed(jump_offset as isize);
         }
         Ok(())
     }
 
     fn decode_next_opcode(&mut self) -> Result<Opcode, HintErrorKind> {
         Ok(self
+            .program
             .decoder
             .decode()
             .ok_or(HintErrorKind::UnexpectedEndOfBytecode)??
@@ -215,43 +220,43 @@ mod tests {
             EIF // 14
         ];
         let bytecode = ops.map(|op| op as u8);
-        engine.decoder.bytecode = bytecode.as_slice();
+        engine.program.decoder.bytecode = bytecode.as_slice();
         // Outer if
         {
             // push a true value to enter the first branch
-            engine.decoder.pc = 1;
+            engine.program.decoder.pc = 1;
             engine.value_stack.push(1).unwrap();
             engine.op_if().unwrap();
-            assert_eq!(engine.decoder.pc, 1);
+            assert_eq!(engine.program.decoder.pc, 1);
             // false enters the else branch
-            engine.decoder.pc = 1;
+            engine.program.decoder.pc = 1;
             engine.value_stack.push(0).unwrap();
             engine.op_if().unwrap();
-            assert_eq!(engine.decoder.pc, 11);
+            assert_eq!(engine.program.decoder.pc, 11);
         }
         // Inner if
         {
             // push a true value to enter the first branch
-            engine.decoder.pc = 4;
+            engine.program.decoder.pc = 4;
             engine.value_stack.push(1).unwrap();
             engine.op_if().unwrap();
-            assert_eq!(engine.decoder.pc, 4);
+            assert_eq!(engine.program.decoder.pc, 4);
             // false enters the else branch
-            engine.decoder.pc = 4;
+            engine.program.decoder.pc = 4;
             engine.value_stack.push(0).unwrap();
             engine.op_if().unwrap();
-            assert_eq!(engine.decoder.pc, 7);
+            assert_eq!(engine.program.decoder.pc, 7);
         }
         // Else with nested if
         {
             // This jumps to the instruction after the next EIF, skipping any
             // nested conditional blocks
-            engine.decoder.pc = 10;
+            engine.program.decoder.pc = 10;
             engine.op_else().unwrap();
-            assert_eq!(engine.decoder.pc, 15);
-            engine.decoder.pc = 8;
+            assert_eq!(engine.program.decoder.pc, 15);
+            engine.program.decoder.pc = 8;
             engine.op_else().unwrap();
-            assert_eq!(engine.decoder.pc, 10);
+            assert_eq!(engine.program.decoder.pc, 10);
         }
     }
 
@@ -261,38 +266,38 @@ mod tests {
         let mut engine = mock.engine();
         // Unconditional jump
         {
-            engine.decoder.pc = 1000;
+            engine.program.decoder.pc = 1000;
             engine.value_stack.push(100).unwrap();
             engine.op_jmpr().unwrap();
-            assert_eq!(engine.decoder.pc, 1099);
+            assert_eq!(engine.program.decoder.pc, 1099);
         }
         // Jump if true
         {
-            engine.decoder.pc = 1000;
+            engine.program.decoder.pc = 1000;
             // first test false condition, pc shouldn't change
             engine.value_stack.push(100).unwrap();
             engine.value_stack.push(0).unwrap();
             engine.op_jrot().unwrap();
-            assert_eq!(engine.decoder.pc, 1000);
+            assert_eq!(engine.program.decoder.pc, 1000);
             // then true condition
             engine.value_stack.push(100).unwrap();
             engine.value_stack.push(1).unwrap();
             engine.op_jrot().unwrap();
-            assert_eq!(engine.decoder.pc, 1099);
+            assert_eq!(engine.program.decoder.pc, 1099);
         }
         // Jump if false
         {
-            engine.decoder.pc = 1000;
+            engine.program.decoder.pc = 1000;
             // first test true condition, pc shouldn't change
             engine.value_stack.push(-100).unwrap();
             engine.value_stack.push(1).unwrap();
             engine.op_jrof().unwrap();
-            assert_eq!(engine.decoder.pc, 1000);
+            assert_eq!(engine.program.decoder.pc, 1000);
             // then false condition
             engine.value_stack.push(-100).unwrap();
             engine.value_stack.push(0).unwrap();
             engine.op_jrof().unwrap();
-            assert_eq!(engine.decoder.pc, 899);
+            assert_eq!(engine.program.decoder.pc, 899);
         }
         // Exhaust backward jump loop budget
         {

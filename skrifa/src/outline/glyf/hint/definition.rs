@@ -144,7 +144,7 @@ impl<'a> DefinitionMap<'a> {
                 return Ok(def);
             }
         }
-        Err(HintErrorKind::InvalidDefintion(key as _))
+        Err(HintErrorKind::InvalidDefinition(key as _))
     }
 
     /// Returns a reference to the underlying definition slice.
@@ -160,6 +160,21 @@ impl<'a> DefinitionMap<'a> {
     pub fn reset(&mut self) {
         if let Self::Mut(defs) = self {
             defs.fill(Default::default())
+        }
+    }
+}
+
+/// State containing font defined functions and instructions.
+pub struct DefinitionState<'a> {
+    pub functions: DefinitionMap<'a>,
+    pub instructions: DefinitionMap<'a>,
+}
+
+impl<'a> DefinitionState<'a> {
+    pub fn new(functions: DefinitionMap<'a>, instructions: DefinitionMap<'a>) -> Self {
+        Self {
+            functions,
+            instructions,
         }
     }
 }
@@ -181,7 +196,7 @@ mod tests {
         ));
         assert!(matches!(
             map.get(33),
-            Err(HintErrorKind::InvalidDefintion(33))
+            Err(HintErrorKind::InvalidDefinition(33))
         ));
     }
 
