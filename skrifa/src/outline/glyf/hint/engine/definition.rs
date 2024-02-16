@@ -104,7 +104,7 @@ impl<'a> Engine<'a> {
     /// user defined instruction.
     pub(super) fn op_unknown(&mut self, opcode: u8) -> OpResult {
         match self.do_call(DefKind::Instruction, 1, opcode as i32) {
-            // Remap an invalid defintion error to unhandled opcode
+            // Remap an invalid definition error to unhandled opcode
             Err(HintErrorKind::InvalidDefinition(opcode)) => Err(HintErrorKind::UnhandledOpcode(
                 Opcode::from_byte(opcode as u8),
             )),
@@ -205,7 +205,7 @@ mod tests {
         assert_eq!(engine.value_stack.pop().ok(), Some(-22));
     }
 
-    /// Control value programs and override functions defined in the font
+    /// Control value programs can override functions defined in the font
     /// program based on instance state.
     #[test]
     fn override_function() {
