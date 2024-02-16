@@ -14,7 +14,7 @@ use super::{error::HintErrorKind, program::Program};
 pub struct Definition {
     start: u32,
     end: u32,
-    // Either function number or opcode
+    /// The function number for an FDEF or opcode for an IDEF.
     key: i32,
     _pad: u16,
     program: u8,
@@ -168,11 +168,6 @@ impl<'a> DefinitionMap<'a> {
 mod tests {
     use super::*;
 
-    fn alloc(set: &mut DefinitionMap, key: i32) {
-        let def = set.allocate(key).unwrap();
-        *def = Definition::new(Program::Font, 0..0, key);
-    }
-
     #[test]
     fn too_many_and_invalid() {
         let mut buf = vec![Default::default(); 32];
@@ -190,6 +185,8 @@ mod tests {
         ));
     }
 
+    /// Test dense allocation where all keys map directly to indices. This is
+    /// the case for function definitions in well behaved fonts.
     #[test]
     fn allocate_dense() {
         let mut buf = vec![Default::default(); 32];
@@ -204,27 +201,48 @@ mod tests {
         }
     }
 
+    /// Test sparse allocation where keys never map to indices. This is
+    /// generally the case for instruction definitions and would apply
+    /// to fonts with function definition numbers that all fall outside
+    /// the range 0..max_function_defs.
     #[test]
     fn allocate_sparse() {
-        let mut buf = vec![Default::default(); 10];
+        let mut buf = vec![Default::default(); 3];
         let mut map = DefinitionMap::Mut(&mut buf);
-        // The first 4 keys are in order which should be allocated to an entry
-        // where index == key. The next three will be allocated from the end
-        // of the definition storage. The last one will also be allocated to
-        // its own index because it happens to be free.
-        let keys = [0, 1, 2, 3, 123456, -42, -5555, 5];
+        let keys = [42, 88, 107];
         for key in keys {
             map.allocate(key).unwrap();
         }
-        let slice = map.as_slice();
-        // For first 4 and last, index == key
-        for i in (0..4).chain(Some(5)) {
-            assert_eq!(slice[i].key, i as i32);
+        for key in keys {
+            assert_eq!(map.get(key).unwrap().key(), key);
         }
-        // The rest would be allocated from the end of the array in
-        // reverse order.
-        for (&a, b) in keys[4..7].iter().rev().zip(&slice[slice.len() - 3..]) {
-            assert_eq!(a, b.key());
+    }
+
+    /// Test mixed allocation where some keys map to indices and others are
+    /// subject to fallback allocation. This would be the case for fonts
+    /// with function definition numbers where some fall inside the range
+    /// 0..max_function_defs but others don't.
+    #[test]
+    fn allocate_mixed() {
+        let mut buf = vec![Default::default(); 10];
+        let mut map = DefinitionMap::Mut(&mut buf);
+        let keys = [
+            0, 1, 2, 3, // Directly mapped to indices
+            123456, -42, -5555, // Fallback allocated
+            5,     // Also directly mapped
+            7,     // Would be direct but blocked by prior fallback
+        ];
+        for key in keys {
+            map.allocate(key).unwrap();
+        }
+        // Check backing store directly to ensure the expected allocation
+        // pattern.
+        let expected = [0, 1, 2, 3, 0, 5, 7, -5555, -42, 123456];
+        let mapped_keys: Vec<_> = map.as_slice().iter().map(|def| def.key()).collect();
+        assert_eq!(&expected, mapped_keys.as_slice());
+        // Check that all keys are mapped
+        for key in keys {
+            assert_eq!(map.get(key).unwrap().key(), key);
         }
     }
 }
