@@ -11,6 +11,11 @@ use super::{
     Engine, HintErrorKind, OpResult,
 };
 
+/// [Functions|Instructions] may not exceed 64K in size.
+/// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#function-definition>
+/// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#instruction-definition>
+const MAX_DEFINITION_SIZE: usize = u16::MAX as usize;
+
 impl<'a> Engine<'a> {
     /// Function definition.
     ///
@@ -128,7 +133,12 @@ impl<'a> Engine<'a> {
             match ins.opcode {
                 Opcode::FDEF | Opcode::IDEF => return Err(HintErrorKind::NestedDefinition),
                 Opcode::ENDF => {
-                    *def = Definition::new(self.program.current, start..ins.pc + 1, key);
+                    let range = start..ins.pc + 1;
+                    if self.graphics_state.is_pedantic && range.len() > MAX_DEFINITION_SIZE {
+                        *def = Default::default();
+                        return Err(HintErrorKind::DefinitionTooLarge);
+                    }
+                    *def = Definition::new(self.program.current, range, key);
                     return Ok(());
                 }
                 _ => {}
@@ -162,7 +172,7 @@ mod tests {
             super::program::{Program, ProgramState},
             Engine, MockEngine,
         },
-        HintErrorKind, Opcode,
+        HintErrorKind, Opcode, MAX_DEFINITION_SIZE,
     };
 
     /// Define two functions, one of which calls the other with
@@ -475,6 +485,23 @@ mod tests {
         let err = engine.run().unwrap_err();
         assert!(matches!(err.kind, HintErrorKind::TooManyDefinitions));
         assert_eq!(err.pc, 17);
+    }
+
+    #[test]
+    fn big_definition() {
+        use Opcode::*;
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        let mut font_code = vec![];
+        font_code.extend_from_slice(&[op(PUSHB000), 0, op(FDEF)]);
+        font_code.extend(core::iter::repeat(op(NEG)).take(MAX_DEFINITION_SIZE + 1));
+        font_code.push(op(ENDF));
+        engine.set_font_code(&font_code);
+        engine.graphics_state.is_pedantic = true;
+        engine.value_stack.push(1).unwrap();
+        let err = engine.run().unwrap_err();
+        assert!(matches!(err.kind, HintErrorKind::DefinitionTooLarge));
+        assert_eq!(err.pc, 2);
     }
 
     fn op(opcode: Opcode) -> u8 {
