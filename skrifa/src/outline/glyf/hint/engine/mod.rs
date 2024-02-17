@@ -2,18 +2,20 @@
 
 mod arith;
 mod control_flow;
+mod definition;
 mod dispatch;
 mod graphics_state;
 mod logical;
 mod stack;
 
-use read_fonts::tables::glyf::bytecode::{Decoder, Instruction};
+use read_fonts::tables::glyf::bytecode::Instruction;
 
 use super::{
     super::Outlines,
+    definition::DefinitionState,
     error::{HintError, HintErrorKind},
     graphics_state::GraphicsState,
-    program::Program,
+    program::ProgramState,
     value_stack::ValueStack,
 };
 
@@ -21,10 +23,10 @@ pub type OpResult = Result<(), HintErrorKind>;
 
 /// TrueType bytecode interpreter.
 pub struct Engine<'a> {
+    program: ProgramState<'a>,
     graphics_state: GraphicsState<'a>,
+    definitions: DefinitionState<'a>,
     value_stack: ValueStack<'a>,
-    initial_program: Program,
-    decoder: Decoder<'a>,
     loop_budget: LoopBudget,
 }
 
@@ -83,31 +85,47 @@ use mock::MockEngine;
 
 #[cfg(test)]
 mod mock {
-    use super::{Decoder, Engine, GraphicsState, LoopBudget, Program, ValueStack};
+    use super::{
+        super::{
+            definition::{Definition, DefinitionMap, DefinitionState},
+            program::{Program, ProgramState},
+        },
+        Engine, GraphicsState, LoopBudget, ValueStack,
+    };
 
     /// Mock engine for testing.
     pub(super) struct MockEngine {
         value_stack: Vec<i32>,
+        definitions: Vec<Definition>,
     }
 
     impl MockEngine {
         pub fn new() -> Self {
             Self {
                 value_stack: vec![0; 32],
+                definitions: vec![Default::default(); 8],
             }
         }
 
         pub fn engine(&mut self) -> Engine {
+            let font_code = &[];
+            let cv_code = &[];
+            let glyph_code = &[];
+            let (function_defs, instruction_defs) = self.definitions.split_at_mut(5);
+            let definition = DefinitionState::new(
+                DefinitionMap::Mut(function_defs),
+                DefinitionMap::Mut(instruction_defs),
+            );
             Engine {
                 graphics_state: GraphicsState::default(),
                 value_stack: ValueStack::new(&mut self.value_stack),
-                initial_program: Program::Font,
-                decoder: Decoder::new(&[], 0),
+                program: ProgramState::new(font_code, cv_code, glyph_code, Program::Font),
                 loop_budget: LoopBudget {
                     limit: 10,
                     backward_jumps: 0,
                     loop_calls: 0,
                 },
+                definitions: definition,
             }
         }
     }

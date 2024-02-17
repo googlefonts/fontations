@@ -98,6 +98,12 @@ pub struct GraphicsState<'a> {
     ///
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.h#L344>
     pub backward_compatibility: bool,
+    /// If true, enables more strict error checking.
+    ///
+    /// Defaults to false.
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.h#L195>
+    pub is_pedantic: bool,
 }
 
 impl Default for GraphicsState<'_> {
@@ -124,6 +130,7 @@ impl Default for GraphicsState<'_> {
             zp2: ZonePointer::default(),
             zones: [Zone::default(), Zone::default()],
             backward_compatibility: true,
+            is_pedantic: false,
         }
     }
 }

@@ -12,8 +12,9 @@ pub enum HintErrorKind {
     UnhandledOpcode(Opcode),
     DefinitionInGlyphProgram,
     NestedDefinition,
+    DefinitionTooLarge,
     TooManyDefinitions,
-    InvalidDefintion(usize),
+    InvalidDefinition(usize),
     ValueStackOverflow,
     ValueStackUnderflow,
     CallStackOverflow,
@@ -43,8 +44,12 @@ impl core::fmt::Display for HintErrorKind {
                 )
             }
             Self::NestedDefinition => write!(f, "nested function or instruction definition"),
+            Self::DefinitionTooLarge => write!(
+                f,
+                "function or instruction definition exceeded the maxmium size of 64k"
+            ),
             Self::TooManyDefinitions => write!(f, "too many function or instruction definitions"),
-            Self::InvalidDefintion(key) => {
+            Self::InvalidDefinition(key) => {
                 write!(f, "function or instruction definition {key} not found")
             }
             Self::ValueStackOverflow => write!(f, "value stack overflow"),

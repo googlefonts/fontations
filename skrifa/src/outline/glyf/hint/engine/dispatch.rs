@@ -19,7 +19,7 @@ impl<'a> Engine<'a> {
             count += 1;
             if count > MAX_RUN_INSTRUCTIONS {
                 return Err(HintError {
-                    program: self.initial_program,
+                    program: self.program.current,
                     glyph_id: None,
                     pc: ins.pc,
                     kind: HintErrorKind::ExceededExecutionBudget,
@@ -31,23 +31,22 @@ impl<'a> Engine<'a> {
 
     /// Decodes the next instruction from the current program.
     pub fn decode(&mut self) -> Option<Result<Instruction<'a>, HintError>> {
-        let ins = self.decoder.decode()?;
+        let ins = self.program.decoder.decode()?;
         Some(ins.map_err(|_| HintError {
-            program: self.initial_program,
+            program: self.program.current,
             glyph_id: None,
-            pc: self.decoder.pc,
+            pc: self.program.decoder.pc,
             kind: HintErrorKind::UnexpectedEndOfBytecode,
         }))
     }
 
     /// Executes the appropriate code for the given instruction.
     pub fn dispatch(&mut self, ins: &Instruction) -> Result<(), HintError> {
-        let current_pc = self.decoder.pc;
-        let current_program = self.initial_program;
+        let current_program = self.program.current;
         self.dispatch_inner(ins).map_err(|kind| HintError {
             program: current_program,
             glyph_id: None,
-            pc: current_pc,
+            pc: ins.pc,
             kind,
         })
     }
@@ -90,10 +89,10 @@ impl<'a> Engine<'a> {
             // ALIGNPTS => {}
             // ? 0x28
             // UTP => {}
-            // LOOPCALL => {}
-            // CALL => {}
-            // FDEF => {}
-            // ENDF => {}
+            LOOPCALL => self.op_loopcall()?,
+            CALL => self.op_call()?,
+            FDEF => self.op_fdef()?,
+            ENDF => self.op_endf()?,
             // MDAP0 | MDAP1 => {}
             // IUP0 | IUP1 => {}
             // SHP0 | SHP1 => {}
@@ -163,7 +162,7 @@ impl<'a> Engine<'a> {
             SCANCTRL => self.op_scanctrl()?,
             SDPVTL0 | SDPVTL1 => self.op_sdpvtl(raw_opcode)?,
             // GETINFO => {}
-            // IDEF => {}
+            IDEF => self.op_idef()?,
             ROLL => self.op_roll()?,
             MAX => self.op_max()?,
             MIN => self.op_min()?,
@@ -182,7 +181,7 @@ impl<'a> Engine<'a> {
                 if opcode >= PUSHB000 {
                     self.op_push(&ins.inline_operands)?;
                 } else {
-                    return Err(HintErrorKind::UnhandledOpcode(opcode));
+                    return self.op_unknown(opcode as u8);
                 }
             }
         }
