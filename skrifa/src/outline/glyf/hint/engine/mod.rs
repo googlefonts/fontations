@@ -2,20 +2,24 @@
 
 mod arith;
 mod control_flow;
+mod cvt;
 mod definition;
 mod dispatch;
 mod graphics_state;
 mod logical;
 mod stack;
+mod storage;
 
 use read_fonts::tables::glyf::bytecode::Instruction;
 
 use super::{
     super::Outlines,
+    cvt::Cvt,
     definition::DefinitionState,
     error::{HintError, HintErrorKind},
     graphics_state::GraphicsState,
     program::ProgramState,
+    storage::Storage,
     value_stack::ValueStack,
 };
 
@@ -26,6 +30,8 @@ pub struct Engine<'a> {
     program: ProgramState<'a>,
     graphics_state: GraphicsState<'a>,
     definitions: DefinitionState<'a>,
+    cvt: Cvt<'a>,
+    storage: Storage<'a>,
     value_stack: ValueStack<'a>,
     loop_budget: LoopBudget,
 }
@@ -87,6 +93,7 @@ use mock::MockEngine;
 mod mock {
     use super::{
         super::{
+            cow_slice::CowSlice,
             definition::{Definition, DefinitionMap, DefinitionState},
             program::{Program, ProgramState},
         },
@@ -95,6 +102,7 @@ mod mock {
 
     /// Mock engine for testing.
     pub(super) struct MockEngine {
+        cvt_storage: Vec<i32>,
         value_stack: Vec<i32>,
         definitions: Vec<Definition>,
     }
@@ -102,6 +110,7 @@ mod mock {
     impl MockEngine {
         pub fn new() -> Self {
             Self {
+                cvt_storage: vec![0; 32],
                 value_stack: vec![0; 32],
                 definitions: vec![Default::default(); 8],
             }
@@ -111,6 +120,7 @@ mod mock {
             let font_code = &[];
             let cv_code = &[];
             let glyph_code = &[];
+            let (cvt, storage) = self.cvt_storage.split_at_mut(16);
             let (function_defs, instruction_defs) = self.definitions.split_at_mut(5);
             let definition = DefinitionState::new(
                 DefinitionMap::Mut(function_defs),
@@ -118,6 +128,8 @@ mod mock {
             );
             Engine {
                 graphics_state: GraphicsState::default(),
+                cvt: CowSlice::new_mut(cvt).into(),
+                storage: CowSlice::new_mut(storage).into(),
                 value_stack: ValueStack::new(&mut self.value_stack),
                 program: ProgramState::new(font_code, cv_code, glyph_code, Program::Font),
                 loop_budget: LoopBudget {
