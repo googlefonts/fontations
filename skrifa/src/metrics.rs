@@ -289,6 +289,9 @@ impl<'a> GlyphMetrics<'a> {
     ///
     /// If normalized coordinates were provided when constructing glyph metrics and
     /// an `HVAR` table is present, applies the appropriate delta.
+    ///
+    /// Returns `None` if `glyph_id >= self.glyph_count()` or the underlying font
+    /// data is invalid.
     pub fn advance_width(&self, glyph_id: GlyphId) -> Option<f32> {
         if glyph_id.to_u16() >= self.glyph_count {
             return None;
@@ -315,6 +318,9 @@ impl<'a> GlyphMetrics<'a> {
     ///
     /// If normalized coordinates were provided when constructing glyph metrics and
     /// an `HVAR` table is present, applies the appropriate delta.
+    ///
+    /// Returns `None` if `glyph_id >= self.glyph_count()` or the underlying font
+    /// data is invalid.
     pub fn left_side_bearing(&self, glyph_id: GlyphId) -> Option<f32> {
         if glyph_id.to_u16() >= self.glyph_count {
             return None;
@@ -347,6 +353,9 @@ impl<'a> GlyphMetrics<'a> {
     ///
     /// Note that variations are not reflected in the bounding box returned by
     /// this method.
+    ///
+    /// Returns `None` if `glyph_id >= self.glyph_count()`, the underlying font
+    /// data is invalid, or the font does not contain TrueType outlines.
     pub fn bounds(&self, glyph_id: GlyphId) -> Option<BoundingBox> {
         let (loca, glyf) = self.loca_glyf.as_ref()?;
         Some(match loca.get_glyf(glyph_id, glyf).ok()? {
