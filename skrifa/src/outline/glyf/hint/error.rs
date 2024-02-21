@@ -6,7 +6,7 @@ use super::program::Program;
 use crate::GlyphId;
 
 /// Errors that may occur when interpreting TrueType bytecode.
-#[derive(Clone, Debug)]
+#[derive(Clone, PartialEq, Debug)]
 pub enum HintErrorKind {
     UnexpectedEndOfBytecode,
     UnhandledOpcode(Opcode),

@@ -1,12 +1,15 @@
 //! TrueType hinting.
 
 mod call_stack;
+mod cow_slice;
+mod cvt;
 mod definition;
 mod engine;
 mod error;
 mod graphics_state;
 mod math;
 mod program;
+mod storage;
 mod value_stack;
 
 use read_fonts::{
