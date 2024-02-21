@@ -1,4 +1,4 @@
-//! Copy-on-write contain for CVT and storage area.
+//! Copy-on-write buffer for CVT and storage area.
 
 /// Backing store for the CVT and storage area.
 ///
@@ -77,7 +77,7 @@ impl<'a> CowSlice<'a> {
 
     /// Writes a value to the given index.
     ///
-    /// If the immutable buffer hasn't been initialized, first performs a full
+    /// If the mutable buffer hasn't been initialized, first performs a full
     /// buffer copy.
     pub fn set(&mut self, index: usize, value: i32) -> Option<()> {
         // Copy from immutable to mutable buffer if we haven't already
