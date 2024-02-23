@@ -108,13 +108,7 @@ impl<'a> Engine<'a> {
     /// Catch all for unhandled opcodes which will attempt to dispatch to a
     /// user defined instruction.
     pub(super) fn op_unknown(&mut self, opcode: u8) -> OpResult {
-        match self.do_call(DefKind::Instruction, 1, opcode as i32) {
-            // Remap an invalid definition error to unhandled opcode
-            Err(HintErrorKind::InvalidDefinition(opcode)) => Err(HintErrorKind::UnhandledOpcode(
-                Opcode::from_byte(opcode as u8),
-            )),
-            result => result,
-        }
+        self.do_call(DefKind::Instruction, 1, opcode as i32)
     }
 
     /// Common code for FDEF and IDEF.
@@ -152,11 +146,17 @@ impl<'a> Engine<'a> {
         if count == 0 {
             return Ok(());
         }
-        let defs = match kind {
-            DefKind::Function => &self.definitions.functions,
-            DefKind::Instruction => &self.definitions.instructions,
+        let def = match kind {
+            DefKind::Function => self.definitions.functions.get(key),
+            DefKind::Instruction => match self.definitions.instructions.get(key) {
+                // Remap an invalid definition error to unhandled opcode
+                Err(HintErrorKind::InvalidDefinition(opcode)) => Err(
+                    HintErrorKind::UnhandledOpcode(Opcode::from_byte(opcode as u8)),
+                ),
+                result => result,
+            },
         };
-        self.program.enter(*defs.get(key)?, count)
+        self.program.enter(*def?, count)
     }
 }
 

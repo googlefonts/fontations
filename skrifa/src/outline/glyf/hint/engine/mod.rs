@@ -3,10 +3,12 @@
 mod arith;
 mod control_flow;
 mod cvt;
+mod data;
 mod definition;
 mod dispatch;
 mod graphics_state;
 mod logical;
+mod outline;
 mod stack;
 mod storage;
 
@@ -95,7 +97,9 @@ mod mock {
         super::{
             cow_slice::CowSlice,
             definition::{Definition, DefinitionMap, DefinitionState},
+            graphics_state::Zone,
             program::{Program, ProgramState},
+            Point, PointFlags,
         },
         Engine, GraphicsState, LoopBudget, ValueStack,
     };
@@ -105,6 +109,9 @@ mod mock {
         cvt_storage: Vec<i32>,
         value_stack: Vec<i32>,
         definitions: Vec<Definition>,
+        points: Vec<Point<i32>>,
+        point_flags: Vec<PointFlags>,
+        contours: Vec<u16>,
     }
 
     impl MockEngine {
@@ -113,6 +120,9 @@ mod mock {
                 cvt_storage: vec![0; 32],
                 value_stack: vec![0; 32],
                 definitions: vec![Default::default(); 8],
+                points: vec![Default::default(); 96],
+                point_flags: vec![Default::default(); 32],
+                contours: vec![32],
             }
         }
 
@@ -126,8 +136,19 @@ mod mock {
                 DefinitionMap::Mut(function_defs),
                 DefinitionMap::Mut(instruction_defs),
             );
+            let (points, rest) = self.points.split_at_mut(32);
+            let (original, unscaled) = rest.split_at_mut(32);
+            let glyph_zone = Zone::new(
+                unscaled,
+                original,
+                points,
+                &mut self.point_flags,
+                &self.contours,
+            );
+            let mut graphics_state = GraphicsState::default();
+            graphics_state.zones[1] = glyph_zone;
             Engine {
-                graphics_state: GraphicsState::default(),
+                graphics_state,
                 cvt: CowSlice::new_mut(cvt).into(),
                 storage: CowSlice::new_mut(storage).into(),
                 value_stack: ValueStack::new(&mut self.value_stack),
