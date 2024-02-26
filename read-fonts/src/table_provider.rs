@@ -169,6 +169,8 @@ pub trait TableProvider<'a> {
 #[cfg(test)]
 mod tests {
 
+    use crate::FontRef;
+
     use super::*;
 
     /// https://github.com/googlefonts/fontations/issues/105
@@ -216,5 +218,16 @@ mod tests {
         assert_eq!(num_glyphs, 3);
         assert_eq!(hmtx.h_metrics().len(), 1);
         assert_eq!(hmtx.left_side_bearings().len(), 2);
+    }
+
+    /// This was crashing when walking over Google fonts
+    #[test]
+    fn bizudpmincho_style_cmap() {
+        use crate::table_provider::TableProvider;
+        // TEMPORARY: blindly assume google/fonts is cloned into a sibling of fontations
+        let bytes = std::fs::read("../../fonts/ofl/bizudpmincho/BIZUDPMincho-Regular.ttf").unwrap();
+        let font = FontRef::new(&bytes).unwrap();
+        let cmap = font.cmap().unwrap();
+        cmap.map_codepoint('a'); // BOOM!
     }
 }
