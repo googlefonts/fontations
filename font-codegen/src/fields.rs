@@ -1029,7 +1029,18 @@ impl Field {
             panic!("Should have resolved {self:?}")
         }
         let len_expr = match self.attrs.count.as_deref() {
-            Some(Count::All(_)) => quote!(cursor.remaining_bytes()),
+            Some(Count::All(_)) => {
+                match &self.typ {
+                    FieldType::Array { inner_typ } => {
+                        let inner_typ = inner_typ.cooked_type_tokens();
+                        // Make sure the remaining byte size is a multiple of
+                        // the requested element type size.
+                        // See <https://github.com/googlefonts/fontations/issues/797>
+                        quote!(cursor.remaining_bytes() / #inner_typ::RAW_BYTE_LEN * #inner_typ::RAW_BYTE_LEN)
+                    }
+                    _ => quote!(cursor.remaining_bytes()),
+                }
+            }
             Some(other) => {
                 let count_expr = other.count_expr();
                 let size_expr = match &self.typ {
