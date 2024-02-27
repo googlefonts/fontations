@@ -9,11 +9,11 @@ readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
 
 [dependencies]
-read-fonts = { version = "0.15.5", path = "../read-fonts" }
+read-fonts = { version = "0.15.6", path = "../read-fonts" }
 
 [dev-dependencies]
 font-test-data = { path = "../font-test-data" }
-read-fonts = { version = "0.15.5", path = "../read-fonts", features = [
+read-fonts = { version = "0.15.6", path = "../read-fonts", features = [
     "scaler_test",
     "serde",
 ] }
