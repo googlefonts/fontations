@@ -91,8 +91,16 @@ pub struct GraphicsState<'a> {
     ///
     /// This array contains the twilight and glyph zones, in that order.
     pub zones: [Zone<'a>; 2],
-    /// If true, enables a set of backward compabitility heuristics.
-    /// Otherwise, the interpreter operates in "native ClearType mode".
+    /// If true, enables a set of backward compabitility heuristics that
+    /// prevent certain modifications to the outline. The purpose is to
+    /// support "modern" vertical only hinting that attempts to preserve
+    /// outline shape and metrics in the horizontal direction. This is
+    /// enabled by default, but fonts (and specific glyphs) can opt out
+    /// of this behavior using the INSTCTRL instruction. In practice,
+    /// opting out is usually only done by "ClearType native" fonts.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/cleartype/truetypecleartype>
+    /// for more background and some gory details.
     ///
     /// Defaults to true.
     ///

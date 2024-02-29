@@ -61,7 +61,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#flip-range-on>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5056>
     pub(super) fn op_fliprgon(&mut self) -> OpResult {
-        self.do_fliprg(true)
+        self.set_on_curve_for_range(true)
     }
 
     /// Flip range off.
@@ -78,7 +78,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#flip-range-off>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5094>
     pub(super) fn op_fliprgoff(&mut self) -> OpResult {
-        self.do_fliprg(false)
+        self.set_on_curve_for_range(false)
     }
 
     /// Untouch point.
@@ -115,7 +115,7 @@ impl<'a> Engine<'a> {
     }
 
     /// Helper for FLIPRGON and FLIPRGOFF.
-    fn do_fliprg(&mut self, on: bool) -> OpResult {
+    fn set_on_curve_for_range(&mut self, on: bool) -> OpResult {
         // high_point is inclusive but Zone::set_on_curve takes an exclusive
         // range
         let high_point = self.value_stack.pop_usize()? + 1;
@@ -164,6 +164,35 @@ mod tests {
         }
     }
 
+    /// Backward compat + IUP state prevents flipping.
+    #[test]
+    fn state_prevents_flip_point() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        // Points all start as off-curve in the mock engine.
+        // Flip every odd point in the first 10
+        let count = 5;
+        // First, set the loop counter:
+        engine.value_stack.push(count).unwrap();
+        engine.op_sloop().unwrap();
+        // Now push the point indices
+        for i in (1..=9).step_by(2) {
+            engine.value_stack.push(i).unwrap();
+        }
+        assert_eq!(engine.value_stack.len(), count as usize);
+        // Prevent flipping
+        engine.graphics_state.backward_compatibility = true;
+        engine.graphics_state.did_iup_x = true;
+        engine.graphics_state.did_iup_y = true;
+        // But try anyway
+        engine.op_flippt().unwrap();
+        let flags = &engine.graphics_state.zones[1].flags;
+        for i in 0..10 {
+            // All points are still off-curve
+            assert!(!flags[i].is_on_curve());
+        }
+    }
+
     #[test]
     fn flip_range_on_off() {
         let mut mock = MockEngine::new();
@@ -185,6 +214,36 @@ mod tests {
                 flag.is_on_curve(),
                 (10..=11).contains(&i) || (16..=20).contains(&i)
             );
+        }
+    }
+
+    /// Backward compat + IUP state prevents flipping.
+    #[test]
+    fn state_prevents_flip_range_on_off() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        // Prevent flipping
+        engine.graphics_state.backward_compatibility = true;
+        engine.graphics_state.did_iup_x = true;
+        engine.graphics_state.did_iup_y = true;
+        // Points all start as off-curve in the mock engine.
+        // Try to flip 10..=20 on
+        engine.value_stack.push(10).unwrap();
+        engine.value_stack.push(20).unwrap();
+        engine.op_fliprgon().unwrap();
+        for flag in engine.graphics_state.zones[1].flags.iter() {
+            assert!(!flag.is_on_curve());
+        }
+        // Reset all points to on
+        for flag in engine.graphics_state.zones[1].flags.iter_mut() {
+            flag.set_on_curve();
+        }
+        // Now try to flip 12..=15 off
+        engine.value_stack.push(12).unwrap();
+        engine.value_stack.push(15).unwrap();
+        engine.op_fliprgoff().unwrap();
+        for flag in engine.graphics_state.zones[1].flags.iter() {
+            assert!(flag.is_on_curve());
         }
     }
 
