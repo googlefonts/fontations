@@ -88,7 +88,7 @@ impl<'a> Engine<'a> {
             MINDEX => self.op_mindex()?,
             // ALIGNPTS => {}
             // ? 0x28
-            // UTP => {}
+            UTP => self.op_utp()?,
             LOOPCALL => self.op_loopcall()?,
             CALL => self.op_call()?,
             FDEF => self.op_fdef()?,
@@ -103,14 +103,14 @@ impl<'a> Engine<'a> {
             // MSIRP0 | MISRP1 => {}
             // ALIGNRP => {}
             NPUSHB | NPUSHW => self.op_push(&ins.inline_operands)?,
-            // WS => {}
-            // RS => {}
-            // WCVTP => {}
-            // RCVT => {}
+            WS => self.op_ws()?,
+            RS => self.op_rs()?,
+            WCVTP => self.op_wcvtp()?,
+            RCVT => self.op_rcvt()?,
             // SCFS => {}
             // MD0 | MD1 => {}
-            // MPPEM => {}
-            // MPS => {}
+            MPPEM => self.op_mppem()?,
+            MPS => self.op_mps()?,
             FLIPON => self.op_flipon()?,
             FLIPOFF => self.op_flipoff()?,
             // DEBUG => {}
@@ -141,7 +141,7 @@ impl<'a> Engine<'a> {
             // ROUND00 | ROUND01 | ROUND10 | ROUND11 => {}
             // "No round" means do nothing :)
             NROUND00 | NROUND01 | NROUND10 | NROUND11 => {}
-            // WCVTF => {}
+            WCVTF => self.op_wcvtf()?,
             // DELTAP2 | DELTAP3 => {}
             // DELTAC1 | DELTAC2 | DELTAC3 => {}
             SROUND => self.op_sround()?,
@@ -155,9 +155,9 @@ impl<'a> Engine<'a> {
             SANGW => self.op_sangw()?,
             // Unsupported instruction, do nothing
             AA => {}
-            // FLIPPT => {}
-            // FLIPRGON => {}
-            // FLIPRGOFF => {}
+            FLIPPT => self.op_flippt()?,
+            FLIPRGON => self.op_fliprgon()?,
+            FLIPRGOFF => self.op_fliprgoff()?,
             // ? 0x83 | 0x84
             SCANCTRL => self.op_scanctrl()?,
             SDPVTL0 | SDPVTL1 => self.op_sdpvtl(raw_opcode)?,
