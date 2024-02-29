@@ -86,7 +86,7 @@ pub mod error;
 
 use read_fonts::{types::GlyphId, TableProvider};
 
-pub use embedded_hinting::{EmbeddedHinting, EmbeddedHintingInstance};
+pub use embedded_hinting::{EmbeddedHintingInstance, HintingMode, LcdLayout};
 #[doc(inline)]
 pub use error::DrawError;
 

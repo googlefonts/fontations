@@ -5,23 +5,68 @@ use super::{
     OutlineGlyph, OutlineGlyphCollection, OutlineKind, OutlinePen, Size,
 };
 
-/// Modes for embedded hinting.
+/// Modes that control hinting when using embedded instructions.
 ///
-/// Only the `glyf` format supports all hinting modes.
+/// Only the TrueType interpreter supports all hinting modes.
+///
+/// # FreeType compatibility
+///
+/// The following table describes how to map FreeType hinting modes:
+///
+/// | FreeType mode         | Variant                                                                              |
+/// |-----------------------|--------------------------------------------------------------------------------------|
+/// | FT_LOAD_TARGET_MONO   | Strong                                                                               |
+/// | FT_LOAD_TARGET_NORMAL | Smooth { lcd_subpixel: None, preserve_linear_metrics: false }                        |
+/// | FT_LOAD_TARGET_LCD    | Smooth { lcd_subpixel: Some(LcdLayout::Horizontal), preserve_linear_metrics: false } |
+/// | FT_LOAD_TARGET_LCD_V  | Smooth { lcd_subpixel: Some(LcdLayout::Vertical), preserve_linear_metrics: false }   |
+///
+/// Note: `FT_LOAD_TARGET_LIGHT` is equivalent to `FT_LOAD_TARGET_NORMAL` since
+/// FreeType 2.7.
+///
+/// The default value of this type is equivalent to `FT_LOAD_TARGET_NORMAL`.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
-pub enum EmbeddedHinting {
-    /// "Full" hinting mode. May generate rough outlines and poor horizontal
-    /// spacing.
-    Full,
-    /// Light hinting mode. This prevents most movement in the horizontal
-    /// direction with the exception of a per-font backward compatibility
-    /// opt in.
-    Light,
-    /// Same as light, but with additional support for RGB subpixel rendering.
-    LightSubpixel,
-    /// Same as light subpixel, but always prevents adjustment in the
-    /// horizontal direction. This is the default mode.
-    VerticalSubpixel,
+pub enum HintingMode {
+    /// Strong hinting mode that should only be used for aliased, monochromatic
+    /// rasterization.
+    ///
+    /// Corresponds to `FT_LOAD_TARGET_MONO` in FreeType.
+    Strong,
+    /// Lighter hinting mode that is intended for anti-aliased rasterization.
+    Smooth {
+        /// If set, enables support for optimized hinting that takes advantage
+        /// of subpixel layouts in LCD displays and corresponds to
+        /// `FT_LOAD_TARGET_LCD` or `FT_LOAD_TARGET_LCD_V` in FreeType.
+        ///
+        /// If unset, corresponds to `FT_LOAD_TARGET_NORMAL` in FreeType.
+        lcd_subpixel: Option<LcdLayout>,
+        /// If true, prevents adjustment of the outline in the horizontal
+        /// direction and preserves inter-glyph spacing.
+        ///
+        /// This has no corresponding setting in FreeType.
+        preserve_linear_metrics: bool,
+    },
+}
+
+impl Default for HintingMode {
+    fn default() -> Self {
+        Self::Smooth {
+            lcd_subpixel: None,
+            preserve_linear_metrics: false,
+        }
+    }
+}
+
+/// Specifies direction of pixel layout for LCD based subpixel hinting.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum LcdLayout {
+    /// Subpixels are ordered horizontally.
+    ///
+    /// Corresponds to `FT_LOAD_TARGET_LCD` in FreeType.
+    Horizontal,
+    /// Subpixels are ordered vertically.
+    ///
+    /// Corresponds to `FT_LOAD_TARGET_LCD_V` in FreeType.
+    Vertical,
 }
 
 /// Hinting instance that uses information embedded in the font to perform
@@ -30,7 +75,7 @@ pub enum EmbeddedHinting {
 pub struct EmbeddedHintingInstance {
     size: Size,
     coords: Vec<NormalizedCoord>,
-    mode: EmbeddedHinting,
+    mode: HintingMode,
     kind: HinterKind,
 }
 
@@ -41,7 +86,7 @@ impl EmbeddedHintingInstance {
         outline_glyphs: &OutlineGlyphCollection,
         size: Size,
         location: impl Into<LocationRef<'a>>,
-        mode: EmbeddedHinting,
+        mode: HintingMode,
     ) -> Result<Self, DrawError> {
         let mut hinter = Self {
             size: Size::unscaled(),
@@ -64,7 +109,7 @@ impl EmbeddedHintingInstance {
     }
 
     /// Returns the currently configured hinting mode.
-    pub fn mode(&self) -> EmbeddedHinting {
+    pub fn mode(&self) -> HintingMode {
         self.mode
     }
 
@@ -75,7 +120,7 @@ impl EmbeddedHintingInstance {
         outlines: &OutlineGlyphCollection,
         size: Size,
         location: impl Into<LocationRef<'a>>,
-        mode: EmbeddedHinting,
+        mode: HintingMode,
     ) -> Result<(), DrawError> {
         self.size = size;
         self.coords.clear();

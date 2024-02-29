@@ -4,6 +4,7 @@ mod projection;
 mod round;
 mod zone;
 
+use super::HintingMode;
 use core::ops::{Deref, DerefMut};
 use read_fonts::types::Point;
 
@@ -208,6 +209,8 @@ pub struct RetainedGraphicsState {
     ///
     /// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM04/Chap4.html#single_width_value>
     pub single_width: i32,
+    /// The user requested hinting mode.
+    pub mode: HintingMode,
     /// The scale factor for the current instance. Conversion from font units
     /// to 26.6 for current ppem.
     pub scale: i32,
@@ -236,6 +239,7 @@ impl Default for RetainedGraphicsState {
             scan_type: 0,
             single_width_cutin: 0,
             single_width: 0,
+            mode: Default::default(),
             scale: 0,
             ppem: 0,
             is_rotated: false,

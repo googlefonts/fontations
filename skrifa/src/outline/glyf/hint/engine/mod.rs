@@ -8,11 +8,12 @@ mod definition;
 mod dispatch;
 mod graphics_state;
 mod logical;
+mod misc;
 mod outline;
 mod stack;
 mod storage;
 
-use read_fonts::tables::glyf::bytecode::Instruction;
+use read_fonts::{tables::glyf::bytecode::Instruction, types::F2Dot14};
 
 use super::{
     super::Outlines,
@@ -36,6 +37,8 @@ pub struct Engine<'a> {
     storage: Storage<'a>,
     value_stack: ValueStack<'a>,
     loop_budget: LoopBudget,
+    axis_count: u16,
+    coords: &'a [F2Dot14],
 }
 
 /// Tracks budgets for loops to limit execution time.
@@ -159,6 +162,8 @@ mod mock {
                     loop_calls: 0,
                 },
                 definitions: definition,
+                axis_count: 0,
+                coords: &[],
             }
         }
     }
