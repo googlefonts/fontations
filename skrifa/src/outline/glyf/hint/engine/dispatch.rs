@@ -161,15 +161,15 @@ impl<'a> Engine<'a> {
             // ? 0x83 | 0x84
             SCANCTRL => self.op_scanctrl()?,
             SDPVTL0 | SDPVTL1 => self.op_sdpvtl(raw_opcode)?,
-            // GETINFO => {}
+            GETINFO => self.op_getinfo()?,
             IDEF => self.op_idef()?,
             ROLL => self.op_roll()?,
             MAX => self.op_max()?,
             MIN => self.op_min()?,
             SCANTYPE => self.op_scantype()?,
             // ? 0x8F | 0x90 (ADJUST?)
-            // GETVARIATION => {}
-            // GETDATA => {}
+            GETVARIATION => self.op_getvariation()?,
+            GETDATA => self.op_getdata()?,
             _ => {
                 // FreeType handles MIRP, MDRP and pushes here.
                 // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L7629>
