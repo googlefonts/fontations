@@ -39,6 +39,7 @@ pub struct Engine<'a> {
     loop_budget: LoopBudget,
     axis_count: u16,
     coords: &'a [F2Dot14],
+    is_composite: bool,
 }
 
 /// Tracks budgets for loops to limit execution time.
@@ -164,6 +165,7 @@ mod mock {
                 definitions: definition,
                 axis_count: 0,
                 coords: &[],
+                is_composite: false,
             }
         }
     }

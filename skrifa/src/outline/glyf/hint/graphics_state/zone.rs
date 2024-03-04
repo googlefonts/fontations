@@ -393,6 +393,33 @@ impl<'a> GraphicsState<'a> {
 }
 
 impl GraphicsState<'_> {
+    /// Moves the requested original point by the given distance.
+    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L1743>
+    pub(crate) fn move_original(
+        &mut self,
+        zone: ZonePointer,
+        point_ix: usize,
+        distance: i32,
+    ) -> Result<(), HintErrorKind> {
+        let fv = self.freedom_vector;
+        let fdotp = self.fdotp;
+        let axis = self.freedom_axis;
+        let point = self.zone_mut(zone).original_mut(point_ix)?;
+        match axis {
+            CoordAxis::X => point.x += distance,
+            CoordAxis::Y => point.y += distance,
+            CoordAxis::Both => {
+                if fv.x != 0 {
+                    point.x += math::mul_div(distance, fv.x, fdotp);
+                }
+                if fv.y != 0 {
+                    point.y += math::mul_div(distance, fv.y, fdotp);
+                }
+            }
+        }
+        Ok(())
+    }
+
     /// Moves the requested scaled point by the given distance.
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L1771>
     pub(crate) fn move_point(
@@ -401,13 +428,18 @@ impl GraphicsState<'_> {
         point_ix: usize,
         distance: i32,
     ) -> Result<(), HintErrorKind> {
+        // Note: we never adjust x in backward compatibility mode and we never
+        // adjust y in backward compability mode after IUP has been done in
+        // both directions.
+        //
+        // The primary motivation is to avoid horizontal adjustments in cases
+        // where subpixel rendering provides better fidelity.
+        //
+        // For more detail, see <https://learn.microsoft.com/en-us/typography/cleartype/truetypecleartype>
         let back_compat = self.backward_compatibility;
         let back_compat_and_did_iup = back_compat && self.did_iup_x && self.did_iup_y;
         let zone = &mut self.zones[zone as usize];
         let point = zone.point_mut(point_ix)?;
-        // Note: we never adjust x in backward compatibility mode and we never
-        // adjust y in backward compability mode after IUP has been done in
-        // both directions.
         match self.freedom_axis {
             CoordAxis::X => {
                 if !back_compat {
@@ -440,6 +472,76 @@ impl GraphicsState<'_> {
         }
         Ok(())
     }
+
+    /// Moves the requested scaled point in the zone referenced by zp2 by the
+    /// given delta.
+    ///
+    /// This is a helper function for SHP, SHC, SHZ, and SHPIX instructions.
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5170>
+    pub(crate) fn move_zp2_point(
+        &mut self,
+        point_ix: usize,
+        dx: i32,
+        dy: i32,
+        do_touch: bool,
+    ) -> Result<(), HintErrorKind> {
+        // See notes above in move_point() about how this is used.
+        let back_compat = self.backward_compatibility;
+        let back_compat_and_did_iup = back_compat && self.did_iup_x && self.did_iup_y;
+        let fv = self.freedom_vector;
+        let zone = self.zp2_mut();
+        if fv.x != 0 {
+            if !back_compat {
+                zone.point_mut(point_ix)?.x += dx;
+            }
+            if do_touch {
+                zone.touch(point_ix, CoordAxis::X)?;
+            }
+        }
+        if fv.y != 0 {
+            if !back_compat_and_did_iup {
+                zone.point_mut(point_ix)?.y += dy;
+            }
+            if do_touch {
+                zone.touch(point_ix, CoordAxis::Y)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Computes the adjustment made to a point along the current freedom vector.
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5126>
+    pub(crate) fn point_displacement(
+        &mut self,
+        opcode: u8,
+    ) -> Result<PointDisplacement, HintErrorKind> {
+        let (zone, point_ix) = if (opcode & 1) != 0 {
+            (self.zp0, self.rp1)
+        } else {
+            (self.zp1, self.rp2)
+        };
+        let zone_data = self.zone(zone);
+        let point = zone_data.point(point_ix)?;
+        let original_point = zone_data.original(point_ix)?;
+        let distance = self.project(point, original_point);
+        let fv = self.freedom_vector;
+        let dx = math::mul_div(distance, fv.x, self.fdotp);
+        let dy = math::mul_div(distance, fv.y, self.fdotp);
+        Ok(PointDisplacement {
+            zone,
+            point_ix,
+            dx,
+            dy,
+        })
+    }
+}
+
+pub(crate) struct PointDisplacement {
+    pub zone: ZonePointer,
+    pub point_ix: usize,
+    pub dx: i32,
+    pub dy: i32,
 }
 
 impl CoordAxis {

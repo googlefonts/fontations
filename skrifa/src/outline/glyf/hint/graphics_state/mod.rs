@@ -13,6 +13,8 @@ pub use {
     zone::{Zone, ZonePointer},
 };
 
+pub(crate) use zone::PointDisplacement;
+
 /// Describes the axis to which a measurement or point movement operation
 /// applies.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]

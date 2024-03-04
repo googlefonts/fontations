@@ -1,12 +1,15 @@
 //! Managing outlines.
 //!
-//! Implements 4 instructions.
+//! Implements 17 instructions.
 //!
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#managing-outlines>
 
 use super::{
-    super::graphics_state::{CoordAxis, ZonePointer},
-    Engine, OpResult,
+    super::{
+        graphics_state::{CoordAxis, PointDisplacement, ZonePointer},
+        math,
+    },
+    Engine, HintErrorKind, OpResult,
 };
 
 impl<'a> Engine<'a> {
@@ -79,6 +82,282 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5094>
     pub(super) fn op_fliprgoff(&mut self) -> OpResult {
         self.set_on_curve_for_range(false)
+    }
+
+    /// Shift point by the last point.
+    ///
+    /// SHP\[a\] (0x32 - 0x33)
+    ///
+    /// a: 0: uses rp2 in the zone pointed to by zp1
+    ///    1: uses rp1 in the zone pointed to by zp0
+    ///
+    /// Pops: p: point to be shifted
+    ///
+    /// Uses the loop counter.
+    ///
+    /// Shift point p by the same amount that the reference point has been
+    /// shifted. Point p is shifted along the freedom_vector so that the
+    /// distance between the new position of point p and the current position
+    /// of point p is the same as the distance between the current position
+    /// of the reference point and the original position of the reference point.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#shift-point-by-the-last-point>
+    /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5211>
+    pub(super) fn op_shp(&mut self, opcode: u8) -> OpResult {
+        let gs = &mut self.graphics_state;
+        let PointDisplacement { dx, dy, .. } = gs.point_displacement(opcode)?;
+        let count = gs.loop_counter;
+        gs.loop_counter = 1;
+        for _ in 0..count {
+            let p = self.value_stack.pop_usize()?;
+            gs.move_zp2_point(p, dx, dy, true)?;
+        }
+        Ok(())
+    }
+
+    /// Shift contour by the last point.
+    ///
+    /// SHC\[a\] (0x34 - 0x35)
+    ///
+    /// a: 0: uses rp2 in the zone pointed to by zp1
+    ///    1: uses rp1 in the zone pointed to by zp0
+    ///
+    /// Pops: c: contour to be shifted
+    ///
+    /// Shifts every point on contour c by the same amount that the reference
+    /// point has been shifted. Each point is shifted along the freedom_vector
+    /// so that the distance between the new position of the point and the old
+    /// position of that point is the same as the distance between the current
+    /// position of the reference point and the original position of the
+    /// reference point. The distance is measured along the projection_vector.
+    /// If the reference point is one of the points defining the contour, the
+    /// reference point is not moved by this instruction.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#shift-contour-by-the-last-point>
+    /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5266>
+    pub(super) fn op_shc(&mut self, opcode: u8) -> OpResult {
+        let gs = &mut self.graphics_state;
+        let contour_ix = self.value_stack.pop_usize()?;
+        let point_disp = gs.point_displacement(opcode)?;
+        let start = if contour_ix != 0 {
+            gs.zp2().contour(contour_ix - 1)? as usize + 1
+        } else {
+            0
+        };
+        let end = if gs.zp2.is_twilight() {
+            gs.zp2().points.len()
+        } else {
+            gs.zp2().contour(contour_ix)? as usize + 1
+        };
+        for i in start..end {
+            if point_disp.zone != gs.zp2 || point_disp.point_ix != i {
+                gs.move_zp2_point(i, point_disp.dx, point_disp.dy, true)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Shift zone by the last point.
+    ///
+    /// SHZ\[a\] (0x36 - 0x37)
+    ///
+    /// a: 0: uses rp2 in the zone pointed to by zp1
+    ///    1: uses rp1 in the zone pointed to by zp0
+    ///
+    /// Pops: e: zone to be shifted
+    ///
+    /// Shift the points in the specified zone (Z1 or Z0) by the same amount
+    /// that the reference point has been shifted. The points in the zone are
+    /// shifted along the freedom_vector so that the distance between the new
+    /// position of the shifted points and their old position is the same as
+    /// the distance between the current position of the reference point and
+    /// the original position of the reference point.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#shift-zone-by-the-last-pt>
+    /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5318>
+    pub(super) fn op_shz(&mut self, opcode: u8) -> OpResult {
+        let _e = ZonePointer::try_from(self.value_stack.pop()?)?;
+        let gs = &mut self.graphics_state;
+        let point_disp = gs.point_displacement(opcode)?;
+        let end = if gs.zp2.is_twilight() {
+            gs.zp2().points.len()
+        } else if !gs.zp2().contours.is_empty() {
+            *gs.zp2()
+                .contours
+                .last()
+                .ok_or(HintErrorKind::InvalidContourIndex(0))? as usize
+                + 1
+        } else {
+            0
+        };
+        for i in 0..end {
+            if point_disp.zone != gs.zp2 || i != point_disp.point_ix {
+                gs.move_zp2_point(i, point_disp.dx, point_disp.dy, false)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Shift point by a pixel amount.
+    ///
+    /// SHPIX (0x38)
+    ///
+    /// Pops: amount: magnitude of the shift (F26Dot6)
+    ///       p1, p2,.. pn: points to be shifted
+    ///
+    /// Uses the loop counter.
+    ///
+    /// Shifts the points specified by the amount stated. When the loop
+    /// variable is used, the amount to be shifted is put onto the stack
+    /// only once. That is, if loop = 3, then the contents of the top of
+    /// the stack should be point p1, point p2, point p3, amount. The value
+    /// amount is expressed in sixty-fourths of a pixel.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#shift-point-by-a-pixel-amount>
+    /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5366>
+    pub(super) fn op_shpix(&mut self) -> OpResult {
+        let gs = &mut self.graphics_state;
+        let in_twilight = gs.zp0.is_twilight() || gs.zp1.is_twilight() || gs.zp2.is_twilight();
+        let amount = self.value_stack.pop()?;
+        let dx = math::mul14(amount, gs.freedom_vector.x);
+        let dy = math::mul14(amount, gs.freedom_vector.y);
+        let count = gs.loop_counter;
+        gs.loop_counter = 1;
+        let did_iup = gs.did_iup_x && gs.did_iup_y;
+        for _ in 0..count {
+            let p = self.value_stack.pop_usize()?;
+            if gs.backward_compatibility {
+                if in_twilight
+                    || (!did_iup
+                        && ((self.is_composite && gs.freedom_vector.y != 0)
+                            || gs.zp2().is_touched(p, CoordAxis::Y)?))
+                {
+                    gs.move_zp2_point(p, dx, dy, true)?;
+                }
+            } else {
+                gs.move_zp2_point(p, dx, dy, true)?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Move stack indirect relative point.
+    ///
+    /// MSIRP\[a\] (0x3A - 0x3B)
+    ///
+    /// a: 0: do not set rp0 to p
+    ///    1: set rp0 to p
+    ///
+    /// Pops: d: distance (F26Dot6)
+    ///       p: point number
+    ///
+    /// Makes the distance between a point p and rp0 equal to the value
+    /// specified on the stack. The distance on the stack is in fractional
+    /// pixels (F26Dot6). An MSIRP has the same effect as a MIRP instruction
+    /// except that it takes its value from the stack rather than the Control
+    /// Value Table. As a result, the cut_in does not affect the results of a
+    /// MSIRP. Additionally, MSIRP is unaffected by the round_state.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#move-stack-indirect-relative-point>
+    /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5439>
+    pub(super) fn op_msirp(&mut self, opcode: u8) -> OpResult {
+        let gs = &mut self.graphics_state;
+        let distance = self.value_stack.pop()?;
+        let point_ix = self.value_stack.pop_usize()?;
+        if gs.zp1.is_twilight() {
+            *gs.zp1_mut().point_mut(point_ix)? = gs.zp0().original(gs.rp0)?;
+            gs.move_original(gs.zp1, point_ix, distance)?;
+            *gs.zp1_mut().point_mut(point_ix)? = gs.zp1().original(point_ix)?;
+        }
+        let d = gs.project(gs.zp1().point(point_ix)?, gs.zp0().point(gs.rp0)?);
+        gs.move_point(gs.zp1, point_ix, distance.wrapping_sub(d))?;
+        gs.rp1 = gs.rp0;
+        gs.rp2 = point_ix;
+        if (opcode & 1) != 0 {
+            gs.rp0 = point_ix;
+        }
+        Ok(())
+    }
+
+    /// Move direct absolute point.
+    ///
+    /// MDAP\[a\] (0x2E - 0x2F)
+    ///
+    /// a: 0: do not round the value
+    ///    1: round the value
+    ///
+    /// Pops: p: point number
+    ///
+    /// Sets the reference points rp0 and rp1 equal to point p. If a=1, this
+    /// instruction rounds point p to the grid point specified by the state
+    /// variable round_state. If a=0, it simply marks the point as touched in
+    /// the direction(s) specified by the current freedom_vector. This command
+    /// is often used to set points in the twilight zone.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#move-direct-absolute-point>
+    /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5487>
+    pub(super) fn op_mdap(&mut self, opcode: u8) -> OpResult {
+        let gs = &mut self.graphics_state;
+        let p = self.value_stack.pop_usize()?;
+        let distance = if (opcode & 1) != 0 {
+            let cur_dist = gs.project(gs.zp0().point(p)?, Default::default());
+            gs.round(cur_dist) - cur_dist
+        } else {
+            0
+        };
+        gs.move_point(gs.zp0, p, distance)?;
+        gs.rp0 = p;
+        gs.rp1 = p;
+        Ok(())
+    }
+
+    /// Move indirect absolute point.
+    ///
+    /// MIAP\[a\] (0x3E - 0x3F)
+    ///
+    /// a: 0: do not round the distance and don't use control value cutin
+    ///    1: round the distance and use control value cutin
+    ///
+    /// Pops: n: CVT entry number
+    ///       p: point number
+    ///
+    /// Moves point p to the absolute coordinate position specified by the nth
+    /// Control Value Table entry. The coordinate is measured along the current
+    /// projection_vector. If a=1, the position will be rounded as specified by
+    /// round_state. If a=1, and if the device space difference between the CVT
+    /// value and the original position is greater than the
+    /// control_value_cut_in, then the original position will be rounded
+    /// (instead of the CVT value.)
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#move-indirect-absolute-point>
+    /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5526>
+    pub(super) fn op_miap(&mut self, opcode: u8) -> OpResult {
+        let gs = &mut self.graphics_state;
+        let cvt_entry = self.value_stack.pop_usize()?;
+        let point_ix = self.value_stack.pop_usize()?;
+        let mut distance = self.cvt.get(cvt_entry)?;
+        if gs.zp0.is_twilight() {
+            // Special behavior for twilight zone.
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5548>
+            let fv = gs.freedom_vector;
+            let z = gs.zp0_mut();
+            let original_point = z.original_mut(point_ix)?;
+            original_point.x = math::mul14(distance, fv.x);
+            original_point.y = math::mul14(distance, fv.y);
+            *z.point_mut(point_ix)? = *original_point;
+        }
+        let original_distance = gs.project(gs.zp0().point(point_ix)?, Default::default());
+        if (opcode & 1) != 0 {
+            let delta = (distance.wrapping_sub(original_distance)).abs();
+            if delta > gs.control_value_cutin {
+                distance = original_distance;
+            }
+            distance = gs.round(distance);
+        }
+        gs.move_point(gs.zp0, point_ix, distance.wrapping_sub(original_distance))?;
+        gs.rp0 = point_ix;
+        gs.rp1 = point_ix;
+        Ok(())
     }
 
     /// Untouch point.
