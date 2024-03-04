@@ -42,7 +42,11 @@ pub enum HintingMode {
         /// If true, prevents adjustment of the outline in the horizontal
         /// direction and preserves inter-glyph spacing.
         ///
-        /// This has no corresponding setting in FreeType.
+        /// This is useful for performing layout without concern that hinting
+        /// will modify the advance width of a glyph. Specifically, it means
+        /// that layout will not require evaluation of glyph outlines.
+        ///
+        /// FreeType has no corresponding setting.
         preserve_linear_metrics: bool,
     },
 }
