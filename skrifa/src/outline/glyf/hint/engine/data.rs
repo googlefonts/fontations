@@ -27,12 +27,11 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4512>
     pub(super) fn op_gc(&mut self, opcode: u8) -> OpResult {
         let p = self.value_stack.pop_usize()?;
+        let gs = &mut self.graphics_state;
         let value = if (opcode & 1) != 0 {
-            self.graphics_state
-                .dual_project(self.graphics_state.zp2().original(p)?, Default::default())
+            gs.dual_project(gs.zp2().original(p)?, Default::default())
         } else {
-            self.graphics_state
-                .project(self.graphics_state.zp2().point(p)?, Default::default())
+            gs.project(gs.zp2().point(p)?, Default::default())
         };
         self.value_stack.push(value)?;
         Ok(())
