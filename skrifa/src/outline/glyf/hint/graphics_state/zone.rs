@@ -392,6 +392,56 @@ impl<'a> GraphicsState<'a> {
     }
 }
 
+impl GraphicsState<'_> {
+    /// Moves the requested scaled point by the given distance.
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L1771>
+    pub(crate) fn move_point(
+        &mut self,
+        zone: ZonePointer,
+        point_ix: usize,
+        distance: i32,
+    ) -> Result<(), HintErrorKind> {
+        let back_compat = self.backward_compatibility;
+        let back_compat_and_did_iup = back_compat && self.did_iup_x && self.did_iup_y;
+        let zone = &mut self.zones[zone as usize];
+        let point = zone.point_mut(point_ix)?;
+        // Note: we never adjust x in backward compatibility mode and we never
+        // adjust y in backward compability mode after IUP has been done in
+        // both directions.
+        match self.freedom_axis {
+            CoordAxis::X => {
+                if !back_compat {
+                    point.x += distance;
+                }
+                zone.touch(point_ix, CoordAxis::X)?;
+            }
+            CoordAxis::Y => {
+                if !back_compat_and_did_iup {
+                    point.y += distance;
+                }
+                zone.touch(point_ix, CoordAxis::Y)?;
+            }
+            CoordAxis::Both => {
+                // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L1669>
+                let fv = self.freedom_vector;
+                if fv.x != 0 {
+                    if !back_compat {
+                        point.x += math::mul_div(distance, fv.x, self.fdotp);
+                    }
+                    zone.touch(point_ix, CoordAxis::X)?;
+                }
+                if fv.y != 0 {
+                    if !back_compat_and_did_iup {
+                        zone.point_mut(point_ix)?.y += math::mul_div(distance, fv.y, self.fdotp);
+                    }
+                    zone.touch(point_ix, CoordAxis::Y)?;
+                }
+            }
+        }
+        Ok(())
+    }
+}
+
 impl CoordAxis {
     fn touched_marker(self) -> PointMarker {
         match self {

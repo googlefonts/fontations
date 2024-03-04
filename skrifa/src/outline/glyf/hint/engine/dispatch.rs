@@ -107,8 +107,9 @@ impl<'a> Engine<'a> {
             RS => self.op_rs()?,
             WCVTP => self.op_wcvtp()?,
             RCVT => self.op_rcvt()?,
-            // SCFS => {}
-            // MD0 | MD1 => {}
+            GC0 | GC1 => self.op_gc(raw_opcode)?,
+            SCFS => self.op_scfs()?,
+            MD0 | MD1 => self.op_md(raw_opcode)?,
             MPPEM => self.op_mppem()?,
             MPS => self.op_mps()?,
             FLIPON => self.op_flipon()?,
