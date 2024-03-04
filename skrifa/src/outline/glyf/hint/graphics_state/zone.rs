@@ -431,6 +431,11 @@ impl GraphicsState<'_> {
         // Note: we never adjust x in backward compatibility mode and we never
         // adjust y in backward compability mode after IUP has been done in
         // both directions.
+        //
+        // The primary motivation is to avoid horizontal adjustments in cases
+        // where subpixel rendering provides better fidelity.
+        //
+        // For more detail, see <https://learn.microsoft.com/en-us/typography/cleartype/truetypecleartype>
         let back_compat = self.backward_compatibility;
         let back_compat_and_did_iup = back_compat && self.did_iup_x && self.did_iup_y;
         let zone = &mut self.zones[zone as usize];
@@ -468,6 +473,12 @@ impl GraphicsState<'_> {
         Ok(())
     }
 
+    /// Moves the requested scaled point in the zone referenced by zp2 by the
+    /// given delta.
+    ///
+    /// This is a helper function for SHP, SHC, SHZ, and SHPIX instructions.
+    ///
+    /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5170>
     pub(crate) fn move_zp2_point(
         &mut self,
         point_ix: usize,
