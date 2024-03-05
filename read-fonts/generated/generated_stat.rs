@@ -188,7 +188,7 @@ impl<'a> std::fmt::Debug for Stat<'a> {
 }
 
 /// [Axis Records](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#axis-records)
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct AxisRecord {
@@ -225,13 +225,6 @@ impl AxisRecord {
 
 impl FixedSize for AxisRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + NameId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for AxisRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for AxisRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -902,7 +895,7 @@ impl<'a> std::fmt::Debug for AxisValueFormat4<'a> {
 }
 
 /// Part of [AxisValueFormat4]
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct AxisValueRecord {
@@ -930,13 +923,6 @@ impl FixedSize for AxisValueRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Fixed::RAW_BYTE_LEN;
 }
 
-impl sealed::Sealed for AxisValueRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for AxisValueRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
-}
-
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for AxisValueRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -953,8 +939,9 @@ impl<'a> SomeRecord<'a> for AxisValueRecord {
 }
 
 /// [Axis value table flags](https://docs.microsoft.com/en-us/typography/opentype/spec/stat#flags).
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
 pub struct AxisValueTableFlags {
     bits: u16,
 }

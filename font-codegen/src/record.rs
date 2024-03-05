@@ -36,7 +36,7 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
             #[repr(packed)]
         }
     });
-    let maybe_copy = is_zerocopy.then(|| quote!(Copy,));
+    let simple_record_traits = is_zerocopy.then(|| quote!(Copy, bytemuck::AnyBitPattern,));
 
     let maybe_impl_fixed_size = is_zerocopy.then(|| {
         let inner_types = item.fields.iter().map(|fld| fld.typ.cooked_type_tokens());
@@ -45,20 +45,15 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
                 const RAW_BYTE_LEN: usize = #( #inner_types::RAW_BYTE_LEN )+*;
             }
 
-            impl sealed::Sealed for #name {}
-            /// SAFETY: see the [`FromBytes`] trait documentation.
-            unsafe impl FromBytes for #name {
-                fn this_trait_should_only_be_implemented_in_generated_code() {}
-            }
         }
     });
     let maybe_impl_read_with_args = (has_read_args).then(|| generate_read_with_args(item));
     let maybe_extra_traits = item
         .gets_extra_traits(all_items)
-        .then(|| quote!(PartialEq, Eq, PartialOrd, Ord, Hash));
+        .then(|| quote!(PartialEq, Eq, PartialOrd, Ord, Hash,));
     Ok(quote! {
     #( #docs )*
-    #[derive(Clone, Debug, #maybe_copy #maybe_extra_traits)]
+    #[derive(Clone, Debug, #maybe_extra_traits #simple_record_traits )]
     #repr_packed
     pub struct #name #lifetime {
         #( #field_docs pub #field_names: #field_types, )*

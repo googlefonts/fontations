@@ -266,8 +266,9 @@ impl<'a> std::fmt::Debug for Cpal<'a> {
 }
 
 /// The [PaletteType](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-type-array) flags.
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
 pub struct PaletteType {
     bits: u32,
 }
@@ -579,7 +580,7 @@ impl<'a> From<PaletteType> for FieldType<'a> {
 }
 
 /// [CPAL (Color Record)](https://learn.microsoft.com/en-us/typography/opentype/spec/cpal#palette-entries-and-color-records) record
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ColorRecord {
@@ -618,13 +619,6 @@ impl ColorRecord {
 impl FixedSize for ColorRecord {
     const RAW_BYTE_LEN: usize =
         u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for ColorRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for ColorRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

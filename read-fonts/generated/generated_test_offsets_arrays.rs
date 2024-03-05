@@ -699,7 +699,7 @@ impl<'a> std::fmt::Debug for Dummy<'a> {
     }
 }
 
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct Shmecord {
@@ -719,13 +719,6 @@ impl Shmecord {
 
 impl FixedSize for Shmecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for Shmecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for Shmecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

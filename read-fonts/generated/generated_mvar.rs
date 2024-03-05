@@ -140,7 +140,7 @@ impl<'a> std::fmt::Debug for Mvar<'a> {
 }
 
 /// [ValueRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/mvar#table-formats) metrics variation record
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ValueRecord {
@@ -171,13 +171,6 @@ impl ValueRecord {
 
 impl FixedSize for ValueRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for ValueRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for ValueRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
