@@ -6,6 +6,8 @@
 /// additional details.
 #[derive(Copy, Clone, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "bytemuck", derive(bytemuck::AnyBitPattern))]
+#[repr(transparent)]
 pub struct Version16Dot16(u32);
 
 /// A type representing a major, minor version pair.
@@ -16,6 +18,8 @@ pub struct Version16Dot16(u32);
 /// parses out a version.
 #[derive(Copy, Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "bytemuck", derive(bytemuck::AnyBitPattern))]
+#[repr(C)]
 pub struct MajorMinor {
     /// The major version number
     pub major: u16,
