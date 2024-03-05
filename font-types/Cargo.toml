@@ -13,6 +13,7 @@ std = []
 default = ["std"]
 
 [dependencies]
+bytemuck = {version ="1.14.3", features = ["derive", "min_const_generics"], optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 
 [dev-dependencies]
