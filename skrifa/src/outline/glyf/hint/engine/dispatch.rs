@@ -87,7 +87,7 @@ impl<'a> Engine<'a> {
             CINDEX => self.op_cindex()?,
             MINDEX => self.op_mindex()?,
             ALIGNPTS => self.op_alignpts()?,
-            // ? 0x28
+            // UNUSED: 0x28
             UTP => self.op_utp()?,
             LOOPCALL => self.op_loopcall()?,
             CALL => self.op_call()?,
@@ -115,7 +115,9 @@ impl<'a> Engine<'a> {
             MPS => self.op_mps()?,
             FLIPON => self.op_flipon()?,
             FLIPOFF => self.op_flipoff()?,
-            // Unused but pops a value from the stack.
+            // Should be unused in production fonts, but we may want to
+            // support debugging at some point. Just pops a value from
+            // the stack.
             DEBUG => {
                 self.value_stack.pop()?;
             }
@@ -132,7 +134,7 @@ impl<'a> Engine<'a> {
             AND => self.op_and()?,
             OR => self.op_or()?,
             NOT => self.op_not()?,
-            // DELTAP1 => {}
+            DELTAP1 => self.op_deltap(opcode)?,
             SDB => self.op_sdb()?,
             SDS => self.op_sds()?,
             ADD => self.op_add()?,
@@ -143,18 +145,18 @@ impl<'a> Engine<'a> {
             NEG => self.op_neg()?,
             FLOOR => self.op_floor()?,
             CEILING => self.op_ceiling()?,
-            // ROUND00 | ROUND01 | ROUND10 | ROUND11 => {}
+            ROUND00 | ROUND01 | ROUND10 | ROUND11 => self.op_round()?,
             // "No round" means do nothing :)
             NROUND00 | NROUND01 | NROUND10 | NROUND11 => {}
             WCVTF => self.op_wcvtf()?,
-            // DELTAP2 | DELTAP3 => {}
-            // DELTAC1 | DELTAC2 | DELTAC3 => {}
+            DELTAP2 | DELTAP3 => self.op_deltap(opcode)?,
+            DELTAC1 | DELTAC2 | DELTAC3 => self.op_deltac(opcode)?,
             SROUND => self.op_sround()?,
             S45ROUND => self.op_s45round()?,
             JROT => self.op_jrot()?,
             JROF => self.op_jrof()?,
             ROFF => self.op_roff()?,
-            // ? 0x7B
+            // UNUSED: 0x7B
             RUTG => self.op_rutg()?,
             RDTG => self.op_rdtg()?,
             SANGW => self.op_sangw()?,
@@ -163,7 +165,7 @@ impl<'a> Engine<'a> {
             FLIPPT => self.op_flippt()?,
             FLIPRGON => self.op_fliprgon()?,
             FLIPRGOFF => self.op_fliprgoff()?,
-            // ? 0x83 | 0x84
+            // UNUSED: 0x83 | 0x84
             SCANCTRL => self.op_scanctrl()?,
             SDPVTL0 | SDPVTL1 => self.op_sdpvtl(raw_opcode)?,
             GETINFO => self.op_getinfo()?,
@@ -172,7 +174,7 @@ impl<'a> Engine<'a> {
             MAX => self.op_max()?,
             MIN => self.op_min()?,
             SCANTYPE => self.op_scantype()?,
-            // ? 0x8F | 0x90 (ADJUST?)
+            // UNUSED: 0x8F | 0x90 (ADJUST?)
             GETVARIATION => self.op_getvariation()?,
             GETDATA => self.op_getdata()?,
             _ => {
