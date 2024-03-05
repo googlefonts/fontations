@@ -1,6 +1,6 @@
 //! Rounding state.
 
-use super::GraphicsState;
+use super::{super::F26Dot6, GraphicsState};
 
 /// Rounding strategies supported by the interpreter.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
@@ -70,10 +70,11 @@ impl Default for RoundState {
 }
 
 impl RoundState {
-    pub fn round(&self, distance: i32) -> i32 {
+    pub fn round(&self, distance: F26Dot6) -> F26Dot6 {
         use super::super::math;
         use RoundMode::*;
-        match self.mode {
+        let distance = distance.to_bits();
+        let result = match self.mode {
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L1958>
             HalfGrid => {
                 if distance >= 0 {
@@ -158,19 +159,20 @@ impl RoundState {
             }
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L1870>
             Off => distance,
-        }
+        };
+        F26Dot6::from_bits(result)
     }
 }
 
 impl GraphicsState<'_> {
-    pub fn round(&self, distance: i32) -> i32 {
+    pub fn round(&self, distance: F26Dot6) -> F26Dot6 {
         self.round_state.round(distance)
     }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{RoundMode, RoundState};
+    use super::{F26Dot6, RoundMode, RoundState};
 
     #[test]
     fn round_to_grid() {
@@ -222,6 +224,8 @@ mod tests {
 
     fn round_cases(mode: RoundMode, cases: &[(i32, i32)]) {
         for (value, expected) in cases.iter().copied() {
+            let value = F26Dot6::from_bits(value);
+            let expected = F26Dot6::from_bits(expected);
             let state = RoundState {
                 mode,
                 ..Default::default()

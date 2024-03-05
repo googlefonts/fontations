@@ -4,7 +4,7 @@
 //!
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#logical-functions>
 
-use super::{Engine, OpResult};
+use super::{Engine, F26Dot6, OpResult};
 
 impl<'a> Engine<'a> {
     /// Less than.
@@ -129,8 +129,9 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2799>
     pub(super) fn op_odd(&mut self) -> OpResult {
         let round_state = self.graphics_state.round_state;
-        self.value_stack
-            .apply_unary(|e1| Ok((round_state.round(e1) & 127 == 64) as i32))
+        self.value_stack.apply_unary(|e1| {
+            Ok((round_state.round(F26Dot6::from_bits(e1)).to_bits() & 127 == 64) as i32)
+        })
     }
 
     /// Even.
@@ -150,8 +151,9 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2813>
     pub(super) fn op_even(&mut self) -> OpResult {
         let round_state = self.graphics_state.round_state;
-        self.value_stack
-            .apply_unary(|e1| Ok((round_state.round(e1) & 127 == 0) as i32))
+        self.value_stack.apply_unary(|e1| {
+            Ok((round_state.round(F26Dot6::from_bits(e1)).to_bits() & 127 == 0) as i32)
+        })
     }
 
     /// Logical and.

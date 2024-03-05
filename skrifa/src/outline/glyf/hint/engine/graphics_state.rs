@@ -4,11 +4,9 @@
 //!
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#managing-the-graphics-state>
 
-use read_fonts::types::Point;
-
 use super::{
     super::{graphics_state::RoundMode, math, program::Program},
-    Engine, HintErrorKind, OpResult,
+    Engine, F26Dot6, HintErrorKind, OpResult, Point,
 };
 
 impl<'a> Engine<'a> {
@@ -805,9 +803,9 @@ impl<'a> Engine<'a> {
 /// This is common code for the "set vector to line" instructions.
 ///
 /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4009>
-fn line_vector(p1: Point<i32>, p2: Point<i32>, is_parallel: bool) -> Point<i32> {
-    let mut a = p1.x - p2.x;
-    let mut b = p1.y - p2.y;
+fn line_vector(p1: Point<F26Dot6>, p2: Point<F26Dot6>, is_parallel: bool) -> Point<i32> {
+    let mut a = (p1.x - p2.x).to_bits();
+    let mut b = (p1.y - p2.y).to_bits();
     if a == 0 && b == 0 {
         // If the points are equal, set to the x axis.
         a = 0x4000;
@@ -826,11 +824,10 @@ mod tests {
     use super::{
         super::{
             super::graphics_state::{Zone, ZonePointer},
-            MockEngine,
+            F2Dot14, MockEngine,
         },
-        HintErrorKind, Point, Program, RoundMode,
+        F26Dot6, HintErrorKind, Point, Program, RoundMode,
     };
-    use read_fonts::types::F2Dot14;
 
     // Some helpful constants for testing vectors
     const ONE: i32 = F2Dot14::ONE.to_bits() as i32;
@@ -893,8 +890,9 @@ mod tests {
         let mut mock = MockEngine::new();
         let mut engine = mock.engine();
         // Set up a zone for testing and set all the zone pointers to it.
-        let points = &mut [Point::new(0, 0), Point::new(64, 0)];
-        let original = &mut [Point::new(0, 64), Point::new(0, -64)];
+        let points = &mut [Point::new(0, 0), Point::new(64, 0)].map(|p| p.map(F26Dot6::from_bits));
+        let original =
+            &mut [Point::new(0, 64), Point::new(0, -64)].map(|p| p.map(F26Dot6::from_bits));
         engine.graphics_state.zones[1] = Zone {
             points,
             original,

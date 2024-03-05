@@ -13,7 +13,10 @@ mod outline;
 mod stack;
 mod storage;
 
-use read_fonts::{tables::glyf::bytecode::Instruction, types::F2Dot14};
+use read_fonts::{
+    tables::glyf::bytecode::Instruction,
+    types::{F26Dot6, F2Dot14, Point},
+};
 
 use super::{
     super::Outlines,
@@ -105,7 +108,7 @@ mod mock {
             program::{Program, ProgramState},
             Point, PointFlags,
         },
-        Engine, GraphicsState, LoopBudget, ValueStack,
+        Engine, F26Dot6, GraphicsState, LoopBudget, ValueStack,
     };
 
     /// Mock engine for testing.
@@ -113,7 +116,8 @@ mod mock {
         cvt_storage: Vec<i32>,
         value_stack: Vec<i32>,
         definitions: Vec<Definition>,
-        points: Vec<Point<i32>>,
+        unscaled: Vec<Point<i32>>,
+        points: Vec<Point<F26Dot6>>,
         point_flags: Vec<PointFlags>,
         contours: Vec<u16>,
     }
@@ -124,7 +128,8 @@ mod mock {
                 cvt_storage: vec![0; 32],
                 value_stack: vec![0; 32],
                 definitions: vec![Default::default(); 8],
-                points: vec![Default::default(); 96],
+                unscaled: vec![Default::default(); 32],
+                points: vec![Default::default(); 64],
                 point_flags: vec![Default::default(); 32],
                 contours: vec![32],
             }
@@ -140,10 +145,9 @@ mod mock {
                 DefinitionMap::Mut(function_defs),
                 DefinitionMap::Mut(instruction_defs),
             );
-            let (points, rest) = self.points.split_at_mut(32);
-            let (original, unscaled) = rest.split_at_mut(32);
+            let (points, original) = self.points.split_at_mut(32);
             let glyph_zone = Zone::new(
-                unscaled,
+                &mut self.unscaled,
                 original,
                 points,
                 &mut self.point_flags,

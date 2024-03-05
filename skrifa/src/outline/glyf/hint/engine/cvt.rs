@@ -4,7 +4,7 @@
 //!
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#managing-the-control-value-table>
 
-use super::{super::math::mul, Engine, OpResult};
+use super::{super::math::mul, Engine, F26Dot6, OpResult};
 
 impl<'a> Engine<'a> {
     /// Write control value table in pixel units.
@@ -21,7 +21,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#write-control-value-table-in-pixel-units>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L3044>
     pub(super) fn op_wcvtp(&mut self) -> OpResult {
-        let value = self.value_stack.pop()?;
+        let value = self.value_stack.pop_f26dot6()?;
         let location = self.value_stack.pop_usize()?;
         let result = self.cvt.set(location, value);
         if self.graphics_state.is_pedantic {
@@ -48,9 +48,10 @@ impl<'a> Engine<'a> {
     pub(super) fn op_wcvtf(&mut self) -> OpResult {
         let value = self.value_stack.pop()?;
         let location = self.value_stack.pop_usize()?;
-        let result = self
-            .cvt
-            .set(location, mul(value, self.graphics_state.scale));
+        let result = self.cvt.set(
+            location,
+            F26Dot6::from_bits(mul(value, self.graphics_state.scale)),
+        );
         if self.graphics_state.is_pedantic {
             result
         } else {
@@ -76,9 +77,9 @@ impl<'a> Engine<'a> {
         let value = if self.graphics_state.is_pedantic {
             maybe_value?
         } else {
-            maybe_value.unwrap_or(0)
+            maybe_value.unwrap_or_default()
         };
-        self.value_stack.push(value)
+        self.value_stack.push(value.to_bits())
     }
 }
 

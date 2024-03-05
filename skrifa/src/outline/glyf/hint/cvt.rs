@@ -1,6 +1,6 @@
 //! Control value table.
 
-use super::{cow_slice::CowSlice, error::HintErrorKind};
+use super::{cow_slice::CowSlice, error::HintErrorKind, F26Dot6};
 
 /// Backing store for the control value table.
 ///
@@ -9,15 +9,16 @@ use super::{cow_slice::CowSlice, error::HintErrorKind};
 pub struct Cvt<'a>(CowSlice<'a>);
 
 impl<'a> Cvt<'a> {
-    pub fn get(&self, index: usize) -> Result<i32, HintErrorKind> {
+    pub fn get(&self, index: usize) -> Result<F26Dot6, HintErrorKind> {
         self.0
             .get(index)
+            .map(F26Dot6::from_bits)
             .ok_or(HintErrorKind::InvalidCvtIndex(index))
     }
 
-    pub fn set(&mut self, index: usize, value: i32) -> Result<(), HintErrorKind> {
+    pub fn set(&mut self, index: usize, value: F26Dot6) -> Result<(), HintErrorKind> {
         self.0
-            .set(index, value)
+            .set(index, value.to_bits())
             .ok_or(HintErrorKind::InvalidCvtIndex(index))
     }
 }

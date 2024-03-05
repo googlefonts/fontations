@@ -1,5 +1,7 @@
 //! Point projection.
 
+use raw::types::F26Dot6;
+
 use super::{CoordAxis, GraphicsState, Point};
 
 impl GraphicsState<'_> {
@@ -52,7 +54,7 @@ impl GraphicsState<'_> {
     /// Computes the projection of vector given by (v1 - v2) along the
     /// current projection vector.
     #[inline(always)]
-    pub fn project(&self, v1: Point<i32>, v2: Point<i32>) -> i32 {
+    pub fn project(&self, v1: Point<F26Dot6>, v2: Point<F26Dot6>) -> F26Dot6 {
         match self.proj_axis {
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2431>
             CoordAxis::X => v1.x - v2.x,
@@ -62,15 +64,43 @@ impl GraphicsState<'_> {
                 // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2373>
                 let dx = v1.x - v2.x;
                 let dy = v1.y - v2.y;
-                dot14(dx, dy, self.proj_vector.x, self.proj_vector.y)
+                F26Dot6::from_bits(dot14(
+                    dx.to_bits(),
+                    dy.to_bits(),
+                    self.proj_vector.x,
+                    self.proj_vector.y,
+                ))
             }
         }
     }
 
     /// Computes the projection of vector given by (v1 - v2) along the
-    /// current dual projection vector.    
+    /// current dual projection vector.
     #[inline(always)]
-    pub fn dual_project(&self, v1: Point<i32>, v2: Point<i32>) -> i32 {
+    pub fn dual_project(&self, v1: Point<F26Dot6>, v2: Point<F26Dot6>) -> F26Dot6 {
+        match self.dual_proj_axis {
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2431>
+            CoordAxis::X => v1.x - v2.x,
+            // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2461>
+            CoordAxis::Y => v1.y - v2.y,
+            CoordAxis::Both => {
+                // https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2402
+                let dx = v1.x - v2.x;
+                let dy = v1.y - v2.y;
+                F26Dot6::from_bits(dot14(
+                    dx.to_bits(),
+                    dy.to_bits(),
+                    self.dual_proj_vector.x,
+                    self.dual_proj_vector.y,
+                ))
+            }
+        }
+    }
+
+    /// Computes the projection of vector given by (v1 - v2) along the
+    /// current dual projection vector for unscaled points.
+    #[inline(always)]
+    pub fn dual_project_unscaled(&self, v1: Point<i32>, v2: Point<i32>) -> i32 {
         match self.dual_proj_axis {
             // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2431>
             CoordAxis::X => v1.x - v2.x,
@@ -97,7 +127,7 @@ fn dot14(ax: i32, ay: i32, bx: i32, by: i32) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::super::math, CoordAxis, GraphicsState, Point};
+    use super::{super::super::math, CoordAxis, F26Dot6, GraphicsState, Point};
 
     #[test]
     fn project_one_axis() {
@@ -136,7 +166,9 @@ mod tests {
 
     fn test_project_cases(state: &GraphicsState, cases: &[(Point<i32>, Point<i32>, i32)]) {
         for (v1, v2, expected) in cases.iter().copied() {
-            let result = state.project(v1, v2);
+            let v1 = v1.map(F26Dot6::from_bits);
+            let v2 = v2.map(F26Dot6::from_bits);
+            let result = state.project(v1, v2).to_bits();
             assert_eq!(
                 result, expected,
                 "project({v1:?}, {v2:?}) = {result} (expected {expected})"

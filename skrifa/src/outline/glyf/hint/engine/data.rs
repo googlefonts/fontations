@@ -33,7 +33,7 @@ impl<'a> Engine<'a> {
         } else {
             gs.project(gs.zp2().point(p)?, Default::default())
         };
-        self.value_stack.push(value)?;
+        self.value_stack.push(value.to_bits())?;
         Ok(())
     }
 
@@ -52,7 +52,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#sets-coordinate-from-the-stack-using-projection_vector-and-freedom_vector>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4550>
     pub(super) fn op_scfs(&mut self) -> OpResult {
-        let value = self.value_stack.pop()?;
+        let value = self.value_stack.pop_f26dot6()?;
         let p = self.value_stack.pop_usize()?;
         let gs = &mut self.graphics_state;
         let projection = gs.project(gs.zp2().point(p)?, Default::default());
@@ -89,13 +89,15 @@ impl<'a> Engine<'a> {
         let distance = if (opcode & 1) != 0 {
             // measure in grid fitted outline
             gs.project(gs.zp0().point(p2)?, gs.zp1().point(p1)?)
+                .to_bits()
         } else if gs.zp0.is_twilight() || gs.zp1.is_twilight() {
             // special case for twilight zone
             gs.dual_project(gs.zp0().original(p2)?, gs.zp1().original(p1)?)
+                .to_bits()
         } else {
             // measure in original unscaled outline
             math::mul(
-                gs.dual_project(gs.zp0().unscaled(p2)?, gs.zp1().unscaled(p1)?),
+                gs.dual_project_unscaled(gs.zp0().unscaled(p2)?, gs.zp1().unscaled(p1)?),
                 gs.scale,
             )
         };

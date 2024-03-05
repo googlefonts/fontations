@@ -9,7 +9,7 @@ use super::{
         graphics_state::{CoordAxis, PointDisplacement, ZonePointer},
         math,
     },
-    Engine, HintErrorKind, OpResult,
+    Engine, F26Dot6, HintErrorKind, OpResult,
 };
 
 impl<'a> Engine<'a> {
@@ -219,8 +219,8 @@ impl<'a> Engine<'a> {
         let gs = &mut self.graphics_state;
         let in_twilight = gs.zp0.is_twilight() || gs.zp1.is_twilight() || gs.zp2.is_twilight();
         let amount = self.value_stack.pop()?;
-        let dx = math::mul14(amount, gs.freedom_vector.x);
-        let dy = math::mul14(amount, gs.freedom_vector.y);
+        let dx = F26Dot6::from_bits(math::mul14(amount, gs.freedom_vector.x));
+        let dy = F26Dot6::from_bits(math::mul14(amount, gs.freedom_vector.y));
         let count = gs.loop_counter;
         gs.loop_counter = 1;
         let did_iup = gs.did_iup_x && gs.did_iup_y;
@@ -262,7 +262,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5439>
     pub(super) fn op_msirp(&mut self, opcode: u8) -> OpResult {
         let gs = &mut self.graphics_state;
-        let distance = self.value_stack.pop()?;
+        let distance = self.value_stack.pop_f26dot6()?;
         let point_ix = self.value_stack.pop_usize()?;
         if gs.zp1.is_twilight() {
             *gs.zp1_mut().point_mut(point_ix)? = gs.zp0().original(gs.rp0)?;
@@ -303,7 +303,7 @@ impl<'a> Engine<'a> {
             let cur_dist = gs.project(gs.zp0().point(p)?, Default::default());
             gs.round(cur_dist) - cur_dist
         } else {
-            0
+            F26Dot6::ZERO
         };
         gs.move_point(gs.zp0, p, distance)?;
         gs.rp0 = p;
@@ -342,14 +342,14 @@ impl<'a> Engine<'a> {
             let fv = gs.freedom_vector;
             let z = gs.zp0_mut();
             let original_point = z.original_mut(point_ix)?;
-            original_point.x = math::mul14(distance, fv.x);
-            original_point.y = math::mul14(distance, fv.y);
+            original_point.x = F26Dot6::from_bits(math::mul14(distance.to_bits(), fv.x));
+            original_point.y = F26Dot6::from_bits(math::mul14(distance.to_bits(), fv.y));
             *z.point_mut(point_ix)? = *original_point;
         }
         let original_distance = gs.project(gs.zp0().point(point_ix)?, Default::default());
         if (opcode & 1) != 0 {
             let delta = (distance.wrapping_sub(original_distance)).abs();
-            if delta > gs.control_value_cutin {
+            if delta.to_bits() > gs.control_value_cutin {
                 distance = original_distance;
             }
             distance = gs.round(distance);
