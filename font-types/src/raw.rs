@@ -48,7 +48,15 @@ mod sealed {
     ///
     /// This is only used in `Scalar`, as a way of expressing the condition that the
     /// `Raw` type is always a fixed-size byte array.
+    #[cfg(not(feature = "bytemuck"))]
     pub trait BeByteArray: Copy + AsRef<[u8]> {
+        /// Must always succeed for [u8; N] if slice.len() == N, must fail otherwise
+        fn from_slice(slice: &[u8]) -> Option<Self>;
+    }
+    #[cfg(feature = "bytemuck")]
+    pub trait BeByteArray:
+        Copy + AsRef<[u8]> + bytemuck::AnyBitPattern + bytemuck::Zeroable
+    {
         /// Must always succeed for [u8; N] if slice.len() == N, must fail otherwise
         fn from_slice(slice: &[u8]) -> Option<Self>;
     }
@@ -65,6 +73,15 @@ mod sealed {
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[repr(transparent)]
 pub struct BigEndian<T: Scalar>(pub(crate) T::Raw);
+
+// # SAFETY:
+//
+// `BigEndian<T>` has the bound `T: Scalar`, and contains only a single value,
+// `<T as Scalar>::Raw` which is only ever a byte array.
+#[cfg(feature = "bytemuck")]
+unsafe impl<T> bytemuck::Zeroable for BigEndian<T> where T: Scalar + Copy {}
+#[cfg(feature = "bytemuck")]
+unsafe impl<T> bytemuck::AnyBitPattern for BigEndian<T> where T: Scalar + Copy + 'static {}
 
 impl<T: Scalar> BigEndian<T> {
     /// construct a new `BigEndian<T>` from raw bytes

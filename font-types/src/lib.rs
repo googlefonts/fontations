@@ -2,7 +2,6 @@
 //!
 //! [data types]: https://docs.microsoft.com/en-us/typography/opentype/spec/otff#data-types
 
-#![forbid(unsafe_code)]
 #![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(not(test), no_std)]
 
