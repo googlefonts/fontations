@@ -530,7 +530,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#set-minimum_distance>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4266>
     pub(super) fn op_smd(&mut self) -> OpResult {
-        let distance = self.value_stack.pop()?;
+        let distance = self.value_stack.pop_f26dot6()?;
         self.graphics_state.min_distance = distance;
         Ok(())
     }
@@ -671,7 +671,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#set-control-value-table-cut-in>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4280>
     pub(super) fn op_scvtci(&mut self) -> OpResult {
-        let n = self.value_stack.pop()?;
+        let n = self.value_stack.pop_f26dot6()?;
         self.graphics_state.control_value_cutin = n;
         Ok(())
     }
@@ -688,7 +688,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#set-single_width_cut_in>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4294>
     pub(super) fn op_sswci(&mut self) -> OpResult {
-        let n = self.value_stack.pop()?;
+        let n = self.value_stack.pop_f26dot6()?;
         self.graphics_state.single_width_cutin = n;
         Ok(())
     }
@@ -707,7 +707,8 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4308>
     pub(super) fn op_ssw(&mut self) -> OpResult {
         let n = self.value_stack.pop()?;
-        self.graphics_state.single_width = math::mul(n, self.graphics_state.scale);
+        self.graphics_state.single_width =
+            F26Dot6::from_bits(math::mul(n, self.graphics_state.scale));
         Ok(())
     }
 
@@ -1025,7 +1026,7 @@ mod tests {
         // smd
         engine.value_stack.push(64).unwrap();
         engine.op_smd().unwrap();
-        assert_eq!(engine.graphics_state.min_distance, 64);
+        assert_eq!(engine.graphics_state.min_distance, F26Dot6::from_bits(64));
         // scantype
         engine.value_stack.push(50).unwrap();
         engine.op_scantype().unwrap();
@@ -1033,18 +1034,24 @@ mod tests {
         // scvtci
         engine.value_stack.push(128).unwrap();
         engine.op_scvtci().unwrap();
-        assert_eq!(engine.graphics_state.control_value_cutin, 128);
+        assert_eq!(
+            engine.graphics_state.control_value_cutin,
+            F26Dot6::from_bits(128)
+        );
         // sswci
         engine.value_stack.push(100).unwrap();
         engine.op_sswci().unwrap();
-        assert_eq!(engine.graphics_state.single_width_cutin, 100);
+        assert_eq!(
+            engine.graphics_state.single_width_cutin,
+            F26Dot6::from_bits(100)
+        );
         // ssw
         engine.graphics_state.scale = 64;
         engine.value_stack.push(100).unwrap();
         engine.op_ssw().unwrap();
         assert_eq!(
             engine.graphics_state.single_width,
-            super::math::mul(100, engine.graphics_state.scale)
+            F26Dot6::from_bits(super::math::mul(100, engine.graphics_state.scale))
         );
         // flipoff
         engine.op_flipoff().unwrap();

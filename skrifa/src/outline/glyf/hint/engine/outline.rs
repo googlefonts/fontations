@@ -1,6 +1,6 @@
 //! Managing outlines.
 //!
-//! Implements 17 instructions.
+//! Implements 87 instructions.
 //!
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#managing-outlines>
 
@@ -349,7 +349,7 @@ impl<'a> Engine<'a> {
         let original_distance = gs.project(gs.zp0().point(point_ix)?, Default::default());
         if (opcode & 1) != 0 {
             let delta = (distance.wrapping_sub(original_distance)).abs();
-            if delta.to_bits() > gs.control_value_cutin {
+            if delta > gs.control_value_cutin {
                 distance = original_distance;
             }
             distance = gs.round(distance);
@@ -357,6 +357,412 @@ impl<'a> Engine<'a> {
         gs.move_point(gs.zp0, point_ix, distance.wrapping_sub(original_distance))?;
         gs.rp0 = point_ix;
         gs.rp1 = point_ix;
+        Ok(())
+    }
+
+    /// Move direct relative point.
+    ///
+    /// MDRP\[abcde\] (0xC0 - 0xDF)
+    ///
+    /// a: 0: do not set rp0 to point p after move
+    ///    1: do set rp0 to point p after move
+    /// b: 0: do not keep distance greater than or equal to minimum_distance
+    ///    1: keep distance greater than or equal to minimum_distance
+    /// c: 0: do not round distance
+    ///    1: round the distance
+    /// de: distance type for engine characteristic compensation
+    ///
+    /// Pops: p: point number
+    ///       
+    /// MDRP moves point p along the freedom_vector so that the distance from
+    /// its new position to the current position of rp0 is the same as the
+    /// distance between the two points in the original uninstructed outline,
+    /// and then adjusts it to be consistent with the Boolean settings. Note
+    /// that it is only the original positions of rp0 and point p and the
+    /// current position of rp0 that determine the new position of point p
+    /// along the freedom_vector.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#move-direct-relative-point>
+    /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5610>
+    pub(super) fn op_mdrp(&mut self, opcode: u8) -> OpResult {
+        let gs = &mut self.graphics_state;
+        let p = self.value_stack.pop_usize()?;
+        let mut original_distance;
+        if gs.zp0.is_twilight() || gs.zp1.is_twilight() {
+            original_distance = gs.dual_project(gs.zp1().original(p)?, gs.zp0().original(gs.rp0)?);
+        } else {
+            let v1 = gs.zp1().unscaled(p)?;
+            let v2 = gs.zp0().unscaled(gs.rp0)?;
+            let dist = gs.dual_project_unscaled(v1, v2);
+            original_distance = F26Dot6::from_bits(math::mul(dist, gs.scale));
+        }
+        let cutin = gs.single_width_cutin;
+        let value = gs.single_width;
+        if cutin > F26Dot6::ZERO
+            && original_distance < value + cutin
+            && original_distance > value - cutin
+        {
+            original_distance = if original_distance >= F26Dot6::ZERO {
+                value
+            } else {
+                -value
+            };
+        }
+        // round flag
+        let mut distance = if (opcode & 4) != 0 {
+            gs.round(original_distance)
+        } else {
+            original_distance
+        };
+        // minimum distance flag
+        if (opcode & 8) != 0 {
+            let min_distance = gs.min_distance;
+            if original_distance >= F26Dot6::ZERO {
+                if distance < min_distance {
+                    distance = min_distance;
+                }
+            } else if distance > -min_distance {
+                distance = -min_distance;
+            }
+        }
+        original_distance = gs.project(gs.zp1().point(p)?, gs.zp0().point(gs.rp0)?);
+        gs.move_point(gs.zp1, p, distance.wrapping_sub(original_distance))?;
+        gs.rp1 = gs.rp0;
+        gs.rp2 = p;
+        if (opcode & 16) != 0 {
+            gs.rp0 = p;
+        }
+        Ok(())
+    }
+
+    /// Move indirect relative point.
+    ///
+    /// MIRP\[abcde\] (0xE0 - 0xFF)
+    ///
+    /// a: 0: do not set rp0 to point p after move
+    ///    1: do set rp0 to point p after move
+    /// b: 0: do not keep distance greater than or equal to minimum_distance
+    ///    1: keep distance greater than or equal to minimum_distance
+    /// c: 0: do not round distance and do not look at control_value_cutin
+    ///    1: round the distance and look at control_value_cutin
+    /// de: distance type for engine characteristic compensation
+    ///
+    /// Pops: n: CVT entry number
+    ///       p: point number
+    ///       
+    /// A MIRP instruction makes it possible to preserve the distance between
+    /// two points subject to a number of qualifications. Depending upon the
+    /// setting of Boolean flag b, the distance can be kept greater than or
+    /// equal to the value established by the minimum_distance state variable.
+    /// Similarly, the instruction can be set to round the distance according
+    /// to the round_state graphics state variable. The value of the minimum
+    /// distance variable is the smallest possible value the distance between
+    /// two points can be rounded to. Additionally, if the c Boolean is set,
+    /// the MIRP instruction acts subject to the control_value_cut_in. If the
+    /// difference between the actual measurement and the value in the CVT is
+    /// sufficiently small (less than the cut_in_value), the CVT value will be
+    /// used and not the actual value. If the device space difference between
+    /// this distance from the CVT and the single_width_value is smaller than
+    /// the single_width_cut_in, then use the single_width_value rather than
+    /// the outline or Control Value Table distance.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#move-indirect-relative-point>
+    /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5731>
+    pub(super) fn op_mirp(&mut self, opcode: u8) -> OpResult {
+        let gs = &mut self.graphics_state;
+        let n = (self.value_stack.pop()? + 1) as usize;
+        let p = self.value_stack.pop_usize()?;
+        let mut cvt_distance = if n == 0 {
+            F26Dot6::ZERO
+        } else {
+            self.cvt.get(n - 1)?
+        };
+        // single width test
+        let cutin = gs.single_width_cutin;
+        let value = gs.single_width;
+        let mut delta = cvt_distance.wrapping_sub(value).abs();
+        if delta < cutin {
+            cvt_distance = if cvt_distance >= F26Dot6::ZERO {
+                value
+            } else {
+                -value
+            };
+        }
+        if gs.zp1.is_twilight() {
+            let fv = gs.freedom_vector;
+            let point = {
+                let d = cvt_distance.to_bits();
+                let p2 = gs.zp0().original(gs.rp0)?;
+                let p1 = gs.zp1_mut().original_mut(p)?;
+                p1.x = p2.x + F26Dot6::from_bits(math::mul(d, fv.x));
+                p1.y = p2.y + F26Dot6::from_bits(math::mul(d, fv.y));
+                *p1
+            };
+            *gs.zp1_mut().point_mut(p)? = point;
+        }
+        let original_distance = gs.dual_project(gs.zp1().original(p)?, gs.zp0().original(gs.rp0)?);
+        let current_distance = gs.project(gs.zp1().point(p)?, gs.zp0().point(gs.rp0)?);
+        // auto flip test
+        if gs.auto_flip && (original_distance.to_bits() ^ cvt_distance.to_bits()) < 0 {
+            cvt_distance = -cvt_distance;
+        }
+        // control value cutin and round
+        let mut distance = if (opcode & 4) != 0 {
+            if gs.zp0 == gs.zp1 {
+                delta = cvt_distance.wrapping_sub(original_distance).abs();
+                if delta > gs.control_value_cutin {
+                    cvt_distance = original_distance;
+                }
+            }
+            gs.round(cvt_distance)
+        } else {
+            cvt_distance
+        };
+        // minimum distance test
+        if (opcode & 8) != 0 {
+            let min_distance = gs.min_distance;
+            if original_distance >= F26Dot6::ZERO {
+                if distance < min_distance {
+                    distance = min_distance
+                };
+            } else if distance > -min_distance {
+                distance = -min_distance
+            }
+        }
+        gs.move_point(gs.zp1, p, distance.wrapping_sub(current_distance))?;
+        gs.rp1 = gs.rp0;
+        if (opcode & 16) != 0 {
+            gs.rp0 = p;
+        }
+        gs.rp2 = p;
+        Ok(())
+    }
+
+    /// Align relative point.
+    ///
+    /// ALIGNRP[] (0x3C)
+    ///
+    /// Pops: p: point number (uint32)
+    ///
+    /// Uses the loop counter.
+    ///
+    /// Reduces the distance between rp0 and point p to zero. Since distance
+    /// is measured along the projection_vector and movement is along the
+    /// freedom_vector, the effect of the instruction is to align points.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#align-relative-point>
+    /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5882>
+    pub(super) fn op_alignrp(&mut self) -> OpResult {
+        let gs = &mut self.graphics_state;
+        let count = gs.loop_counter;
+        gs.loop_counter = 1;
+        for _ in 0..count {
+            let p = self.value_stack.pop_usize()?;
+            let distance = gs.project(gs.zp1().point(p)?, gs.zp0().point(gs.rp0)?);
+            gs.move_point(gs.zp1, p, -distance)?;
+        }
+        Ok(())
+    }
+
+    /// Move point to intersection of two lines.
+    ///
+    /// ISECT[] (0x0F)
+    ///
+    /// Pops: b1: end point of line 2
+    ///       b0: start point of line 2
+    ///       a1: end point of line 1
+    ///       a0: start point of line 1
+    ///       p: point to move.
+    ///
+    /// Puts point p at the intersection of the lines A and B. The points a0
+    /// and a1 define line A. Similarly, b0 and b1 define line B. ISECT
+    /// ignores the freedom_vector in moving point p.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#moves-point-p-to-the-intersection-of-two-lines>
+    /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5934>
+    pub(super) fn op_isect(&mut self) -> OpResult {
+        let gs = &mut self.graphics_state;
+        let b1 = self.value_stack.pop_usize()?;
+        let b0 = self.value_stack.pop_usize()?;
+        let a1 = self.value_stack.pop_usize()?;
+        let a0 = self.value_stack.pop_usize()?;
+        let point_ix = self.value_stack.pop_usize()?;
+        // Lots of funky fixed point math so just map these to i32 to avoid
+        // a bunch of wrapping/unwrapping.
+        // To shreds you say!
+        let [pa0, pa1] = {
+            let z = gs.zp1();
+            [z.point(a0)?, z.point(a1)?].map(|p| p.map(F26Dot6::to_bits))
+        };
+        let [pb0, pb1] = {
+            let z = gs.zp0();
+            [z.point(b0)?, z.point(b1)?].map(|p| p.map(F26Dot6::to_bits))
+        };
+        let dbx = pb1.x - pb0.x;
+        let dby = pb1.y - pb0.y;
+        let dax = pa1.x - pa0.x;
+        let day = pa1.y - pa0.y;
+        let dx = pb0.x - pa0.x;
+        let dy = pb0.y - pa0.y;
+        use math::mul_div;
+        let discriminant = mul_div(dax, -dby, 0x40) + mul_div(day, dbx, 0x40);
+        let dotproduct = mul_div(dax, dbx, 0x40) + mul_div(day, dby, 0x40);
+        // Useful context from FreeType:
+        //
+        // "The discriminant above is actually a cross product of vectors
+        // da and db. Together with the dot product, they can be used as
+        // surrogates for sine and cosine of the angle between the vectors.
+        // Indeed,
+        //       dotproduct   = |da||db|cos(angle)
+        //       discriminant = |da||db|sin(angle)
+        // We use these equations to reject grazing intersections by
+        // thresholding abs(tan(angle)) at 1/19, corresponding to 3 degrees."
+        //
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5986>
+        if 19 * discriminant.abs() > dotproduct.abs() {
+            let v = mul_div(dx, -dby, 0x40) + mul_div(dy, dbx, 0x40);
+            let x = mul_div(v, dax, discriminant);
+            let y = mul_div(v, day, discriminant);
+            let point = gs.zp2_mut().point_mut(point_ix)?;
+            point.x = F26Dot6::from_bits(pa0.x + x);
+            point.y = F26Dot6::from_bits(pa0.y + y);
+        } else {
+            let point = gs.zp2_mut().point_mut(point_ix)?;
+            point.x = F26Dot6::from_bits((pa0.x + pa1.x + pb0.x + pb1.x) / 4);
+            point.y = F26Dot6::from_bits((pa0.y + pa1.y + pb0.y + pb1.y) / 4);
+        }
+        gs.zp2_mut().touch(point_ix, CoordAxis::Both)?;
+        Ok(())
+    }
+
+    /// Align points.
+    ///
+    /// ALIGNPTS[] (0x27)
+    ///
+    /// Pops: p1: point number
+    ///       p2: point number
+    ///
+    /// Makes the distance between point 1 and point 2 zero by moving both
+    /// along the freedom_vector to the average of both their projections
+    /// along the projection_vector.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#align-points>
+    /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6030>
+    pub(super) fn op_alignpts(&mut self) -> OpResult {
+        let p2 = self.value_stack.pop_usize()?;
+        let p1 = self.value_stack.pop_usize()?;
+        let gs = &mut self.graphics_state;
+        let distance = F26Dot6::from_bits(
+            gs.project(gs.zp0().point(p2)?, gs.zp1().point(p1)?)
+                .to_bits()
+                / 2,
+        );
+        gs.move_point(gs.zp1, p1, distance)?;
+        gs.move_point(gs.zp0, p2, -distance)?;
+        Ok(())
+    }
+
+    /// Interpolate point by last relative stretch.
+    ///
+    /// IP[] (0x39)
+    ///
+    /// Pops: p: point number
+    ///
+    /// Uses the loop counter.
+    ///
+    /// Moves point p so that its relationship to rp1 and rp2 is the same as it
+    /// was in the original uninstructed outline. Measurements are made along
+    /// the projection_vector, and movement to satisfy the interpolation
+    /// relationship is constrained to be along the freedom_vector. This
+    /// instruction is not valid if rp1 and rp2 have the same position on the
+    /// projection_vector.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#interpolate-point-by-the-last-relative-stretch>
+    /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6065>
+    pub(super) fn op_ip(&mut self) -> OpResult {
+        let gs = &mut self.graphics_state;
+        let in_twilight = gs.zp0.is_twilight() || gs.zp1.is_twilight() || gs.zp2.is_twilight();
+        let orus_base = if in_twilight {
+            gs.zp0().original(gs.rp1)?
+        } else {
+            gs.zp0().unscaled(gs.rp1)?.map(F26Dot6::from_bits)
+        };
+        let cur_base = gs.zp0().point(gs.rp1)?;
+        let old_range = if in_twilight {
+            gs.dual_project(gs.zp1().original(gs.rp2)?, orus_base)
+        } else {
+            gs.dual_project(
+                gs.zp1().unscaled(gs.rp2)?.map(F26Dot6::from_bits),
+                orus_base,
+            )
+        };
+        let cur_range = gs.project(gs.zp1().point(gs.rp2)?, cur_base);
+        let count = gs.loop_counter;
+        gs.loop_counter = 1;
+        for _ in 0..count {
+            let point = self.value_stack.pop_usize()?;
+            let original_distance = if in_twilight {
+                gs.dual_project(gs.zp2().original(point)?, orus_base)
+            } else {
+                gs.dual_project(gs.zp2().unscaled(point)?.map(F26Dot6::from_bits), orus_base)
+            };
+            let cur_distance = gs.project(gs.zp2().point(point)?, cur_base);
+            let mut new_distance = F26Dot6::ZERO;
+            if original_distance != F26Dot6::ZERO {
+                if old_range != F26Dot6::ZERO {
+                    new_distance = F26Dot6::from_bits(math::mul_div(
+                        original_distance.to_bits(),
+                        cur_range.to_bits(),
+                        old_range.to_bits(),
+                    ));
+                } else {
+                    new_distance = original_distance;
+                }
+            }
+            gs.move_point(gs.zp2, point, new_distance.wrapping_sub(cur_distance))?;
+        }
+        Ok(())
+    }
+
+    /// Interpolate untouched points through the outline.
+    ///
+    /// IUP\[a\] (0x30 - 0x31)
+    ///
+    /// a: 0: interpolate in the y-direction
+    ///    1: interpolate in the x-direction
+    ///
+    /// Considers a glyph contour by contour, moving any untouched points in
+    /// each contour that are between a pair of touched points. If the
+    /// coordinates of an untouched point were originally between those of
+    /// the touched pair, it is linearly interpolated between the new
+    /// coordinates, otherwise the untouched point is shifted by the amount
+    /// the nearest touched point is shifted.
+    ///
+    /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#interpolate-untouched-points-through-the-outline>
+    /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6391>
+    pub(super) fn op_iup(&mut self, opcode: u8) -> OpResult {
+        let gs = &mut self.graphics_state;
+        let axis = if (opcode & 1) != 0 {
+            CoordAxis::X
+        } else {
+            CoordAxis::Y
+        };
+        let mut run = true;
+        // In backward compatibility mode, allow IUP until it has been done on
+        // both axes.
+        if gs.backward_compatibility {
+            if gs.did_iup_x && gs.did_iup_y {
+                run = false;
+            }
+            if axis == CoordAxis::X {
+                gs.did_iup_x = true;
+            } else {
+                gs.did_iup_y = true;
+            }
+        }
+        if run {
+            gs.zone_mut(ZonePointer::Glyph).iup(axis)?;
+        }
         Ok(())
     }
 
