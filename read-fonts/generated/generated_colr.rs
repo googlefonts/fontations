@@ -295,7 +295,7 @@ impl<'a> std::fmt::Debug for Colr<'a> {
 }
 
 /// [BaseGlyph](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct BaseGlyph {
@@ -328,13 +328,6 @@ impl FixedSize for BaseGlyph {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-impl sealed::Sealed for BaseGlyph {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for BaseGlyph {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
-}
-
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for BaseGlyph {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -352,7 +345,7 @@ impl<'a> SomeRecord<'a> for BaseGlyph {
 }
 
 /// [Layer](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyph-and-layer-records) record
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct Layer {
@@ -376,13 +369,6 @@ impl Layer {
 
 impl FixedSize for Layer {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for Layer {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for Layer {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -478,7 +464,7 @@ impl<'a> std::fmt::Debug for BaseGlyphList<'a> {
 }
 
 /// [BaseGlyphPaint](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct BaseGlyphPaint {
@@ -510,13 +496,6 @@ impl BaseGlyphPaint {
 
 impl FixedSize for BaseGlyphPaint {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for BaseGlyphPaint {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for BaseGlyphPaint {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -710,7 +689,7 @@ impl<'a> std::fmt::Debug for ClipList<'a> {
 }
 
 /// [Clip](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#baseglyphlist-layerlist-and-cliplist) record
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct Clip {
@@ -750,13 +729,6 @@ impl Clip {
 impl FixedSize for Clip {
     const RAW_BYTE_LEN: usize =
         GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + Offset24::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for Clip {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for Clip {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1084,7 +1056,7 @@ impl<'a> std::fmt::Debug for ClipBoxFormat2<'a> {
 }
 
 /// [ColorIndex](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ColorIndex {
@@ -1110,13 +1082,6 @@ impl FixedSize for ColorIndex {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
-impl sealed::Sealed for ColorIndex {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for ColorIndex {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
-}
-
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for ColorIndex {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1133,7 +1098,7 @@ impl<'a> SomeRecord<'a> for ColorIndex {
 }
 
 /// [VarColorIndex](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct VarColorIndex {
@@ -1166,13 +1131,6 @@ impl FixedSize for VarColorIndex {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
 }
 
-impl sealed::Sealed for VarColorIndex {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for VarColorIndex {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
-}
-
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for VarColorIndex {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1190,7 +1148,7 @@ impl<'a> SomeRecord<'a> for VarColorIndex {
 }
 
 /// [ColorStop](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ColorStop {
@@ -1223,13 +1181,6 @@ impl FixedSize for ColorStop {
     const RAW_BYTE_LEN: usize = F2Dot14::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
 }
 
-impl sealed::Sealed for ColorStop {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for ColorStop {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
-}
-
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for ColorStop {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1247,7 +1198,7 @@ impl<'a> SomeRecord<'a> for ColorStop {
 }
 
 /// [VarColorStop](https://learn.microsoft.com/en-us/typography/opentype/spec/colr#color-references-colorstop-and-colorline) record
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct VarColorStop {
@@ -1286,13 +1237,6 @@ impl VarColorStop {
 impl FixedSize for VarColorStop {
     const RAW_BYTE_LEN: usize =
         F2Dot14::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for VarColorStop {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for VarColorStop {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

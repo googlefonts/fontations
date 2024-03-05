@@ -81,7 +81,7 @@ impl<'a> std::fmt::Debug for ScriptList<'a> {
 }
 
 /// [Script Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ScriptRecord {
@@ -113,13 +113,6 @@ impl ScriptRecord {
 
 impl FixedSize for ScriptRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for ScriptRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for ScriptRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -238,7 +231,7 @@ impl<'a> std::fmt::Debug for Script<'a> {
     }
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct LangSysRecord {
@@ -270,13 +263,6 @@ impl LangSysRecord {
 
 impl FixedSize for LangSysRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for LangSysRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for LangSysRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -467,7 +453,7 @@ impl<'a> std::fmt::Debug for FeatureList<'a> {
 }
 
 /// Part of [FeatureList]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FeatureRecord {
@@ -500,13 +486,6 @@ impl FeatureRecord {
 
 impl FixedSize for FeatureRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for FeatureRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for FeatureRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1119,7 +1098,7 @@ impl<'a> std::fmt::Debug for CoverageFormat2<'a> {
 }
 
 /// Used in [CoverageFormat2]
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct RangeRecord {
@@ -1150,13 +1129,6 @@ impl RangeRecord {
 
 impl FixedSize for RangeRecord {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for RangeRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for RangeRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1422,7 +1394,7 @@ impl<'a> std::fmt::Debug for ClassDefFormat2<'a> {
 }
 
 /// Used in [ClassDefFormat2]
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ClassRangeRecord {
@@ -1453,13 +1425,6 @@ impl ClassRangeRecord {
 
 impl FixedSize for ClassRangeRecord {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for ClassRangeRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for ClassRangeRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1534,7 +1499,7 @@ impl<'a> SomeTable<'a> for ClassDef<'a> {
 }
 
 /// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SequenceLookupRecord {
@@ -1558,13 +1523,6 @@ impl SequenceLookupRecord {
 
 impl FixedSize for SequenceLookupRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for SequenceLookupRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for SequenceLookupRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -3979,7 +3937,7 @@ impl<'a> std::fmt::Debug for FeatureVariations<'a> {
 }
 
 /// Part of [FeatureVariations]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FeatureVariationRecord {
@@ -4031,13 +3989,6 @@ impl FeatureVariationRecord {
 
 impl FixedSize for FeatureVariationRecord {
     const RAW_BYTE_LEN: usize = Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for FeatureVariationRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for FeatureVariationRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -4342,7 +4293,7 @@ impl<'a> std::fmt::Debug for FeatureTableSubstitution<'a> {
 }
 
 /// Used in [FeatureTableSubstitution]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FeatureTableSubstitutionRecord {
@@ -4368,13 +4319,6 @@ impl FeatureTableSubstitutionRecord {
 
 impl FixedSize for FeatureTableSubstitutionRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for FeatureTableSubstitutionRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for FeatureTableSubstitutionRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

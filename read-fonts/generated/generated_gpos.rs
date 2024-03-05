@@ -246,8 +246,9 @@ impl<'a> std::fmt::Debug for PositionLookup<'a> {
 }
 
 /// See [ValueRecord]
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
 pub struct ValueFormat {
     bits: u16,
 }
@@ -1037,7 +1038,7 @@ impl<'a> std::fmt::Debug for MarkArray<'a> {
 }
 
 /// Part of [MarkArray]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct MarkRecord {
@@ -1069,13 +1070,6 @@ impl MarkRecord {
 
 impl FixedSize for MarkRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for MarkRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for MarkRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -2331,7 +2325,7 @@ impl<'a> std::fmt::Debug for CursivePosFormat1<'a> {
 }
 
 /// Part of [CursivePosFormat1]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct EntryExitRecord {
@@ -2383,13 +2377,6 @@ impl EntryExitRecord {
 
 impl FixedSize for EntryExitRecord {
     const RAW_BYTE_LEN: usize = Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for EntryExitRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for EntryExitRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

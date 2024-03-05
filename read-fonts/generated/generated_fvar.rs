@@ -268,7 +268,7 @@ impl<'a> std::fmt::Debug for AxisInstanceArrays<'a> {
 }
 
 /// The [VariationAxisRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/fvar#variationaxisrecord)
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct VariationAxisRecord {
@@ -325,13 +325,6 @@ impl FixedSize for VariationAxisRecord {
         + Fixed::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + NameId::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for VariationAxisRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for VariationAxisRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

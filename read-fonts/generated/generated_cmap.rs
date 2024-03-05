@@ -97,7 +97,7 @@ impl<'a> std::fmt::Debug for Cmap<'a> {
 }
 
 /// [Encoding Record](https://docs.microsoft.com/en-us/typography/opentype/spec/cmap#encoding-records-and-encodings)
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct EncodingRecord {
@@ -140,13 +140,6 @@ impl EncodingRecord {
 impl FixedSize for EncodingRecord {
     const RAW_BYTE_LEN: usize =
         PlatformId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for EncodingRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for EncodingRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -498,7 +491,7 @@ impl<'a> std::fmt::Debug for Cmap2<'a> {
 }
 
 /// Part of [Cmap2]
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SubHeader {
@@ -537,13 +530,6 @@ impl SubHeader {
 impl FixedSize for SubHeader {
     const RAW_BYTE_LEN: usize =
         u16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN + i16::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for SubHeader {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for SubHeader {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1038,7 +1024,7 @@ impl<'a> std::fmt::Debug for Cmap8<'a> {
 }
 
 /// Used in [Cmap8] and [Cmap12]
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SequentialMapGroup {
@@ -1077,13 +1063,6 @@ impl SequentialMapGroup {
 
 impl FixedSize for SequentialMapGroup {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for SequentialMapGroup {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for SequentialMapGroup {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1468,7 +1447,7 @@ impl<'a> std::fmt::Debug for Cmap13<'a> {
 }
 
 /// Part of [Cmap13]
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ConstantMapGroup {
@@ -1501,13 +1480,6 @@ impl ConstantMapGroup {
 
 impl FixedSize for ConstantMapGroup {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for ConstantMapGroup {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for ConstantMapGroup {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1634,7 +1606,7 @@ impl<'a> std::fmt::Debug for Cmap14<'a> {
 }
 
 /// Part of [Cmap14]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct VariationSelector {
@@ -1691,13 +1663,6 @@ impl VariationSelector {
 impl FixedSize for VariationSelector {
     const RAW_BYTE_LEN: usize =
         Uint24::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for VariationSelector {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for VariationSelector {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1872,7 +1837,7 @@ impl<'a> std::fmt::Debug for NonDefaultUvs<'a> {
 }
 
 /// Part of [Cmap14]
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct UvsMapping {
@@ -1898,13 +1863,6 @@ impl FixedSize for UvsMapping {
     const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
 }
 
-impl sealed::Sealed for UvsMapping {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for UvsMapping {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
-}
-
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for UvsMapping {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -1921,7 +1879,7 @@ impl<'a> SomeRecord<'a> for UvsMapping {
 }
 
 /// Part of [Cmap14]
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct UnicodeRange {
@@ -1945,13 +1903,6 @@ impl UnicodeRange {
 
 impl FixedSize for UnicodeRange {
     const RAW_BYTE_LEN: usize = Uint24::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for UnicodeRange {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for UnicodeRange {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

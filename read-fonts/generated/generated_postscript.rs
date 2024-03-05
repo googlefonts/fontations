@@ -428,7 +428,7 @@ impl<'a> std::fmt::Debug for FdSelectFormat3<'a> {
 }
 
 /// Range struct for FdSelect format 3.
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FdSelectRange3 {
@@ -452,13 +452,6 @@ impl FdSelectRange3 {
 
 impl FixedSize for FdSelectRange3 {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u8::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for FdSelectRange3 {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for FdSelectRange3 {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -578,7 +571,7 @@ impl<'a> std::fmt::Debug for FdSelectFormat4<'a> {
 }
 
 /// Range struct for FdSelect format 4.
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FdSelectRange4 {
@@ -602,13 +595,6 @@ impl FdSelectRange4 {
 
 impl FixedSize for FdSelectRange4 {
     const RAW_BYTE_LEN: usize = u32::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for FdSelectRange4 {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for FdSelectRange4 {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

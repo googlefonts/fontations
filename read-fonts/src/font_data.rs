@@ -2,10 +2,11 @@
 
 use std::ops::{Range, RangeBounds};
 
+use bytemuck::AnyBitPattern;
 use types::{BigEndian, FixedSize, Scalar};
 
 use crate::array::ComputedArray;
-use crate::read::{ComputeSize, FontReadWithArgs, FromBytes, ReadError};
+use crate::read::{ComputeSize, FontReadWithArgs, ReadError};
 use crate::table_ref::TableRef;
 use crate::FontRead;
 
@@ -115,33 +116,14 @@ impl<'a> FontData<'a> {
     /// other than one, or has any internal padding.
     ///
     /// [`read_ref_unchecked`]: [Self::read_ref_unchecked]
-    pub fn read_ref_at<T: FromBytes>(&self, offset: usize) -> Result<&'a T, ReadError> {
-        assert_ne!(std::mem::size_of::<T>(), 0);
-        // assert we have no padding.
-        // `T::RAW_BYTE_LEN` is computed by recursively taking the raw length of
-        // any fields of `T`; if `size_of::<T>() == T::RAW_BYTE_LEN`` we know that
-        // `T` contains no padding.
-        assert_eq!(std::mem::size_of::<T>(), T::RAW_BYTE_LEN);
-        assert_eq!(std::mem::align_of::<T>(), 1);
+    pub fn read_ref_at<T: AnyBitPattern + FixedSize>(
+        &self,
+        offset: usize,
+    ) -> Result<&'a T, ReadError> {
         self.bytes
             .get(offset..offset + T::RAW_BYTE_LEN)
-            .ok_or(ReadError::OutOfBounds)?;
-
-        // SAFETY: if we have reached this point without hitting an assert or
-        // returning an error, our invariants are met.
-        unsafe { Ok(self.read_ref_unchecked(offset)) }
-    }
-
-    /// Interpret the bytes at `offset` as a reference to some type `T`.
-    ///
-    /// # Safety
-    ///
-    /// `T` must be a struct or scalar that has alignment of 1, a non-zero size,
-    /// and no internal padding, and offset must point to a slice of bytes that
-    /// has length >= `size_of::<T>()`.
-    unsafe fn read_ref_unchecked<T: FromBytes>(&self, offset: usize) -> &'a T {
-        let bytes = self.bytes.get_unchecked(offset..offset + T::RAW_BYTE_LEN);
-        &*(bytes.as_ptr() as *const T)
+            .ok_or(ReadError::OutOfBounds)
+            .map(bytemuck::from_bytes)
     }
 
     /// Interpret the bytes at the provided offset as a slice of `T`.
@@ -158,14 +140,10 @@ impl<'a> FontData<'a> {
     /// other than one, or has any internal padding.
     ///
     /// [`read_array_unchecked`]: [Self::read_array_unchecked]
-    pub fn read_array<T: FromBytes>(&self, range: Range<usize>) -> Result<&'a [T], ReadError> {
-        assert_ne!(std::mem::size_of::<T>(), 0);
-        // assert we have no padding.
-        // `T::RAW_BYTE_LEN` is computed by recursively taking the raw length of
-        // any fields of `T`; if `size_of::<T>() == T::RAW_BYTE_LEN`` we know that
-        // `T` contains no padding.
-        assert_eq!(std::mem::size_of::<T>(), T::RAW_BYTE_LEN);
-        assert_eq!(std::mem::align_of::<T>(), 1);
+    pub fn read_array<T: AnyBitPattern + FixedSize>(
+        &self,
+        range: Range<usize>,
+    ) -> Result<&'a [T], ReadError> {
         let bytes = self
             .bytes
             .get(range.clone())
@@ -173,22 +151,7 @@ impl<'a> FontData<'a> {
         if bytes.len() % std::mem::size_of::<T>() != 0 {
             return Err(ReadError::InvalidArrayLen);
         };
-        // SAFETY: if we have reached this point without hitting an assert or
-        // returning an error, our invariants are met.
-        unsafe { Ok(self.read_array_unchecked(range)) }
-    }
-
-    /// Interpret the bytes at `offset` as a reference to some type `T`.
-    ///
-    /// # Safety
-    ///
-    /// `T` must be a struct or scalar that has alignment of 1, a non-zero size,
-    /// and no internal padding, and `range` must have a length that is non-zero
-    /// and is a multiple of `size_of::<T>()`.
-    unsafe fn read_array_unchecked<T: FromBytes>(&self, range: Range<usize>) -> &'a [T] {
-        let bytes = self.bytes.get_unchecked(range);
-        let elems = bytes.len() / std::mem::size_of::<T>();
-        std::slice::from_raw_parts(bytes.as_ptr() as *const _, elems)
+        Ok(bytemuck::cast_slice(bytes))
     }
 
     pub(crate) fn cursor(&self) -> Cursor<'a> {
@@ -252,7 +215,10 @@ impl<'a> Cursor<'a> {
         temp
     }
 
-    pub(crate) fn read_array<T: FromBytes>(&mut self, n_elem: usize) -> Result<&'a [T], ReadError> {
+    pub(crate) fn read_array<T: AnyBitPattern + FixedSize>(
+        &mut self,
+        n_elem: usize,
+    ) -> Result<&'a [T], ReadError> {
         let len = n_elem * T::RAW_BYTE_LEN;
         let temp = self.data.read_array(self.pos..self.pos + len);
         self.pos += len;

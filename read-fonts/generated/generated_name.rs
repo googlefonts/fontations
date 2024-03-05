@@ -167,7 +167,7 @@ impl<'a> std::fmt::Debug for Name<'a> {
 }
 
 /// Part of [Name]
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct LangTagRecord {
@@ -195,13 +195,6 @@ impl FixedSize for LangTagRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
 }
 
-impl sealed::Sealed for LangTagRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for LangTagRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
-}
-
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for LangTagRecord {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -218,7 +211,7 @@ impl<'a> SomeRecord<'a> for LangTagRecord {
 }
 
 ///[Name Records](https://docs.microsoft.com/en-us/typography/opentype/spec/name#name-records)
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct NameRecord {
@@ -275,13 +268,6 @@ impl FixedSize for NameRecord {
         + NameId::RAW_BYTE_LEN
         + u16::RAW_BYTE_LEN
         + Offset16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for NameRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for NameRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

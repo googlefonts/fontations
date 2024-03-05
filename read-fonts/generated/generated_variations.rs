@@ -451,8 +451,9 @@ impl<'a> SomeTable<'a> for DeltaSetIndexMap<'a> {
 }
 
 /// Entry format for a [DeltaSetIndexMap].
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
 pub struct EntryFormat {
     bits: u8,
 }
@@ -920,7 +921,7 @@ impl<'a> SomeRecord<'a> for VariationRegion<'a> {
 }
 
 /// The [RegionAxisCoordinates](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct RegionAxisCoordinates {
@@ -952,13 +953,6 @@ impl RegionAxisCoordinates {
 impl FixedSize for RegionAxisCoordinates {
     const RAW_BYTE_LEN: usize =
         F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for RegionAxisCoordinates {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for RegionAxisCoordinates {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
