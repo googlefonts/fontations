@@ -12,7 +12,7 @@ impl<'a> Cvt<'a> {
     pub fn get(&self, index: usize) -> Result<F26Dot6, HintErrorKind> {
         self.0
             .get(index)
-            .map(|value| F26Dot6::from_bits(value))
+            .map(F26Dot6::from_bits)
             .ok_or(HintErrorKind::InvalidCvtIndex(index))
     }
 
