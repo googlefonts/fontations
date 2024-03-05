@@ -428,7 +428,7 @@ impl<'a> std::fmt::Debug for FdSelectFormat3<'a> {
 }
 
 /// Range struct for FdSelect format 3.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FdSelectRange3 {
@@ -578,7 +578,7 @@ impl<'a> std::fmt::Debug for FdSelectFormat4<'a> {
 }
 
 /// Range struct for FdSelect format 4.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FdSelectRange4 {
