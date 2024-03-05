@@ -2,7 +2,7 @@
 
 use read_fonts::{
     tables::glyf::{PointFlags, PointMarker},
-    types::Point,
+    types::{F26Dot6, Point},
 };
 
 use super::{
@@ -53,9 +53,9 @@ pub struct Zone<'a> {
     /// Outline points prior to applying scale.
     pub unscaled: &'a mut [Point<i32>],
     /// Copy of the outline points after applying scale.
-    pub original: &'a mut [Point<i32>],
+    pub original: &'a mut [Point<F26Dot6>],
     /// Scaled outline points.
-    pub points: &'a mut [Point<i32>],
+    pub points: &'a mut [Point<F26Dot6>],
     pub flags: &'a mut [PointFlags],
     pub contours: &'a [u16],
 }
@@ -64,8 +64,8 @@ impl<'a> Zone<'a> {
     /// Creates a new hinting zone.
     pub fn new(
         unscaled: &'a mut [Point<i32>],
-        original: &'a mut [Point<i32>],
-        points: &'a mut [Point<i32>],
+        original: &'a mut [Point<F26Dot6>],
+        points: &'a mut [Point<F26Dot6>],
         flags: &'a mut [PointFlags],
         contours: &'a [u16],
     ) -> Self {
@@ -79,35 +79,30 @@ impl<'a> Zone<'a> {
     }
 
     pub fn clear(&mut self) {
-        for p in self
-            .unscaled
-            .iter_mut()
-            .chain(self.original.iter_mut())
-            .chain(self.points.iter_mut())
-        {
-            *p = Point::default();
-        }
+        self.unscaled.fill(Default::default());
+        self.original.fill(Default::default());
+        self.points.fill(Default::default());
     }
 
-    pub fn point(&self, index: usize) -> Result<Point<i32>, HintErrorKind> {
+    pub fn point(&self, index: usize) -> Result<Point<F26Dot6>, HintErrorKind> {
         self.points
             .get(index)
             .copied()
             .ok_or(InvalidPointIndex(index))
     }
 
-    pub fn point_mut(&mut self, index: usize) -> Result<&mut Point<i32>, HintErrorKind> {
+    pub fn point_mut(&mut self, index: usize) -> Result<&mut Point<F26Dot6>, HintErrorKind> {
         self.points.get_mut(index).ok_or(InvalidPointIndex(index))
     }
 
-    pub fn original(&self, index: usize) -> Result<Point<i32>, HintErrorKind> {
+    pub fn original(&self, index: usize) -> Result<Point<F26Dot6>, HintErrorKind> {
         self.original
             .get(index)
             .copied()
             .ok_or(InvalidPointIndex(index))
     }
 
-    pub fn original_mut(&mut self, index: usize) -> Result<&mut Point<i32>, HintErrorKind> {
+    pub fn original_mut(&mut self, index: usize) -> Result<&mut Point<F26Dot6>, HintErrorKind> {
         self.original.get_mut(index).ok_or(InvalidPointIndex(index))
     }
 
@@ -237,7 +232,7 @@ impl<'a> Zone<'a> {
         macro_rules! shift_coord {
             ($coord:ident) => {
                 let delta = self.point(p)?.$coord - self.original(p)?.$coord;
-                if delta != 0 {
+                if delta != F26Dot6::ZERO {
                     let (first, second) = self
                         .points
                         .get_mut(p1..=p2)
@@ -321,7 +316,7 @@ impl<'a> Zone<'a> {
                         };
                     }
                 } else {
-                    let scale = math::div(cur2 - cur1, orus2 - orus1);
+                    let scale = math::div((cur2 - cur1).to_bits(), orus2 - orus1);
                     for ((orig, unscaled), point) in iter {
                         let a = orig.$coord;
                         point.$coord = if a <= org1 {
@@ -329,7 +324,7 @@ impl<'a> Zone<'a> {
                         } else if a >= org2 {
                             a + delta2
                         } else {
-                            cur1 + math::mul(unscaled.$coord - orus1, scale)
+                            cur1 + F26Dot6::from_bits(math::mul(unscaled.$coord - orus1, scale))
                         };
                     }
                 }
@@ -399,7 +394,7 @@ impl GraphicsState<'_> {
         &mut self,
         zone: ZonePointer,
         point_ix: usize,
-        distance: i32,
+        distance: F26Dot6,
     ) -> Result<(), HintErrorKind> {
         let fv = self.freedom_vector;
         let fdotp = self.fdotp;
@@ -409,11 +404,12 @@ impl GraphicsState<'_> {
             CoordAxis::X => point.x += distance,
             CoordAxis::Y => point.y += distance,
             CoordAxis::Both => {
+                let distance = distance.to_bits();
                 if fv.x != 0 {
-                    point.x += math::mul_div(distance, fv.x, fdotp);
+                    point.x += F26Dot6::from_bits(math::mul_div(distance, fv.x, fdotp));
                 }
                 if fv.y != 0 {
-                    point.y += math::mul_div(distance, fv.y, fdotp);
+                    point.y += F26Dot6::from_bits(math::mul_div(distance, fv.y, fdotp));
                 }
             }
         }
@@ -426,7 +422,7 @@ impl GraphicsState<'_> {
         &mut self,
         zone: ZonePointer,
         point_ix: usize,
-        distance: i32,
+        distance: F26Dot6,
     ) -> Result<(), HintErrorKind> {
         // Note: we never adjust x in backward compatibility mode and we never
         // adjust y in backward compability mode after IUP has been done in
@@ -456,15 +452,17 @@ impl GraphicsState<'_> {
             CoordAxis::Both => {
                 // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L1669>
                 let fv = self.freedom_vector;
+                let distance = distance.to_bits();
                 if fv.x != 0 {
                     if !back_compat {
-                        point.x += math::mul_div(distance, fv.x, self.fdotp);
+                        point.x += F26Dot6::from_bits(math::mul_div(distance, fv.x, self.fdotp));
                     }
                     zone.touch(point_ix, CoordAxis::X)?;
                 }
                 if fv.y != 0 {
                     if !back_compat_and_did_iup {
-                        zone.point_mut(point_ix)?.y += math::mul_div(distance, fv.y, self.fdotp);
+                        zone.point_mut(point_ix)?.y +=
+                            F26Dot6::from_bits(math::mul_div(distance, fv.y, self.fdotp));
                     }
                     zone.touch(point_ix, CoordAxis::Y)?;
                 }
@@ -482,8 +480,8 @@ impl GraphicsState<'_> {
     pub(crate) fn move_zp2_point(
         &mut self,
         point_ix: usize,
-        dx: i32,
-        dy: i32,
+        dx: F26Dot6,
+        dy: F26Dot6,
         do_touch: bool,
     ) -> Result<(), HintErrorKind> {
         // See notes above in move_point() about how this is used.
@@ -526,8 +524,8 @@ impl GraphicsState<'_> {
         let original_point = zone_data.original(point_ix)?;
         let distance = self.project(point, original_point);
         let fv = self.freedom_vector;
-        let dx = math::mul_div(distance, fv.x, self.fdotp);
-        let dy = math::mul_div(distance, fv.y, self.fdotp);
+        let dx = F26Dot6::from_bits(math::mul_div(distance.to_bits(), fv.x, self.fdotp));
+        let dy = F26Dot6::from_bits(math::mul_div(distance.to_bits(), fv.y, self.fdotp));
         Ok(PointDisplacement {
             zone,
             point_ix,
@@ -540,8 +538,8 @@ impl GraphicsState<'_> {
 pub(crate) struct PointDisplacement {
     pub zone: ZonePointer,
     pub point_ix: usize,
-    pub dx: i32,
-    pub dy: i32,
+    pub dx: F26Dot6,
+    pub dy: F26Dot6,
 }
 
 impl CoordAxis {
@@ -559,7 +557,7 @@ mod tests {
     use super::{CoordAxis, Zone};
     use raw::{
         tables::glyf::{PointFlags, PointMarker},
-        types::Point,
+        types::{F26Dot6, Point},
     };
 
     #[test]
@@ -599,49 +597,47 @@ mod tests {
     fn iup_shift() {
         let [untouched, touched] = point_markers();
         // A single touched point shifts the whole contour
+        let mut original = f26dot6_points([(0, 0), (10, 10), (20, 20)]);
+        let mut points = f26dot6_points([(-5, -20), (10, 10), (20, 20)]);
         let mut zone = Zone {
             unscaled: &mut [],
-            original: &mut [Point::new(0, 0), Point::new(10, 10), Point::new(20, 20)],
-            points: &mut [Point::new(-5, -20), Point::new(10, 10), Point::new(20, 20)],
+            original: &mut original,
+            points: &mut points,
             contours: &[3],
             flags: &mut [touched, untouched, untouched],
         };
         zone.iup(CoordAxis::X).unwrap();
-        assert_eq!(
-            zone.points,
-            &[Point::new(-5, -20), Point::new(5, 10), Point::new(15, 20)]
-        );
+        assert_eq!(zone.points, &f26dot6_points([(-5, -20), (5, 10), (15, 20)]),);
         zone.iup(CoordAxis::Y).unwrap();
-        assert_eq!(
-            zone.points,
-            &[Point::new(-5, -20), Point::new(5, -10), Point::new(15, 0)]
-        );
+        assert_eq!(zone.points, &f26dot6_points([(-5, -20), (5, -10), (15, 0)]),);
     }
 
     #[test]
     fn iup_interpolate() {
         let [untouched, touched] = point_markers();
         // Two touched points interpolates the intermediate point(s)
+        let mut original = f26dot6_points([(0, 0), (10, 10), (20, 20)]);
+        let mut points = f26dot6_points([(-5, -20), (10, 10), (27, 56)]);
         let mut zone = Zone {
             unscaled: &mut [
                 Point::new(0, 0),
                 Point::new(500, 500),
                 Point::new(1000, 1000),
             ],
-            original: &mut [Point::new(0, 0), Point::new(10, 10), Point::new(20, 20)],
-            points: &mut [Point::new(-5, -20), Point::new(10, 10), Point::new(27, 56)],
+            original: &mut original,
+            points: &mut points,
             contours: &[3],
             flags: &mut [touched, untouched, touched],
         };
         zone.iup(CoordAxis::X).unwrap();
         assert_eq!(
             zone.points,
-            &[Point::new(-5, -20), Point::new(11, 10), Point::new(27, 56)]
+            &f26dot6_points([(-5, -20), (11, 10), (27, 56)]),
         );
         zone.iup(CoordAxis::Y).unwrap();
         assert_eq!(
             zone.points,
-            &[Point::new(-5, -20), Point::new(11, 18), Point::new(27, 56)]
+            &f26dot6_points([(-5, -20), (11, 18), (27, 56)]),
         );
     }
 
@@ -650,5 +646,9 @@ mod tests {
         let mut touched = untouched;
         touched.set_marker(PointMarker::TOUCHED);
         [untouched, touched]
+    }
+
+    fn f26dot6_points<const N: usize>(points: [(i32, i32); N]) -> [Point<F26Dot6>; N] {
+        points.map(|point| Point::new(F26Dot6::from_bits(point.0), F26Dot6::from_bits(point.1)))
     }
 }

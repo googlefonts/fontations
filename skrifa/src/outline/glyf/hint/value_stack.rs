@@ -1,5 +1,6 @@
 //! Value stack for TrueType interpreter.
 //!
+use raw::types::F26Dot6;
 use read_fonts::tables::glyf::bytecode::InlineOperands;
 
 use super::error::HintErrorKind;
@@ -85,6 +86,11 @@ impl<'a> ValueStack<'a> {
         let value = self.peek().ok_or(ValueStackUnderflow)?;
         self.top -= 1;
         Ok(value)
+    }
+
+    /// Convenience method for instructions that expect values in 26.6 format.
+    pub fn pop_f26dot6(&mut self) -> Result<F26Dot6, HintErrorKind> {
+        Ok(F26Dot6::from_bits(self.pop()?))
     }
 
     /// Convenience method for instructions that pop values that are used as an
