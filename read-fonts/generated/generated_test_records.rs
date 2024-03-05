@@ -125,7 +125,7 @@ impl<'a> std::fmt::Debug for BasicTable<'a> {
     }
 }
 
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SimpleRecord {
@@ -145,13 +145,6 @@ impl SimpleRecord {
 
 impl FixedSize for SimpleRecord {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + u32::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for SimpleRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for SimpleRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -240,7 +233,7 @@ impl<'a> SomeRecord<'a> for ContainsArrays<'a> {
     }
 }
 
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ContainsOffests {
@@ -280,13 +273,6 @@ impl ContainsOffests {
 
 impl FixedSize for ContainsOffests {
     const RAW_BYTE_LEN: usize = u16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset32::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for ContainsOffests {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for ContainsOffests {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

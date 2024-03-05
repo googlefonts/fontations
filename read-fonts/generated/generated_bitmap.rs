@@ -6,7 +6,7 @@
 use crate::codegen_prelude::*;
 
 /// [BitmapSize](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#bitmapsize-record) record.
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct BitmapSize {
@@ -115,13 +115,6 @@ impl FixedSize for BitmapSize {
         + BitmapFlags::RAW_BYTE_LEN;
 }
 
-impl sealed::Sealed for BitmapSize {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for BitmapSize {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
-}
-
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for BitmapSize {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -154,7 +147,7 @@ impl<'a> SomeRecord<'a> for BitmapSize {
 }
 
 /// [SbitLineMetrics](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#sbitlinemetrics-record) record.
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SbitLineMetrics {
@@ -237,13 +230,6 @@ impl FixedSize for SbitLineMetrics {
         + i8::RAW_BYTE_LEN;
 }
 
-impl sealed::Sealed for SbitLineMetrics {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for SbitLineMetrics {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
-}
-
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for SbitLineMetrics {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -276,8 +262,9 @@ impl<'a> SomeRecord<'a> for SbitLineMetrics {
 }
 
 /// [Bitmap flags](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#bitmap-flags).
-#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
 pub struct BitmapFlags {
     bits: u8,
 }
@@ -583,7 +570,7 @@ impl<'a> From<BitmapFlags> for FieldType<'a> {
 }
 
 /// [BigGlyphMetrics](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#bigglyphmetrics) record.
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct BigGlyphMetrics {
@@ -658,13 +645,6 @@ impl FixedSize for BigGlyphMetrics {
         + u8::RAW_BYTE_LEN;
 }
 
-impl sealed::Sealed for BigGlyphMetrics {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for BigGlyphMetrics {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
-}
-
 #[cfg(feature = "traversal")]
 impl<'a> SomeRecord<'a> for BigGlyphMetrics {
     fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
@@ -687,7 +667,7 @@ impl<'a> SomeRecord<'a> for BigGlyphMetrics {
 }
 
 /// [SmallGlyphMetrics](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#smallglyphmetrics) record.
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SmallGlyphMetrics {
@@ -736,13 +716,6 @@ impl FixedSize for SmallGlyphMetrics {
         + i8::RAW_BYTE_LEN
         + i8::RAW_BYTE_LEN
         + u8::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for SmallGlyphMetrics {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for SmallGlyphMetrics {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1354,7 +1327,7 @@ impl<'a> std::fmt::Debug for IndexSubtable4<'a> {
 }
 
 /// [GlyphIdOffsetPair](https://learn.microsoft.com/en-us/typography/opentype/spec/eblc#glyphidoffsetpair-record) record.
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct GlyphIdOffsetPair {
@@ -1378,13 +1351,6 @@ impl GlyphIdOffsetPair {
 
 impl FixedSize for GlyphIdOffsetPair {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + u16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for GlyphIdOffsetPair {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for GlyphIdOffsetPair {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -1545,7 +1511,7 @@ impl<'a> std::fmt::Debug for IndexSubtable5<'a> {
 }
 
 /// [EbdtComponent](https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt#ebdtcomponent-record) record.
-#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct BdtComponent {
@@ -1576,13 +1542,6 @@ impl BdtComponent {
 
 impl FixedSize for BdtComponent {
     const RAW_BYTE_LEN: usize = GlyphId::RAW_BYTE_LEN + i8::RAW_BYTE_LEN + i8::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for BdtComponent {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for BdtComponent {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
