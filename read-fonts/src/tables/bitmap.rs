@@ -44,7 +44,7 @@ impl BitmapSize {
                     let data_size = st.image_size() as usize;
                     location.data_size = Some(data_size);
                     location.data_offset = st.image_data_offset() as usize + glyph_ix * data_size;
-                    location.metrics = Some(st.big_metrics()[0].clone());
+                    location.metrics = Some(st.big_metrics()[0]);
                 }
                 IndexSubtable::Format3(st) => {
                     location.format = st.image_format();
@@ -80,7 +80,7 @@ impl BitmapSize {
                     let data_size = st.image_size() as usize;
                     location.data_size = Some(data_size);
                     location.data_offset = st.image_data_offset() as usize + glyph_ix * data_size;
-                    location.metrics = Some(st.big_metrics()[0].clone());
+                    location.metrics = Some(st.big_metrics()[0]);
                 }
             }
             return Ok(location);
@@ -205,7 +205,7 @@ pub(crate) fn bitmap_data<'a>(
         // Metrics in EBLC/CBLC, bit-aligned image data only
         // <https://learn.microsoft.com/en-us/typography/opentype/spec/ebdt#format-5-metrics-in-eblc-bit-aligned-image-data-only>
         5 => {
-            let metrics = location.metrics.clone().ok_or(ReadError::MalformedData(
+            let metrics = location.metrics.ok_or(ReadError::MalformedData(
                 "expected metrics from location table",
             ))?;
             let width = metrics.width as usize * location.bit_depth as usize;
@@ -291,7 +291,7 @@ pub(crate) fn bitmap_data<'a>(
         // Metrics in CBLC table, PNG image data
         // <https://learn.microsoft.com/en-us/typography/opentype/spec/cbdt#format-19-metrics-in-cblc-table-png-image-data>
         19 if is_color => {
-            let metrics = location.metrics.clone().ok_or(ReadError::MalformedData(
+            let metrics = location.metrics.ok_or(ReadError::MalformedData(
                 "expected metrics from location table",
             ))?;
             let data_len = image_data.read::<u32>()? as usize;
@@ -306,11 +306,11 @@ pub(crate) fn bitmap_data<'a>(
 }
 
 fn read_small_metrics(cursor: &mut Cursor) -> Result<SmallGlyphMetrics, ReadError> {
-    Ok(cursor.read_array::<SmallGlyphMetrics>(1)?[0].clone())
+    Ok(cursor.read_array::<SmallGlyphMetrics>(1)?[0])
 }
 
 fn read_big_metrics(cursor: &mut Cursor) -> Result<BigGlyphMetrics, ReadError> {
-    Ok(cursor.read_array::<BigGlyphMetrics>(1)?[0].clone())
+    Ok(cursor.read_array::<BigGlyphMetrics>(1)?[0])
 }
 
 #[cfg(feature = "traversal")]

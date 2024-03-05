@@ -111,8 +111,8 @@ impl<'a> AxisCollection<'a> {
 
     /// Returns the axis at the given index.
     pub fn get(&self, index: usize) -> Option<Axis> {
-        let raw = self.fvar.as_ref()?.axes().ok()?.get(index)?.clone();
-        Some(Axis { index, record: raw })
+        let record = *self.fvar.as_ref()?.axes().ok()?.get(index)?;
+        Some(Axis { index, record })
     }
 
     /// Returns the axis with the given tag.
