@@ -5,11 +5,13 @@ mod control_flow;
 mod cvt;
 mod data;
 mod definition;
+mod delta;
 mod dispatch;
 mod graphics_state;
 mod logical;
 mod misc;
 mod outline;
+mod round;
 mod stack;
 mod storage;
 
