@@ -1,5 +1,8 @@
 //! test data shared between various fontations crates.
 
+pub mod colrv1_json {
+    include!(concat!(env!("OUT_DIR"), "/colrv1_json.rs"));
+}
 pub mod gdef;
 pub mod gpos;
 pub mod gsub;
