@@ -4,9 +4,8 @@ mod projection;
 mod round;
 mod zone;
 
-use super::HintingMode;
+use super::{F26Dot6, HintingMode, Point};
 use core::ops::{Deref, DerefMut};
-use read_fonts::types::Point;
 
 pub use {
     round::{RoundMode, RoundState},
@@ -172,7 +171,7 @@ pub struct RetainedGraphicsState {
     /// taken from the original outline is sufficiently small.
     ///
     /// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM04/Chap4.html#control_value_cut-in>
-    pub control_value_cutin: i32,
+    pub control_value_cutin: F26Dot6,
     /// Establishes the base value used to calculate the range of point sizes
     /// to which a given DELTAC[] or DELTAP[] instruction will apply.
     ///
@@ -192,7 +191,7 @@ pub struct RetainedGraphicsState {
     /// rounded.
     ///
     /// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM04/Chap4.html#minimum%20distance>
-    pub min_distance: i32,
+    pub min_distance: F26Dot6,
     /// Determines whether the interpreter will activate dropout control for
     /// the current glyph.
     ///
@@ -204,13 +203,13 @@ pub struct RetainedGraphicsState {
     /// CVT distance or an actual distance in favor of the single width value.
     ///
     /// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM04/Chap4.html#single_width_cut_in>
-    pub single_width_cutin: i32,
+    pub single_width_cutin: F26Dot6,
     /// The value used in place of the control value table distance or the
     /// actual distance value when the difference between that distance and
     /// the single width value is less than the single width cut-in.
     ///
     /// See <https://developer.apple.com/fonts/TrueType-Reference-Manual/RM04/Chap4.html#single_width_value>
-    pub single_width: i32,
+    pub single_width: F26Dot6,
     /// The user requested hinting mode.
     pub mode: HintingMode,
     /// The scale factor for the current instance. Conversion from font units
@@ -231,16 +230,16 @@ impl Default for RetainedGraphicsState {
             auto_flip: true,
             // 17/16 pixels in 26.6
             // (17 * 64 / 16) = 68
-            control_value_cutin: 68,
+            control_value_cutin: F26Dot6::from_bits(68),
             delta_base: 9,
             delta_shift: 3,
             instruct_control: 0,
             // 1 pixel in 26.6
-            min_distance: 64,
+            min_distance: F26Dot6::from_bits(64),
             scan_control: false,
             scan_type: 0,
-            single_width_cutin: 0,
-            single_width: 0,
+            single_width_cutin: F26Dot6::ZERO,
+            single_width: F26Dot6::ZERO,
             mode: Default::default(),
             scale: 0,
             ppem: 0,

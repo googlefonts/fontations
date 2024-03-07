@@ -63,7 +63,7 @@ impl<'a> Engine<'a> {
             GPV => self.op_gpv()?,
             GFV => self.op_gfv()?,
             SFVTPV => self.op_sfvtpv()?,
-            // ISECT => {}
+            ISECT => self.op_isect()?,
             SRP0 => self.op_srp0()?,
             SRP1 => self.op_srp1()?,
             SRP2 => self.op_srp2()?,
@@ -86,7 +86,7 @@ impl<'a> Engine<'a> {
             DEPTH => self.op_depth()?,
             CINDEX => self.op_cindex()?,
             MINDEX => self.op_mindex()?,
-            // ALIGNPTS => {}
+            ALIGNPTS => self.op_alignpts()?,
             // ? 0x28
             UTP => self.op_utp()?,
             LOOPCALL => self.op_loopcall()?,
@@ -94,15 +94,15 @@ impl<'a> Engine<'a> {
             FDEF => self.op_fdef()?,
             ENDF => self.op_endf()?,
             MDAP0 | MDAP1 => self.op_mdap(raw_opcode)?,
-            // IUP0 | IUP1 => {}
+            IUP0 | IUP1 => self.op_iup(raw_opcode)?,
             SHP0 | SHP1 => self.op_shp(raw_opcode)?,
             SHC0 | SHC1 => self.op_shc(raw_opcode)?,
             SHZ0 | SHZ1 => self.op_shz(raw_opcode)?,
             SHPIX => self.op_shpix()?,
-            // IP => {}
+            IP => self.op_ip()?,
             MSIRP0 | MSIRP1 => self.op_msirp(raw_opcode)?,
             MIAP0 | MIAP1 => self.op_miap(raw_opcode)?,
-            // ALIGNRP => {}
+            ALIGNRP => self.op_alignrp()?,
             NPUSHB | NPUSHW => self.op_push(&ins.inline_operands)?,
             WS => self.op_ws()?,
             RS => self.op_rs()?,
@@ -115,7 +115,10 @@ impl<'a> Engine<'a> {
             MPS => self.op_mps()?,
             FLIPON => self.op_flipon()?,
             FLIPOFF => self.op_flipoff()?,
-            // DEBUG => {}
+            // Unused but pops a value from the stack.
+            DEBUG => {
+                self.value_stack.pop()?;
+            }
             LT => self.op_lt()?,
             LTEQ => self.op_lteq()?,
             GT => self.op_gt()?,
@@ -175,12 +178,11 @@ impl<'a> Engine<'a> {
             _ => {
                 // FreeType handles MIRP, MDRP and pushes here.
                 // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L7629>
-                // if opcode >= MIRP00000 {
-                //     self.op_mirp(raw_opcode)?
-                // } else if opcode >= MDRP00000 {
-                //     self.op_mdrp(raw_opcode)?
-                // } else
-                if opcode >= PUSHB000 {
+                if opcode >= MIRP00000 {
+                    self.op_mirp(raw_opcode)?
+                } else if opcode >= MDRP00000 {
+                    self.op_mdrp(raw_opcode)?
+                } else if opcode >= PUSHB000 {
                     self.op_push(&ins.inline_operands)?;
                 } else {
                     return self.op_unknown(opcode as u8);
