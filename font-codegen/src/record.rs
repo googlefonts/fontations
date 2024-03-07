@@ -36,6 +36,7 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
             #[repr(packed)]
         }
     });
+    let maybe_copy = is_zerocopy.then(|| quote!(Copy,));
 
     let maybe_impl_fixed_size = is_zerocopy.then(|| {
         let inner_types = item.fields.iter().map(|fld| fld.typ.cooked_type_tokens());
@@ -52,20 +53,12 @@ pub(crate) fn generate(item: &Record, all_items: &Items) -> syn::Result<TokenStr
         }
     });
     let maybe_impl_read_with_args = (has_read_args).then(|| generate_read_with_args(item));
-    let mut maybe_extra_traits = item
+    let maybe_extra_traits = item
         .gets_extra_traits(all_items)
         .then(|| quote!(PartialEq, Eq, PartialOrd, Ord, Hash));
-    // Just make all records Copy?
-    // <https://github.com/googlefonts/fontations/issues/659>
-    if item.name == "SbitLineMetrics" {
-        use quote::TokenStreamExt;
-        let mut copy_trait = quote!(Copy,);
-        copy_trait.append_all(maybe_extra_traits.unwrap_or_default());
-        maybe_extra_traits = Some(copy_trait);
-    }
     Ok(quote! {
     #( #docs )*
-    #[derive(Clone, Debug, #maybe_extra_traits)]
+    #[derive(Clone, Debug, #maybe_copy #maybe_extra_traits)]
     #repr_packed
     pub struct #name #lifetime {
         #( #field_docs pub #field_names: #field_types, )*

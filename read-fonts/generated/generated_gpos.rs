@@ -1037,7 +1037,7 @@ impl<'a> std::fmt::Debug for MarkArray<'a> {
 }
 
 /// Part of [MarkArray]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 #[repr(C)]
 #[repr(packed)]
 pub struct MarkRecord {
@@ -2331,7 +2331,7 @@ impl<'a> std::fmt::Debug for CursivePosFormat1<'a> {
 }
 
 /// Part of [CursivePosFormat1]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 #[repr(C)]
 #[repr(packed)]
 pub struct EntryExitRecord {

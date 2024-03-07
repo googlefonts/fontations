@@ -25,7 +25,7 @@ impl<'a> SegmentMaps<'a> {
                 }
                 _ => {}
             }
-            prev = axis_value_map.clone();
+            prev = *axis_value_map;
         }
         coord
     }

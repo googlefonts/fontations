@@ -920,7 +920,7 @@ impl<'a> SomeRecord<'a> for VariationRegion<'a> {
 }
 
 /// The [RegionAxisCoordinates](https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#variation-regions) record
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct RegionAxisCoordinates {

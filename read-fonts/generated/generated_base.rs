@@ -368,7 +368,7 @@ impl<'a> std::fmt::Debug for BaseScriptList<'a> {
 }
 
 /// [BaseScriptRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescriptrecord)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 #[repr(C)]
 #[repr(packed)]
 pub struct BaseScriptRecord {
@@ -550,7 +550,7 @@ impl<'a> std::fmt::Debug for BaseScript<'a> {
 }
 
 /// [BaseLangSysRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#baselangsysrecord)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 #[repr(C)]
 #[repr(packed)]
 pub struct BaseLangSysRecord {
@@ -839,7 +839,7 @@ impl<'a> std::fmt::Debug for MinMax<'a> {
 }
 
 /// [FeatMinMaxRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#baselangsysrecord)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FeatMinMaxRecord {

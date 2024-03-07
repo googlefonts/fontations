@@ -81,7 +81,7 @@ impl<'a> std::fmt::Debug for ScriptList<'a> {
 }
 
 /// [Script Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#script-list-table-and-script-record)
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ScriptRecord {
@@ -238,7 +238,7 @@ impl<'a> std::fmt::Debug for Script<'a> {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 #[repr(C)]
 #[repr(packed)]
 pub struct LangSysRecord {
@@ -467,7 +467,7 @@ impl<'a> std::fmt::Debug for FeatureList<'a> {
 }
 
 /// Part of [FeatureList]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FeatureRecord {
@@ -1119,7 +1119,7 @@ impl<'a> std::fmt::Debug for CoverageFormat2<'a> {
 }
 
 /// Used in [CoverageFormat2]
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct RangeRecord {
@@ -1422,7 +1422,7 @@ impl<'a> std::fmt::Debug for ClassDefFormat2<'a> {
 }
 
 /// Used in [ClassDefFormat2]
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct ClassRangeRecord {
@@ -1534,7 +1534,7 @@ impl<'a> SomeTable<'a> for ClassDef<'a> {
 }
 
 /// [Sequence Lookup Record](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#sequence-lookup-record)
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(C)]
 #[repr(packed)]
 pub struct SequenceLookupRecord {
@@ -3979,7 +3979,7 @@ impl<'a> std::fmt::Debug for FeatureVariations<'a> {
 }
 
 /// Part of [FeatureVariations]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FeatureVariationRecord {
@@ -4342,7 +4342,7 @@ impl<'a> std::fmt::Debug for FeatureTableSubstitution<'a> {
 }
 
 /// Used in [FeatureTableSubstitution]
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Copy)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FeatureTableSubstitutionRecord {
