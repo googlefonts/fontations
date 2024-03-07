@@ -387,15 +387,14 @@ impl<'a> Engine<'a> {
     pub(super) fn op_mdrp(&mut self, opcode: u8) -> OpResult {
         let gs = &mut self.graphics_state;
         let p = self.value_stack.pop_usize()?;
-        let mut original_distance;
-        if gs.zp0.is_twilight() || gs.zp1.is_twilight() {
-            original_distance = gs.dual_project(gs.zp1().original(p)?, gs.zp0().original(gs.rp0)?);
+        let mut original_distance = if gs.zp0.is_twilight() || gs.zp1.is_twilight() {
+            gs.dual_project(gs.zp1().original(p)?, gs.zp0().original(gs.rp0)?)
         } else {
             let v1 = gs.zp1().unscaled(p)?;
             let v2 = gs.zp0().unscaled(gs.rp0)?;
             let dist = gs.dual_project_unscaled(v1, v2);
-            original_distance = F26Dot6::from_bits(math::mul(dist, gs.scale));
-        }
+            F26Dot6::from_bits(math::mul(dist, gs.scale))
+        };
         let cutin = gs.single_width_cutin;
         let value = gs.single_width;
         if cutin > F26Dot6::ZERO
@@ -707,18 +706,19 @@ impl<'a> Engine<'a> {
                 gs.dual_project(gs.zp2().unscaled(point)?.map(F26Dot6::from_bits), orus_base)
             };
             let cur_distance = gs.project(gs.zp2().point(point)?, cur_base);
-            let mut new_distance = F26Dot6::ZERO;
-            if original_distance != F26Dot6::ZERO {
+            let new_distance = if original_distance != F26Dot6::ZERO {
                 if old_range != F26Dot6::ZERO {
-                    new_distance = F26Dot6::from_bits(math::mul_div(
+                    F26Dot6::from_bits(math::mul_div(
                         original_distance.to_bits(),
                         cur_range.to_bits(),
                         old_range.to_bits(),
-                    ));
+                    ))
                 } else {
-                    new_distance = original_distance;
+                    original_distance
                 }
-            }
+            } else {
+                F26Dot6::ZERO
+            };
             gs.move_point(gs.zp2, point, new_distance.wrapping_sub(cur_distance))?;
         }
         Ok(())
