@@ -470,7 +470,7 @@ impl ClassDefBuilder {
         // calculate our format2 size:
         let first = self.items.keys().next().map(|g| g.to_u16());
         let last = self.items.keys().next_back().map(|g| g.to_u16());
-        let len_format1 = 3 + (last.unwrap_or_default() - first.unwrap_or_default()) as usize;
+        let len_format1 = 3 + ((last.unwrap_or_default() - first.unwrap_or_default()) * 2) as usize;
         let len_format2 = 4 + iter_class_ranges(&self.items).count() * 6;
 
         len_format1 < len_format2
@@ -706,6 +706,26 @@ mod tests {
             .collect();
 
         assert!(builder.prefer_format_1());
+    }
+
+    #[test]
+    fn classdef_prefer_format2() {
+        fn iter_class_items(
+            start: u16,
+            end: u16,
+            cls: u16,
+        ) -> impl Iterator<Item = (GlyphId, u16)> {
+            (start..=end).map(move |gid| (GlyphId::new(gid), cls))
+        }
+
+        // 3 ranges of 4 glyphs at 6 bytes a range should be smaller than writing
+        // out the 3 * 4 classes directly
+        let builder: ClassDefBuilder = iter_class_items(5, 8, 3)
+            .chain(iter_class_items(9, 12, 4))
+            .chain(iter_class_items(13, 16, 5))
+            .collect();
+
+        assert!(!builder.prefer_format_1());
     }
 
     #[test]
