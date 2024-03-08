@@ -83,10 +83,7 @@ where
         return None;
     }
     let (slice_buf, rest) = buf.split_at_mut(len_in_bytes);
-    // SAFETY: Alignment and size requirements have been checked in 1) and
-    // 2) above, respectively.
-    // Element types are limited by the `TransmuteElement` trait which
-    // defines requirements for transmutation and is private to this module.
+    // Bytemuck handles all safety guarantees here.
     let slice = bytemuck::try_cast_slice_mut(slice_buf).ok()?;
     Some((slice, rest))
 }
