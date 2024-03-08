@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 
 use std::{
     env,
-    fs::{File, OpenOptions},
+    fs::OpenOptions,
     io::{self, BufRead, Write},
     string::String,
 };
@@ -303,8 +303,8 @@ fn colrv1_traversal_test(
                 .expect("Writing to file failed.")
         });
     } else {
-        let file = File::open(dumpfile_path).expect("Unable to open expectations file.");
-        let mut lines = io::BufReader::new(file).lines();
+        let expected = font_test_data::colrv1_json::expected(set_name, settings);
+        let mut lines = io::BufReader::new(expected.as_bytes()).lines();
         for dump in paint_dumps_iter {
             match lines.next() {
                 Some(line) => {
