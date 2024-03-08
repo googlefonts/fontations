@@ -1,4 +1,5 @@
 font-codegen/src/bin/preprocessor.rs
+font-test-data/build.rs
 otexplorer/src/main.rs
 otexplorer/src/query.rs
 read-fonts/build.rs
