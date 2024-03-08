@@ -119,3 +119,68 @@ pub mod cff2 {
         0x06,
     ];
 }
+
+/// This setup to avoid cross-crate path construction and build.rs because both caused problems for google3
+pub mod colrv1_json {
+    /// Gets the expected value for a colrv1 json test
+    pub fn expected(set_name: &str, settings: &[(&str, f32)]) -> &'static str {
+        let mut key = Vec::with_capacity(1 + settings.len());
+        key.push("colrv1_".to_string() + &set_name.to_ascii_lowercase());
+        key.extend(settings.iter().map(|(t, v)| format!("{t}_{v}")));
+        let key = key.join("_");
+        // you could generate the cases in bash using something like:
+        // for f in $(ls font-test-data/test_data/colrv1_json); do echo "\"$f\" => include_str!(\"../test_data/colrv1_json/$f\"),"; done
+        match key.as_str() {
+            "colrv1_clipbox" => include_str!("../test_data/colrv1_json/colrv1_clipbox"),
+            "colrv1_clipbox_CLIO_200" => include_str!("../test_data/colrv1_json/colrv1_clipbox_CLIO_200"),
+            "colrv1_colored_circles_v0" => include_str!("../test_data/colrv1_json/colrv1_colored_circles_v0"),
+            "colrv1_composite_mode" => include_str!("../test_data/colrv1_json/colrv1_composite_mode"),
+            "colrv1_extend_mode" => include_str!("../test_data/colrv1_json/colrv1_extend_mode"),
+            "colrv1_extend_mode_COL1_-0.25_COL3_0.25" => include_str!("../test_data/colrv1_json/colrv1_extend_mode_COL1_-0.25_COL3_0.25"),
+            "colrv1_extend_mode_COL1_0.5_COL3_-0.5" => include_str!("../test_data/colrv1_json/colrv1_extend_mode_COL1_0.5_COL3_-0.5"),
+            "colrv1_extend_mode_COL1_-1.5" => include_str!("../test_data/colrv1_json/colrv1_extend_mode_COL1_-1.5"),
+            "colrv1_extend_mode_COL2_-0.3" => include_str!("../test_data/colrv1_json/colrv1_extend_mode_COL2_-0.3"),
+            "colrv1_extend_mode_COL3_0.5" => include_str!("../test_data/colrv1_json/colrv1_extend_mode_COL3_0.5"),
+            "colrv1_extend_mode_COL3_1" => include_str!("../test_data/colrv1_json/colrv1_extend_mode_COL3_1"),
+            "colrv1_extend_mode_COL3_1_COL2_1.5_COL1_2" => include_str!("../test_data/colrv1_json/colrv1_extend_mode_COL3_1_COL2_1.5_COL1_2"),
+            "colrv1_extend_mode_GRR0_-200_GRR1_-300" => include_str!("../test_data/colrv1_json/colrv1_extend_mode_GRR0_-200_GRR1_-300"),
+            "colrv1_extend_mode_GRR0_430_GRR1_40" => include_str!("../test_data/colrv1_json/colrv1_extend_mode_GRR0_430_GRR1_40"),
+            "colrv1_extend_mode_GRR0_-50_COL3_-2_COL2_-2_COL1_-0.9" => include_str!("../test_data/colrv1_json/colrv1_extend_mode_GRR0_-50_COL3_-2_COL2_-2_COL1_-0.9"),
+            "colrv1_extend_mode_GRR0_-50_COL3_-2_COL2_-2_COL1_-1.1" => include_str!("../test_data/colrv1_json/colrv1_extend_mode_GRR0_-50_COL3_-2_COL2_-2_COL1_-1.1"),
+            "colrv1_extend_mode_GRX0_1000_GRX1_-1000_GRR0_-1000_GRR1_200" => include_str!("../test_data/colrv1_json/colrv1_extend_mode_GRX0_1000_GRX1_-1000_GRR0_-1000_GRR1_200"),
+            "colrv1_extend_mode_GRX0_-1000_GRX1_-1000_GRR0_-1000_GRR1_-900" => include_str!("../test_data/colrv1_json/colrv1_extend_mode_GRX0_-1000_GRX1_-1000_GRR0_-1000_GRR1_-900"),
+            "colrv1_foreground_color" => include_str!("../test_data/colrv1_json/colrv1_foreground_color"),
+            "colrv1_gradient_p2_skewed" => include_str!("../test_data/colrv1_json/colrv1_gradient_p2_skewed"),
+            "colrv1_gradient_stops_repeat" => include_str!("../test_data/colrv1_json/colrv1_gradient_stops_repeat"),
+            "colrv1_no_cycle_multi_colrglyph" => include_str!("../test_data/colrv1_json/colrv1_no_cycle_multi_colrglyph"),
+            "colrv1_paint_glyph_nested" => include_str!("../test_data/colrv1_json/colrv1_paint_glyph_nested"),
+            "colrv1_paint_rotate" => include_str!("../test_data/colrv1_json/colrv1_paint_rotate"),
+            "colrv1_paint_rotate_ROTA_40" => include_str!("../test_data/colrv1_json/colrv1_paint_rotate_ROTA_40"),
+            "colrv1_paint_rotate_ROTX_-250_ROTY_-250" => include_str!("../test_data/colrv1_json/colrv1_paint_rotate_ROTX_-250_ROTY_-250"),
+            "colrv1_paint_scale" => include_str!("../test_data/colrv1_json/colrv1_paint_scale"),
+            "colrv1_paint_scale_SCOX_200_SCOY_200" => include_str!("../test_data/colrv1_json/colrv1_paint_scale_SCOX_200_SCOY_200"),
+            "colrv1_paint_scale_SCSX_0.25_SCOY_0.25" => include_str!("../test_data/colrv1_json/colrv1_paint_scale_SCSX_0.25_SCOY_0.25"),
+            "colrv1_paint_scale_SCSX_-1_SCOY_-1" => include_str!("../test_data/colrv1_json/colrv1_paint_scale_SCSX_-1_SCOY_-1"),
+            "colrv1_paint_skew" => include_str!("../test_data/colrv1_json/colrv1_paint_skew"),
+            "colrv1_paint_skew_SKCX_200_SKCY_200" => include_str!("../test_data/colrv1_json/colrv1_paint_skew_SKCX_200_SKCY_200"),
+            "colrv1_paint_skew_SKXA_20" => include_str!("../test_data/colrv1_json/colrv1_paint_skew_SKXA_20"),
+            "colrv1_paint_skew_SKYA_20" => include_str!("../test_data/colrv1_json/colrv1_paint_skew_SKYA_20"),
+            "colrv1_paint_transform" => include_str!("../test_data/colrv1_json/colrv1_paint_transform"),
+            "colrv1_paint_translate" => include_str!("../test_data/colrv1_json/colrv1_paint_translate"),
+            "colrv1_paint_translate_TLDX_100_TLDY_100" => include_str!("../test_data/colrv1_json/colrv1_paint_translate_TLDX_100_TLDY_100"),
+            "colrv1_sweep_coincident" => include_str!("../test_data/colrv1_json/colrv1_sweep_coincident"),
+            "colrv1_sweep_varsweep" => include_str!("../test_data/colrv1_json/colrv1_sweep_varsweep"),
+            "colrv1_sweep_varsweep_SWC1_-0.25_SWC2_0.083333336_SWC3_0.083333336_SWC4_0.25" => include_str!("../test_data/colrv1_json/colrv1_sweep_varsweep_SWC1_-0.25_SWC2_0.083333336_SWC3_0.083333336_SWC4_0.25"),
+            "colrv1_sweep_varsweep_SWPE_-45" => include_str!("../test_data/colrv1_json/colrv1_sweep_varsweep_SWPE_-45"),
+            "colrv1_sweep_varsweep_SWPE_-90" => include_str!("../test_data/colrv1_json/colrv1_sweep_varsweep_SWPE_-90"),
+            "colrv1_sweep_varsweep_SWPS_0" => include_str!("../test_data/colrv1_json/colrv1_sweep_varsweep_SWPS_0"),
+            "colrv1_sweep_varsweep_SWPS_-45_SWPE_45" => include_str!("../test_data/colrv1_json/colrv1_sweep_varsweep_SWPS_-45_SWPE_45"),
+            "colrv1_sweep_varsweep_SWPS_45_SWPE_-45_SWC1_-0.25_SWC2_-0.416687_SWC3_-0.583313_SWC4_-0.75" => include_str!("../test_data/colrv1_json/colrv1_sweep_varsweep_SWPS_45_SWPE_-45_SWC1_-0.25_SWC2_-0.416687_SWC3_-0.583313_SWC4_-0.75"),
+            "colrv1_sweep_varsweep_SWPS_90" => include_str!("../test_data/colrv1_json/colrv1_sweep_varsweep_SWPS_90"),
+            "colrv1_variable_alpha" => include_str!("../test_data/colrv1_json/colrv1_variable_alpha"),
+            "colrv1_variable_alpha_APH1_-0.7" => include_str!("../test_data/colrv1_json/colrv1_variable_alpha_APH1_-0.7"),
+            "colrv1_variable_alpha_APH2_-0.7_APH3_-0.2" => include_str!("../test_data/colrv1_json/colrv1_variable_alpha_APH2_-0.7_APH3_-0.2"),
+            _ => panic!("No entry for {key}, if this is a new test you might need to add a case"),
+        }
+    }
+}
