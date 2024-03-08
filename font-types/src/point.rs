@@ -1,7 +1,5 @@
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
-use bytemuck::NoUninit;
-
 /// Two dimensional point with a generic coordinate type.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
@@ -31,7 +29,8 @@ pub struct Point<T> {
 /// it. This condition only exists because the bytemuck derive
 /// macro cannot guarantee the first three conditions in a type
 /// with generic parameters.
-unsafe impl<T> bytemuck::NoUninit for Point<T> where T: NoUninit {}
+#[cfg(feature = "bytemuck")]
+unsafe impl<T> bytemuck::NoUninit for Point<T> where T: bytemuck::NoUninit {}
 
 impl<T> Point<T> {
     /// Creates a new point with the given x and y coordinates.
