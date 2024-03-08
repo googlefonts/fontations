@@ -72,10 +72,12 @@ impl<'a> FontRead<'a> for PString<'a> {
             .as_bytes()
             .get(1..len as usize + 1)
             .ok_or(ReadError::OutOfBounds)?;
+
         if pstring.is_ascii() {
-            // SAFETY: `pstring` must be valid UTF-8, which is known to be the
-            // case since ASCII is a subset of UTF-8 and `is_ascii()` is true.
-            Ok(PString(unsafe { std::str::from_utf8_unchecked(pstring) }))
+            let str = std::str::from_utf8(pstring).map_err(|_| {
+                ReadError::MalformedData("we already checked that the string was ASCII!")
+            })?;
+            Ok(PString(str))
         } else {
             //FIXME not really sure how we want to handle this?
             Err(ReadError::MalformedData("Must be valid ascii"))

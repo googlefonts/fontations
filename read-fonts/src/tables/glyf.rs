@@ -35,7 +35,9 @@ impl PointMarker {
 /// Some properties, such as on- and off-curve flags are intrinsic to the point
 /// itself. Others, designated as markers are set and cleared while an outline
 /// is being transformed during variation application and hinting.
-#[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
+#[derive(
+    Copy, Clone, PartialEq, Eq, Default, Debug, bytemuck::AnyBitPattern, bytemuck::NoUninit,
+)]
 #[repr(transparent)]
 pub struct PointFlags(u8);
 

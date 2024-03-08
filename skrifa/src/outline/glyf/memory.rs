@@ -60,26 +60,14 @@ impl<'a> OutlineMemory<'a> {
     }
 }
 
-/// Trait that defines which types may be used as element types for
-/// `alloc_slice`.
-///
-/// # Safety
-/// This must only be implemented for types that contain no internal padding
-/// and for which all bit patterns are valid.
-unsafe trait TransmuteElement: Sized + Copy {}
-
-unsafe impl TransmuteElement for u16 {}
-unsafe impl TransmuteElement for i32 {}
-unsafe impl TransmuteElement for Fixed {}
-unsafe impl TransmuteElement for F26Dot6 {}
-unsafe impl TransmuteElement for PointFlags {}
-unsafe impl<T> TransmuteElement for Point<T> where T: TransmuteElement {}
-
 /// Allocates a mutable slice of `T` of the given length from the specified
 /// buffer.
 ///
 /// Returns the allocated slice and the remainder of the buffer.
-fn alloc_slice<T: TransmuteElement>(buf: &mut [u8], len: usize) -> Option<(&mut [T], &mut [u8])> {
+fn alloc_slice<T>(buf: &mut [u8], len: usize) -> Option<(&mut [T], &mut [u8])>
+where
+    T: bytemuck::AnyBitPattern + bytemuck::NoUninit,
+{
     if len == 0 {
         return Some((Default::default(), buf));
     }
@@ -99,7 +87,7 @@ fn alloc_slice<T: TransmuteElement>(buf: &mut [u8], len: usize) -> Option<(&mut 
     // 2) above, respectively.
     // Element types are limited by the `TransmuteElement` trait which
     // defines requirements for transmutation and is private to this module.
-    let slice = unsafe { std::slice::from_raw_parts_mut(slice_buf.as_mut_ptr() as *mut T, len) };
+    let slice = bytemuck::try_cast_slice_mut(slice_buf).ok()?;
     Some((slice, rest))
 }
 

@@ -10,6 +10,7 @@ categories = ["text-processing", "parsing", "graphics"]
 
 [dependencies]
 read-fonts = { version = "0.15.6", path = "../read-fonts" }
+bytemuck = "1.14.3"
 
 [dev-dependencies]
 font-test-data = { path = "../font-test-data" }

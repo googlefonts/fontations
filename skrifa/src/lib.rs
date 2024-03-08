@@ -11,6 +11,8 @@
 //! See the [readme](https://github.com/googlefonts/fontations/blob/main/skrifa/README.md)
 //! for additional details.
 
+#![forbid(unsafe_code)]
+
 /// Expose our "raw" underlying parser crate.
 pub extern crate read_fonts as raw;
 
