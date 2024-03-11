@@ -4,10 +4,10 @@ use std::{
     sync::Arc,
 };
 
-use ::freetype::{Face, Library};
+use ::freetype::Library;
 use ::skrifa::{
-    raw::{types::F2Dot14, FontRef, TableProvider},
-    scale,
+    outline::HintingMode,
+    raw::{types::F2Dot14, FileRef, FontRef, TableProvider},
 };
 
 mod freetype;
@@ -21,14 +21,21 @@ pub struct InstanceOptions<'a> {
     pub index: usize,
     pub ppem: u32,
     pub coords: &'a [F2Dot14],
+    pub hinting: Option<HintingMode>,
 }
 
 impl<'a> InstanceOptions<'a> {
-    pub fn new(index: usize, ppem: u32, coords: &'a [F2Dot14]) -> Self {
+    pub fn new(
+        index: usize,
+        ppem: u32,
+        coords: &'a [F2Dot14],
+        hinting: Option<HintingMode>,
+    ) -> Self {
         Self {
             index,
             ppem,
             coords,
+            hinting,
         }
     }
 }
@@ -36,10 +43,9 @@ impl<'a> InstanceOptions<'a> {
 pub struct Font {
     path: PathBuf,
     data: SharedFontData,
+    count: usize,
     // Just to keep the FT_Library alive
-    _ft_library: Library,
-    ft_faces: Vec<Face<SharedFontData>>,
-    skrifa_cx: scale::Context,
+    ft_library: Library,
 }
 
 impl Font {
@@ -47,13 +53,16 @@ impl Font {
         let path = path.as_ref().to_owned();
         let file = std::fs::File::open(&path).ok()?;
         let data = SharedFontData(unsafe { Arc::new(memmap2::Mmap::map(&file).ok()?) });
-        let (_ft_library, ft_faces) = freetype::collect_faces(&data)?;
+        let count = match FileRef::new(data.0.as_ref()).ok()? {
+            FileRef::Font(_) => 1,
+            FileRef::Collection(collection) => collection.len() as usize,
+        };
+        let _ft_library = ::freetype::Library::init().ok()?;
         Some(Self {
             path,
             data,
-            _ft_library,
-            ft_faces,
-            skrifa_cx: scale::Context::new(),
+            count,
+            ft_library: _ft_library,
         })
     }
 
@@ -62,7 +71,7 @@ impl Font {
     }
 
     pub fn count(&self) -> usize {
-        self.ft_faces.len()
+        self.count
     }
 
     pub fn axis_count(&self, index: usize) -> u16 {
@@ -81,9 +90,8 @@ impl Font {
         &mut self,
         options: &InstanceOptions,
     ) -> Option<(FreeTypeInstance, SkrifaInstance)> {
-        let face = self.ft_faces.get_mut(options.index)?;
-        let ft_instance = FreeTypeInstance::new(face, options)?;
-        let skrifa_instance = SkrifaInstance::new(&self.data, options, &mut self.skrifa_cx)?;
+        let ft_instance = FreeTypeInstance::new(&self.ft_library, &self.data, options)?;
+        let skrifa_instance = SkrifaInstance::new(&self.data, options)?;
         Some((ft_instance, skrifa_instance))
     }
 }

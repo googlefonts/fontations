@@ -8,7 +8,7 @@ mod hint;
 mod memory;
 mod outline;
 
-pub use hint::HintOutline;
+pub use hint::{HintError, HintOutline, Instance};
 pub use memory::OutlineMemory;
 pub use outline::{Outline, ScaledOutline};
 
@@ -74,8 +74,16 @@ impl<'a> Outlines<'a> {
                     maxp.num_glyphs(),
                     maxp.max_function_defs().unwrap_or_default(),
                     maxp.max_instruction_defs().unwrap_or_default(),
-                    maxp.max_twilight_points().unwrap_or_default(),
-                    maxp.max_stack_elements().unwrap_or_default(),
+                    // Add 4 for phantom points
+                    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttobjs.c#L1188>
+                    maxp.max_twilight_points()
+                        .unwrap_or_default()
+                        .saturating_add(4),
+                    // Add 32 to match FreeType's heuristic for buggy fonts
+                    // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/80a507a6b8e3d2906ad2c8ba69329bd2fb2a85ef/src/truetype/ttinterp.c#L356>
+                    maxp.max_stack_elements()
+                        .unwrap_or_default()
+                        .saturating_add(32),
                     maxp.max_storage().unwrap_or_default(),
                 )
             })
@@ -127,8 +135,25 @@ impl<'a> Outlines<'a> {
         if outline.points != 0 {
             outline.points += PHANTOM_POINT_COUNT;
         }
+        outline.stack_count = self.max_stack_elements as usize;
+        outline.cvt_count = self.cvt.len();
+        outline.storage_count = self.max_storage as usize;
+        outline.max_twilight_points = self.max_twilight_points as usize;
         outline.glyph = glyph;
         Ok(outline)
+    }
+
+    pub fn compute_scale(&self, ppem: Option<f32>) -> (bool, F26Dot6) {
+        if let Some(ppem) = ppem {
+            if self.units_per_em > 0 {
+                return (
+                    true,
+                    F26Dot6::from_bits((ppem * 64.) as i32)
+                        / F26Dot6::from_bits(self.units_per_em as i32),
+                );
+            }
+        }
+        (false, F26Dot6::from_bits(0x10000))
     }
 
     pub fn draw(
@@ -138,7 +163,7 @@ impl<'a> Outlines<'a> {
         size: Option<f32>,
         coords: &'a [F2Dot14],
     ) -> Result<ScaledOutline<'a>, DrawError> {
-        Scaler::new(self.clone(), memory, size, coords, |_| true, false)
+        Scaler::new(self.clone(), memory, size, coords, |_| Ok(()), false)
             .scale(&outline.glyph, outline.glyph_id)
     }
 
@@ -148,9 +173,9 @@ impl<'a> Outlines<'a> {
         outline: &Outline,
         size: Option<f32>,
         coords: &'a [F2Dot14],
-        hint_fn: impl FnMut(HintOutline) -> bool,
+        hint_fn: impl FnMut(HintOutline) -> Result<(), HintError>,
     ) -> Result<ScaledOutline<'a>, DrawError> {
-        Scaler::new(self.clone(), memory, size, coords, hint_fn, false)
+        Scaler::new(self.clone(), memory, size, coords, hint_fn, true)
             .scale(&outline.glyph, outline.glyph_id)
     }
 }
@@ -280,7 +305,7 @@ struct Scaler<'a, H> {
 
 impl<'a, H> Scaler<'a, H>
 where
-    H: FnMut(HintOutline) -> bool,
+    H: FnMut(HintOutline) -> Result<(), HintError>,
 {
     fn new(
         outlines: Outlines<'a>,
@@ -290,14 +315,7 @@ where
         hint_fn: H,
         is_hinted: bool,
     ) -> Self {
-        let (is_scaled, scale) = match size {
-            Some(ppem) if outlines.units_per_em > 0 => (
-                true,
-                F26Dot6::from_bits((ppem * 64.) as i32)
-                    / F26Dot6::from_bits(outlines.units_per_em as i32),
-            ),
-            _ => (false, F26Dot6::from_bits(0x10000)),
-        };
+        let (is_scaled, scale) = outlines.compute_scale(size);
         Self {
             outlines,
             memory,
@@ -503,7 +521,8 @@ where
                 point.x = point.x.round();
                 point.y = point.y.round();
             }
-            if !(self.hint_fn)(HintOutline {
+            (self.hint_fn)(HintOutline {
+                glyph_id,
                 unscaled,
                 scaled,
                 original_scaled,
@@ -511,11 +530,15 @@ where
                 contours,
                 bytecode: ins,
                 phantom: &mut self.phantom,
+                stack: self.memory.stack,
+                cvt: self.memory.cvt,
+                storage: self.memory.storage,
+                twilight_scaled: self.memory.twilight_scaled,
+                twilight_original_scaled: self.memory.twilight_original_scaled,
+                twilight_flags: self.memory.twilight_flags,
                 is_composite: false,
                 coords: self.coords,
-            }) {
-                return Err(DrawError::HintingFailed(glyph_id));
-            }
+            })?;
         }
         if points_start != 0 {
             // If we're not the first component, shift our contour end points.
@@ -755,7 +778,8 @@ where
                         *contour -= delta;
                     }
                 }
-                if !(self.hint_fn)(HintOutline {
+                (self.hint_fn)(HintOutline {
+                    glyph_id,
                     unscaled,
                     scaled,
                     original_scaled,
@@ -763,11 +787,15 @@ where
                     contours,
                     bytecode: ins,
                     phantom: &mut self.phantom,
+                    stack: self.memory.stack,
+                    cvt: self.memory.cvt,
+                    storage: self.memory.storage,
+                    twilight_scaled: self.memory.twilight_scaled,
+                    twilight_original_scaled: self.memory.twilight_original_scaled,
+                    twilight_flags: self.memory.twilight_flags,
                     is_composite: true,
                     coords: self.coords,
-                }) {
-                    return Err(DrawError::HintingFailed(glyph_id));
-                }
+                })?;
                 // Undo the contour shifts if we applied them above.
                 if point_base != 0 {
                     let delta = point_base as u16;

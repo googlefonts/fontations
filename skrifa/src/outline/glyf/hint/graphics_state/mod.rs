@@ -93,6 +93,11 @@ pub struct GraphicsState<'a> {
     ///
     /// This array contains the twilight and glyph zones, in that order.
     pub zones: [Zone<'a>; 2],
+    /// Scale factor from font units to pixels for the current outline.
+    ///
+    /// If hinting a composite glyph, all outline points are already scaled so
+    /// this is set to identity.
+    pub outline_scale: i32,
     /// If true, enables a set of backward compabitility heuristics that
     /// prevent certain modifications to the outline. The purpose is to
     /// support "modern" vertical only hinting that attempts to preserve
@@ -143,6 +148,7 @@ impl Default for GraphicsState<'_> {
             zp1: ZonePointer::default(),
             zp2: ZonePointer::default(),
             zones: [Zone::default(), Zone::default()],
+            outline_scale: 1 << 16,
             backward_compatibility: true,
             is_pedantic: false,
             did_iup_x: false,
@@ -245,6 +251,20 @@ impl Default for RetainedGraphicsState {
             ppem: 0,
             is_rotated: false,
             is_stretched: false,
+        }
+    }
+}
+
+impl RetainedGraphicsState {
+    pub fn reset_retained(&mut self) {
+        let scale = self.scale;
+        let ppem = self.ppem;
+        let mode = self.mode;
+        *self = Self {
+            scale,
+            ppem,
+            mode,
+            ..Default::default()
         }
     }
 }

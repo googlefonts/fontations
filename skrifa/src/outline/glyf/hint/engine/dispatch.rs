@@ -2,7 +2,10 @@
 
 use read_fonts::tables::glyf::bytecode::Opcode;
 
-use super::{Engine, HintError, HintErrorKind, Instruction};
+use super::{
+    super::{graphics_state::GraphicsState, program::Program, HintingMode},
+    Engine, HintError, HintErrorKind, Instruction, 
+};
 
 /// Maximum number of instructions we will execute in `Engine::run()`. This
 /// is used to ensure termination of a hinting program.
@@ -10,6 +13,68 @@ use super::{Engine, HintError, HintErrorKind, Instruction};
 const MAX_RUN_INSTRUCTIONS: usize = 1_000_000;
 
 impl<'a> Engine<'a> {
+    /// Resets state for the specified program and executes all instructions.
+    pub fn run_program(&mut self, program: Program) -> Result<(), HintError> {
+        if false { //program == Program::ControlValue {
+            // FT unnecessarily runs the control value program twice, first
+            // with a mode equivalent to FT_RENDER_TARGET_MONO. This affects
+            // some fonts :sigh:
+            let mode = self.graphics_state.mode;
+            self.graphics_state.mode = HintingMode::Strong;
+            self.reset(program);
+            self.run()?;
+            self.graphics_state.mode = mode;
+        }
+        self.reset(program);
+        self.run()
+    }
+
+    /// Set internal state for running the specified program.
+    pub fn reset(&mut self, program: Program) {
+        self.program.reset(program);
+        // Reset overall graphics state, keeping the retained bits.
+        let GraphicsState {
+            retained, zones, ..
+        } = core::mem::take(&mut self.graphics_state);
+        self.graphics_state = GraphicsState {
+            retained,
+            zones,
+            ..Default::default()
+        };
+        self.loop_budget.backward_jumps = 0;
+        self.loop_budget.loop_calls = 0;
+        // Program specific setup.
+        match program {
+            Program::Font => {
+                self.definitions.functions.reset();
+                self.definitions.instructions.reset();
+            }
+            Program::ControlValue => {
+                self.graphics_state.backward_compatibility = false;
+            }
+            Program::Glyph => {
+                // Instruct control bit 1 says we reset retained graphics state
+                // to default values.
+                if self.graphics_state.instruct_control & 2 != 0 {
+                    self.graphics_state.reset_retained();
+                }
+                // Set backward compatibility mode
+                if self.graphics_state.mode.preserve_linear_metrics() {
+                    self.graphics_state.backward_compatibility = true;
+                } else if self.graphics_state.mode.is_smooth() {
+                    self.graphics_state.backward_compatibility =
+                        (self.graphics_state.instruct_control & 0x4) == 0;
+                } else {
+                    self.graphics_state.backward_compatibility = false;
+                }
+                // Handle composite exceptions
+                if !self.is_composite {
+                    self.graphics_state.outline_scale = self.graphics_state.retained.scale;
+                }
+            }
+        }
+    }
+
     /// Decodes and dispatches all instructions until completion or error.
     pub fn run(&mut self) -> Result<(), HintError> {
         let mut count = 0;
@@ -26,6 +91,31 @@ impl<'a> Engine<'a> {
                 });
             }
         }
+        Ok(())
+    }
+
+    /// Decodes and dispatches all instructions until completion or error.
+    pub fn run2(&mut self) -> Result<(), HintError> {
+        let mut count = 0;
+        while let Some(ins) = self.decode() {
+            let ins = ins?;
+            print!("  {:-06} {:10} #", ins.pc, ins.opcode.name());
+            for val in self.value_stack.values().iter().rev().take(8) {
+                print!(" {val}")
+            }
+            println!();
+            self.dispatch(&ins)?;
+            count += 1;
+            if count > MAX_RUN_INSTRUCTIONS {
+                return Err(HintError {
+                    program: self.program.current,
+                    glyph_id: None,
+                    pc: ins.pc,
+                    kind: HintErrorKind::ExceededExecutionBudget,
+                });
+            }
+        }
+        println!("  {count} instructions executed");
         Ok(())
     }
 
@@ -79,6 +169,7 @@ impl<'a> Engine<'a> {
             JMPR => self.op_jmpr()?,
             SCVTCI => self.op_scvtci()?,
             SSWCI => self.op_sswci()?,
+            SSW => self.op_ssw()?,
             DUP => self.op_dup()?,
             POP => self.op_pop()?,
             CLEAR => self.op_clear()?,
@@ -101,8 +192,9 @@ impl<'a> Engine<'a> {
             SHPIX => self.op_shpix()?,
             IP => self.op_ip()?,
             MSIRP0 | MSIRP1 => self.op_msirp(raw_opcode)?,
-            MIAP0 | MIAP1 => self.op_miap(raw_opcode)?,
             ALIGNRP => self.op_alignrp()?,
+            RTDG => self.op_rtdg()?,
+            MIAP0 | MIAP1 => self.op_miap(raw_opcode)?,
             NPUSHB | NPUSHW => self.op_push(&ins.inline_operands)?,
             WS => self.op_ws()?,
             RS => self.op_rs()?,
@@ -174,6 +266,7 @@ impl<'a> Engine<'a> {
             MAX => self.op_max()?,
             MIN => self.op_min()?,
             SCANTYPE => self.op_scantype()?,
+            INSTCTRL => self.op_instctrl()?,
             // UNUSED: 0x8F | 0x90 (ADJUST?)
             GETVARIATION => self.op_getvariation()?,
             GETDATA => self.op_getdata()?,

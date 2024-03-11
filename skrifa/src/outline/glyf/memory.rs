@@ -19,14 +19,21 @@ pub struct OutlineMemory<'a> {
     pub deltas: &'a mut [Point<Fixed>],
     pub iup_buffer: &'a mut [Point<Fixed>],
     pub composite_deltas: &'a mut [Point<Fixed>],
+    pub stack: &'a mut [i32],
+    pub cvt: &'a mut [i32],
+    pub storage: &'a mut [i32],
+    pub twilight_scaled: &'a mut [Point<F26Dot6>],
+    pub twilight_original_scaled: &'a mut [Point<F26Dot6>],
+    pub twilight_flags: &'a mut [PointFlags],
 }
 
 impl<'a> OutlineMemory<'a> {
     pub(super) fn new(outline: &Outline, buf: &'a mut [u8], hinting: Hinting) -> Option<Self> {
+        let hinted = outline.has_hinting && hinting == Hinting::Embedded;
         let (scaled, buf) = alloc_slice(buf, outline.points)?;
         let (unscaled, buf) = alloc_slice(buf, outline.max_other_points)?;
         // We only need original scaled points when hinting
-        let (original_scaled, buf) = if outline.has_hinting && hinting == Hinting::Embedded {
+        let (original_scaled, buf) = if hinted {
             alloc_slice(buf, outline.max_other_points)?
         } else {
             (Default::default(), buf)
@@ -45,8 +52,40 @@ impl<'a> OutlineMemory<'a> {
                 buf,
             )
         };
+        // Hinting value stack
+        let (stack, buf) = if hinted {
+            alloc_slice(buf, outline.stack_count)?
+        } else {
+            (Default::default(), buf)
+        };
+        // Copy-on-write buffers for CVT and storage area
+        let (cvt, storage, buf) = if hinted {
+            let (cvt, buf) = alloc_slice(buf, outline.cvt_count)?;
+            let (storage, buf) = alloc_slice(buf, outline.storage_count)?;
+            (cvt, storage, buf)
+        } else {
+            (Default::default(), Default::default(), buf)
+        };
+        // Twilight zone point buffers
+        let (twilight_scaled, twilight_original_scaled, buf) = if hinted {
+            let (scaled, buf) = alloc_slice(buf, outline.max_twilight_points)?;
+            let (original_unscaled, buf) = alloc_slice(buf, outline.max_twilight_points)?;
+            (scaled, original_unscaled, buf)
+        } else {
+            (
+                Default::default(),
+                Default::default(),
+                buf,
+            )
+        };
         let (contours, buf) = alloc_slice(buf, outline.contours)?;
-        let (flags, _) = alloc_slice(buf, outline.points)?;
+        let (flags, buf) = alloc_slice(buf, outline.points)?;
+        // Twilight zone point flags
+        let twilight_flags = if hinted {
+            alloc_slice(buf, outline.max_twilight_points)?.0
+        } else {
+            Default::default()
+        };
         Some(Self {
             unscaled,
             scaled,
@@ -56,6 +95,12 @@ impl<'a> OutlineMemory<'a> {
             deltas,
             iup_buffer,
             composite_deltas,
+            stack,
+            cvt,
+            storage,
+            twilight_scaled,
+            twilight_original_scaled,
+            twilight_flags,
         })
     }
 }
@@ -153,6 +198,10 @@ mod tests {
             max_simple_points: 4,
             max_other_points: 4,
             max_component_delta_stack: 4,
+            stack_count: 0,
+            cvt_count: 0,
+            storage_count: 0,
+            max_twilight_points: 0,
             has_hinting: false,
             has_variations: true,
             has_overlaps: false,
@@ -184,6 +233,10 @@ mod tests {
             max_simple_points: 4,
             max_other_points: 4,
             max_component_delta_stack: 4,
+            stack_count: 0,
+            cvt_count: 0,
+            storage_count: 0,
+            max_twilight_points: 0,
             has_hinting: false,
             has_variations: true,
             has_overlaps: false,

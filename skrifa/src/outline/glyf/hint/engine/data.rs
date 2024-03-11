@@ -97,8 +97,8 @@ impl<'a> Engine<'a> {
         } else {
             // measure in original unscaled outline
             math::mul(
-                gs.dual_project_unscaled(gs.zp0().unscaled(p2)?, gs.zp1().unscaled(p1)?),
-                gs.scale,
+                gs.dual_project_unscaled(gs.zp0().unscaled(p2), gs.zp1().unscaled(p1)),
+                gs.outline_scale,
             )
         };
         self.value_stack.push(distance)

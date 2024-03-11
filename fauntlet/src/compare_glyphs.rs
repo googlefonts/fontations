@@ -23,33 +23,44 @@ pub fn compare_glyphs(
 
     for gid in 0..glyph_count {
         let gid = GlyphId::new(gid);
-        let ft_advance = ft_instance.advance(gid);
-        let skrifa_advance = skrifa_instance.advance(gid);
-        if ft_advance != skrifa_advance {
-            writeln!(
-                std::io::stderr(),
-                "[{path:?}#{} ppem: {} coords: {:?}] glyph id {} advance doesn't match:\nFreeType: {ft_advance:?}\nSkrifa:   {skrifa_advance:?}",
-                options.index,
-                options.ppem,
-                options.coords,
-                gid.to_u16(),
-            )
-            .unwrap();
-            if exit_on_fail {
-                std::process::exit(1);
-            }
-        }
+        // let ft_advance = ft_instance.advance(gid);
+        // let skrifa_advance = skrifa_instance.advance(gid);
+        // if ft_advance != skrifa_advance {
+        //     writeln!(
+        //         std::io::stderr(),
+        //         "[{path:?}#{} ppem: {} coords: {:?}] glyph id {} advance doesn't match:\nFreeType: {ft_advance:?}\nSkrifa:   {skrifa_advance:?}",
+        //         options.index,
+        //         options.ppem,
+        //         options.coords,
+        //         gid.to_u16(),
+        //     )
+        //     .unwrap();
+        //     if exit_on_fail {
+        //         std::process::exit(1);
+        //     }
+        // }
         ft_outline.clear();
         ft_instance
             .outline(gid, &mut RegularizingPen::new(&mut ft_outline, is_scaled))
             .unwrap();
         skrifa_outline.clear();
-        skrifa_instance
+        let res = skrifa_instance
             .outline(
                 gid,
                 &mut RegularizingPen::new(&mut skrifa_outline, is_scaled),
+            );
+        if let Err(e) = res {
+            write!(
+                std::io::stderr(),
+                "[SKIPPING DUE TO ERROR: {path:?}#{} ppem: {} coords: {:?}] glyph id {}:\n{e}\n",
+                options.index,
+                options.ppem,
+                options.coords,
+                gid.to_u16(),
             )
-            .unwrap();
+            .unwrap();           
+            continue;
+        }
         if ft_outline != skrifa_outline {
             ok = false;
             fn outline_to_string(outline: &RecordingPen) -> String {

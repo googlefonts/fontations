@@ -37,6 +37,14 @@ pub struct Outline<'a> {
     /// for each component. This tracks the maximum stack depth necessary
     /// to store those values during processing.
     pub max_component_delta_stack: usize,
+    /// Number of entires in the hinting value stack.
+    pub stack_count: usize,
+    /// Number of CVT entries for copy-on-write support.
+    pub cvt_count: usize,
+    /// Number of storage area entries for copy-on-write support.
+    pub storage_count: usize,
+    /// Maximum number of points in the twilight zone for hinting.
+    pub max_twilight_points: usize,
     /// True if any component of a glyph has bytecode instructions.
     pub has_hinting: bool,
     /// True if the glyph requires variation delta processing.
@@ -66,6 +74,15 @@ impl<'a> Outline<'a> {
             size += self.max_simple_points * size_of::<Point<Fixed>>();
             // Delta buffer for composite components
             size += self.max_component_delta_stack * size_of::<Point<Fixed>>();
+        }
+        if hinting {
+            // Hinting value stack
+            size += self.stack_count * size_of::<i32>();
+            // CVT and storage area copy-on-write buffers
+            size += (self.cvt_count + self.storage_count) * size_of::<i32>();
+            // Twilight zone storage. Two point buffers plus one point flags buffer.
+            size += self.max_twilight_points
+                * (size_of::<Point<F26Dot6>>() * 2 + size_of::<PointFlags>());
         }
         if size != 0 {
             // If we're given a buffer that is not aligned, we'll need to

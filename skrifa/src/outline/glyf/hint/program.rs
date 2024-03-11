@@ -54,6 +54,14 @@ impl<'a> ProgramState<'a> {
         }
     }
 
+    /// Resets the state for execution of the given program.
+    pub fn reset(&mut self, program: Program) {
+        self.initial = program;
+        self.current = program;
+        self.decoder = Decoder::new(self.bytecode[program as usize], 0);
+        self.call_stack.clear();
+    }
+
     /// Jumps to the code in the given definition and sets it up for
     /// execution `count` times.
     pub fn enter(&mut self, definition: Definition, count: u32) -> Result<(), HintErrorKind> {

@@ -34,6 +34,10 @@ impl CallStack {
         self.len == 0
     }
 
+    pub fn clear(&mut self) {
+        self.len = 0;
+    }
+
     pub fn records(&self) -> &[CallRecord] {
         &self.records[..self.len]
     }

@@ -297,7 +297,13 @@ impl<'a> OutlineGlyph<'a> {
             DrawInstance::Unhinted(size, location) => {
                 self.draw_unhinted(size, location, settings.memory, pen)
             }
-            DrawInstance::EmbeddedHinted(hinter) => hinter.draw(self, settings.memory, pen),
+            DrawInstance::EmbeddedHinted(hinter) => {
+                if hinter.is_enabled() {
+                    hinter.draw(self, settings.memory, pen)
+                } else {
+                    self.draw_unhinted(hinter.size(), hinter.location(), settings.memory, pen)
+                }
+            }
         }
     }
 

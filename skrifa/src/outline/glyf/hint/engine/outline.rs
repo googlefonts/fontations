@@ -390,10 +390,10 @@ impl<'a> Engine<'a> {
         let mut original_distance = if gs.zp0.is_twilight() || gs.zp1.is_twilight() {
             gs.dual_project(gs.zp1().original(p)?, gs.zp0().original(gs.rp0)?)
         } else {
-            let v1 = gs.zp1().unscaled(p)?;
-            let v2 = gs.zp0().unscaled(gs.rp0)?;
+            let v1 = gs.zp1().unscaled(p);
+            let v2 = gs.zp0().unscaled(gs.rp0);
             let dist = gs.dual_project_unscaled(v1, v2);
-            F26Dot6::from_bits(math::mul(dist, gs.scale))
+            F26Dot6::from_bits(math::mul(dist, gs.outline_scale))
         };
         let cutin = gs.single_width_cutin;
         let value = gs.single_width;
@@ -684,14 +684,14 @@ impl<'a> Engine<'a> {
         let orus_base = if in_twilight {
             gs.zp0().original(gs.rp1)?
         } else {
-            gs.zp0().unscaled(gs.rp1)?.map(F26Dot6::from_bits)
+            gs.zp0().unscaled(gs.rp1).map(F26Dot6::from_bits)
         };
         let cur_base = gs.zp0().point(gs.rp1)?;
         let old_range = if in_twilight {
             gs.dual_project(gs.zp1().original(gs.rp2)?, orus_base)
         } else {
             gs.dual_project(
-                gs.zp1().unscaled(gs.rp2)?.map(F26Dot6::from_bits),
+                gs.zp1().unscaled(gs.rp2).map(F26Dot6::from_bits),
                 orus_base,
             )
         };
@@ -703,7 +703,7 @@ impl<'a> Engine<'a> {
             let original_distance = if in_twilight {
                 gs.dual_project(gs.zp2().original(point)?, orus_base)
             } else {
-                gs.dual_project(gs.zp2().unscaled(point)?.map(F26Dot6::from_bits), orus_base)
+                gs.dual_project(gs.zp2().unscaled(point).map(F26Dot6::from_bits), orus_base)
             };
             let cur_distance = gs.project(gs.zp2().point(point)?, cur_base);
             let new_distance = if original_distance != F26Dot6::ZERO {
