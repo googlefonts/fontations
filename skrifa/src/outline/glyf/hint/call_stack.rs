@@ -38,6 +38,10 @@ impl CallStack {
         &self.records[..self.len]
     }
 
+    pub fn clear(&mut self) {
+        self.len = 0;
+    }
+
     pub fn push(&mut self, record: CallRecord) -> Result<(), HintErrorKind> {
         let top = self
             .records

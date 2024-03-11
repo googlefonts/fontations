@@ -93,6 +93,8 @@ pub struct GraphicsState<'a> {
     ///
     /// This array contains the twilight and glyph zones, in that order.
     pub zones: [Zone<'a>; 2],
+    /// True if the current glyph is a composite.
+    pub is_composite: bool,
     /// If true, enables a set of backward compabitility heuristics that
     /// prevent certain modifications to the outline. The purpose is to
     /// support "modern" vertical only hinting that attempts to preserve
@@ -120,6 +122,20 @@ pub struct GraphicsState<'a> {
     pub did_iup_y: bool,
 }
 
+impl<'a> GraphicsState<'a> {
+    /// Returns the factor for scaling unscaled points to pixels.
+    ///
+    /// For composite glyphs, "unscaled" points are already scaled so we
+    /// return the identity.
+    pub fn unscaled_to_pixels(&self) -> i32 {
+        if self.is_composite {
+            1 << 16
+        } else {
+            self.scale
+        }
+    }
+}
+
 impl Default for GraphicsState<'_> {
     fn default() -> Self {
         // For table of default values, see <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_graphics_state>
@@ -143,6 +159,7 @@ impl Default for GraphicsState<'_> {
             zp1: ZonePointer::default(),
             zp2: ZonePointer::default(),
             zones: [Zone::default(), Zone::default()],
+            is_composite: false,
             backward_compatibility: true,
             is_pedantic: false,
             did_iup_x: false,
@@ -221,6 +238,17 @@ pub struct RetainedGraphicsState {
     pub is_rotated: bool,
     /// True if a non-uniform scale is being applied.
     pub is_stretched: bool,
+}
+
+impl RetainedGraphicsState {
+    pub fn new(scale: i32, ppem: i32, mode: HintingMode) -> Self {
+        Self {
+            scale,
+            ppem,
+            mode,
+            ..Default::default()
+        }
+    }
 }
 
 impl Default for RetainedGraphicsState {
