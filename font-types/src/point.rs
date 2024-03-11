@@ -12,6 +12,26 @@ pub struct Point<T> {
     pub y: T,
 }
 
+/// SAFETY:
+/// This trait has four preconditions:
+///
+/// 1. All fields in the struct must implement `NoUninit`
+/// 2. The struct must be `#[repr(C)]` or `#[repr(transparent)]`
+/// 3. The struct must not contain any padding bytes
+/// 4. The struct must contain no generic parameters
+///
+/// We satisfy the first and second preconditions trivially. The third
+/// condition is satisfied because the struct is repr(C) and contains
+/// two fields of the same type which guarantees no padding.
+///
+/// The fourth condition is obviously not satisfied which is what
+/// requires implementing this trait manually rather than deriving
+/// it. This condition only exists because the bytemuck derive
+/// macro cannot guarantee the first three conditions in a type
+/// with generic parameters.
+#[cfg(feature = "bytemuck")]
+unsafe impl<T> bytemuck::NoUninit for Point<T> where T: bytemuck::NoUninit {}
+
 impl<T> Point<T> {
     /// Creates a new point with the given x and y coordinates.
     #[inline(always)]
