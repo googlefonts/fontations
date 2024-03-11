@@ -51,7 +51,7 @@ impl TryFrom<i32> for ZonePointer {
 #[derive(Default, Debug)]
 pub struct Zone<'a> {
     /// Outline points prior to applying scale.
-    pub unscaled: &'a mut [Point<i32>],
+    pub unscaled: &'a [Point<i32>],
     /// Copy of the outline points after applying scale.
     pub original: &'a mut [Point<F26Dot6>],
     /// Scaled outline points.
@@ -78,12 +78,6 @@ impl<'a> Zone<'a> {
         }
     }
 
-    pub fn clear(&mut self) {
-        self.unscaled.fill(Default::default());
-        self.original.fill(Default::default());
-        self.points.fill(Default::default());
-    }
-
     pub fn point(&self, index: usize) -> Result<Point<F26Dot6>, HintErrorKind> {
         self.points
             .get(index)
@@ -106,11 +100,11 @@ impl<'a> Zone<'a> {
         self.original.get_mut(index).ok_or(InvalidPointIndex(index))
     }
 
-    pub fn unscaled(&self, index: usize) -> Result<Point<i32>, HintErrorKind> {
-        self.unscaled
-            .get(index)
-            .copied()
-            .ok_or(InvalidPointIndex(index))
+    pub fn unscaled(&self, index: usize) -> Point<i32> {
+        // Unscaled points in the twilight zone are always (0, 0). This allows
+        // us to avoid the allocation for that zone and back it with an empty
+        // slice.
+        self.unscaled.get(index).copied().unwrap_or_default()
     }
 
     pub fn contour(&self, index: usize) -> Result<u16, HintErrorKind> {
@@ -276,8 +270,8 @@ impl<'a> Zone<'a> {
         }
         macro_rules! interpolate_coord {
             ($coord:ident) => {
-                let mut orus1 = self.unscaled(ref1)?.$coord;
-                let mut orus2 = self.unscaled(ref2)?.$coord;
+                let mut orus1 = self.unscaled(ref1).$coord;
+                let mut orus2 = self.unscaled(ref2).$coord;
                 if orus1 > orus2 {
                     use core::mem::swap;
                     swap(&mut orus1, &mut orus2);

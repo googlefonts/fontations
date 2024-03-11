@@ -60,7 +60,7 @@ impl<'a> Engine<'a> {
                 let distance = F26Dot6::from_bits(b);
                 if back_compat {
                     if !did_iup
-                        && ((self.is_composite && gs.freedom_vector.y != 0)
+                        && ((gs.is_composite && gs.freedom_vector.y != 0)
                             || gs.zp0().is_touched(point_ix, CoordAxis::Y)?)
                     {
                         gs.move_point(gs.zp0, point_ix, distance)?;

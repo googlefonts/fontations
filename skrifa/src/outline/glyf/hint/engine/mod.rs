@@ -25,7 +25,7 @@ use super::{
     cvt::Cvt,
     definition::DefinitionState,
     error::{HintError, HintErrorKind},
-    graphics_state::GraphicsState,
+    graphics_state::{GraphicsState, RetainedGraphicsState},
     program::ProgramState,
     storage::Storage,
     value_stack::ValueStack,
@@ -44,7 +44,16 @@ pub struct Engine<'a> {
     loop_budget: LoopBudget,
     axis_count: u16,
     coords: &'a [F2Dot14],
-    is_composite: bool,
+}
+
+impl<'a> Engine<'a> {
+    pub fn backward_compatibility(&self) -> bool {
+        self.graphics_state.backward_compatibility
+    }
+
+    pub fn retained_graphics_state(&self) -> &RetainedGraphicsState {
+        &self.graphics_state.retained
+    }
 }
 
 /// Tracks budgets for loops to limit execution time.
@@ -171,7 +180,6 @@ mod mock {
                 definitions: definition,
                 axis_count: 0,
                 coords: &[],
-                is_composite: false,
             }
         }
     }

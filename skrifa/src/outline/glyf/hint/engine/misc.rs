@@ -58,7 +58,8 @@ impl<'a> Engine<'a> {
             }
             // Vertical LCD subpixels? (selector bit: 8, result bit: 15)
             const VERTICAL_LCD_SELECTOR_BIT: i32 = 1 << 8;
-            if (selector & VERSION_SELECTOR_BIT) != 0 && self.graphics_state.mode.is_vertical_lcd()
+            if (selector & VERTICAL_LCD_SELECTOR_BIT) != 0
+                && self.graphics_state.mode.is_vertical_lcd()
             {
                 const VERTICAL_LCD_RESULT_BIT: i32 = 1 << 15;
                 result |= VERTICAL_LCD_RESULT_BIT;

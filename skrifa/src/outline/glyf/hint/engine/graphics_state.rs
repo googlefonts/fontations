@@ -558,6 +558,11 @@ impl<'a> Engine<'a> {
         if !(1..=3).contains(&selector) || (value != 0 && value != selector_flag) {
             return Ok(());
         }
+        // If preserving linear metrics, prevent modification of the backward
+        // compatibility flag.
+        if selector == 3 && self.graphics_state.mode.preserve_linear_metrics() {
+            return Ok(());
+        }
         match (self.program.initial, selector) {
             // Typically, this instruction can only be executed in the prep table.
             (Program::ControlValue, _) => {
