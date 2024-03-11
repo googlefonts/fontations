@@ -17,6 +17,7 @@ libm = ["dep:core_maths"]
 [dependencies]
 read-fonts = { version = "0.17.0", path = "../read-fonts", default-features = false }
 core_maths = { version = "0.1", optional = true }
+bytemuck = "1.14.3"
 
 [dev-dependencies]
 font-test-data = { path = "../font-test-data" }

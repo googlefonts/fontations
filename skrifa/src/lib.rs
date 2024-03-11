@@ -11,6 +11,7 @@
 //! See the [readme](https://github.com/googlefonts/fontations/blob/main/skrifa/README.md)
 //! for additional details.
 
+#![forbid(unsafe_code)]
 #![cfg_attr(not(any(test, feature = "std")), no_std)]
 
 #[cfg(not(any(feature = "libm", feature = "std")))]
