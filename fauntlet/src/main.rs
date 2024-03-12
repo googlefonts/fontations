@@ -34,6 +34,10 @@ fn main() {
     // Locations in normalized variation space
     let var_locations = [-1.0, -0.32, 0.0, 0.42, 1.0].map(F2Dot14::from_f32);
 
+    // We don't currently test hinting.
+    // Waiting on <https://github.com/googlefonts/fontations/issues/620>
+    let hinting = None;
+
     use clap::Parser as _;
     let args = Args::parse_from(wild::args());
 
@@ -58,8 +62,9 @@ fn main() {
                                 for coord in &var_locations {
                                     coords.clear();
                                     coords.extend(std::iter::repeat(*coord).take(axis_count));
-                                    let options =
-                                        fauntlet::InstanceOptions::new(font_ix, *ppem, &coords);
+                                    let options = fauntlet::InstanceOptions::new(
+                                        font_ix, *ppem, &coords, hinting,
+                                    );
                                     if let Some(instances) = font_data.instantiate(&options) {
                                         if !compare_glyphs(
                                             font_path,
@@ -72,7 +77,7 @@ fn main() {
                                     }
                                 }
                             } else {
-                                let options = InstanceOptions::new(font_ix, *ppem, &[]);
+                                let options = InstanceOptions::new(font_ix, *ppem, &[], hinting);
                                 if let Some(instances) = font_data.instantiate(&options) {
                                     if !compare_glyphs(font_path, &options, instances, exit_on_fail)
                                     {

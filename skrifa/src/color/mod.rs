@@ -5,7 +5,7 @@
 //!
 //! ```
 //! # use core::result::Result;
-//! # use skrifa::{scale::*, instance::{Size, Location}, color::{ColorGlyphFormat, ColorPainter, PaintError}, MetadataProvider};
+//! # use skrifa::{instance::{Size, Location}, color::{ColorGlyphFormat, ColorPainter, PaintError}, MetadataProvider};
 //! # use read_fonts::types::GlyphId;
 //! # fn get_colr_bb(font: read_fonts::FontRef, color_painter_impl : &mut impl ColorPainter, glyph_id : GlyphId, size: Size) -> Result<(), PaintError> {
 //! match font.color_glyphs()
@@ -27,7 +27,7 @@
 //! ## Paint a COLRv1 glyph given a font, and a glyph id and a [`ColorPainter`] implementation:
 //! ```
 //! # use core::result::Result;
-//! # use skrifa::{scale::*, instance::{Size, Location}, color::{ColorGlyphFormat, ColorPainter, PaintError}, MetadataProvider};
+//! # use skrifa::{instance::{Size, Location}, color::{ColorGlyphFormat, ColorPainter, PaintError}, MetadataProvider};
 //! # use read_fonts::types::GlyphId;
 //! # fn paint_colr(font: read_fonts::FontRef, color_painter_impl : &mut impl ColorPainter, glyph_id : GlyphId) -> Result<(), PaintError> {
 //! let color_glyph = font.color_glyphs()

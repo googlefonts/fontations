@@ -3,37 +3,49 @@ use freetype::{
     ffi::{FT_Long, FT_Vector},
     Face, Library,
 };
-use skrifa::{raw::FileRef, scale::Pen, GlyphId};
+use skrifa::{
+    outline::{HintingMode, LcdLayout, OutlinePen},
+    GlyphId,
+};
 
 use std::ffi::{c_int, c_void};
 
 use super::{InstanceOptions, SharedFontData};
 
-pub fn collect_faces(data: &SharedFontData) -> Option<(Library, Vec<Face<SharedFontData>>)> {
-    let library = Library::init().unwrap();
-    let mut faces = vec![];
-    let font_count = match FileRef::new(data.0.as_ref()).ok()? {
-        FileRef::Font(_) => 1,
-        FileRef::Collection(collection) => collection.len(),
-    };
-    for i in 0..font_count {
-        faces.push(library.new_memory_face2(data.clone(), i as isize).ok()?);
+fn load_flags_from_hinting(mode: HintingMode) -> LoadFlag {
+    match mode {
+        HintingMode::Strong => LoadFlag::TARGET_MONO,
+        HintingMode::Smooth { lcd_subpixel, .. } => match lcd_subpixel {
+            Some(LcdLayout::Horizontal) => LoadFlag::TARGET_LCD,
+            Some(LcdLayout::Vertical) => LoadFlag::TARGET_LCD_V,
+            None => LoadFlag::TARGET_NORMAL,
+        },
     }
-    Some((library, faces))
 }
 
-pub struct FreeTypeInstance<'a> {
-    face: &'a mut Face<SharedFontData>,
+pub struct FreeTypeInstance {
+    face: Face<SharedFontData>,
     load_flags: LoadFlag,
 }
 
-impl<'a> FreeTypeInstance<'a> {
-    pub fn new(face: &'a mut Face<SharedFontData>, options: &InstanceOptions) -> Option<Self> {
-        let mut load_flags = LoadFlag::NO_AUTOHINT | LoadFlag::NO_HINTING | LoadFlag::NO_BITMAP;
+impl FreeTypeInstance {
+    pub fn new(
+        library: &Library,
+        data: &SharedFontData,
+        options: &InstanceOptions,
+    ) -> Option<Self> {
+        let mut face = library
+            .new_memory_face2(data.clone(), options.index as isize)
+            .ok()?;
+        let mut load_flags = LoadFlag::NO_AUTOHINT | LoadFlag::NO_BITMAP;
+        match options.hinting {
+            None => load_flags |= LoadFlag::NO_HINTING,
+            Some(hinting) => load_flags |= load_flags_from_hinting(hinting),
+        };
         if options.ppem != 0 {
             face.set_pixel_sizes(options.ppem, options.ppem).ok()?;
         } else {
-            load_flags |= LoadFlag::NO_SCALE;
+            load_flags |= LoadFlag::NO_SCALE | LoadFlag::NO_HINTING;
         }
         if !options.coords.is_empty() {
             let mut ft_coords = vec![];
@@ -90,7 +102,7 @@ impl<'a> FreeTypeInstance<'a> {
         })
     }
 
-    pub fn outline(&mut self, glyph_id: GlyphId, pen: &mut impl Pen) -> Option<()> {
+    pub fn outline(&mut self, glyph_id: GlyphId, pen: &mut impl OutlinePen) -> Option<()> {
         self.face
             .load_glyph(glyph_id.to_u16() as u32, self.load_flags())
             .ok()?;
@@ -125,7 +137,7 @@ impl<'a> FreeTypeInstance<'a> {
 // Since Pen is dyn here which is a fat pointer, we wrap it in a struct
 // to pass through the required void* type in FT_Outline_Decompose.
 struct FreeTypePen<'a> {
-    inner: &'a mut dyn Pen,
+    inner: &'a mut dyn OutlinePen,
     is_scaled: bool,
 }
 
