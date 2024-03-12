@@ -650,6 +650,8 @@ pub enum ToPathError {
     ExpectedQuadOrOnCurve(usize),
     /// Expected a cubic off-curve point at this index.
     ExpectedCubic(usize),
+    /// Expected number of points to == number of flags
+    PointFlagMismatch { num_points: usize, num_flags: usize },
 }
 
 impl fmt::Display for ToPathError {
@@ -665,12 +667,259 @@ impl fmt::Display for ToPathError {
                 "Expected quadatic off-curve or on-curve point at index {ix}"
             ),
             Self::ExpectedCubic(ix) => write!(f, "Expected cubic off-curve point at index {ix}"),
+            Self::PointFlagMismatch {
+                num_points,
+                num_flags,
+            } => write!(
+                f,
+                "Number of points ({num_points}) and flags ({num_flags}) must match"
+            ),
         }
     }
 }
 
+#[derive(Debug, Copy, Clone)]
+enum OnCurve {
+    Implicit,
+    Explicit,
+}
+
+impl OnCurve {
+    #[inline(always)]
+    fn endpoint(&self, last_offcurve: Point<F26Dot6>, current: Point<F26Dot6>) -> Point<F26Dot6> {
+        match self {
+            OnCurve::Implicit => midpoint(last_offcurve, current),
+            OnCurve::Explicit => current,
+        }
+    }
+}
+
+// FreeType uses integer division to compute midpoints.
+// See: https://github.com/freetype/freetype/blob/de8b92dd7ec634e9e2b25ef534c54a3537555c11/src/base/ftoutln.c#L123
+#[inline(always)]
+fn midpoint(a: Point<F26Dot6>, b: Point<F26Dot6>) -> Point<F26Dot6> {
+    ((a + b).map(F26Dot6::to_bits) / 2).map(F26Dot6::from_bits)
+}
+
+#[derive(Debug)]
+struct Contour<'a> {
+    /// The offset into the glyphs point stream our points start.
+    ///
+    /// Allows us to report error indices that are correct relative to the containing point stream.
+    base_offset: usize,
+    /// The points for this contour, sliced from a glyphs point stream
+    points: &'a [Point<F26Dot6>],
+    /// The flags for points, sliced from a glyphs flag stream
+    flags: &'a [PointFlags],
+}
+
+#[derive(Debug)]
+struct ContourIter<'a> {
+    contour: &'a Contour<'a>,
+    /// Wrapping index into points/flags of contour.
+    ix: usize,
+    /// Number of points yet to be processed
+    points_pending: usize,
+    first_move: Point<F26Dot6>,
+    /// Indices of off-curve points yet to be processed
+    off_curve: [usize; 2],
+    /// Number of live entries in off_curve
+    off_curve_pending: usize,
+}
+
+impl<'a> ContourIter<'a> {
+    fn new(contour: &'a Contour<'_>) -> Result<Self, ToPathError> {
+        // By default start at [0], unless [0] is off-curve
+        let mut start_ix = 0;
+        let mut num_pending = contour.points.len();
+        let mut first_move = Default::default();
+        if !contour.points.is_empty() {
+            if contour.flags[0].is_off_curve_cubic() {
+                return Err(ToPathError::ExpectedQuadOrOnCurve(contour.base_offset));
+            }
+
+            // Establish our first move and the starting index for our waltz over the points
+            first_move = contour.points[0];
+            if contour.flags[0].is_off_curve_quad() {
+                let maybe_oncurve_ix = contour.points.len() - 1;
+                if contour.flags[maybe_oncurve_ix].is_on_curve() {
+                    start_ix = maybe_oncurve_ix + 1;
+                    first_move = contour.points[maybe_oncurve_ix];
+                    num_pending = num_pending.saturating_sub(1); // first move consumes the first point
+                } else {
+                    // where we looked for an on-curve was also off. Take the implicit oncurve in between as first move.
+                    first_move = midpoint(contour.points[0], contour.points[maybe_oncurve_ix]);
+                    start_ix = 0;
+                }
+            } else {
+                start_ix = 1;
+                num_pending = num_pending.saturating_sub(1); // first move consumes the first point
+            }
+        }
+        Ok(Self {
+            contour,
+            ix: start_ix,
+            points_pending: num_pending,
+            first_move,
+            off_curve: [0, 0],
+            off_curve_pending: 0,
+        })
+    }
+
+    fn push_off_curve(&mut self, ix: usize) {
+        self.off_curve[self.off_curve_pending] = ix;
+        self.off_curve_pending += 1;
+    }
+
+    fn quad_to(
+        &mut self,
+        curr: Point<F26Dot6>,
+        oncurve: OnCurve,
+        pen: &mut impl Pen,
+    ) -> Result<(), ToPathError> {
+        let buf_ix = self.off_curve[0];
+
+        if !self.contour.flags[buf_ix].is_off_curve_quad() {
+            return Err(ToPathError::ExpectedQuad(self.contour.base_offset + buf_ix));
+        }
+        let c0 = self.contour.points[buf_ix];
+        let end = oncurve.endpoint(c0, curr).map(F26Dot6::to_f32);
+        let c0 = c0.map(F26Dot6::to_f32);
+        pen.quad_to(c0.x, c0.y, end.x, end.y);
+
+        self.off_curve_pending = 0;
+        Ok(())
+    }
+
+    fn cubic_to(
+        &mut self,
+        curr: Point<F26Dot6>,
+        oncurve: OnCurve,
+        pen: &mut impl Pen,
+    ) -> Result<(), ToPathError> {
+        let buf_ix_0 = self.off_curve[0];
+        let buf_ix_1 = self.off_curve[1];
+
+        if !self.contour.flags[buf_ix_0].is_off_curve_cubic() {
+            return Err(ToPathError::ExpectedCubic(
+                self.contour.base_offset + buf_ix_0,
+            ));
+        }
+        if !self.contour.flags[buf_ix_1].is_off_curve_cubic() {
+            return Err(ToPathError::ExpectedCubic(
+                self.contour.base_offset + buf_ix_1,
+            ));
+        }
+
+        let c0 = self.contour.points[buf_ix_0].map(F26Dot6::to_f32);
+        let c1 = self.contour.points[buf_ix_1];
+        let end = oncurve.endpoint(c1, curr).map(F26Dot6::to_f32);
+        let c1 = c1.map(F26Dot6::to_f32);
+        pen.curve_to(c0.x, c0.y, c1.x, c1.y, end.x, end.y);
+
+        self.off_curve_pending = 0;
+        Ok(())
+    }
+
+    fn is_empty(&self) -> bool {
+        self.points_pending == 0 && self.off_curve_pending == 0
+    }
+
+    fn next(&mut self, pen: &mut impl Pen) -> Result<(), ToPathError> {
+        if self.is_empty() {
+            return Ok(());
+        }
+
+        if self.points_pending > 0 {
+            // Take the next point in the stream
+            // Wrapping read of flags and points
+            let ix = self.ix % self.contour.points.len();
+            self.points_pending -= 1;
+            self.ix += 1;
+            let (flag, curr) = (self.contour.flags[ix], self.contour.points[ix]);
+
+            if flag.is_off_curve_quad() {
+                // quads can have 0 or 1 buffered point. If there is one draw a quad to the implicit oncurve.
+                if self.off_curve_pending > 0 {
+                    self.quad_to(curr, OnCurve::Implicit, pen)?;
+                }
+                self.push_off_curve(ix);
+            } else if flag.is_off_curve_cubic() {
+                // If this is the third consecutive cubic off-curve there's an implicit oncurve between the last two
+                if self.off_curve_pending > 1 {
+                    self.cubic_to(curr, OnCurve::Implicit, pen)?;
+                }
+                self.push_off_curve(ix);
+            } else if flag.is_on_curve() {
+                // A real oncurve! What to draw depends on how many off curves are pending.
+                match self.off_curve_pending {
+                    2 => self.cubic_to(curr, OnCurve::Explicit, pen)?,
+                    1 => self.quad_to(curr, OnCurve::Explicit, pen)?,
+                    _ => {
+                        // only zero should match and that's a line
+                        debug_assert!(self.off_curve_pending == 0);
+                        let curr = curr.map(F26Dot6::to_f32);
+                        pen.line_to(curr.x, curr.y);
+                    }
+                }
+            }
+        } else {
+            // We weren't empty when we entered and we have no moe points so we must have pending off-curves
+            match self.off_curve_pending {
+                2 => self.cubic_to(self.first_move, OnCurve::Explicit, pen)?,
+                1 => self.quad_to(self.first_move, OnCurve::Explicit, pen)?,
+                _ => debug_assert!(
+                    false,
+                    "We're in a weird state. {} pending, {} off-curve.",
+                    self.points_pending, self.off_curve_pending
+                ),
+            }
+        }
+        Ok(())
+    }
+}
+
+impl<'a> Contour<'a> {
+    fn new(
+        base_offset: usize,
+        points: &'a [Point<F26Dot6>],
+        flags: &'a [PointFlags],
+    ) -> Result<Self, ToPathError> {
+        if points.len() != flags.len() {
+            return Err(ToPathError::PointFlagMismatch {
+                num_points: points.len(),
+                num_flags: flags.len(),
+            });
+        }
+        Ok(Self {
+            base_offset,
+            points,
+            flags,
+        })
+    }
+
+    fn draw(self, pen: &mut impl Pen) -> Result<(), ToPathError> {
+        let mut it = ContourIter::new(&self)?;
+        if it.is_empty() {
+            return Ok(());
+        }
+
+        let first_move = it.first_move.map(F26Dot6::to_f32);
+        pen.move_to(first_move.x, first_move.y);
+
+        while !it.is_empty() {
+            it.next(pen)?;
+        }
+
+        // we know there was at least one point so close out the contour
+        pen.close();
+
+        Ok(())
+    }
+}
+
 /// Converts a `glyf` outline described by points, flags and contour end points to a sequence of
-/// path elements and invokes the appropriate callback on the given sink for each.
+/// path elements and invokes the appropriate callback on the given pen for each.
 ///
 /// The input points are expected in `F26Dot6` format as that is the standard result of scaling
 /// a TrueType glyph. Output points are generated in `f32`.
@@ -680,125 +929,22 @@ pub fn to_path(
     points: &[Point<F26Dot6>],
     flags: &[PointFlags],
     contours: &[u16],
-    sink: &mut impl Pen,
+    pen: &mut impl Pen,
 ) -> Result<(), ToPathError> {
-    // FreeType uses integer division to compute midpoints.
-    // See: https://github.com/freetype/freetype/blob/de8b92dd7ec634e9e2b25ef534c54a3537555c11/src/base/ftoutln.c#L123
-    fn midpoint(a: Point<F26Dot6>, b: Point<F26Dot6>) -> Point<F26Dot6> {
-        ((a + b).map(F26Dot6::to_bits) / 2).map(F26Dot6::from_bits)
-    }
-    let mut count = 0usize;
-    let mut last_was_close = false;
     for contour_ix in 0..contours.len() {
-        let mut cur_ix = if contour_ix > 0 {
-            contours[contour_ix - 1] as usize + 1
-        } else {
-            0
-        };
-        let mut last_ix = contours[contour_ix] as usize;
-        if last_ix < cur_ix || last_ix >= points.len() {
+        let start_ix = (contour_ix > 0)
+            .then(|| contours[contour_ix - 1] as usize + 1)
+            .unwrap_or_default();
+        let end_ix = contours[contour_ix] as usize;
+        if end_ix < start_ix || end_ix >= points.len() {
             return Err(ToPathError::ContourOrder(contour_ix));
         }
-        let mut v_start = points[cur_ix];
-        let v_last = points[last_ix];
-        let mut flag = flags[cur_ix];
-        if flag.is_off_curve_cubic() {
-            return Err(ToPathError::ExpectedQuadOrOnCurve(cur_ix));
-        }
-        let mut step_point = true;
-        if flag.is_off_curve_quad() {
-            if flags[last_ix].is_on_curve() {
-                v_start = v_last;
-                last_ix -= 1;
-            } else {
-                v_start = midpoint(v_start, v_last);
-            }
-            step_point = false;
-        }
-        let p = v_start.map(F26Dot6::to_f32);
-        if count > 0 && !last_was_close {
-            sink.close();
-        }
-        sink.move_to(p.x, p.y);
-        count += 1;
-        last_was_close = false;
-        while cur_ix < last_ix || cur_ix == last_ix && !step_point {
-            if step_point {
-                cur_ix += 1;
-            }
-            step_point = true;
-            flag = flags[cur_ix];
-            if flag.is_on_curve() {
-                let p = points[cur_ix].map(F26Dot6::to_f32);
-                sink.line_to(p.x, p.y);
-                count += 1;
-                last_was_close = false;
-                continue;
-            } else if flag.is_off_curve_quad() {
-                let mut do_close_quad = true;
-                let mut v_control = points[cur_ix];
-                while cur_ix < last_ix {
-                    cur_ix += 1;
-                    let cur_point = points[cur_ix];
-                    flag = flags[cur_ix];
-                    if flag.is_on_curve() {
-                        let control = v_control.map(F26Dot6::to_f32);
-                        let point = cur_point.map(F26Dot6::to_f32);
-                        sink.quad_to(control.x, control.y, point.x, point.y);
-                        count += 1;
-                        last_was_close = false;
-                        do_close_quad = false;
-                        break;
-                    }
-                    if !flag.is_off_curve_quad() {
-                        return Err(ToPathError::ExpectedQuad(cur_ix));
-                    }
-                    let v_middle = midpoint(v_control, cur_point);
-                    let control = v_control.map(F26Dot6::to_f32);
-                    let point = v_middle.map(F26Dot6::to_f32);
-                    sink.quad_to(control.x, control.y, point.x, point.y);
-                    count += 1;
-                    last_was_close = false;
-                    v_control = cur_point;
-                }
-                if do_close_quad {
-                    let control = v_control.map(F26Dot6::to_f32);
-                    let point = v_start.map(F26Dot6::to_f32);
-                    sink.quad_to(control.x, control.y, point.x, point.y);
-                    count += 1;
-                    last_was_close = false;
-                    break;
-                }
-                continue;
-            } else {
-                if cur_ix + 1 > last_ix || !flags[cur_ix + 1].is_off_curve_cubic() {
-                    return Err(ToPathError::ExpectedCubic(cur_ix + 1));
-                }
-                let control0 = points[cur_ix].map(F26Dot6::to_f32);
-                let control1 = points[cur_ix + 1].map(F26Dot6::to_f32);
-                cur_ix += 2;
-                if cur_ix <= last_ix {
-                    let point = points[cur_ix].map(F26Dot6::to_f32);
-                    sink.curve_to(
-                        control0.x, control0.y, control1.x, control1.y, point.x, point.y,
-                    );
-                    count += 1;
-                    last_was_close = false;
-                    continue;
-                }
-                let point = v_start.map(F26Dot6::to_f32);
-                sink.curve_to(
-                    control0.x, control0.y, control1.x, control1.y, point.x, point.y,
-                );
-                count += 1;
-                last_was_close = false;
-                break;
-            }
-        }
-        if count > 0 && !last_was_close {
-            sink.close();
-            last_was_close = true;
-        }
+        Contour::new(
+            start_ix,
+            &points[start_ix..=end_ix],
+            &flags[start_ix..=end_ix],
+        )?
+        .draw(pen)?;
     }
     Ok(())
 }
