@@ -36,7 +36,7 @@ pub use variation::{Axis, AxisCollection, NamedInstance, NamedInstanceCollection
 pub mod prelude {
     #[doc(no_inline)]
     pub use super::{
-        font::{FontRef, UniqueId},
+        font::FontRef,
         instance::{LocationRef, NormalizedCoord, Size},
         GlyphId, MetadataProvider, Tag,
     };
