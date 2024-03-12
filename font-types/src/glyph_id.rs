@@ -38,6 +38,12 @@ impl Default for GlyphId {
     }
 }
 
+impl From<u16> for GlyphId {
+    fn from(value: u16) -> Self {
+        Self(value)
+    }
+}
+
 impl std::fmt::Display for GlyphId {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(f, "GID_{}", self.0)
