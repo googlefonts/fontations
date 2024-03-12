@@ -775,7 +775,7 @@ impl<'a> ContourIter<'a> {
         &mut self,
         curr: Point<F26Dot6>,
         oncurve: OnCurve,
-        sink: &mut impl Pen,
+        pen: &mut impl Pen,
     ) -> Result<(), ToPathError> {
         let buf_ix = self.off_curve[0];
 
@@ -785,7 +785,7 @@ impl<'a> ContourIter<'a> {
         let c0 = self.contour.points[buf_ix];
         let end = oncurve.endpoint(c0, curr).map(F26Dot6::to_f32);
         let c0 = c0.map(F26Dot6::to_f32);
-        sink.quad_to(c0.x, c0.y, end.x, end.y);
+        pen.quad_to(c0.x, c0.y, end.x, end.y);
 
         self.off_curve_pending = 0;
         Ok(())
@@ -795,7 +795,7 @@ impl<'a> ContourIter<'a> {
         &mut self,
         curr: Point<F26Dot6>,
         oncurve: OnCurve,
-        sink: &mut impl Pen,
+        pen: &mut impl Pen,
     ) -> Result<(), ToPathError> {
         let buf_ix_0 = self.off_curve[0];
         let buf_ix_1 = self.off_curve[1];
@@ -815,7 +815,7 @@ impl<'a> ContourIter<'a> {
         let c1 = self.contour.points[buf_ix_1];
         let end = oncurve.endpoint(c1, curr).map(F26Dot6::to_f32);
         let c1 = c1.map(F26Dot6::to_f32);
-        sink.curve_to(c0.x, c0.y, c1.x, c1.y, end.x, end.y);
+        pen.curve_to(c0.x, c0.y, c1.x, c1.y, end.x, end.y);
 
         self.off_curve_pending = 0;
         Ok(())
@@ -825,7 +825,7 @@ impl<'a> ContourIter<'a> {
         self.points_pending == 0 && self.off_curve_pending == 0
     }
 
-    fn next(&mut self, sink: &mut impl Pen) -> Result<(), ToPathError> {
+    fn next(&mut self, pen: &mut impl Pen) -> Result<(), ToPathError> {
         if self.is_empty() {
             return Ok(());
         }
@@ -841,33 +841,33 @@ impl<'a> ContourIter<'a> {
             if flag.is_off_curve_quad() {
                 // quads can have 0 or 1 buffered point. If there is one draw a quad to the implicit oncurve.
                 if self.off_curve_pending > 0 {
-                    self.quad_to(curr, OnCurve::Implicit, sink)?;
+                    self.quad_to(curr, OnCurve::Implicit, pen)?;
                 }
                 self.push_off_curve(ix);
             } else if flag.is_off_curve_cubic() {
                 // If this is the third consecutive cubic off-curve there's an implicit oncurve between the last two
                 if self.off_curve_pending > 1 {
-                    self.cubic_to(curr, OnCurve::Implicit, sink)?;
+                    self.cubic_to(curr, OnCurve::Implicit, pen)?;
                 }
                 self.push_off_curve(ix);
             } else if flag.is_on_curve() {
                 // A real oncurve! What to draw depends on how many off curves are pending.
                 match self.off_curve_pending {
-                    2 => self.cubic_to(curr, OnCurve::Explicit, sink)?,
-                    1 => self.quad_to(curr, OnCurve::Explicit, sink)?,
+                    2 => self.cubic_to(curr, OnCurve::Explicit, pen)?,
+                    1 => self.quad_to(curr, OnCurve::Explicit, pen)?,
                     _ => {
                         // only zero should match and that's a line
                         debug_assert!(self.off_curve_pending == 0);
                         let curr = curr.map(F26Dot6::to_f32);
-                        sink.line_to(curr.x, curr.y);
+                        pen.line_to(curr.x, curr.y);
                     }
                 }
             }
         } else {
             // We weren't empty when we entered and we have no moe points so we must have pending off-curves
             match self.off_curve_pending {
-                2 => self.cubic_to(self.first_move, OnCurve::Explicit, sink)?,
-                1 => self.quad_to(self.first_move, OnCurve::Explicit, sink)?,
+                2 => self.cubic_to(self.first_move, OnCurve::Explicit, pen)?,
+                1 => self.quad_to(self.first_move, OnCurve::Explicit, pen)?,
                 _ => debug_assert!(
                     false,
                     "We're in a weird state. {} pending, {} off-curve.",
@@ -898,28 +898,28 @@ impl<'a> Contour<'a> {
         })
     }
 
-    fn drain(self, sink: &mut impl Pen) -> Result<(), ToPathError> {
+    fn draw(self, pen: &mut impl Pen) -> Result<(), ToPathError> {
         let mut it = ContourIter::new(&self)?;
         if it.is_empty() {
             return Ok(());
         }
 
         let first_move = it.first_move.map(F26Dot6::to_f32);
-        sink.move_to(first_move.x, first_move.y);
+        pen.move_to(first_move.x, first_move.y);
 
         while !it.is_empty() {
-            it.next(sink)?;
+            it.next(pen)?;
         }
 
         // we know there was at least one point so close out the contour
-        sink.close();
+        pen.close();
 
         Ok(())
     }
 }
 
 /// Converts a `glyf` outline described by points, flags and contour end points to a sequence of
-/// path elements and invokes the appropriate callback on the given sink for each.
+/// path elements and invokes the appropriate callback on the given pen for each.
 ///
 /// The input points are expected in `F26Dot6` format as that is the standard result of scaling
 /// a TrueType glyph. Output points are generated in `f32`.
@@ -929,7 +929,7 @@ pub fn to_path(
     points: &[Point<F26Dot6>],
     flags: &[PointFlags],
     contours: &[u16],
-    sink: &mut impl Pen,
+    pen: &mut impl Pen,
 ) -> Result<(), ToPathError> {
     for contour_ix in 0..contours.len() {
         let start_ix = (contour_ix > 0)
@@ -944,7 +944,7 @@ pub fn to_path(
             &points[start_ix..=end_ix],
             &flags[start_ix..=end_ix],
         )?
-        .drain(sink)?;
+        .draw(pen)?;
     }
     Ok(())
 }
