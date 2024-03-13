@@ -7,8 +7,6 @@ table Post {
     /// 0x00025000 for version 2.5 (deprecated) 0x00030000 for version
     /// 3.0
     #[version]
-    // NOTE: we will need some sort of builder to compile post tables, and that
-    // builder should set the version. This attribute is a placeholder.
     #[default(Version16Dot16::VERSION_1_0)]
     version: Version16Dot16,
     /// Italic angle in counter-clockwise degrees from the vertical.
@@ -32,18 +30,23 @@ table Post {
     /// font is not proportionally spaced (i.e. monospaced).
     is_fixed_pitch: u32,
     /// Minimum memory usage when an OpenType font is downloaded.
+    #[default(0)]
     min_mem_type42: u32,
     /// Maximum memory usage when an OpenType font is downloaded.
+    #[default(0)]
     max_mem_type42: u32,
     /// Minimum memory usage when an OpenType font is downloaded as a
     /// Type 1 font.
+    #[default(0)]
     min_mem_type1: u32,
     /// Maximum memory usage when an OpenType font is downloaded as a
     /// Type 1 font.
+    #[default(0)]
     max_mem_type1: u32,
     /// Number of glyphs (this should be the same as numGlyphs in
     /// 'maxp' table).
     #[since_version(2,0)]
+    #[compile(self.compute_num_glyphs())]
     num_glyphs: u16,
     /// Array of indices into the string data. See below for details.
     #[count($num_glyphs)]

@@ -12,8 +12,24 @@ include!("../../generated/generated_post.rs");
 pub struct PString(String);
 
 impl Post {
-    /// Construct a new version 2.0 table from a glyph order.
-    pub fn new_v2<'a>(order: impl IntoIterator<Item = &'a str>) -> Self {
+    /// Builder-style method to add glyph names to the table.
+    ///
+    /// See [`set_glyph_names`] for more information.
+    ///
+    /// [`set_glyph_names`]: Self::set_glyph_names
+    pub fn with_glyph_names<'a>(mut self, order: impl IntoIterator<Item = &'a str>) -> Self {
+        self.set_glyph_names(order);
+        self
+    }
+
+    /// Set the glyph names for this table.
+    ///
+    /// The provided order is an iterator of the names of glyphs, in the order
+    /// that they appear in the `glyf` table.
+    ///
+    /// This replaces any previously set glyph names, and sets the table version
+    /// to 2.0.
+    pub fn set_glyph_names<'a>(&mut self, order: impl IntoIterator<Item = &'a str>) {
         let known_glyphs = read_fonts::tables::post::DEFAULT_GLYPH_NAMES
             .iter()
             .enumerate()
@@ -32,14 +48,16 @@ impl Post {
                 }
             }
         }
+        self.glyph_name_index = Some(name_index);
+        self.string_data = Some(storage);
+        self.version = Version16Dot16::VERSION_2_0;
+    }
 
-        Post {
-            version: Version16Dot16::VERSION_2_0,
-            num_glyphs: Some(name_index.len() as u16),
-            glyph_name_index: Some(name_index),
-            string_data: Some(storage),
-            ..Default::default()
-        }
+    fn compute_num_glyphs(&self) -> u16 {
+        self.glyph_name_index
+            .as_ref()
+            .map(Vec::len)
+            .unwrap_or_default() as u16
     }
 }
 
@@ -91,7 +109,7 @@ mod tests {
 
     #[test]
     fn compilev2() {
-        let post = Post::new_v2([".dotdef", "A", "B", "one", "flarb", "C"]);
+        let post = Post::default().with_glyph_names([".dotdef", "A", "B", "one", "flarb", "C"]);
         let dumped = crate::dump_table(&post).unwrap();
         let loaded = read_fonts::tables::post::Post::read(FontData::new(&dumped)).unwrap();
         assert_eq!(loaded.version(), Version16Dot16::VERSION_2_0);
