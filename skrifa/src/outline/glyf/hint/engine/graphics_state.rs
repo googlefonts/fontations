@@ -151,7 +151,11 @@ impl<'a> Engine<'a> {
     pub(super) fn op_spvfs(&mut self) -> OpResult {
         let y = self.value_stack.pop()? as i16 as i32;
         let x = self.value_stack.pop()? as i16 as i32;
-        let vector = math::normalize14(x, y);
+        let vector = if x == 0 && y == 0 {
+            self.graphics_state.proj_vector
+        } else {
+            math::normalize14(x, y)
+        };
         self.graphics_state.proj_vector = vector;
         self.graphics_state.dual_proj_vector = vector;
         self.graphics_state.update_projection_state();
@@ -174,7 +178,11 @@ impl<'a> Engine<'a> {
     pub(super) fn op_sfvfs(&mut self) -> OpResult {
         let y = self.value_stack.pop()? as i16 as i32;
         let x = self.value_stack.pop()? as i16 as i32;
-        let vector = math::normalize14(x, y);
+        let vector = if x == 0 && y == 0 {
+            self.graphics_state.freedom_vector
+        } else {
+            math::normalize14(x, y)
+        };
         self.graphics_state.freedom_vector = vector;
         self.graphics_state.update_projection_state();
         Ok(())

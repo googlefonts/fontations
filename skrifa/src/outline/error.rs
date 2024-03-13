@@ -1,5 +1,6 @@
 //! Error types associated with outlines.
 
+use core::fmt;
 use read_fonts::types::GlyphId;
 
 pub use read_fonts::{
@@ -7,7 +8,7 @@ pub use read_fonts::{
     ReadError,
 };
 
-use core::fmt;
+pub use super::glyf::HintError;
 
 /// Errors that may occur when drawing glyphs.
 #[derive(Clone, Debug)]
@@ -21,7 +22,7 @@ pub enum DrawError {
     /// Exceeded a recursion limit when loading a glyph.
     RecursionLimitExceeded(GlyphId),
     /// Error occured during hinting.
-    HintingFailed(GlyphId),
+    HintingFailed(HintError),
     /// An anchor point had invalid indices.
     InvalidAnchorPoint(GlyphId, u16),
     /// Error occurred while loading a PostScript (CFF/CFF2) glyph.
@@ -30,6 +31,12 @@ pub enum DrawError {
     ToPath(ToPathError),
     /// Error occured when reading font data.
     Read(ReadError),
+}
+
+impl From<HintError> for DrawError {
+    fn from(value: HintError) -> Self {
+        Self::HintingFailed(value)
+    }
 }
 
 impl From<ToPathError> for DrawError {
@@ -61,7 +68,7 @@ impl fmt::Display for DrawError {
                 "Recursion limit ({}) exceeded when loading composite component {gid}",
                 super::GLYF_COMPOSITE_RECURSION_LIMIT,
             ),
-            Self::HintingFailed(gid) => write!(f, "Bad hinting bytecode for glyph {gid}"),
+            Self::HintingFailed(e) => write!(f, "{e}"),
             Self::InvalidAnchorPoint(gid, index) => write!(
                 f,
                 "Invalid anchor point index ({index}) for composite glyph {gid}",

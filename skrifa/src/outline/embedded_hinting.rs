@@ -1,8 +1,8 @@
 //! Support for applying embedded hinting instructions.
 
 use super::{
-    cff, AdjustedMetrics, DrawError, Hinting, LocationRef, NormalizedCoord, OutlineCollectionKind,
-    OutlineGlyph, OutlineGlyphCollection, OutlineKind, OutlinePen, Size,
+    cff, glyf, AdjustedMetrics, DrawError, Hinting, LocationRef, NormalizedCoord,
+    OutlineCollectionKind, OutlineGlyph, OutlineGlyphCollection, OutlineKind, OutlinePen, Size,
 };
 
 /// Modes that control hinting when using embedded instructions.
@@ -133,8 +133,21 @@ impl EmbeddedHintingInstance {
         // Reuse memory if the font contains the same outline format
         let current_kind = core::mem::replace(&mut self.kind, HinterKind::None);
         match &outlines.kind {
-            OutlineCollectionKind::Glyf(_) => {
-                self.kind = HinterKind::Glyf;
+            OutlineCollectionKind::Glyf(glyf) => {
+                let mut hint_instance = match current_kind {
+                    HinterKind::Glyf(instance) => instance,
+                    _ => Box::<glyf::HintInstance>::default(),
+                };
+                let ppem = size.ppem();
+                let scale = glyf.compute_scale(ppem).1.to_bits();
+                hint_instance.reconfigure(
+                    glyf,
+                    scale,
+                    ppem.unwrap_or_default() as i32,
+                    mode,
+                    &self.coords,
+                )?;
+                self.kind = HinterKind::Glyf(hint_instance);
             }
             OutlineCollectionKind::Cff(cff) => {
                 let mut subfonts = match current_kind {
@@ -153,21 +166,41 @@ impl EmbeddedHintingInstance {
         Ok(())
     }
 
+    /// Returns true if hinting should actually be applied for this instance.
+    ///
+    /// Some TrueType fonts disable hinting dynamically based on the instance
+    /// configuration.
+    pub fn is_enabled(&self) -> bool {
+        match &self.kind {
+            HinterKind::Glyf(instance) => instance.is_enabled(),
+            HinterKind::Cff(_) => true,
+            _ => false,
+        }
+    }
+
     pub(super) fn draw(
         &self,
         glyph: &OutlineGlyph,
         memory: Option<&mut [u8]>,
         pen: &mut impl OutlinePen,
+        is_pedantic: bool,
     ) -> Result<AdjustedMetrics, DrawError> {
         let ppem = self.size.ppem();
         let coords = self.coords.as_slice();
         match (&self.kind, &glyph.kind) {
-            (HinterKind::Glyf, OutlineKind::Glyf(glyf, outline)) => {
+            (HinterKind::Glyf(instance), OutlineKind::Glyf(glyf, outline)) => {
                 super::with_glyf_memory(outline, Hinting::Embedded, memory, |buf| {
                     let mem = outline
                         .memory_from_buffer(buf, Hinting::Embedded)
                         .ok_or(DrawError::InsufficientMemory)?;
-                    let scaled_outline = glyf.draw(mem, outline, ppem, coords)?;
+                    let scaled_outline = glyf.draw_hinted(
+                        mem,
+                        outline,
+                        ppem,
+                        coords,
+                        |mut hint_outline| instance.hint(glyf, &mut hint_outline),
+                        is_pedantic,
+                    )?;
                     scaled_outline.to_path(pen)?;
                     Ok(AdjustedMetrics {
                         has_overlaps: outline.has_overlaps,
@@ -193,6 +226,6 @@ enum HinterKind {
     /// Represents a hinting instance that is associated with an empty outline
     /// collection.
     None,
-    Glyf,
+    Glyf(Box<glyf::HintInstance>),
     Cff(Vec<cff::Subfont>),
 }

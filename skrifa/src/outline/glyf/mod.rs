@@ -8,7 +8,7 @@ mod hint;
 mod memory;
 mod outline;
 
-pub use hint::HintOutline;
+pub use hint::{HintError, HintInstance, HintOutline};
 pub use memory::OutlineMemory;
 pub use outline::{Outline, ScaledOutline};
 
@@ -135,6 +135,10 @@ impl<'a> Outlines<'a> {
         if outline.points != 0 {
             outline.points += PHANTOM_POINT_COUNT;
         }
+        outline.max_stack = self.max_stack_elements as usize;
+        outline.cvt_count = self.cvt.len();
+        outline.storage_count = self.max_storage as usize;
+        outline.max_twilight_points = self.max_twilight_points as usize;
         outline.glyph = glyph;
         Ok(outline)
     }
@@ -159,7 +163,7 @@ impl<'a> Outlines<'a> {
         size: Option<f32>,
         coords: &'a [F2Dot14],
     ) -> Result<ScaledOutline<'a>, DrawError> {
-        Scaler::new(self.clone(), memory, size, coords, |_| true, false)
+        Scaler::new(self.clone(), memory, size, coords, |_| Ok(()), false, false)
             .scale(&outline.glyph, outline.glyph_id)
     }
 
@@ -169,10 +173,19 @@ impl<'a> Outlines<'a> {
         outline: &Outline,
         size: Option<f32>,
         coords: &'a [F2Dot14],
-        hint_fn: impl FnMut(HintOutline) -> bool,
+        hint_fn: impl FnMut(HintOutline) -> Result<(), HintError>,
+        pedantic_hinting: bool,
     ) -> Result<ScaledOutline<'a>, DrawError> {
-        Scaler::new(self.clone(), memory, size, coords, hint_fn, false)
-            .scale(&outline.glyph, outline.glyph_id)
+        Scaler::new(
+            self.clone(),
+            memory,
+            size,
+            coords,
+            hint_fn,
+            true,
+            pedantic_hinting,
+        )
+        .scale(&outline.glyph, outline.glyph_id)
     }
 }
 
@@ -290,6 +303,7 @@ struct Scaler<'a, H> {
     scale: F26Dot6,
     is_scaled: bool,
     is_hinted: bool,
+    pedantic_hinting: bool,
     /// Phantom points. These are 4 extra points appended to the end of an
     /// outline that allow the bytecode interpreter to produce hinted
     /// metrics.
@@ -301,7 +315,7 @@ struct Scaler<'a, H> {
 
 impl<'a, H> Scaler<'a, H>
 where
-    H: FnMut(HintOutline) -> bool,
+    H: FnMut(HintOutline) -> Result<(), HintError>,
 {
     fn new(
         outlines: Outlines<'a>,
@@ -310,6 +324,7 @@ where
         coords: &'a [F2Dot14],
         hint_fn: H,
         is_hinted: bool,
+        pedantic_hinting: bool,
     ) -> Self {
         let (is_scaled, scale) = outlines.compute_scale(size);
         Self {
@@ -323,6 +338,7 @@ where
             is_scaled,
             // We don't hint unscaled outlines
             is_hinted: is_hinted && is_scaled,
+            pedantic_hinting,
             phantom: Default::default(),
             hint_fn,
         }
@@ -457,7 +473,7 @@ where
             }
         }
         let ins = glyph.instructions();
-        let is_hinted = self.is_hinted && !ins.is_empty();
+        let is_hinted = self.is_hinted;
         if self.is_scaled {
             let scale = self.scale;
             if have_deltas {
@@ -497,14 +513,19 @@ where
             }
         }
         // Commit our potentially modified phantom points.
-        for (i, point) in scaled[phantom_start..]
-            .iter()
-            .enumerate()
-            .take(PHANTOM_POINT_COUNT)
-        {
-            self.phantom[i] = *point;
+        if self.outlines.hvar.is_some() && self.is_hinted {
+            self.phantom[0] *= self.scale;
+            self.phantom[1] *= self.scale;
+        } else {
+            for (i, point) in scaled[phantom_start..]
+                .iter()
+                .enumerate()
+                .take(PHANTOM_POINT_COUNT)
+            {
+                self.phantom[i] = *point;
+            }
         }
-        if is_hinted {
+        if is_hinted && !ins.is_empty() {
             // Create a copy of our scaled points in original_scaled.
             let original_scaled = self
                 .memory
@@ -517,7 +538,7 @@ where
                 point.x = point.x.round();
                 point.y = point.y.round();
             }
-            if !(self.hint_fn)(HintOutline {
+            let hint_res = (self.hint_fn)(HintOutline {
                 glyph_id,
                 unscaled,
                 scaled,
@@ -534,8 +555,9 @@ where
                 twilight_flags: self.memory.twilight_flags,
                 is_composite: false,
                 coords: self.coords,
-            }) {
-                return Err(DrawError::HintingFailed(glyph_id));
+            });
+            if let (Err(e), true) = (hint_res, self.pedantic_hinting) {
+                return Err(e)?;
             }
         }
         if points_start != 0 {
@@ -776,7 +798,7 @@ where
                         *contour -= delta;
                     }
                 }
-                if !(self.hint_fn)(HintOutline {
+                let hint_res = (self.hint_fn)(HintOutline {
                     glyph_id,
                     unscaled,
                     scaled,
@@ -793,8 +815,9 @@ where
                     twilight_flags: self.memory.twilight_flags,
                     is_composite: true,
                     coords: self.coords,
-                }) {
-                    return Err(DrawError::HintingFailed(glyph_id));
+                });
+                if let (Err(e), true) = (hint_res, self.pedantic_hinting) {
+                    return Err(e)?;
                 }
                 // Undo the contour shifts if we applied them above.
                 if point_base != 0 {

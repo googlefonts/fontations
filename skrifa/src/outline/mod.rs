@@ -163,13 +163,21 @@ impl<'a> DrawSettings<'a> {
         }
     }
 
-    /// Creates settings for a hinted draw operation using embedded hinting.
+    /// Creates settings for a hinted draw operation using hinting data
+    /// contained in the font.
+    ///
+    /// If `is_pedantic` is true then any error that occurs during hinting will
+    /// cause drawing to fail. This is equivalent to the `FT_LOAD_PEDANTIC` flag
+    /// in FreeType.
     ///
     /// The font size, location in variation space and hinting mode are
     /// defined by the current configuration of the given hinting instance.
-    pub fn embedded_hinting(instance: &'a EmbeddedHintingInstance) -> Self {
+    pub fn hinted(instance: &'a EmbeddedHintingInstance, is_pedantic: bool) -> Self {
         Self {
-            instance: DrawInstance::EmbeddedHinted(instance),
+            instance: DrawInstance::EmbeddedHinted {
+                instance,
+                is_pedantic,
+            },
             memory: None,
         }
     }
@@ -189,7 +197,10 @@ impl<'a> DrawSettings<'a> {
 
 enum DrawInstance<'a> {
     Unhinted(Size, LocationRef<'a>),
-    EmbeddedHinted(&'a EmbeddedHintingInstance),
+    EmbeddedHinted {
+        instance: &'a EmbeddedHintingInstance,
+        is_pedantic: bool,
+    },
 }
 
 impl<'a, L> From<(Size, L)> for DrawSettings<'a>
@@ -209,7 +220,7 @@ impl From<Size> for DrawSettings<'_> {
 
 impl<'a> From<&'a EmbeddedHintingInstance> for DrawSettings<'a> {
     fn from(value: &'a EmbeddedHintingInstance) -> Self {
-        DrawSettings::embedded_hinting(value)
+        DrawSettings::hinted(value, false)
     }
 }
 
@@ -297,7 +308,16 @@ impl<'a> OutlineGlyph<'a> {
             DrawInstance::Unhinted(size, location) => {
                 self.draw_unhinted(size, location, settings.memory, pen)
             }
-            DrawInstance::EmbeddedHinted(hinter) => hinter.draw(self, settings.memory, pen),
+            DrawInstance::EmbeddedHinted {
+                instance,
+                is_pedantic,
+            } => {
+                if instance.is_enabled() {
+                    instance.draw(self, settings.memory, pen, is_pedantic)
+                } else {
+                    self.draw_unhinted(instance.size(), instance.location(), settings.memory, pen)
+                }
+            }
         }
     }
 

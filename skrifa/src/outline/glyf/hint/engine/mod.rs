@@ -25,7 +25,7 @@ use super::{
     cvt::Cvt,
     definition::DefinitionState,
     error::{HintError, HintErrorKind},
-    graphics_state::{GraphicsState, RetainedGraphicsState},
+    graphics_state::{GraphicsState, RetainedGraphicsState, Zone},
     program::ProgramState,
     storage::Storage,
     value_stack::ValueStack,
@@ -47,6 +47,45 @@ pub struct Engine<'a> {
 }
 
 impl<'a> Engine<'a> {
+    #[allow(clippy::too_many_arguments)]
+    pub fn new(
+        outlines: &Outlines,
+        program: ProgramState<'a>,
+        graphics: RetainedGraphicsState,
+        definitions: DefinitionState<'a>,
+        cvt: impl Into<Cvt<'a>>,
+        storage: impl Into<Storage<'a>>,
+        value_stack: ValueStack<'a>,
+        twilight: Zone<'a>,
+        glyph: Zone<'a>,
+        axis_count: u16,
+        coords: &'a [F2Dot14],
+        is_composite: bool,
+    ) -> Self {
+        let point_count = if glyph.points.is_empty() {
+            None
+        } else {
+            Some(glyph.points.len())
+        };
+        let graphics = GraphicsState {
+            retained: graphics,
+            zones: [twilight, glyph],
+            is_composite,
+            ..Default::default()
+        };
+        Self {
+            program,
+            graphics_state: graphics,
+            definitions,
+            cvt: cvt.into(),
+            storage: storage.into(),
+            value_stack,
+            loop_budget: LoopBudget::new(outlines, point_count),
+            axis_count,
+            coords,
+        }
+    }
+
     pub fn backward_compatibility(&self) -> bool {
         self.graphics_state.backward_compatibility
     }
@@ -85,6 +124,11 @@ impl LoopBudget {
             backward_jumps: 0,
             loop_calls: 0,
         }
+    }
+
+    fn reset(&mut self) {
+        self.backward_jumps = 0;
+        self.loop_calls = 0;
     }
 
     fn doing_backward_jump(&mut self) -> Result<(), HintErrorKind> {
@@ -158,7 +202,7 @@ mod mock {
             );
             let (points, original) = self.points.split_at_mut(32);
             let glyph_zone = Zone::new(
-                &mut self.unscaled,
+                &self.unscaled,
                 original,
                 points,
                 &mut self.point_flags,

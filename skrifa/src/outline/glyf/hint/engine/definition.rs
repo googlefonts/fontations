@@ -77,8 +77,12 @@ impl<'a> Engine<'a> {
     pub(super) fn op_loopcall(&mut self) -> OpResult {
         let f = self.value_stack.pop()?;
         let count = self.value_stack.pop()?;
-        self.loop_budget.doing_loop_call(count as usize)?;
-        self.do_call(DefKind::Function, count as u32, f)
+        if count > 0 {
+            self.loop_budget.doing_loop_call(count as usize)?;
+            self.do_call(DefKind::Function, count as u32, f)
+        } else {
+            Ok(())
+        }
     }
 
     /// Instruction definition.

@@ -7,6 +7,7 @@ mod definition;
 mod engine;
 mod error;
 mod graphics_state;
+mod instance;
 mod math;
 mod program;
 mod storage;
@@ -18,6 +19,9 @@ use read_fonts::{
     tables::glyf::PointFlags,
     types::{F26Dot6, F2Dot14, GlyphId, Point},
 };
+
+pub use error::HintError;
+pub use instance::HintInstance;
 
 /// Outline data that is passed to the hinter.
 pub struct HintOutline<'a> {

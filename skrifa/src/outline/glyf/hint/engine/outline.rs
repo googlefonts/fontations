@@ -680,6 +680,11 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6065>
     pub(super) fn op_ip(&mut self) -> OpResult {
         let gs = &mut self.graphics_state;
+        let count = gs.loop_counter;
+        gs.loop_counter = 1;
+        if !gs.is_pedantic && !gs.in_bounds([(gs.zp0, gs.rp1), (gs.zp1, gs.rp2)]) {
+            return Ok(());
+        }
         let in_twilight = gs.zp0.is_twilight() || gs.zp1.is_twilight() || gs.zp2.is_twilight();
         let orus_base = if in_twilight {
             gs.zp0().original(gs.rp1)?
@@ -693,10 +698,11 @@ impl<'a> Engine<'a> {
             gs.dual_project(gs.zp1().unscaled(gs.rp2).map(F26Dot6::from_bits), orus_base)
         };
         let cur_range = gs.project(gs.zp1().point(gs.rp2)?, cur_base);
-        let count = gs.loop_counter;
-        gs.loop_counter = 1;
         for _ in 0..count {
             let point = self.value_stack.pop_usize()?;
+            if !gs.is_pedantic && !gs.in_bounds([(gs.zp2, point)]) {
+                continue;
+            }
             let original_distance = if in_twilight {
                 gs.dual_project(gs.zp2().original(point)?, orus_base)
             } else {
