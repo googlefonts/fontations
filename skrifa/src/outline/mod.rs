@@ -174,7 +174,7 @@ impl<'a> DrawSettings<'a> {
     /// defined by the current configuration of the given hinting instance.
     pub fn hinted(instance: &'a EmbeddedHintingInstance, is_pedantic: bool) -> Self {
         Self {
-            instance: DrawInstance::EmbeddedHinted {
+            instance: DrawInstance::Hinted {
                 instance,
                 is_pedantic,
             },
@@ -197,7 +197,7 @@ impl<'a> DrawSettings<'a> {
 
 enum DrawInstance<'a> {
     Unhinted(Size, LocationRef<'a>),
-    EmbeddedHinted {
+    Hinted {
         instance: &'a EmbeddedHintingInstance,
         is_pedantic: bool,
     },
@@ -288,7 +288,7 @@ impl<'a> OutlineGlyph<'a> {
     /// | For draw settings                  | Use hinting           |
     /// |------------------------------------|-----------------------|
     /// | [`DrawSettings::unhinted`]         | [`Hinting::None`]     |
-    /// | [`DrawSettings::embedded_hinting`] | [`Hinting::Embedded`] |
+    /// | [`DrawSettings::hinted`]           | [`Hinting::Embedded`] |
     pub fn draw_memory_size(&self, hinting: Hinting) -> usize {
         match &self.kind {
             OutlineKind::Glyf(_, outline) => outline.required_buffer_size(hinting),
@@ -308,7 +308,7 @@ impl<'a> OutlineGlyph<'a> {
             DrawInstance::Unhinted(size, location) => {
                 self.draw_unhinted(size, location, settings.memory, pen)
             }
-            DrawInstance::EmbeddedHinted {
+            DrawInstance::Hinted {
                 instance,
                 is_pedantic,
             } => {
