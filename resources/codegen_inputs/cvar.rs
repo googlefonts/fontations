@@ -4,7 +4,7 @@ extern scalar TupleVariationCount;
 extern record TupleVariationHeader;
 
 /// The [cvar](https://learn.microsoft.com/en-us/typography/opentype/spec/cvar) table.
-#[tag = "gvar"]
+#[tag = "cvar"]
 #[skip_from_obj]
 #[skip_constructor]
 table Cvar {

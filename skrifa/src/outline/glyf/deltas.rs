@@ -2,7 +2,8 @@ use core::ops::RangeInclusive;
 
 use read_fonts::{
     tables::glyf::{PointFlags, PointMarker},
-    tables::gvar::{Gvar, TupleVariation},
+    tables::gvar::Gvar,
+    tables::variations::TupleVariation,
     types::{F2Dot14, Fixed, GlyphId, Point},
     ReadError,
 };

@@ -32,8 +32,8 @@ impl CvarMarker {
 }
 
 impl TopLevelTable for Cvar<'_> {
-    /// `gvar`
-    const TAG: Tag = Tag::new(b"gvar");
+    /// `cvar`
+    const TAG: Tag = Tag::new(b"cvar");
 }
 
 impl<'a> FontRead<'a> for Cvar<'a> {
