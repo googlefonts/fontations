@@ -2,10 +2,7 @@
 
 use read_fonts::tables::glyf::bytecode::Opcode;
 
-use super::{
-    super::{program::Program, HintingMode},
-    Engine, HintError, HintErrorKind, Instruction,
-};
+use super::{super::program::Program, Engine, HintError, HintErrorKind, Instruction};
 
 /// Maximum number of instructions we will execute in `Engine::run()`. This
 /// is used to ensure termination of a hinting program.

@@ -139,7 +139,10 @@ impl HintInstance {
             outline.coords,
             outline.is_composite,
         );
-        engine.run_program(Program::Glyph)?;
+        engine.run_program(Program::Glyph).map_err(|mut e| {
+            e.glyph_id = Some(outline.glyph_id);
+            e
+        })?;
         // If we're not running in backward compatibility mode, capture
         // modified phantom points.
         if !engine.backward_compatibility() {
