@@ -47,6 +47,8 @@ pub static COLRV0V1: &[u8] = include_bytes!("../test_data/ttf/test_glyphs-glyf_c
 pub static COLRV0V1_VARIABLE: &[u8] =
     include_bytes!("../test_data/ttf/test_glyphs-glyf_colr_1_variable.ttf");
 
+pub static CVAR: &[u8] = include_bytes!("../test_data/ttf/cvar.ttf");
+
 pub mod closure {
     pub static SIMPLE: &[u8] = include_bytes!("../test_data/ttf/simple_closure.ttf");
     pub static SIMPLE_GLYPHS: &str = include_str!("../test_data/fea/simple_closure_glyphs.txt");
