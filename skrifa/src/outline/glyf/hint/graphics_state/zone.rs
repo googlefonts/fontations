@@ -63,7 +63,7 @@ pub struct Zone<'a> {
 impl<'a> Zone<'a> {
     /// Creates a new hinting zone.
     pub fn new(
-        unscaled: &'a mut [Point<i32>],
+        unscaled: &'a [Point<i32>],
         original: &'a mut [Point<F26Dot6>],
         points: &'a mut [Point<F26Dot6>],
         flags: &'a mut [PointFlags],
@@ -338,6 +338,17 @@ impl<'a> GraphicsState<'a> {
         self.zp0 = ZonePointer::default();
         self.zp1 = ZonePointer::default();
         self.zp2 = ZonePointer::default();
+    }
+
+    /// Takes an array of (zone pointer, point index) pairs and returns true if
+    /// all accesses would be valid.
+    pub fn in_bounds<const N: usize>(&self, pairs: [(ZonePointer, usize); N]) -> bool {
+        for (zp, index) in pairs {
+            if index > self.zone(zp).points.len() {
+                return false;
+            }
+        }
+        true
     }
 
     #[inline(always)]

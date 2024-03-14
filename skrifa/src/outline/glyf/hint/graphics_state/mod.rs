@@ -134,6 +134,37 @@ impl<'a> GraphicsState<'a> {
             self.scale
         }
     }
+
+    /// Resets the non-retained portions of the graphics state.
+    pub fn reset(&mut self) {
+        let GraphicsState {
+            retained,
+            zones,
+            is_composite,
+            ..
+        } = core::mem::take(self);
+        *self = GraphicsState {
+            retained,
+            zones,
+            is_composite,
+            ..Default::default()
+        };
+        self.update_projection_state();
+    }
+
+    /// Resets the retained portion of the graphics state to default
+    /// values while saving the user instance settings.
+    pub fn reset_retained(&mut self) {
+        let scale = self.scale;
+        let ppem = self.ppem;
+        let mode = self.mode;
+        self.retained = RetainedGraphicsState {
+            scale,
+            ppem,
+            mode,
+            ..Default::default()
+        }
+    }
 }
 
 impl Default for GraphicsState<'_> {

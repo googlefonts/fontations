@@ -2,7 +2,7 @@
 
 use read_fonts::tables::glyf::bytecode::Opcode;
 
-use super::{Engine, HintError, HintErrorKind, Instruction};
+use super::{super::program::Program, Engine, HintError, HintErrorKind, Instruction};
 
 /// Maximum number of instructions we will execute in `Engine::run()`. This
 /// is used to ensure termination of a hinting program.
@@ -10,6 +10,46 @@ use super::{Engine, HintError, HintErrorKind, Instruction};
 const MAX_RUN_INSTRUCTIONS: usize = 1_000_000;
 
 impl<'a> Engine<'a> {
+    /// Resets state for the specified program and executes all instructions.
+    pub fn run_program(&mut self, program: Program) -> Result<(), HintError> {
+        self.reset(program);
+        self.run()
+    }
+
+    /// Set internal state for running the specified program.
+    pub fn reset(&mut self, program: Program) {
+        self.program.reset(program);
+        // Reset overall graphics state, keeping the retained bits.
+        self.graphics_state.reset();
+        self.loop_budget.reset();
+        // Program specific setup.
+        match program {
+            Program::Font => {
+                self.definitions.functions.reset();
+                self.definitions.instructions.reset();
+            }
+            Program::ControlValue => {
+                self.graphics_state.backward_compatibility = false;
+            }
+            Program::Glyph => {
+                // Instruct control bit 1 says we reset retained graphics state
+                // to default values.
+                if self.graphics_state.instruct_control & 2 != 0 {
+                    self.graphics_state.reset_retained();
+                }
+                // Set backward compatibility mode
+                if self.graphics_state.mode.preserve_linear_metrics() {
+                    self.graphics_state.backward_compatibility = true;
+                } else if self.graphics_state.mode.is_smooth() {
+                    self.graphics_state.backward_compatibility =
+                        (self.graphics_state.instruct_control & 0x4) == 0;
+                } else {
+                    self.graphics_state.backward_compatibility = false;
+                }
+            }
+        }
+    }
+
     /// Decodes and dispatches all instructions until completion or error.
     pub fn run(&mut self) -> Result<(), HintError> {
         let mut count = 0;
