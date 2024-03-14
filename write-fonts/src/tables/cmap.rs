@@ -42,7 +42,8 @@ impl CmapSubtable {
         for (cp, gid) in mappings {
             let gid = gid.to_u16();
             if *cp > '\u{FFFF}' {
-                continue;
+                // mappings is sorted, so the rest will be beyond the BMP too.
+                break;
             }
             let cp = (*cp as u32).try_into().unwrap();
             let next_in_run = (
@@ -164,34 +165,30 @@ impl CmapSubtable {
     }
 }
 
+/// A conflicting Cmap definition, one char is mapped to multiple distinct GlyphIds.
+///
+/// If there are multiple conflicting mappings, one is chosen arbitrarily.
+/// gid1 is less than gid2.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub enum MappingError {
-    /// When a char is mapped to multiple distinct GlyphIds.
-    /// gid1 is less than gid2.
-    /// If there are multiple conflicting mappings, one is chosen arbitrarily.
-    ConflictingMappings {
-        ch: char,
-        gid1: GlyphId,
-        gid2: GlyphId,
-    },
+pub struct CmapConflict {
+    ch: char,
+    gid1: GlyphId,
+    gid2: GlyphId,
 }
 
-impl std::fmt::Display for MappingError {
+impl std::fmt::Display for CmapConflict {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            MappingError::ConflictingMappings { ch, gid1, gid2 } => {
-                let ch32 = *ch as u32;
-                write!(
-                    f,
-                    "Cannot map {ch:?} (U+{ch32:04X}) to two different glyph ids: {gid1} and {gid2}"
-                )
-            }
-        }
+        let ch32 = self.ch as u32;
+        write!(
+            f,
+            "Cannot map {:?} (U+{ch32:04X}) to two different glyph ids: {} and {}",
+            self.ch, self.gid1, self.gid2
+        )
     }
 }
 
 #[cfg(feature = "std")]
-impl std::error::Error for MappingError {}
+impl std::error::Error for CmapConflict {}
 
 impl Cmap {
     /// Generates a [cmap](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap) that is expected to work in most modern environments.
@@ -203,24 +200,19 @@ impl Cmap {
     /// Also see: <https://learn.microsoft.com/en-us/typography/opentype/spec/recom#cmap-table>
     pub fn from_mappings(
         mappings: impl IntoIterator<Item = (char, GlyphId)>,
-    ) -> Result<Cmap, MappingError> {
+    ) -> Result<Cmap, CmapConflict> {
         let mut mappings: Vec<_> = mappings.into_iter().collect();
-
-        let mut error = None;
-        mappings.sort_by(|(a, gid1), (b, gid2)| {
-            let ord = a.cmp(b);
-            if ord == std::cmp::Ordering::Equal && gid1 != gid2 {
-                let (gid1, gid2) = if gid1 > gid2 {
-                    (*gid2, *gid1)
-                } else {
-                    (*gid1, *gid2)
-                };
-                error = Some(MappingError::ConflictingMappings { ch: *a, gid1, gid2 })
-            }
-            ord
-        });
-        if let Some(err) = error {
-            return Err(err);
+        mappings.sort();
+        mappings.dedup();
+        if let Some((ch, gid1, gid2)) =
+            mappings
+                .iter()
+                .zip(mappings.iter().skip(1))
+                .find_map(|((c1, g1), (c2, g2))| {
+                    (c1 == c2 && g1 != g2).then(|| (*c1, *g1.min(g2), *g1.max(g2)))
+                })
+        {
+            return Err(CmapConflict { ch, gid1, gid2 });
         }
 
         let mut uni_records = Vec::new(); // platform 0
@@ -285,7 +277,7 @@ mod tests {
     use crate::{
         dump_table,
         tables::cmap::{
-            self as write, MappingError, UNICODE_BMP_ENCODING, UNICODE_FULL_REPERTOIRE_ENCODING,
+            self as write, CmapConflict, UNICODE_BMP_ENCODING, UNICODE_FULL_REPERTOIRE_ENCODING,
             WINDOWS_BMP_ENCODING, WINDOWS_FULL_REPERTOIRE_ENCODING,
         },
     };
@@ -533,9 +525,6 @@ mod tests {
 
         let result = write::Cmap::from_mappings(mappings);
 
-        assert_eq!(
-            result,
-            Err(MappingError::ConflictingMappings { ch, gid1, gid2 })
-        )
+        assert_eq!(result, Err(CmapConflict { ch, gid1, gid2 }))
     }
 }
