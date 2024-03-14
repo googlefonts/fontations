@@ -503,8 +503,7 @@ impl<'a> Iterator for TupleVariationHeaderIter<'a> {
 }
 
 #[derive(Clone)]
-pub struct TupleVariationData<'a> {
-    pub(crate) is_gvar: bool,
+pub struct TupleVariationData<'a, T> {
     pub(crate) axis_count: u16,
     pub(crate) shared_tuples: Option<SharedTuples<'a>>,
     pub(crate) shared_point_numbers: Option<PackedPointNumbers<'a>>,
@@ -513,10 +512,14 @@ pub struct TupleVariationData<'a> {
     pub(crate) header_data: FontData<'a>,
     // the data for all the tuple bodies
     pub(crate) serialized_data: FontData<'a>,
+    pub(crate) _marker: std::marker::PhantomData<T>,
 }
 
-impl<'a> TupleVariationData<'a> {
-    pub fn tuples(&self) -> TupleVariationIter<'a> {
+impl<'a, T> TupleVariationData<'a, T>
+where
+    T: TupleDelta + 'a,
+{
+    pub fn tuples(&self) -> TupleVariationIter<'a, T> {
         TupleVariationIter {
             current: 0,
             parent: self.clone(),
@@ -526,6 +529,7 @@ impl<'a> TupleVariationData<'a> {
                 self.axis_count,
             ),
             serialized_data: self.serialized_data,
+            _marker: std::marker::PhantomData,
         }
     }
 
@@ -535,7 +539,7 @@ impl<'a> TupleVariationData<'a> {
     pub fn active_tuples_at(
         &self,
         coords: &'a [F2Dot14],
-    ) -> impl Iterator<Item = (TupleVariation<'a>, Fixed)> + 'a {
+    ) -> impl Iterator<Item = (TupleVariation<'a, T>, Fixed)> + 'a {
         self.tuples().filter_map(|tuple| {
             let scaler = tuple.compute_scalar(coords)?;
             Some((tuple, scaler))
@@ -548,15 +552,19 @@ impl<'a> TupleVariationData<'a> {
 }
 
 /// An iterator over the [`TupleVariation`]s for a specific glyph.
-pub struct TupleVariationIter<'a> {
+pub struct TupleVariationIter<'a, T> {
     current: usize,
-    parent: TupleVariationData<'a>,
+    parent: TupleVariationData<'a, T>,
     header_iter: TupleVariationHeaderIter<'a>,
     serialized_data: FontData<'a>,
+    _marker: std::marker::PhantomData<T>,
 }
 
-impl<'a> TupleVariationIter<'a> {
-    fn next_tuple(&mut self) -> Option<TupleVariation<'a>> {
+impl<'a, T> TupleVariationIter<'a, T>
+where
+    T: TupleDelta,
+{
+    fn next_tuple(&mut self) -> Option<TupleVariation<'a, T>> {
         if self.parent.tuple_count() == self.current {
             return None;
         }
@@ -573,18 +581,21 @@ impl<'a> TupleVariationIter<'a> {
             (self.parent.shared_point_numbers.clone()?, var_data)
         };
         Some(TupleVariation {
-            is_gvar: self.parent.is_gvar,
             axis_count: self.parent.axis_count,
             header,
             shared_tuples: self.parent.shared_tuples.clone(),
             packed_deltas: PackedDeltas::new(packed_deltas),
             point_numbers,
+            _marker: std::marker::PhantomData,
         })
     }
 }
 
-impl<'a> Iterator for TupleVariationIter<'a> {
-    type Item = TupleVariation<'a>;
+impl<'a, T> Iterator for TupleVariationIter<'a, T>
+where
+    T: TupleDelta,
+{
+    type Item = TupleVariation<'a, T>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.next_tuple()
@@ -593,16 +604,19 @@ impl<'a> Iterator for TupleVariationIter<'a> {
 
 /// A single set of tuple variation data
 #[derive(Clone)]
-pub struct TupleVariation<'a> {
-    is_gvar: bool,
+pub struct TupleVariation<'a, T> {
     axis_count: u16,
     header: TupleVariationHeader<'a>,
     shared_tuples: Option<SharedTuples<'a>>,
     packed_deltas: PackedDeltas<'a>,
     point_numbers: PackedPointNumbers<'a>,
+    _marker: std::marker::PhantomData<T>,
 }
 
-impl<'a> TupleVariation<'a> {
+impl<'a, T> TupleVariation<'a, T>
+where
+    T: TupleDelta,
+{
     /// Returns true if this tuple provides deltas for all points in a glyph.
     pub fn has_deltas_for_all_points(&self) -> bool {
         self.point_numbers.count() == 0
@@ -677,63 +691,59 @@ impl<'a> TupleVariation<'a> {
     ///
     /// This does not account for scaling. Returns only explicitly encoded
     /// deltas, e.g. an omission by IUP will not be present.
-    pub fn deltas(&'a self) -> TupleDeltaIter<'a> {
-        TupleDeltaIter::new(&self.point_numbers, &self.packed_deltas, self.is_gvar)
+    pub fn deltas(&'a self) -> TupleDeltaIter<'a, T> {
+        TupleDeltaIter::new(&self.point_numbers, &self.packed_deltas)
     }
 }
 
 /// An iterator over the deltas for a glyph.
 #[derive(Clone, Debug)]
-pub struct TupleDeltaIter<'a> {
+pub struct TupleDeltaIter<'a, T> {
     pub cur: usize,
     // if None all points get deltas, if Some specifies subset of points that do
     points: Option<PackedPointNumbersIter<'a>>,
     next_point: usize,
     x_iter: DeltaRunIter<'a>,
     y_iter: Option<Skip<DeltaRunIter<'a>>>,
+    _marker: std::marker::PhantomData<T>,
 }
 
-impl<'a> TupleDeltaIter<'a> {
-    fn new(
-        points: &'a PackedPointNumbers,
-        deltas: &'a PackedDeltas,
-        is_gvar: bool,
-    ) -> TupleDeltaIter<'a> {
+impl<'a, T> TupleDeltaIter<'a, T>
+where
+    T: TupleDelta,
+{
+    fn new(points: &'a PackedPointNumbers, deltas: &'a PackedDeltas) -> TupleDeltaIter<'a, T> {
         let mut points = points.iter();
         let next_point = points.next();
         let num_encoded_points = deltas.count() / 2; // x and y encoded independently
-        let y_iter = is_gvar.then(|| deltas.iter().skip(num_encoded_points));
+        let y_iter = T::is_point().then(|| deltas.iter().skip(num_encoded_points));
         TupleDeltaIter {
             cur: 0,
             points: next_point.map(|_| points),
             next_point: next_point.unwrap_or_default() as usize,
             x_iter: deltas.iter(),
             y_iter,
+            _marker: std::marker::PhantomData,
         }
     }
 }
 
-/// Delta information for a single point or component in a glyph or for a
-/// CVT entry.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct TupleDelta {
-    /// The point, component or CVT index.
-    pub position: u16,
-    /// The x delta
-    pub x_delta: i16,
-    /// The y delta
-    pub y_delta: i16,
+/// Trait for deltas that are computed in a tuple variation store.
+pub trait TupleDelta: Sized + Copy {
+    /// Returns true if the delta is a point and requires reading two values
+    /// from the packed delta stream.
+    fn is_point() -> bool;
+
+    /// Creates a new delta for the given position and coordinates. If
+    /// the delta is not a point, the y value will always be zero.
+    fn new(position: u16, x: i16, y: i16) -> Self;
 }
 
-impl TupleDelta {
-    /// Applies a tuple scalar to this delta.
-    pub fn apply_scalar(self, scalar: Fixed) -> Point<Fixed> {
-        Point::new(self.x_delta as i32, self.y_delta as i32).map(Fixed::from_i32) * scalar
-    }
-}
-
-impl<'a> Iterator for TupleDeltaIter<'a> {
-    type Item = TupleDelta;
+impl<'a, T> Iterator for TupleDeltaIter<'a, T>
+where
+    T: TupleDelta,
+{
+    type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
         let (position, dx, dy) = loop {
@@ -759,11 +769,7 @@ impl<'a> Iterator for TupleDeltaIter<'a> {
             self.cur += 1;
         };
         self.cur += 1;
-        Some(TupleDelta {
-            position: position as u16,
-            x_delta: dx,
-            y_delta: dy,
-        })
+        Some(T::new(position as u16, dx, dy))
     }
 }
 

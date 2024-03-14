@@ -3,9 +3,13 @@
 
 include!("../../generated/generated_gvar.rs");
 
-use super::variations::{PackedPointNumbers, Tuple, TupleVariationCount, TupleVariationHeader};
+use super::variations::{
+    PackedPointNumbers, Tuple, TupleDelta, TupleVariationCount, TupleVariationData,
+    TupleVariationHeader,
+};
 
-pub use super::variations::{TupleDelta as GlyphDelta, TupleVariationData as GlyphVariationData};
+/// Variation data specialized for the glyph variations table.
+pub type GlyphVariationData<'a> = TupleVariationData<'a, GlyphDelta>;
 
 #[derive(Clone, Copy, Debug)]
 pub struct U16Or32(u32);
@@ -92,14 +96,46 @@ impl<'a> GlyphVariationData<'a> {
             };
 
         Ok(GlyphVariationData {
-            is_gvar: true,
             tuple_count: count,
             axis_count,
             shared_tuples: Some(shared_tuples),
             shared_point_numbers,
             header_data,
             serialized_data,
+            _marker: std::marker::PhantomData,
         })
+    }
+}
+
+/// Delta information for a single point or component in a glyph.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct GlyphDelta {
+    /// The point or component index.
+    pub position: u16,
+    /// The x delta.
+    pub x_delta: i16,
+    /// The y delta.
+    pub y_delta: i16,
+}
+
+impl GlyphDelta {
+    /// Applies a tuple scalar to this delta.
+    pub fn apply_scalar(self, scalar: Fixed) -> Point<Fixed> {
+        Point::new(self.x_delta as i32, self.y_delta as i32).map(Fixed::from_i32) * scalar
+    }
+}
+
+impl TupleDelta for GlyphDelta {
+    fn is_point() -> bool {
+        true
+    }
+
+    fn new(position: u16, x: i16, y: i16) -> Self {
+        Self {
+            position,
+            x_delta: x,
+            y_delta: y,
+        }
     }
 }
 

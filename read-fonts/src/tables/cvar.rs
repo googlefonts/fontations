@@ -4,11 +4,19 @@
 include!("../../generated/generated_cvar.rs");
 
 use super::variations::{
-    PackedPointNumbers, TupleVariationCount, TupleVariationData, TupleVariationHeader,
+    PackedPointNumbers, TupleDelta, TupleVariationCount, TupleVariationData, TupleVariationHeader,
 };
 
+/// Variation data specialized for the CVT variation table.
+pub type CvtVariationData<'a> = TupleVariationData<'a, CvtDelta>;
+
 impl<'a> Cvar<'a> {
-    pub fn variation_data(&self, axis_count: u16) -> Result<TupleVariationData<'a>, ReadError> {
+    /// Returns the variation data containing the tuples and deltas for the
+    /// control value table.
+    ///
+    /// This table doesn't contain an axis count field so this must be provided
+    /// by the user and can be read from the `fvar` table.
+    pub fn variation_data(&self, axis_count: u16) -> Result<CvtVariationData<'a>, ReadError> {
         let count = self.tuple_variation_count();
         let data = self.data()?;
         let header_data = self.raw_tuple_header_data();
@@ -19,20 +27,46 @@ impl<'a> Cvar<'a> {
         } else {
             (None, data)
         };
-        Ok(TupleVariationData {
-            is_gvar: false,
+        Ok(CvtVariationData {
             tuple_count: count,
             axis_count,
             shared_tuples: None,
             shared_point_numbers,
             header_data,
             serialized_data,
+            _marker: std::marker::PhantomData,
         })
     }
 
     fn raw_tuple_header_data(&self) -> FontData<'a> {
         let range = self.shape.tuple_variation_headers_byte_range();
         self.data.split_off(range.start).unwrap()
+    }
+}
+
+/// Delta for an entry in the control value table.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct CvtDelta {
+    /// The index in the CVT.
+    pub position: u16,
+    /// The delta to apply to the value in the CVT.
+    pub value: i16,
+}
+
+impl CvtDelta {
+    /// Applies a tuple scalar to this delta.
+    pub fn apply_scalar(self, scalar: Fixed) -> Fixed {
+        Fixed::from_i32(self.value as i32) * scalar
+    }
+}
+
+impl TupleDelta for CvtDelta {
+    fn is_point() -> bool {
+        false
+    }
+
+    fn new(position: u16, x: i16, _y: i16) -> Self {
+        Self { position, value: x }
     }
 }
 
@@ -146,7 +180,7 @@ mod tests {
             for (tuple, weight) in cvar_data.active_tuples_at(&coords) {
                 for delta in tuple.deltas() {
                     let scaled_delta = delta.apply_scalar(weight);
-                    deltas[delta.position as usize] += scaled_delta.x.to_bits();
+                    deltas[delta.position as usize] += scaled_delta.to_bits();
                 }
             }
             assert_eq!(&deltas, expected_deltas);
@@ -194,7 +228,7 @@ mod tests {
             count += 1;
             let deltas = tuple
                 .deltas()
-                .map(|delta| (delta.position, delta.x_delta))
+                .map(|delta| (delta.position, delta.value))
                 .collect::<Vec<_>>();
             assert_eq!(&deltas, expected);
         }
