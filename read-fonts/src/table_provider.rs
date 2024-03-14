@@ -106,6 +106,10 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
+    fn cvar(&self) -> Result<tables::cvar::Cvar<'a>, ReadError> {
+        self.expect_table()
+    }
+
     fn cff(&self) -> Result<tables::cff::Cff<'a>, ReadError> {
         self.expect_table()
     }

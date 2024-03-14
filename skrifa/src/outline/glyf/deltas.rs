@@ -2,7 +2,8 @@ use core::ops::RangeInclusive;
 
 use read_fonts::{
     tables::glyf::{PointFlags, PointMarker},
-    tables::gvar::{Gvar, TupleVariation},
+    tables::gvar::{GlyphDelta, Gvar},
+    tables::variations::TupleVariation,
     types::{F2Dot14, Fixed, GlyphId, Point},
     ReadError,
 };
@@ -110,7 +111,7 @@ fn compute_deltas_for_glyph(
     deltas: &mut [Delta],
     mut apply_tuple_missing_deltas_fn: impl FnMut(
         Fixed,
-        TupleVariation,
+        TupleVariation<GlyphDelta>,
         &mut [Point<Fixed>],
     ) -> Result<(), ReadError>,
 ) -> Result<(), ReadError> {
