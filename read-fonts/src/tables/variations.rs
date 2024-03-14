@@ -512,7 +512,7 @@ pub struct TupleVariationData<'a, T> {
     pub(crate) header_data: FontData<'a>,
     // the data for all the tuple bodies
     pub(crate) serialized_data: FontData<'a>,
-    pub(crate) _marker: std::marker::PhantomData<T>,
+    pub(crate) _marker: std::marker::PhantomData<fn() -> T>,
 }
 
 impl<'a, T> TupleVariationData<'a, T>
@@ -557,7 +557,7 @@ pub struct TupleVariationIter<'a, T> {
     parent: TupleVariationData<'a, T>,
     header_iter: TupleVariationHeaderIter<'a>,
     serialized_data: FontData<'a>,
-    _marker: std::marker::PhantomData<T>,
+    _marker: std::marker::PhantomData<fn() -> T>,
 }
 
 impl<'a, T> TupleVariationIter<'a, T>
@@ -610,7 +610,7 @@ pub struct TupleVariation<'a, T> {
     shared_tuples: Option<SharedTuples<'a>>,
     packed_deltas: PackedDeltas<'a>,
     point_numbers: PackedPointNumbers<'a>,
-    _marker: std::marker::PhantomData<T>,
+    _marker: std::marker::PhantomData<fn() -> T>,
 }
 
 impl<'a, T> TupleVariation<'a, T>
@@ -636,14 +636,15 @@ where
             .unwrap_or_default()
     }
 
-    // transcribed from pinot/moscato
-    /// Compute the scalar for a this tuple at a given point in design space.
+    /// Compute the scalar for this tuple at the given location in variation
+    /// space.
     ///
-    /// The `coords` slice must be of lesser or equal length to the number of axes.
-    /// If it is less, missing (trailing) axes will be assumed to have zero values.
+    /// The `coords` slice must be of lesser or equal length to the number of
+    /// axes. If it is less, missing (trailing) axes will be assumed to have
+    /// zero values.
     ///
-    /// Returns `None` if this tuple is not applicable at the provided coordinates
-    /// (e.g. if the resulting scalar is zero).
+    /// Returns `None` if this tuple is not applicable at the provided
+    /// coordinates (e.g. if the resulting scalar is zero).
     pub fn compute_scalar(&self, coords: &[F2Dot14]) -> Option<Fixed> {
         const ZERO: Fixed = Fixed::ZERO;
         let mut scalar = Fixed::ONE;
@@ -705,7 +706,7 @@ pub struct TupleDeltaIter<'a, T> {
     next_point: usize,
     x_iter: DeltaRunIter<'a>,
     y_iter: Option<Skip<DeltaRunIter<'a>>>,
-    _marker: std::marker::PhantomData<T>,
+    _marker: std::marker::PhantomData<fn() -> T>,
 }
 
 impl<'a, T> TupleDeltaIter<'a, T>
