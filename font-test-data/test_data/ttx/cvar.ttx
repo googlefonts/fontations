@@ -4,10 +4,6 @@
   <GlyphOrder>
     <!-- The 'id' attribute is only for humans; it is ignored when parsed. -->
     <GlyphID id="0" name=".notdef"/>
-    <GlyphID id="1" name="uni0020"/>
-    <GlyphID id="2" name="uni0068"/>
-    <GlyphID id="3" name="uni006E"/>
-    <GlyphID id="4" name="uni006F"/>
   </GlyphOrder>
 
   <head>
@@ -125,27 +121,7 @@
 
   <hmtx>
     <mtx name=".notdef" width="500" lsb="50"/>
-    <mtx name="uni0020" width="260" lsb="0"/>
-    <mtx name="uni0068" width="635" lsb="18"/>
-    <mtx name="uni006E" width="645" lsb="28"/>
-    <mtx name="uni006F" width="577" lsb="55"/>
   </hmtx>
-
-  <cmap>
-    <tableVersion version="0"/>
-    <cmap_format_4 platformID="0" platEncID="3" language="0">
-      <map code="0x20" name="uni0020"/><!-- SPACE -->
-      <map code="0x68" name="uni0068"/><!-- LATIN SMALL LETTER H -->
-      <map code="0x6e" name="uni006E"/><!-- LATIN SMALL LETTER N -->
-      <map code="0x6f" name="uni006F"/><!-- LATIN SMALL LETTER O -->
-    </cmap_format_4>
-    <cmap_format_4 platformID="3" platEncID="1" language="0">
-      <map code="0x20" name="uni0020"/><!-- SPACE -->
-      <map code="0x68" name="uni0068"/><!-- LATIN SMALL LETTER H -->
-      <map code="0x6e" name="uni006E"/><!-- LATIN SMALL LETTER N -->
-      <map code="0x6f" name="uni006F"/><!-- LATIN SMALL LETTER O -->
-    </cmap_format_4>
-  </cmap>
 
   <cvt>
     <cv index="0" value="760"/>
@@ -273,6 +249,24 @@
   <loca>
     <!-- The 'loca' table will be calculated by the compiler -->
   </loca>
+
+  <glyf>
+    <TTGlyph name=".notdef" xMin="51" yMin="-250" xMax="461" yMax="950">
+      <contour>
+        <pt x="51" y="-250" on="1"/>
+        <pt x="51" y="950" on="1"/>
+        <pt x="461" y="950" on="1"/>
+        <pt x="461" y="-250" on="1"/>
+      </contour>
+      <contour>
+        <pt x="102" y="-199" on="1"/>
+        <pt x="410" y="-199" on="1"/>
+        <pt x="410" y="899" on="1"/>
+        <pt x="102" y="899" on="1"/>
+      </contour>
+      <instructions/>
+    </TTGlyph>  
+  </glyf>
 
   <post>
     <formatType value="2.0"/>
@@ -414,6 +408,13 @@
     </tuple>
   </cvar>
 
+  <gvar>
+    <version value="1"/>
+    <reserved value="0"/>
+    <glyphVariations glyph=".notdef">
+    </glyphVariations>
+  </gvar>
+  
   <fvar>
 
     <!-- Weight -->

@@ -36,7 +36,7 @@ impl HintInstance {
         mode: HintingMode,
         coords: &[F2Dot14],
     ) -> Result<(), HintError> {
-        self.setup(outlines, scale);
+        self.setup(outlines, scale, coords);
         let twilight_contours = [self.twilight_scaled.len() as u16];
         let twilight = Zone::new(
             &[],
@@ -157,7 +157,7 @@ impl HintInstance {
     }
 
     /// Captures limits, resizes buffers and scales the CVT.
-    fn setup(&mut self, outlines: &Outlines, scale: i32) {
+    fn setup(&mut self, outlines: &Outlines, scale: i32, coords: &[F2Dot14]) {
         let axis_count = outlines
             .gvar
             .as_ref()
@@ -171,13 +171,40 @@ impl HintInstance {
             Definition::default(),
         );
         self.cvt.clear();
+        if let Some(cvar) = outlines.cvar.as_ref() {
+            // First accumulate all the deltas in 16.16
+            self.cvt.resize(outlines.cvt.len(), 0);
+            if let Ok(var_data) = cvar.variation_data(axis_count) {
+                for (tuple, scalar) in var_data.active_tuples_at(coords) {
+                    for delta in tuple.deltas() {
+                        let ix = delta.position as usize;
+                        if let Some(value) = self.cvt.get_mut(ix) {
+                            *value += delta.apply_scalar(scalar).to_bits();
+                        }
+                    }
+                }
+            }
+            // Now add the base CVT values
+            for (value, base_value) in self.cvt.iter_mut().zip(outlines.cvt.iter()) {
+                // Deltas are converted from 16.16 to 26.6
+                // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttgxvar.c#L3822>
+                let delta = Fixed::from_bits(*value).to_f26dot6().to_bits();
+                let base_value = base_value.get() as i32 * 64;
+                *value = base_value + delta;
+            }
+        } else {
+            // CVT values are converted to 26.6 on load
+            // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttpload.c#L350>
+            self.cvt
+                .extend(outlines.cvt.iter().map(|value| (value.get() as i32) * 64));
+        }
+        // More weird scaling. This is due to the fact that CVT values are
+        // already in 26.6
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttobjs.c#L996>
         let scale = Fixed::from_bits(scale >> 6);
-        self.cvt.extend(
-            outlines
-                .cvt
-                .iter()
-                .map(|value| (Fixed::from_bits(value.get() as i32 * 64) * scale).to_bits()),
-        );
+        for value in &mut self.cvt {
+            *value = (Fixed::from_bits(*value) * scale).to_bits();
+        }
         self.storage.clear();
         self.storage.resize(outlines.max_storage as usize, 0);
         let max_twilight_points = outlines.max_twilight_points as usize;
@@ -193,5 +220,33 @@ impl HintInstance {
         self.axis_count = axis_count;
         self.max_stack = outlines.max_stack_elements as usize;
         self.graphics = RetainedGraphicsState::default();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{super::super::Outlines, HintInstance};
+    use read_fonts::{types::F2Dot14, FontRef};
+
+    #[test]
+    fn scaled_cvar_cvt() {
+        let font = FontRef::new(font_test_data::CVAR).unwrap();
+        let outlines = Outlines::new(&font).unwrap();
+        let mut instance = HintInstance::default();
+        let coords = [0.5, -0.5].map(F2Dot14::from_f32);
+        let ppem = 16;
+        // ppem * 64 / upem
+        let scale = 67109;
+        instance
+            .reconfigure(&outlines, scale, ppem, Default::default(), &coords)
+            .unwrap();
+        let expected = [
+            778, 10, 731, 0, 731, 10, 549, 10, 0, 0, 0, -10, 0, -10, -256, -10, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 95, 137, 99, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 60, 0, 81, 0, 0, 0, 0, 0, 51, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+            0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+        ];
+        assert_eq!(&instance.cvt, &expected);
     }
 }
