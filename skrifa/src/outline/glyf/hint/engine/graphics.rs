@@ -5,7 +5,7 @@
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#managing-the-graphics-state>
 
 use super::{
-    super::{graphics_state::RoundMode, math, program::Program},
+    super::{math, program::Program, round::RoundMode},
     Engine, F26Dot6, HintErrorKind, OpResult, Point,
 };
 
@@ -44,17 +44,17 @@ impl<'a> Engine<'a> {
         let y = x ^ 0x4000;
         // Opcodes 0..4 set the projection vector.
         if opcode < 4 {
-            self.graphics_state.proj_vector.x = x;
-            self.graphics_state.proj_vector.y = y;
-            self.graphics_state.dual_proj_vector.x = x;
-            self.graphics_state.dual_proj_vector.y = y;
+            self.graphics.proj_vector.x = x;
+            self.graphics.proj_vector.y = y;
+            self.graphics.dual_proj_vector.x = x;
+            self.graphics.dual_proj_vector.y = y;
         }
         // Opcodes with bit 2 unset modify the freedom vector.
         if opcode & 2 == 0 {
-            self.graphics_state.freedom_vector.x = x;
-            self.graphics_state.freedom_vector.y = y;
+            self.graphics.freedom_vector.x = x;
+            self.graphics.freedom_vector.y = y;
         }
-        self.graphics_state.update_projection_state();
+        self.graphics.update_projection_state();
         Ok(())
     }
 
@@ -81,16 +81,16 @@ impl<'a> Engine<'a> {
         let index1 = self.value_stack.pop_usize()?;
         let index2 = self.value_stack.pop_usize()?;
         let is_parallel = opcode & 1 == 0;
-        let p1 = self.graphics_state.zp1().point(index2)?;
-        let p2 = self.graphics_state.zp2().point(index1)?;
+        let p1 = self.graphics.zp1().point(index2)?;
+        let p2 = self.graphics.zp2().point(index1)?;
         let vector = line_vector(p1, p2, is_parallel);
         if opcode < 8 {
-            self.graphics_state.proj_vector = vector;
-            self.graphics_state.dual_proj_vector = vector;
+            self.graphics.proj_vector = vector;
+            self.graphics.dual_proj_vector = vector;
         } else {
-            self.graphics_state.freedom_vector = vector;
+            self.graphics.freedom_vector = vector;
         }
-        self.graphics_state.update_projection_state();
+        self.graphics.update_projection_state();
         Ok(())
     }
 
@@ -103,8 +103,8 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#set-freedom_vector-to-projection-vector>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4128>
     pub(super) fn op_sfvtpv(&mut self) -> OpResult {
-        self.graphics_state.freedom_vector = self.graphics_state.proj_vector;
-        self.graphics_state.update_projection_state();
+        self.graphics.freedom_vector = self.graphics.proj_vector;
+        self.graphics.update_projection_state();
         Ok(())
     }
 
@@ -124,14 +124,14 @@ impl<'a> Engine<'a> {
         let index2 = self.value_stack.pop_usize()?;
         let is_parallel = opcode & 1 == 0;
         // First set the dual projection vector from *original* points.
-        let p1 = self.graphics_state.zp1().original(index2)?;
-        let p2 = self.graphics_state.zp2().original(index1)?;
-        self.graphics_state.dual_proj_vector = line_vector(p1, p2, is_parallel);
+        let p1 = self.graphics.zp1().original(index2)?;
+        let p2 = self.graphics.zp2().original(index1)?;
+        self.graphics.dual_proj_vector = line_vector(p1, p2, is_parallel);
         // Now set the projection vector from the *current* points.
-        let p1 = self.graphics_state.zp1().point(index2)?;
-        let p2 = self.graphics_state.zp2().point(index1)?;
-        self.graphics_state.proj_vector = line_vector(p1, p2, is_parallel);
-        self.graphics_state.update_projection_state();
+        let p1 = self.graphics.zp1().point(index2)?;
+        let p2 = self.graphics.zp2().point(index1)?;
+        self.graphics.proj_vector = line_vector(p1, p2, is_parallel);
+        self.graphics.update_projection_state();
         Ok(())
     }
 
@@ -152,13 +152,13 @@ impl<'a> Engine<'a> {
         let y = self.value_stack.pop()? as i16 as i32;
         let x = self.value_stack.pop()? as i16 as i32;
         let vector = if (x, y) == (0, 0) {
-            self.graphics_state.proj_vector
+            self.graphics.proj_vector
         } else {
             math::normalize14(x, y)
         };
-        self.graphics_state.proj_vector = vector;
-        self.graphics_state.dual_proj_vector = vector;
-        self.graphics_state.update_projection_state();
+        self.graphics.proj_vector = vector;
+        self.graphics.dual_proj_vector = vector;
+        self.graphics.update_projection_state();
         Ok(())
     }
 
@@ -179,12 +179,12 @@ impl<'a> Engine<'a> {
         let y = self.value_stack.pop()? as i16 as i32;
         let x = self.value_stack.pop()? as i16 as i32;
         let vector = if (x, y) == (0, 0) {
-            self.graphics_state.freedom_vector
+            self.graphics.freedom_vector
         } else {
             math::normalize14(x, y)
         };
-        self.graphics_state.freedom_vector = vector;
-        self.graphics_state.update_projection_state();
+        self.graphics.freedom_vector = vector;
+        self.graphics.update_projection_state();
         Ok(())
     }
 
@@ -200,7 +200,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#get-projection_vector>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4194>
     pub(super) fn op_gpv(&mut self) -> OpResult {
-        let vector = self.graphics_state.proj_vector;
+        let vector = self.graphics.proj_vector;
         self.value_stack.push(vector.x)?;
         self.value_stack.push(vector.y)
     }
@@ -217,7 +217,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#get-freedom_vector>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4209>
     pub(super) fn op_gfv(&mut self) -> OpResult {
-        let vector = self.graphics_state.freedom_vector;
+        let vector = self.graphics.freedom_vector;
         self.value_stack.push(vector.x)?;
         self.value_stack.push(vector.y)
     }
@@ -234,7 +234,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4224>
     pub(super) fn op_srp0(&mut self) -> OpResult {
         let p = self.value_stack.pop_usize()?;
-        self.graphics_state.rp0 = p;
+        self.graphics.rp0 = p;
         Ok(())
     }
 
@@ -250,7 +250,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4238>
     pub(super) fn op_srp1(&mut self) -> OpResult {
         let p = self.value_stack.pop_usize()?;
-        self.graphics_state.rp1 = p;
+        self.graphics.rp1 = p;
         Ok(())
     }
 
@@ -266,7 +266,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4252>
     pub(super) fn op_srp2(&mut self) -> OpResult {
         let p = self.value_stack.pop_usize()?;
-        self.graphics_state.rp2 = p;
+        self.graphics.rp2 = p;
         Ok(())
     }
 
@@ -284,7 +284,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4746>
     pub(super) fn op_szp0(&mut self) -> OpResult {
         let n = self.value_stack.pop()?;
-        self.graphics_state.zp0 = n.try_into()?;
+        self.graphics.zp0 = n.try_into()?;
         Ok(())
     }
 
@@ -302,7 +302,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4776>
     pub(super) fn op_szp1(&mut self) -> OpResult {
         let n = self.value_stack.pop()?;
-        self.graphics_state.zp1 = n.try_into()?;
+        self.graphics.zp1 = n.try_into()?;
         Ok(())
     }
 
@@ -320,7 +320,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4806>
     pub(super) fn op_szp2(&mut self) -> OpResult {
         let n = self.value_stack.pop()?;
-        self.graphics_state.zp2 = n.try_into()?;
+        self.graphics.zp2 = n.try_into()?;
         Ok(())
     }
 
@@ -340,9 +340,9 @@ impl<'a> Engine<'a> {
     pub(super) fn op_szps(&mut self) -> OpResult {
         let n = self.value_stack.pop()?;
         let zp = n.try_into()?;
-        self.graphics_state.zp0 = zp;
-        self.graphics_state.zp1 = zp;
-        self.graphics_state.zp2 = zp;
+        self.graphics.zp0 = zp;
+        self.graphics.zp1 = zp;
+        self.graphics.zp2 = zp;
         Ok(())
     }
 
@@ -356,7 +356,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#round-to-half-grid>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4393>
     pub(super) fn op_rthg(&mut self) -> OpResult {
-        self.graphics_state.round_state.mode = RoundMode::HalfGrid;
+        self.graphics.round_state.mode = RoundMode::HalfGrid;
         Ok(())
     }
 
@@ -370,7 +370,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#round-to-grid>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4407>
     pub(super) fn op_rtg(&mut self) -> OpResult {
-        self.graphics_state.round_state.mode = RoundMode::Grid;
+        self.graphics.round_state.mode = RoundMode::Grid;
         Ok(())
     }
 
@@ -384,7 +384,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#round-to-double-grid>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4420>
     pub(super) fn op_rtdg(&mut self) -> OpResult {
-        self.graphics_state.round_state.mode = RoundMode::DoubleGrid;
+        self.graphics.round_state.mode = RoundMode::DoubleGrid;
         Ok(())
     }
 
@@ -398,7 +398,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#round-down-to-grid>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4447>
     pub(super) fn op_rdtg(&mut self) -> OpResult {
-        self.graphics_state.round_state.mode = RoundMode::DownToGrid;
+        self.graphics.round_state.mode = RoundMode::DownToGrid;
         Ok(())
     }
 
@@ -412,7 +412,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#round-up-to-grid>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4433>
     pub(super) fn op_rutg(&mut self) -> OpResult {
-        self.graphics_state.round_state.mode = RoundMode::UpToGrid;
+        self.graphics.round_state.mode = RoundMode::UpToGrid;
         Ok(())
     }
 
@@ -426,7 +426,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#round-off>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4461>
     pub(super) fn op_roff(&mut self) -> OpResult {
-        self.graphics_state.round_state.mode = RoundMode::Off;
+        self.graphics.round_state.mode = RoundMode::Off;
         Ok(())
     }
 
@@ -448,7 +448,7 @@ impl<'a> Engine<'a> {
     pub(super) fn op_sround(&mut self) -> OpResult {
         let n = self.value_stack.pop()?;
         self.super_round(0x4000, n);
-        self.graphics_state.round_state.mode = RoundMode::Super;
+        self.graphics.round_state.mode = RoundMode::Super;
         Ok(())
     }
 
@@ -467,7 +467,7 @@ impl<'a> Engine<'a> {
     pub(super) fn op_s45round(&mut self) -> OpResult {
         let n = self.value_stack.pop()?;
         self.super_round(0x2D41, n);
-        self.graphics_state.round_state.mode = RoundMode::Super45;
+        self.graphics.round_state.mode = RoundMode::Super45;
         Ok(())
     }
 
@@ -476,7 +476,7 @@ impl<'a> Engine<'a> {
     ///
     /// See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2299>
     fn super_round(&mut self, grid_period: i32, selector: i32) {
-        let round_state = &mut self.graphics_state.round_state;
+        let round_state = &mut self.graphics.round_state;
         let period = match selector & 0xC0 {
             0 => grid_period / 2,
             0x40 => grid_period,
@@ -521,7 +521,7 @@ impl<'a> Engine<'a> {
             return Err(HintErrorKind::NegativeLoopCounter);
         }
         // As in FreeType, heuristically limit the number of loops to 16 bits.
-        self.graphics_state.loop_counter = (n as u32).min(0xFFFF);
+        self.graphics.loop_counter = (n as u32).min(0xFFFF);
         Ok(())
     }
 
@@ -539,7 +539,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4266>
     pub(super) fn op_smd(&mut self) -> OpResult {
         let distance = self.value_stack.pop_f26dot6()?;
-        self.graphics_state.min_distance = distance;
+        self.graphics.min_distance = distance;
         Ok(())
     }
 
@@ -568,19 +568,19 @@ impl<'a> Engine<'a> {
         }
         // If preserving linear metrics, prevent modification of the backward
         // compatibility flag.
-        if selector == 3 && self.graphics_state.mode.preserve_linear_metrics() {
+        if selector == 3 && self.graphics.mode.preserve_linear_metrics() {
             return Ok(());
         }
         match (self.program.initial, selector) {
             // Typically, this instruction can only be executed in the prep table.
             (Program::ControlValue, _) => {
-                self.graphics_state.instruct_control &= !(selector_flag as u8);
-                self.graphics_state.instruct_control |= value as u8;
+                self.graphics.instruct_control &= !(selector_flag as u8);
+                self.graphics.instruct_control |= value as u8;
             }
             // Allow an exception in the glyph program for selector 3 which can
             // temporarily disable backward compatibility mode.
             (Program::Glyph, 3) => {
-                self.graphics_state.backward_compatibility = value != 4;
+                self.graphics.backward_compatibility = value != 4;
             }
             _ => {}
         }
@@ -606,14 +606,14 @@ impl<'a> Engine<'a> {
         match threshold {
             // A value of FF in bits 0-7 means invoke scan_control for all
             // sizes.
-            0xFF => self.graphics_state.scan_control = true,
+            0xFF => self.graphics.scan_control = true,
             // A value of 0 in bits 0-7 means never invoke scan_control.
-            0 => self.graphics_state.scan_control = false,
+            0 => self.graphics.scan_control = false,
             _ => {
-                let ppem = self.graphics_state.ppem;
-                let is_rotated = self.graphics_state.is_rotated;
-                let is_stretched = self.graphics_state.is_stretched;
-                let scan_control = &mut self.graphics_state.scan_control;
+                let ppem = self.graphics.ppem;
+                let is_rotated = self.graphics.is_rotated;
+                let is_stretched = self.graphics.is_stretched;
+                let scan_control = &mut self.graphics.scan_control;
                 // Bits 8-13 are used to turn on scan_control in cases where
                 // the specified conditions are met. Bits 8, 9 and 10 are used
                 // to turn on the scan_control mode (assuming other
@@ -668,7 +668,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4980>
     pub(super) fn op_scantype(&mut self) -> OpResult {
         let n = self.value_stack.pop()?;
-        self.graphics_state.scan_type = n & 0xFFFF;
+        self.graphics.scan_type = n & 0xFFFF;
         Ok(())
     }
 
@@ -685,7 +685,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4280>
     pub(super) fn op_scvtci(&mut self) -> OpResult {
         let n = self.value_stack.pop_f26dot6()?;
-        self.graphics_state.control_value_cutin = n;
+        self.graphics.control_value_cutin = n;
         Ok(())
     }
 
@@ -702,7 +702,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4294>
     pub(super) fn op_sswci(&mut self) -> OpResult {
         let n = self.value_stack.pop_f26dot6()?;
-        self.graphics_state.single_width_cutin = n;
+        self.graphics.single_width_cutin = n;
         Ok(())
     }
 
@@ -720,8 +720,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4308>
     pub(super) fn op_ssw(&mut self) -> OpResult {
         let n = self.value_stack.pop()?;
-        self.graphics_state.single_width =
-            F26Dot6::from_bits(math::mul(n, self.graphics_state.scale));
+        self.graphics.single_width = F26Dot6::from_bits(math::mul(n, self.graphics.scale));
         Ok(())
     }
 
@@ -736,7 +735,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#set-the-auto_flip-boolean-to-on>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4323>
     pub(super) fn op_flipon(&mut self) -> OpResult {
-        self.graphics_state.auto_flip = true;
+        self.graphics.auto_flip = true;
         Ok(())
     }
 
@@ -751,7 +750,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#set-the-auto_flip-boolean-to-off>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4336>
     pub(super) fn op_flipoff(&mut self) -> OpResult {
-        self.graphics_state.auto_flip = false;
+        self.graphics.auto_flip = false;
         Ok(())
     }
 
@@ -786,7 +785,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4362>
     pub(super) fn op_sdb(&mut self) -> OpResult {
         let n = self.value_stack.pop()?;
-        self.graphics_state.delta_base = n as u16;
+        self.graphics.delta_base = n as u16;
         Ok(())
     }
 
@@ -805,7 +804,7 @@ impl<'a> Engine<'a> {
         if n as u32 > 6 {
             Err(HintErrorKind::InvalidStackValue(n))
         } else {
-            self.graphics_state.delta_shift = n as u16;
+            self.graphics.delta_shift = n as u16;
             Ok(())
         }
     }
@@ -837,8 +836,8 @@ fn line_vector(p1: Point<F26Dot6>, p2: Point<F26Dot6>, is_parallel: bool) -> Poi
 mod tests {
     use super::{
         super::{
-            super::graphics_state::{Zone, ZonePointer},
-            F2Dot14, MockEngine,
+            super::zone::{Zone, ZonePointer},
+            math, F2Dot14, MockEngine,
         },
         F26Dot6, HintErrorKind, Point, Program, RoundMode,
     };
@@ -855,24 +854,24 @@ mod tests {
         let mut engine = mock.engine();
         // freedom and projection vector to y axis
         engine.op_svtca(0x00).unwrap();
-        assert_eq!(engine.graphics_state.freedom_vector, Y_AXIS);
-        assert_eq!(engine.graphics_state.proj_vector, Y_AXIS);
+        assert_eq!(engine.graphics.freedom_vector, Y_AXIS);
+        assert_eq!(engine.graphics.proj_vector, Y_AXIS);
         // freedom and projection vector to x axis
         engine.op_svtca(0x01).unwrap();
-        assert_eq!(engine.graphics_state.freedom_vector, X_AXIS);
-        assert_eq!(engine.graphics_state.proj_vector, X_AXIS);
+        assert_eq!(engine.graphics.freedom_vector, X_AXIS);
+        assert_eq!(engine.graphics.proj_vector, X_AXIS);
         // projection vector to y axis
         engine.op_svtca(0x02).unwrap();
-        assert_eq!(engine.graphics_state.proj_vector, Y_AXIS);
+        assert_eq!(engine.graphics.proj_vector, Y_AXIS);
         // projection vector to x axis
         engine.op_svtca(0x03).unwrap();
-        assert_eq!(engine.graphics_state.proj_vector, X_AXIS);
+        assert_eq!(engine.graphics.proj_vector, X_AXIS);
         // freedom vector to y axis
         engine.op_svtca(0x04).unwrap();
-        assert_eq!(engine.graphics_state.freedom_vector, Y_AXIS);
+        assert_eq!(engine.graphics.freedom_vector, Y_AXIS);
         // freedom vector to x axis
         engine.op_svtca(0x05).unwrap();
-        assert_eq!(engine.graphics_state.freedom_vector, X_AXIS);
+        assert_eq!(engine.graphics.freedom_vector, X_AXIS);
     }
 
     #[test]
@@ -883,7 +882,7 @@ mod tests {
         engine.value_stack.push(X_AXIS.x).unwrap();
         engine.value_stack.push(X_AXIS.y).unwrap();
         engine.op_spvfs().unwrap();
-        assert_eq!(engine.graphics_state.proj_vector, X_AXIS);
+        assert_eq!(engine.graphics.proj_vector, X_AXIS);
         engine.op_gpv().unwrap();
         let y = engine.value_stack.pop().unwrap();
         let x = engine.value_stack.pop().unwrap();
@@ -892,7 +891,7 @@ mod tests {
         engine.value_stack.push(Y_AXIS.x).unwrap();
         engine.value_stack.push(Y_AXIS.y).unwrap();
         engine.op_sfvfs().unwrap();
-        assert_eq!(engine.graphics_state.freedom_vector, Y_AXIS);
+        assert_eq!(engine.graphics.freedom_vector, Y_AXIS);
         engine.op_gfv().unwrap();
         let y = engine.value_stack.pop().unwrap();
         let x = engine.value_stack.pop().unwrap();
@@ -907,7 +906,7 @@ mod tests {
         let points = &mut [Point::new(0, 0), Point::new(64, 0)].map(|p| p.map(F26Dot6::from_bits));
         let original =
             &mut [Point::new(0, 64), Point::new(0, -64)].map(|p| p.map(F26Dot6::from_bits));
-        engine.graphics_state.zones[1] = Zone {
+        engine.graphics.zones[1] = Zone {
             points,
             original,
             unscaled: &mut [],
@@ -925,28 +924,28 @@ mod tests {
         {
             // (parallel)
             engine.op_svtl(0x6).unwrap();
-            assert_eq!(engine.graphics_state.proj_vector, X_AXIS);
+            assert_eq!(engine.graphics.proj_vector, X_AXIS);
             // (perpendicular)
             engine.op_svtl(0x7).unwrap();
-            assert_eq!(engine.graphics_state.proj_vector, Point::new(0, ONE));
+            assert_eq!(engine.graphics.proj_vector, Point::new(0, ONE));
         }
         // SFVTL: set freedom vector to line:
         {
             // (parallel)
             engine.op_svtl(0x8).unwrap();
-            assert_eq!(engine.graphics_state.freedom_vector, X_AXIS);
+            assert_eq!(engine.graphics.freedom_vector, X_AXIS);
             // (perpendicular)
             engine.op_svtl(0x9).unwrap();
-            assert_eq!(engine.graphics_state.freedom_vector, Point::new(0, ONE));
+            assert_eq!(engine.graphics.freedom_vector, Point::new(0, ONE));
         }
         // SDPVTL: set dual projection vector to line:
         {
             // (parallel)
             engine.op_sdpvtl(0x86).unwrap();
-            assert_eq!(engine.graphics_state.dual_proj_vector, Point::new(0, -ONE));
+            assert_eq!(engine.graphics.dual_proj_vector, Point::new(0, -ONE));
             // (perpendicular)
             engine.op_sdpvtl(0x87).unwrap();
-            assert_eq!(engine.graphics_state.dual_proj_vector, Point::new(ONE, 0));
+            assert_eq!(engine.graphics.dual_proj_vector, Point::new(ONE, 0));
         }
     }
 
@@ -959,35 +958,35 @@ mod tests {
         // srp0
         engine.value_stack.push(111).unwrap();
         engine.op_srp0().unwrap();
-        assert_eq!(engine.graphics_state.rp0, 111);
+        assert_eq!(engine.graphics.rp0, 111);
         // srp1
         engine.value_stack.push(222).unwrap();
         engine.op_srp1().unwrap();
-        assert_eq!(engine.graphics_state.rp1, 222);
+        assert_eq!(engine.graphics.rp1, 222);
         // srp2
         engine.value_stack.push(333).unwrap();
         engine.op_srp2().unwrap();
-        assert_eq!(engine.graphics_state.rp2, 333);
+        assert_eq!(engine.graphics.rp2, 333);
         // zp0
         engine.value_stack.push(1).unwrap();
         engine.op_szp0().unwrap();
-        assert_eq!(engine.graphics_state.zp0, ZonePointer::Glyph);
+        assert_eq!(engine.graphics.zp0, ZonePointer::Glyph);
         // zp1
         engine.value_stack.push(0).unwrap();
         engine.op_szp1().unwrap();
-        assert_eq!(engine.graphics_state.zp1, ZonePointer::Twilight);
+        assert_eq!(engine.graphics.zp1, ZonePointer::Twilight);
         // zp2
         engine.value_stack.push(1).unwrap();
         engine.op_szp2().unwrap();
-        assert_eq!(engine.graphics_state.zp2, ZonePointer::Glyph);
+        assert_eq!(engine.graphics.zp2, ZonePointer::Glyph);
         // zps
         engine.value_stack.push(0).unwrap();
         engine.op_szps().unwrap();
         assert_eq!(
             [
-                engine.graphics_state.zp0,
-                engine.graphics_state.zp1,
-                engine.graphics_state.zp2
+                engine.graphics.zp0,
+                engine.graphics.zp1,
+                engine.graphics.zp2
             ],
             [ZonePointer::Twilight; 3]
         );
@@ -999,37 +998,31 @@ mod tests {
         ));
         // rtg
         engine.op_rtg().unwrap();
-        assert_eq!(engine.graphics_state.round_state.mode, RoundMode::Grid);
+        assert_eq!(engine.graphics.round_state.mode, RoundMode::Grid);
         // rtdg
         engine.op_rtdg().unwrap();
-        assert_eq!(
-            engine.graphics_state.round_state.mode,
-            RoundMode::DoubleGrid
-        );
+        assert_eq!(engine.graphics.round_state.mode, RoundMode::DoubleGrid);
         // rdtg
         engine.op_rdtg().unwrap();
-        assert_eq!(
-            engine.graphics_state.round_state.mode,
-            RoundMode::DownToGrid
-        );
+        assert_eq!(engine.graphics.round_state.mode, RoundMode::DownToGrid);
         // rutg
         engine.op_rutg().unwrap();
-        assert_eq!(engine.graphics_state.round_state.mode, RoundMode::UpToGrid);
+        assert_eq!(engine.graphics.round_state.mode, RoundMode::UpToGrid);
         // roff
         engine.op_roff().unwrap();
-        assert_eq!(engine.graphics_state.round_state.mode, RoundMode::Off);
+        assert_eq!(engine.graphics.round_state.mode, RoundMode::Off);
         // sround
         engine.value_stack.push(0).unwrap();
         engine.op_sround().unwrap();
-        assert_eq!(engine.graphics_state.round_state.mode, RoundMode::Super);
+        assert_eq!(engine.graphics.round_state.mode, RoundMode::Super);
         // s45round
         engine.value_stack.push(0).unwrap();
         engine.op_s45round().unwrap();
-        assert_eq!(engine.graphics_state.round_state.mode, RoundMode::Super45);
+        assert_eq!(engine.graphics.round_state.mode, RoundMode::Super45);
         // sloop
         engine.value_stack.push(10).unwrap();
         engine.op_sloop().unwrap();
-        assert_eq!(engine.graphics_state.loop_counter, 10);
+        assert_eq!(engine.graphics.loop_counter, 10);
         // loop variable cannot be negative
         engine.value_stack.push(-10).unwrap();
         assert!(matches!(
@@ -1039,47 +1032,41 @@ mod tests {
         // smd
         engine.value_stack.push(64).unwrap();
         engine.op_smd().unwrap();
-        assert_eq!(engine.graphics_state.min_distance, F26Dot6::from_bits(64));
+        assert_eq!(engine.graphics.min_distance, F26Dot6::from_bits(64));
         // scantype
         engine.value_stack.push(50).unwrap();
         engine.op_scantype().unwrap();
-        assert_eq!(engine.graphics_state.scan_type, 50);
+        assert_eq!(engine.graphics.scan_type, 50);
         // scvtci
         engine.value_stack.push(128).unwrap();
         engine.op_scvtci().unwrap();
-        assert_eq!(
-            engine.graphics_state.control_value_cutin,
-            F26Dot6::from_bits(128)
-        );
+        assert_eq!(engine.graphics.control_value_cutin, F26Dot6::from_bits(128));
         // sswci
         engine.value_stack.push(100).unwrap();
         engine.op_sswci().unwrap();
-        assert_eq!(
-            engine.graphics_state.single_width_cutin,
-            F26Dot6::from_bits(100)
-        );
+        assert_eq!(engine.graphics.single_width_cutin, F26Dot6::from_bits(100));
         // ssw
-        engine.graphics_state.scale = 64;
+        engine.graphics.scale = 64;
         engine.value_stack.push(100).unwrap();
         engine.op_ssw().unwrap();
         assert_eq!(
-            engine.graphics_state.single_width,
-            F26Dot6::from_bits(super::math::mul(100, engine.graphics_state.scale))
+            engine.graphics.single_width,
+            F26Dot6::from_bits(math::mul(100, engine.graphics.scale))
         );
         // flipoff
         engine.op_flipoff().unwrap();
-        assert!(!engine.graphics_state.auto_flip);
+        assert!(!engine.graphics.auto_flip);
         // flipon
         engine.op_flipon().unwrap();
-        assert!(engine.graphics_state.auto_flip);
+        assert!(engine.graphics.auto_flip);
         // sdb
         engine.value_stack.push(172).unwrap();
         engine.op_sdb().unwrap();
-        assert_eq!(engine.graphics_state.delta_base, 172);
+        assert_eq!(engine.graphics.delta_base, 172);
         // sds
         engine.value_stack.push(4).unwrap();
         engine.op_sds().unwrap();
-        assert_eq!(engine.graphics_state.delta_shift, 4);
+        assert_eq!(engine.graphics.delta_shift, 4);
         // delta_shift has a max value of 6
         engine.value_stack.push(7).unwrap();
         assert!(matches!(
@@ -1102,12 +1089,12 @@ mod tests {
             engine.value_stack.push(enable_mask as i32).unwrap();
             engine.value_stack.push(selector).unwrap();
             engine.op_instctrl().unwrap();
-            assert!(engine.graphics_state.instruct_control & enable_mask != 0);
+            assert!(engine.graphics.instruct_control & enable_mask != 0);
             // now disable
             engine.value_stack.push(0).unwrap();
             engine.value_stack.push(selector).unwrap();
             engine.op_instctrl().unwrap();
-            assert!(engine.graphics_state.instruct_control & enable_mask == 0);
+            assert!(engine.graphics.instruct_control & enable_mask == 0);
         }
         // in glyph programs, selector 3 can be used to toggle
         // backward_compatibility
@@ -1117,12 +1104,12 @@ mod tests {
         engine.value_stack.push((3 - 1) << 1).unwrap();
         engine.value_stack.push(3).unwrap();
         engine.op_instctrl().unwrap();
-        assert!(!engine.graphics_state.backward_compatibility);
+        assert!(!engine.graphics.backward_compatibility);
         // and disabling it enables backward compatibility
         engine.value_stack.push(0).unwrap();
         engine.value_stack.push(3).unwrap();
         engine.op_instctrl().unwrap();
-        assert!(engine.graphics_state.backward_compatibility);
+        assert!(engine.graphics.backward_compatibility);
     }
 
     #[test]
@@ -1133,16 +1120,16 @@ mod tests {
         // 0x0000   No dropout control is invoked
         engine.value_stack.push(0x0000).unwrap();
         engine.op_scanctrl().unwrap();
-        assert!(!engine.graphics_state.scan_control);
+        assert!(!engine.graphics.scan_control);
         // 0x01FF   Always do dropout control
         engine.value_stack.push(0x01FF).unwrap();
         engine.op_scanctrl().unwrap();
-        assert!(engine.graphics_state.scan_control);
+        assert!(engine.graphics.scan_control);
         // 0x0A10   Do dropout control if the glyph is rotated and has less than 16 pixels per-em
         engine.value_stack.push(0x0A10).unwrap();
-        engine.graphics_state.is_rotated = true;
-        engine.graphics_state.ppem = 12;
+        engine.graphics.is_rotated = true;
+        engine.graphics.ppem = 12;
         engine.op_scanctrl().unwrap();
-        assert!(engine.graphics_state.scan_control);
+        assert!(engine.graphics.scan_control);
     }
 }

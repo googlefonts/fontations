@@ -1,8 +1,5 @@
 //! Scaling support for TrueType outlines.
 
-// Remove when hinting is implemented
-#![allow(dead_code)]
-
 mod deltas;
 mod hint;
 mod memory;

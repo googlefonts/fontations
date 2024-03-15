@@ -1,6 +1,6 @@
 //! Rounding state.
 
-use super::{super::F26Dot6, GraphicsState};
+use super::{super::F26Dot6, graphics::GraphicsState};
 
 /// Rounding strategies supported by the interpreter.
 #[derive(Copy, Clone, PartialEq, Eq, Default, Debug)]
@@ -71,7 +71,7 @@ impl Default for RoundState {
 
 impl RoundState {
     pub fn round(&self, distance: F26Dot6) -> F26Dot6 {
-        use super::super::math;
+        use super::math;
         use RoundMode::*;
         let distance = distance.to_bits();
         let result = match self.mode {

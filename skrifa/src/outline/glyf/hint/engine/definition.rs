@@ -132,7 +132,7 @@ impl<'a> Engine<'a> {
                 Opcode::FDEF | Opcode::IDEF => return Err(HintErrorKind::NestedDefinition),
                 Opcode::ENDF => {
                     let range = start..ins.pc + 1;
-                    if self.graphics_state.is_pedantic && range.len() > MAX_DEFINITION_SIZE {
+                    if self.graphics.is_pedantic && range.len() > MAX_DEFINITION_SIZE {
                         *def = Default::default();
                         return Err(HintErrorKind::DefinitionTooLarge);
                     }
@@ -501,7 +501,7 @@ mod tests {
         font_code.extend(core::iter::repeat(op(NEG)).take(MAX_DEFINITION_SIZE + 1));
         font_code.push(op(ENDF));
         engine.set_font_code(&font_code);
-        engine.graphics_state.is_pedantic = true;
+        engine.graphics.is_pedantic = true;
         engine.value_stack.push(1).unwrap();
         let err = engine.run().unwrap_err();
         assert!(matches!(err.kind, HintErrorKind::DefinitionTooLarge));

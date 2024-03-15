@@ -1,18 +1,11 @@
 //! Graphics state for the TrueType interpreter.
 
-mod projection;
-mod round;
-mod zone;
-
-use super::{F26Dot6, HintingMode, Point};
-use core::ops::{Deref, DerefMut};
-
-pub use {
-    round::{RoundMode, RoundState},
+use super::{
+    round::RoundState,
     zone::{Zone, ZonePointer},
+    F26Dot6, HintingMode, Point,
 };
-
-pub(crate) use zone::PointDisplacement;
+use core::ops::{Deref, DerefMut};
 
 /// Describes the axis to which a measurement or point movement operation
 /// applies.

@@ -6,10 +6,10 @@
 
 use super::{
     super::{
-        graphics_state::{CoordAxis, PointDisplacement, ZonePointer},
-        math,
+        graphics::CoordAxis,
+        zone::{PointDisplacement, ZonePointer},
     },
-    Engine, F26Dot6, HintErrorKind, OpResult,
+    math, Engine, F26Dot6, HintErrorKind, OpResult,
 };
 
 impl<'a> Engine<'a> {
@@ -29,20 +29,20 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#flip-point>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5002>
     pub(super) fn op_flippt(&mut self) -> OpResult {
-        let count = self.graphics_state.loop_counter as usize;
-        self.graphics_state.loop_counter = 1;
+        let count = self.graphics.loop_counter as usize;
+        self.graphics.loop_counter = 1;
         // In backward compatibility mode, don't flip points after IUP has
         // been done.
-        if self.graphics_state.backward_compatibility
-            && self.graphics_state.did_iup_x
-            && self.graphics_state.did_iup_y
+        if self.graphics.backward_compatibility
+            && self.graphics.did_iup_x
+            && self.graphics.did_iup_y
         {
             for _ in 0..count {
                 self.value_stack.pop()?;
             }
             return Ok(());
         }
-        let zone = self.graphics_state.zone_mut(ZonePointer::Glyph);
+        let zone = self.graphics.zone_mut(ZonePointer::Glyph);
         for _ in 0..count {
             let p = self.value_stack.pop_usize()?;
             zone.flip_on_curve(p)?;
@@ -104,7 +104,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#shift-point-by-the-last-point>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5211>
     pub(super) fn op_shp(&mut self, opcode: u8) -> OpResult {
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let PointDisplacement { dx, dy, .. } = gs.point_displacement(opcode)?;
         let count = gs.loop_counter;
         gs.loop_counter = 1;
@@ -136,7 +136,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#shift-contour-by-the-last-point>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5266>
     pub(super) fn op_shc(&mut self, opcode: u8) -> OpResult {
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let contour_ix = self.value_stack.pop_usize()?;
         let point_disp = gs.point_displacement(opcode)?;
         let start = if contour_ix != 0 {
@@ -177,7 +177,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5318>
     pub(super) fn op_shz(&mut self, opcode: u8) -> OpResult {
         let _e = ZonePointer::try_from(self.value_stack.pop()?)?;
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let point_disp = gs.point_displacement(opcode)?;
         let end = if gs.zp2.is_twilight() {
             gs.zp2().points.len()
@@ -216,7 +216,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#shift-point-by-a-pixel-amount>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5366>
     pub(super) fn op_shpix(&mut self) -> OpResult {
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let in_twilight = gs.zp0.is_twilight() || gs.zp1.is_twilight() || gs.zp2.is_twilight();
         let amount = self.value_stack.pop()?;
         let dx = F26Dot6::from_bits(math::mul14(amount, gs.freedom_vector.x));
@@ -261,7 +261,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#move-stack-indirect-relative-point>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5439>
     pub(super) fn op_msirp(&mut self, opcode: u8) -> OpResult {
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let distance = self.value_stack.pop_f26dot6()?;
         let point_ix = self.value_stack.pop_usize()?;
         if gs.zp1.is_twilight() {
@@ -297,7 +297,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#move-direct-absolute-point>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5487>
     pub(super) fn op_mdap(&mut self, opcode: u8) -> OpResult {
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let p = self.value_stack.pop_usize()?;
         let distance = if (opcode & 1) != 0 {
             let cur_dist = gs.project(gs.zp0().point(p)?, Default::default());
@@ -332,7 +332,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#move-indirect-absolute-point>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5526>
     pub(super) fn op_miap(&mut self, opcode: u8) -> OpResult {
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let cvt_entry = self.value_stack.pop_usize()?;
         let point_ix = self.value_stack.pop_usize()?;
         let mut distance = self.cvt.get(cvt_entry)?;
@@ -385,7 +385,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#move-direct-relative-point>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5610>
     pub(super) fn op_mdrp(&mut self, opcode: u8) -> OpResult {
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let p = self.value_stack.pop_usize()?;
         let mut original_distance = if gs.zp0.is_twilight() || gs.zp1.is_twilight() {
             gs.dual_project(gs.zp1().original(p)?, gs.zp0().original(gs.rp0)?)
@@ -468,7 +468,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#move-indirect-relative-point>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5731>
     pub(super) fn op_mirp(&mut self, opcode: u8) -> OpResult {
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let n = (self.value_stack.pop()? + 1) as usize;
         let p = self.value_stack.pop_usize()?;
         let mut cvt_distance = if n == 0 {
@@ -552,7 +552,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#align-relative-point>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5882>
     pub(super) fn op_alignrp(&mut self) -> OpResult {
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let count = gs.loop_counter;
         gs.loop_counter = 1;
         for _ in 0..count {
@@ -580,7 +580,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#moves-point-p-to-the-intersection-of-two-lines>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L5934>
     pub(super) fn op_isect(&mut self) -> OpResult {
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let b1 = self.value_stack.pop_usize()?;
         let b0 = self.value_stack.pop_usize()?;
         let a1 = self.value_stack.pop_usize()?;
@@ -650,7 +650,7 @@ impl<'a> Engine<'a> {
     pub(super) fn op_alignpts(&mut self) -> OpResult {
         let p2 = self.value_stack.pop_usize()?;
         let p1 = self.value_stack.pop_usize()?;
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let distance = F26Dot6::from_bits(
             gs.project(gs.zp0().point(p2)?, gs.zp1().point(p1)?)
                 .to_bits()
@@ -679,7 +679,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#interpolate-point-by-the-last-relative-stretch>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6065>
     pub(super) fn op_ip(&mut self) -> OpResult {
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let count = gs.loop_counter;
         gs.loop_counter = 1;
         if !gs.is_pedantic && !gs.in_bounds([(gs.zp0, gs.rp1), (gs.zp1, gs.rp2)]) {
@@ -744,7 +744,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#interpolate-untouched-points-through-the-outline>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6391>
     pub(super) fn op_iup(&mut self, opcode: u8) -> OpResult {
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let axis = if (opcode & 1) != 0 {
             CoordAxis::X
         } else {
@@ -788,8 +788,8 @@ impl<'a> Engine<'a> {
     pub(super) fn op_utp(&mut self) -> OpResult {
         let p = self.value_stack.pop_usize()?;
         let coord_axis = match (
-            self.graphics_state.freedom_vector.x != 0,
-            self.graphics_state.freedom_vector.y != 0,
+            self.graphics.freedom_vector.x != 0,
+            self.graphics.freedom_vector.y != 0,
         ) {
             (true, true) => Some(CoordAxis::Both),
             (true, false) => Some(CoordAxis::X),
@@ -797,7 +797,7 @@ impl<'a> Engine<'a> {
             (false, false) => None,
         };
         if let Some(coord_axis) = coord_axis {
-            self.graphics_state.zp0_mut().untouch(p, coord_axis)?;
+            self.graphics.zp0_mut().untouch(p, coord_axis)?;
         }
         Ok(())
     }
@@ -810,13 +810,13 @@ impl<'a> Engine<'a> {
         let low_point = self.value_stack.pop_usize()?;
         // In backward compatibility mode, don't flip points after IUP has
         // been done.
-        if self.graphics_state.backward_compatibility
-            && self.graphics_state.did_iup_x
-            && self.graphics_state.did_iup_y
+        if self.graphics.backward_compatibility
+            && self.graphics.did_iup_x
+            && self.graphics.did_iup_y
         {
             return Ok(());
         }
-        self.graphics_state
+        self.graphics
             .zone_mut(ZonePointer::Glyph)
             .set_on_curve(low_point, high_point, on)
     }
@@ -845,7 +845,7 @@ mod tests {
         assert_eq!(engine.value_stack.len(), count as usize);
         // And flip!
         engine.op_flippt().unwrap();
-        let flags = &engine.graphics_state.zones[1].flags;
+        let flags = &engine.graphics.zones[1].flags;
         for i in 0..10 {
             // Odd points are now on-curve
             assert_eq!(flags[i].is_on_curve(), i & 1 != 0);
@@ -869,12 +869,12 @@ mod tests {
         }
         assert_eq!(engine.value_stack.len(), count as usize);
         // Prevent flipping
-        engine.graphics_state.backward_compatibility = true;
-        engine.graphics_state.did_iup_x = true;
-        engine.graphics_state.did_iup_y = true;
+        engine.graphics.backward_compatibility = true;
+        engine.graphics.did_iup_x = true;
+        engine.graphics.did_iup_y = true;
         // But try anyway
         engine.op_flippt().unwrap();
-        let flags = &engine.graphics_state.zones[1].flags;
+        let flags = &engine.graphics.zones[1].flags;
         for i in 0..10 {
             // All points are still off-curve
             assert!(!flags[i].is_on_curve());
@@ -890,14 +890,14 @@ mod tests {
         engine.value_stack.push(10).unwrap();
         engine.value_stack.push(20).unwrap();
         engine.op_fliprgon().unwrap();
-        for (i, flag) in engine.graphics_state.zones[1].flags.iter().enumerate() {
+        for (i, flag) in engine.graphics.zones[1].flags.iter().enumerate() {
             assert_eq!(flag.is_on_curve(), (10..=20).contains(&i));
         }
         // Now flip 12..=15 off
         engine.value_stack.push(12).unwrap();
         engine.value_stack.push(15).unwrap();
         engine.op_fliprgoff().unwrap();
-        for (i, flag) in engine.graphics_state.zones[1].flags.iter().enumerate() {
+        for (i, flag) in engine.graphics.zones[1].flags.iter().enumerate() {
             assert_eq!(
                 flag.is_on_curve(),
                 (10..=11).contains(&i) || (16..=20).contains(&i)
@@ -911,26 +911,26 @@ mod tests {
         let mut mock = MockEngine::new();
         let mut engine = mock.engine();
         // Prevent flipping
-        engine.graphics_state.backward_compatibility = true;
-        engine.graphics_state.did_iup_x = true;
-        engine.graphics_state.did_iup_y = true;
+        engine.graphics.backward_compatibility = true;
+        engine.graphics.did_iup_x = true;
+        engine.graphics.did_iup_y = true;
         // Points all start as off-curve in the mock engine.
         // Try to flip 10..=20 on
         engine.value_stack.push(10).unwrap();
         engine.value_stack.push(20).unwrap();
         engine.op_fliprgon().unwrap();
-        for flag in engine.graphics_state.zones[1].flags.iter() {
+        for flag in engine.graphics.zones[1].flags.iter() {
             assert!(!flag.is_on_curve());
         }
         // Reset all points to on
-        for flag in engine.graphics_state.zones[1].flags.iter_mut() {
+        for flag in engine.graphics.zones[1].flags.iter_mut() {
             flag.set_on_curve();
         }
         // Now try to flip 12..=15 off
         engine.value_stack.push(12).unwrap();
         engine.value_stack.push(15).unwrap();
         engine.op_fliprgoff().unwrap();
-        for flag in engine.graphics_state.zones[1].flags.iter() {
+        for flag in engine.graphics.zones[1].flags.iter() {
             assert!(flag.is_on_curve());
         }
     }
@@ -940,20 +940,18 @@ mod tests {
         let mut mock = MockEngine::new();
         let mut engine = mock.engine();
         // Touch all points in both axes to start.
-        let count = engine.graphics_state.zones[1].points.len();
+        let count = engine.graphics.zones[1].points.len();
         for i in 0..count {
-            engine.graphics_state.zones[1]
-                .touch(i, CoordAxis::Both)
-                .unwrap();
+            engine.graphics.zones[1].touch(i, CoordAxis::Both).unwrap();
         }
         let mut untouch = |point_ix: usize, fx, fy, marker| {
-            assert!(engine.graphics_state.zp0().flags[point_ix].has_marker(marker));
+            assert!(engine.graphics.zp0().flags[point_ix].has_marker(marker));
             // Untouch axis is based on freedom vector:
-            engine.graphics_state.freedom_vector.x = fx;
-            engine.graphics_state.freedom_vector.y = fy;
+            engine.graphics.freedom_vector.x = fx;
+            engine.graphics.freedom_vector.y = fy;
             engine.value_stack.push(point_ix as i32).unwrap();
             engine.op_utp().unwrap();
-            assert!(!engine.graphics_state.zp0().flags[point_ix].has_marker(marker));
+            assert!(!engine.graphics.zp0().flags[point_ix].has_marker(marker));
         };
         // Untouch point 0 in x axis
         untouch(0, 1, 0, PointMarker::TOUCHED_X);

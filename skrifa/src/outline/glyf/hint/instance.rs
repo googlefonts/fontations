@@ -6,9 +6,10 @@ use super::{
     definition::{Definition, DefinitionMap, DefinitionState},
     engine::Engine,
     error::HintError,
-    graphics_state::{RetainedGraphicsState, Zone},
+    graphics::RetainedGraphicsState,
     program::{Program, ProgramState},
     value_stack::ValueStack,
+    zone::Zone,
     HintOutline, HintingMode, PointFlags,
 };
 use raw::types::{F26Dot6, F2Dot14, Fixed, Point};
@@ -48,12 +49,7 @@ impl HintInstance {
         let glyph = Zone::default();
         let mut stack_buf = vec![0; self.max_stack];
         let value_stack = ValueStack::new(&mut stack_buf);
-        let graphics = RetainedGraphicsState {
-            scale,
-            ppem,
-            mode,
-            ..Default::default()
-        };
+        let graphics = RetainedGraphicsState::new(scale, ppem, mode);
         let mut engine = Engine::new(
             outlines,
             ProgramState::new(outlines.fpgm, outlines.prep, &[], Program::Font),

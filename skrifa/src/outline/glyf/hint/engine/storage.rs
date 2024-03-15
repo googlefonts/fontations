@@ -25,7 +25,7 @@ impl<'a> Engine<'a> {
     pub(super) fn op_rs(&mut self) -> OpResult {
         let location = self.value_stack.pop_usize()?;
         let maybe_value = self.storage.get(location);
-        let value = if self.graphics_state.is_pedantic {
+        let value = if self.graphics.is_pedantic {
             maybe_value?
         } else {
             maybe_value.unwrap_or(0)
@@ -52,7 +52,7 @@ impl<'a> Engine<'a> {
         let value = self.value_stack.pop()?;
         let location = self.value_stack.pop_usize()?;
         let result = self.storage.set(location, value);
-        if self.graphics_state.is_pedantic {
+        if self.graphics.is_pedantic {
             result
         } else {
             Ok(())
@@ -87,14 +87,14 @@ mod tests {
         let oob_index = 1000;
         // Disable pedantic mode: OOB writes are ignored, OOB reads
         // push 0
-        engine.graphics_state.is_pedantic = false;
+        engine.graphics.is_pedantic = false;
         engine.value_stack.push(oob_index).unwrap();
         engine.value_stack.push(0).unwrap();
         engine.op_ws().unwrap();
         engine.value_stack.push(oob_index).unwrap();
         engine.op_rs().unwrap();
         // Enable pedantic mode: OOB reads/writes error
-        engine.graphics_state.is_pedantic = true;
+        engine.graphics.is_pedantic = true;
         engine.value_stack.push(oob_index).unwrap();
         engine.value_stack.push(0).unwrap();
         assert_eq!(

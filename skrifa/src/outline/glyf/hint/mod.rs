@@ -6,12 +6,15 @@ mod cvt;
 mod definition;
 mod engine;
 mod error;
-mod graphics_state;
+mod graphics;
 mod instance;
 mod math;
 mod program;
+mod projection;
+mod round;
 mod storage;
 mod value_stack;
+mod zone;
 
 use super::super::{HintingMode, LcdLayout};
 
