@@ -8,10 +8,6 @@ repository = "https://github.com/googlefonts/fontations"
 readme = "README.md"
 categories = ["text-processing"]
 
-[features]
-std = []
-default = ["std"]
-
 [dependencies]
 serde = { version = "1.0", features = ["derive"], optional = true }
 

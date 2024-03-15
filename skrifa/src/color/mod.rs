@@ -55,9 +55,9 @@ use read_fonts::{
     ReadError, TableProvider,
 };
 
-use std::{collections::HashSet, fmt::Debug, ops::Range};
+use std::{fmt::Debug, ops::Range};
 
-use traversal::{get_clipbox_font_units, traverse_v0_range, traverse_with_callbacks};
+use traversal::{get_clipbox_font_units, traverse_v0_range, traverse_with_callbacks, VisitedSet};
 
 pub use transform::Transform;
 
@@ -348,7 +348,7 @@ impl<'a> ColorGlyph<'a> {
                     painter.push_clip_box(rect);
                 }
 
-                let mut visited_set: HashSet<usize> = HashSet::new();
+                let mut visited_set = VisitedSet::default();
                 visited_set.insert(*paint_id);
                 traverse_with_callbacks(
                     &resolve_paint(&instance, paint)?,

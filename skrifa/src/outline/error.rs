@@ -79,5 +79,3 @@ impl fmt::Display for DrawError {
         }
     }
 }
-
-impl std::error::Error for DrawError {}

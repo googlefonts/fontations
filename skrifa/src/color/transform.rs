@@ -5,6 +5,10 @@ use read_fonts::ReadError;
 
 use super::instance::ResolvedPaint;
 
+#[cfg(feature = "libm")]
+#[allow(unused_imports)]
+use core_maths::*;
+
 #[cfg(test)]
 use serde::{Deserialize, Serialize};
 

@@ -655,7 +655,7 @@ mod tests {
                 -20.0, 0.0, 473.0, 491.0, 525.0, 540.0, 644.0, 659.0, 669.0, 689.0, 729.0, 749.0,
             ])),
             FamilyOtherBlues(make_blues(&[-249.0, -239.0])),
-            BlueScale(Fixed::from_f64(0.037506103515625)),
+            BlueScale(Fixed::from_f64(0.0374908447265625)),
             BlueFuzz(Fixed::ZERO),
             StdHw(Fixed::from_f64(55.0)),
             StdVw(Fixed::from_f64(80.0)),

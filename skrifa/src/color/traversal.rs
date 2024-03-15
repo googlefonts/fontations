@@ -1,4 +1,4 @@
-use std::{cmp::Ordering, collections::HashSet, ops::Range};
+use std::{cmp::Ordering, ops::Range};
 
 use read_fonts::{
     tables::colr::{CompositeMode, Extend},
@@ -12,6 +12,41 @@ use super::{
     },
     Brush, ColorPainter, ColorStop, PaintCachedColorGlyph, PaintError, Transform,
 };
+
+use alloc::vec::Vec;
+
+#[cfg(feature = "libm")]
+#[allow(unused_imports)]
+use core_maths::*;
+
+#[cfg(any(test, feature = "std"))]
+mod visited_set {
+    pub type VisitedSet = std::collections::HashSet<usize>;
+}
+
+#[cfg(not(any(test, feature = "std")))]
+mod visited_set {
+    /// A subset of the HashSet type that pretends every insertion is
+    /// new.
+    ///
+    /// This is used in `no_std` builds to represent a visited set that never
+    /// detects cycles. We rely only on a traversal depth check to avoid
+    /// infinite recursion instead.
+    #[derive(Default)]
+    pub struct VisitedSet {}
+
+    impl VisitedSet {
+        /// Like HashSet, returns true if the value doesn't already exist in
+        /// the set. In our case, that's always.
+        pub fn insert(&mut self, _value: usize) -> bool {
+            true
+        }
+
+        pub fn remove(&mut self, _value: &usize) {}
+    }
+}
+
+pub use visited_set::VisitedSet;
 
 /// Depth at which we will stop traversing and return an error.
 ///
@@ -120,7 +155,7 @@ pub(crate) fn traverse_with_callbacks(
     paint: &ResolvedPaint,
     instance: &ColrInstance,
     painter: &mut impl ColorPainter,
-    visited_set: &mut HashSet<usize>,
+    visited_set: &mut VisitedSet,
     recurse_depth: u32,
 ) -> Result<(), PaintError> {
     if recurse_depth >= MAX_TRAVERSAL_DEPTH {
