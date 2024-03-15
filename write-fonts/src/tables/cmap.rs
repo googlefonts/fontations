@@ -187,7 +187,6 @@ impl std::fmt::Display for CmapConflict {
     }
 }
 
-#[cfg(feature = "std")]
 impl std::error::Error for CmapConflict {}
 
 impl Cmap {
