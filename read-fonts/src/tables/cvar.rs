@@ -38,6 +38,33 @@ impl<'a> Cvar<'a> {
         })
     }
 
+    /// Computes the accumulated deltas for the given set of normalized
+    /// coordinates and stores them in `deltas`.
+    ///
+    /// The `axis_count` parameter expects the value from the `fvar`
+    /// table.
+    ///
+    /// The `deltas` slice should have a length greater than or equal
+    /// to the number of values in the `cvt` table. The values are
+    /// computed in 16.16 format.
+    pub fn deltas(
+        &self,
+        axis_count: u16,
+        coords: &[F2Dot14],
+        deltas: &mut [i32],
+    ) -> Result<(), ReadError> {
+        let var_data = self.variation_data(axis_count)?;
+        for (tuple, scalar) in var_data.active_tuples_at(coords) {
+            for delta in tuple.deltas() {
+                let ix = delta.position as usize;
+                if let Some(value) = deltas.get_mut(ix) {
+                    *value += delta.apply_scalar(scalar).to_bits();
+                }
+            }
+        }
+        Ok(())
+    }
+
     fn raw_tuple_header_data(&self) -> FontData<'a> {
         let range = self.shape.tuple_variation_headers_byte_range();
         self.data.split_off(range.start).unwrap()

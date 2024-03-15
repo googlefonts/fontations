@@ -17,6 +17,7 @@ use crate::GLYF_COMPOSITE_RECURSION_LIMIT;
 
 use read_fonts::{
     tables::{
+        cvar::Cvar,
         glyf::{
             Anchor, CompositeGlyph, CompositeGlyphFlags, Glyf, Glyph, PointMarker, SimpleGlyph,
         },
@@ -43,6 +44,7 @@ pub struct Outlines<'a> {
     fpgm: &'a [u8],
     prep: &'a [u8],
     cvt: &'a [BigEndian<i16>],
+    cvar: Option<Cvar<'a>>,
     max_function_defs: u16,
     max_instruction_defs: u16,
     max_twilight_points: u16,
@@ -106,6 +108,7 @@ impl<'a> Outlines<'a> {
                 .data_for_tag(Tag::new(b"cvt "))
                 .and_then(|d| d.read_array(0..d.len()).ok())
                 .unwrap_or_default(),
+            cvar: font.cvar().ok(),
             max_function_defs,
             max_instruction_defs,
             max_twilight_points,
