@@ -74,6 +74,7 @@ pub enum PaintError {
     ParseError(ReadError),
     GlyphNotFound(GlyphId),
     PaintCycleDetected,
+    DepthLimitExceeded,
 }
 
 impl std::fmt::Display for PaintError {
@@ -86,6 +87,7 @@ impl std::fmt::Display for PaintError {
                 write!(f, "No COLRv1 glyph found for glyph id: {glyph_id}")
             }
             PaintError::PaintCycleDetected => write!(f, "Paint cycle detected in COLRv1 glyph."),
+            PaintError::DepthLimitExceeded => write!(f, "Depth limit exceeded in COLRv1 glyph."),
         }
     }
 }
@@ -353,6 +355,7 @@ impl<'a> ColorGlyph<'a> {
                     &instance,
                     painter,
                     &mut visited_set,
+                    0,
                 )?;
 
                 if clipbox.is_some() {
