@@ -42,7 +42,8 @@ impl CmapSubtable {
         for (cp, gid) in mappings {
             let gid = gid.to_u16();
             if *cp > '\u{FFFF}' {
-                continue;
+                // mappings is sorted, so the rest will be beyond the BMP too.
+                break;
             }
             let cp = (*cp as u32).try_into().unwrap();
             let next_in_run = (
@@ -164,6 +165,30 @@ impl CmapSubtable {
     }
 }
 
+/// A conflicting Cmap definition, one char is mapped to multiple distinct GlyphIds.
+///
+/// If there are multiple conflicting mappings, one is chosen arbitrarily.
+/// gid1 is less than gid2.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CmapConflict {
+    ch: char,
+    gid1: GlyphId,
+    gid2: GlyphId,
+}
+
+impl std::fmt::Display for CmapConflict {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let ch32 = self.ch as u32;
+        write!(
+            f,
+            "Cannot map {:?} (U+{ch32:04X}) to two different glyph ids: {} and {}",
+            self.ch, self.gid1, self.gid2
+        )
+    }
+}
+
+impl std::error::Error for CmapConflict {}
+
 impl Cmap {
     /// Generates a [cmap](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap) that is expected to work in most modern environments.
     ///
@@ -172,9 +197,22 @@ impl Cmap {
     /// subtables, respectively for the Basic Multilingual Plane and Full Unicode Repertoire.
     ///
     /// Also see: <https://learn.microsoft.com/en-us/typography/opentype/spec/recom#cmap-table>
-    pub fn from_mappings(mappings: impl IntoIterator<Item = (char, GlyphId)>) -> Cmap {
+    pub fn from_mappings(
+        mappings: impl IntoIterator<Item = (char, GlyphId)>,
+    ) -> Result<Cmap, CmapConflict> {
         let mut mappings: Vec<_> = mappings.into_iter().collect();
         mappings.sort();
+        mappings.dedup();
+        if let Some((ch, gid1, gid2)) =
+            mappings
+                .iter()
+                .zip(mappings.iter().skip(1))
+                .find_map(|((c1, g1), (c2, g2))| {
+                    (c1 == c2 && g1 != g2).then(|| (*c1, *g1.min(g2), *g1.max(g2)))
+                })
+        {
+            return Err(CmapConflict { ch, gid1, gid2 });
+        }
 
         let mut uni_records = Vec::new(); // platform 0
         let mut win_records = Vec::new(); // platform 3
@@ -221,7 +259,9 @@ impl Cmap {
         // - Unicode (0), full repertoire (4)
         // - Windows (3), BMP (1)
         // - Windows (3), full repertoire (10)
-        Cmap::new(uni_records.into_iter().chain(win_records).collect())
+        Ok(Cmap::new(
+            uni_records.into_iter().chain(win_records).collect(),
+        ))
     }
 }
 
@@ -236,13 +276,13 @@ mod tests {
     use crate::{
         dump_table,
         tables::cmap::{
-            self as write, UNICODE_BMP_ENCODING, UNICODE_FULL_REPERTOIRE_ENCODING,
+            self as write, CmapConflict, UNICODE_BMP_ENCODING, UNICODE_FULL_REPERTOIRE_ENCODING,
             WINDOWS_BMP_ENCODING, WINDOWS_FULL_REPERTOIRE_ENCODING,
         },
     };
 
     fn assert_generates_simple_cmap(mappings: Vec<(char, GlyphId)>) {
-        let cmap = write::Cmap::from_mappings(mappings);
+        let cmap = write::Cmap::from_mappings(mappings).unwrap();
 
         let bytes = dump_table(&cmap).unwrap();
         let font_data = FontData::new(&bytes);
@@ -324,7 +364,7 @@ mod tests {
         let gid = GlyphId::new(153);
         mappings.push((codepoint, gid));
 
-        let cmap = write::Cmap::from_mappings(mappings);
+        let cmap = write::Cmap::from_mappings(mappings).unwrap();
 
         let bytes = dump_table(&cmap).unwrap();
         let font_data = FontData::new(&bytes);
@@ -336,7 +376,7 @@ mod tests {
     fn bytes_are_reused() {
         // We emit extra encoding records assuming it's cheap. Make sure.
         let mappings = simple_cmap_mappings();
-        let cmap_both = write::Cmap::from_mappings(mappings);
+        let cmap_both = write::Cmap::from_mappings(mappings).unwrap();
         assert_eq!(2, cmap_both.encoding_records.len(), "{cmap_both:?}");
 
         let bytes_for_both = dump_table(&cmap_both).unwrap().len();
@@ -360,8 +400,8 @@ mod tests {
             ('\u{1f133}', GlyphId::new(484)),
             // gid 485 skipped, starts third group
             ('\u{1f134}', GlyphId::new(486)),
-            // char 0x1f135 skipped, starts fourth group; 0x1f136 defined twice, last map prevails
-            ('\u{1f136}', GlyphId::new(487)),
+            // char 0x1f135 skipped, starts fourth group. identical duplicate bindings are fine
+            ('\u{1f136}', GlyphId::new(488)),
             ('\u{1f136}', GlyphId::new(488)),
         ]
     }
@@ -395,7 +435,7 @@ mod tests {
     fn generate_cmap4_and_12() {
         let mappings = bmp_and_non_bmp_cmap_mappings();
 
-        let cmap = write::Cmap::from_mappings(mappings);
+        let cmap = write::Cmap::from_mappings(mappings).unwrap();
 
         let bytes = dump_table(&cmap).unwrap();
         let font_data = FontData::new(&bytes);
@@ -444,7 +484,7 @@ mod tests {
     fn generate_cmap12_only() {
         let mappings = non_bmp_cmap_mappings();
 
-        let cmap = write::Cmap::from_mappings(mappings);
+        let cmap = write::Cmap::from_mappings(mappings).unwrap();
 
         let bytes = dump_table(&cmap).unwrap();
         let font_data = FontData::new(&bytes);
@@ -472,5 +512,18 @@ mod tests {
         ];
         assert_cmap12_groups(font_data, &cmap, 0, &expected_groups);
         assert_cmap12_groups(font_data, &cmap, 1, &expected_groups);
+    }
+
+    #[test]
+    fn multiple_mappings_fails() {
+        let mut mappings = non_bmp_cmap_mappings();
+        // add an additional mapping to a different glyphId
+        let (ch, gid1) = mappings[0];
+        let gid2 = GlyphId::new(gid1.to_u16() + 1);
+        mappings.push((ch, gid2));
+
+        let result = write::Cmap::from_mappings(mappings);
+
+        assert_eq!(result, Err(CmapConflict { ch, gid1, gid2 }))
     }
 }
