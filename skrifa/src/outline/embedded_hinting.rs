@@ -1,5 +1,7 @@
 //! Support for applying embedded hinting instructions.
 
+use raw::tables::glyf::ToPathStyle;
+
 use super::{
     cff, glyf, AdjustedMetrics, DrawError, Hinting, LocationRef, NormalizedCoord,
     OutlineCollectionKind, OutlineGlyph, OutlineGlyphCollection, OutlineKind, OutlinePen, Size,
@@ -182,6 +184,7 @@ impl EmbeddedHintingInstance {
         &self,
         glyph: &OutlineGlyph,
         memory: Option<&mut [u8]>,
+        path_style: ToPathStyle,
         pen: &mut impl OutlinePen,
         is_pedantic: bool,
     ) -> Result<AdjustedMetrics, DrawError> {
@@ -201,7 +204,7 @@ impl EmbeddedHintingInstance {
                         |mut hint_outline| instance.hint(glyf, &mut hint_outline),
                         is_pedantic,
                     )?;
-                    scaled_outline.to_path(pen)?;
+                    scaled_outline.to_path(path_style, pen)?;
                     Ok(AdjustedMetrics {
                         has_overlaps: outline.has_overlaps,
                         lsb: Some(scaled_outline.adjusted_lsb().to_f32()),
