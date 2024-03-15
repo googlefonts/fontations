@@ -4,7 +4,7 @@ use super::{
     cff, glyf, AdjustedMetrics, DrawError, Hinting, LocationRef, NormalizedCoord,
     OutlineCollectionKind, OutlineGlyph, OutlineGlyphCollection, OutlineKind, OutlinePen, Size,
 };
-use crate::alloc_prelude::{Box, Vec};
+use crate::alloc::{boxed::Box, vec::Vec};
 
 /// Modes that control hinting when using embedded instructions.
 ///

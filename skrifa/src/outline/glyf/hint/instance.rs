@@ -12,7 +12,7 @@ use super::{
     zone::Zone,
     HintOutline, HintingMode, PointFlags,
 };
-use crate::alloc_prelude::Vec;
+use alloc::vec::Vec;
 use raw::types::{F26Dot6, F2Dot14, Fixed, Point};
 
 #[derive(Clone, Default)]

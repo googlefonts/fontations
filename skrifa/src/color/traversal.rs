@@ -13,7 +13,7 @@ use super::{
     Brush, ColorPainter, ColorStop, PaintCachedColorGlyph, PaintError, Transform,
 };
 
-use crate::alloc_prelude::Vec;
+use alloc::vec::Vec;
 
 #[cfg(feature = "libm")]
 #[allow(unused_imports)]
