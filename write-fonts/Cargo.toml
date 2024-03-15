@@ -1,6 +1,6 @@
 [package]
 name = "write-fonts"
-version = "0.23.0"
+version = "0.24.0"
 edition = "2021"
 license = "MIT/Apache-2.0"
 description = "Writing font files."
@@ -15,7 +15,7 @@ serde = ["dep:serde", "font-types/serde", "read-fonts/serde"]
 
 [dependencies]
 font-types = { version = "0.4.3", path = "../font-types" }
-read-fonts = { version = "0.16.0", path = "../read-fonts" }
+read-fonts = { version = "0.17.0", path = "../read-fonts" }
 log = "0.4"
 kurbo = "0.11.0"
 dot2 = { version = "1.0", optional = true }
@@ -26,7 +26,7 @@ indexmap = "2.0"
 diff = "0.1.12"
 ansi_term = "0.12.1"
 font-test-data = { path = "../font-test-data" }
-read-fonts = { version = "0.16.0", path = "../read-fonts", features = [
+read-fonts = { version = "0.17.0", path = "../read-fonts", features = [
   "codegen_test",
 ] }
 env_logger = "0.10.0"
