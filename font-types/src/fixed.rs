@@ -237,12 +237,8 @@ macro_rules! float_conv {
             ///
             /// This operation is lossy; the float will be rounded to the nearest
             /// representable value.
+            #[inline(always)]
             pub fn $from(x: $ty) -> Self {
-                #[cfg(any(feature = "std", test))]
-                return Self((x * Self::ONE.0 as $ty).round() as _);
-                //NOTE: this behaviour is not exactly equivalent, but should be okay?
-                //what matters is that we are rounding *away from zero*.
-                #[cfg(all(not(feature = "std"), not(test)))]
                 Self(
                     (x * Self::ONE.0 as $ty + (0.5 * (-1.0 * x.is_sign_negative() as u8 as $ty)))
                         as _,
@@ -253,6 +249,7 @@ macro_rules! float_conv {
             ///
             /// This operation is lossless: all representable values can be
             /// round-tripped.
+            #[inline(always)]
             pub fn $to(self) -> $ty {
                 let int = ((self.0 & Self::INT_MASK) >> Self::FRACT_BITS) as $ty;
                 let fract = (self.0 & !Self::INT_MASK) as $ty / Self::ONE.0 as $ty;

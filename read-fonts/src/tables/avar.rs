@@ -82,9 +82,9 @@ mod tests {
             value_map(-0.6667, -0.5),
             value_map(-0.3333, -0.25),
             value_map(0.0, 0.0),
-            value_map(0.2, 0.3674),
-            value_map(0.4, 0.52246),
-            value_map(0.6, 0.67755),
+            value_map(0.2000122, 0.3674),
+            value_map(0.4000244, 0.52246094),
+            value_map(0.6, 0.67755127),
             value_map(0.8, 0.83875),
             value_map(1.0, 1.0),
         ]];

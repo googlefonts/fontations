@@ -1136,7 +1136,7 @@ mod tests {
         let state = make_hint_state();
         assert!(!state.do_em_box_hints);
         assert_eq!(state.zone_count, 6);
-        assert_eq!(state.boost, Fixed::from_bits(27035));
+        assert_eq!(state.boost, Fixed::from_f64(0.412445068359375));
         assert!(state.supress_overshoot);
         // FreeType generates the following zones:
         let expected_zones = &[
