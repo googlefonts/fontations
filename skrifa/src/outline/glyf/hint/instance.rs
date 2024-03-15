@@ -174,16 +174,7 @@ impl HintInstance {
         if let Some(cvar) = outlines.cvar.as_ref() {
             // First accumulate all the deltas in 16.16
             self.cvt.resize(outlines.cvt.len(), 0);
-            if let Ok(var_data) = cvar.variation_data(axis_count) {
-                for (tuple, scalar) in var_data.active_tuples_at(coords) {
-                    for delta in tuple.deltas() {
-                        let ix = delta.position as usize;
-                        if let Some(value) = self.cvt.get_mut(ix) {
-                            *value += delta.apply_scalar(scalar).to_bits();
-                        }
-                    }
-                }
-            }
+            let _ = cvar.deltas(axis_count, coords, &mut self.cvt);
             // Now add the base CVT values
             for (value, base_value) in self.cvt.iter_mut().zip(outlines.cvt.iter()) {
                 // Deltas are converted from 16.16 to 26.6
