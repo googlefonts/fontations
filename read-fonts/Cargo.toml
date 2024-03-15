@@ -9,7 +9,7 @@ readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
 
 [features]
-std = ["font-types/std"]
+std = []
 codegen_test = []
 scaler_test = []
 traversal = ["std"]
@@ -17,7 +17,7 @@ default = ["traversal"]
 serde = ["dep:serde", "font-types/serde"]
 
 [dependencies]
-font-types = { version = "0.4.3", path = "../font-types", default-features = false }
+font-types = { version = "0.4.3", path = "../font-types" }
 serde = { version = "1.0", features = ["derive"], optional = true }
 
 [dev-dependencies]

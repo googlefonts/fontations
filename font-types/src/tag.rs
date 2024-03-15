@@ -216,9 +216,6 @@ impl Display for InvalidTag {
     }
 }
 
-#[cfg(feature = "std")]
-impl std::error::Error for InvalidTag {}
-
 impl Debug for Tag {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "Tag({})", self)
@@ -324,7 +321,6 @@ mod tests {
     }
 
     #[test]
-    #[cfg(feature = "std")]
     fn display() {
         let bad_tag = Tag::new(&[0x19, b'z', b'@', 0x7F]);
         assert_eq!(bad_tag.to_string(), "{0x19}z@{0x7F}");
