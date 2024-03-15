@@ -26,10 +26,18 @@ mod visited_set {
 
 #[cfg(not(any(test, feature = "std")))]
 mod visited_set {
+    /// A subset of the HashSet type that pretends every insertion is
+    /// new.
+    ///
+    /// This is used in `no_std` builds to represent a visited set that never
+    /// detects cycles. We rely only on a traversal depth check to avoid
+    /// infinite recursion instead.
     #[derive(Default)]
     pub struct VisitedSet {}
 
     impl VisitedSet {
+        /// Like HashSet, returns true if the value doesn't already exist in
+        /// the set. In our case, that's always.
         pub fn insert(&mut self, _value: usize) -> bool {
             true
         }
