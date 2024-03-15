@@ -5,7 +5,7 @@
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#reading-and-writing-data>
 
 use super::{
-    super::{graphics_state::ZonePointer, math},
+    super::{math, zone::ZonePointer},
     Engine, OpResult,
 };
 
@@ -27,7 +27,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L4512>
     pub(super) fn op_gc(&mut self, opcode: u8) -> OpResult {
         let p = self.value_stack.pop_usize()?;
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let value = if (opcode & 1) != 0 {
             gs.dual_project(gs.zp2().original(p)?, Default::default())
         } else {
@@ -54,7 +54,7 @@ impl<'a> Engine<'a> {
     pub(super) fn op_scfs(&mut self) -> OpResult {
         let value = self.value_stack.pop_f26dot6()?;
         let p = self.value_stack.pop_usize()?;
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let projection = gs.project(gs.zp2().point(p)?, Default::default());
         gs.move_point(gs.zp2, p, value.wrapping_sub(projection))?;
         if gs.zp2.is_twilight() {
@@ -85,7 +85,7 @@ impl<'a> Engine<'a> {
     pub(super) fn op_md(&mut self, opcode: u8) -> OpResult {
         let p1 = self.value_stack.pop_usize()?;
         let p2 = self.value_stack.pop_usize()?;
-        let gs = &self.graphics_state;
+        let gs = &self.graphics;
         let distance = if (opcode & 1) != 0 {
             // measure in grid fitted outline
             gs.project(gs.zp0().point(p2)?, gs.zp1().point(p1)?)
@@ -117,7 +117,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#measure-pixels-per-em>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L2609>
     pub(super) fn op_mppem(&mut self) -> OpResult {
-        self.value_stack.push(self.graphics_state.ppem)
+        self.value_stack.push(self.graphics.ppem)
     }
 
     /// Measure point size.
@@ -138,7 +138,7 @@ impl<'a> Engine<'a> {
         // <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttdriver.c#L392>
         // which is mul_div(ppem, 64 * 72, resolution) where resolution
         // is always 72 for our purposes (Skia), resulting in ppem * 64.
-        self.value_stack.push(self.graphics_state.ppem * 64)
+        self.value_stack.push(self.graphics.ppem * 64)
     }
 }
 
@@ -151,7 +151,7 @@ mod tests {
         let mut mock = MockEngine::new();
         let mut engine = mock.engine();
         let ppem = 20;
-        engine.graphics_state.ppem = ppem;
+        engine.graphics.ppem = ppem;
         engine.op_mppem().unwrap();
         assert_eq!(engine.value_stack.pop().unwrap(), ppem);
         engine.op_mps().unwrap();

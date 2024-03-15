@@ -20,7 +20,7 @@ impl<'a> Engine<'a> {
     pub fn reset(&mut self, program: Program) {
         self.program.reset(program);
         // Reset overall graphics state, keeping the retained bits.
-        self.graphics_state.reset();
+        self.graphics.reset();
         self.loop_budget.reset();
         // Program specific setup.
         match program {
@@ -29,22 +29,22 @@ impl<'a> Engine<'a> {
                 self.definitions.instructions.reset();
             }
             Program::ControlValue => {
-                self.graphics_state.backward_compatibility = false;
+                self.graphics.backward_compatibility = false;
             }
             Program::Glyph => {
                 // Instruct control bit 1 says we reset retained graphics state
                 // to default values.
-                if self.graphics_state.instruct_control & 2 != 0 {
-                    self.graphics_state.reset_retained();
+                if self.graphics.instruct_control & 2 != 0 {
+                    self.graphics.reset_retained();
                 }
                 // Set backward compatibility mode
-                if self.graphics_state.mode.preserve_linear_metrics() {
-                    self.graphics_state.backward_compatibility = true;
-                } else if self.graphics_state.mode.is_smooth() {
-                    self.graphics_state.backward_compatibility =
-                        (self.graphics_state.instruct_control & 0x4) == 0;
+                if self.graphics.mode.preserve_linear_metrics() {
+                    self.graphics.backward_compatibility = true;
+                } else if self.graphics.mode.is_smooth() {
+                    self.graphics.backward_compatibility =
+                        (self.graphics.instruct_control & 0x4) == 0;
                 } else {
-                    self.graphics_state.backward_compatibility = false;
+                    self.graphics.backward_compatibility = false;
                 }
             }
         }

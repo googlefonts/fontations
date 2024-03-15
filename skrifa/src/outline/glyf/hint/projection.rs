@@ -1,8 +1,7 @@
 //! Point projection.
 
-use raw::types::F26Dot6;
-
-use super::{CoordAxis, GraphicsState, Point};
+use super::graphics::{CoordAxis, GraphicsState};
+use raw::types::{F26Dot6, Point};
 
 impl GraphicsState<'_> {
     /// Updates cached state that is derived from projection vectors.
@@ -127,7 +126,7 @@ fn dot14(ax: i32, ay: i32, bx: i32, by: i32) -> i32 {
 
 #[cfg(test)]
 mod tests {
-    use super::{super::super::math, CoordAxis, F26Dot6, GraphicsState, Point};
+    use super::{super::math, CoordAxis, F26Dot6, GraphicsState, Point};
 
     #[test]
     fn project_one_axis() {

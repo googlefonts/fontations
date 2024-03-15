@@ -24,7 +24,7 @@ impl<'a> Engine<'a> {
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L3143>
     pub(super) fn op_round(&mut self) -> OpResult {
         let n1 = self.value_stack.pop_f26dot6()?;
-        let n2 = self.graphics_state.round(n1);
+        let n2 = self.graphics.round(n1);
         self.value_stack.push(n2.to_bits())
     }
 }

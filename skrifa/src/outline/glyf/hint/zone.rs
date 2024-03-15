@@ -6,8 +6,9 @@ use read_fonts::{
 };
 
 use super::{
-    super::{error::HintErrorKind, graphics_state::CoordAxis, math},
-    GraphicsState,
+    error::HintErrorKind,
+    graphics::{CoordAxis, GraphicsState},
+    math,
 };
 
 use HintErrorKind::{InvalidPointIndex, InvalidPointRange};
@@ -26,10 +27,6 @@ pub enum ZonePointer {
 impl ZonePointer {
     pub fn is_twilight(self) -> bool {
         self == Self::Twilight
-    }
-
-    pub fn is_glyph(self) -> bool {
-        self == Self::Glyph
     }
 }
 
@@ -334,12 +331,6 @@ impl<'a> Zone<'a> {
 }
 
 impl<'a> GraphicsState<'a> {
-    pub fn reset_zone_pointers(&mut self) {
-        self.zp0 = ZonePointer::default();
-        self.zp1 = ZonePointer::default();
-        self.zp2 = ZonePointer::default();
-    }
-
     /// Takes an array of (zone pointer, point index) pairs and returns true if
     /// all accesses would be valid.
     pub fn in_bounds<const N: usize>(&self, pairs: [(ZonePointer, usize); N]) -> bool {

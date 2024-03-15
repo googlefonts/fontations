@@ -26,18 +26,6 @@ pub struct CallStack {
 }
 
 impl CallStack {
-    pub fn len(&self) -> usize {
-        self.len
-    }
-
-    pub fn is_empty(&self) -> bool {
-        self.len == 0
-    }
-
-    pub fn records(&self) -> &[CallRecord] {
-        &self.records[..self.len]
-    }
-
     pub fn clear(&mut self) {
         self.len = 0;
     }

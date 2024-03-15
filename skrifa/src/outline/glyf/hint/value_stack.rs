@@ -29,10 +29,13 @@ impl<'a> ValueStack<'a> {
         self.top
     }
 
-    pub fn is_empty(&self) -> bool {
+    #[cfg(test)]
+    fn is_empty(&self) -> bool {
         self.top == 0
     }
 
+    // This is used in tests and also useful for tracing.
+    #[allow(dead_code)]
     pub fn values(&self) -> &[i32] {
         &self.values[..self.top]
     }
@@ -196,14 +199,6 @@ impl<'a> ValueStack<'a> {
         self.push(a)?;
         self.push(c)?;
         Ok(())
-    }
-
-    fn get(&mut self, index: usize) -> Option<i32> {
-        self.values.get(index).copied()
-    }
-
-    fn get_mut(&mut self, index: usize) -> Option<&mut i32> {
-        self.values.get_mut(index)
     }
 }
 

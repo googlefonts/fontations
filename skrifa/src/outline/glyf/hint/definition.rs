@@ -49,15 +49,16 @@ impl Definition {
         }
     }
 
+    /// Returns the function number or opcode.
+    #[cfg(test)]
+    pub fn key(&self) -> i32 {
+        self.key
+    }
+
     /// Returns the byte range of the code for this definition in the source
     /// program.
     pub fn code_range(&self) -> Range<usize> {
         self.start as usize..self.end as usize
-    }
-
-    /// Returns the function number or opcode.
-    pub fn key(&self) -> i32 {
-        self.key
     }
 
     /// Returns true if this definition entry has been defined by a program.
@@ -148,7 +149,8 @@ impl<'a> DefinitionMap<'a> {
     }
 
     /// Returns a reference to the underlying definition slice.
-    pub fn as_slice(&self) -> &[Definition] {
+    #[cfg(test)]
+    fn as_slice(&self) -> &[Definition] {
         match self {
             Self::Ref(defs) => defs,
             Self::Mut(defs) => defs,
@@ -212,7 +214,7 @@ mod tests {
         for (i, def) in map.as_slice().iter().enumerate() {
             let key = i as i32;
             map.get(key).unwrap();
-            assert_eq!(def.key(), key);
+            assert_eq!(def.key, key);
         }
     }
 
@@ -229,7 +231,7 @@ mod tests {
             map.allocate(key).unwrap();
         }
         for key in keys {
-            assert_eq!(map.get(key).unwrap().key(), key);
+            assert_eq!(map.get(key).unwrap().key, key);
         }
     }
 
@@ -253,11 +255,11 @@ mod tests {
         // Check backing store directly to ensure the expected allocation
         // pattern.
         let expected = [0, 1, 2, 3, 0, 5, 7, -5555, -42, 123456];
-        let mapped_keys: Vec<_> = map.as_slice().iter().map(|def| def.key()).collect();
+        let mapped_keys: Vec<_> = map.as_slice().iter().map(|def| def.key).collect();
         assert_eq!(&expected, mapped_keys.as_slice());
         // Check that all keys are mapped
         for key in keys {
-            assert_eq!(map.get(key).unwrap().key(), key);
+            assert_eq!(map.get(key).unwrap().key, key);
         }
     }
 }

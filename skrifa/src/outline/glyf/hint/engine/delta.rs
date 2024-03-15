@@ -4,7 +4,7 @@
 //!
 //! See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#managing-exceptions>
 
-use super::{super::graphics_state::CoordAxis, Engine, F26Dot6, OpResult};
+use super::{super::graphics::CoordAxis, Engine, F26Dot6, OpResult};
 use read_fonts::tables::glyf::bytecode::Opcode;
 
 impl<'a> Engine<'a> {
@@ -28,7 +28,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#delta-exception-p1>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6509>
     pub(super) fn op_deltap(&mut self, opcode: Opcode) -> OpResult {
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let ppem = gs.ppem as u32;
         let n = self.value_stack.pop_usize()?;
         let bias = match opcode {
@@ -91,7 +91,7 @@ impl<'a> Engine<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#delta-exception-c1>
     /// and <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttinterp.c#L6604>
     pub(super) fn op_deltac(&mut self, opcode: Opcode) -> OpResult {
-        let gs = &mut self.graphics_state;
+        let gs = &mut self.graphics;
         let ppem = gs.ppem as u32;
         let n = self.value_stack.pop_usize()?;
         let bias = match opcode {

@@ -31,13 +31,13 @@ impl<'a> Engine<'a> {
         }
         // Glyph rotated (selector bit: 1, result bit: 8)
         const GLYPH_ROTATED_SELECTOR_BIT: i32 = 1 << 1;
-        if (selector & GLYPH_ROTATED_SELECTOR_BIT) != 0 && self.graphics_state.is_rotated {
+        if (selector & GLYPH_ROTATED_SELECTOR_BIT) != 0 && self.graphics.is_rotated {
             const GLYPH_ROTATED_RESULT_BIT: i32 = 1 << 8;
             result |= GLYPH_ROTATED_RESULT_BIT;
         }
         // Glyph stretched (selector bit: 2, result bit: 9)
         const GLYPH_STRETCHED_SELECTOR_BIT: i32 = 1 << 2;
-        if (selector & GLYPH_STRETCHED_SELECTOR_BIT) != 0 && self.graphics_state.is_stretched {
+        if (selector & GLYPH_STRETCHED_SELECTOR_BIT) != 0 && self.graphics.is_stretched {
             const GLYPH_STRETCHED_RESULT_BIT: i32 = 1 << 9;
             result |= GLYPH_STRETCHED_RESULT_BIT;
         }
@@ -48,7 +48,7 @@ impl<'a> Engine<'a> {
             result |= FONT_VARIATIONS_RESULT_BIT;
         }
         // The following only apply for smooth hinting.
-        if self.graphics_state.mode.is_smooth() {
+        if self.graphics.mode.is_smooth() {
             // Subpixel hinting [cleartype enabled] (selector bit: 6, result bit: 13)
             // (always enabled)
             const SUBPIXEL_HINTING_SELECTOR_BIT: i32 = 1 << 6;
@@ -58,9 +58,7 @@ impl<'a> Engine<'a> {
             }
             // Vertical LCD subpixels? (selector bit: 8, result bit: 15)
             const VERTICAL_LCD_SELECTOR_BIT: i32 = 1 << 8;
-            if (selector & VERTICAL_LCD_SELECTOR_BIT) != 0
-                && self.graphics_state.mode.is_vertical_lcd()
-            {
+            if (selector & VERTICAL_LCD_SELECTOR_BIT) != 0 && self.graphics.mode.is_vertical_lcd() {
                 const VERTICAL_LCD_RESULT_BIT: i32 = 1 << 15;
                 result |= VERTICAL_LCD_RESULT_BIT;
             }
@@ -76,7 +74,7 @@ impl<'a> Engine<'a> {
             // preserve linear metrics flag is enabled.
             const SYMMETRICAL_SMOOTHING_SELECTOR_BIT: i32 = 1 << 11;
             if (selector & SYMMETRICAL_SMOOTHING_SELECTOR_BIT) != 0
-                && !self.graphics_state.mode.preserve_linear_metrics()
+                && !self.graphics.mode.preserve_linear_metrics()
             {
                 const SYMMETRICAL_SMOOTHING_RESULT_BIT: i32 = 1 << 18;
                 result |= SYMMETRICAL_SMOOTHING_RESULT_BIT;
@@ -84,7 +82,7 @@ impl<'a> Engine<'a> {
             // ClearType hinting and grayscale rendering (selector bit: 12, result bit: 19)
             const GRAYSCALE_CLEARTYPE_SELECTOR_BIT: i32 = 1 << 12;
             if (selector & GRAYSCALE_CLEARTYPE_SELECTOR_BIT) != 0
-                && self.graphics_state.mode.is_grayscale_cleartype()
+                && self.graphics.mode.is_grayscale_cleartype()
             {
                 const GRAYSCALE_CLEARTYPE_RESULT_BIT: i32 = 1 << 19;
                 result |= GRAYSCALE_CLEARTYPE_RESULT_BIT;

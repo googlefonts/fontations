@@ -7,7 +7,7 @@ mod data;
 mod definition;
 mod delta;
 mod dispatch;
-mod graphics_state;
+mod graphics;
 mod logical;
 mod misc;
 mod outline;
@@ -25,10 +25,12 @@ use super::{
     cvt::Cvt,
     definition::DefinitionState,
     error::{HintError, HintErrorKind},
-    graphics_state::{GraphicsState, RetainedGraphicsState, Zone},
+    graphics::{GraphicsState, RetainedGraphicsState},
+    math,
     program::ProgramState,
     storage::Storage,
     value_stack::ValueStack,
+    zone::Zone,
 };
 
 pub type OpResult = Result<(), HintErrorKind>;
@@ -36,7 +38,7 @@ pub type OpResult = Result<(), HintErrorKind>;
 /// TrueType bytecode interpreter.
 pub struct Engine<'a> {
     program: ProgramState<'a>,
-    graphics_state: GraphicsState<'a>,
+    graphics: GraphicsState<'a>,
     definitions: DefinitionState<'a>,
     cvt: Cvt<'a>,
     storage: Storage<'a>,
@@ -75,7 +77,7 @@ impl<'a> Engine<'a> {
         };
         Self {
             program,
-            graphics_state: graphics,
+            graphics,
             definitions,
             cvt: cvt.into(),
             storage: storage.into(),
@@ -87,11 +89,11 @@ impl<'a> Engine<'a> {
     }
 
     pub fn backward_compatibility(&self) -> bool {
-        self.graphics_state.backward_compatibility
+        self.graphics.backward_compatibility
     }
 
     pub fn retained_graphics_state(&self) -> &RetainedGraphicsState {
-        &self.graphics_state.retained
+        &self.graphics.retained
     }
 }
 
@@ -159,8 +161,8 @@ mod mock {
         super::{
             cow_slice::CowSlice,
             definition::{Definition, DefinitionMap, DefinitionState},
-            graphics_state::Zone,
             program::{Program, ProgramState},
+            zone::Zone,
             Point, PointFlags,
         },
         Engine, F26Dot6, GraphicsState, LoopBudget, ValueStack,
@@ -211,7 +213,7 @@ mod mock {
             let mut graphics_state = GraphicsState::default();
             graphics_state.zones[1] = glyph_zone;
             Engine {
-                graphics_state,
+                graphics: graphics_state,
                 cvt: CowSlice::new_mut(cvt).into(),
                 storage: CowSlice::new_mut(storage).into(),
                 value_stack: ValueStack::new(&mut self.value_stack),
