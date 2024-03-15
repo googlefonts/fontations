@@ -649,7 +649,14 @@ mod tests {
             .map(|point| point.map(F26Dot6::from_i32))
             .collect::<Vec<_>>();
         let mut path = Path::default();
-        read_fonts::tables::glyf::to_path(&points, &flags, &contours, &mut path).unwrap();
+        read_fonts::tables::glyf::to_path(
+            &points,
+            &flags,
+            &contours,
+            Default::default(),
+            &mut path,
+        )
+        .unwrap();
         path.0
     }
 

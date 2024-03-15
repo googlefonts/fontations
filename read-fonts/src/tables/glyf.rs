@@ -82,6 +82,10 @@ impl PointFlags {
         self.0 & Self::OFF_CURVE_CUBIC != 0
     }
 
+    pub fn is_off_curve(self) -> bool {
+        self.is_off_curve_quad() || self.is_off_curve_cubic()
+    }
+
     /// Flips the state of the on curve flag.
     ///
     /// This is used for the TrueType `FLIPPT` instruction.
@@ -678,6 +682,21 @@ impl fmt::Display for ToPathError {
     }
 }
 
+/// The order to process points in a glyf point stream is ambiguous when the first point is
+/// off-curve. Major implementations differ. Which one would you like to match?
+#[derive(Debug, Default, Copy, Clone)]
+pub enum ToPathStyle {
+    /// If the first point is off-curve, check if the last is on-curve
+    /// If it is, start there. If it isn't, start at the implied midpoint between first and last.
+    #[default]
+    FreeType,
+    /// If the first point is off-curve, check if the second is on-curve.
+    /// If it is, start there. If it isn't, start at the implied midpoint between first and second.
+    ///
+    /// Matches hb-draw's interpretation of a pointstream.
+    HarfBuzz,
+}
+
 #[derive(Debug, Copy, Clone)]
 enum OnCurve {
     Implicit,
@@ -711,6 +730,7 @@ struct Contour<'a> {
     points: &'a [Point<F26Dot6>],
     /// The flags for points, sliced from a glyphs flag stream
     flags: &'a [PointFlags],
+    path_style: ToPathStyle,
 }
 
 #[derive(Debug)]
@@ -741,7 +761,10 @@ impl<'a> ContourIter<'a> {
             // Establish our first move and the starting index for our waltz over the points
             first_move = contour.points[0];
             if contour.flags[0].is_off_curve_quad() {
-                let maybe_oncurve_ix = contour.points.len() - 1;
+                let maybe_oncurve_ix = match contour.path_style {
+                    ToPathStyle::FreeType => contour.points.len() - 1,
+                    ToPathStyle::HarfBuzz => (start_ix + 1).min(contour.points.len() - 1),
+                };
                 if contour.flags[maybe_oncurve_ix].is_on_curve() {
                     start_ix = maybe_oncurve_ix + 1;
                     first_move = contour.points[maybe_oncurve_ix];
@@ -749,7 +772,10 @@ impl<'a> ContourIter<'a> {
                 } else {
                     // where we looked for an on-curve was also off. Take the implicit oncurve in between as first move.
                     first_move = midpoint(contour.points[0], contour.points[maybe_oncurve_ix]);
-                    start_ix = 0;
+                    start_ix = match contour.path_style {
+                        ToPathStyle::FreeType => 0,
+                        ToPathStyle::HarfBuzz => 1,
+                    };
                 }
             } else {
                 start_ix = 1;
@@ -884,6 +910,7 @@ impl<'a> Contour<'a> {
         base_offset: usize,
         points: &'a [Point<F26Dot6>],
         flags: &'a [PointFlags],
+        path_style: ToPathStyle,
     ) -> Result<Self, ToPathError> {
         if points.len() != flags.len() {
             return Err(ToPathError::PointFlagMismatch {
@@ -895,6 +922,7 @@ impl<'a> Contour<'a> {
             base_offset,
             points,
             flags,
+            path_style,
         })
     }
 
@@ -929,6 +957,7 @@ pub fn to_path(
     points: &[Point<F26Dot6>],
     flags: &[PointFlags],
     contours: &[u16],
+    path_style: ToPathStyle,
     pen: &mut impl Pen,
 ) -> Result<(), ToPathError> {
     for contour_ix in 0..contours.len() {
@@ -943,6 +972,7 @@ pub fn to_path(
             start_ix,
             &points[start_ix..=end_ix],
             &flags[start_ix..=end_ix],
+            path_style,
         )?
         .draw(pen)?;
     }
@@ -1008,8 +1038,7 @@ mod tests {
 
     use crate::{FontRef, GlyphId, TableProvider};
 
-    #[test]
-    fn all_off_curve_to_path() {
+    fn assert_all_off_curve_path_to_svg(expected: &str, path_style: ToPathStyle) {
         fn pt(x: i32, y: i32) -> Point<F26Dot6> {
             Point::new(x, y).map(F26Dot6::from_bits)
         }
@@ -1021,8 +1050,6 @@ mod tests {
         // For this test case (in 26.6 fixed point): [(640, 128) + (128, 128)] / 2 = (384, 128)
         // which becomes (6.0, 2.0) when converted to floating point.
         let points = [pt(640, 128), pt(256, 64), pt(640, 64), pt(128, 128)];
-        let expected =
-            "M6.0,2.0 Q10.0,2.0 7.0,1.5 Q4.0,1.0 7.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 z";
         struct SvgPen(String);
         impl Pen for SvgPen {
             fn move_to(&mut self, x: f32, y: f32) {
@@ -1045,8 +1072,24 @@ mod tests {
             }
         }
         let mut pen = SvgPen(String::default());
-        to_path(&points, &flags, &contours, &mut pen).unwrap();
+        to_path(&points, &flags, &contours, path_style, &mut pen).unwrap();
         assert_eq!(pen.0.trim(), expected);
+    }
+
+    #[test]
+    fn all_off_curve_to_path_offcurve_scan_backward() {
+        assert_all_off_curve_path_to_svg(
+            "M6.0,2.0 Q10.0,2.0 7.0,1.5 Q4.0,1.0 7.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 z",
+            ToPathStyle::FreeType,
+        );
+    }
+
+    #[test]
+    fn all_off_curve_to_path_offcurve_scan_forward() {
+        assert_all_off_curve_path_to_svg(
+            "M7.0,1.5 Q4.0,1.0 7.0,1.0 Q10.0,1.0 6.0,1.5 Q2.0,2.0 6.0,2.0 Q10.0,2.0 7.0,1.5 z",
+            ToPathStyle::HarfBuzz,
+        );
     }
 
     #[test]

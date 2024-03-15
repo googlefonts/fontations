@@ -84,6 +84,7 @@ mod glyf;
 
 pub mod error;
 
+use raw::tables::glyf::ToPathStyle;
 use read_fonts::{types::GlyphId, TableProvider};
 
 pub use embedded_hinting::{EmbeddedHintingInstance, HintingMode, LcdLayout};
@@ -151,6 +152,7 @@ pub struct AdjustedMetrics {
 pub struct DrawSettings<'a> {
     instance: DrawInstance<'a>,
     memory: Option<&'a mut [u8]>,
+    path_style: ToPathStyle,
 }
 
 impl<'a> DrawSettings<'a> {
@@ -160,6 +162,7 @@ impl<'a> DrawSettings<'a> {
         Self {
             instance: DrawInstance::Unhinted(size, location.into()),
             memory: None,
+            path_style: ToPathStyle::default(),
         }
     }
 
@@ -179,6 +182,7 @@ impl<'a> DrawSettings<'a> {
                 is_pedantic,
             },
             memory: None,
+            path_style: ToPathStyle::default(),
         }
     }
 
@@ -191,6 +195,14 @@ impl<'a> DrawSettings<'a> {
     /// If not provided, any necessary memory will be allocated internally.
     pub fn with_memory(mut self, memory: Option<&'a mut [u8]>) -> Self {
         self.memory = memory;
+        self
+    }
+
+    /// Builder method to control nuances of [`glyf`](https://learn.microsoft.com/en-us/typography/opentype/spec/glyf) pointstream interpretation.
+    ///
+    /// Meant for use when trying to match legacy code behavior in Rust.
+    pub fn with_path_style(mut self, path_style: ToPathStyle) -> Self {
+        self.path_style = path_style;
         self
     }
 }
@@ -306,16 +318,22 @@ impl<'a> OutlineGlyph<'a> {
         let settings = settings.into();
         match settings.instance {
             DrawInstance::Unhinted(size, location) => {
-                self.draw_unhinted(size, location, settings.memory, pen)
+                self.draw_unhinted(size, location, settings.memory, settings.path_style, pen)
             }
             DrawInstance::Hinted {
                 instance,
                 is_pedantic,
             } => {
                 if instance.is_enabled() {
-                    instance.draw(self, settings.memory, pen, is_pedantic)
+                    instance.draw(self, settings.memory, settings.path_style, pen, is_pedantic)
                 } else {
-                    self.draw_unhinted(instance.size(), instance.location(), settings.memory, pen)
+                    self.draw_unhinted(
+                        instance.size(),
+                        instance.location(),
+                        settings.memory,
+                        settings.path_style,
+                        pen,
+                    )
                 }
             }
         }
@@ -326,6 +344,7 @@ impl<'a> OutlineGlyph<'a> {
         size: Size,
         location: impl Into<LocationRef<'a>>,
         memory: Option<&mut [u8]>,
+        path_style: ToPathStyle,
         pen: &mut impl OutlinePen,
     ) -> Result<AdjustedMetrics, DrawError> {
         let ppem = size.ppem();
@@ -337,7 +356,7 @@ impl<'a> OutlineGlyph<'a> {
                         .memory_from_buffer(buf, Hinting::None)
                         .ok_or(DrawError::InsufficientMemory)?;
                     let scaled_outline = glyf.draw(mem, outline, ppem, coords)?;
-                    scaled_outline.to_path(pen)?;
+                    scaled_outline.to_path(path_style, pen)?;
                     Ok(AdjustedMetrics {
                         has_overlaps: outline.has_overlaps,
                         lsb: Some(scaled_outline.adjusted_lsb().to_f32()),
@@ -488,6 +507,11 @@ mod tests {
     use crate::MetadataProvider;
     use read_fonts::{scaler_test, types::GlyphId, FontRef, TableProvider};
 
+    use pretty_assertions::assert_eq;
+
+    const PERIOD: u32 = 0x2E_u32;
+    const COMMA: u32 = 0x2C_u32;
+
     #[test]
     fn outline_glyph_formats() {
         let font_format_pairs = [
@@ -574,16 +598,327 @@ mod tests {
                     &mut path,
                 )
                 .unwrap();
-            if path.elements != expected_outline.path {
-                panic!(
-                    "mismatch in glyph path for id {} (size: {}, coords: {:?}): path: {:?} expected_path: {:?}",
+            assert_eq!(path.elements, expected_outline.path, "mismatch in glyph path for id {} (size: {}, coords: {:?}): path: {:?} expected_path: {:?}",
                     expected_outline.glyph_id,
                     expected_outline.size,
                     expected_outline.coords,
                     &path.elements,
                     &expected_outline.path
                 );
+        }
+    }
+
+    #[derive(Copy, Clone, Debug, PartialEq)]
+    enum GlyphPoint {
+        On { x: f32, y: f32 },
+        Off { x: f32, y: f32 },
+    }
+
+    impl GlyphPoint {
+        fn implied_oncurve(&self, other: Self) -> Self {
+            let (x1, y1) = self.xy();
+            let (x2, y2) = other.xy();
+            Self::On {
+                x: (x1 + x2) / 2.0,
+                y: (y1 + y2) / 2.0,
             }
         }
+
+        fn xy(&self) -> (f32, f32) {
+            match self {
+                GlyphPoint::On { x, y } | GlyphPoint::Off { x, y } => (*x, *y),
+            }
+        }
+    }
+
+    #[derive(Debug)]
+    struct PointPen {
+        points: Vec<GlyphPoint>,
+    }
+
+    impl PointPen {
+        fn new() -> Self {
+            Self { points: Vec::new() }
+        }
+
+        fn into_points(self) -> Vec<GlyphPoint> {
+            self.points
+        }
+    }
+
+    impl OutlinePen for PointPen {
+        fn move_to(&mut self, x: f32, y: f32) {
+            self.points.push(GlyphPoint::On { x, y });
+        }
+
+        fn line_to(&mut self, x: f32, y: f32) {
+            self.points.push(GlyphPoint::On { x, y });
+        }
+
+        fn quad_to(&mut self, cx0: f32, cy0: f32, x: f32, y: f32) {
+            self.points.push(GlyphPoint::Off { x: cx0, y: cy0 });
+            self.points.push(GlyphPoint::On { x, y });
+        }
+
+        fn curve_to(&mut self, cx0: f32, cy0: f32, cx1: f32, cy1: f32, x: f32, y: f32) {
+            self.points.push(GlyphPoint::Off { x: cx0, y: cy0 });
+            self.points.push(GlyphPoint::Off { x: cx1, y: cy1 });
+            self.points.push(GlyphPoint::On { x, y });
+        }
+
+        fn close(&mut self) {
+            // We can't drop a 0-length closing line for fear of breaking interpolation compatibility
+            //     - some other instance might have it not 0-length
+            // However, if the last command isn't a line and ends at the subpath start we can drop the endpoint
+            //     - if any instance had it other than at the start there would be a closing line
+            //     - and it wouldn't be interpolation compatible
+            // See <https://github.com/googlefonts/fontations/pull/818/files#r1521188624>
+            let np = self.points.len();
+            // We need at least 3 points to satisfy subsequent conditions
+            if np > 2
+                && self.points[0] == self.points[np - 1]
+                && matches!(
+                    (self.points[0], self.points[np - 2]),
+                    (GlyphPoint::On { .. }, GlyphPoint::Off { .. })
+                )
+            {
+                self.points.pop();
+            }
+        }
+    }
+
+    const STARTING_OFF_CURVE_POINTS: [GlyphPoint; 4] = [
+        GlyphPoint::Off { x: 278.0, y: 710.0 },
+        GlyphPoint::On { x: 278.0, y: 470.0 },
+        GlyphPoint::On { x: 998.0, y: 470.0 },
+        GlyphPoint::On { x: 998.0, y: 710.0 },
+    ];
+
+    const MOSTLY_OFF_CURVE_POINTS: [GlyphPoint; 5] = [
+        GlyphPoint::Off { x: 278.0, y: 710.0 },
+        GlyphPoint::Off { x: 278.0, y: 470.0 },
+        GlyphPoint::On { x: 998.0, y: 470.0 },
+        GlyphPoint::Off { x: 998.0, y: 710.0 },
+        GlyphPoint::Off { x: 750.0, y: 500.0 },
+    ];
+
+    /// Captures the svg drawing command sequence, e.g. MLLZ.
+    ///
+    /// Intended use is to confirm the command sequence pushed to the pen is interpolation compatible.
+    #[derive(Default, Debug)]
+    struct CommandPen {
+        commands: String,
+    }
+
+    impl OutlinePen for CommandPen {
+        fn move_to(&mut self, _x: f32, _y: f32) {
+            self.commands.push('M');
+        }
+
+        fn line_to(&mut self, _x: f32, _y: f32) {
+            self.commands.push('L');
+        }
+
+        fn quad_to(&mut self, _cx0: f32, _cy0: f32, _x: f32, _y: f32) {
+            self.commands.push('Q');
+        }
+
+        fn curve_to(&mut self, _cx0: f32, _cy0: f32, _cx1: f32, _cy1: f32, _x: f32, _y: f32) {
+            self.commands.push('C');
+        }
+
+        fn close(&mut self) {
+            self.commands.push('Z');
+        }
+    }
+
+    fn draw_to_pen(font: &[u8], codepoint: u32, settings: DrawSettings, pen: &mut impl OutlinePen) {
+        let font = FontRef::new(font).unwrap();
+        let gid = font
+            .cmap()
+            .unwrap()
+            .map_codepoint(codepoint)
+            .unwrap_or_else(|| panic!("No gid for 0x{codepoint:04x}"));
+        let outlines = font.outline_glyphs();
+        let outline = outlines.get(gid).unwrap_or_else(|| {
+            panic!(
+                "No outline for {gid:?} in collection of {:?}",
+                outlines.format()
+            )
+        });
+
+        outline.draw(settings, pen).unwrap();
+    }
+
+    fn draw_commands(font: &[u8], codepoint: u32, settings: DrawSettings) -> String {
+        let mut pen = CommandPen::default();
+        draw_to_pen(font, codepoint, settings, &mut pen);
+        pen.commands
+    }
+
+    fn drawn_points(font: &[u8], codepoint: u32, settings: DrawSettings) -> Vec<GlyphPoint> {
+        let mut pen = PointPen::new();
+        draw_to_pen(font, codepoint, settings, &mut pen);
+        pen.into_points()
+    }
+
+    fn insert_implicit_oncurve(pointstream: &[GlyphPoint]) -> Vec<GlyphPoint> {
+        let mut expanded_points = Vec::new();
+
+        for i in 0..pointstream.len() - 1 {
+            expanded_points.push(pointstream[i]);
+            if matches!(
+                (pointstream[i], pointstream[i + 1]),
+                (GlyphPoint::Off { .. }, GlyphPoint::Off { .. })
+            ) {
+                expanded_points.push(pointstream[i].implied_oncurve(pointstream[i + 1]));
+            }
+        }
+
+        expanded_points.push(*pointstream.last().unwrap());
+
+        expanded_points
+    }
+
+    fn as_on_off_sequence(points: &[GlyphPoint]) -> Vec<&'static str> {
+        points
+            .iter()
+            .map(|p| match p {
+                GlyphPoint::On { .. } => "On",
+                GlyphPoint::Off { .. } => "Off",
+            })
+            .collect()
+    }
+
+    #[test]
+    fn always_get_closing_lines() {
+        // <https://github.com/googlefonts/fontations/pull/818/files#r1521188624>
+        let period = draw_commands(
+            font_test_data::INTERPOLATE_THIS,
+            PERIOD,
+            Size::unscaled().into(),
+        );
+        let comma = draw_commands(
+            font_test_data::INTERPOLATE_THIS,
+            COMMA,
+            Size::unscaled().into(),
+        );
+
+        assert_eq!(
+            period, comma,
+            "Incompatible\nperiod\n{period:#?}\ncomma\n{comma:#?}\n"
+        );
+        assert_eq!(
+            "MLLLZ", period,
+            "We should get an explicit L for close even when it's a nop"
+        );
+    }
+
+    #[test]
+    fn triangle_and_square_retain_compatibility() {
+        // <https://github.com/googlefonts/fontations/pull/818/files#r1521188624>
+        let period = drawn_points(
+            font_test_data::INTERPOLATE_THIS,
+            PERIOD,
+            Size::unscaled().into(),
+        );
+        let comma = drawn_points(
+            font_test_data::INTERPOLATE_THIS,
+            COMMA,
+            Size::unscaled().into(),
+        );
+
+        assert_ne!(period, comma);
+        assert_eq!(
+            as_on_off_sequence(&period),
+            as_on_off_sequence(&comma),
+            "Incompatible\nperiod\n{period:#?}\ncomma\n{comma:#?}\n"
+        );
+        assert_eq!(
+            4,
+            period.len(),
+            "we should have the same # of points we started with"
+        );
+    }
+
+    fn assert_walked_backwards_like_freetype(pointstream: &[GlyphPoint], font: &[u8]) {
+        assert!(
+            matches!(pointstream[0], GlyphPoint::Off { .. }),
+            "Bad testdata, should start off curve"
+        );
+
+        // The default: look for an oncurve at the back, as freetype would do
+        let mut expected_points = pointstream.to_vec();
+        let last = *expected_points.last().unwrap();
+        let first_move = if matches!(last, GlyphPoint::Off { .. }) {
+            expected_points[0].implied_oncurve(last)
+        } else {
+            expected_points.pop().unwrap()
+        };
+        expected_points.insert(0, first_move);
+
+        expected_points = insert_implicit_oncurve(&expected_points);
+        let actual = drawn_points(font, PERIOD, Size::unscaled().into());
+        assert_eq!(
+            expected_points, actual,
+            "expected\n{expected_points:#?}\nactual\n{actual:#?}"
+        );
+    }
+
+    fn assert_walked_forwards_like_harfbuzz(pointstream: &[GlyphPoint], font: &[u8]) {
+        assert!(
+            matches!(pointstream[0], GlyphPoint::Off { .. }),
+            "Bad testdata, should start off curve"
+        );
+
+        // look for an oncurve at the front, as harfbuzz would do
+        let mut expected_points = pointstream.to_vec();
+        let first = expected_points.remove(0);
+        expected_points.push(first);
+        if matches!(expected_points[0], GlyphPoint::Off { .. }) {
+            expected_points.insert(0, first.implied_oncurve(expected_points[0]))
+        };
+
+        expected_points = insert_implicit_oncurve(&expected_points);
+
+        let settings: DrawSettings = Size::unscaled().into();
+        let settings = settings.with_path_style(ToPathStyle::HarfBuzz);
+        let actual = drawn_points(font, PERIOD, settings);
+        assert_eq!(
+            expected_points, actual,
+            "expected\n{expected_points:#?}\nactual\n{actual:#?}"
+        );
+    }
+
+    #[test]
+    fn starting_off_curve_walk_backwards_like_freetype() {
+        assert_walked_backwards_like_freetype(
+            &STARTING_OFF_CURVE_POINTS,
+            font_test_data::STARTING_OFF_CURVE,
+        );
+    }
+
+    #[test]
+    fn mostly_off_curve_walk_backwards_like_freetype() {
+        assert_walked_backwards_like_freetype(
+            &MOSTLY_OFF_CURVE_POINTS,
+            font_test_data::MOSTLY_OFF_CURVE,
+        );
+    }
+
+    #[test]
+    fn starting_off_curve_walk_forwards_like_hbdraw() {
+        assert_walked_forwards_like_harfbuzz(
+            &STARTING_OFF_CURVE_POINTS,
+            font_test_data::STARTING_OFF_CURVE,
+        );
+    }
+
+    #[test]
+    fn mostly_off_curve_walk_forwards_like_hbdraw() {
+        assert_walked_forwards_like_harfbuzz(
+            &MOSTLY_OFF_CURVE_POINTS,
+            font_test_data::MOSTLY_OFF_CURVE,
+        );
     }
 }
