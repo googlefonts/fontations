@@ -25,9 +25,8 @@ extern crate core as std;
 extern crate alloc;
 
 #[cfg(not(any(test, feature = "std")))]
-#[allow(unused_imports)]
 mod alloc_prelude {
-    pub use alloc::{boxed::Box, string::ToString, vec::Vec};
+    pub use alloc::{boxed::Box, vec::Vec};
 }
 
 #[cfg(any(test, feature = "std"))]

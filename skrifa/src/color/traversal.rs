@@ -15,6 +15,10 @@ use super::{
 
 use crate::alloc_prelude::Vec;
 
+#[cfg(feature = "libm")]
+#[allow(unused_imports)]
+use core_maths::*;
+
 #[cfg(any(test, feature = "std"))]
 mod visited_set {
     pub type VisitedSet = std::collections::HashSet<usize>;
