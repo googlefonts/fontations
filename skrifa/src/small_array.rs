@@ -4,6 +4,7 @@
 //! available to us. In the meantime, this type should be kept small
 //! with functionality only added when needed.
 
+use crate::alloc_prelude::Vec;
 use core::fmt;
 use std::ops::{Deref, DerefMut};
 

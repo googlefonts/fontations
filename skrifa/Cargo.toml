@@ -8,8 +8,15 @@ repository = "https://github.com/googlefonts/fontations"
 readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
 
+[features]
+default = ["traversal"]
+std = ["read-fonts/std"]
+traversal = ["std", "read-fonts/traversal"]
+libm = ["dep:core_maths"]
+
 [dependencies]
-read-fonts = { version = "0.16.0", path = "../read-fonts" }
+read-fonts = { version = "0.16.0", path = "../read-fonts", default-features = false }
+core_maths = { version = "0.1", optional = true }
 
 [dev-dependencies]
 font-test-data = { path = "../font-test-data" }

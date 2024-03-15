@@ -11,6 +11,30 @@
 //! See the [readme](https://github.com/googlefonts/fontations/blob/main/skrifa/README.md)
 //! for additional details.
 
+#![cfg_attr(not(any(test, feature = "std")), no_std)]
+
+#[cfg(not(any(feature = "libm", feature = "std")))]
+compile_error!("Either feature \"std\" or \"libm\" must be enabled for this crate.");
+
+#[cfg(not(any(test, feature = "std")))]
+#[macro_use]
+extern crate core as std;
+
+#[cfg(not(any(test, feature = "std")))]
+#[macro_use]
+extern crate alloc;
+
+#[cfg(not(any(test, feature = "std")))]
+#[allow(unused_imports)]
+mod alloc_prelude {
+    pub use alloc::{boxed::Box, string::ToString, vec::Vec};
+}
+
+#[cfg(any(test, feature = "std"))]
+mod alloc_prelude {
+    pub use std::{boxed::Box, vec::Vec};
+}
+
 /// Expose our "raw" underlying parser crate.
 pub extern crate read_fonts as raw;
 

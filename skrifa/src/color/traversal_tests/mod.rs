@@ -16,6 +16,7 @@ use std::{
 };
 
 use crate::{
+    alloc_prelude::Vec,
     color::{
         transform::Transform, traversal_tests::test_glyph_defs::*, Brush, ColorPainter, ColorStop,
     },
