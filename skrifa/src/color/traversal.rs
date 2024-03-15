@@ -13,6 +13,16 @@ use super::{
     Brush, ColorPainter, ColorStop, PaintCachedColorGlyph, PaintError, Transform,
 };
 
+/// Depth at which we will stop traversing and return an error.
+///
+/// Used to prevent stack overflows. Also allows us to avoid using a HashSet
+/// in no_std builds.
+///
+/// This limit matches the one used in HarfBuzz:
+/// HB_MAX_NESTING_LEVEL: <https://github.com/harfbuzz/harfbuzz/blob/c2f8f35a6cfce43b88552b3eb5c05062ac7007b2/src/hb-limits.hh#L53>
+/// hb_paint_context_t: <https://github.com/harfbuzz/harfbuzz/blob/c2f8f35a6cfce43b88552b3eb5c05062ac7007b2/src/OT/Color/COLR/COLR.hh#L74>
+const MAX_TRAVERSAL_DEPTH: u32 = 64;
+
 pub(crate) fn get_clipbox_font_units(
     colr_instance: &ColrInstance,
     glyph_id: GlyphId,
@@ -111,7 +121,11 @@ pub(crate) fn traverse_with_callbacks(
     instance: &ColrInstance,
     painter: &mut impl ColorPainter,
     visited_set: &mut HashSet<usize>,
+    recurse_depth: u32,
 ) -> Result<(), PaintError> {
+    if recurse_depth >= MAX_TRAVERSAL_DEPTH {
+        return Err(PaintError::DepthLimitExceeded);
+    }
     match paint {
         ResolvedPaint::ColrLayers { range } => {
             for layer_index in range.clone() {
@@ -125,6 +139,7 @@ pub(crate) fn traverse_with_callbacks(
                     instance,
                     painter,
                     visited_set,
+                    recurse_depth + 1,
                 )?;
                 visited_set.remove(&paint_id);
             }
@@ -425,6 +440,7 @@ pub(crate) fn traverse_with_callbacks(
                 instance,
                 &mut optimizer,
                 visited_set,
+                recurse_depth + 1,
             );
 
             // In case the optimization was not successful, just push a clip, and continue unoptimized traversal.
@@ -435,6 +451,7 @@ pub(crate) fn traverse_with_callbacks(
                     instance,
                     painter,
                     visited_set,
+                    recurse_depth + 1,
                 );
                 painter.pop_clip();
             }
@@ -462,6 +479,7 @@ pub(crate) fn traverse_with_callbacks(
                             instance,
                             painter,
                             visited_set,
+                            recurse_depth + 1,
                         );
                         if clipbox.is_some() {
                             painter.pop_clip();
@@ -495,6 +513,7 @@ pub(crate) fn traverse_with_callbacks(
                 instance,
                 painter,
                 visited_set,
+                recurse_depth + 1,
             );
             painter.pop_transform();
             result
@@ -510,6 +529,7 @@ pub(crate) fn traverse_with_callbacks(
                 instance,
                 painter,
                 visited_set,
+                recurse_depth + 1,
             );
             result?;
             painter.push_layer(*mode);
@@ -518,6 +538,7 @@ pub(crate) fn traverse_with_callbacks(
                 instance,
                 painter,
                 visited_set,
+                recurse_depth + 1,
             );
             painter.pop_layer();
             painter.pop_layer();
