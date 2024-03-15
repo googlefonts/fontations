@@ -67,7 +67,7 @@ impl Axis {
     ///
     /// The value will be clamped to the range specified by the minimum
     /// and maximum values.
-    ///    
+    ///
     /// This does not apply any axis variation remapping.
     pub fn normalize(&self, coord: f32) -> NormalizedCoord {
         self.record
@@ -82,7 +82,7 @@ impl Axis {
 /// locations to normalized locations. See [`Self::location`].
 ///
 /// See the [`Axis`] type for more detail.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct AxisCollection<'a> {
     fvar: Option<Fvar<'a>>,
     avar: Option<Avar<'a>>,
