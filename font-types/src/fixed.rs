@@ -239,10 +239,10 @@ macro_rules! float_conv {
             /// representable value.
             #[inline(always)]
             pub fn $from(x: $ty) -> Self {
-                Self(
-                    (x * Self::ONE.0 as $ty + (0.5 * (-1.0 * x.is_sign_negative() as u8 as $ty)))
-                        as _,
-                )
+                // When x is positive: 1.0 - 0.5 =  0.5
+                // When x is negative: 0.0 - 0.5 = -0.5
+                let frac = (x.is_sign_positive() as u8 as $ty) - 0.5;
+                Self((x * Self::ONE.0 as $ty + frac) as _)
             }
 
             #[doc = concat!("Returns the value as an ", stringify!($ty), ".")]
@@ -418,6 +418,23 @@ mod tests {
             Fixed::from_f64(-0.000015259)
         );
         assert_eq!(Fixed(0x7fff_ffff), Fixed::from_f64(32768.0));
+    }
+
+    // We lost the f64::round() intrinsic when dropping std and the
+    // alternative implementation was very slightly incorrect, throwing
+    // off some tests. This makes sure we match.
+    #[test]
+    fn fixed_floats_rounding() {
+        fn with_round_intrinsic(x: f64) -> Fixed {
+            Fixed((x * 65536.0).round() as i32)
+        }
+        // These particular values were tripping up tests
+        let inputs = [0.05, 0.6, 0.2, 0.4, 0.67755];
+        for input in inputs {
+            assert_eq!(Fixed::from_f64(input), with_round_intrinsic(input));
+            // Test negated values as well for good measure
+            assert_eq!(Fixed::from_f64(-input), with_round_intrinsic(-input));
+        }
     }
 
     #[test]
