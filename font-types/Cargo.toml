@@ -9,7 +9,8 @@ readme = "README.md"
 categories = ["text-processing"]
 
 [dependencies]
-bytemuck = {version ="1.14.3", features = ["derive", "min_const_generics"], optional = true }
+# note: bytemuck version must be available in all deployment environments
+bytemuck = {version = "=1.13.1", features = ["derive", "min_const_generics"], optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 
 [dev-dependencies]
