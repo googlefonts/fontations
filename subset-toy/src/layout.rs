@@ -1,5 +1,5 @@
 use font_types::GlyphId;
-use write_fonts::layout::{
+use write_fonts::tables::layout::{
     ClassDef, ClassDefBuilder, CoverageTable, CoverageTableBuilder, Feature, FeatureList, LangSys,
     Lookup, Script, ScriptList,
 };
@@ -12,7 +12,7 @@ impl Subset for FeatureList {
         let mut next_id = 0u16;
         let mut feature_map = Vec::with_capacity(self.feature_records.len());
         self.feature_records
-            .retain_mut(|rec| match rec.feature_offset.subset(plan) {
+            .retain_mut(|rec| match rec.feature.subset(plan) {
                 Err(e) => {
                     err = Err(e);
                     feature_map.push(None);
@@ -52,7 +52,7 @@ impl Subset for ScriptList {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
         let mut err = Ok(());
         self.script_records
-            .retain_mut(|rec| match rec.script_offset.subset(plan) {
+            .retain_mut(|rec| match rec.script.subset(plan) {
                 Err(e) => {
                     err = Err(e);
                     false
@@ -66,10 +66,10 @@ impl Subset for ScriptList {
 
 impl Subset for Script {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
-        self.default_lang_sys_offset.subset(plan)?;
+        self.default_lang_sys.subset(plan)?;
         let mut err = Ok(());
         self.lang_sys_records
-            .retain_mut(|rec| match rec.lang_sys_offset.subset(plan) {
+            .retain_mut(|rec| match rec.lang_sys.subset(plan) {
                 Err(e) => {
                     err = Err(e);
                     false
@@ -77,7 +77,7 @@ impl Subset for Script {
                 Ok(retain) => retain,
             });
         err?;
-        Ok(self.default_lang_sys_offset.get().is_some() || !self.lang_sys_records.is_empty())
+        Ok(self.default_lang_sys.is_some() || !self.lang_sys_records.is_empty())
     }
 }
 
@@ -151,15 +151,14 @@ impl Subset for CoverageTable {
 impl<T: Subset> Subset for Lookup<T> {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
         let mut err = Ok(());
-        self.subtable_offsets
-            .retain_mut(|table| match table.subset(plan) {
-                Err(e) => {
-                    err = Err(e);
-                    false
-                }
-                Ok(retain) => retain,
-            });
+        self.subtables.retain_mut(|table| match table.subset(plan) {
+            Err(e) => {
+                err = Err(e);
+                false
+            }
+            Ok(retain) => retain,
+        });
         err?;
-        Ok(!self.subtable_offsets.is_empty())
+        Ok(!self.subtables.is_empty())
     }
 }

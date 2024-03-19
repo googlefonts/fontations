@@ -62,10 +62,10 @@ impl Input {
                 continue;
             }
             match loca.get_glyf(next, &glyf) {
-                Ok(Glyph::Simple(_)) => (),
-                Ok(Glyph::Composite(composite)) => {
-                    queue.extend(composite.iter_components().map(|comp| comp.glyph));
+                Ok(Some(Glyph::Composite(composite))) => {
+                    queue.extend(composite.components().map(|comp| comp.glyph));
                 }
+                Ok(_) => (),
                 Err(e) => eprintln!("error getting glyph {next}: '{e}'"),
             }
         }
@@ -136,22 +136,14 @@ pub trait Subset {
 
 impl<const N: usize, T: Subset> Subset for OffsetMarker<T, N> {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
-        let retain = self
-            .get_mut()
-            .map(|t| t.subset(plan))
-            .transpose()?
-            .unwrap_or(false);
-        if !retain {
-            self.clear();
-        }
-        Ok(retain)
+        self.as_mut().subset(plan)
     }
 }
 
 impl<const N: usize, T: Subset> Subset for NullableOffsetMarker<T, N> {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
         let retain = self
-            .get_mut()
+            .as_mut()
             .map(|t| t.subset(plan))
             .transpose()?
             .unwrap_or(false);

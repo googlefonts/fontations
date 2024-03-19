@@ -2,8 +2,8 @@
 
 use std::collections::BTreeSet;
 
-use read_fonts::{FontData, FontRef, TableProvider};
-use write_fonts::{tables::gpos::Gpos, FontBuilder, FromTableRef};
+use read_fonts::{FontRef, TableProvider, TopLevelTable};
+use write_fonts::{from_obj::FromTableRef, tables::gpos::Gpos, FontBuilder};
 
 use font_types::GlyphId;
 use subset_toy::{Input, Subset};
@@ -21,8 +21,7 @@ fn main() {
     let input = Input::from_gids(gids, args.retain_gids);
 
     let bytes = std::fs::read(&args.path).expect("no font file found");
-    let data = FontData::new(&bytes);
-    let font = FontRef::new(data).expect("error reading font bytes");
+    let font = FontRef::new(&bytes).expect("error reading font bytes");
 
     let plan = input.make_plan(&font);
     let gpos = font.gpos().expect("no gpos table found");
@@ -34,25 +33,19 @@ fn main() {
     }
 
     let mut builder = FontBuilder::default();
+    builder.add_raw(Gpos::TAG, gpos_bytes);
 
     // 'insert' was passed, we are going to copy our table into the passed font
     let bytes = if let Some(path) = args.insert {
         let bytes = std::fs::read(path).unwrap();
-        let target = FontRef::new(FontData::new(&bytes)).expect("failed to read insert font");
-
-        for record in target.table_directory.table_records() {
-            let data = target
-                .data_for_tag(record.tag())
-                .expect("missing table data");
-            builder.add_table(record.tag(), data);
-        }
-        builder.add_table(read_fonts::tables::gpos::TAG, gpos_bytes);
+        let target = FontRef::new(&bytes).expect("failed to read insert font");
+        builder.copy_missing_tables(target);
         builder.build()
     } else {
-        builder.add_table(read_fonts::tables::gpos::TAG, gpos_bytes);
         builder.build()
     };
-    std::fs::write(&args.out, &bytes).unwrap();
+
+    std::fs::write(&args.out, bytes).unwrap();
 }
 
 fn populate_gids(gid_str: &str) -> BTreeSet<GlyphId> {

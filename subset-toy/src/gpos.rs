@@ -1,20 +1,20 @@
 //impl ToOwnedTable for super::Gpos<'_> {}
 
-use write_fonts::{
-    layout::{ClassDef, CoverageTableBuilder, LookupList},
-    tables::gpos::{
+use write_fonts::tables::{
+    gpos::{
         Gpos, MarkBasePosFormat1, MarkLigPosFormat1, MarkMarkPosFormat1, PairPos, PairPosFormat1,
         PairPosFormat2, PairSet, PositionLookup, SinglePos, SinglePosFormat1, SinglePosFormat2,
     },
+    layout::{ClassDef, CoverageTableBuilder, LookupList},
 };
 
 use crate::{Error, Plan, Subset};
 
 impl Subset for Gpos {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
-        self.lookup_list_offset.subset(plan)?;
-        self.feature_list_offset.subset(plan)?;
-        self.script_list_offset.subset(plan)?;
+        self.lookup_list.subset(plan)?;
+        self.feature_list.subset(plan)?;
+        self.script_list.subset(plan)?;
         //FIXME: subset feature_variations
         Ok(true)
     }
@@ -24,24 +24,23 @@ impl Subset for LookupList<PositionLookup> {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
         let mut err = Ok(());
         let mut next_id = 0u16;
-        let mut lookup_map = Vec::with_capacity(self.lookup_offsets.len());
-        self.lookup_offsets
-            .retain_mut(|lookup| match lookup.subset(plan) {
-                Err(e) => {
-                    err = Err(e);
+        let mut lookup_map = Vec::with_capacity(self.lookups.len());
+        self.lookups.retain_mut(|lookup| match lookup.subset(plan) {
+            Err(e) => {
+                err = Err(e);
+                lookup_map.push(None);
+                false
+            }
+            Ok(retain) => {
+                if retain {
+                    lookup_map.push(Some(next_id));
+                    next_id += 1;
+                } else {
                     lookup_map.push(None);
-                    false
                 }
-                Ok(retain) => {
-                    if retain {
-                        lookup_map.push(Some(next_id));
-                        next_id += 1;
-                    } else {
-                        lookup_map.push(None);
-                    }
-                    retain
-                }
-            });
+                retain
+            }
+        });
         plan.set_gpos_lookup_map(lookup_map);
         err?;
         Ok(true)
@@ -67,20 +66,19 @@ impl Subset for PositionLookup {
 
 impl Subset for SinglePosFormat1 {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
-        self.coverage_offset.subset(plan)
+        self.coverage.subset(plan)
     }
 }
 
 impl Subset for SinglePosFormat2 {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
-        let cov = self
-            .coverage_offset
-            .get()
-            .ok_or_else(|| Error::new("debug me"))?;
-        let mut iter = cov.iter().map(|gid| plan.remap_gid(gid).is_some());
+        let mut iter = self
+            .coverage
+            .iter()
+            .map(|gid| plan.remap_gid(gid).is_some());
         self.value_records.retain(|_| iter.next().unwrap());
         std::mem::drop(iter);
-        self.coverage_offset.subset(plan)
+        self.coverage.subset(plan)
     }
 }
 
@@ -105,14 +103,10 @@ impl Subset for PairPos {
 impl Subset for PairPosFormat1 {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
         let mut err = Ok(());
-        let cov = self
-            .coverage_offset
-            .get()
-            .ok_or_else(|| Error::new("debug me"))?;
-        let mut iter_cov = cov.iter().map(|gid| plan.remap_gid(gid));
+        let mut iter_cov = self.coverage.iter().map(|gid| plan.remap_gid(gid));
         let mut new_cov = CoverageTableBuilder::default();
 
-        self.pair_set_offsets
+        self.pair_sets
             .retain_mut(|pair_set| match iter_cov.next().unwrap() {
                 None => false,
                 Some(gid) => match pair_set.subset(plan) {
@@ -135,7 +129,7 @@ impl Subset for PairPosFormat1 {
         if new_cov.is_empty() {
             Ok(false)
         } else {
-            self.coverage_offset.set(new_cov);
+            self.coverage.set(new_cov);
             Ok(true)
         }
     }
@@ -157,18 +151,16 @@ impl Subset for PairSet {
 
 impl Subset for PairPosFormat2 {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
-        if !self.coverage_offset.subset(plan)? {
+        if !self.coverage.subset(plan)? {
             return Ok(false);
         }
 
-        self.class_def1_offset.subset(plan)?;
-        self.class_def2_offset.subset(plan)?;
-        if self.class_def1_offset.is_none() || self.class_def2_offset.is_none() {
+        if !(self.class_def1.subset(plan)? && self.class_def2.subset(plan)?) {
             return Ok(false);
         }
 
-        let existing_class1 = sorted_deduped_class_list(self.class_def1_offset.get().unwrap());
-        let existing_class2 = sorted_deduped_class_list(self.class_def2_offset.get().unwrap());
+        let existing_class1 = sorted_deduped_class_list(&self.class_def1);
+        let existing_class2 = sorted_deduped_class_list(&self.class_def2);
 
         let mut class1idx = 0u16;
         self.class1_records.retain_mut(|class1record| {
@@ -185,8 +177,8 @@ impl Subset for PairPosFormat2 {
             result
         });
 
-        remap_classes(self.class_def1_offset.get_mut().unwrap(), &existing_class1);
-        remap_classes(self.class_def2_offset.get_mut().unwrap(), &existing_class2);
+        remap_classes(self.class_def1.as_mut(), &existing_class1);
+        remap_classes(self.class_def2.as_mut(), &existing_class2);
         Ok(true)
     }
 }
@@ -219,86 +211,83 @@ fn sorted_deduped_class_list(class: &ClassDef) -> Vec<u16> {
 
 impl Subset for MarkBasePosFormat1 {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
-        let mark_cov = self
-            .mark_coverage_offset
-            .get()
-            .ok_or_else(|| Error::new("debug me"))?;
-        let mut iter = mark_cov.iter().map(|gid| plan.remap_gid(gid).is_some());
-        if let Some(marks) = self.mark_array_offset.get_mut() {
-            marks.mark_records.retain(|_| iter.next().unwrap());
-        }
+        let mut iter = self
+            .mark_coverage
+            .iter()
+            .map(|gid| plan.remap_gid(gid).is_some());
+
+        self.mark_array
+            .mark_records
+            .retain(|_| iter.next().unwrap());
+
+        // convince borrowk that we are done with this.
         std::mem::drop(iter);
 
-        let base_cov = self
-            .base_coverage_offset
-            .get()
-            .ok_or_else(|| Error::new("debug me"))?;
-        let mut iter = base_cov.iter().map(|gid| plan.remap_gid(gid).is_some());
-        if let Some(bases) = self.base_array_offset.get_mut() {
-            bases.base_records.retain(|_| iter.next().unwrap())
-        }
+        let mut iter = self
+            .base_coverage
+            .iter()
+            .map(|gid| plan.remap_gid(gid).is_some());
+        self.base_array
+            .base_records
+            .retain(|_| iter.next().unwrap());
         std::mem::drop(iter);
 
-        let r =
-            self.mark_coverage_offset.subset(plan)? && self.base_coverage_offset.subset(plan)?;
+        let r = self.mark_coverage.subset(plan)? && self.base_coverage.subset(plan)?;
         Ok(r)
     }
 }
 
 impl Subset for MarkMarkPosFormat1 {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
-        let mark_cov = self
-            .mark1_coverage_offset
-            .get()
-            .ok_or_else(|| Error::new("debug me"))?;
-        let mut iter = mark_cov.iter().map(|gid| plan.remap_gid(gid).is_some());
-        if let Some(marks) = self.mark1_array_offset.get_mut() {
-            marks.mark_records.retain(|_| iter.next().unwrap());
-        }
+        let mut iter = self
+            .mark1_coverage
+            .iter()
+            .map(|gid| plan.remap_gid(gid).is_some());
+
+        self.mark1_array
+            .mark_records
+            .retain(|_| iter.next().unwrap());
+
+        // convince borrowk that we are done with this.
         std::mem::drop(iter);
 
-        let mark_cov = self
-            .mark2_coverage_offset
-            .get()
-            .ok_or_else(|| Error::new("debug me"))?;
-        let mut iter = mark_cov.iter().map(|gid| plan.remap_gid(gid).is_some());
+        let mut iter = self
+            .mark2_coverage
+            .iter()
+            .map(|gid| plan.remap_gid(gid).is_some());
 
-        if let Some(marks) = self.mark2_array_offset.get_mut() {
-            marks.mark2_records.retain(|_| iter.next().unwrap());
-        }
+        self.mark2_array
+            .mark2_records
+            .retain(|_| iter.next().unwrap());
 
         std::mem::drop(iter);
-        let r =
-            self.mark1_coverage_offset.subset(plan)? && self.mark2_coverage_offset.subset(plan)?;
+        let r = self.mark1_coverage.subset(plan)? && self.mark2_coverage.subset(plan)?;
         Ok(r)
     }
 }
 
 impl Subset for MarkLigPosFormat1 {
     fn subset(&mut self, plan: &Plan) -> Result<bool, Error> {
-        let mark_cov = self
-            .mark_coverage_offset
-            .get()
-            .ok_or_else(|| Error::new("debug me"))?;
-        let mut iter = mark_cov.iter().map(|gid| plan.remap_gid(gid).is_some());
-        if let Some(marks) = self.mark_array_offset.get_mut() {
-            marks.mark_records.retain(|_| iter.next().unwrap());
-        }
+        let mut iter = self
+            .mark_coverage
+            .iter()
+            .map(|gid| plan.remap_gid(gid).is_some());
+
+        self.mark_array
+            .mark_records
+            .retain(|_| iter.next().unwrap());
         std::mem::drop(iter);
 
-        let lig_cov = self
-            .ligature_coverage_offset
-            .get()
-            .ok_or_else(|| Error::new("debug me"))?;
-        let mut iter = lig_cov.iter().map(|gid| plan.remap_gid(gid).is_some());
-        if let Some(ligs) = self.ligature_array_offset.get_mut() {
-            ligs.ligature_attach_offsets
-                .retain(|_| iter.next().unwrap());
-        }
+        let mut iter = self
+            .ligature_coverage
+            .iter()
+            .map(|gid| plan.remap_gid(gid).is_some());
+        self.ligature_array
+            .ligature_attaches
+            .retain(|_| iter.next().unwrap());
         std::mem::drop(iter);
 
-        let r = self.mark_coverage_offset.subset(plan)?
-            && self.ligature_coverage_offset.subset(plan)?;
+        let r = self.mark_coverage.subset(plan)? && self.ligature_coverage.subset(plan)?;
         Ok(r)
     }
 }
