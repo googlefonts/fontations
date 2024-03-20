@@ -14,7 +14,7 @@ read = []
 serde = ["dep:serde", "font-types/serde", "read-fonts/serde"]
 
 [dependencies]
-font-types = { version = "0.5.0", path = "../font-types" }
+font-types = { version = "0.5.1", path = "../font-types" }
 read-fonts = { version = "0.18.0", path = "../read-fonts" }
 log = "0.4"
 kurbo = "0.11.0"
