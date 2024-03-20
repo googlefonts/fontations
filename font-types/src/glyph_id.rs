@@ -6,6 +6,8 @@
 /// A 16-bit glyph identifier.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "bytemuck", derive(bytemuck::AnyBitPattern))]
+#[repr(transparent)]
 pub struct GlyphId(u16);
 
 impl GlyphId {

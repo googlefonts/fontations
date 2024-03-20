@@ -14,6 +14,7 @@ members = [
 
 [workspace.dependencies]
 # dev dependencies
+env_logger = "0.11"
 pretty_assertions = "1.3.0"
 
 [workspace.metadata.release]

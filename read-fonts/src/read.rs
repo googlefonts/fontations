@@ -1,6 +1,6 @@
 //! Traits for interpreting font data
 
-use types::{BigEndian, FixedSize, Scalar, Tag};
+use types::{FixedSize, Scalar, Tag};
 
 use crate::font_data::FontData;
 
@@ -92,56 +92,6 @@ pub trait VarSize {
         let asu32 = data.read_at::<Self::Size>(pos).ok()?.into();
         Some(asu32 as usize + Self::Size::RAW_BYTE_LEN)
     }
-}
-
-/// A marker trait for types that can read from a big-endian buffer without copying.
-///
-/// This is used as a trait bound on certain methods on [`FontData`] (such as
-/// [`FontData::read_ref_at`] and [`FontData::read_array`]) in order to ensure
-/// that those methods are only used with types that uphold certain safety
-/// guarantees.
-///
-/// WARNING: Do not implement this trait manually. Implementations are created
-/// where appropriate during code generation, and there should be no conditions
-/// under which this trait could be implemented, but cannot be implemented by
-/// codegen.
-///
-/// # Safety
-///
-/// If a type `T` implements `FromBytes` then unsafe code may assume that it is
-/// safe to interpret any sequence of bytes with length equal to
-/// `std::mem::size_of::<T>()` as `T`.
-///
-/// we additionally ensure the following conditions:
-///
-/// - the type must have no internal padding
-/// - `std::mem::align_of::<T>() == 1`
-/// - for structs, the type is `repr(packed)` and `repr(C)`, and all fields are
-///   also `FromBytes`
-///
-/// In practice, this trait is only implemented for `u8`, `BigEndian<T>`,
-/// and for structs where all fields are those base types.
-pub unsafe trait FromBytes: FixedSize + sealed::Sealed {
-    /// You should not be implementing this trait!
-    #[doc(hidden)]
-    fn this_trait_should_only_be_implemented_in_generated_code();
-}
-
-// a sealed trait. see <https://rust-lang.github.io/api-guidelines/future-proofing.html>
-pub(crate) mod sealed {
-    pub trait Sealed {}
-}
-
-impl sealed::Sealed for u8 {}
-// SAFETY: any byte can be interpreted as any other byte
-unsafe impl FromBytes for u8 {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
-}
-
-impl<T: Scalar> sealed::Sealed for BigEndian<T> {}
-// SAFETY: BigEndian<T> is always wrapper around a transparent fixed-size byte array
-unsafe impl<T: Scalar> FromBytes for BigEndian<T> {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 /// An error that occurs when reading font data

@@ -56,6 +56,7 @@
 //! [NameString]: tables::name::NameString
 //! [table-directory]: https://learn.microsoft.com/en-us/typography/opentype/spec/otff#table-directory
 
+#![forbid(unsafe_code)]
 #![deny(rustdoc::broken_intra_doc_links)]
 #![cfg_attr(not(feature = "std"), no_std)]
 
@@ -91,7 +92,7 @@ pub mod scaler_test;
 pub use font_data::FontData;
 pub use offset::{Offset, ResolveNullableOffset, ResolveOffset};
 pub use offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
-pub use read::{ComputeSize, FontRead, FontReadWithArgs, FromBytes, ReadArgs, ReadError, VarSize};
+pub use read::{ComputeSize, FontRead, FontReadWithArgs, ReadArgs, ReadError, VarSize};
 pub use table_provider::{TableProvider, TopLevelTable};
 pub use table_ref::TableRef;
 
@@ -105,9 +106,9 @@ pub(crate) mod codegen_prelude {
     pub use crate::font_data::{Cursor, FontData};
     pub use crate::offset::{Offset, ResolveNullableOffset, ResolveOffset};
     pub use crate::offset_array::{ArrayOfNullableOffsets, ArrayOfOffsets};
-    pub(crate) use crate::read::sealed;
+    //pub(crate) use crate::read::sealed;
     pub use crate::read::{
-        ComputeSize, FontRead, FontReadWithArgs, Format, FromBytes, ReadArgs, ReadError, VarSize,
+        ComputeSize, FontRead, FontReadWithArgs, Format, ReadArgs, ReadError, VarSize,
     };
     pub use crate::table_provider::TopLevelTable;
     pub use crate::table_ref::TableRef;

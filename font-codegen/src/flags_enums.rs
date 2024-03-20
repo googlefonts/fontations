@@ -24,8 +24,9 @@ pub(crate) fn generate_flags(raw: &BitFlags) -> proc_macro2::TokenStream {
 
     quote! {
         #( #docs )*
-        #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+        #[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck::AnyBitPattern)]
         #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+        #[repr(transparent)]
         pub struct #name { bits: #typ }
         impl #name {
             #( #variant_decls )*

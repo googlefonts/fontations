@@ -368,7 +368,7 @@ impl<'a> std::fmt::Debug for BaseScriptList<'a> {
 }
 
 /// [BaseScriptRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#basescriptrecord)
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct BaseScriptRecord {
@@ -400,13 +400,6 @@ impl BaseScriptRecord {
 
 impl FixedSize for BaseScriptRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for BaseScriptRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for BaseScriptRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -550,7 +543,7 @@ impl<'a> std::fmt::Debug for BaseScript<'a> {
 }
 
 /// [BaseLangSysRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#baselangsysrecord)
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct BaseLangSysRecord {
@@ -582,13 +575,6 @@ impl BaseLangSysRecord {
 
 impl FixedSize for BaseLangSysRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for BaseLangSysRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for BaseLangSysRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]
@@ -839,7 +825,7 @@ impl<'a> std::fmt::Debug for MinMax<'a> {
 }
 
 /// [FeatMinMaxRecord](https://learn.microsoft.com/en-us/typography/opentype/spec/base#baselangsysrecord)
-#[derive(Clone, Debug, Copy)]
+#[derive(Clone, Debug, Copy, bytemuck :: AnyBitPattern)]
 #[repr(C)]
 #[repr(packed)]
 pub struct FeatMinMaxRecord {
@@ -894,13 +880,6 @@ impl FeatMinMaxRecord {
 
 impl FixedSize for FeatMinMaxRecord {
     const RAW_BYTE_LEN: usize = Tag::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN + Offset16::RAW_BYTE_LEN;
-}
-
-impl sealed::Sealed for FeatMinMaxRecord {}
-
-/// SAFETY: see the [`FromBytes`] trait documentation.
-unsafe impl FromBytes for FeatMinMaxRecord {
-    fn this_trait_should_only_be_implemented_in_generated_code() {}
 }
 
 #[cfg(feature = "traversal")]

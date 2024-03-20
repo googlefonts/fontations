@@ -17,6 +17,8 @@ use core::fmt;
 /// For more detail, see <https://learn.microsoft.com/en-us/typography/opentype/spec/name#name-ids>
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "bytemuck", derive(bytemuck::AnyBitPattern))]
+#[repr(transparent)]
 pub struct NameId(u16);
 
 impl NameId {

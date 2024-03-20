@@ -1,6 +1,6 @@
 [package]
 name = "font-types"
-version = "0.4.3"
+version = "0.5.1"
 edition = "2021"
 license = "MIT/Apache-2.0"
 description = "Scalar types used in fonts."
@@ -9,6 +9,8 @@ readme = "README.md"
 categories = ["text-processing"]
 
 [dependencies]
+# note: bytemuck version must be available in all deployment environments
+bytemuck = {version = "=1.13.1", features = ["derive", "min_const_generics"], optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 
 [dev-dependencies]
