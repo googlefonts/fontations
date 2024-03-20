@@ -23,9 +23,9 @@ toml = "0.7.5"
 serde = {version = "1.0", features = ["derive"] }
 xflags = "0.3.0"
 log = "0.4"
-env_logger = "0.10.0"
 rayon = "1.5.3"
 indexmap = "2.0"
+env_logger.workspace = true
 
 # cargo-release settings
 [package.metadata.release]
