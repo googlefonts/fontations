@@ -60,3 +60,8 @@ corrupted/malicious font files. Please file an issue if this occurs.
 
 Following along with our theme, *skrifa* is Old Norse for "write" or "it is
 written." And so it is named.
+
+## Safety
+
+Unsafe code is forbidden by a `#![forbid(unsafe_code)]` attribute in the root
+of the library.

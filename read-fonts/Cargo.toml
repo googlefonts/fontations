@@ -17,7 +17,7 @@ default = ["traversal"]
 serde = ["dep:serde", "font-types/serde"]
 
 [dependencies]
-font-types = { version = "0.5.0", path = "../font-types", features = ["bytemuck"] }
+font-types = { version = "0.5.1", path = "../font-types", features = ["bytemuck"] }
 serde = { version = "1.0", features = ["derive"], optional = true }
 # note: bytemuck version must be available in all deployment environments
 bytemuck = "=1.13.1"

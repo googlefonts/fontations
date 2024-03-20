@@ -4,6 +4,11 @@ This crate handles parsing and reading of OpenType fonts. It is intended to be a
 high performance implementation suitable for tasks such as [shaping][], while
 still providing a convenient, high-level API.
 
+## Safety
+
+Unsafe code is forbidden by a `#![forbid(unsafe_code)]` attribute in the root
+of the library.
+
 ## codegen
 
 Much of the code in this crate is generated automatically. This generated code
