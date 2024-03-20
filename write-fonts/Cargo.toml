@@ -9,7 +9,7 @@ readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
 
 [features]
-default = ["dot2"]
+default = []
 read = []
 serde = ["dep:serde", "font-types/serde", "read-fonts/serde"]
 
