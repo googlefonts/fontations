@@ -257,6 +257,9 @@ pub(crate) struct SinceVersion {
 /// ```
 #[derive(Clone, Debug)]
 pub(crate) enum Count {
+    // the field isn't used, but it's nice to hold onto if we want to print errors
+    // in the future
+    #[allow(dead_code)]
     All(syn::token::DotDot),
     SingleArg(CountArg),
     Complicated {
