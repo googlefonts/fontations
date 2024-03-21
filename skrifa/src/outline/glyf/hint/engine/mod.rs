@@ -190,7 +190,7 @@ mod mock {
                 unscaled: vec![Default::default(); 32],
                 points: vec![Default::default(); 64],
                 point_flags: vec![Default::default(); 32],
-                contours: vec![32],
+                contours: vec![31],
                 twilight: vec![Default::default(); 32],
                 twilight_flags: vec![Default::default(); 32],
             }

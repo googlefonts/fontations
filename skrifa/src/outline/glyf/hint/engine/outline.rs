@@ -824,9 +824,11 @@ impl<'a> Engine<'a> {
 
 #[cfg(test)]
 mod tests {
-    use raw::tables::glyf::PointMarker;
-
-    use super::{super::MockEngine, CoordAxis};
+    use super::{super::MockEngine, math, CoordAxis, Engine, ZonePointer};
+    use raw::{
+        tables::glyf::PointMarker,
+        types::{F26Dot6, Point},
+    };
 
     #[test]
     fn flip_point() {
@@ -959,5 +961,153 @@ mod tests {
         untouch(1, 0, 1, PointMarker::TOUCHED_Y);
         // untouch point 2 in both axes
         untouch(2, 1, 1, PointMarker::TOUCHED);
+    }
+
+    #[test]
+    fn shp() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        set_test_vectors(&mut engine);
+        engine.graphics.backward_compatibility = false;
+        engine.graphics.zp0 = ZonePointer::Glyph;
+        engine.graphics.zp2 = ZonePointer::Glyph;
+        engine.graphics.rp2 = 1;
+        let point = engine.graphics.zones[1].point_mut(1).unwrap();
+        point.x = F26Dot6::from_bits(132);
+        point.y = F26Dot6::from_bits(-256);
+        engine.value_stack.push(1).unwrap();
+        engine.op_shp(0).unwrap();
+        let point = engine.graphics.zones[1].point(1).unwrap();
+        assert_eq!(point.map(F26Dot6::to_bits), Point::new(136, -254));
+    }
+
+    #[test]
+    fn shc() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        set_test_vectors(&mut engine);
+        engine.graphics.backward_compatibility = false;
+        engine.graphics.zp0 = ZonePointer::Glyph;
+        engine.graphics.zp2 = ZonePointer::Glyph;
+        engine.graphics.rp2 = 1;
+        let point = engine.graphics.zones[1].point_mut(1).unwrap();
+        point.x = F26Dot6::from_bits(132);
+        point.y = F26Dot6::from_bits(-256);
+        engine.value_stack.push(0).unwrap();
+        engine.op_shc(0).unwrap();
+        let points = engine.graphics.zones[1]
+            .points
+            .iter()
+            .map(|p| p.map(F26Dot6::to_bits))
+            .take(3)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            points,
+            &[Point::new(4, 2), Point::new(132, -256), Point::new(4, 2),]
+        );
+    }
+
+    #[test]
+    fn shz() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        set_test_vectors(&mut engine);
+        engine.graphics.backward_compatibility = false;
+        engine.graphics.zp0 = ZonePointer::Glyph;
+        engine.graphics.zp2 = ZonePointer::Glyph;
+        engine.graphics.rp2 = 1;
+        let point = engine.graphics.zones[1].point_mut(1).unwrap();
+        point.x = F26Dot6::from_bits(132);
+        point.y = F26Dot6::from_bits(-256);
+        engine.value_stack.push(0).unwrap();
+        engine.op_shz(0).unwrap();
+        let points = engine.graphics.zones[1]
+            .points
+            .iter()
+            .map(|p| p.map(F26Dot6::to_bits))
+            .take(3)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            points,
+            &[Point::new(4, 2), Point::new(132, -256), Point::new(4, 2),]
+        );
+    }
+
+    #[test]
+    fn shpix() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        set_test_vectors(&mut engine);
+        engine.graphics.backward_compatibility = false;
+        engine.graphics.zp2 = ZonePointer::Glyph;
+        let point = engine.graphics.zones[1].point_mut(1).unwrap();
+        point.x = F26Dot6::from_bits(132);
+        point.y = F26Dot6::from_bits(-256);
+        // point index
+        engine.value_stack.push(1).unwrap();
+        // amount to move in pixels along freedom vector
+        engine.value_stack.push(42).unwrap();
+        engine.op_shpix().unwrap();
+        let point = engine.graphics.zones[1].point(1).unwrap();
+        assert_eq!(point.map(F26Dot6::to_bits), Point::new(170, -237));
+    }
+
+    #[test]
+    fn msirp() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        set_test_vectors(&mut engine);
+        engine.graphics.backward_compatibility = false;
+        engine.graphics.zp0 = ZonePointer::Glyph;
+        engine.graphics.zp1 = ZonePointer::Glyph;
+        let point = engine.graphics.zones[1].point_mut(1).unwrap();
+        point.x = F26Dot6::from_bits(132);
+        point.y = F26Dot6::from_bits(-256);
+        // point index
+        engine.value_stack.push(1).unwrap();
+        // amount to move in pixels along freedom vector
+        engine.value_stack.push(-42).unwrap();
+        engine.op_msirp(0).unwrap();
+        let point = engine.graphics.zones[1].point(1).unwrap();
+        assert_eq!(point.map(F26Dot6::to_bits), Point::new(91, -277));
+        assert_eq!(engine.graphics.rp0, 0);
+        // opcode with bit 0 set changes rp0 to point_ix
+        engine.value_stack.push(4).unwrap();
+        engine.value_stack.push(0).unwrap();
+        engine.op_msirp(1).unwrap();
+        assert_eq!(engine.graphics.rp0, 4);
+    }
+
+    #[test]
+    fn mdap() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        set_test_vectors(&mut engine);
+        engine.graphics.backward_compatibility = false;
+        engine.graphics.zp0 = ZonePointer::Glyph;
+        // with rounding
+        let point = engine.graphics.zones[1].point_mut(1).unwrap();
+        point.x = F26Dot6::from_bits(132);
+        point.y = F26Dot6::from_bits(-256);
+        engine.value_stack.push(1).unwrap();
+        engine.op_mdap(1).unwrap();
+        let point = engine.graphics.zones[1].point(1).unwrap();
+        assert_eq!(point.map(F26Dot6::to_bits), Point::new(128, -258));
+        // without rounding
+        let point = engine.graphics.zones[1].point_mut(2).unwrap();
+        point.x = F26Dot6::from_bits(132);
+        point.y = F26Dot6::from_bits(-256);
+        engine.value_stack.push(2).unwrap();
+        engine.op_mdap(0).unwrap();
+        let point = engine.graphics.zones[1].point(2).unwrap();
+        assert_eq!(point.map(F26Dot6::to_bits), Point::new(132, -256));
+    }
+
+    fn set_test_vectors(engine: &mut Engine) {
+        let v = math::normalize14(100, 50);
+        engine.graphics.proj_vector = v;
+        engine.graphics.dual_proj_vector = v;
+        engine.graphics.freedom_vector = v;
+        engine.graphics.update_projection_state();
     }
 }

@@ -531,6 +531,7 @@ impl GraphicsState<'_> {
     }
 }
 
+#[derive(PartialEq, Debug)]
 pub(crate) struct PointDisplacement {
     pub zone: ZonePointer,
     pub point_ix: usize,
@@ -550,7 +551,7 @@ impl CoordAxis {
 
 #[cfg(test)]
 mod tests {
-    use super::{CoordAxis, Zone};
+    use super::{math, CoordAxis, GraphicsState, PointDisplacement, Zone, ZonePointer};
     use raw::{
         tables::glyf::{PointFlags, PointMarker},
         types::{F26Dot6, Point},
@@ -635,6 +636,190 @@ mod tests {
             zone.points,
             &f26dot6_points([(-5, -20), (11, 18), (27, 56)]),
         );
+    }
+
+    #[test]
+    fn move_point_x() {
+        let mut mock = MockGraphicsState::new();
+        let mut gs = mock.graphics_state(100, 0);
+        let point_ix = 0;
+        let orig_x = gs.zones[1].point(point_ix).unwrap().x;
+        let dx = F26Dot6::from_bits(10);
+        // backward compatibility is on by default and we don't move x coord
+        gs.move_point(ZonePointer::Glyph, 0, dx).unwrap();
+        assert_eq!(orig_x, gs.zones[1].point(point_ix).unwrap().x);
+        // disable so we actually move
+        gs.backward_compatibility = false;
+        gs.move_point(ZonePointer::Glyph, 0, dx).unwrap();
+        let new_x = gs.zones[1].point(point_ix).unwrap().x;
+        assert_ne!(orig_x, new_x);
+        assert_eq!(new_x, orig_x + dx)
+    }
+
+    #[test]
+    fn move_point_y() {
+        let mut mock = MockGraphicsState::new();
+        let mut gs = mock.graphics_state(0, 100);
+        let point_ix = 0;
+        let orig_y = gs.zones[1].point(point_ix).unwrap().y;
+        let dy = F26Dot6::from_bits(10);
+        // movement in y is prevented post-iup when backward
+        // compatibility is enabled
+        gs.did_iup_x = true;
+        gs.did_iup_y = true;
+        gs.move_point(ZonePointer::Glyph, 0, dy).unwrap();
+        assert_eq!(orig_y, gs.zones[1].point(point_ix).unwrap().y);
+        // allow movement
+        gs.did_iup_x = false;
+        gs.did_iup_y = false;
+        gs.move_point(ZonePointer::Glyph, 0, dy).unwrap();
+        let new_y = gs.zones[1].point(point_ix).unwrap().y;
+        assert_ne!(orig_y, new_y);
+        assert_eq!(new_y, orig_y + dy)
+    }
+
+    #[test]
+    fn move_point_x_and_y() {
+        let mut mock = MockGraphicsState::new();
+        let mut gs = mock.graphics_state(100, 50);
+        let point_ix = 0;
+        let orig_point = gs.zones[1].point(point_ix).unwrap();
+        let dist = F26Dot6::from_bits(10);
+        // prevent movement in x and y
+        gs.did_iup_x = true;
+        gs.did_iup_y = true;
+        gs.move_point(ZonePointer::Glyph, 0, dist).unwrap();
+        assert_eq!(orig_point, gs.zones[1].point(point_ix).unwrap());
+        // allow movement
+        gs.backward_compatibility = false;
+        gs.did_iup_x = false;
+        gs.did_iup_y = false;
+        gs.move_point(ZonePointer::Glyph, 0, dist).unwrap();
+        let point = gs.zones[1].point(point_ix).unwrap();
+        assert_eq!(point.map(F26Dot6::to_bits), Point::new(4, -16));
+    }
+
+    #[test]
+    fn move_original_x() {
+        let mut mock = MockGraphicsState::new();
+        let mut gs = mock.graphics_state(100, 0);
+        let point_ix = 0;
+        let orig_x = gs.zones[1].original(point_ix).unwrap().x;
+        let dx = F26Dot6::from_bits(10);
+        gs.move_original(ZonePointer::Glyph, 0, dx).unwrap();
+        let new_x = gs.zones[1].original(point_ix).unwrap().x;
+        assert_eq!(new_x, orig_x + dx)
+    }
+
+    #[test]
+    fn move_original_y() {
+        let mut mock = MockGraphicsState::new();
+        let mut gs = mock.graphics_state(0, 100);
+        let point_ix = 0;
+        let orig_y = gs.zones[1].original(point_ix).unwrap().y;
+        let dy = F26Dot6::from_bits(10);
+        gs.move_original(ZonePointer::Glyph, 0, dy).unwrap();
+        let new_y = gs.zones[1].original(point_ix).unwrap().y;
+        assert_eq!(new_y, orig_y + dy)
+    }
+
+    #[test]
+    fn move_original_x_and_y() {
+        let mut mock = MockGraphicsState::new();
+        let mut gs = mock.graphics_state(100, 50);
+        let point_ix = 0;
+        let dist = F26Dot6::from_bits(10);
+        gs.move_original(ZonePointer::Glyph, 0, dist).unwrap();
+        let point = gs.zones[1].original(point_ix).unwrap();
+        assert_eq!(point.map(F26Dot6::to_bits), Point::new(9, 4));
+    }
+
+    #[test]
+    fn move_zp2_point() {
+        let mut mock = MockGraphicsState::new();
+        let mut gs = mock.graphics_state(100, 50);
+        gs.zp2 = ZonePointer::Glyph;
+        let point_ix = 0;
+        let orig_point = gs.zones[1].point(point_ix).unwrap();
+        let dx = F26Dot6::from_bits(10);
+        let dy = F26Dot6::from_bits(-10);
+        // prevent movement in x and y
+        gs.did_iup_x = true;
+        gs.did_iup_y = true;
+        gs.move_zp2_point(point_ix, dx, dy, false).unwrap();
+        assert_eq!(orig_point, gs.zones[1].point(point_ix).unwrap());
+        // allow movement
+        gs.backward_compatibility = false;
+        gs.did_iup_x = false;
+        gs.did_iup_y = false;
+        gs.move_zp2_point(point_ix, dx, dy, false).unwrap();
+        let point = gs.zones[1].point(point_ix).unwrap();
+        assert_eq!(point, orig_point + Point::new(dx, dy));
+    }
+
+    #[test]
+    fn point_displacement() {
+        let mut mock = MockGraphicsState::new();
+        let mut gs = mock.graphics_state(100, 50);
+        gs.zp0 = ZonePointer::Glyph;
+        gs.rp1 = 0;
+        assert_eq!(
+            gs.point_displacement(1).unwrap(),
+            PointDisplacement {
+                zone: ZonePointer::Glyph,
+                point_ix: 0,
+                dx: F26Dot6::from_f64(-0.1875),
+                dy: F26Dot6::from_f64(-0.09375),
+            }
+        );
+        gs.rp2 = 2;
+        assert_eq!(
+            gs.point_displacement(0).unwrap(),
+            PointDisplacement {
+                zone: ZonePointer::Glyph,
+                point_ix: 2,
+                dx: F26Dot6::from_f64(0.390625),
+                dy: F26Dot6::from_f64(0.203125),
+            }
+        );
+    }
+
+    struct MockGraphicsState {
+        points: [Point<F26Dot6>; 3],
+        original: [Point<F26Dot6>; 3],
+        contours: [u16; 1],
+        flags: [PointFlags; 3],
+    }
+
+    impl MockGraphicsState {
+        fn new() -> Self {
+            Self {
+                points: f26dot6_points([(-5, -20), (10, 10), (20, 20)]),
+                original: f26dot6_points([(0, 0), (10, 10), (20, -42)]),
+                flags: [PointFlags::default(); 3],
+                contours: [3],
+            }
+        }
+
+        fn graphics_state(&mut self, fv_x: i32, fv_y: i32) -> GraphicsState {
+            let glyph = Zone {
+                unscaled: &mut [],
+                original: &mut self.original,
+                points: &mut self.points,
+                contours: &self.contours,
+                flags: &mut self.flags,
+            };
+            let v = math::normalize14(fv_x, fv_y);
+            let mut gs = GraphicsState {
+                zones: [Zone::default(), glyph],
+                freedom_vector: v,
+                proj_vector: v,
+                zp0: ZonePointer::Glyph,
+                ..Default::default()
+            };
+            gs.update_projection_state();
+            gs
+        }
     }
 
     fn point_markers() -> [PointFlags; 2] {
