@@ -6,7 +6,6 @@ robust and performant open tools for a variety of font engineering and
 production tasks. For an overview of the motivations, see
 [googlefonts/oxidize][oxidize].
 
-
 ## structure
 
 Currently, this repo contains three main library crates: [`font-types`][], [`read-fonts`][],
@@ -26,6 +25,54 @@ and [`write-fonts`][], in addition to one binary crate, [`otexplorer`][]:
 - [`otexplorer`][] is a binary crate for exploring the contents of font files.
   It is developed as a debugging tool, and may also be useful as an example of
   how the [`read-fonts`][] crate can be used.
+
+## depgraph
+
+Shows the non-dev dependency relationships among the font-related crates in fontations. fontc primarily uses the fontations crates via write-fonts and skrifa.
+
+```mermaid
+%% This is a map of non-dev font-related dependencies.
+%% See https://mermaid.live/edit for a lightweight editing environment for
+%% mermaid diagrams.
+
+graph LR
+    %% First we define the nodes and give them short descriptions.
+    %% We group them into subgraphs by repo so that the visual layout
+    %% maps to the source layout, as this is intended for contributors.
+    %% https://github.com/googlefonts/fontations
+    subgraph fontations[fontations repo]
+        fauntlet[fauntlet\ncompares Skrifa & freetype]
+        font-codegen[font-codegen\nutils for generating code for\nfonts & font tables]
+        font-types[font-types\ndefinitions of types\nfrom OpenType and a bit more]
+        otexplorer{{otexplorer\nbinary that prints \nand querys font files}}
+        read-fonts[read-fonts\nparses and reads OpenType fonts]
+        skrifa[skrifa\nhigher level lib\nfor reading OpenType fonts]
+        write-fonts[write-fonts\ncreates and edits font-files]
+    end
+
+    %% https://github.com/linebender/kurbo
+    kurbo[kurbo\n2d curves lib]
+    %% https://github.com/linebender/norad
+    norad[norad\nhandles Unified Font Object files]
+    %% https://github.com/PistonDevelopers/freetype-rs
+    freetype-rs[freetype-rs\nbindings for the FreeType library]
+
+    %% Now define the edges.
+    %% Made by hand on March 20, 2024, probably not completely correct.
+    %% Should be easy to automate if we want to, main thing is to
+    %% define the crates of interest.
+    fauntlet --> skrifa
+    fauntlet --> freetype-rs
+    font-codegen --> font-types
+    otexplorer --> read-fonts
+    otexplorer --> font-types
+    read-fonts --> font-types
+    skrifa --> read-fonts
+    write-fonts --> font-types
+    write-fonts --> read-fonts
+    write-fonts --> kurbo
+    norad --> kurbo
+```
 
 ## codegen
 
