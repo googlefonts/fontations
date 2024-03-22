@@ -177,6 +177,8 @@ mod mock {
         points: Vec<Point<F26Dot6>>,
         point_flags: Vec<PointFlags>,
         contours: Vec<u16>,
+        twilight: Vec<Point<F26Dot6>>,
+        twilight_flags: Vec<PointFlags>,
     }
 
     impl MockEngine {
@@ -189,6 +191,8 @@ mod mock {
                 points: vec![Default::default(); 64],
                 point_flags: vec![Default::default(); 32],
                 contours: vec![32],
+                twilight: vec![Default::default(); 32],
+                twilight_flags: vec![Default::default(); 32],
             }
         }
 
@@ -202,6 +206,11 @@ mod mock {
                 DefinitionMap::Mut(function_defs),
                 DefinitionMap::Mut(instruction_defs),
             );
+            for (i, point) in self.unscaled.iter_mut().enumerate() {
+                let i = i as i32;
+                point.x = 57 + i * 2;
+                point.y = -point.x * 3;
+            }
             let (points, original) = self.points.split_at_mut(32);
             let glyph_zone = Zone::new(
                 &self.unscaled,
@@ -210,8 +219,13 @@ mod mock {
                 &mut self.point_flags,
                 &self.contours,
             );
-            let mut graphics_state = GraphicsState::default();
-            graphics_state.zones[1] = glyph_zone;
+            let (points, original) = self.twilight.split_at_mut(16);
+            let twilight_zone = Zone::new(&[], original, points, &mut self.twilight_flags, &[]);
+            let mut graphics_state = GraphicsState {
+                zones: [twilight_zone, glyph_zone],
+                ..Default::default()
+            };
+            graphics_state.update_projection_state();
             Engine {
                 graphics: graphics_state,
                 cvt: CowSlice::new_mut(cvt).into(),

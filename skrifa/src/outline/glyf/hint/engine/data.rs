@@ -144,7 +144,8 @@ impl<'a> Engine<'a> {
 
 #[cfg(test)]
 mod tests {
-    use super::super::MockEngine;
+    use super::super::{super::zone::ZonePointer, math, Engine, MockEngine};
+    use raw::types::F26Dot6;
 
     #[test]
     fn measure_ppem_and_point_size() {
@@ -156,5 +157,124 @@ mod tests {
         assert_eq!(engine.value_stack.pop().unwrap(), ppem);
         engine.op_mps().unwrap();
         assert_eq!(engine.value_stack.pop().unwrap(), ppem * 64);
+    }
+
+    #[test]
+    fn gc() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        set_test_vectors(&mut engine);
+        // current point projected coord
+        let point = engine.graphics.zones[1].point_mut(1).unwrap();
+        point.x = F26Dot6::from_bits(132);
+        point.y = F26Dot6::from_bits(-256);
+        engine.value_stack.push(1).unwrap();
+        engine.op_gc(0).unwrap();
+        assert_eq!(engine.value_stack.pop().unwrap(), 4);
+        // original point projected coord
+        let point = engine.graphics.zones[1].original_mut(1).unwrap();
+        point.x = F26Dot6::from_bits(-64);
+        point.y = F26Dot6::from_bits(521);
+        engine.value_stack.push(1).unwrap();
+        engine.op_gc(1).unwrap();
+        assert_eq!(engine.value_stack.pop().unwrap(), 176);
+    }
+
+    #[test]
+    fn scfs() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        set_test_vectors(&mut engine);
+        // This instruction is a nop in backward compatibility mode
+        // and before IUP.
+        engine.graphics.backward_compatibility = false;
+        engine.graphics.did_iup_x = true;
+        engine.graphics.did_iup_y = true;
+        // use the twilight zone to test the optional code path
+        engine.graphics.zp2 = ZonePointer::Twilight;
+        let point = engine.graphics.zones[0].point_mut(1).unwrap();
+        point.x = F26Dot6::from_bits(132);
+        point.y = F26Dot6::from_bits(-256);
+        // assert we're not currently the same
+        assert_ne!(
+            engine.graphics.zones[0].point(1).unwrap(),
+            engine.graphics.zones[0].original(1).unwrap()
+        );
+        // push point number
+        engine.value_stack.push(1).unwrap();
+        // push value to match
+        engine.value_stack.push(42).unwrap();
+        // set coordinate from stack!
+        engine.op_scfs().unwrap();
+        let point = engine.graphics.zones[0].point(1).unwrap();
+        assert_eq!(point.x.to_bits(), 166);
+        assert_eq!(point.y.to_bits(), -239);
+        // ensure that we set original = point
+        assert_eq!(point, engine.graphics.zones[0].original(1).unwrap());
+    }
+
+    #[test]
+    fn md_scaled() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        set_test_vectors(&mut engine);
+        // first path, measure in grid fitted outline
+        let zone = engine.graphics.zone_mut(ZonePointer::Glyph);
+        let point1 = zone.point_mut(1).unwrap();
+        point1.x = F26Dot6::from_bits(132);
+        point1.y = F26Dot6::from_bits(-256);
+        let point2 = zone.point_mut(3).unwrap();
+        point2.x = F26Dot6::from_bits(-64);
+        point2.y = F26Dot6::from_bits(100);
+        // now measure
+        engine.value_stack.push(1).unwrap();
+        engine.value_stack.push(3).unwrap();
+        engine.op_md(1).unwrap();
+        assert_eq!(engine.value_stack.pop().unwrap(), 16);
+    }
+
+    #[test]
+    fn md_unscaled() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        set_test_vectors(&mut engine);
+        // second path, measure in original unscaled outline.
+        // unscaled points are set in mock engine but we need a scale
+        engine.graphics.scale = 375912;
+        engine.value_stack.push(1).unwrap();
+        engine.value_stack.push(3).unwrap();
+        engine.op_md(0).unwrap();
+        assert_eq!(engine.value_stack.pop().unwrap(), 11);
+    }
+
+    #[test]
+    fn md_twilight() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        set_test_vectors(&mut engine);
+        // final path, measure in original outline, in twilight zone
+        engine.graphics.zp0 = ZonePointer::Twilight;
+        engine.graphics.zp1 = ZonePointer::Twilight;
+        // set some points
+        let zone = engine.graphics.zone_mut(ZonePointer::Twilight);
+        let point1 = zone.original_mut(1).unwrap();
+        point1.x = F26Dot6::from_bits(132);
+        point1.y = F26Dot6::from_bits(-256);
+        let point2 = zone.original_mut(3).unwrap();
+        point2.x = F26Dot6::from_bits(-64);
+        point2.y = F26Dot6::from_bits(100);
+        // now measure
+        engine.value_stack.push(1).unwrap();
+        engine.value_stack.push(3).unwrap();
+        engine.op_md(0).unwrap();
+        assert_eq!(engine.value_stack.pop().unwrap(), 16);
+    }
+
+    fn set_test_vectors(engine: &mut Engine) {
+        let v = math::normalize14(100, 50);
+        engine.graphics.proj_vector = v;
+        engine.graphics.dual_proj_vector = v;
+        engine.graphics.freedom_vector = v;
+        engine.graphics.update_projection_state();
     }
 }
