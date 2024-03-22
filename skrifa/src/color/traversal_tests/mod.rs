@@ -296,6 +296,7 @@ fn colrv1_traversal_test(
         let mut file = OpenOptions::new()
             .write(true)
             .create(true)
+            .truncate(true)
             .open(dumpfile_path)
             .unwrap();
 
