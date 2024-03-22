@@ -42,9 +42,7 @@ graph LR
     %% https://github.com/googlefonts/fontations
     subgraph fontations[fontations repo]
         fauntlet[fauntlet\ncompares Skrifa & freetype]
-        font-codegen[font-codegen\nutils for generating code for\nfonts & font tables]
         font-types[font-types\ndefinitions of types\nfrom OpenType and a bit more]
-        otexplorer{{otexplorer\nbinary that prints \nand querys font files}}
         read-fonts[read-fonts\nparses and reads OpenType fonts]
         skrifa[skrifa\nhigher level lib\nfor reading OpenType fonts]
         write-fonts[write-fonts\ncreates and edits font-files]
@@ -63,9 +61,6 @@ graph LR
     %% define the crates of interest.
     fauntlet --> skrifa
     fauntlet --> freetype-rs
-    font-codegen --> font-types
-    otexplorer --> read-fonts
-    otexplorer --> font-types
     read-fonts --> font-types
     skrifa --> read-fonts
     write-fonts --> font-types
