@@ -7,6 +7,8 @@ use core::cmp::Ordering;
 
 pub use lookupflag::LookupFlag;
 
+use super::variations::DeltaSetIndex;
+
 #[cfg(test)]
 #[path = "../tests/layout.rs"]
 mod spec_tests;
@@ -348,6 +350,15 @@ fn iter_packed_values(raw: u16, format: DeltaFormat, n: usize) -> impl Iterator<
         decoded[i] = Some(val)
     }
     decoded.into_iter().flatten()
+}
+
+impl From<VariationIndex<'_>> for DeltaSetIndex {
+    fn from(src: VariationIndex) -> DeltaSetIndex {
+        DeltaSetIndex {
+            outer: src.delta_set_outer_index(),
+            inner: src.delta_set_inner_index(),
+        }
+    }
 }
 
 #[cfg(test)]

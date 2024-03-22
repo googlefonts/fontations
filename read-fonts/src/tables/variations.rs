@@ -7,7 +7,7 @@ use super::gvar::SharedTuples;
 use std::iter::Skip;
 
 /// Outer and inner indices for reading from an [ItemVariationStore].
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeltaSetIndex {
     /// Outer delta set index.
     pub outer: u16,
