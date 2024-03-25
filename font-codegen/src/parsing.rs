@@ -288,6 +288,8 @@ pub(crate) enum CountTransform {
     DeltaSetIndexData,
     /// three args: the axis count, the tuple index, and a constant on that index
     TupleLen,
+    /// only ItemVariationStore: requires item_count, word_delta_count, region_index_count
+    ItemVariationDataLen,
 }
 
 /// Attributes for specifying how to compile a field
@@ -1396,6 +1398,10 @@ static TRANSFORM_IDENTS: &[(CountTransform, &str)] = &[
     (CountTransform::DeltaValueCount, "delta_value_count"),
     (CountTransform::DeltaSetIndexData, "delta_set_index_data"),
     (CountTransform::TupleLen, "tuple_len"),
+    (
+        CountTransform::ItemVariationDataLen,
+        "item_variation_data_len",
+    ),
 ];
 
 impl FromStr for CountTransform {
@@ -1428,6 +1434,7 @@ impl CountTransform {
             CountTransform::DeltaValueCount => 3,
             CountTransform::DeltaSetIndexData => 2,
             CountTransform::TupleLen => 3,
+            CountTransform::ItemVariationDataLen => 3,
         }
     }
 }
@@ -1560,6 +1567,9 @@ impl Count {
                 }
                 (CountTransform::TupleLen, [a, b, c]) => {
                     quote!(TupleIndex::tuple_len(#a, #b, #c))
+                }
+                (CountTransform::ItemVariationDataLen, [a, b, c]) => {
+                    quote!(ItemVariationData::delta_sets_len(#a, #b, #c))
                 }
                 _ => unreachable!("validated before now"),
             },

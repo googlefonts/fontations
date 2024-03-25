@@ -156,7 +156,7 @@ table ItemVariationData {
     #[count($region_index_count)]
     region_indexes: [u16],
     /// Delta-set rows.
-    #[count(..)]
+    #[count(item_variation_data_len($item_count, $word_delta_count, $region_index_count))]
     delta_sets: [u8],
 }
 

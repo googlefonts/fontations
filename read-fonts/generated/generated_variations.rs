@@ -1137,12 +1137,14 @@ impl ItemVariationDataMarker {
 impl<'a> FontRead<'a> for ItemVariationData<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<u16>();
+        let item_count: u16 = cursor.read()?;
+        let word_delta_count: u16 = cursor.read()?;
         let region_index_count: u16 = cursor.read()?;
         let region_indexes_byte_len = region_index_count as usize * u16::RAW_BYTE_LEN;
         cursor.advance_by(region_indexes_byte_len);
-        let delta_sets_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        let delta_sets_byte_len =
+            ItemVariationData::delta_sets_len(item_count, word_delta_count, region_index_count)
+                * u8::RAW_BYTE_LEN;
         cursor.advance_by(delta_sets_byte_len);
         cursor.finish(ItemVariationDataMarker {
             region_indexes_byte_len,
