@@ -981,13 +981,12 @@ impl<'a> ItemVariationData<'a> {
     /// inner index.
     pub fn delta_set(&self, inner_index: u16) -> impl Iterator<Item = i32> + 'a + Clone {
         let word_delta_count = self.word_delta_count();
+        let region_count = self.region_index_count();
+        let bytes_per_row = Self::delta_row_len(word_delta_count, region_count);
         let long_words = word_delta_count & 0x8000 != 0;
-        let (word_size, small_size) = if long_words { (4, 2) } else { (2, 1) };
         let word_delta_count = word_delta_count & 0x7FFF;
-        let region_count = self.region_index_count() as usize;
-        let row_size = word_delta_count as usize * word_size
-            + region_count.saturating_sub(word_delta_count as usize) * small_size;
-        let offset = row_size * inner_index as usize;
+
+        let offset = bytes_per_row * inner_index as usize;
         ItemDeltas {
             cursor: FontData::new(self.delta_sets())
                 .slice(offset..)
@@ -995,9 +994,25 @@ impl<'a> ItemVariationData<'a> {
                 .cursor(),
             word_delta_count,
             long_words,
-            len: region_count as u16,
+            len: region_count,
             pos: 0,
         }
+    }
+
+    /// the length of one delta set
+    fn delta_row_len(word_delta_count: u16, region_index_count: u16) -> usize {
+        let region_count = region_index_count as usize;
+        let long_words = word_delta_count & 0x8000 != 0;
+        let (word_size, small_size) = if long_words { (4, 2) } else { (2, 1) };
+        let long_delta_count = (word_delta_count & 0x7FFF) as usize;
+        let short_delta_count = region_count.saturating_sub(long_delta_count);
+        long_delta_count * word_size + short_delta_count * small_size
+    }
+
+    // called from generated code: compute the length in bytes of the delta_sets data
+    fn delta_sets_len(item_count: u16, word_delta_count: u16, region_index_count: u16) -> usize {
+        let bytes_per_row = Self::delta_row_len(word_delta_count, region_index_count);
+        bytes_per_row * item_count as usize
     }
 }
 
@@ -1062,7 +1077,7 @@ pub(crate) fn item_delta(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{FontRef, TableProvider};
+    use crate::{test_helpers::BeBuffer, FontRef, TableProvider};
 
     #[test]
     fn ivs_regions() {
@@ -1257,5 +1272,35 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn ivs_data_len_short() {
+        let data = BeBuffer::new()
+            .push(2u16) // item_count
+            .push(3u16) // word_delta_count
+            .push(5u16) // region_index_count
+            .extend([0u16, 1, 2, 3, 4]) // region_indices
+            .extend([1u8; 128]); // this is much more data than we need!
+
+        let ivs = ItemVariationData::read(data.font_data()).unwrap();
+        let row_len = (3 * u16::RAW_BYTE_LEN) + (2 * u8::RAW_BYTE_LEN); // 3 word deltas, 2 byte deltas
+        let expected_len = 2 * row_len;
+        assert_eq!(ivs.delta_sets().len(), expected_len);
+    }
+
+    #[test]
+    fn ivs_data_len_long() {
+        let data = BeBuffer::new()
+            .push(2u16) // item_count
+            .push(2u16 | 0x8000) // word_delta_count, long deltas
+            .push(4u16) // region_index_count
+            .extend([0u16, 1, 2]) // region_indices
+            .extend([1u8; 128]); // this is much more data than we need!
+
+        let ivs = ItemVariationData::read(data.font_data()).unwrap();
+        let row_len = (2 * u32::RAW_BYTE_LEN) + (2 * u16::RAW_BYTE_LEN); // 1 word (4-byte) delta, 2 short (2-byte)
+        let expected_len = 2 * row_len;
+        assert_eq!(ivs.delta_sets().len(), expected_len);
     }
 }
