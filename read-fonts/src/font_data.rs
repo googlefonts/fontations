@@ -33,6 +33,9 @@ pub struct Cursor<'a> {
 }
 
 impl<'a> FontData<'a> {
+    /// Empty data, useful for some tests and examples
+    pub const EMPTY: FontData<'static> = FontData { bytes: &[] };
+
     /// Create a new `FontData` with these bytes.
     ///
     /// You generally don't need to do this? It is handled for you when loading
