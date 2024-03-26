@@ -28,7 +28,7 @@ impl ValueFormat {
 /// NOTE: we create these manually, since parsing is weird and depends on the
 /// associated valueformat. That said, this isn't a great representation?
 /// we could definitely do something much more in the zero-copy mode..
-#[derive(Clone, Default, PartialEq, Eq)]
+#[derive(Clone, Default, Eq)]
 pub struct ValueRecord {
     pub x_placement: Option<BigEndian<i16>>,
     pub y_placement: Option<BigEndian<i16>>,
@@ -38,16 +38,31 @@ pub struct ValueRecord {
     pub y_placement_device: BigEndian<Nullable<Offset16>>,
     pub x_advance_device: BigEndian<Nullable<Offset16>>,
     pub y_advance_device: BigEndian<Nullable<Offset16>>,
+    #[doc(hidden)]
+    // exposed so that we can preserve format when we round-trip a value record
+    pub format: ValueFormat,
+}
+
+// we ignore the format for the purpose of equality testing, it's redundant
+impl PartialEq for ValueRecord {
+    fn eq(&self, other: &Self) -> bool {
+        self.x_placement == other.x_placement
+            && self.y_placement == other.y_placement
+            && self.x_advance == other.x_advance
+            && self.y_advance == other.y_advance
+            && self.x_placement_device == other.x_placement_device
+            && self.y_placement_device == other.y_placement_device
+            && self.x_advance_device == other.x_advance_device
+            && self.y_advance_device == other.y_advance_device
+    }
 }
 
 impl ValueRecord {
-    pub fn read_old(data: &[u8], format: ValueFormat) -> Result<Self, ReadError> {
-        let data = FontData::new(data);
-        Self::read(data, format)
-    }
-
     pub fn read(data: FontData, format: ValueFormat) -> Result<Self, ReadError> {
-        let mut this = ValueRecord::default();
+        let mut this = ValueRecord {
+            format,
+            ..Default::default()
+        };
         let mut cursor = data.cursor();
 
         if format.contains(ValueFormat::X_PLACEMENT) {

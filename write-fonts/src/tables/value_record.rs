@@ -209,7 +209,9 @@ impl Validate for ValueRecord {
 impl FromObjRef<read_fonts::tables::gpos::ValueRecord> for ValueRecord {
     fn from_obj_ref(from: &read_fonts::tables::gpos::ValueRecord, data: FontData) -> Self {
         ValueRecord {
-            explicit_format: None,
+            // we want to always preserve the format of an incoming record;
+            // otherwise there's no way to correctly determine the format later
+            explicit_format: Some(from.format),
             x_placement: from.x_placement(),
             y_placement: from.y_placement(),
             x_advance: from.x_advance(),
@@ -228,7 +230,7 @@ mod tests {
     use read_fonts::FontRead;
 
     use crate::tables::{
-        gpos::{SinglePos, SinglePosFormat1},
+        gpos::{SinglePos, SinglePosFormat1, SinglePosFormat2},
         layout::{CoverageTableBuilder, VariationIndex},
     };
 
@@ -261,5 +263,46 @@ mod tests {
         assert!(
             matches!(read_back.value_record.x_advance_device.as_ref(), Some(DeviceOrVariationIndex::VariationIndex(var_idx)) if var_idx.delta_set_inner_index == 0xee)
         )
+    }
+
+    #[test]
+    fn roundtrip_preserves_format() {
+        let format = ValueFormat::X_ADVANCE | ValueFormat::X_ADVANCE_DEVICE;
+        let record = ValueRecord::new()
+            .with_x_advance(5)
+            .with_explicit_value_format(format);
+        let bytes = crate::dump_table(&record).unwrap();
+        assert_eq!(bytes.len(), 4);
+
+        let read_back =
+            read_fonts::tables::gpos::ValueRecord::read(bytes.as_slice().into(), format).unwrap();
+        assert_eq!(read_back.x_advance(), Some(5));
+        assert!(read_back.x_advance_device(FontData::EMPTY).is_none());
+
+        let owned: ValueRecord = read_back.to_owned_obj(FontData::EMPTY);
+        assert_eq!(owned.explicit_format, Some(format))
+    }
+
+    #[test]
+    fn roundtrip_in_table() {
+        let format = ValueFormat::X_ADVANCE | ValueFormat::X_ADVANCE_DEVICE;
+
+        let a_table = SinglePos::format_2(
+            [GlyphId::new(7), GlyphId::new(9)].into_iter().collect(),
+            vec![
+                ValueRecord::new()
+                    .with_explicit_value_format(format)
+                    .with_x_advance(5),
+                ValueRecord::new()
+                    .with_x_advance(7)
+                    .with_x_advance_device(VariationIndex::new(0xde, 0xad)),
+            ],
+        );
+
+        let bytes = crate::dump_table(&a_table).unwrap();
+        let read_back = SinglePosFormat2::read(bytes.as_slice().into()).unwrap();
+        assert_eq!(read_back.value_records[0].explicit_format, Some(format));
+        assert_eq!(read_back.value_records[1].explicit_format, Some(format));
+        assert!(crate::dump_table(&read_back).is_ok());
     }
 }
