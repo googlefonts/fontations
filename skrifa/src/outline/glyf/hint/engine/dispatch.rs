@@ -11,16 +11,17 @@ const MAX_RUN_INSTRUCTIONS: usize = 1_000_000;
 
 impl<'a> Engine<'a> {
     /// Resets state for the specified program and executes all instructions.
-    pub fn run_program(&mut self, program: Program) -> Result<(), HintError> {
-        self.reset(program);
+    pub fn run_program(&mut self, program: Program, is_pedantic: bool) -> Result<(), HintError> {
+        self.reset(program, is_pedantic);
         self.run()
     }
 
     /// Set internal state for running the specified program.
-    pub fn reset(&mut self, program: Program) {
+    pub fn reset(&mut self, program: Program, is_pedantic: bool) {
         self.program.reset(program);
         // Reset overall graphics state, keeping the retained bits.
         self.graphics.reset();
+        self.graphics.is_pedantic = is_pedantic;
         self.loop_budget.reset();
         // Program specific setup.
         match program {
@@ -62,6 +63,7 @@ impl<'a> Engine<'a> {
                     program: self.program.current,
                     glyph_id: None,
                     pc: ins.pc,
+                    opcode: Some(ins.opcode),
                     kind: HintErrorKind::ExceededExecutionBudget,
                 });
             }
@@ -76,6 +78,7 @@ impl<'a> Engine<'a> {
             program: self.program.current,
             glyph_id: None,
             pc: self.program.decoder.pc,
+            opcode: None,
             kind: HintErrorKind::UnexpectedEndOfBytecode,
         }))
     }
@@ -87,6 +90,7 @@ impl<'a> Engine<'a> {
             program: current_program,
             glyph_id: None,
             pc: ins.pc,
+            opcode: Some(ins.opcode),
             kind,
         })
     }

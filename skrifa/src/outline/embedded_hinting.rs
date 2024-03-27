@@ -202,7 +202,7 @@ impl EmbeddedHintingInstance {
                         outline,
                         ppem,
                         coords,
-                        |mut hint_outline| instance.hint(glyf, &mut hint_outline),
+                        |mut hint_outline| instance.hint(glyf, &mut hint_outline, is_pedantic),
                         is_pedantic,
                     )?;
                     scaled_outline.to_path(path_style, pen)?;

@@ -49,7 +49,7 @@ impl HintInstance {
         );
         let glyph = Zone::default();
         let mut stack_buf = vec![0; self.max_stack];
-        let value_stack = ValueStack::new(&mut stack_buf);
+        let value_stack = ValueStack::new(&mut stack_buf, false);
         let graphics = RetainedGraphicsState::new(scale, ppem, mode);
         let mut engine = Engine::new(
             outlines,
@@ -69,9 +69,9 @@ impl HintInstance {
             false,
         );
         // Run the font program (fpgm)
-        engine.run_program(Program::Font)?;
+        engine.run_program(Program::Font, false)?;
         // Run the control value program (prep)
-        engine.run_program(Program::ControlValue)?;
+        engine.run_program(Program::ControlValue, false)?;
         // Save the retained state from the CV program
         self.graphics = *engine.retained_graphics_state();
         Ok(())
@@ -85,7 +85,12 @@ impl HintInstance {
         self.graphics.instruct_control & 1 == 0
     }
 
-    pub fn hint(&self, outlines: &Outlines, outline: &mut HintOutline) -> Result<(), HintError> {
+    pub fn hint(
+        &self,
+        outlines: &Outlines,
+        outline: &mut HintOutline,
+        is_pedantic: bool,
+    ) -> Result<(), HintError> {
         // Twilight zone
         let twilight_count = outline.twilight_scaled.len();
         let twilight_contours = [twilight_count as u16];
@@ -111,7 +116,7 @@ impl HintInstance {
             outline.flags,
             outline.contours,
         );
-        let value_stack = ValueStack::new(outline.stack);
+        let value_stack = ValueStack::new(outline.stack, is_pedantic);
         let cvt = CowSlice::new(&self.cvt, outline.cvt).unwrap();
         let storage = CowSlice::new(&self.storage, outline.storage).unwrap();
         let mut engine = Engine::new(
@@ -136,10 +141,12 @@ impl HintInstance {
             outline.coords,
             outline.is_composite,
         );
-        engine.run_program(Program::Glyph).map_err(|mut e| {
-            e.glyph_id = Some(outline.glyph_id);
-            e
-        })?;
+        engine
+            .run_program(Program::Glyph, is_pedantic)
+            .map_err(|mut e| {
+                e.glyph_id = Some(outline.glyph_id);
+                e
+            })?;
         // If we're not running in backward compatibility mode, capture
         // modified phantom points.
         if !engine.backward_compatibility() {

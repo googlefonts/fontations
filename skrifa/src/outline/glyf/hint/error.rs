@@ -97,6 +97,7 @@ pub struct HintError {
     pub program: Program,
     pub glyph_id: Option<GlyphId>,
     pub pc: usize,
+    pub opcode: Option<Opcode>,
     pub kind: HintErrorKind,
 }
 
@@ -105,16 +106,15 @@ impl core::fmt::Display for HintError {
         match self.program {
             Program::ControlValue => write!(f, "prep")?,
             Program::Font => write!(f, "fpgm")?,
-            Program::Glyph => {
-                write!(f, "glyf[")?;
-                if let Some(glyph_id) = self.glyph_id {
-                    write!(f, "{}", glyph_id.to_u16())?;
-                } else {
-                    write!(f, "?")?;
-                }
-                write!(f, "]")?
-            }
+            Program::Glyph => write!(f, "glyf")?,
         }
-        write!(f, "+{}: {}", self.pc, self.kind)
+        if let Some(glyph_id) = self.glyph_id {
+            write!(f, "[{}]", glyph_id.to_u16())?;
+        }
+        let (opcode, colon) = match self.opcode {
+            Some(opcode) => (opcode.name(), ":"),
+            _ => ("", ""),
+        };
+        write!(f, "@{}:{opcode}{colon} {}", self.pc, self.kind)
     }
 }
