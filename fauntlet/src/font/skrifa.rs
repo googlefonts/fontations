@@ -1,12 +1,9 @@
 use ::skrifa::{
+    outline::{DrawError, DrawSettings, EmbeddedHintingInstance},
     prelude::{LocationRef, Size},
-    raw::{types::Pen, FontRef, TableProvider},
-    GlyphId, MetadataProvider,
-};
-use skrifa::{
-    outline::{DrawError, EmbeddedHintingInstance},
     raw::types::F2Dot14,
-    OutlineGlyphCollection,
+    raw::{types::Pen, FontRef, TableProvider},
+    GlyphId, MetadataProvider, OutlineGlyphCollection,
 };
 
 use super::{InstanceOptions, SharedFontData};
@@ -36,7 +33,7 @@ impl<'a> SkrifaInstance<'a> {
                     options.coords,
                     options.hinting.unwrap(),
                 )
-                .unwrap(),
+                .ok()?,
             )
         } else {
             None
@@ -69,7 +66,7 @@ impl<'a> SkrifaInstance<'a> {
             .get(glyph_id)
             .ok_or(DrawError::GlyphNotFound(glyph_id))?;
         if let Some(hinter) = self.hinter.as_ref() {
-            outline.draw(hinter, pen)?;
+            outline.draw(DrawSettings::hinted(hinter, false), pen)?;
         } else {
             outline.draw((self.size, self.coords.as_slice()), pen)?;
         }

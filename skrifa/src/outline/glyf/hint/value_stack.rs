@@ -15,38 +15,43 @@ use HintErrorKind::{ValueStackOverflow, ValueStackUnderflow};
 /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#managing-the-stack>
 pub struct ValueStack<'a> {
     values: &'a mut [i32],
-    top: usize,
+    len: usize,
+    is_pedantic: bool,
 }
 
 impl<'a> ValueStack<'a> {
-    pub fn new(values: &'a mut [i32]) -> Self {
-        Self { values, top: 0 }
+    pub fn new(values: &'a mut [i32], is_pedantic: bool) -> Self {
+        Self {
+            values,
+            len: 0,
+            is_pedantic,
+        }
     }
 
     /// Returns the depth of the stack
     /// <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#returns-the-depth-of-the-stack>
     pub fn len(&self) -> usize {
-        self.top
+        self.len
     }
 
     #[cfg(test)]
     fn is_empty(&self) -> bool {
-        self.top == 0
+        self.len == 0
     }
 
     // This is used in tests and also useful for tracing.
     #[allow(dead_code)]
     pub fn values(&self) -> &[i32] {
-        &self.values[..self.top]
+        &self.values[..self.len]
     }
 
     pub fn push(&mut self, value: i32) -> Result<(), HintErrorKind> {
         let ptr = self
             .values
-            .get_mut(self.top)
+            .get_mut(self.len)
             .ok_or(HintErrorKind::ValueStackOverflow)?;
         *ptr = value;
-        self.top += 1;
+        self.len += 1;
         Ok(())
     }
 
@@ -58,7 +63,7 @@ impl<'a> ValueStack<'a> {
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#pushing-data-onto-the-interpreter-stack>
     pub fn push_inline_operands(&mut self, operands: &InlineOperands) -> Result<(), HintErrorKind> {
         let push_count = operands.len();
-        let stack_base = self.top;
+        let stack_base = self.len;
         for (stack_value, value) in self
             .values
             .get_mut(stack_base..stack_base + push_count)
@@ -68,13 +73,13 @@ impl<'a> ValueStack<'a> {
         {
             *stack_value = value;
         }
-        self.top += push_count;
+        self.len += push_count;
         Ok(())
     }
 
     pub fn peek(&mut self) -> Option<i32> {
-        if self.top > 0 {
-            self.values.get(self.top - 1).copied()
+        if self.len > 0 {
+            self.values.get(self.len - 1).copied()
         } else {
             None
         }
@@ -86,9 +91,14 @@ impl<'a> ValueStack<'a> {
     ///
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#pop-top-stack-element>
     pub fn pop(&mut self) -> Result<i32, HintErrorKind> {
-        let value = self.peek().ok_or(ValueStackUnderflow)?;
-        self.top -= 1;
-        Ok(value)
+        if let Some(value) = self.peek() {
+            self.len -= 1;
+            Ok(value)
+        } else if self.is_pedantic {
+            Err(ValueStackUnderflow)
+        } else {
+            Ok(0)
+        }
     }
 
     /// Convenience method for instructions that expect values in 26.6 format.
@@ -131,7 +141,7 @@ impl<'a> ValueStack<'a> {
     ///
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#clear-the-entire-stack>
     pub fn clear(&mut self) {
-        self.top = 0;
+        self.len = 0;
     }
 
     /// Duplicate top stack element.
@@ -140,8 +150,13 @@ impl<'a> ValueStack<'a> {
     ///
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#duplicate-top-stack-element>
     pub fn dup(&mut self) -> Result<(), HintErrorKind> {
-        let value = self.peek().ok_or(ValueStackUnderflow)?;
-        self.push(value)
+        if let Some(value) = self.peek() {
+            self.push(value)
+        } else if self.is_pedantic {
+            Err(ValueStackUnderflow)
+        } else {
+            self.push(0)
+        }
     }
 
     /// Swap the top two elements on the stack.
@@ -162,7 +177,7 @@ impl<'a> ValueStack<'a> {
     ///
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#copy-the-indexed-element-to-the-top-of-the-stack>
     pub fn copy_index(&mut self) -> Result<(), HintErrorKind> {
-        let top_ix = self.top.checked_sub(1).ok_or(ValueStackUnderflow)?;
+        let top_ix = self.len.checked_sub(1).ok_or(ValueStackUnderflow)?;
         let index = *self.values.get(top_ix).ok_or(ValueStackUnderflow)? as usize;
         let element_ix = top_ix.checked_sub(index).ok_or(ValueStackUnderflow)?;
         self.values[top_ix] = self.values[element_ix];
@@ -175,14 +190,14 @@ impl<'a> ValueStack<'a> {
     ///
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructions#move-the-indexed-element-to-the-top-of-the-stack>
     pub fn move_index(&mut self) -> Result<(), HintErrorKind> {
-        let top_ix = self.top.checked_sub(1).ok_or(ValueStackUnderflow)?;
+        let top_ix = self.len.checked_sub(1).ok_or(ValueStackUnderflow)?;
         let index = *self.values.get(top_ix).ok_or(ValueStackUnderflow)? as usize;
         let element_ix = top_ix.checked_sub(index).ok_or(ValueStackUnderflow)?;
         let value = self.values[element_ix];
         self.values
-            .copy_within(element_ix + 1..self.top, element_ix);
+            .copy_within(element_ix + 1..self.len, element_ix);
         self.values[top_ix - 1] = value;
-        self.top -= 1;
+        self.len -= 1;
         Ok(())
     }
 
@@ -213,7 +228,8 @@ mod tests {
         ($values:expr) => {
             ValueStack {
                 values: $values,
-                top: $values.len(),
+                len: $values.len(),
+                is_pedantic: true,
             }
         };
     }
@@ -221,7 +237,8 @@ mod tests {
         ($values:expr) => {
             ValueStack {
                 values: $values,
-                top: 0,
+                len: 0,
+                is_pedantic: true,
             }
         };
     }

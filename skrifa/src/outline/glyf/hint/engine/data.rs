@@ -28,6 +28,10 @@ impl<'a> Engine<'a> {
     pub(super) fn op_gc(&mut self, opcode: u8) -> OpResult {
         let p = self.value_stack.pop_usize()?;
         let gs = &mut self.graphics;
+        if !gs.is_pedantic && !gs.in_bounds([(gs.zp2, p)]) {
+            self.value_stack.push(0)?;
+            return Ok(());
+        }
         let value = if (opcode & 1) != 0 {
             gs.dual_project(gs.zp2().original(p)?, Default::default())
         } else {
@@ -86,6 +90,10 @@ impl<'a> Engine<'a> {
         let p1 = self.value_stack.pop_usize()?;
         let p2 = self.value_stack.pop_usize()?;
         let gs = &self.graphics;
+        if !gs.is_pedantic && !gs.in_bounds([(gs.zp0, p2), (gs.zp1, p1)]) {
+            self.value_stack.push(0)?;
+            return Ok(());
+        }
         let distance = if (opcode & 1) != 0 {
             // measure in grid fitted outline
             gs.project(gs.zp0().point(p2)?, gs.zp1().point(p1)?)

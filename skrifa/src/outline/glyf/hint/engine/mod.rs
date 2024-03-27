@@ -230,7 +230,7 @@ mod mock {
                 graphics: graphics_state,
                 cvt: CowSlice::new_mut(cvt).into(),
                 storage: CowSlice::new_mut(storage).into(),
-                value_stack: ValueStack::new(&mut self.value_stack),
+                value_stack: ValueStack::new(&mut self.value_stack, false),
                 program: ProgramState::new(font_code, cv_code, glyph_code, Program::Font),
                 loop_budget: LoopBudget {
                     limit: 10,

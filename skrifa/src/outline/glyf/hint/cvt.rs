@@ -21,6 +21,10 @@ impl<'a> Cvt<'a> {
             .set(index, value.to_bits())
             .ok_or(HintErrorKind::InvalidCvtIndex(index))
     }
+
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
 }
 
 impl<'a> From<CowSlice<'a>> for Cvt<'a> {

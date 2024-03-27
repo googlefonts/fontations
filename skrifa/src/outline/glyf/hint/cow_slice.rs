@@ -88,6 +88,14 @@ impl<'a> CowSlice<'a> {
         *self.data_mut.get_mut(index)? = value;
         Some(())
     }
+
+    pub fn len(&self) -> usize {
+        if self.use_mut {
+            self.data_mut.len()
+        } else {
+            self.data.len()
+        }
+    }
 }
 
 /// Error returned when the sizes of the immutable and mutable buffers

@@ -138,6 +138,9 @@ impl<'a> Engine<'a> {
     pub(super) fn op_shc(&mut self, opcode: u8) -> OpResult {
         let gs = &mut self.graphics;
         let contour_ix = self.value_stack.pop_usize()?;
+        if !gs.is_pedantic && contour_ix >= gs.zp2().contours.len() {
+            return Ok(());
+        }
         let point_disp = gs.point_displacement(opcode)?;
         let start = if contour_ix != 0 {
             gs.zp2().contour(contour_ix - 1)? as usize + 1
@@ -264,6 +267,9 @@ impl<'a> Engine<'a> {
         let gs = &mut self.graphics;
         let distance = self.value_stack.pop_f26dot6()?;
         let point_ix = self.value_stack.pop_usize()?;
+        if !gs.is_pedantic && !gs.in_bounds([(gs.zp1, point_ix), (gs.zp0, gs.rp0)]) {
+            return Ok(());
+        }
         if gs.zp1.is_twilight() {
             *gs.zp1_mut().point_mut(point_ix)? = gs.zp0().original(gs.rp0)?;
             gs.move_original(gs.zp1, point_ix, distance)?;
@@ -299,6 +305,11 @@ impl<'a> Engine<'a> {
     pub(super) fn op_mdap(&mut self, opcode: u8) -> OpResult {
         let gs = &mut self.graphics;
         let p = self.value_stack.pop_usize()?;
+        if !gs.is_pedantic && !gs.in_bounds([(gs.zp0, p)]) {
+            gs.rp0 = p;
+            gs.rp1 = p;
+            return Ok(());
+        }
         let distance = if (opcode & 1) != 0 {
             let cur_dist = gs.project(gs.zp0().point(p)?, Default::default());
             gs.round(cur_dist) - cur_dist
@@ -387,6 +398,14 @@ impl<'a> Engine<'a> {
     pub(super) fn op_mdrp(&mut self, opcode: u8) -> OpResult {
         let gs = &mut self.graphics;
         let p = self.value_stack.pop_usize()?;
+        if !gs.is_pedantic && !gs.in_bounds([(gs.zp1, p), (gs.zp0, gs.rp0)]) {
+            gs.rp1 = gs.rp0;
+            gs.rp2 = p;
+            if (opcode & 16) != 0 {
+                gs.rp0 = p;
+            }
+            return Ok(());
+        }
         let mut original_distance = if gs.zp0.is_twilight() || gs.zp1.is_twilight() {
             gs.dual_project(gs.zp1().original(p)?, gs.zp0().original(gs.rp0)?)
         } else {
@@ -471,6 +490,16 @@ impl<'a> Engine<'a> {
         let gs = &mut self.graphics;
         let n = (self.value_stack.pop()? + 1) as usize;
         let p = self.value_stack.pop_usize()?;
+        if !gs.is_pedantic
+            && (!gs.in_bounds([(gs.zp1, p), (gs.zp0, gs.rp0)]) || (n > self.cvt.len()))
+        {
+            gs.rp1 = gs.rp0;
+            if (opcode & 16) != 0 {
+                gs.rp0 = p;
+            }
+            gs.rp2 = p;
+            return Ok(());
+        }
         let mut cvt_distance = if n == 0 {
             F26Dot6::ZERO
         } else {
