@@ -2,7 +2,7 @@
 
 use types::Tag;
 
-use crate::{tables, FontData, FontRead, ReadError};
+use crate::{tables, FontData, FontRead, OutlineFormat, ReadError};
 
 /// A table that has an associated tag.
 ///
@@ -22,6 +22,10 @@ pub trait TableProvider<'a> {
 
     fn expect_table<T: TopLevelTable + FontRead<'a>>(&self) -> Result<T, ReadError> {
         self.expect_data_for_tag(T::TAG).and_then(FontRead::read)
+    }
+
+    fn outline_format(&self) -> Option<OutlineFormat> {
+        None
     }
 
     fn head(&self) -> Result<tables::head::Head<'a>, ReadError> {
