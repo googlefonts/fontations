@@ -33,11 +33,21 @@ impl BitmapSize {
             match &subtable.kind {
                 IndexSubtable::Format1(st) => {
                     location.format = st.image_format();
-                    location.data_offset = st.image_data_offset() as usize
+                    let start = st.image_data_offset() as usize
                         + st.sbit_offsets()
                             .get(glyph_ix)
                             .ok_or(ReadError::OutOfBounds)?
                             .get() as usize;
+                    let end = st.image_data_offset() as usize
+                        + st.sbit_offsets()
+                            .get(glyph_ix + 1)
+                            .ok_or(ReadError::OutOfBounds)?
+                            .get() as usize;
+                    location.data_offset = start;
+                    if end < start {
+                        return Err(ReadError::OutOfBounds);
+                    }
+                    location.data_size = Some(end - start);
                 }
                 IndexSubtable::Format2(st) => {
                     location.format = st.image_format();
@@ -48,11 +58,21 @@ impl BitmapSize {
                 }
                 IndexSubtable::Format3(st) => {
                     location.format = st.image_format();
-                    location.data_offset = st.image_data_offset() as usize
+                    let start = st.image_data_offset() as usize
                         + st.sbit_offsets()
                             .get(glyph_ix)
                             .ok_or(ReadError::OutOfBounds)?
                             .get() as usize;
+                    let end = st.image_data_offset() as usize
+                        + st.sbit_offsets()
+                            .get(glyph_ix + 1)
+                            .ok_or(ReadError::OutOfBounds)?
+                            .get() as usize;
+                    location.data_offset = start;
+                    if end < start {
+                        return Err(ReadError::OutOfBounds);
+                    }
+                    location.data_size = Some(end - start);
                 }
                 IndexSubtable::Format4(st) => {
                     location.format = st.image_format();
@@ -63,23 +83,29 @@ impl BitmapSize {
                             return Err(ReadError::InvalidCollectionIndex(glyph_id.to_u16() as u32))
                         }
                     };
-                    let offset1 = array[array_ix].sbit_offset() as usize;
-                    let offset2 = array
+                    let start = array[array_ix].sbit_offset() as usize;
+                    let end = array
                         .get(array_ix + 1)
                         .ok_or(ReadError::OutOfBounds)?
                         .sbit_offset() as usize;
-                    location.data_offset = offset1;
-                    location.data_size = Some(offset2 - offset1);
+                    location.data_offset = start;
+                    if end < start {
+                        return Err(ReadError::OutOfBounds);
+                    }
+                    location.data_size = Some(end - start);
                 }
                 IndexSubtable::Format5(st) => {
                     location.format = st.image_format();
                     let array = st.glyph_array();
-                    if array.binary_search_by(|x| x.get().cmp(&glyph_id)).is_err() {
-                        return Err(ReadError::InvalidCollectionIndex(glyph_id.to_u16() as u32));
-                    }
+                    let array_ix = match array.binary_search_by(|gid| gid.get().cmp(&glyph_id)) {
+                        Ok(ix) => ix,
+                        _ => {
+                            return Err(ReadError::InvalidCollectionIndex(glyph_id.to_u16() as u32))
+                        }
+                    };
                     let data_size = st.image_size() as usize;
                     location.data_size = Some(data_size);
-                    location.data_offset = st.image_data_offset() as usize + glyph_ix * data_size;
+                    location.data_offset = st.image_data_offset() as usize + array_ix * data_size;
                     location.metrics = Some(st.big_metrics()[0]);
                 }
             }
@@ -166,8 +192,12 @@ pub(crate) fn bitmap_data<'a>(
     location: &BitmapLocation,
     is_color: bool,
 ) -> Result<BitmapData<'a>, ReadError> {
+    let end = location
+        .data_size
+        .map(|size| size + location.data_offset)
+        .unwrap_or(offset_data.len());
     let mut image_data = offset_data
-        .slice(location.data_offset..)
+        .slice(location.data_offset..end)
         .ok_or(ReadError::OutOfBounds)?
         .cursor();
     match location.format {
