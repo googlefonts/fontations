@@ -69,9 +69,15 @@ mod tests {
                 .location(cblc.offset_data(), GlyphId::new(gid))
                 .unwrap();
             if gid == 1 {
-                assert!(cbdt.data(&location).is_err());
+                assert!(
+                    cbdt.data(&location).is_err(),
+                    "expected bitmap for {gid} to be empty"
+                );
             } else {
-                cbdt.data(&location).unwrap();
+                assert!(
+                    cbdt.data(&location).is_ok(),
+                    "expected bitmap for {gid} to be present"
+                );
             }
         }
     }
