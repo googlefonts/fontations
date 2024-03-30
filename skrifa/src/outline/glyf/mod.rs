@@ -49,6 +49,7 @@ pub struct Outlines<'a> {
     max_storage: u16,
     glyph_count: u16,
     units_per_em: u16,
+    os2_vmetrics: [i16; 2],
     has_var_lsb: bool,
 }
 
@@ -87,6 +88,10 @@ impl<'a> Outlines<'a> {
                 )
             })
             .unwrap_or_default();
+        let os2_vmetrics = font
+            .os2()
+            .map(|os2| [os2.s_typo_ascender(), os2.s_typo_descender()])
+            .unwrap_or_default();
         Some(Self {
             loca: font.loca(None).ok()?,
             glyf: font.glyf().ok()?,
@@ -113,6 +118,7 @@ impl<'a> Outlines<'a> {
             max_storage,
             glyph_count,
             units_per_em: font.head().ok()?.units_per_em(),
+            os2_vmetrics,
             has_var_lsb,
         })
     }
@@ -163,7 +169,7 @@ impl<'a> Outlines<'a> {
         size: Option<f32>,
         coords: &'a [F2Dot14],
     ) -> Result<ScaledOutline<'a>, DrawError> {
-        Scaler::new(self.clone(), memory, size, coords, |_| Ok(()), false, false)
+        Scaler::new(self.clone(), memory, size, coords, None, false, false)
             .scale(&outline.glyph, outline.glyph_id)
     }
 
@@ -173,7 +179,7 @@ impl<'a> Outlines<'a> {
         outline: &Outline,
         size: Option<f32>,
         coords: &'a [F2Dot14],
-        hint_fn: impl FnMut(HintOutline) -> Result<(), HintError>,
+        hinter: &'a HintInstance,
         pedantic_hinting: bool,
     ) -> Result<ScaledOutline<'a>, DrawError> {
         Scaler::new(
@@ -181,7 +187,7 @@ impl<'a> Outlines<'a> {
             memory,
             size,
             coords,
-            hint_fn,
+            Some(hinter),
             true,
             pedantic_hinting,
         )
@@ -293,7 +299,7 @@ impl<'a> Outlines<'a> {
     }
 }
 
-struct Scaler<'a, H> {
+struct Scaler<'a> {
     outlines: Outlines<'a>,
     memory: OutlineMemory<'a>,
     coords: &'a [F2Dot14],
@@ -310,19 +316,16 @@ struct Scaler<'a, H> {
     ///
     /// See <https://learn.microsoft.com/en-us/typography/opentype/spec/tt_instructing_glyphs#phantom-points>
     phantom: [Point<F26Dot6>; PHANTOM_POINT_COUNT],
-    hint_fn: H,
+    hinter: Option<&'a HintInstance>,
 }
 
-impl<'a, H> Scaler<'a, H>
-where
-    H: FnMut(HintOutline) -> Result<(), HintError>,
-{
+impl<'a> Scaler<'a> {
     fn new(
         outlines: Outlines<'a>,
         memory: OutlineMemory<'a>,
         size: Option<f32>,
         coords: &'a [F2Dot14],
-        hint_fn: H,
+        hinter: Option<&'a HintInstance>,
         is_hinted: bool,
         pedantic_hinting: bool,
     ) -> Self {
@@ -340,7 +343,7 @@ where
             is_hinted: is_hinted && is_scaled,
             pedantic_hinting,
             phantom: Default::default(),
-            hint_fn,
+            hinter,
         }
     }
 
@@ -525,39 +528,53 @@ where
                 self.phantom[i] = *point;
             }
         }
-        if is_hinted && !ins.is_empty() {
-            // Create a copy of our scaled points in original_scaled.
-            let original_scaled = self
-                .memory
-                .original_scaled
-                .get_mut(..other_points_end)
-                .ok_or(InsufficientMemory)?;
-            original_scaled.copy_from_slice(scaled);
-            // When hinting, round the phantom points.
-            for point in &mut scaled[phantom_start..] {
-                point.x = point.x.round();
-                point.y = point.y.round();
-            }
-            let hint_res = (self.hint_fn)(HintOutline {
-                glyph_id,
-                unscaled,
-                scaled,
-                original_scaled,
-                flags,
-                contours,
-                bytecode: ins,
-                phantom: &mut self.phantom,
-                stack: self.memory.stack,
-                cvt: self.memory.cvt,
-                storage: self.memory.storage,
-                twilight_scaled: self.memory.twilight_scaled,
-                twilight_original_scaled: self.memory.twilight_original_scaled,
-                twilight_flags: self.memory.twilight_flags,
-                is_composite: false,
-                coords: self.coords,
-            });
-            if let (Err(e), true) = (hint_res, self.pedantic_hinting) {
-                return Err(e)?;
+        if let (Some(hinter), true) = (self.hinter.as_ref(), is_hinted) {
+            if !ins.is_empty() {
+                // Create a copy of our scaled points in original_scaled.
+                let original_scaled = self
+                    .memory
+                    .original_scaled
+                    .get_mut(..other_points_end)
+                    .ok_or(InsufficientMemory)?;
+                original_scaled.copy_from_slice(scaled);
+                // When hinting, round the phantom points.
+                for point in &mut scaled[phantom_start..] {
+                    point.x = point.x.round();
+                    point.y = point.y.round();
+                }
+                let mut input = HintOutline {
+                    glyph_id,
+                    unscaled,
+                    scaled,
+                    original_scaled,
+                    flags,
+                    contours,
+                    bytecode: ins,
+                    phantom: &mut self.phantom,
+                    stack: self.memory.stack,
+                    cvt: self.memory.cvt,
+                    storage: self.memory.storage,
+                    twilight_scaled: self.memory.twilight_scaled,
+                    twilight_original_scaled: self.memory.twilight_original_scaled,
+                    twilight_flags: self.memory.twilight_flags,
+                    is_composite: false,
+                    coords: self.coords,
+                };
+                let hint_res = hinter.hint(&self.outlines, &mut input, self.pedantic_hinting);
+                if let (Err(e), true) = (hint_res, self.pedantic_hinting) {
+                    return Err(e)?;
+                }
+            } else if !hinter.backward_compatibility() {
+                // Even when missing instructions, FreeType uses rounded
+                // phantom points when hinting is requested and backward
+                // compatibility mode is disabled.
+                // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttgload.c#L823>
+                // Notably, FreeType never calls TT_Hint_Glyph for composite
+                // glyphs when instructions are missing so this only applies
+                // to simple glyphs.
+                for (scaled, phantom) in scaled[phantom_start..].iter().zip(&mut self.phantom) {
+                    *phantom = scaled.map(|x| x.round());
+                }
             }
         }
         if points_start != 0 {
@@ -741,12 +758,15 @@ where
         if have_deltas {
             self.component_delta_count = delta_base;
         }
-        if self.is_hinted {
+        if let (Some(hinter), true) = (self.hinter.as_ref(), self.is_hinted) {
             let ins = glyph.instructions().unwrap_or_default();
             if !ins.is_empty() {
+                // For composite glyphs, the unscaled and original points are
+                // simply copies of the current point set.
                 let start_point = point_base;
                 let end_point = self.point_count + PHANTOM_POINT_COUNT;
                 let point_range = start_point..end_point;
+                let phantom_start = point_range.len() - PHANTOM_POINT_COUNT;
                 let scaled = &mut self.memory.scaled[point_range.clone()];
                 let flags = self
                     .memory
@@ -754,13 +774,10 @@ where
                     .get_mut(point_range.clone())
                     .ok_or(InsufficientMemory)?;
                 // Append the current phantom points to the outline.
-                let phantom_start = point_range.len() - PHANTOM_POINT_COUNT;
                 for (i, phantom) in self.phantom.iter().enumerate() {
                     scaled[phantom_start + i] = *phantom;
                     flags[phantom_start + i] = Default::default();
                 }
-                // For composite glyphs, the unscaled and original points are
-                // simply copies of the current point set.
                 let other_points_end = point_range.len();
                 let unscaled = self
                     .memory
@@ -798,7 +815,7 @@ where
                         *contour -= delta;
                     }
                 }
-                let hint_res = (self.hint_fn)(HintOutline {
+                let mut input = HintOutline {
                     glyph_id,
                     unscaled,
                     scaled,
@@ -815,7 +832,8 @@ where
                     twilight_flags: self.memory.twilight_flags,
                     is_composite: true,
                     coords: self.coords,
-                });
+                };
+                let hint_res = hinter.hint(&self.outlines, &mut input, self.pedantic_hinting);
                 if let (Err(e), true) = (hint_res, self.pedantic_hinting) {
                     return Err(e)?;
                 }
@@ -832,22 +850,24 @@ where
     }
 }
 
-impl<'a, H> Scaler<'a, H> {
+impl<'a> Scaler<'a> {
     fn setup_phantom_points(&mut self, bounds: [i16; 4], glyph_id: GlyphId) {
         let lsb = self.outlines.lsb(glyph_id, self.coords);
         let advance = self.outlines.advance_width(glyph_id, self.coords);
-        // Vertical metrics aren't significant to the glyph loading process, so
-        // they are ignored.
-        let vadvance = 0;
-        let tsb = 0;
+        let [ascent, descent] = self.outlines.os2_vmetrics.map(|x| x as i32);
+        let tsb = ascent - bounds[3] as i32;
+        let vadvance = ascent - descent;
         // The four "phantom" points as computed by FreeType.
+        // See <https://gitlab.freedesktop.org/freetype/freetype/-/blob/57617782464411201ce7bbc93b086c1b4d7d84a5/src/truetype/ttgload.c#L1365>
+        // horizontal:
         self.phantom[0].x = F26Dot6::from_bits(bounds[0] as i32 - lsb);
         self.phantom[0].y = F26Dot6::ZERO;
         self.phantom[1].x = self.phantom[0].x + F26Dot6::from_bits(advance);
         self.phantom[1].y = F26Dot6::ZERO;
-        self.phantom[2].x = F26Dot6::from_bits(advance / 2);
+        // vertical:
+        self.phantom[2].x = F26Dot6::ZERO;
         self.phantom[2].y = F26Dot6::from_bits(bounds[3] as i32 + tsb);
-        self.phantom[3].x = F26Dot6::from_bits(advance / 2);
+        self.phantom[3].x = F26Dot6::ZERO;
         self.phantom[3].y = self.phantom[2].y - F26Dot6::from_bits(vadvance);
     }
 }
