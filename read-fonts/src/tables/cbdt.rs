@@ -56,4 +56,29 @@ mod tests {
             assert_eq!(bitmap_data.extract_small_metrics(), metrics);
         }
     }
+
+    #[test]
+    fn sparse_glyph_ids() {
+        let font = FontRef::new(font_test_data::CBDT).unwrap();
+        let cblc = font.cblc().unwrap();
+        let cbdt = font.cbdt().unwrap();
+        let size = &cblc.bitmap_sizes()[0];
+        // this font has a sparse set with gid 1 missing
+        for gid in 0..=3 {
+            let location = size
+                .location(cblc.offset_data(), GlyphId::new(gid))
+                .unwrap();
+            if gid == 1 {
+                assert!(
+                    cbdt.data(&location).is_err(),
+                    "expected bitmap for {gid} to be empty"
+                );
+            } else {
+                assert!(
+                    cbdt.data(&location).is_ok(),
+                    "expected bitmap for {gid} to be present"
+                );
+            }
+        }
+    }
 }
