@@ -1,5 +1,5 @@
 use ::skrifa::{
-    outline::{DrawError, DrawSettings, EmbeddedHintingInstance},
+    outline::{DrawError, DrawSettings, HintingInstance},
     prelude::{LocationRef, Size},
     raw::types::F2Dot14,
     raw::{types::Pen, FontRef, TableProvider},
@@ -13,7 +13,7 @@ pub struct SkrifaInstance<'a> {
     size: Size,
     coords: Vec<F2Dot14>,
     outlines: OutlineGlyphCollection<'a>,
-    hinter: Option<EmbeddedHintingInstance>,
+    hinter: Option<HintingInstance>,
 }
 
 impl<'a> SkrifaInstance<'a> {
@@ -27,13 +27,8 @@ impl<'a> SkrifaInstance<'a> {
         let outlines = font.outline_glyphs();
         let hinter = if options.ppem != 0 && options.hinting.is_some() {
             Some(
-                EmbeddedHintingInstance::new(
-                    &outlines,
-                    size,
-                    options.coords,
-                    options.hinting.unwrap(),
-                )
-                .ok()?,
+                HintingInstance::new(&outlines, size, options.coords, options.hinting.unwrap())
+                    .ok()?,
             )
         } else {
             None
