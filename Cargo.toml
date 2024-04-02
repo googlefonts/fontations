@@ -13,7 +13,8 @@ members = [
 ]
 
 [workspace.dependencies]
-# note: bytemuck version must be available in all deployment environments
+# note: bytemuck version must be available in all deployment environments, 
+# specifically the floor of the versions supported by google3 and Chrome
 bytemuck = "1.13.1"
 # dev dependencies
 env_logger = "0.11"
