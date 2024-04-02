@@ -85,6 +85,19 @@ impl HintInstance {
         self.graphics.instruct_control & 1 == 0
     }
 
+    /// Returns true if backward compatibility mode has been activated
+    /// by the hinter settings or the `prep` table.
+    pub fn backward_compatibility(&self) -> bool {
+        // Set backward compatibility mode
+        if self.graphics.mode.preserve_linear_metrics() {
+            true
+        } else if self.graphics.mode.is_smooth() {
+            (self.graphics.instruct_control & 0x4) == 0
+        } else {
+            false
+        }
+    }
+
     pub fn hint(
         &self,
         outlines: &Outlines,

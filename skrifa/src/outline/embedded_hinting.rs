@@ -197,14 +197,8 @@ impl EmbeddedHintingInstance {
                     let mem = outline
                         .memory_from_buffer(buf, Hinting::Embedded)
                         .ok_or(DrawError::InsufficientMemory)?;
-                    let scaled_outline = glyf.draw_hinted(
-                        mem,
-                        outline,
-                        ppem,
-                        coords,
-                        |mut hint_outline| instance.hint(glyf, &mut hint_outline, is_pedantic),
-                        is_pedantic,
-                    )?;
+                    let scaled_outline =
+                        glyf.draw_hinted(mem, outline, ppem, coords, instance, is_pedantic)?;
                     scaled_outline.to_path(path_style, pen)?;
                     Ok(AdjustedMetrics {
                         has_overlaps: outline.has_overlaps,
