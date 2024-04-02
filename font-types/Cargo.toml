@@ -10,7 +10,7 @@ categories = ["text-processing"]
 
 [dependencies]
 # note: bytemuck version must be available in all deployment environments
-bytemuck = {version = "=1.13.1", features = ["derive", "min_const_generics"], optional = true }
+bytemuck = { workspace = true,  features = ["derive", "min_const_generics"], optional = true }
 serde = { version = "1.0", features = ["derive"], optional = true }
 
 [dev-dependencies]
