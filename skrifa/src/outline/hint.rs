@@ -79,14 +79,14 @@ pub enum LcdLayout {
 /// Hinting instance that uses information embedded in the font to perform
 /// grid-fitting.
 #[derive(Clone)]
-pub struct EmbeddedHintingInstance {
+pub struct HintingInstance {
     size: Size,
     coords: Vec<NormalizedCoord>,
     mode: HintingMode,
     kind: HinterKind,
 }
 
-impl EmbeddedHintingInstance {
+impl HintingInstance {
     /// Creates a new embedded hinting instance for the given outline
     /// collection, size, location in variation space and hinting mode.
     pub fn new<'a>(

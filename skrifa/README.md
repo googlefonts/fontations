@@ -31,25 +31,20 @@ Future goals include:
 * Color palettes
 * Embedded bitmap strikes
 
-### Glyph scaling
-
-Current (✔️), near term (🔜) and planned (⌛) feature matrix:
+### Glyph formats
 
 | Source | Decoding | Variations | Hinting |
-|--------|---------|------------|---------|
-| glyf   | ✔️     | ✔️         | ⌛*    |
-| CFF    | ✔️     | ✔️         | ⌛*    |
-| CFF2   | ✔️     | ✔️         | ⌛*    |
-| COLRv0 | 🔜     | 🔜         | **      |
-| COLRv1 | 🔜     | 🔜         | **      |
-| EBDT   | 🔜     | -          | -      |
-| CBDT   | 🔜     | -          | -      |
-| sbix   | 🔜     | -          | -      |
+|--------|----------|------------|---------|
+| glyf   | ✔️      | ✔️         | ✔️     |
+| CFF    | ✔️      | -          | ✔️      |
+| CFF2   | ✔️      | ✔️         | ✔️     |
+| COLRv0 | ✔️      | -          | -       |
+| COLRv1 | ✔️      | ✔️         | -       |
+| EBDT   | ✔️*     | -          | -       |
+| CBDT   | ✔️*     | -          | -       |
+| sbix   | ✔️*     | -          | -       |
 
-\* A working implementation exists for hinting but is not yet merged.
-
-\*\* This will be supported but is probably not desirable due the general
-affine transforms present in the paint graph.
+\* Raw support available through the `read-fonts` crate.
 
 ## Panicking
 

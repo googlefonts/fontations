@@ -79,17 +79,17 @@
 //! ```
 
 mod cff;
-mod embedded_hinting;
 mod glyf;
+mod hint;
 
 pub mod error;
 
 use raw::tables::glyf::ToPathStyle;
 use read_fonts::{types::GlyphId, TableProvider};
 
-pub use embedded_hinting::{EmbeddedHintingInstance, HintingMode, LcdLayout};
 #[doc(inline)]
 pub use error::DrawError;
+pub use hint::{HintingInstance, HintingMode, LcdLayout};
 
 pub use read_fonts::types::Pen as OutlinePen;
 
@@ -175,7 +175,7 @@ impl<'a> DrawSettings<'a> {
     ///
     /// The font size, location in variation space and hinting mode are
     /// defined by the current configuration of the given hinting instance.
-    pub fn hinted(instance: &'a EmbeddedHintingInstance, is_pedantic: bool) -> Self {
+    pub fn hinted(instance: &'a HintingInstance, is_pedantic: bool) -> Self {
         Self {
             instance: DrawInstance::Hinted {
                 instance,
@@ -210,7 +210,7 @@ impl<'a> DrawSettings<'a> {
 enum DrawInstance<'a> {
     Unhinted(Size, LocationRef<'a>),
     Hinted {
-        instance: &'a EmbeddedHintingInstance,
+        instance: &'a HintingInstance,
         is_pedantic: bool,
     },
 }
@@ -230,8 +230,8 @@ impl From<Size> for DrawSettings<'_> {
     }
 }
 
-impl<'a> From<&'a EmbeddedHintingInstance> for DrawSettings<'a> {
-    fn from(value: &'a EmbeddedHintingInstance) -> Self {
+impl<'a> From<&'a HintingInstance> for DrawSettings<'a> {
+    fn from(value: &'a HintingInstance) -> Self {
         DrawSettings::hinted(value, false)
     }
 }
