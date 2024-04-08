@@ -28,3 +28,49 @@ impl<'a> Engine<'a> {
         self.value_stack.push(n2.to_bits())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::super::{super::round::RoundMode, MockEngine};
+
+    #[test]
+    fn round() {
+        let mut mock = MockEngine::new();
+        let mut engine = mock.engine();
+        use RoundMode::*;
+        let cases = [
+            (Grid, &[(0, 0), (32, 64), (-32, -64), (64, 64), (50, 64)]),
+            (
+                HalfGrid,
+                &[(0, 32), (32, 32), (-32, -32), (64, 96), (50, 32)],
+            ),
+            (
+                DoubleGrid,
+                &[(0, 0), (32, 32), (-32, -32), (64, 64), (50, 64)],
+            ),
+            (DownToGrid, &[(0, 0), (32, 0), (-32, 0), (64, 64), (50, 0)]),
+            (
+                UpToGrid,
+                &[(0, 0), (32, 64), (-32, -64), (64, 64), (50, 64)],
+            ),
+            (Off, &[(0, 0), (32, 32), (-32, -32), (64, 64), (50, 50)]),
+        ];
+        for (mode, values) in cases {
+            match mode {
+                Grid => engine.op_rtg().unwrap(),
+                HalfGrid => engine.op_rthg().unwrap(),
+                DoubleGrid => engine.op_rtdg().unwrap(),
+                DownToGrid => engine.op_rdtg().unwrap(),
+                UpToGrid => engine.op_rutg().unwrap(),
+                Off => engine.op_roff().unwrap(),
+                _ => unreachable!(),
+            }
+            for (input, expected) in values {
+                engine.value_stack.push(*input).unwrap();
+                engine.op_round().unwrap();
+                let result = engine.value_stack.pop().unwrap();
+                assert_eq!(*expected, result);
+            }
+        }
+    }
+}
