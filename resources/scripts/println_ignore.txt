@@ -2,3 +2,4 @@ font-codegen/src/bin/preprocessor.rs
 otexplorer/src/main.rs
 otexplorer/src/query.rs
 read-fonts/build.rs
+klippa/src/main.rs
