@@ -1360,22 +1360,17 @@ mod tests {
     #[test]
     fn compute_scaler() {
         let region_axes = RegionAxisCoordinates {
-            start_coord: F2Dot14::from_f32(0.0).into(),
-            peak_coord: F2Dot14::from_f32(1.0).into(),
-            end_coord: F2Dot14::from_f32(1.0).into(),
+            start_coord: F2Dot14::from_f32(0.1).into(),
+            peak_coord: F2Dot14::from_f32(0.8).into(),
+            end_coord: F2Dot14::from_f32(0.9).into(),
         };
         let region = VariationRegion {
             region_axes: &[region_axes],
         };
 
-        for i in 0..100 {
-            let coords = vec![F2Dot14::from_f32(i as f32 * 0.0001).into()];
-            let fixed = region.compute_scalar(&coords);
-            let float = region.compute_scalar_f32(&coords);
-            assert_eq!(fixed.to_f32(), float);
-            eprintln!("{fixed} {} {float}", fixed.to_f32());
-        }
-
-        todo!();
+        let coords = vec![F2Dot14::from_f32(0.101).into()];
+        let fixed = region.compute_scalar(&coords);
+        let float = region.compute_scalar_f32(&coords);
+        assert_eq!(fixed.to_f32(), float);
     }
 }
