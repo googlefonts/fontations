@@ -1356,4 +1356,26 @@ mod tests {
         let expected_len = 2 * row_len;
         assert_eq!(ivs.delta_sets().len(), expected_len);
     }
+
+    #[test]
+    fn compute_scaler() {
+        let region_axes = RegionAxisCoordinates {
+            start_coord: F2Dot14::from_f32(0.0).into(),
+            peak_coord: F2Dot14::from_f32(1.0).into(),
+            end_coord: F2Dot14::from_f32(1.0).into(),
+        };
+        let region = VariationRegion {
+            region_axes: &[region_axes],
+        };
+
+        for i in 0..100 {
+            let coords = vec![F2Dot14::from_f32(i as f32 * 0.0001).into()];
+            let fixed = region.compute_scalar(&coords);
+            let float = region.compute_scalar_f32(&coords);
+            assert_eq!(fixed.to_f32(), float);
+            eprintln!("{fixed} {} {float}", fixed.to_f32());
+        }
+
+        todo!();
+    }
 }
