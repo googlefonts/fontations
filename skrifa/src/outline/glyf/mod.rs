@@ -252,18 +252,7 @@ impl<'a> Outlines<'a> {
     }
 
     fn advance_width(&self, gid: GlyphId, coords: &'a [F2Dot14]) -> i32 {
-        let default_advance = self
-            .hmtx
-            .h_metrics()
-            .last()
-            .map(|metric| metric.advance())
-            .unwrap_or(0);
-        let mut advance = self
-            .hmtx
-            .h_metrics()
-            .get(gid.to_u16() as usize)
-            .map(|metric| metric.advance())
-            .unwrap_or(default_advance) as i32;
+        let mut advance = self.hmtx.advance(gid).unwrap_or_default() as i32;
         if let Some(hvar) = &self.hvar {
             advance += hvar
                 .advance_width_delta(gid, coords)
@@ -275,19 +264,7 @@ impl<'a> Outlines<'a> {
     }
 
     fn lsb(&self, gid: GlyphId, coords: &'a [F2Dot14]) -> i32 {
-        let gid_index = gid.to_u16() as usize;
-        let mut lsb = self
-            .hmtx
-            .h_metrics()
-            .get(gid_index)
-            .map(|metric| metric.side_bearing())
-            .unwrap_or_else(|| {
-                self.hmtx
-                    .left_side_bearings()
-                    .get(gid_index.saturating_sub(self.hmtx.h_metrics().len()))
-                    .map(|lsb| lsb.get())
-                    .unwrap_or(0)
-            }) as i32;
+        let mut lsb = self.hmtx.side_bearing(gid).unwrap_or_default() as i32;
         if let Some(hvar) = &self.hvar {
             lsb += hvar
                 .lsb_delta(gid, coords)
