@@ -120,6 +120,7 @@
 //! [`FromTableRef`]: from_obj::FromTableRef
 //! [`ToOwnedTable`]: from_obj::ToOwnedTable
 
+mod bitset;
 mod collections;
 pub mod error;
 mod font_builder;
