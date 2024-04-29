@@ -56,6 +56,11 @@ pub static MOSTLY_OFF_CURVE: &[u8] = include_bytes!("../test_data/ttf/mostly_off
 
 pub static INTERPOLATE_THIS: &[u8] = include_bytes!("../test_data/ttf/interpolate_this.ttf");
 
+pub static MATERIAL_SYMBOLS_SUBSET: &[u8] =
+    include_bytes!("../test_data/ttf/material_symbols_subset.ttf");
+
+pub static GLYF_COMPONENTS: &[u8] = include_bytes!("../test_data/ttf/glyf_components.ttf");
+
 pub mod closure {
     pub static SIMPLE: &[u8] = include_bytes!("../test_data/ttf/simple_closure.ttf");
     pub static SIMPLE_GLYPHS: &str = include_str!("../test_data/fea/simple_closure_glyphs.txt");

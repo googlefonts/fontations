@@ -10,6 +10,8 @@
     <GlyphID id="4" name="simple_transform"/>
     <GlyphID id="5" name="simple_transform_again"/>
     <GlyphID id="6" name="translate_only"/>
+    <GlyphID id="7" name="scaled_component_offset"/>
+    <GlyphID id="8" name="noscaled_component_offset"/>
   </GlyphOrder>
 
   <head>
@@ -133,6 +135,8 @@
     <mtx name="simple_transform" width="600" lsb="550"/>
     <mtx name="simple_transform_again" width="600" lsb="425"/>
     <mtx name="translate_only" width="600" lsb="300"/>
+    <mtx name="scaled_component_offset" width="600" lsb="300"/>
+    <mtx name="noscaled_component_offset" width="600" lsb="300"/>
   </hmtx>
 
   <cmap>
@@ -144,6 +148,8 @@
       <map code="0x31" name="simple_transform"/><!-- DIGIT ONE -->
       <map code="0x32" name="simple_transform_again"/><!-- DIGIT TWO -->
       <map code="0x33" name="translate_only"/><!-- DIGIT THREE -->
+      <map code="0x34" name="scaled_component_offset"/><!-- DIGIT FOUR -->
+      <map code="0x35" name="noscaled_component_offset"/><!-- DIGIT FIVE -->
     </cmap_format_4>
     <cmap_format_4 platformID="3" platEncID="1" language="0">
       <map code="0x2c" name="comma"/><!-- COMMA -->
@@ -152,6 +158,8 @@
       <map code="0x31" name="simple_transform"/><!-- DIGIT ONE -->
       <map code="0x32" name="simple_transform_again"/><!-- DIGIT TWO -->
       <map code="0x33" name="translate_only"/><!-- DIGIT THREE -->
+      <map code="0x34" name="scaled_component_offset"/><!-- DIGIT FOUR -->
+      <map code="0x35" name="noscaled_component_offset"/><!-- DIGIT FIVE -->
     </cmap_format_4>
   </cmap>
 
@@ -211,6 +219,18 @@
       <component glyphName="period" x="50" y="50" flags="0x4"/>
     </TTGlyph>
 
+    <!-- 
+      The exact same glyph, just one version has scaled component offsets enabled (0x800).
+      Specify x/y scale (0x040) because otherwise have xform is false.
+      Specify round xy to grid (0x004) because all other examples do.
+    -->
+    <TTGlyph name="scaled_component_offset" xMin="300" yMin="100" xMax="425" yMax="150">      
+      <component glyphName="simple_transform" x="100" y="100" scalex="1.1" scaley="1.2" flags="0x844"/>
+    </TTGlyph>
+    <TTGlyph name="noscaled_component_offset" xMin="300" yMin="100" xMax="425" yMax="150">
+      <component glyphName="simple_transform" x="100" y="100" scalex="1.1" scaley="1.2" flags="0x44"/>
+    </TTGlyph>
+
   </glyf>
 
   <name>
@@ -259,6 +279,8 @@
       <psName name="simple_transform"/>
       <psName name="simple_transform_again"/>
       <psName name="translate_only"/>
+      <psName name="scaled_component_offset" />
+      <psName name="noscaled_component_offset" />
     </extraNames>
   </post>
 

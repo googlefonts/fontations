@@ -2,6 +2,8 @@
 
 pub mod bytecode;
 
+use bytemuck::AnyBitPattern;
+use core::ops::{Add, AddAssign, Div, Mul, MulAssign, Sub};
 use std::fmt;
 use types::{F26Dot6, Pen, Point};
 
@@ -126,7 +128,22 @@ impl PointFlags {
 }
 
 /// Trait for types that are usable for TrueType point coordinates.
-pub trait PointCoord: Copy + Default {
+pub trait PointCoord:
+    Copy
+    + Default
+    // You could bytemuck with me
+    + AnyBitPattern
+    // You could compare me
+    + PartialEq
+    + PartialOrd
+    // You could do math with me
+    + Add<Output = Self>
+    + AddAssign
+    + Sub<Output = Self>
+    + Div<Output = Self>
+    + Mul<Output = Self>
+    + MulAssign {
+    fn from_fixed(x: Fixed) -> Self;
     fn from_i32(x: i32) -> Self;
     fn to_f32(self) -> f32;
     fn midpoint(self, other: Self) -> Self;
@@ -730,7 +747,10 @@ fn midpoint<C: PointCoord>(a: Point<C>, b: Point<C>) -> Point<C> {
 }
 
 #[derive(Debug)]
-struct Contour<'a, C> {
+struct Contour<'a, C>
+where
+    C: PointCoord,
+{
     /// The offset into the glyphs point stream our points start.
     ///
     /// Allows us to report error indices that are correct relative to the containing point stream.
@@ -743,7 +763,10 @@ struct Contour<'a, C> {
 }
 
 #[derive(Debug)]
-struct ContourIter<'a, C> {
+struct ContourIter<'a, C>
+where
+    C: PointCoord,
+{
     contour: &'a Contour<'a, C>,
     /// Wrapping index into points/flags of contour.
     ix: usize,
@@ -1035,6 +1058,28 @@ impl Transform {
 }
 
 impl PointCoord for F26Dot6 {
+    fn from_fixed(x: Fixed) -> Self {
+        x.to_f26dot6()
+    }
+
+    fn from_i32(x: i32) -> Self {
+        Self::from_i32(x)
+    }
+
+    fn to_f32(self) -> f32 {
+        self.to_f32()
+    }
+
+    fn midpoint(self, other: Self) -> Self {
+        Self::from_bits((self.to_bits() + other.to_bits()) / 2)
+    }
+}
+
+impl PointCoord for Fixed {
+    fn from_fixed(x: Fixed) -> Self {
+        x
+    }
+
     fn from_i32(x: i32) -> Self {
         Self::from_i32(x)
     }
@@ -1049,6 +1094,10 @@ impl PointCoord for F26Dot6 {
 }
 
 impl PointCoord for i32 {
+    fn from_fixed(x: Fixed) -> Self {
+        x.to_i32()
+    }
+
     fn from_i32(x: i32) -> Self {
         x
     }
@@ -1063,6 +1112,10 @@ impl PointCoord for i32 {
 }
 
 impl PointCoord for f32 {
+    fn from_fixed(x: Fixed) -> Self {
+        x.to_f32()
+    }
+
     fn from_i32(x: i32) -> Self {
         x as f32
     }
