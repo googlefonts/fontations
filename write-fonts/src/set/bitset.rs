@@ -145,4 +145,14 @@ mod test {
 
         assert_eq!(bitset.len(), 3);
     }
+
+    #[test]
+    fn bitset_insert_max_value() {
+        let mut bitset = BitSet::<u32>::default();
+        assert!(!bitset.contains(u32::MAX));
+        assert!(bitset.insert(u32::MAX));
+        assert!(bitset.contains(u32::MAX));
+        assert!(!bitset.contains(u32::MAX - 1));
+        assert_eq!(bitset.len(), 1);
+    }
 }
