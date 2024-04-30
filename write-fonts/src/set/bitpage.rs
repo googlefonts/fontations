@@ -74,7 +74,8 @@ impl BitPage {
             .enumerate()
             .filter(|(_, elem)| **elem != 0)
             .flat_map(|(i, elem)| {
-                iter_bit_indices(*elem).map(move |idx| (i as u32 * ELEM_BITS) + idx)
+                let base = i as u32 * ELEM_BITS;
+                iter_bit_indices(*elem).map(move |idx| base + idx)
             })
     }
 
@@ -227,12 +228,14 @@ mod test {
         page.insert(0);
         page.insert(12);
         page.insert(13);
+        page.insert(63);
+        page.insert(64);
         page.insert(511);
         page.insert(23);
         page.insert(400);
         page.insert(78);
 
         let items: Vec<_> = page.iter().collect();
-        assert_eq!(items, vec![0, 12, 13, 23, 78, 400, 511,])
+        assert_eq!(items, vec![0, 12, 13, 23, 63, 64, 78, 400, 511,])
     }
 }
