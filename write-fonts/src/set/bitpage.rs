@@ -14,7 +14,7 @@ const ELEM_BITS: u32 = ELEM_SIZE * 8;
 // mask out bits of a value not used to index into an element
 const ELEM_MASK: u32 = ELEM_BITS - 1;
 // the number of bits in a page
-const PAGE_BITS: u32 = ELEM_BITS * PAGE_SIZE;
+pub const PAGE_BITS: u32 = ELEM_BITS * PAGE_SIZE;
 // mask out the bits of a value not used to index into a page
 const PAGE_MASK: u32 = PAGE_BITS - 1;
 

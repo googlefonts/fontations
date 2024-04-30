@@ -1,10 +1,11 @@
 //! A fast & efficient integer bitset that keeps it's members ordered.
 
 use super::bitpage::BitPage;
+use super::bitpage::PAGE_BITS;
 use std::cell::Cell;
 
 // log_2(PAGE_BITS)
-const PAGE_BITS_LOG_2: u32 = 9; // 512 bits, TODO(garretrieger): compute?
+const PAGE_BITS_LOG_2: u32 = PAGE_BITS.ilog2();
 
 /// An ordered integer set
 #[derive(Clone, Debug, Default)]
