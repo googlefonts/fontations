@@ -65,6 +65,9 @@ impl BitPage {
         self.len() == 0
     }
 
+    // TODO(garretrieger): iterator that starts after some value (similar to next in hb).
+    // TODO(garretrieger): reverse iterator.
+
     pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
         self.storage
             .iter()
@@ -121,22 +124,41 @@ fn iter_bit_indices(val: Element) -> impl Iterator<Item = u32> {
     let mut idx = 0;
 
     std::iter::from_fn(move || {
-        // TODO(garretrieger): there may be a more efficient way to do this with rust std lib.
-        //   Look for a way to do something like bitscanforward/__builtin_ctz that harfbuzz uses.
-        while idx < ELEM_BITS {
-            let mask = 1 << idx;
-            idx += 1;
-            if (val & mask) != 0 {
-                return Some(idx - 1);
-            }
+        if idx >= ELEM_BITS {
+            return None;
         }
-        None
+        let mask = 1u64.checked_shl(idx).unwrap_or(0) - 1;
+        let masked = val & !mask;
+        let next_index = masked.trailing_zeros();
+        if next_index >= ELEM_BITS {
+            return None;
+        }
+        idx = next_index + 1;
+        Some(next_index)
     })
 }
 
 #[cfg(test)]
 mod test {
     use super::*;
+
+    #[test]
+    fn test_iter_bit_indices() {
+        let items: Vec<_> = iter_bit_indices(0).collect();
+        assert_eq!(items, vec![]);
+
+        let items: Vec<_> = iter_bit_indices(1).collect();
+        assert_eq!(items, vec![0]);
+
+        let items: Vec<_> = iter_bit_indices(0b1100).collect();
+        assert_eq!(items, vec![2, 3]);
+
+        let items: Vec<_> = iter_bit_indices(1 << 63).collect();
+        assert_eq!(items, vec![63]);
+
+        let items: Vec<_> = iter_bit_indices((1 << 47) | (1 << 63)).collect();
+        assert_eq!(items, vec![47, 63]);
+    }
 
     #[test]
     fn page_init() {
@@ -204,12 +226,13 @@ mod test {
 
         page.insert(0);
         page.insert(12);
+        page.insert(13);
         page.insert(511);
         page.insert(23);
         page.insert(400);
         page.insert(78);
 
         let items: Vec<_> = page.iter().collect();
-        assert_eq!(items, vec![0, 12, 23, 78, 400, 511,])
+        assert_eq!(items, vec![0, 12, 13, 23, 78, 400, 511,])
     }
 }
