@@ -133,8 +133,6 @@ mod test {
         assert!(bitset.insert(1678));
         assert!(bitset.insert(768));
 
-        //   eprintln!("{bitset:?")
-        dbg!(&bitset);
         assert!(bitset.contains(0));
         assert!(bitset.contains(768));
         assert!(bitset.contains(1678));
