@@ -1,6 +1,6 @@
 [package]
 name = "font-test-data"
-version = "0.1.3"
+version = "0.1.4"
 edition = "2021"
 license = "MIT/Apache-2.0"
 description = "Test data for the fontations crates"
