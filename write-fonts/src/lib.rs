@@ -120,7 +120,6 @@
 //! [`FromTableRef`]: from_obj::FromTableRef
 //! [`ToOwnedTable`]: from_obj::ToOwnedTable
 
-mod bitset;
 mod collections;
 pub mod error;
 mod font_builder;
@@ -129,6 +128,7 @@ mod graph;
 mod offsets;
 pub mod pens;
 mod round;
+mod set;
 mod table_type;
 pub mod tables;
 mod util;
