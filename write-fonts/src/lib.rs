@@ -128,7 +128,6 @@ mod graph;
 mod offsets;
 pub mod pens;
 mod round;
-mod set;
 mod table_type;
 pub mod tables;
 mod util;

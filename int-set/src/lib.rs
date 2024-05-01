@@ -2,7 +2,6 @@ mod bitpage;
 mod bitset;
 
 use bitset::BitSet;
-use std::ops::RangeInclusive;
 
 #[derive(Clone, Debug)]
 pub enum IntSet<T> {
@@ -29,9 +28,10 @@ impl<T: Into<u32> + Copy + Default> IntSet<T> {
         }
     }
 
-    pub fn insert_range(&mut self, range: RangeInclusive<T>) {
-        todo!()
-    }
+    // TODO(garretrieger): implement
+    // pub fn insert_range(&mut self, range: RangeInclusive<T>) {
+    //    todo!()
+    //}
 
     pub fn remove(&mut self, val: T) -> bool {
         match self {
@@ -40,9 +40,10 @@ impl<T: Into<u32> + Copy + Default> IntSet<T> {
         }
     }
 
-    pub fn remove_range(&mut self, range: RangeInclusive<T>) {
-        todo!()
-    }
+    // TODO(garretrieger): implement
+    // pub fn remove_range(&mut self, range: RangeInclusive<T>) {
+    //    todo!()
+    // }
 
     pub fn contains(&self, val: T) -> bool {
         match self {

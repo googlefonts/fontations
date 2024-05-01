@@ -1,0 +1,8 @@
+[package]
+name = "int-set"
+version = "0.1.0"
+edition = "2021"
+license = "MIT/Apache-2.0"
+description = "A fast sparse and invertible bit set for u32's. Port of harfbuzz's hb_set_t."
+
+[dependencies]
