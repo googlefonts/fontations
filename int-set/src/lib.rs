@@ -3,17 +3,28 @@ mod bitset;
 
 use bitset::BitSet;
 
+/// A fast & efficient unsigned integer (u32) bit set which is invertible.
 #[derive(Clone, Debug)]
 pub enum IntSet<T> {
+    /// Records a set of integers which are members of the set.
     Standard(BitSet<T>),
+
+    /// Records the set of integers which are not members of the set.
     Inverted(BitSet<T>),
 }
 
 impl<T: Into<u32> + Copy + Default> IntSet<T> {
+    /// Create a new empty set.
     pub fn default() -> IntSet<T> {
         IntSet::Standard(BitSet::<T>::default())
     }
 
+    /// Create a new set which contains all integers.
+    pub fn all() -> IntSet<T> {
+        IntSet::Inverted(BitSet::<T>::default())
+    }
+
+    /// Return the inverted version of this set.
     pub fn inverted(self) -> IntSet<T> {
         match self {
             IntSet::<T>::Standard(s) => IntSet::<T>::Inverted(s),
@@ -21,6 +32,7 @@ impl<T: Into<u32> + Copy + Default> IntSet<T> {
         }
     }
 
+    /// Add val as a member of this set.
     pub fn insert(&mut self, val: T) -> bool {
         match self {
             IntSet::<T>::Standard(s) => s.insert(val),
@@ -33,6 +45,7 @@ impl<T: Into<u32> + Copy + Default> IntSet<T> {
     //    todo!()
     //}
 
+    /// Remove val from this set.
     pub fn remove(&mut self, val: T) -> bool {
         match self {
             IntSet::<T>::Standard(s) => s.remove(val),
@@ -45,6 +58,7 @@ impl<T: Into<u32> + Copy + Default> IntSet<T> {
     //    todo!()
     // }
 
+    /// Returns true if val is a member of this set.
     pub fn contains(&self, val: T) -> bool {
         match self {
             IntSet::<T>::Standard(s) => s.contains(val),
@@ -54,6 +68,7 @@ impl<T: Into<u32> + Copy + Default> IntSet<T> {
 }
 
 impl<T> IntSet<T> {
+    /// Returns the number of members in this set.
     pub fn len(&self) -> usize {
         match self {
             IntSet::<T>::Standard(s) => s.len(),
