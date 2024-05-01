@@ -87,11 +87,6 @@ impl<T> BitSet<T> {
         self.len.get()
     }
 
-    /// Return true if there are no members in this set.
-    pub fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
-
     fn iter_pages(&self) -> impl Iterator<Item = (u32, &BitPage)> + '_ {
         self.page_map
             .iter()
@@ -209,6 +204,13 @@ impl std::cmp::PartialOrd for PageInfo {
 mod test {
     use super::*;
     use std::collections::HashSet;
+
+    impl<T> BitSet<T> {
+        /// Return true if there are no members in this set.
+        pub fn is_empty(&self) -> bool {
+            self.len() == 0
+        }
+    }
 
     #[test]
     fn len() {
