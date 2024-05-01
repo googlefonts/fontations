@@ -1,6 +1,6 @@
 //! Stores a page of bits, used inside of bitset's.
 
-use std::cell::Cell;
+use std::{cell::Cell, hash::Hash};
 
 // the integer type underlying our bit set
 type Element = u64;
@@ -19,22 +19,9 @@ pub const PAGE_BITS: u32 = ELEM_BITS * PAGE_SIZE;
 const PAGE_MASK: u32 = PAGE_BITS - 1;
 
 #[derive(Clone)]
-pub struct BitPage {
+pub(super) struct BitPage {
     storage: [Element; PAGE_SIZE as usize],
     len: Cell<u32>,
-}
-
-impl Default for BitPage {
-    fn default() -> Self {
-        Self::new_zeroes()
-    }
-}
-
-impl std::fmt::Debug for BitPage {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
-        let values: Vec<_> = self.iter().collect();
-        std::fmt::Debug::fmt(&values, f)
-    }
 }
 
 impl BitPage {
@@ -84,6 +71,26 @@ impl BitPage {
         *self.element_mut(val) |= elem_index_bit_mask(val);
         self.mark_dirty();
         ret
+    }
+
+    pub fn insert_range(&mut self, first: u32, last: u32) {
+        let first = first & PAGE_MASK;
+        let last = last & PAGE_MASK;
+        let first_elem_idx = first / ELEM_BITS;
+        let last_elem_idx = last / ELEM_BITS;
+
+        for elem_idx in first_elem_idx..=last_elem_idx {
+            let elem_start = first.max(elem_idx * ELEM_BITS) & ELEM_MASK;
+            let elem_last = last.min(((elem_idx + 1) * ELEM_BITS) - 1) & ELEM_MASK;
+
+            let end_shift = ELEM_BITS - elem_last - 1;
+            let mask = u64::MAX << (elem_start + end_shift);
+            let mask = mask >> end_shift;
+
+            self.storage[elem_idx as usize] |= mask;
+        }
+
+        self.mark_dirty();
     }
 
     pub fn remove(&mut self, val: u32) -> bool {
@@ -139,8 +146,37 @@ fn iter_bit_indices(val: Element) -> impl Iterator<Item = u32> {
     })
 }
 
+impl Default for BitPage {
+    fn default() -> Self {
+        Self::new_zeroes()
+    }
+}
+
+impl std::fmt::Debug for BitPage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> Result<(), std::fmt::Error> {
+        let values: Vec<_> = self.iter().collect();
+        std::fmt::Debug::fmt(&values, f)
+    }
+}
+
+impl Hash for BitPage {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.storage.hash(state);
+    }
+}
+
+impl std::cmp::PartialEq for BitPage {
+    fn eq(&self, other: &Self) -> bool {
+        self.storage == other.storage
+    }
+}
+
+impl std::cmp::Eq for BitPage {}
+
 #[cfg(test)]
 mod test {
+    use std::collections::HashSet;
+
     use super::*;
 
     #[test]
@@ -203,6 +239,33 @@ mod test {
     }
 
     #[test]
+    fn page_insert_range() {
+        fn page_for_range(first: u32, last: u32) -> BitPage {
+            let mut page = BitPage::new_zeroes();
+            for i in first..=last {
+                page.insert(i);
+            }
+            page
+        }
+
+        for range in [
+            (0, 0),
+            (0, 1),
+            (1, 15),
+            (5, 63),
+            (64, 67),
+            (69, 72),
+            (69, 127),
+            (32, 345),
+            (0, 511),
+        ] {
+            let mut page = BitPage::new_zeroes();
+            page.insert_range(range.0, range.1);
+            assert_eq!(page, page_for_range(range.0, range.1), "{range:?}");
+        }
+    }
+
+    #[test]
     fn page_insert_return() {
         let mut page = BitPage::new_zeroes();
         assert!(page.insert(123));
@@ -222,6 +285,17 @@ mod test {
     }
 
     #[test]
+    fn remove_to_empty_page() {
+        let mut page = BitPage::new_zeroes();
+
+        page.insert(13);
+        assert!(!page.is_empty());
+
+        page.remove(13);
+        assert!(page.is_empty());
+    }
+
+    #[test]
     fn page_iter() {
         let mut page = BitPage::new_zeroes();
 
@@ -237,5 +311,31 @@ mod test {
 
         let items: Vec<_> = page.iter().collect();
         assert_eq!(items, vec![0, 12, 13, 23, 63, 64, 78, 400, 511,])
+    }
+
+    #[test]
+    fn hash_and_eq() {
+        let mut page1 = BitPage::new_zeroes();
+        let mut page2 = BitPage::new_zeroes();
+        let mut page3 = BitPage::new_zeroes();
+
+        page1.insert(12);
+        page1.insert(300);
+
+        page2.insert(300);
+        page2.insert(12);
+        page2.len();
+
+        page3.insert(300);
+        page3.insert(12);
+        page3.insert(23);
+
+        assert_eq!(page1, page2);
+        assert_ne!(page1, page3);
+        assert_ne!(page2, page3);
+
+        let set = HashSet::from([page1]);
+        assert!(set.contains(&page2));
+        assert!(!set.contains(&page3));
     }
 }
