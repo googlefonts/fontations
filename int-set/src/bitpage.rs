@@ -18,6 +18,7 @@ pub const PAGE_BITS: u32 = ELEM_BITS * PAGE_SIZE;
 // mask out the bits of a value not used to index into a page
 const PAGE_MASK: u32 = PAGE_BITS - 1;
 
+/// A fixed size (512 bits wide) page of bits that records integer set membership from [0, 511].
 #[derive(Clone)]
 pub(super) struct BitPage {
     storage: [Element; PAGE_SIZE as usize],
@@ -25,6 +26,7 @@ pub(super) struct BitPage {
 }
 
 impl BitPage {
+    /// Create a new page with no bits set.
     pub fn new_zeroes() -> Self {
         Self {
             storage: [0; PAGE_SIZE as usize],
@@ -32,6 +34,7 @@ impl BitPage {
         }
     }
 
+    /// Create a new page with all bits set.
     pub fn new_ones() -> Self {
         Self {
             storage: [Element::MAX; PAGE_SIZE as usize],
@@ -39,6 +42,7 @@ impl BitPage {
         }
     }
 
+    /// Returns the number of members in this page.
     pub fn len(&self) -> usize {
         if self.is_dirty() {
             // this means we're stale and should recompute
@@ -48,6 +52,7 @@ impl BitPage {
         self.len.get() as usize
     }
 
+    /// Returns true if this page has no members.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -55,6 +60,7 @@ impl BitPage {
     // TODO(garretrieger): iterator that starts after some value (similar to next in hb).
     // TODO(garretrieger): reverse iterator.
 
+    /// Iterator over the members of this page.
     pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
         self.storage
             .iter()
@@ -66,6 +72,7 @@ impl BitPage {
             })
     }
 
+    /// Marks (val % page width) a member of this set.
     pub fn insert(&mut self, val: u32) -> bool {
         let ret = !self.contains(val);
         *self.element_mut(val) |= elem_index_bit_mask(val);
@@ -73,6 +80,7 @@ impl BitPage {
         ret
     }
 
+    /// Marks all values [first, last] as members of this set.
     pub fn insert_range(&mut self, first: u32, last: u32) {
         let first = first & PAGE_MASK;
         let last = last & PAGE_MASK;
@@ -93,6 +101,7 @@ impl BitPage {
         self.mark_dirty();
     }
 
+    /// Removes (val % page width) from this set.
     pub fn remove(&mut self, val: u32) -> bool {
         let ret = self.contains(val);
         *self.element_mut(val) &= !elem_index_bit_mask(val);
@@ -100,6 +109,7 @@ impl BitPage {
         ret
     }
 
+    /// Return true if (val % page width) is a member of this set.
     pub fn contains(&self, val: u32) -> bool {
         (*self.element(val) & elem_index_bit_mask(val)) != 0
     }

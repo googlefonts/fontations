@@ -1,4 +1,4 @@
-//! A fast & efficient integer bitset that keeps it's members ordered.
+//! A fast & efficient unsigned integer bitset that keeps it's members ordered.
 
 use super::bitpage::BitPage;
 use super::bitpage::PAGE_BITS;
@@ -9,7 +9,7 @@ use std::ops::RangeInclusive;
 // log_2(PAGE_BITS)
 const PAGE_BITS_LOG_2: u32 = PAGE_BITS.ilog2();
 
-/// An ordered integer set
+/// An ordered integer (u32) set.
 #[derive(Clone, Debug, Default)]
 pub(super) struct BitSet<T> {
     // TODO(garretrieger): consider a "small array" type instead of Vec.
@@ -20,6 +20,7 @@ pub(super) struct BitSet<T> {
 }
 
 impl<T: Into<u32> + Copy + Default> BitSet<T> {
+    /// Add val as a member of this set.
     pub fn insert(&mut self, val: T) -> bool {
         let val = val.into();
         let page = self.page_for_mut(val);
@@ -28,6 +29,7 @@ impl<T: Into<u32> + Copy + Default> BitSet<T> {
         ret
     }
 
+    /// Add all values in range as members of this set.
     pub fn insert_range(&mut self, range: RangeInclusive<T>) {
         let start = (*range.start()).into();
         let end = (*range.end()).into();
@@ -47,6 +49,7 @@ impl<T: Into<u32> + Copy + Default> BitSet<T> {
         self.mark_dirty();
     }
 
+    /// Remove val from this set.
     pub fn remove(&mut self, val: T) -> bool {
         let val = val.into();
         let page = self.page_for_mut(val);
@@ -55,6 +58,7 @@ impl<T: Into<u32> + Copy + Default> BitSet<T> {
         ret
     }
 
+    /// Returns true if val is a member of this set.
     pub fn contains(&self, val: T) -> bool {
         let val = val.into();
         self.page_for(val)
@@ -64,12 +68,14 @@ impl<T: Into<u32> + Copy + Default> BitSet<T> {
 }
 
 impl<T> BitSet<T> {
+    /// Remove all members from this set.
     pub fn clear(&mut self) {
         self.pages.clear();
         self.page_map.clear();
         self.mark_dirty();
     }
 
+    /// Returns the number of members in this set.
     pub fn len(&self) -> usize {
         // TODO(garretrieger): keep track of len on the fly, rather than computing it. Leave a computation method
         //                     for complex cases if needed.
@@ -81,6 +87,7 @@ impl<T> BitSet<T> {
         self.len.get()
     }
 
+    /// Return true if there are no members in this set.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
