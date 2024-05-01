@@ -34,14 +34,6 @@ impl BitPage {
         }
     }
 
-    /// Create a new page with all bits set.
-    pub fn new_ones() -> Self {
-        Self {
-            storage: [Element::MAX; PAGE_SIZE as usize],
-            len: Cell::new(PAGE_SIZE * ELEM_BITS),
-        }
-    }
-
     /// Returns the number of members in this page.
     pub fn len(&self) -> usize {
         if self.is_dirty() {
@@ -188,6 +180,16 @@ mod test {
     use std::collections::HashSet;
 
     use super::*;
+
+    impl BitPage {
+        /// Create a new page with all bits set.
+        pub fn new_ones() -> Self {
+            Self {
+                storage: [Element::MAX; PAGE_SIZE as usize],
+                len: Cell::new(PAGE_SIZE * ELEM_BITS),
+            }
+        }
+    }
 
     #[test]
     fn test_iter_bit_indices() {
