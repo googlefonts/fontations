@@ -3,7 +3,6 @@
 use super::bitpage::BitPage;
 use super::bitpage::PAGE_BITS;
 use std::cell::Cell;
-use std::cmp::min;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
 
@@ -20,7 +19,7 @@ pub(super) struct BitSet<T> {
     phantom: std::marker::PhantomData<T>,
 }
 
-impl<T: Into<u32> + Copy> BitSet<T> {
+impl<T: Into<u32> + Copy + Default> BitSet<T> {
     pub fn insert(&mut self, val: T) -> bool {
         let val = val.into();
         let page = self.page_for_mut(val);
