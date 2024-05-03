@@ -1,10 +1,25 @@
+//! A fast, efficient, sparse, & ordered unsigned integer (u32) bit set which is invertible.
+//!
+//! The bitset is implemented using fixed size pages which allows it to compactly
+//! represent sparse membership. However, the set excels when set members are typically
+//! clustered together. For example when representing glyph id or unicode codepoint values
+//! in a font.
+//!
+//! The set can have inclusive (the set of integers which are members) or
+//! exclusive (the set of integers which are not members) membership. The
+//! exclusive/inverted version of the set is useful for patterns such as
+//! "keep all codepoints except for {x, y, z, ...}".
+//!
+//! When constructing a new IntSet from an existing lists of integer values the most efficient
+//! way to create the set is to initialize it from a sorted (ascending) iterator of the values.
+
 mod bitpage;
 mod bitset;
 
 use bitset::BitSet;
 use std::ops::RangeInclusive;
 
-/// A fast & efficient unsigned integer (u32) bit set which is invertible.
+/// A fast & efficient invertible ordered set for small (up to 32-bit) unsigned integer types.
 #[derive(Clone, Debug)]
 pub struct IntSet<T>(Membership<T>);
 
@@ -19,28 +34,26 @@ enum Membership<T> {
 
 impl<T: Into<u32> + Copy> Default for IntSet<T> {
     fn default() -> IntSet<T> {
-        IntSet::<T>::empty()
+        IntSet::empty()
     }
 }
 
 impl<T: Into<u32> + Copy> IntSet<T> {
-    /// Create a new empty set.
-
-    /// Create a new empty set.
+    /// Create a new empty set (inclusive).
     pub fn empty() -> IntSet<T> {
-        IntSet::<T>(Membership::Inclusive(BitSet::<T>::empty()))
+        IntSet(Membership::Inclusive(BitSet::empty()))
     }
 
-    /// Create a new set which contains all integers.
+    /// Create a new set which contains all integers (exclusive).
     pub fn all() -> IntSet<T> {
-        IntSet::<T>(Membership::Exclusive(BitSet::<T>::empty()))
+        IntSet(Membership::Exclusive(BitSet::empty()))
     }
 
     /// Return the inverted version of this set.
     pub fn inverted(self) -> IntSet<T> {
         match self.0 {
-            Membership::<T>::Inclusive(s) => IntSet::<T>(Membership::<T>::Exclusive(s)),
-            Membership::<T>::Exclusive(s) => IntSet::<T>(Membership::<T>::Inclusive(s)),
+            Membership::Inclusive(s) => IntSet(Membership::Exclusive(s)),
+            Membership::Exclusive(s) => IntSet(Membership::Inclusive(s)),
         }
     }
 
@@ -48,47 +61,47 @@ impl<T: Into<u32> + Copy> IntSet<T> {
     pub fn clear(mut self) -> IntSet<T> {
         self.clear_internal_set();
         match self.0 {
-            Membership::<T>::Inclusive(s) => IntSet::<T>(Membership::<T>::Inclusive(s)),
-            Membership::<T>::Exclusive(s) => IntSet::<T>(Membership::<T>::Inclusive(s)),
+            Membership::Inclusive(s) => IntSet(Membership::Inclusive(s)),
+            Membership::Exclusive(s) => IntSet(Membership::Inclusive(s)),
         }
     }
 
-    /// Add val as a member of this set.
+    /// Adds a value to the set.
     pub fn insert(&mut self, val: T) -> bool {
         match &mut self.0 {
-            Membership::<T>::Inclusive(s) => s.insert(val),
-            Membership::<T>::Exclusive(s) => s.remove(val),
+            Membership::Inclusive(s) => s.insert(val),
+            Membership::Exclusive(s) => s.remove(val),
         }
     }
 
     /// Add all values in range as members of this set.
     pub fn insert_range(&mut self, range: RangeInclusive<T>) {
         match &mut self.0 {
-            Membership::<T>::Inclusive(s) => s.insert_range(range),
-            Membership::<T>::Exclusive(_) => todo!("implement bitset::remove_range and call here."),
+            Membership::Inclusive(s) => s.insert_range(range),
+            Membership::Exclusive(_) => todo!("implement bitset::remove_range and call here."),
         }
     }
 
-    /// Remove val from this set.
+    /// Removes a value from the set. Returns whether the value was present in the set.
     pub fn remove(&mut self, val: T) -> bool {
         match &mut self.0 {
-            Membership::<T>::Inclusive(s) => s.remove(val),
-            Membership::<T>::Exclusive(s) => s.insert(val),
+            Membership::Inclusive(s) => s.remove(val),
+            Membership::Exclusive(s) => s.insert(val),
         }
     }
 
-    /// Returns true if val is a member of this set.
+    /// Returns `true` if the set contains a value.
     pub fn contains(&self, val: T) -> bool {
         match &self.0 {
-            Membership::<T>::Inclusive(s) => s.contains(val),
-            Membership::<T>::Exclusive(s) => !s.contains(val),
+            Membership::Inclusive(s) => s.contains(val),
+            Membership::Exclusive(s) => !s.contains(val),
         }
     }
 
     fn clear_internal_set(&mut self) {
         match &mut self.0 {
-            Membership::<T>::Inclusive(s) => s.clear(),
-            Membership::<T>::Exclusive(s) => s.clear(),
+            Membership::Inclusive(s) => s.clear(),
+            Membership::Exclusive(s) => s.clear(),
         }
     }
 }
@@ -97,8 +110,8 @@ impl<T> IntSet<T> {
     /// Returns the number of members in this set.
     pub fn len(&self) -> usize {
         match &self.0 {
-            Membership::<T>::Inclusive(s) => s.len(),
-            Membership::<T>::Exclusive(s) => u32::MAX as usize - s.len(),
+            Membership::Inclusive(s) => s.len(),
+            Membership::Exclusive(s) => u32::MAX as usize - s.len(),
         }
     }
 
@@ -111,11 +124,11 @@ impl<T> IntSet<T> {
 impl<T> std::hash::Hash for IntSet<T> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         match &self.0 {
-            Membership::<T>::Inclusive(s) => {
+            Membership::Inclusive(s) => {
                 s.hash(state);
                 0u32.hash(state);
             }
-            Membership::<T>::Exclusive(s) => {
+            Membership::Exclusive(s) => {
                 s.hash(state);
                 1u32.hash(state);
             }
@@ -128,8 +141,8 @@ impl<T> std::cmp::Eq for IntSet<T> {}
 impl<T> std::cmp::PartialEq for IntSet<T> {
     fn eq(&self, other: &Self) -> bool {
         match (&self.0, &other.0) {
-            (Membership::<T>::Inclusive(a), Membership::<T>::Inclusive(b)) => a == b,
-            (Membership::<T>::Exclusive(a), Membership::<T>::Exclusive(b)) => a == b,
+            (Membership::Inclusive(a), Membership::Inclusive(b)) => a == b,
+            (Membership::Exclusive(a), Membership::Exclusive(b)) => a == b,
             _ => return false,
         }
     }
@@ -140,7 +153,7 @@ impl<T: Into<u32> + Copy> FromIterator<T> for IntSet<T> {
         // TODO(garretrieger): implement a more efficient version of this which avoids page lookups
         //  when the iterator values are in sorted order (eg. if the next value is on the same page as
         //  the previous value). This will require BitSet to also implement FromIterator.
-        let mut s = IntSet::<T>::empty();
+        let mut s = IntSet::empty();
         for i in iter {
             s.insert(i);
         }
