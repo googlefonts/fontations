@@ -10,7 +10,7 @@ use std::ops::RangeInclusive;
 const PAGE_BITS_LOG_2: u32 = PAGE_BITS.ilog2();
 
 /// An ordered integer (u32) set.
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub(super) struct BitSet<T> {
     // TODO(garretrieger): consider a "small array" type instead of Vec.
     pages: Vec<BitPage>,
@@ -19,7 +19,16 @@ pub(super) struct BitSet<T> {
     phantom: std::marker::PhantomData<T>,
 }
 
-impl<T: Into<u32> + Copy + Default> BitSet<T> {
+impl<T: Into<u32> + Copy> BitSet<T> {
+    pub fn empty() -> BitSet<T> {
+        BitSet::<T> {
+            pages: vec![],
+            page_map: vec![],
+            len: Default::default(),
+            phantom: Default::default(),
+        }
+    }
+
     /// Add val as a member of this set.
     pub fn insert(&mut self, val: T) -> bool {
         let val = val.into();
@@ -214,14 +223,14 @@ mod test {
 
     #[test]
     fn len() {
-        let bitset = BitSet::<u32>::default();
+        let bitset = BitSet::<u32>::empty();
         assert_eq!(bitset.len(), 0);
         assert!(bitset.is_empty());
     }
 
     #[test]
     fn insert_unordered() {
-        let mut bitset = BitSet::<u32>::default();
+        let mut bitset = BitSet::<u32>::empty();
 
         assert!(!bitset.contains(0));
         assert!(!bitset.contains(768));
@@ -244,7 +253,7 @@ mod test {
 
     #[test]
     fn remove() {
-        let mut bitset = BitSet::<u32>::default();
+        let mut bitset = BitSet::<u32>::empty();
 
         assert!(bitset.insert(0));
         assert!(bitset.insert(511));
@@ -267,7 +276,7 @@ mod test {
 
     #[test]
     fn remove_to_empty_page() {
-        let mut bitset = BitSet::<u32>::default();
+        let mut bitset = BitSet::<u32>::empty();
 
         bitset.insert(793);
         bitset.insert(43);
@@ -280,7 +289,7 @@ mod test {
 
     #[test]
     fn insert_max_value() {
-        let mut bitset = BitSet::<u32>::default();
+        let mut bitset = BitSet::<u32>::empty();
         assert!(!bitset.contains(u32::MAX));
         assert!(bitset.insert(u32::MAX));
         assert!(bitset.contains(u32::MAX));
@@ -290,13 +299,13 @@ mod test {
 
     #[test]
     fn insert_range_invalid() {
-        let mut set = BitSet::default();
+        let mut set = BitSet::empty();
         set.insert_range(5u32..=1);
         assert!(set.is_empty());
     }
 
     fn set_for_range(first: u32, last: u32) -> BitSet<u32> {
-        let mut set = BitSet::<u32>::default();
+        let mut set = BitSet::<u32>::empty();
         for i in first..=last {
             set.insert(i);
         }
@@ -314,7 +323,7 @@ mod test {
             (364, 700),
             (364, 6000),
         ] {
-            let mut set = BitSet::<u32>::default();
+            let mut set = BitSet::<u32>::empty();
             set.len();
             set.insert_range(range.0..=range.1);
             assert_eq!(set, set_for_range(range.0, range.1), "{range:?}");
@@ -324,7 +333,7 @@ mod test {
 
     #[test]
     fn insert_range_on_existing() {
-        let mut set = BitSet::<u32>::default();
+        let mut set = BitSet::<u32>::empty();
         set.insert(700);
         set.insert(2000);
         set.insert_range(32..=4000);
@@ -334,7 +343,7 @@ mod test {
 
     #[test]
     fn clear() {
-        let mut bitset = BitSet::<u32>::default();
+        let mut bitset = BitSet::<u32>::empty();
 
         bitset.insert(13);
         bitset.insert(670);
@@ -349,10 +358,10 @@ mod test {
 
     #[test]
     fn hash_and_eq() {
-        let mut bitset1 = BitSet::<u32>::default();
-        let mut bitset2 = BitSet::<u32>::default();
-        let mut bitset3 = BitSet::<u32>::default();
-        let mut bitset4 = BitSet::<u32>::default();
+        let mut bitset1 = BitSet::<u32>::empty();
+        let mut bitset2 = BitSet::<u32>::empty();
+        let mut bitset3 = BitSet::<u32>::empty();
+        let mut bitset4 = BitSet::<u32>::empty();
 
         bitset1.insert(43);
         bitset1.insert(793);
@@ -367,7 +376,7 @@ mod test {
 
         bitset4.insert(0);
 
-        assert_eq!(BitSet::<u32>::default(), BitSet::<u32>::default());
+        assert_eq!(BitSet::<u32>::empty(), BitSet::<u32>::empty());
         assert_eq!(bitset1, bitset2);
         assert_ne!(bitset1, bitset3);
         assert_ne!(bitset2, bitset3);
@@ -380,9 +389,9 @@ mod test {
 
     #[test]
     fn hash_and_eq_with_empty_pages() {
-        let mut bitset1 = BitSet::<u32>::default();
-        let mut bitset2 = BitSet::<u32>::default();
-        let mut bitset3 = BitSet::<u32>::default();
+        let mut bitset1 = BitSet::<u32>::empty();
+        let mut bitset2 = BitSet::<u32>::empty();
+        let mut bitset3 = BitSet::<u32>::empty();
 
         bitset1.insert(43);
 
