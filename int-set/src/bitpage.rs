@@ -137,7 +137,7 @@ fn iter_bit_indices(val: Element) -> impl Iterator<Item = u32> {
         if idx >= ELEM_BITS {
             return None;
         }
-        let mask = 1u64.checked_shl(idx).unwrap_or(0) - 1;
+        let mask = (1u64 << idx) - 1;
         let masked = val & !mask;
         let next_index = masked.trailing_zeros();
         if next_index >= ELEM_BITS {
