@@ -1,4 +1,4 @@
-//! A fast & efficient unsigned integer bitset that keeps it's members ordered.
+//! A fast & efficient ordered set for unsigned integers.
 
 use super::bitpage::BitPage;
 use super::bitpage::PAGE_BITS;
@@ -84,6 +84,12 @@ impl<T> BitSet<T> {
         self.mark_dirty();
     }
 
+    /// Return true if there are no members in this set.
+    #[cfg(test)]
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
     /// Returns the number of members in this set.
     pub fn len(&self) -> usize {
         // TODO(garretrieger): keep track of len on the fly, rather than computing it. Leave a computation method
@@ -123,7 +129,7 @@ impl<T> BitSet<T> {
         return major << PAGE_BITS_LOG_2;
     }
 
-    /// Return a reference to the that 'value' resides in.
+    /// Return a reference to the page that 'value' resides in.
     fn page_for(&self, value: u32) -> Option<&BitPage> {
         let major_value = self.get_major_value(value);
         self.page_map
@@ -135,8 +141,9 @@ impl<T> BitSet<T> {
             })
     }
 
-    /// Return a mutable reference to the that 'value' resides in. Insert a new
-    /// page if it doesn't exist.
+    /// Return a mutable reference to the page that 'value' resides in.
+    ///
+    /// Insert a new page if it doesn't exist.
     fn page_for_mut(&mut self, value: u32) -> &mut BitPage {
         let major_value = self.get_major_value(value);
         self.page_for_major_mut(major_value)
@@ -213,13 +220,6 @@ impl std::cmp::PartialOrd for PageInfo {
 mod test {
     use super::*;
     use std::collections::HashSet;
-
-    impl<T> BitSet<T> {
-        /// Return true if there are no members in this set.
-        pub fn is_empty(&self) -> bool {
-            self.len() == 0
-        }
-    }
 
     #[test]
     fn len() {
