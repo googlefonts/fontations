@@ -17,20 +17,23 @@ enum Membership<T> {
     Exclusive(BitSet<T>),
 }
 
-impl<T: Into<u32> + Copy + Default> IntSet<T> {
-    /// Create a new empty set.
-    pub fn default() -> IntSet<T> {
+impl<T: Into<u32> + Copy> Default for IntSet<T> {
+    fn default() -> IntSet<T> {
         IntSet::<T>::empty()
     }
+}
+
+impl<T: Into<u32> + Copy> IntSet<T> {
+    /// Create a new empty set.
 
     /// Create a new empty set.
     pub fn empty() -> IntSet<T> {
-        IntSet::<T>(Membership::Inclusive(BitSet::<T>::default()))
+        IntSet::<T>(Membership::Inclusive(BitSet::<T>::empty()))
     }
 
     /// Create a new set which contains all integers.
     pub fn all() -> IntSet<T> {
-        IntSet::<T>(Membership::Exclusive(BitSet::<T>::default()))
+        IntSet::<T>(Membership::Exclusive(BitSet::<T>::empty()))
     }
 
     /// Return the inverted version of this set.
@@ -132,7 +135,7 @@ impl<T> std::cmp::PartialEq for IntSet<T> {
     }
 }
 
-impl<T: Into<u32> + Copy + Default> FromIterator<T> for IntSet<T> {
+impl<T: Into<u32> + Copy> FromIterator<T> for IntSet<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
         // TODO(garretrieger): implement a more efficient version of this which avoids page lookups
         //  when the iterator values are in sorted order (eg. if the next value is on the same page as
@@ -156,7 +159,7 @@ mod test {
 
     #[test]
     fn is_empty() {
-        let mut set = IntSet::<u32>::default();
+        let mut set = IntSet::<u32>::empty();
 
         assert!(set.is_empty());
         set.insert(13);
@@ -166,7 +169,7 @@ mod test {
         let set = set.inverted();
         assert!(!set.is_empty());
 
-        let empty = IntSet::<u32>::default();
+        let empty = IntSet::<u32>::empty();
         assert!(empty.is_empty());
         let all = empty.inverted();
         assert!(!all.is_empty());
@@ -174,11 +177,11 @@ mod test {
 
     #[test]
     fn clear() {
-        let mut set = IntSet::<u32>::default();
+        let mut set = IntSet::<u32>::empty();
         set.insert(13);
         set.insert(800);
 
-        let mut set_inverted = IntSet::<u32>::default();
+        let mut set_inverted = IntSet::<u32>::empty();
         set_inverted.insert(13);
         set_inverted.insert(800);
         let set_inverted = set_inverted.inverted();
@@ -238,7 +241,7 @@ mod test {
 
     #[test]
     fn inverted() {
-        let mut set = IntSet::<u32>::default();
+        let mut set = IntSet::<u32>::empty();
 
         set.insert(13);
         set.insert(800);
