@@ -67,6 +67,8 @@ impl<T: Into<u32> + Copy> IntSet<T> {
     }
 
     /// Adds a value to the set.
+    ///
+    /// Returns `true` if the value was newly inserted.
     pub fn insert(&mut self, val: T) -> bool {
         match &mut self.0 {
             Membership::Inclusive(s) => s.insert(val),
