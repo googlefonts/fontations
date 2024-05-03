@@ -177,7 +177,7 @@ impl<T> std::cmp::PartialEq for BitSet<T> {
         // Note: normally we would prefer to use zip, but we also
         //       need to check that both iters have the same length.
         loop {
-            match dbg!(this.next(), other.next()) {
+            match (this.next(), other.next()) {
                 (Some(a), Some(b)) if a == b => continue,
                 (None, None) => return true,
                 _ => return false,
