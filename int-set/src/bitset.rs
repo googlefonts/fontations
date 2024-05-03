@@ -61,6 +61,8 @@ impl<T: Into<u32> + Copy> BitSet<T> {
     /// Remove val from this set.
     pub fn remove(&mut self, val: T) -> bool {
         let val = val.into();
+        // TODO(garretrieger): this will insert a page if one doesn't exist, for removal
+        // this is not needed, add an alternate mutable page lookup that doesn't insert.
         let page = self.page_for_mut(val);
         let ret = page.remove(val);
         self.mark_dirty();
