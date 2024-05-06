@@ -326,6 +326,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::mutable_key_type)]
     fn hash_and_eq() {
         let mut page1 = BitPage::new_zeroes();
         let mut page2 = BitPage::new_zeroes();
