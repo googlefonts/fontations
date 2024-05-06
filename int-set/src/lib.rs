@@ -86,6 +86,14 @@ impl<T> IntSet<T> {
         IntSet(Membership::Exclusive(BitSet::empty()))
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
+        match &self.0 {
+            Membership::Inclusive(s) => s.iter(),
+            // TODO(garretrieger): implement this. Walk over all u32's skipping those present in the underlying set.
+            Membership::Exclusive(_) => todo!(),
+        }
+    }
+
     /// Return the inverted version of this set.
     pub fn invert(&mut self) {
         let reuse_storage = match &mut self.0 {
@@ -136,14 +144,20 @@ impl<T> IntSet<T> {
 
 impl<T: Into<u32> + Copy> FromIterator<T> for IntSet<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        let mut s = IntSet::empty();
+        s.extend(iter);
+        s
+    }
+}
+
+impl<T: Into<u32> + Copy> Extend<T> for IntSet<T> {
+    fn extend<U: IntoIterator<Item = T>>(&mut self, iter: U) {
         // TODO(garretrieger): implement a more efficient version of this which avoids page lookups
         //  when the iterator values are in sorted order (eg. if the next value is on the same page as
         //  the previous value). This will require BitSet to also implement FromIterator.
-        let mut s = IntSet::empty();
-        for i in iter {
-            s.insert(i);
+        for elem in iter {
+            self.insert(elem);
         }
-        s
     }
 }
 
@@ -228,8 +242,38 @@ mod test {
     }
 
     #[test]
+    fn iter() {
+        let mut set = IntSet::<u32>::empty();
+        set.insert(3);
+        set.insert(8);
+        set.insert(534);
+        set.insert(700);
+        set.insert(10000);
+        set.insert(10001);
+        set.insert(10002);
+
+        let v: Vec<u32> = set.iter().collect();
+        assert_eq!(v, vec![3, 8, 534, 700, 10000, 10001, 10002]);
+    }
+
+    #[test]
     fn from_iterator() {
         let s: IntSet<u32> = vec![3, 8, 12, 589].iter().copied().collect();
+        let mut expected = IntSet::<u32>::empty();
+        expected.insert(3);
+        expected.insert(8);
+        expected.insert(12);
+        expected.insert(589);
+
+        assert_eq!(s, expected);
+    }
+
+    #[test]
+    fn extend() {
+        let mut s = IntSet::<u32>::empty();
+        s.extend(vec![3, 12].iter().copied());
+        s.extend(vec![8, 589].iter().copied());
+
         let mut expected = IntSet::<u32>::empty();
         expected.insert(3);
         expected.insert(8);

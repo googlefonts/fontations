@@ -104,6 +104,13 @@ impl<T> BitSet<T> {
         self.len.get()
     }
 
+    pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
+        self.iter_non_empty_pages().flat_map(|(major, page)| {
+            let base = self.major_start(major);
+            page.iter().map(move |v| base + v)
+        })
+    }
+
     fn iter_pages(&self) -> impl Iterator<Item = (u32, &BitPage)> + '_ {
         self.page_map
             .iter()
@@ -228,6 +235,21 @@ mod test {
         let bitset = BitSet::<u32>::empty();
         assert_eq!(bitset.len(), 0);
         assert!(bitset.is_empty());
+    }
+
+    #[test]
+    fn iter() {
+        let mut bitset = BitSet::<u32>::empty();
+        bitset.insert(3);
+        bitset.insert(8);
+        bitset.insert(534);
+        bitset.insert(700);
+        bitset.insert(10000);
+        bitset.insert(10001);
+        bitset.insert(10002);
+
+        let v: Vec<u32> = bitset.iter().collect();
+        assert_eq!(v, vec![3, 8, 534, 700, 10000, 10001, 10002]);
     }
 
     #[test]
