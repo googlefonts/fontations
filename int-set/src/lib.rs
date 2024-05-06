@@ -96,11 +96,19 @@ impl<T> IntSet<T> {
         }
     }
 
-    // If this is an inclusive membership set then returns an iterator over the members, otherwise returns None.
+    /// If this is an inclusive membership set then returns an iterator over the members, otherwise returns None.
     pub fn inclusive_iter(&self) -> Option<impl Iterator<Item = u32> + '_> {
         match &self.0 {
             Membership::Inclusive(s) => Some(s.iter()),
             Membership::Exclusive(_) => None,
+        }
+    }
+
+    /// Returns true if this set is inverted (has exclusive membership).
+    pub fn is_inverted(&self) -> bool {
+        match &self.0 {
+            Membership::Inclusive(_) => false,
+            Membership::Exclusive(_) => true,
         }
     }
 
@@ -365,12 +373,14 @@ mod test {
         assert!(set.contains(13));
         assert!(set.contains(800));
         assert_eq!(set.len(), 2);
+        assert!(!set.is_inverted());
 
         set.invert();
         assert_eq!(set.len(), u32::MAX as usize - 2);
         assert!(!set.contains(13));
         assert!(set.contains(80));
         assert!(!set.contains(800));
+        assert!(set.is_inverted());
 
         set.remove(80);
         assert!(!set.contains(80));
