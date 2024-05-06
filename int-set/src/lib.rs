@@ -50,20 +50,37 @@ impl<T: Into<u32> + Copy> IntSet<T> {
     }
 
     /// Return the inverted version of this set.
-    pub fn inverted(self) -> IntSet<T> {
-        match self.0 {
-            Membership::Inclusive(s) => IntSet(Membership::Exclusive(s)),
-            Membership::Exclusive(s) => IntSet(Membership::Inclusive(s)),
-        }
+    pub fn invert(&mut self) {
+        let reuse_storage = match &mut self.0 {
+            // take the existing storage to reuse in a new set of the oppposite
+            // type.
+            Membership::Inclusive(s) | Membership::Exclusive(s) => {
+                std::mem::replace(s, BitSet::empty())
+            }
+        };
+
+        // reuse the storage with a membership of the opposite type.
+        self.0 = match &mut self.0 {
+            Membership::Inclusive(_) => Membership::Exclusive(reuse_storage),
+            Membership::Exclusive(_) => Membership::Inclusive(reuse_storage),
+        };
     }
 
-    /// Return a new version of this set with all members removed.
-    pub fn clear(mut self) -> IntSet<T> {
-        self.clear_internal_set();
-        match self.0 {
-            Membership::Inclusive(s) => IntSet(Membership::Inclusive(s)),
-            Membership::Exclusive(s) => IntSet(Membership::Inclusive(s)),
-        }
+    /// Clears the set, removing all values.
+    pub fn clear(&mut self) {
+        let mut reuse_storage = match &mut self.0 {
+            // if we're inclusive, we just clear the storage
+            Membership::Inclusive(s) => {
+                s.clear();
+                return;
+            }
+            // otherwise take the existing storage to reuse in a new
+            // inclusive set:
+            Membership::Exclusive(s) => std::mem::replace(s, BitSet::empty()),
+        };
+        // reuse the now empty storage and mark us as inclusive
+        reuse_storage.clear();
+        self.0 = Membership::Inclusive(reuse_storage);
     }
 
     /// Adds a value to the set.
@@ -97,13 +114,6 @@ impl<T: Into<u32> + Copy> IntSet<T> {
         match &self.0 {
             Membership::Inclusive(s) => s.contains(val),
             Membership::Exclusive(s) => !s.contains(val),
-        }
-    }
-
-    fn clear_internal_set(&mut self) {
-        match &mut self.0 {
-            Membership::Inclusive(s) => s.clear(),
-            Membership::Exclusive(s) => s.clear(),
         }
     }
 }
@@ -181,13 +191,13 @@ mod test {
         set.insert(800);
         assert!(!set.is_empty());
 
-        let set = set.inverted();
+        set.invert();
         assert!(!set.is_empty());
 
-        let empty = IntSet::<u32>::empty();
+        let mut empty = IntSet::<u32>::empty();
         assert!(empty.is_empty());
-        let all = empty.inverted();
-        assert!(!all.is_empty());
+        empty.invert();
+        assert!(!empty.is_empty());
     }
 
     #[test]
@@ -199,11 +209,11 @@ mod test {
         let mut set_inverted = IntSet::<u32>::empty();
         set_inverted.insert(13);
         set_inverted.insert(800);
-        let set_inverted = set_inverted.inverted();
+        set_inverted.invert();
 
-        let set = set.clear();
+        set.clear();
         assert!(set.is_empty());
-        let set_inverted = set_inverted.clear();
+        set_inverted.clear();
         assert!(set_inverted.is_empty());
     }
 
@@ -220,7 +230,8 @@ mod test {
         let mut inc3 = inc1.clone();
         inc3.insert(5);
 
-        let exc = inc1.clone().inverted();
+        let mut exc = inc1.clone();
+        exc.invert();
 
         assert_eq!(inc1, inc2);
         assert_ne!(inc1, inc3);
@@ -264,7 +275,7 @@ mod test {
         assert!(set.contains(800));
         assert_eq!(set.len(), 2);
 
-        set = set.inverted();
+        set.invert();
         assert_eq!(set.len(), u32::MAX as usize - 2);
         assert!(!set.contains(13));
         assert!(set.contains(80));
@@ -276,7 +287,7 @@ mod test {
         set.insert(13);
         assert!(set.contains(13));
 
-        set = set.inverted();
+        set.invert();
         assert!(set.contains(80));
         assert!(set.contains(800));
     }
