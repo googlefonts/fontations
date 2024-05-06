@@ -40,6 +40,42 @@ impl<T: Into<u32> + Copy> Default for IntSet<T> {
 }
 
 impl<T: Into<u32> + Copy> IntSet<T> {
+    /// Adds a value to the set.
+    ///
+    /// Returns `true` if the value was newly inserted.
+    pub fn insert(&mut self, val: T) -> bool {
+        match &mut self.0 {
+            Membership::Inclusive(s) => s.insert(val),
+            Membership::Exclusive(s) => s.remove(val),
+        }
+    }
+
+    /// Add all values in range as members of this set.
+    pub fn insert_range(&mut self, range: RangeInclusive<T>) {
+        match &mut self.0 {
+            Membership::Inclusive(s) => s.insert_range(range),
+            Membership::Exclusive(_) => todo!("implement bitset::remove_range and call here."),
+        }
+    }
+
+    /// Removes a value from the set. Returns whether the value was present in the set.
+    pub fn remove(&mut self, val: T) -> bool {
+        match &mut self.0 {
+            Membership::Inclusive(s) => s.remove(val),
+            Membership::Exclusive(s) => s.insert(val),
+        }
+    }
+
+    /// Returns `true` if the set contains a value.
+    pub fn contains(&self, val: T) -> bool {
+        match &self.0 {
+            Membership::Inclusive(s) => s.contains(val),
+            Membership::Exclusive(s) => !s.contains(val),
+        }
+    }
+}
+
+impl<T> IntSet<T> {
     /// Create a new empty set (inclusive).
     pub fn empty() -> IntSet<T> {
         IntSet(Membership::Inclusive(BitSet::empty()))
@@ -84,42 +120,6 @@ impl<T: Into<u32> + Copy> IntSet<T> {
         self.0 = Membership::Inclusive(reuse_storage);
     }
 
-    /// Adds a value to the set.
-    ///
-    /// Returns `true` if the value was newly inserted.
-    pub fn insert(&mut self, val: T) -> bool {
-        match &mut self.0 {
-            Membership::Inclusive(s) => s.insert(val),
-            Membership::Exclusive(s) => s.remove(val),
-        }
-    }
-
-    /// Add all values in range as members of this set.
-    pub fn insert_range(&mut self, range: RangeInclusive<T>) {
-        match &mut self.0 {
-            Membership::Inclusive(s) => s.insert_range(range),
-            Membership::Exclusive(_) => todo!("implement bitset::remove_range and call here."),
-        }
-    }
-
-    /// Removes a value from the set. Returns whether the value was present in the set.
-    pub fn remove(&mut self, val: T) -> bool {
-        match &mut self.0 {
-            Membership::Inclusive(s) => s.remove(val),
-            Membership::Exclusive(s) => s.insert(val),
-        }
-    }
-
-    /// Returns `true` if the set contains a value.
-    pub fn contains(&self, val: T) -> bool {
-        match &self.0 {
-            Membership::Inclusive(s) => s.contains(val),
-            Membership::Exclusive(s) => !s.contains(val),
-        }
-    }
-}
-
-impl<T> IntSet<T> {
     /// Returns the number of members in this set.
     pub fn len(&self) -> usize {
         match &self.0 {
