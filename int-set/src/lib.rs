@@ -86,11 +86,21 @@ impl<T> IntSet<T> {
         IntSet(Membership::Exclusive(BitSet::empty()))
     }
 
+    /// Returns an iterator over all members of the set.
+    /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
+    /// care should be taken when using .iter() in combination with an inverted set.
     pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
         match &self.0 {
-            Membership::Inclusive(s) => s.iter(),
-            // TODO(garretrieger): implement this. Walk over all u32's skipping those present in the underlying set.
-            Membership::Exclusive(_) => todo!(),
+            Membership::Inclusive(s) => int_set_iter(s.iter(), false),
+            Membership::Exclusive(s) => int_set_iter(s.iter(), true),
+        }
+    }
+
+    // If this is an inclusive membership set then returns an iterator over the members, otherwise returns None.
+    pub fn inclusive_iter(&self) -> Option<impl Iterator<Item = u32> + '_> {
+        match &self.0 {
+            Membership::Inclusive(s) => Some(s.iter()),
+            Membership::Exclusive(_) => None,
         }
     }
 
@@ -159,6 +169,44 @@ impl<T: Into<u32> + Copy> Extend<T> for IntSet<T> {
             self.insert(elem);
         }
     }
+}
+
+fn int_set_iter<U>(mut values: U, exclusive: bool) -> impl Iterator<Item = u32>
+where
+    U: Iterator<Item = u32>,
+{
+    let mut cur_value = values.next();
+    let mut index: u64 = u32::MIN as u64;
+
+    std::iter::from_fn(move || {
+        if !exclusive {
+            let ret = cur_value;
+            cur_value = values.next();
+            return ret;
+        }
+
+        if index > u32::MAX as u64 {
+            return None;
+        }
+
+        while let Some(skip) = cur_value {
+            if index < skip as u64 {
+                break;
+            }
+
+            cur_value = values.next();
+            if index > skip as u64 {
+                continue;
+            }
+
+            index += 1;
+            continue;
+        }
+
+        let next_index = index;
+        index = next_index + 1;
+        Some(next_index as u32)
+    })
 }
 
 #[cfg(test)]
@@ -255,6 +303,30 @@ mod test {
 
         let v: Vec<u32> = set.iter().collect();
         assert_eq!(v, vec![3, 8, 534, 700, 10000, 10001, 10002]);
+
+        let v: Vec<u32> = set.inclusive_iter().unwrap().collect();
+        assert_eq!(v, vec![3, 8, 534, 700, 10000, 10001, 10002]);
+    }
+
+    #[test]
+    fn exclusive_iter() {
+        let mut set = IntSet::<u32>::all();
+        set.remove(3);
+        set.remove(7);
+        set.remove(8);
+
+        let mut iter = set.iter();
+
+        assert_eq!(iter.next(), Some(0));
+        assert_eq!(iter.next(), Some(1));
+        assert_eq!(iter.next(), Some(2));
+        assert_eq!(iter.next(), Some(4));
+        assert_eq!(iter.next(), Some(5));
+        assert_eq!(iter.next(), Some(6));
+        assert_eq!(iter.next(), Some(9));
+        assert_eq!(iter.next(), Some(10));
+
+        assert!(set.inclusive_iter().is_none());
     }
 
     #[test]
