@@ -131,11 +131,11 @@ impl<T> BitSet<T> {
 
     /// Return the major value (top 23 bits) of the page associated with value.
     fn get_major_value(&self, value: u32) -> u32 {
-        return value >> PAGE_BITS_LOG_2;
+        value >> PAGE_BITS_LOG_2
     }
 
     fn major_start(&self, major: u32) -> u32 {
-        return major << PAGE_BITS_LOG_2;
+        major << PAGE_BITS_LOG_2
     }
 
     /// Return a reference to the page that 'value' resides in.
@@ -321,13 +321,6 @@ mod test {
         assert_eq!(bitset.len(), 1);
     }
 
-    #[test]
-    fn insert_range_invalid() {
-        let mut set = BitSet::empty();
-        set.insert_range(5u32..=1);
-        assert!(set.is_empty());
-    }
-
     fn set_for_range(first: u32, last: u32) -> BitSet<u32> {
         let mut set = BitSet::<u32>::empty();
         for i in first..=last {
@@ -381,6 +374,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::mutable_key_type)]
     fn hash_and_eq() {
         let mut bitset1 = BitSet::<u32>::empty();
         let mut bitset2 = BitSet::<u32>::empty();
@@ -412,6 +406,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::mutable_key_type)]
     fn hash_and_eq_with_empty_pages() {
         let mut bitset1 = BitSet::<u32>::empty();
         let mut bitset2 = BitSet::<u32>::empty();

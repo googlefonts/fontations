@@ -206,6 +206,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::mutable_key_type)]
     fn equal_an_hash() {
         let mut inc1 = IntSet::<u32>::empty();
         inc1.insert(14);
@@ -258,7 +259,7 @@ mod test {
 
     #[test]
     fn from_iterator() {
-        let s: IntSet<u32> = vec![3, 8, 12, 589].iter().copied().collect();
+        let s: IntSet<u32> = [3, 8, 12, 589].iter().copied().collect();
         let mut expected = IntSet::<u32>::empty();
         expected.insert(3);
         expected.insert(8);
@@ -271,8 +272,8 @@ mod test {
     #[test]
     fn extend() {
         let mut s = IntSet::<u32>::empty();
-        s.extend(vec![3, 12].iter().copied());
-        s.extend(vec![8, 589].iter().copied());
+        s.extend([3, 12].iter().copied());
+        s.extend([8, 589].iter().copied());
 
         let mut expected = IntSet::<u32>::empty();
         expected.insert(3);
