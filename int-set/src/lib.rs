@@ -17,13 +17,14 @@ mod bitpage;
 mod bitset;
 
 use bitset::BitSet;
+use std::hash::Hash;
 use std::ops::RangeInclusive;
 
 /// A fast & efficient invertible ordered set for small (up to 32-bit) unsigned integer types.
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct IntSet<T>(Membership<T>);
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Hash, PartialEq, Eq)]
 enum Membership<T> {
     /// Records a set of integers which are members of the set.
     Inclusive(BitSet<T>),
@@ -130,33 +131,6 @@ impl<T> IntSet<T> {
     /// Return true if there are no members in this set.
     pub fn is_empty(&self) -> bool {
         self.len() == 0
-    }
-}
-
-impl<T> std::hash::Hash for IntSet<T> {
-    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        match &self.0 {
-            Membership::Inclusive(s) => {
-                s.hash(state);
-                0u32.hash(state);
-            }
-            Membership::Exclusive(s) => {
-                s.hash(state);
-                1u32.hash(state);
-            }
-        }
-    }
-}
-
-impl<T> std::cmp::Eq for IntSet<T> {}
-
-impl<T> std::cmp::PartialEq for IntSet<T> {
-    fn eq(&self, other: &Self) -> bool {
-        match (&self.0, &other.0) {
-            (Membership::Inclusive(a), Membership::Inclusive(b)) => a == b,
-            (Membership::Exclusive(a), Membership::Exclusive(b)) => a == b,
-            _ => return false,
-        }
     }
 }
 
