@@ -20,15 +20,6 @@ pub(super) struct BitSet<T> {
 }
 
 impl<T: Into<u32> + Copy> BitSet<T> {
-    pub fn empty() -> BitSet<T> {
-        BitSet::<T> {
-            pages: vec![],
-            page_map: vec![],
-            len: Default::default(),
-            phantom: Default::default(),
-        }
-    }
-
     /// Add val as a member of this set.
     pub fn insert(&mut self, val: T) -> bool {
         let val = val.into();
@@ -79,6 +70,15 @@ impl<T: Into<u32> + Copy> BitSet<T> {
 }
 
 impl<T> BitSet<T> {
+    pub fn empty() -> BitSet<T> {
+        BitSet::<T> {
+            pages: vec![],
+            page_map: vec![],
+            len: Default::default(),
+            phantom: Default::default(),
+        }
+    }
+
     /// Remove all members from this set.
     pub fn clear(&mut self) {
         self.pages.clear();
