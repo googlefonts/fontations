@@ -12,10 +12,6 @@ pub trait HasLen {
     fn checked_len<T: TryFrom<usize>>(&self) -> Result<T, <T as TryFrom<usize>>::Error> {
         self.len().try_into()
     }
-
-    fn is_empty(&self) -> bool {
-        self.len() == 0
-    }
 }
 
 impl<T> HasLen for [T] {
