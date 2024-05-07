@@ -227,6 +227,39 @@ mod test {
     use super::*;
 
     #[test]
+    fn insert() {
+        let mut empty = IntSet::<u32>::empty();
+        let mut all = IntSet::<u32>::all();
+
+        assert!(!empty.contains(10));
+        assert!(empty.insert(10));
+        assert!(empty.contains(10));
+        assert!(!empty.insert(10));
+
+        assert!(all.contains(10));
+        assert!(!all.insert(10));
+        assert!(all.contains(10));
+        assert!(!all.insert(10));
+    }
+
+    #[test]
+    fn remove() {
+        let mut empty = IntSet::<u32>::empty();
+        empty.insert(10);
+        let mut all = IntSet::<u32>::all();
+
+        assert!(empty.contains(10));
+        assert!(empty.remove(10));
+        assert!(!empty.contains(10));
+        assert!(!empty.remove(10));
+
+        assert!(all.contains(10));
+        assert!(all.remove(10));
+        assert!(!all.contains(10));
+        assert!(!all.remove(10));
+    }
+
+    #[test]
     fn is_empty() {
         let mut set = IntSet::<u32>::empty();
 
