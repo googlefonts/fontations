@@ -66,6 +66,8 @@ impl<T: Into<u32> + Copy> IntSet<T> {
         }
     }
 
+    // TODO(garrretrieger): add remove_range.
+
     /// Returns `true` if the set contains a value.
     pub fn contains(&self, val: T) -> bool {
         match &self.0 {
