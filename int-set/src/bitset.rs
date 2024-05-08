@@ -221,16 +221,11 @@ impl<T: Into<u32> + Copy> Extend<T> for BitSet<T> {
         for elem in iter {
             let val: u32 = elem.into();
             let major_value = self.get_major_value(val);
-            let pages_index = if major_value == last_major_value {
-                last_page_index
-            } else {
-                self.ensure_page_index_for_major(major_value)
+            if major_value != last_major_value {
+                last_page_index = self.ensure_page_index_for_major(major_value);
+                last_major_value = major_value;
             };
-
-            last_major_value = major_value;
-            last_page_index = pages_index;
-
-            self.pages[pages_index].insert_no_ret(val);
+            self.pages[last_page_index].insert_no_ret(val);
         }
     }
 }
