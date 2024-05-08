@@ -23,10 +23,12 @@ impl<T: Into<u32> + Copy> BitSet<T> {
     /// Add val as a member of this set.
     pub fn insert(&mut self, val: T) -> bool {
         let val = val.into();
-        let page = self.ensure_page_for_mut(val);
-        let ret = page.insert(val);
-        self.mark_dirty();
-        ret
+        if let Some(page) = self.ensure_page_for_mut(val) {
+            let ret = page.insert(val);
+            self.mark_dirty();
+            return ret;
+        }
+        false
     }
 
     /// Add all values in range as members of this set.
@@ -43,8 +45,9 @@ impl<T: Into<u32> + Copy> BitSet<T> {
         for major in major_start..=major_end {
             let page_start = start.max(self.major_start(major));
             let page_end = end.min(self.major_start(major + 1) - 1);
-            self.ensure_page_for_major_mut(major)
-                .insert_range(page_start, page_end);
+            if let Some(page) = self.ensure_page_for_major_mut(major) {
+                page.insert_range(page_start, page_end);
+            }
         }
         self.mark_dirty();
     }
@@ -55,9 +58,11 @@ impl<T: Into<u32> + Copy> BitSet<T> {
         for elem in iter {
             let val: u32 = elem.into();
             let major_value = self.get_major_value(val);
-            self.ensure_page_for_major_mut(major_value)
-                .insert_no_return(val);
+            if let Some(page) = self.ensure_page_for_major_mut(major_value) {
+                page.insert_no_return(val);
+            }
         }
+        self.mark_dirty();
     }
 
     /// Remove val from this set.
@@ -125,9 +130,11 @@ impl<T> BitSet<T> {
     }
 
     fn iter_pages(&self) -> impl Iterator<Item = (u32, &BitPage)> + '_ {
-        self.page_map
-            .iter()
-            .map(|info| (info.major_value, &self.pages[info.index as usize]))
+        self.page_map.iter().flat_map(|info| {
+            self.pages
+                .get(info.index as usize)
+                .map(|page| (info.major_value, page))
+        })
     }
 
     fn iter_non_empty_pages(&self) -> impl Iterator<Item = (u32, &BitPage)> + '_ {
@@ -184,7 +191,7 @@ impl<T> BitSet<T> {
     fn page_for(&self, value: u32) -> Option<&BitPage> {
         let major_value = self.get_major_value(value);
         let pages_index = self.page_index_for_major(major_value)?;
-        Some(&self.pages[pages_index])
+        self.pages.get(pages_index)
     }
 
     /// Return a mutable reference to the page that 'value' resides in.
@@ -193,21 +200,21 @@ impl<T> BitSet<T> {
     fn page_for_mut(&mut self, value: u32) -> Option<&mut BitPage> {
         let major_value = self.get_major_value(value);
         let pages_index = self.page_index_for_major(major_value)?;
-        Some(&mut self.pages[pages_index])
+        self.pages.get_mut(pages_index)
     }
 
     /// Return a mutable reference to the page that 'value' resides in.
     ///
     /// Insert a new page if it doesn't exist.
-    fn ensure_page_for_mut(&mut self, value: u32) -> &mut BitPage {
+    fn ensure_page_for_mut(&mut self, value: u32) -> Option<&mut BitPage> {
         self.ensure_page_for_major_mut(self.get_major_value(value))
     }
 
     // Return a mutable reference to the page with major value equal to major_value.
     // Inserts a new page if it doesn't exist.
-    fn ensure_page_for_major_mut(&mut self, major_value: u32) -> &mut BitPage {
+    fn ensure_page_for_major_mut(&mut self, major_value: u32) -> Option<&mut BitPage> {
         let page_index = self.ensure_page_index_for_major(major_value);
-        &mut self.pages[page_index]
+        self.pages.get_mut(page_index)
     }
 }
 
@@ -225,8 +232,11 @@ impl<T: Into<u32> + Copy> Extend<T> for BitSet<T> {
                 last_page_index = self.ensure_page_index_for_major(major_value);
                 last_major_value = major_value;
             };
-            self.pages[last_page_index].insert_no_return(val);
+            if let Some(page) = self.pages.get_mut(last_page_index) {
+                page.insert_no_return(val);
+            }
         }
+        self.mark_dirty();
     }
 }
 
@@ -311,6 +321,7 @@ mod test {
         let mut s2 = BitSet::<u32>::empty();
         let mut s3 = BitSet::<u32>::empty();
         let mut s4 = BitSet::<u32>::empty();
+        assert_eq!(s1.len(), 0);
 
         s1.extend(values.iter().copied());
         s2.extend_unsorted(values.iter().copied());
@@ -321,6 +332,11 @@ mod test {
         assert_eq!(s2.iter().collect::<Vec<u32>>(), values);
         assert_eq!(s3.iter().collect::<Vec<u32>>(), values);
         assert_eq!(s4.iter().collect::<Vec<u32>>(), values);
+
+        assert_eq!(s1.len(), 7);
+        assert_eq!(s2.len(), 7);
+        assert_eq!(s3.len(), 7);
+        assert_eq!(s4.len(), 7);
     }
 
     #[test]
