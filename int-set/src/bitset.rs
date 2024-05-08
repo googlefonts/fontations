@@ -11,7 +11,7 @@ const PAGE_BITS_LOG_2: u32 = PAGE_BITS.ilog2();
 
 /// An ordered integer (u32) set.
 #[derive(Clone, Debug)]
-pub(super) struct BitSet<T> {
+pub(crate) struct BitSet<T> {
     // TODO(garretrieger): consider a "small array" type instead of Vec.
     pages: Vec<BitPage>,
     page_map: Vec<PageInfo>,
@@ -21,7 +21,7 @@ pub(super) struct BitSet<T> {
 
 impl<T: Into<u32> + Copy> BitSet<T> {
     /// Add val as a member of this set.
-    pub fn insert(&mut self, val: T) -> bool {
+    pub(crate) fn insert(&mut self, val: T) -> bool {
         let val = val.into();
         if let Some(page) = self.ensure_page_for_mut(val) {
             let ret = page.insert(val);
@@ -32,7 +32,7 @@ impl<T: Into<u32> + Copy> BitSet<T> {
     }
 
     /// Add all values in range as members of this set.
-    pub fn insert_range(&mut self, range: RangeInclusive<T>) {
+    pub(crate) fn insert_range(&mut self, range: RangeInclusive<T>) {
         let start = (*range.start()).into();
         let end = (*range.end()).into();
         if start > end {
@@ -54,7 +54,7 @@ impl<T: Into<u32> + Copy> BitSet<T> {
 
     /// An alternate version of extend() which is optimized for inserting an unsorted
     /// iterator of values.
-    pub fn extend_unsorted<U: IntoIterator<Item = T>>(&mut self, iter: U) {
+    pub(crate) fn extend_unsorted<U: IntoIterator<Item = T>>(&mut self, iter: U) {
         for elem in iter {
             let val: u32 = elem.into();
             let major_value = self.get_major_value(val);
@@ -66,7 +66,7 @@ impl<T: Into<u32> + Copy> BitSet<T> {
     }
 
     /// Remove val from this set.
-    pub fn remove(&mut self, val: T) -> bool {
+    pub(crate) fn remove(&mut self, val: T) -> bool {
         let val = val.into();
         let maybe_page = self.page_for_mut(val);
         if let Some(page) = maybe_page {
@@ -79,7 +79,7 @@ impl<T: Into<u32> + Copy> BitSet<T> {
     }
 
     /// Returns true if val is a member of this set.
-    pub fn contains(&self, val: T) -> bool {
+    pub(crate) fn contains(&self, val: T) -> bool {
         let val = val.into();
         self.page_for(val)
             .map(|page| page.contains(val))
@@ -88,7 +88,7 @@ impl<T: Into<u32> + Copy> BitSet<T> {
 }
 
 impl<T> BitSet<T> {
-    pub fn empty() -> BitSet<T> {
+    pub(crate) fn empty() -> BitSet<T> {
         BitSet::<T> {
             pages: vec![],
             page_map: vec![],
@@ -98,7 +98,7 @@ impl<T> BitSet<T> {
     }
 
     /// Remove all members from this set.
-    pub fn clear(&mut self) {
+    pub(crate) fn clear(&mut self) {
         self.pages.clear();
         self.page_map.clear();
         self.mark_dirty();
@@ -106,12 +106,12 @@ impl<T> BitSet<T> {
 
     /// Return true if there are no members in this set.
     #[cfg(test)]
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
     /// Returns the number of members in this set.
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         // TODO(garretrieger): keep track of len on the fly, rather than computing it. Leave a computation method
         //                     for complex cases if needed.
         if self.is_dirty() {
@@ -122,7 +122,7 @@ impl<T> BitSet<T> {
         self.len.get()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = u32> + '_ {
         self.iter_non_empty_pages().flat_map(|(major, page)| {
             let base = self.major_start(major);
             page.iter().map(move |v| base + v)
