@@ -23,7 +23,7 @@ impl<T: Into<u32> + Copy> BitSet<T> {
     /// Add val as a member of this set.
     pub fn insert(&mut self, val: T) -> bool {
         let val = val.into();
-        let page = self.page_for_mut(val);
+        let page = self.ensure_page_for_mut(val);
         let ret = page.insert(val);
         self.mark_dirty();
         ret
@@ -43,21 +43,34 @@ impl<T: Into<u32> + Copy> BitSet<T> {
         for major in major_start..=major_end {
             let page_start = start.max(self.major_start(major));
             let page_end = end.min(self.major_start(major + 1) - 1);
-            self.page_for_major_mut(major)
+            self.ensure_page_for_major_mut(major)
                 .insert_range(page_start, page_end);
         }
         self.mark_dirty();
     }
 
+    /// An alternate version of extend() which is optimized for inserting an unsorted
+    /// iterator of values.
+    pub fn extend_unsorted<U: IntoIterator<Item = T>>(&mut self, iter: U) {
+        for elem in iter {
+            let val: u32 = elem.into();
+            let major_value = self.get_major_value(val);
+            self.ensure_page_for_major_mut(major_value)
+                .insert_no_ret(val);
+        }
+    }
+
     /// Remove val from this set.
     pub fn remove(&mut self, val: T) -> bool {
         let val = val.into();
-        // TODO(garretrieger): this will insert a page if one doesn't exist, for removal
-        // this is not needed, add an alternate mutable page lookup that doesn't insert.
-        let page = self.page_for_mut(val);
-        let ret = page.remove(val);
-        self.mark_dirty();
-        ret
+        let maybe_page = self.page_for_mut(val);
+        if let Some(page) = maybe_page {
+            let ret = page.remove(val);
+            self.mark_dirty();
+            ret
+        } else {
+            false
+        }
     }
 
     /// Returns true if val is a member of this set.
@@ -138,44 +151,86 @@ impl<T> BitSet<T> {
         major << PAGE_BITS_LOG_2
     }
 
-    /// Return a reference to the page that 'value' resides in.
-    fn page_for(&self, value: u32) -> Option<&BitPage> {
-        let major_value = self.get_major_value(value);
+    /// Returns the index in self.pages (if it exists) for the page with the same major as major_value.
+    fn page_index_for_major(&self, major_value: u32) -> Option<usize> {
         self.page_map
             .binary_search_by(|probe| probe.major_value.cmp(&major_value))
             .ok()
-            .and_then(|info_idx| {
-                let real_idx = self.page_map[info_idx].index as usize;
-                self.pages.get(real_idx)
-            })
+            .map(|info_idx| self.page_map[info_idx].index as usize)
+    }
+
+    /// Returns the index in self.pages for the page with the same major as major_value. Will create the page
+    /// if it does not yet exist.
+    fn ensure_page_index_for_major(&mut self, major_value: u32) -> usize {
+        match self
+            .page_map
+            .binary_search_by(|probe| probe.major_value.cmp(&major_value))
+        {
+            Ok(map_index) => self.page_map[map_index].index as usize,
+            Err(map_index_to_insert) => {
+                let page_index = self.pages.len();
+                self.pages.push(BitPage::new_zeroes());
+                let new_info = PageInfo {
+                    index: page_index as u32,
+                    major_value,
+                };
+                self.page_map.insert(map_index_to_insert, new_info);
+                page_index
+            }
+        }
+    }
+
+    /// Return a reference to the page that 'value' resides in.
+    fn page_for(&self, value: u32) -> Option<&BitPage> {
+        let major_value = self.get_major_value(value);
+        let pages_index = self.page_index_for_major(major_value)?;
+        Some(&self.pages[pages_index])
     }
 
     /// Return a mutable reference to the page that 'value' resides in.
     ///
     /// Insert a new page if it doesn't exist.
-    fn page_for_mut(&mut self, value: u32) -> &mut BitPage {
+    fn page_for_mut(&mut self, value: u32) -> Option<&mut BitPage> {
         let major_value = self.get_major_value(value);
-        self.page_for_major_mut(major_value)
+        let pages_index = self.page_index_for_major(major_value)?;
+        Some(&mut self.pages[pages_index])
+    }
+
+    /// Return a mutable reference to the page that 'value' resides in.
+    ///
+    /// Insert a new page if it doesn't exist.
+    fn ensure_page_for_mut(&mut self, value: u32) -> &mut BitPage {
+        self.ensure_page_for_major_mut(self.get_major_value(value))
     }
 
     // Return a mutable reference to the page with major value equal to major_value.
     // Inserts a new page if it doesn't exist.
-    fn page_for_major_mut(&mut self, major_value: u32) -> &mut BitPage {
-        match self
-            .page_map
-            .binary_search_by(|probe| probe.major_value.cmp(&major_value))
-        {
-            Ok(idx) => self
-                .pages
-                .get_mut(self.page_map[idx].index as usize)
-                .unwrap(),
-            Err(idx_to_insert) => {
-                let index = self.pages.len() as u32;
-                self.pages.push(BitPage::new_zeroes());
-                let new_info = PageInfo { index, major_value };
-                self.page_map.insert(idx_to_insert, new_info);
-                self.pages.last_mut().unwrap()
-            }
+    fn ensure_page_for_major_mut(&mut self, major_value: u32) -> &mut BitPage {
+        let page_index = self.ensure_page_index_for_major(major_value);
+        &mut self.pages[page_index]
+    }
+}
+
+impl<T: Into<u32> + Copy> Extend<T> for BitSet<T> {
+    fn extend<U: IntoIterator<Item = T>>(&mut self, iter: U) {
+        // TODO(garretrieger): additional optimization ideas:
+        // - Assuming data is sorted accumulate a single element mask and only commit it to the element
+        //   once the next value passes the end of the element.
+        let mut last_page_index = usize::MAX;
+        let mut last_major_value = u32::MAX;
+        for elem in iter {
+            let val: u32 = elem.into();
+            let major_value = self.get_major_value(val);
+            let pages_index = if major_value == last_major_value {
+                last_page_index
+            } else {
+                self.ensure_page_index_for_major(major_value)
+            };
+
+            last_major_value = major_value;
+            last_page_index = pages_index;
+
+            self.pages[pages_index].insert_no_ret(val);
         }
     }
 }
@@ -250,6 +305,27 @@ mod test {
 
         let v: Vec<u32> = bitset.iter().collect();
         assert_eq!(v, vec![3, 8, 534, 700, 10000, 10001, 10002]);
+    }
+
+    #[test]
+    fn extend() {
+        let values = [3, 8, 534, 700, 10000, 10001, 10002];
+        let values_unsorted = [10000, 3, 534, 700, 8, 10001, 10002];
+
+        let mut s1 = BitSet::<u32>::empty();
+        let mut s2 = BitSet::<u32>::empty();
+        let mut s3 = BitSet::<u32>::empty();
+        let mut s4 = BitSet::<u32>::empty();
+
+        s1.extend(values.iter().copied());
+        s2.extend_unsorted(values.iter().copied());
+        s3.extend(values_unsorted.iter().copied());
+        s4.extend_unsorted(values_unsorted.iter().copied());
+
+        assert_eq!(s1.iter().collect::<Vec<u32>>(), values);
+        assert_eq!(s2.iter().collect::<Vec<u32>>(), values);
+        assert_eq!(s3.iter().collect::<Vec<u32>>(), values);
+        assert_eq!(s4.iter().collect::<Vec<u32>>(), values);
     }
 
     #[test]
