@@ -64,7 +64,7 @@ impl BitPage {
             })
     }
 
-    /// Marks (val % page width) a member of this set.
+    /// Marks (val % page width) a member of this set and returns true if it is newly added.
     pub fn insert(&mut self, val: u32) -> bool {
         let ret = !self.contains(val);
         *self.element_mut(val) |= elem_index_bit_mask(val);
@@ -72,7 +72,10 @@ impl BitPage {
         ret
     }
 
-    pub fn insert_no_ret(&mut self, val: u32) {
+    /// Marks (val % page width) a member of this set, but does not check if it was already a member.
+    ///
+    /// This is used to maximize performance in cases where the return value on insert() is not needed.
+    pub fn insert_no_return(&mut self, val: u32) {
         *self.element_mut(val) |= elem_index_bit_mask(val);
         self.mark_dirty();
     }
