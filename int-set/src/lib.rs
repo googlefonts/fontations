@@ -58,6 +58,20 @@ impl<T: Into<u32> + Copy> IntSet<T> {
         }
     }
 
+    /// An alternate version of extend() which is optimized for inserting an unsorted
+    /// iterator of values.
+    pub fn extend_unsorted<U: IntoIterator<Item = T>>(&mut self, iter: U) {
+        match &mut self.0 {
+            Membership::Inclusive(s) => s.extend_unsorted(iter),
+            Membership::Exclusive(_) => {
+                // TODO(garretrieger): implement a "remove_all" function in BitSet and use that instead.
+                for elem in iter {
+                    self.insert(elem);
+                }
+            }
+        }
+    }
+
     /// Removes a value from the set. Returns whether the value was present in the set.
     pub fn remove(&mut self, val: T) -> bool {
         match &mut self.0 {
@@ -171,12 +185,18 @@ impl<T: Into<u32> + Copy> FromIterator<T> for IntSet<T> {
 }
 
 impl<T: Into<u32> + Copy> Extend<T> for IntSet<T> {
+    /// Extends a collection with the contents of an iterator.
+    /// This implementation is optimized to provide the best performance when the iterator contains sorted values.
+    /// Consider using extend_unsorted() if the iterator is known to contain unsorted values.
     fn extend<U: IntoIterator<Item = T>>(&mut self, iter: U) {
-        // TODO(garretrieger): implement a more efficient version of this which avoids page lookups
-        //  when the iterator values are in sorted order (eg. if the next value is on the same page as
-        //  the previous value). This will require BitSet to also implement FromIterator.
-        for elem in iter {
-            self.insert(elem);
+        match &mut self.0 {
+            Membership::Inclusive(s) => s.extend(iter),
+            Membership::Exclusive(_) => {
+                // TODO(garretrieger): implement a "remove_all" function in BitSet and use that instead.
+                for elem in iter {
+                    self.insert(elem);
+                }
+            }
         }
     }
 }
@@ -388,15 +408,36 @@ mod test {
     fn extend() {
         let mut s = IntSet::<u32>::empty();
         s.extend([3, 12].iter().copied());
-        s.extend([8, 589].iter().copied());
+        s.extend([8, 10, 589].iter().copied());
 
         let mut expected = IntSet::<u32>::empty();
         expected.insert(3);
         expected.insert(8);
+        expected.insert(10);
         expected.insert(12);
         expected.insert(589);
 
         assert_eq!(s, expected);
+    }
+
+    #[test]
+    fn extend_on_inverted() {
+        let mut s = IntSet::<u32>::all();
+        for i in 10..=20 {
+            s.remove(i);
+        }
+
+        s.extend([12, 17, 18].iter().copied());
+
+        assert!(!s.contains(11));
+        assert!(s.contains(12));
+        assert!(!s.contains(13));
+
+        assert!(!s.contains(16));
+        assert!(s.contains(17));
+        assert!(s.contains(18));
+        assert!(!s.contains(19));
+        assert!(s.contains(100));
     }
 
     #[test]

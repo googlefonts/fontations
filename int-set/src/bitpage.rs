@@ -72,6 +72,11 @@ impl BitPage {
         ret
     }
 
+    pub fn insert_no_ret(&mut self, val: u32) {
+        *self.element_mut(val) |= elem_index_bit_mask(val);
+        self.mark_dirty();
+    }
+
     /// Marks all values [first, last] as members of this set.
     pub fn insert_range(&mut self, first: u32, last: u32) {
         let first = first & PAGE_MASK;
