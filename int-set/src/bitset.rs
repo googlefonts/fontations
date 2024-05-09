@@ -23,12 +23,10 @@ impl<T: Into<u32> + Copy> BitSet<T> {
     /// Add val as a member of this set.
     pub(crate) fn insert(&mut self, val: T) -> bool {
         let val = val.into();
-        if let Some(page) = self.ensure_page_for_mut(val) {
-            let ret = page.insert(val);
-            self.mark_dirty();
-            return ret;
-        }
-        false
+        let page = self.ensure_page_for_mut(val);
+        let ret = page.insert(val);
+        self.mark_dirty();
+        ret
     }
 
     /// Add all values in range as members of this set.
@@ -45,9 +43,8 @@ impl<T: Into<u32> + Copy> BitSet<T> {
         for major in major_start..=major_end {
             let page_start = start.max(self.major_start(major));
             let page_end = end.min(self.major_start(major + 1) - 1);
-            if let Some(page) = self.ensure_page_for_major_mut(major) {
-                page.insert_range(page_start, page_end);
-            }
+            let page = self.ensure_page_for_major_mut(major);
+            page.insert_range(page_start, page_end);
         }
         self.mark_dirty();
     }
@@ -58,9 +55,8 @@ impl<T: Into<u32> + Copy> BitSet<T> {
         for elem in iter {
             let val: u32 = elem.into();
             let major_value = self.get_major_value(val);
-            if let Some(page) = self.ensure_page_for_major_mut(major_value) {
-                page.insert_no_return(val);
-            }
+            let page = self.ensure_page_for_major_mut(major_value);
+            page.insert_no_return(val);
         }
         self.mark_dirty();
     }
@@ -255,15 +251,15 @@ impl<T> BitSet<T> {
     /// Return a mutable reference to the page that 'value' resides in.
     ///
     /// Insert a new page if it doesn't exist.
-    fn ensure_page_for_mut(&mut self, value: u32) -> Option<&mut BitPage> {
+    fn ensure_page_for_mut(&mut self, value: u32) -> &mut BitPage {
         self.ensure_page_for_major_mut(self.get_major_value(value))
     }
 
     // Return a mutable reference to the page with major value equal to major_value.
     // Inserts a new page if it doesn't exist.
-    fn ensure_page_for_major_mut(&mut self, major_value: u32) -> Option<&mut BitPage> {
+    fn ensure_page_for_major_mut(&mut self, major_value: u32) -> &mut BitPage {
         let page_index = self.ensure_page_index_for_major(major_value);
-        self.pages.get_mut(page_index)
+        self.pages.get_mut(page_index).unwrap()
     }
 }
 
