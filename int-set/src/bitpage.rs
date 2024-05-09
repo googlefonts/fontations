@@ -101,6 +101,27 @@ impl BitPage {
         self.mark_dirty();
     }
 
+    /// Marks all values [first, last] as not members of this set.
+    pub(crate) fn remove_range(&mut self, first: u32, last: u32) {
+        let first = first & PAGE_MASK;
+        let last = last & PAGE_MASK;
+        let first_elem_idx = first / ELEM_BITS;
+        let last_elem_idx = last / ELEM_BITS;
+
+        for elem_idx in first_elem_idx..=last_elem_idx {
+            let elem_start = first.max(elem_idx * ELEM_BITS) & ELEM_MASK;
+            let elem_last = last.min(((elem_idx + 1) * ELEM_BITS) - 1) & ELEM_MASK;
+
+            let end_shift = ELEM_BITS - elem_last - 1;
+            let mask = u64::MAX << (elem_start + end_shift);
+            let mask = !(mask >> end_shift);
+
+            self.storage[elem_idx as usize] &= mask;
+        }
+
+        self.mark_dirty();
+    }
+
     /// Removes (val % page width) from this set.
     pub(crate) fn remove(&mut self, val: u32) -> bool {
         let ret = self.contains(val);
@@ -277,6 +298,7 @@ mod test {
             (69, 72),
             (69, 127),
             (32, 345),
+            (512 + 32, 512 + 345),
             (0, 511),
         ] {
             let mut page = BitPage::new_zeroes();
@@ -301,6 +323,38 @@ mod test {
             assert!(!page.remove(val));
             assert!(!page.contains(val), "unexpected {val}");
             assert!(page.contains(val.wrapping_sub(1)), "missing {val} (2)");
+        }
+    }
+
+    #[test]
+    fn page_remove_range() {
+        fn page_for_range(first: u32, last: u32) -> BitPage {
+            let mut page = BitPage::new_ones();
+            for i in first..=last {
+                page.remove(i);
+            }
+            page
+        }
+
+        for exclude_range in [
+            (0, 0),
+            (0, 1),
+            (1, 15),
+            (5, 63),
+            (64, 67),
+            (69, 72),
+            (69, 127),
+            (32, 345),
+            (0, 511),
+            (512 + 32, 512 + 345),
+        ] {
+            let mut page = BitPage::new_ones();
+            page.remove_range(exclude_range.0, exclude_range.1);
+            assert_eq!(
+                page,
+                page_for_range(exclude_range.0, exclude_range.1),
+                "{exclude_range:?}"
+            );
         }
     }
 
