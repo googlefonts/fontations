@@ -40,6 +40,13 @@ impl<T: Into<u32> + Copy> Default for IntSet<T> {
 }
 
 impl<T: Into<u32> + Copy> IntSet<T> {
+    // TODO(garretrieger): add additional functionality that the harfbuzz version has:
+    // - Iteration in reverse.
+    // - Iteration starting from some value (and before some value for reverse).
+    // - Set operations (union, subtract, intersect, sym diff).
+    // - Intersects range and intersects iter.
+    // - min()/max()
+
     /// Adds a value to the set.
     ///
     /// Returns `true` if the value was newly inserted.
