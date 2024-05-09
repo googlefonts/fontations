@@ -54,7 +54,7 @@ impl<T: Into<u32> + Copy> IntSet<T> {
     pub fn insert_range(&mut self, range: RangeInclusive<T>) {
         match &mut self.0 {
             Membership::Inclusive(s) => s.insert_range(range),
-            Membership::Exclusive(_) => todo!("implement bitset::remove_range and call here."),
+            Membership::Exclusive(s) => s.remove_range(range),
         }
     }
 
@@ -63,12 +63,7 @@ impl<T: Into<u32> + Copy> IntSet<T> {
     pub fn extend_unsorted<U: IntoIterator<Item = T>>(&mut self, iter: U) {
         match &mut self.0 {
             Membership::Inclusive(s) => s.extend_unsorted(iter),
-            Membership::Exclusive(_) => {
-                // TODO(garretrieger): implement a "remove_all" function in BitSet and use that instead.
-                for elem in iter {
-                    self.insert(elem);
-                }
-            }
+            Membership::Exclusive(s) => s.remove_all(iter),
         }
     }
 
@@ -80,7 +75,21 @@ impl<T: Into<u32> + Copy> IntSet<T> {
         }
     }
 
-    // TODO(garrretrieger): add remove_range.
+    // Removes all values in iter from the set.
+    pub fn remove_all<U: IntoIterator<Item = T>>(&mut self, iter: U) {
+        match &mut self.0 {
+            Membership::Inclusive(s) => s.remove_all(iter),
+            Membership::Exclusive(s) => s.extend(iter),
+        }
+    }
+
+    /// Removes all values in range as members of this set.
+    pub fn remove_range(&mut self, range: RangeInclusive<T>) {
+        match &mut self.0 {
+            Membership::Inclusive(s) => s.remove_range(range),
+            Membership::Exclusive(s) => s.insert_range(range),
+        }
+    }
 
     /// Returns `true` if the set contains a value.
     pub fn contains(&self, val: T) -> bool {
@@ -191,12 +200,7 @@ impl<T: Into<u32> + Copy> Extend<T> for IntSet<T> {
     fn extend<U: IntoIterator<Item = T>>(&mut self, iter: U) {
         match &mut self.0 {
             Membership::Inclusive(s) => s.extend(iter),
-            Membership::Exclusive(_) => {
-                // TODO(garretrieger): implement a "remove_all" function in BitSet and use that instead.
-                for elem in iter {
-                    self.insert(elem);
-                }
-            }
+            Membership::Exclusive(s) => s.remove_all(iter),
         }
     }
 }
@@ -438,6 +442,48 @@ mod test {
         assert!(s.contains(18));
         assert!(!s.contains(19));
         assert!(s.contains(100));
+    }
+
+    #[test]
+    fn remove_all() {
+        let mut empty = IntSet::<u32>::empty();
+        let mut all = IntSet::<u32>::all();
+
+        empty.extend([1, 2, 3, 4]);
+
+        empty.remove_all([2, 3]);
+        all.remove_all([2, 3]);
+
+        assert!(empty.contains(1));
+        assert!(!empty.contains(2));
+        assert!(!empty.contains(3));
+        assert!(empty.contains(4));
+
+        assert!(all.contains(1));
+        assert!(!all.contains(2));
+        assert!(!all.contains(3));
+        assert!(all.contains(4));
+    }
+
+    #[test]
+    fn remove_range() {
+        let mut empty = IntSet::<u32>::empty();
+        let mut all = IntSet::<u32>::all();
+
+        empty.extend([1, 2, 3, 4]);
+
+        empty.remove_range(2..=3);
+        all.remove_range(2..=3);
+
+        assert!(empty.contains(1));
+        assert!(!empty.contains(2));
+        assert!(!empty.contains(3));
+        assert!(empty.contains(4));
+
+        assert!(all.contains(1));
+        assert!(!all.contains(2));
+        assert!(!all.contains(3));
+        assert!(all.contains(4));
     }
 
     #[test]

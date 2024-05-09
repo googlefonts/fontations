@@ -78,6 +78,50 @@ impl<T: Into<u32> + Copy> BitSet<T> {
         }
     }
 
+    // Remove all values in iter from this set.
+    pub(crate) fn remove_all<U: IntoIterator<Item = T>>(&mut self, iter: U) {
+        let mut last_page_index: Option<usize> = None;
+        let mut last_major_value = u32::MAX;
+        for elem in iter {
+            let val: u32 = elem.into();
+            let major_value = self.get_major_value(val);
+            if major_value != last_major_value {
+                last_page_index = self.page_index_for_major(major_value);
+                last_major_value = major_value;
+            };
+
+            let Some(page_index) = last_page_index else {
+                continue;
+            };
+
+            if let Some(page) = self.pages.get_mut(page_index) {
+                page.remove(val);
+            }
+        }
+        self.mark_dirty();
+    }
+
+    /// Removes all values in range as members of this set.
+    pub(crate) fn remove_range(&mut self, range: RangeInclusive<T>) {
+        let start = (*range.start()).into();
+        let end = (*range.end()).into();
+        if start > end {
+            return;
+        }
+
+        let major_start = self.get_major_value(start);
+        let major_end = self.get_major_value(end);
+
+        for major in major_start..=major_end {
+            let page_start = start.max(self.major_start(major));
+            let page_end = end.min(self.major_start(major + 1) - 1);
+            if let Some(page) = self.page_for_major_mut(major) {
+                page.remove_range(page_start, page_end);
+            }
+        }
+        self.mark_dirty();
+    }
+
     /// Returns true if val is a member of this set.
     pub(crate) fn contains(&self, val: T) -> bool {
         let val = val.into();
@@ -199,8 +243,13 @@ impl<T> BitSet<T> {
     /// Insert a new page if it doesn't exist.
     fn page_for_mut(&mut self, value: u32) -> Option<&mut BitPage> {
         let major_value = self.get_major_value(value);
-        let pages_index = self.page_index_for_major(major_value)?;
-        self.pages.get_mut(pages_index)
+        return self.page_for_major_mut(major_value);
+    }
+
+    // Return a mutable reference to the page with major value equal to major_value.
+    fn page_for_major_mut(&mut self, major_value: u32) -> Option<&mut BitPage> {
+        let page_index = self.page_index_for_major(major_value)?;
+        self.pages.get_mut(page_index)
     }
 
     /// Return a mutable reference to the page that 'value' resides in.
@@ -383,6 +432,30 @@ mod test {
         assert!(bitset.contains(0));
         assert!(!bitset.contains(511));
         assert!(!bitset.contains(512));
+    }
+
+    #[test]
+    fn remove_all() {
+        let mut bitset = BitSet::<u32>::empty();
+        bitset.extend([5, 7, 11, 18, 620, 2000]);
+
+        assert_eq!(bitset.len(), 6);
+
+        bitset.remove_all([7, 11, 13, 18, 620]);
+        assert_eq!(bitset.len(), 2);
+        assert_eq!(bitset.iter().collect::<Vec<u32>>(), vec![5, 2000]);
+    }
+
+    #[test]
+    fn remove_range() {
+        let mut bitset = BitSet::<u32>::empty();
+        bitset.extend([5, 7, 11, 18, 620, 2000]);
+
+        assert_eq!(bitset.len(), 6);
+
+        bitset.remove_range(7..=620);
+        assert_eq!(bitset.len(), 2);
+        assert_eq!(bitset.iter().collect::<Vec<u32>>(), vec![5, 2000]);
     }
 
     #[test]
