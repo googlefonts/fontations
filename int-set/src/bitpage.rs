@@ -14,20 +14,20 @@ const ELEM_BITS: u32 = ELEM_SIZE * 8;
 // mask out bits of a value not used to index into an element
 const ELEM_MASK: u32 = ELEM_BITS - 1;
 // the number of bits in a page
-pub const PAGE_BITS: u32 = ELEM_BITS * PAGE_SIZE;
+pub(crate) const PAGE_BITS: u32 = ELEM_BITS * PAGE_SIZE;
 // mask out the bits of a value not used to index into a page
 const PAGE_MASK: u32 = PAGE_BITS - 1;
 
 /// A fixed size (512 bits wide) page of bits that records integer set membership from [0, 511].
 #[derive(Clone)]
-pub(super) struct BitPage {
+pub(crate) struct BitPage {
     storage: [Element; PAGE_SIZE as usize],
     len: Cell<u32>,
 }
 
 impl BitPage {
     /// Create a new page with no bits set.
-    pub fn new_zeroes() -> Self {
+    pub(crate) fn new_zeroes() -> Self {
         Self {
             storage: [0; PAGE_SIZE as usize],
             len: Cell::new(0),
@@ -35,7 +35,7 @@ impl BitPage {
     }
 
     /// Returns the number of members in this page.
-    pub fn len(&self) -> usize {
+    pub(crate) fn len(&self) -> usize {
         if self.is_dirty() {
             // this means we're stale and should recompute
             let len = self.storage.iter().map(|val| val.count_ones()).sum();
@@ -45,7 +45,7 @@ impl BitPage {
     }
 
     /// Returns true if this page has no members.
-    pub fn is_empty(&self) -> bool {
+    pub(crate) fn is_empty(&self) -> bool {
         self.len() == 0
     }
 
@@ -53,7 +53,7 @@ impl BitPage {
     // TODO(garretrieger): reverse iterator.
 
     /// Iterator over the members of this page.
-    pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
+    pub(crate) fn iter(&self) -> impl Iterator<Item = u32> + '_ {
         self.storage
             .iter()
             .enumerate()
@@ -64,16 +64,24 @@ impl BitPage {
             })
     }
 
-    /// Marks (val % page width) a member of this set.
-    pub fn insert(&mut self, val: u32) -> bool {
+    /// Marks (val % page width) a member of this set and returns true if it is newly added.
+    pub(crate) fn insert(&mut self, val: u32) -> bool {
         let ret = !self.contains(val);
         *self.element_mut(val) |= elem_index_bit_mask(val);
         self.mark_dirty();
         ret
     }
 
+    /// Marks (val % page width) a member of this set, but does not check if it was already a member.
+    ///
+    /// This is used to maximize performance in cases where the return value on insert() is not needed.
+    pub(crate) fn insert_no_return(&mut self, val: u32) {
+        *self.element_mut(val) |= elem_index_bit_mask(val);
+        self.mark_dirty();
+    }
+
     /// Marks all values [first, last] as members of this set.
-    pub fn insert_range(&mut self, first: u32, last: u32) {
+    pub(crate) fn insert_range(&mut self, first: u32, last: u32) {
         let first = first & PAGE_MASK;
         let last = last & PAGE_MASK;
         let first_elem_idx = first / ELEM_BITS;
@@ -93,8 +101,29 @@ impl BitPage {
         self.mark_dirty();
     }
 
+    /// Marks all values [first, last] as not members of this set.
+    pub(crate) fn remove_range(&mut self, first: u32, last: u32) {
+        let first = first & PAGE_MASK;
+        let last = last & PAGE_MASK;
+        let first_elem_idx = first / ELEM_BITS;
+        let last_elem_idx = last / ELEM_BITS;
+
+        for elem_idx in first_elem_idx..=last_elem_idx {
+            let elem_start = first.max(elem_idx * ELEM_BITS) & ELEM_MASK;
+            let elem_last = last.min(((elem_idx + 1) * ELEM_BITS) - 1) & ELEM_MASK;
+
+            let end_shift = ELEM_BITS - elem_last - 1;
+            let mask = u64::MAX << (elem_start + end_shift);
+            let mask = !(mask >> end_shift);
+
+            self.storage[elem_idx as usize] &= mask;
+        }
+
+        self.mark_dirty();
+    }
+
     /// Removes (val % page width) from this set.
-    pub fn remove(&mut self, val: u32) -> bool {
+    pub(crate) fn remove(&mut self, val: u32) -> bool {
         let ret = self.contains(val);
         *self.element_mut(val) &= !elem_index_bit_mask(val);
         self.mark_dirty();
@@ -102,7 +131,7 @@ impl BitPage {
     }
 
     /// Return true if (val % page width) is a member of this set.
-    pub fn contains(&self, val: u32) -> bool {
+    pub(crate) fn contains(&self, val: u32) -> bool {
         (*self.element(val) & elem_index_bit_mask(val)) != 0
     }
 
@@ -183,7 +212,7 @@ mod test {
 
     impl BitPage {
         /// Create a new page with all bits set.
-        pub fn new_ones() -> Self {
+        pub(crate) fn new_ones() -> Self {
             Self {
                 storage: [Element::MAX; PAGE_SIZE as usize],
                 len: Cell::new(PAGE_SIZE * ELEM_BITS),
@@ -269,6 +298,7 @@ mod test {
             (69, 72),
             (69, 127),
             (32, 345),
+            (512 + 32, 512 + 345),
             (0, 511),
         ] {
             let mut page = BitPage::new_zeroes();
@@ -293,6 +323,38 @@ mod test {
             assert!(!page.remove(val));
             assert!(!page.contains(val), "unexpected {val}");
             assert!(page.contains(val.wrapping_sub(1)), "missing {val} (2)");
+        }
+    }
+
+    #[test]
+    fn page_remove_range() {
+        fn page_for_range(first: u32, last: u32) -> BitPage {
+            let mut page = BitPage::new_ones();
+            for i in first..=last {
+                page.remove(i);
+            }
+            page
+        }
+
+        for exclude_range in [
+            (0, 0),
+            (0, 1),
+            (1, 15),
+            (5, 63),
+            (64, 67),
+            (69, 72),
+            (69, 127),
+            (32, 345),
+            (0, 511),
+            (512 + 32, 512 + 345),
+        ] {
+            let mut page = BitPage::new_ones();
+            page.remove_range(exclude_range.0, exclude_range.1);
+            assert_eq!(
+                page,
+                page_for_range(exclude_range.0, exclude_range.1),
+                "{exclude_range:?}"
+            );
         }
     }
 
@@ -326,6 +388,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::mutable_key_type)]
     fn hash_and_eq() {
         let mut page1 = BitPage::new_zeroes();
         let mut page2 = BitPage::new_zeroes();

@@ -40,6 +40,13 @@ impl<T: Into<u32> + Copy> Default for IntSet<T> {
 }
 
 impl<T: Into<u32> + Copy> IntSet<T> {
+    // TODO(garretrieger): add additional functionality that the harfbuzz version has:
+    // - Iteration in reverse.
+    // - Iteration starting from some value (and before some value for reverse).
+    // - Set operations (union, subtract, intersect, sym diff).
+    // - Intersects range and intersects iter.
+    // - min()/max()
+
     /// Adds a value to the set.
     ///
     /// Returns `true` if the value was newly inserted.
@@ -54,7 +61,16 @@ impl<T: Into<u32> + Copy> IntSet<T> {
     pub fn insert_range(&mut self, range: RangeInclusive<T>) {
         match &mut self.0 {
             Membership::Inclusive(s) => s.insert_range(range),
-            Membership::Exclusive(_) => todo!("implement bitset::remove_range and call here."),
+            Membership::Exclusive(s) => s.remove_range(range),
+        }
+    }
+
+    /// An alternate version of extend() which is optimized for inserting an unsorted
+    /// iterator of values.
+    pub fn extend_unsorted<U: IntoIterator<Item = T>>(&mut self, iter: U) {
+        match &mut self.0 {
+            Membership::Inclusive(s) => s.extend_unsorted(iter),
+            Membership::Exclusive(s) => s.remove_all(iter),
         }
     }
 
@@ -63,6 +79,22 @@ impl<T: Into<u32> + Copy> IntSet<T> {
         match &mut self.0 {
             Membership::Inclusive(s) => s.remove(val),
             Membership::Exclusive(s) => s.insert(val),
+        }
+    }
+
+    // Removes all values in iter from the set.
+    pub fn remove_all<U: IntoIterator<Item = T>>(&mut self, iter: U) {
+        match &mut self.0 {
+            Membership::Inclusive(s) => s.remove_all(iter),
+            Membership::Exclusive(s) => s.extend(iter),
+        }
+    }
+
+    /// Removes all values in range as members of this set.
+    pub fn remove_range(&mut self, range: RangeInclusive<T>) {
+        match &mut self.0 {
+            Membership::Inclusive(s) => s.remove_range(range),
+            Membership::Exclusive(s) => s.insert_range(range),
         }
     }
 
@@ -84,6 +116,32 @@ impl<T> IntSet<T> {
     /// Create a new set which contains all integers (exclusive).
     pub fn all() -> IntSet<T> {
         IntSet(Membership::Exclusive(BitSet::empty()))
+    }
+
+    /// Returns an iterator over all members of the set.
+    /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
+    /// care should be taken when using .iter() in combination with an inverted set.
+    pub fn iter(&self) -> impl Iterator<Item = u32> + '_ {
+        match &self.0 {
+            Membership::Inclusive(s) => int_set_iter(s.iter(), false),
+            Membership::Exclusive(s) => int_set_iter(s.iter(), true),
+        }
+    }
+
+    /// If this is an inclusive membership set then returns an iterator over the members, otherwise returns None.
+    pub fn inclusive_iter(&self) -> Option<impl Iterator<Item = u32> + '_> {
+        match &self.0 {
+            Membership::Inclusive(s) => Some(s.iter()),
+            Membership::Exclusive(_) => None,
+        }
+    }
+
+    /// Returns true if this set is inverted (has exclusive membership).
+    pub fn is_inverted(&self) -> bool {
+        match &self.0 {
+            Membership::Inclusive(_) => false,
+            Membership::Exclusive(_) => true,
+        }
     }
 
     /// Return the inverted version of this set.
@@ -136,15 +194,60 @@ impl<T> IntSet<T> {
 
 impl<T: Into<u32> + Copy> FromIterator<T> for IntSet<T> {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        // TODO(garretrieger): implement a more efficient version of this which avoids page lookups
-        //  when the iterator values are in sorted order (eg. if the next value is on the same page as
-        //  the previous value). This will require BitSet to also implement FromIterator.
         let mut s = IntSet::empty();
-        for i in iter {
-            s.insert(i);
-        }
+        s.extend(iter);
         s
     }
+}
+
+impl<T: Into<u32> + Copy> Extend<T> for IntSet<T> {
+    /// Extends a collection with the contents of an iterator.
+    /// This implementation is optimized to provide the best performance when the iterator contains sorted values.
+    /// Consider using extend_unsorted() if the iterator is known to contain unsorted values.
+    fn extend<U: IntoIterator<Item = T>>(&mut self, iter: U) {
+        match &mut self.0 {
+            Membership::Inclusive(s) => s.extend(iter),
+            Membership::Exclusive(s) => s.remove_all(iter),
+        }
+    }
+}
+
+fn int_set_iter<U>(mut values: U, exclusive: bool) -> impl Iterator<Item = u32>
+where
+    U: Iterator<Item = u32>,
+{
+    let mut cur_value = values.next();
+    let mut index: u64 = u32::MIN as u64;
+
+    std::iter::from_fn(move || {
+        if !exclusive {
+            let ret = cur_value;
+            cur_value = values.next();
+            return ret;
+        }
+
+        if index > u32::MAX as u64 {
+            return None;
+        }
+
+        while let Some(skip) = cur_value {
+            if index < skip as u64 {
+                break;
+            }
+
+            cur_value = values.next();
+            if index > skip as u64 {
+                continue;
+            }
+
+            index += 1;
+            continue;
+        }
+
+        let next_index = index;
+        index = next_index + 1;
+        Some(next_index as u32)
+    })
 }
 
 #[cfg(test)]
@@ -155,6 +258,39 @@ mod test {
     };
 
     use super::*;
+
+    #[test]
+    fn insert() {
+        let mut empty = IntSet::<u32>::empty();
+        let mut all = IntSet::<u32>::all();
+
+        assert!(!empty.contains(10));
+        assert!(empty.insert(10));
+        assert!(empty.contains(10));
+        assert!(!empty.insert(10));
+
+        assert!(all.contains(10));
+        assert!(!all.insert(10));
+        assert!(all.contains(10));
+        assert!(!all.insert(10));
+    }
+
+    #[test]
+    fn remove() {
+        let mut empty = IntSet::<u32>::empty();
+        empty.insert(10);
+        let mut all = IntSet::<u32>::all();
+
+        assert!(empty.contains(10));
+        assert!(empty.remove(10));
+        assert!(!empty.contains(10));
+        assert!(!empty.remove(10));
+
+        assert!(all.contains(10));
+        assert!(all.remove(10));
+        assert!(!all.contains(10));
+        assert!(!all.remove(10));
+    }
 
     #[test]
     fn is_empty() {
@@ -192,6 +328,7 @@ mod test {
     }
 
     #[test]
+    #[allow(clippy::mutable_key_type)]
     fn equal_an_hash() {
         let mut inc1 = IntSet::<u32>::empty();
         inc1.insert(14);
@@ -228,8 +365,47 @@ mod test {
     }
 
     #[test]
+    fn iter() {
+        let mut set = IntSet::<u32>::empty();
+        set.insert(3);
+        set.insert(8);
+        set.insert(534);
+        set.insert(700);
+        set.insert(10000);
+        set.insert(10001);
+        set.insert(10002);
+
+        let v: Vec<u32> = set.iter().collect();
+        assert_eq!(v, vec![3, 8, 534, 700, 10000, 10001, 10002]);
+
+        let v: Vec<u32> = set.inclusive_iter().unwrap().collect();
+        assert_eq!(v, vec![3, 8, 534, 700, 10000, 10001, 10002]);
+    }
+
+    #[test]
+    fn exclusive_iter() {
+        let mut set = IntSet::<u32>::all();
+        set.remove(3);
+        set.remove(7);
+        set.remove(8);
+
+        let mut iter = set.iter();
+
+        assert_eq!(iter.next(), Some(0));
+        assert_eq!(iter.next(), Some(1));
+        assert_eq!(iter.next(), Some(2));
+        assert_eq!(iter.next(), Some(4));
+        assert_eq!(iter.next(), Some(5));
+        assert_eq!(iter.next(), Some(6));
+        assert_eq!(iter.next(), Some(9));
+        assert_eq!(iter.next(), Some(10));
+
+        assert!(set.inclusive_iter().is_none());
+    }
+
+    #[test]
     fn from_iterator() {
-        let s: IntSet<u32> = vec![3, 8, 12, 589].iter().copied().collect();
+        let s: IntSet<u32> = [3, 8, 12, 589].iter().copied().collect();
         let mut expected = IntSet::<u32>::empty();
         expected.insert(3);
         expected.insert(8);
@@ -237,6 +413,84 @@ mod test {
         expected.insert(589);
 
         assert_eq!(s, expected);
+    }
+
+    #[test]
+    fn extend() {
+        let mut s = IntSet::<u32>::empty();
+        s.extend([3, 12].iter().copied());
+        s.extend([8, 10, 589].iter().copied());
+
+        let mut expected = IntSet::<u32>::empty();
+        expected.insert(3);
+        expected.insert(8);
+        expected.insert(10);
+        expected.insert(12);
+        expected.insert(589);
+
+        assert_eq!(s, expected);
+    }
+
+    #[test]
+    fn extend_on_inverted() {
+        let mut s = IntSet::<u32>::all();
+        for i in 10..=20 {
+            s.remove(i);
+        }
+
+        s.extend([12, 17, 18].iter().copied());
+
+        assert!(!s.contains(11));
+        assert!(s.contains(12));
+        assert!(!s.contains(13));
+
+        assert!(!s.contains(16));
+        assert!(s.contains(17));
+        assert!(s.contains(18));
+        assert!(!s.contains(19));
+        assert!(s.contains(100));
+    }
+
+    #[test]
+    fn remove_all() {
+        let mut empty = IntSet::<u32>::empty();
+        let mut all = IntSet::<u32>::all();
+
+        empty.extend([1, 2, 3, 4]);
+
+        empty.remove_all([2, 3]);
+        all.remove_all([2, 3]);
+
+        assert!(empty.contains(1));
+        assert!(!empty.contains(2));
+        assert!(!empty.contains(3));
+        assert!(empty.contains(4));
+
+        assert!(all.contains(1));
+        assert!(!all.contains(2));
+        assert!(!all.contains(3));
+        assert!(all.contains(4));
+    }
+
+    #[test]
+    fn remove_range() {
+        let mut empty = IntSet::<u32>::empty();
+        let mut all = IntSet::<u32>::all();
+
+        empty.extend([1, 2, 3, 4]);
+
+        empty.remove_range(2..=3);
+        all.remove_range(2..=3);
+
+        assert!(empty.contains(1));
+        assert!(!empty.contains(2));
+        assert!(!empty.contains(3));
+        assert!(empty.contains(4));
+
+        assert!(all.contains(1));
+        assert!(!all.contains(2));
+        assert!(!all.contains(3));
+        assert!(all.contains(4));
     }
 
     #[test]
@@ -248,12 +502,14 @@ mod test {
         assert!(set.contains(13));
         assert!(set.contains(800));
         assert_eq!(set.len(), 2);
+        assert!(!set.is_inverted());
 
         set.invert();
         assert_eq!(set.len(), u32::MAX as usize - 2);
         assert!(!set.contains(13));
         assert!(set.contains(80));
         assert!(!set.contains(800));
+        assert!(set.is_inverted());
 
         set.remove(80);
         assert!(!set.contains(80));
