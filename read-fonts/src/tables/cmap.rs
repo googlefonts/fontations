@@ -128,11 +128,13 @@ impl<'a> Iterator for Cmap4Iter<'a> {
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             if let Some(codepoint) = self.cur_range.next() {
-                let glyph_id = self.subtable.lookup_glyph_id(
+                let Some(glyph_id) = self.subtable.lookup_glyph_id(
                     codepoint as u16,
                     self.cur_range_ix,
                     self.cur_start_code,
-                )?;
+                ) else {
+                    continue;
+                };
                 // The table might explicitly map some codepoints to 0. Avoid
                 // returning those here.
                 if glyph_id == GlyphId::NOTDEF {
