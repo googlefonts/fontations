@@ -115,6 +115,8 @@ out_path = os.path.join(out_dir, os.path.splitext(
 
 try:
     face = freetype.Face(font_path)
+    # make sure we have scalable outlines
+    face.load_glyph(0, freetype.FT_LOAD_NO_BITMAPS)
 except:
     # some of our fonts are not complete (e.g. missing hhea table) and will fail to
     # load in FreeType
