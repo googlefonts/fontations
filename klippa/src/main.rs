@@ -5,8 +5,8 @@
 //!
 
 use clap::Parser;
+use int_set::IntSet;
 use klippa::{Plan, Subset};
-use std::collections::BTreeSet;
 use thiserror::Error;
 use write_fonts::read::{FontRef, TableProvider, TopLevelTable};
 use write_fonts::types::GlyphId;
@@ -21,6 +21,12 @@ pub enum InvalidInputError {
 
     #[error("Invalid gid range {start}-{end}")]
     InvalidGidRange { start: u16, end: u16 },
+
+    #[error("Invalid input unicode {0}")]
+    InvalidUnicode(String),
+
+    #[error("Invalid unicode range {start}-{end}")]
+    InvalidUnicodeRange { start: u32, end: u32 },
 }
 
 #[derive(Parser, Debug)]
@@ -32,7 +38,11 @@ struct Args {
 
     /// List of glyph ids
     #[arg(short, long)]
-    gids: String,
+    gids: Option<String>,
+
+    /// List of unicode codepoints
+    #[arg(short, long)]
+    unicodes: Option<String>,
 
     /// The output font file
     #[arg(short, long)]
@@ -50,9 +60,17 @@ fn main() {
         }
     };
 
+    let unicodes = match parse_unicodes(&args.unicodes) {
+        Ok(unicodes) => unicodes,
+        Err(e) => {
+            eprintln!("{e}");
+            std::process::exit(1);
+        }
+    };
+
     let font_bytes = std::fs::read(&args.path).expect("Invalid input font file found");
     let font = FontRef::new(&font_bytes).expect("Error reading font bytes");
-    let plan = Plan::new(&gids, &font);
+    let plan = Plan::new(&gids, &unicodes, &font);
 
     let hmtx = font.hmtx().expect("Error reading hmtx table");
     let mut hmtx = Hmtx::from_table_ref(&hmtx);
@@ -79,8 +97,11 @@ fn main() {
     std::fs::write(&args.output_file, builder.build()).unwrap();
 }
 
-fn populate_gids(gid_str: &str) -> Result<BTreeSet<GlyphId>, InvalidInputError> {
-    let mut result = BTreeSet::new();
+fn populate_gids(gid_str: &Option<String>) -> Result<IntSet<GlyphId>, InvalidInputError> {
+    let mut result = IntSet::empty();
+    let Some(gid_str) = gid_str else {
+        return Ok(result);
+    };
     for gid in gid_str.split(',') {
         if let Some((start, end)) = gid.split_once('-') {
             let start: u16 = start
@@ -100,6 +121,34 @@ fn populate_gids(gid_str: &str) -> Result<BTreeSet<GlyphId>, InvalidInputError> 
             result.insert(GlyphId::new(glyph_id));
         }
     }
-    result.insert(GlyphId::new(0_u16));
+    Ok(result)
+}
+
+fn parse_unicodes(unicode_str: &Option<String>) -> Result<IntSet<u32>, InvalidInputError> {
+    let mut result = IntSet::empty();
+    let Some(unicode_str) = unicode_str else {
+        return Ok(result);
+    };
+    let re = regex::Regex::new(r"[<+->{},;&#\\xXuUnNiI\n\t\v\f\r]").unwrap();
+    let s = re.replace_all(unicode_str, " ");
+    for cp in s.split_whitespace() {
+        if let Some((start, end)) = cp.split_once('-') {
+            let start: u32 = start
+                .parse::<u32>()
+                .map_err(|_| InvalidInputError::InvalidUnicode(start.to_owned()))?;
+            let end: u32 = end
+                .parse::<u32>()
+                .map_err(|_| InvalidInputError::InvalidUnicode(end.to_owned()))?;
+            if start > end {
+                return Err(InvalidInputError::InvalidUnicodeRange { start, end });
+            }
+            result.extend(start..=end);
+        } else {
+            let unicode: u32 = cp
+                .parse::<u32>()
+                .map_err(|_| InvalidInputError::InvalidUnicode(cp.to_owned()))?;
+            result.insert(unicode);
+        }
+    }
     Ok(result)
 }

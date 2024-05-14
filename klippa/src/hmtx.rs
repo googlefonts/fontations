@@ -14,7 +14,7 @@ impl Subset for Hmtx {
         let num_long_metrics = plan.num_h_metrics as usize;
         let mut new_metrics = Vec::with_capacity(num_long_metrics);
         let mut new_side_bearings = Vec::new();
-        for gid in gids {
+        for gid in gids.iter() {
             let glyph_id = gid.to_u16() as usize;
             let side_bearing =
                 get_gid_side_bearing(&self.h_metrics, &self.left_side_bearings, glyph_id);
