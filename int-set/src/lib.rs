@@ -30,6 +30,8 @@ use std::ops::RangeInclusive;
 #[derive(Clone, Debug, Hash, PartialEq, Eq)]
 pub struct IntSet<T>(Membership, PhantomData<T>);
 
+/// Defines the domain of `IntSet` member types.
+///
 /// Members of `IntSet`` must implement this trait. Members of `IntSet`'s must meet the following
 /// conditions to be used in an `IntSet`:
 ///
