@@ -99,6 +99,7 @@ impl<T: Domain<T>> IntSet<T> {
     // - min()/max()
 
     /// Returns an iterator over all members of the set.
+    ///
     /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
     /// care should be taken when using .iter() in combination with an inverted set.
     pub fn iter(&self) -> impl Iterator<Item = T> + '_ {
@@ -130,8 +131,7 @@ impl<T: Domain<T>> IntSet<T> {
         }
     }
 
-    /// An alternate version of extend() which is optimized for inserting an unsorted
-    /// iterator of values.
+    /// An alternate version of extend() which is optimized for inserting an unsorted iterator of values.
     pub fn extend_unsorted<U: IntoIterator<Item = T>>(&mut self, iter: U) {
         let iter = iter.into_iter().map(|v| v.to_u32());
         match &mut self.0 {
@@ -264,6 +264,7 @@ impl<T: Domain<T>> FromIterator<T> for IntSet<T> {
 
 impl<T: Domain<T>> Extend<T> for IntSet<T> {
     /// Extends a collection with the contents of an iterator.
+    ///
     /// This implementation is optimized to provide the best performance when the iterator contains sorted values.
     /// Consider using extend_unsorted() if the iterator is known to contain unsorted values.
     fn extend<U: IntoIterator<Item = T>>(&mut self, iter: U) {
