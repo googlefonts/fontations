@@ -53,14 +53,14 @@ impl BitPage {
     // TODO(garretrieger): reverse iterator.
 
     /// Iterator over the members of this page.
-    pub(crate) fn iter(&self) -> impl Iterator<Item = u32> + '_ {
+    pub(crate) fn iter(&self) -> impl DoubleEndedIterator<Item = u32> + '_ {
         self.storage
             .iter()
             .enumerate()
             .filter(|(_, elem)| **elem != 0)
             .flat_map(|(i, elem)| {
                 let base = i as u32 * ELEM_BITS;
-                iter_bit_indices(*elem).map(move |idx| base + idx)
+                Iter::iter(*elem).map(move |idx| base + idx)
             })
     }
 
@@ -159,22 +159,58 @@ const fn elem_index_bit_mask(value: u32) -> Element {
     1 << (value & ELEM_MASK)
 }
 
-fn iter_bit_indices(val: Element) -> impl Iterator<Item = u32> {
-    let mut idx = 0;
+struct Iter {
+    val: Element,
+    forward_index: u32,
+    backward_index: i32,
+}
 
-    std::iter::from_fn(move || {
-        if idx >= ELEM_BITS {
+impl Iter {
+    fn iter(elem: Element) -> Iter {
+        Iter {
+            val: elem,
+            forward_index: 0,
+            backward_index: ELEM_BITS as i32 - 1,
+        }
+    }
+}
+
+impl Iterator for Iter {
+    type Item = u32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.forward_index > self.backward_index as u32 {
             return None;
         }
-        let mask = (1u64 << idx) - 1;
-        let masked = val & !mask;
+        let mask = (1u64 << self.forward_index) - 1;
+        let masked = self.val & !mask;
         let next_index = masked.trailing_zeros();
-        if next_index >= ELEM_BITS {
+        if next_index > self.backward_index as u32 {
             return None;
         }
-        idx = next_index + 1;
+        self.forward_index = next_index + 1;
         Some(next_index)
-    })
+    }
+}
+
+impl DoubleEndedIterator for Iter {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.backward_index < self.forward_index as i32 {
+            return None;
+        }
+
+        let mask = 1u64
+            .checked_shl(self.backward_index as u32 + 1)
+            .map(|v| v - 1)
+            .unwrap_or(Element::MAX);
+        let masked = self.val & mask;
+        let next_index = (ELEM_BITS as i32) - (masked.leading_zeros() as i32) - 1;
+        if next_index < self.forward_index as i32 {
+            return None;
+        }
+        self.backward_index = next_index - 1;
+        Some(next_index as u32)
+    }
 }
 
 impl Default for BitPage {
@@ -222,20 +258,55 @@ mod test {
 
     #[test]
     fn test_iter_bit_indices() {
-        let items: Vec<_> = iter_bit_indices(0).collect();
+        let items: Vec<_> = Iter::iter(0).collect();
         assert_eq!(items, vec![]);
 
-        let items: Vec<_> = iter_bit_indices(1).collect();
+        let items: Vec<_> = Iter::iter(1).collect();
         assert_eq!(items, vec![0]);
 
-        let items: Vec<_> = iter_bit_indices(0b1100).collect();
+        let items: Vec<_> = Iter::iter(0b1100).collect();
         assert_eq!(items, vec![2, 3]);
 
-        let items: Vec<_> = iter_bit_indices(1 << 63).collect();
+        let items: Vec<_> = Iter::iter(1 << 63).collect();
         assert_eq!(items, vec![63]);
 
-        let items: Vec<_> = iter_bit_indices((1 << 47) | (1 << 63)).collect();
+        let items: Vec<_> = Iter::iter((1 << 47) | (1 << 63)).collect();
         assert_eq!(items, vec![47, 63]);
+    }
+
+    #[test]
+    fn test_iter_bit_indices_backwards() {
+        let mut it = Iter::iter(0);
+        assert_eq!(None, it.next());
+        assert_eq!(None, it.next_back());
+
+        let mut it = Iter::iter((1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6));
+        assert_eq!(Some(1), it.next());
+        assert_eq!(Some(6), it.next_back());
+        assert_eq!(Some(5), it.next_back());
+        assert_eq!(Some(2), it.next());
+        assert_eq!(Some(3), it.next());
+        assert_eq!(Some(4), it.next());
+        assert_eq!(None, it.next());
+        assert_eq!(None, it.next_back());
+
+        let mut it = Iter::iter(1);
+        assert_eq!(Some(0), it.next_back());
+        assert_eq!(None, it.next_back());
+
+        let mut it = Iter::iter(1 << 63);
+        assert_eq!(Some(63), it.next_back());
+        assert_eq!(None, it.next_back());
+
+        let mut it = Iter::iter((1 << 63) | (1 << 62));
+        assert_eq!(Some(63), it.next_back());
+        assert_eq!(Some(62), it.next_back());
+        assert_eq!(None, it.next_back());
+
+        let mut it = Iter::iter((1 << 63) | (1 << 32));
+        assert_eq!(Some(63), it.next_back());
+        assert_eq!(Some(32), it.next_back());
+        assert_eq!(None, it.next_back());
     }
 
     #[test]
