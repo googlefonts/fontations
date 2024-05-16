@@ -153,14 +153,14 @@ impl BitSet {
         self.len.get()
     }
 
-    pub(crate) fn iter(&self) -> impl Iterator<Item = u32> + '_ {
+    pub(crate) fn iter(&self) -> impl DoubleEndedIterator<Item = u32> + '_ {
         self.iter_non_empty_pages().flat_map(|(major, page)| {
             let base = self.major_start(major);
             page.iter().map(move |v| base + v)
         })
     }
 
-    fn iter_pages(&self) -> impl Iterator<Item = (u32, &BitPage)> + '_ {
+    fn iter_pages(&self) -> impl DoubleEndedIterator<Item = (u32, &BitPage)> + '_ {
         self.page_map.iter().flat_map(|info| {
             self.pages
                 .get(info.index as usize)
@@ -168,7 +168,7 @@ impl BitSet {
         })
     }
 
-    fn iter_non_empty_pages(&self) -> impl Iterator<Item = (u32, &BitPage)> + '_ {
+    fn iter_non_empty_pages(&self) -> impl DoubleEndedIterator<Item = (u32, &BitPage)> + '_ {
         self.iter_pages().filter(|(_, page)| !page.is_empty())
     }
 
@@ -345,6 +345,42 @@ mod test {
 
         let v: Vec<u32> = bitset.iter().collect();
         assert_eq!(v, vec![3, 8, 534, 700, 10000, 10001, 10002]);
+    }
+
+    #[test]
+    fn iter_backwards() {
+        let mut bitset = BitSet::empty();
+
+        bitset.insert_range(1..=6);
+        {
+            let mut it = bitset.iter();
+            assert_eq!(Some(1), it.next());
+            assert_eq!(Some(6), it.next_back());
+            assert_eq!(Some(5), it.next_back());
+            assert_eq!(Some(2), it.next());
+            assert_eq!(Some(3), it.next());
+            assert_eq!(Some(4), it.next());
+            assert_eq!(None, it.next());
+            assert_eq!(None, it.next_back());
+        }
+
+        bitset.insert_range(700..=701);
+        {
+            let mut it = bitset.iter();
+            assert_eq!(Some(1), it.next());
+            assert_eq!(Some(701), it.next_back());
+            assert_eq!(Some(700), it.next_back());
+            assert_eq!(Some(6), it.next_back());
+            assert_eq!(Some(5), it.next_back());
+            assert_eq!(Some(2), it.next());
+            assert_eq!(Some(3), it.next());
+            assert_eq!(Some(4), it.next());
+            assert_eq!(None, it.next());
+            assert_eq!(None, it.next_back());
+        }
+
+        let v: Vec<u32> = bitset.iter().rev().collect();
+        assert_eq!(vec![701, 700, 6, 5, 4, 3, 2, 1], v);
     }
 
     #[test]
