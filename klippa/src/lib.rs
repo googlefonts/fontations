@@ -4,6 +4,7 @@ mod hhea;
 mod hmtx;
 mod maxp;
 
+use int_set::IntSet;
 use std::collections::BTreeSet;
 use thiserror::Error;
 use write_fonts::read::{FontRef, TableProvider};
@@ -11,18 +12,21 @@ use write_fonts::types::GlyphId;
 use write_fonts::types::Tag;
 use write_fonts::{from_obj::FromTableRef, tables::hmtx::Hmtx, tables::maxp::Maxp};
 pub struct Plan {
-    glyph_ids: BTreeSet<GlyphId>,
+    glyph_ids: IntSet<GlyphId>,
     num_h_metrics: u16,
     num_output_glyphs: u16,
 }
 
 impl Plan {
-    pub fn new(input_gids: &BTreeSet<GlyphId>, font: &FontRef) -> Self {
+    pub fn new(input_gids: &IntSet<GlyphId>, input_unicodes: &IntSet<u32>, font: &FontRef) -> Self {
+        let gids = populate_unicodes_to_retain(input_gids, input_unicodes, font);
         // remove invalid gids
         let maxp = font.maxp().expect("Error reading maxp table");
         let maxp = Maxp::from_table_ref(&maxp);
-        let mut gids: BTreeSet<GlyphId> = input_gids.clone();
-        gids.retain(|gid| gid.to_u16() < maxp.num_glyphs);
+        let gids: IntSet<GlyphId> = gids
+            .iter()
+            .filter(|gid| gid.to_u16() < maxp.num_glyphs)
+            .collect();
         let num_glyphs = gids.len() as u16;
 
         // compute new h_metrics
@@ -38,9 +42,34 @@ impl Plan {
     }
 }
 
-fn compute_new_num_h_metrics(hmtx_table: &Hmtx, glyph_ids: &BTreeSet<GlyphId>) -> u16 {
+fn populate_unicodes_to_retain(
+    input_gids: &IntSet<GlyphId>,
+    input_unicodes: &IntSet<u32>,
+    font: &FontRef,
+) -> IntSet<GlyphId> {
+    let mut gids = IntSet::empty();
+    gids.insert(GlyphId::new(0_u16));
+    gids.extend(input_gids.iter());
+
+    let cmap = font.cmap().expect("Error reading cmap table");
+    for cp in input_unicodes.iter() {
+        match cmap.map_codepoint(cp) {
+            Some(gid) => {
+                gids.insert(gid);
+            }
+            None => {
+                continue;
+            }
+        }
+    }
+    gids
+}
+
+fn compute_new_num_h_metrics(hmtx_table: &Hmtx, glyph_ids: &IntSet<GlyphId>) -> u16 {
     let num_long_metrics = glyph_ids.len().min(0xFFFF);
-    let last_gid = glyph_ids.last().unwrap().to_u16() as usize;
+    //TODO: we still need a BTreeSet here because we currently don't have max() and Iterator::rev() for IntSet
+    let gids: BTreeSet<GlyphId> = glyph_ids.iter().collect();
+    let last_gid = gids.last().unwrap().to_u16() as usize;
     let last_advance = hmtx_table
         .h_metrics
         .get(last_gid)
@@ -48,7 +77,7 @@ fn compute_new_num_h_metrics(hmtx_table: &Hmtx, glyph_ids: &BTreeSet<GlyphId>) -
         .unwrap()
         .advance;
 
-    let num_skippable_glyphs = glyph_ids
+    let num_skippable_glyphs = gids
         .iter()
         .rev()
         .take_while(|gid| {
