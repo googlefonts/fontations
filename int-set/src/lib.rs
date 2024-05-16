@@ -63,13 +63,13 @@ pub trait Domain<T> {
     ///
     /// Values should be converted to `u32`'s according to the mapping defined in
     /// `to_u32`/`from_u32`.
-    fn ordered_values() -> impl Iterator<Item = u32>;
+    fn ordered_values() -> impl DoubleEndedIterator<Item = u32>;
 
     /// Return an iterator which iterates over all values of T in the given range.
     ///
     /// Values should be converted to `u32`'s according to the mapping defined in
     /// `to_u32`/`from_u32`.
-    fn ordered_values_range(range: RangeInclusive<T>) -> impl Iterator<Item = u32>;
+    fn ordered_values_range(range: RangeInclusive<T>) -> impl DoubleEndedIterator<Item = u32>;
 }
 
 /// Marks a mapped value as being in the domain of `T` for [`Domain<T>`].
@@ -110,11 +110,12 @@ impl<T: Domain<T>> IntSet<T> {
     ///
     /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
     /// care should be taken when using .iter() in combination with an inverted set.
-    pub fn iter(&self) -> impl Iterator<Item = T> + '_ {
-        match &self.0 {
-            Membership::Inclusive(s) => int_set_iter(s.iter(), false),
-            Membership::Exclusive(s) => int_set_iter(s.iter(), true),
-        }
+    pub fn iter(&self) -> impl DoubleEndedIterator<Item = T> + '_ {
+        let u32_iter = match &self.0 {
+            Membership::Inclusive(s) => Iter::iter(s.iter(), None),
+            Membership::Exclusive(s) => Iter::iter(s.iter(), Some(T::ordered_values())),
+        };
+        u32_iter.map(|v| T::from_u32(InDomain(v)))
     }
 
     /// Adds a value to the set.
@@ -296,35 +297,77 @@ impl<T: Domain<T>> Extend<T> for IntSet<T> {
     }
 }
 
-fn int_set_iter<T, U>(mut values: U, exclusive: bool) -> impl Iterator<Item = T>
+struct Iter<SetIter, AllValuesIter>
 where
-    U: Iterator<Item = u32>,
-    T: Domain<T>,
+    SetIter: DoubleEndedIterator<Item = u32>,
+    AllValuesIter: DoubleEndedIterator<Item = u32>,
 {
-    let mut cur_value = values.next();
-    let mut all_values = T::ordered_values();
+    set_values: SetIter,
+    all_values: Option<AllValuesIter>,
+    next_skipped_forward: Option<u32>,
+    next_skipped_backward: Option<u32>,
+}
 
-    std::iter::from_fn(move || {
-        if !exclusive {
-            let ret = cur_value;
-            cur_value = values.next();
-            return ret.map(|v| T::from_u32(InDomain(v)));
+impl<SetIter, AllValuesIter> Iter<SetIter, AllValuesIter>
+where
+    SetIter: DoubleEndedIterator<Item = u32>,
+    AllValuesIter: DoubleEndedIterator<Item = u32>,
+{
+    fn iter(
+        mut set_values: SetIter,
+        all_values: Option<AllValuesIter>,
+    ) -> Iter<SetIter, AllValuesIter> {
+        match all_values {
+            Some(_) => Iter {
+                next_skipped_forward: set_values.next(),
+                next_skipped_backward: set_values.next_back(),
+                set_values,
+                all_values,
+            },
+            None => Iter {
+                set_values,
+                all_values,
+                next_skipped_forward: None,
+                next_skipped_backward: None,
+            },
         }
+    }
+}
 
-        for index in all_values.by_ref() {
+impl<SetIter, AllValuesIter> Iterator for Iter<SetIter, AllValuesIter>
+where
+    SetIter: DoubleEndedIterator<Item = u32>,
+    AllValuesIter: DoubleEndedIterator<Item = u32>,
+{
+    type Item = u32;
+
+    fn next(&mut self) -> Option<u32> {
+        let Some(all_values_it) = &mut self.all_values else {
+            return self.set_values.next();
+        };
+
+        for index in all_values_it.by_ref() {
             let index = index.to_u32();
             loop {
-                let Some(skip) = cur_value else {
+                let Some(skip) = self.next_skipped_forward else {
+                    // There are no skips left in the iterator, but there may still be a skipped
+                    // number on the backwards iteration, so check that.
+                    if let Some(skip) = self.next_skipped_backward {
+                        if skip == index {
+                            // this index should be skipped, go to the next one.
+                            break;
+                        }
+                    }
                     // No-longer any values to skip, can freely return index
-                    return Some(T::from_u32(InDomain(index)));
+                    return Some(index);
                 };
 
                 if index < skip {
                     // Not a skipped value
-                    return Some(T::from_u32(InDomain(index)));
+                    return Some(index);
                 }
 
-                cur_value = values.next();
+                self.next_skipped_forward = self.set_values.next();
                 if index > skip {
                     // We've passed the skip value, need to check the next one.
                     continue;
@@ -334,9 +377,53 @@ where
                 break;
             }
         }
-
         None
-    })
+    }
+}
+
+impl<SetIter, AllValuesIter> DoubleEndedIterator for Iter<SetIter, AllValuesIter>
+where
+    SetIter: DoubleEndedIterator<Item = u32>,
+    AllValuesIter: DoubleEndedIterator<Item = u32>,
+{
+    fn next_back(&mut self) -> Option<Self::Item> {
+        let Some(all_values_it) = &mut self.all_values else {
+            return self.set_values.next_back();
+        };
+
+        for index in all_values_it.by_ref().rev() {
+            let index = index.to_u32();
+            loop {
+                let Some(skip) = self.next_skipped_backward else {
+                    // There are no skips left in the iterator, but there may still be a skipped
+                    // number on the backwards iteration, so check that.
+                    if let Some(skip) = self.next_skipped_forward {
+                        if skip == index {
+                            // this index should be skipped, go to the next one.
+                            break;
+                        }
+                    }
+                    // No-longer any values to skip, can freely return index
+                    return Some(index);
+                };
+
+                if index > skip {
+                    // Not a skipped value
+                    return Some(index);
+                }
+
+                self.next_skipped_backward = self.set_values.next_back();
+                if index < skip {
+                    // We've passed the skip value, need to check the next one.
+                    continue;
+                }
+
+                // index == skip, so we need to skip this index.
+                break;
+            }
+        }
+        None
+    }
 }
 
 impl Domain<u32> for u32 {
@@ -352,11 +439,11 @@ impl Domain<u32> for u32 {
         true
     }
 
-    fn ordered_values() -> impl Iterator<Item = u32> {
+    fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
         u32::MIN..=u32::MAX
     }
 
-    fn ordered_values_range(range: RangeInclusive<u32>) -> impl Iterator<Item = u32> {
+    fn ordered_values_range(range: RangeInclusive<u32>) -> impl DoubleEndedIterator<Item = u32> {
         range
     }
 }
@@ -374,11 +461,33 @@ impl Domain<u16> for u16 {
         true
     }
 
-    fn ordered_values() -> impl Iterator<Item = u32> {
+    fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
         (u16::MIN as u32)..=(u16::MAX as u32)
     }
 
-    fn ordered_values_range(range: RangeInclusive<u16>) -> impl Iterator<Item = u32> {
+    fn ordered_values_range(range: RangeInclusive<u16>) -> impl DoubleEndedIterator<Item = u32> {
+        (*range.start() as u32)..=(*range.end() as u32)
+    }
+}
+
+impl Domain<u8> for u8 {
+    fn to_u32(&self) -> u32 {
+        *self as u32
+    }
+
+    fn from_u32(member: InDomain) -> u8 {
+        member.value() as u8
+    }
+
+    fn is_continous() -> bool {
+        true
+    }
+
+    fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
+        (u8::MIN as u32)..=(u8::MAX as u32)
+    }
+
+    fn ordered_values_range(range: RangeInclusive<u8>) -> impl DoubleEndedIterator<Item = u32> {
         (*range.start() as u32)..=(*range.end() as u32)
     }
 }
@@ -396,11 +505,13 @@ impl Domain<GlyphId> for GlyphId {
         true
     }
 
-    fn ordered_values() -> impl Iterator<Item = u32> {
+    fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
         (u16::MIN as u32)..=(u16::MAX as u32)
     }
 
-    fn ordered_values_range(range: RangeInclusive<GlyphId>) -> impl Iterator<Item = u32> {
+    fn ordered_values_range(
+        range: RangeInclusive<GlyphId>,
+    ) -> impl DoubleEndedIterator<Item = u32> {
         range.start().to_u32()..=range.end().to_u32()
     }
 }
@@ -430,13 +541,15 @@ mod test {
             false
         }
 
-        fn ordered_values() -> impl Iterator<Item = u32> {
+        fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
             (u16::MIN..=u16::MAX)
                 .filter(|v| v % 2 == 0)
                 .map(|v| v as u32)
         }
 
-        fn ordered_values_range(range: RangeInclusive<EvenInts>) -> impl Iterator<Item = u32> {
+        fn ordered_values_range(
+            range: RangeInclusive<EvenInts>,
+        ) -> impl DoubleEndedIterator<Item = u32> {
             Self::ordered_values()
                 .filter(move |v| *v >= range.start().to_u32() && *v <= range.end().to_u32())
         }
@@ -566,6 +679,65 @@ mod test {
     }
 
     #[test]
+    fn iter_backwards() {
+        let mut set = IntSet::<u32>::empty();
+        set.insert_range(1..=6);
+        {
+            let mut it = set.iter();
+            assert_eq!(Some(1), it.next());
+            assert_eq!(Some(6), it.next_back());
+            assert_eq!(Some(5), it.next_back());
+            assert_eq!(Some(2), it.next());
+            assert_eq!(Some(3), it.next());
+            assert_eq!(Some(4), it.next());
+            assert_eq!(None, it.next());
+            assert_eq!(None, it.next_back());
+        }
+
+        let mut set = IntSet::<u8>::empty();
+        set.invert();
+        set.remove_range(10..=255);
+        set.remove(4);
+        set.remove(8);
+        {
+            let mut it = set.iter();
+            assert_eq!(Some(0), it.next());
+            assert_eq!(Some(1), it.next());
+            assert_eq!(Some(2), it.next());
+            assert_eq!(Some(3), it.next());
+
+            assert_eq!(Some(9), it.next_back());
+            assert_eq!(Some(7), it.next_back());
+            assert_eq!(Some(6), it.next_back());
+            assert_eq!(Some(5), it.next_back());
+            assert_eq!(None, it.next_back());
+
+            assert_eq!(None, it.next());
+        }
+
+        let mut set = IntSet::<u8>::empty();
+        set.invert();
+        set.remove_range(10..=255);
+        set.remove(4);
+        set.remove(8);
+        {
+            let mut it = set.iter();
+            assert_eq!(Some(0), it.next());
+            assert_eq!(Some(1), it.next());
+            assert_eq!(Some(2), it.next());
+            assert_eq!(Some(3), it.next());
+            assert_eq!(Some(5), it.next());
+
+            assert_eq!(Some(9), it.next_back());
+            assert_eq!(Some(7), it.next_back());
+            assert_eq!(Some(6), it.next_back());
+            assert_eq!(None, it.next_back());
+
+            assert_eq!(None, it.next());
+        }
+    }
+
+    #[test]
     fn exclusive_iter() {
         let mut set = IntSet::<u32>::all();
         set.remove(3);
@@ -584,6 +756,20 @@ mod test {
         assert_eq!(iter.next(), Some(10));
 
         assert!(set.inclusive_iter().is_none());
+
+        // Forward skip first
+        let mut set = IntSet::<u32>::all();
+        set.remove_range(0..=200);
+
+        let mut iter = set.iter();
+        assert_eq!(iter.next(), Some(201));
+
+        // Backward skip first
+        let mut set = IntSet::<u8>::all();
+        set.remove_range(200..=255);
+
+        let mut iter = set.iter();
+        assert_eq!(iter.next_back(), Some(199));
     }
 
     #[test]
