@@ -60,7 +60,7 @@ impl BitPage {
             .filter(|(_, elem)| **elem != 0)
             .flat_map(|(i, elem)| {
                 let base = i as u32 * ELEM_BITS;
-                Iter::iter(*elem).map(move |idx| base + idx)
+                Iter::new(*elem).map(move |idx| base + idx)
             })
     }
 
@@ -166,7 +166,7 @@ struct Iter {
 }
 
 impl Iter {
-    fn iter(elem: Element) -> Iter {
+    fn new(elem: Element) -> Iter {
         Iter {
             val: elem,
             forward_index: 0,
@@ -258,29 +258,29 @@ mod test {
 
     #[test]
     fn test_iter_bit_indices() {
-        let items: Vec<_> = Iter::iter(0).collect();
+        let items: Vec<_> = Iter::new(0).collect();
         assert_eq!(items, vec![]);
 
-        let items: Vec<_> = Iter::iter(1).collect();
+        let items: Vec<_> = Iter::new(1).collect();
         assert_eq!(items, vec![0]);
 
-        let items: Vec<_> = Iter::iter(0b1100).collect();
+        let items: Vec<_> = Iter::new(0b1100).collect();
         assert_eq!(items, vec![2, 3]);
 
-        let items: Vec<_> = Iter::iter(1 << 63).collect();
+        let items: Vec<_> = Iter::new(1 << 63).collect();
         assert_eq!(items, vec![63]);
 
-        let items: Vec<_> = Iter::iter((1 << 47) | (1 << 63)).collect();
+        let items: Vec<_> = Iter::new((1 << 47) | (1 << 63)).collect();
         assert_eq!(items, vec![47, 63]);
     }
 
     #[test]
     fn test_iter_bit_indices_backwards() {
-        let mut it = Iter::iter(0);
+        let mut it = Iter::new(0);
         assert_eq!(None, it.next());
         assert_eq!(None, it.next_back());
 
-        let mut it = Iter::iter((1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6));
+        let mut it = Iter::new((1 << 1) | (1 << 2) | (1 << 3) | (1 << 4) | (1 << 5) | (1 << 6));
         assert_eq!(Some(1), it.next());
         assert_eq!(Some(6), it.next_back());
         assert_eq!(Some(5), it.next_back());
@@ -290,20 +290,20 @@ mod test {
         assert_eq!(None, it.next());
         assert_eq!(None, it.next_back());
 
-        let mut it = Iter::iter(1);
+        let mut it = Iter::new(1);
         assert_eq!(Some(0), it.next_back());
         assert_eq!(None, it.next_back());
 
-        let mut it = Iter::iter(1 << 63);
+        let mut it = Iter::new(1 << 63);
         assert_eq!(Some(63), it.next_back());
         assert_eq!(None, it.next_back());
 
-        let mut it = Iter::iter((1 << 63) | (1 << 62));
+        let mut it = Iter::new((1 << 63) | (1 << 62));
         assert_eq!(Some(63), it.next_back());
         assert_eq!(Some(62), it.next_back());
         assert_eq!(None, it.next_back());
 
-        let mut it = Iter::iter((1 << 63) | (1 << 32));
+        let mut it = Iter::new((1 << 63) | (1 << 32));
         assert_eq!(Some(63), it.next_back());
         assert_eq!(Some(32), it.next_back());
         assert_eq!(None, it.next_back());

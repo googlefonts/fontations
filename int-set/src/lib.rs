@@ -112,8 +112,8 @@ impl<T: Domain<T>> IntSet<T> {
     /// care should be taken when using .iter() in combination with an inverted set.
     pub fn iter(&self) -> impl DoubleEndedIterator<Item = T> + '_ {
         let u32_iter = match &self.0 {
-            Membership::Inclusive(s) => Iter::iter(s.iter(), None),
-            Membership::Exclusive(s) => Iter::iter(s.iter(), Some(T::ordered_values())),
+            Membership::Inclusive(s) => Iter::new(s.iter(), None),
+            Membership::Exclusive(s) => Iter::new(s.iter(), Some(T::ordered_values())),
         };
         u32_iter.map(|v| T::from_u32(InDomain(v)))
     }
@@ -313,7 +313,7 @@ where
     SetIter: DoubleEndedIterator<Item = u32>,
     AllValuesIter: DoubleEndedIterator<Item = u32>,
 {
-    fn iter(
+    fn new(
         mut set_values: SetIter,
         all_values: Option<AllValuesIter>,
     ) -> Iter<SetIter, AllValuesIter> {
