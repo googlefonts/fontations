@@ -272,6 +272,9 @@ mod test {
 
         let items: Vec<_> = Iter::new((1 << 47) | (1 << 63)).collect();
         assert_eq!(items, vec![47, 63]);
+
+        assert_eq!(Iter::new(Element::MAX).max(), Some(ELEM_BITS - 1));
+        assert_eq!(Iter::new(Element::MAX).min(), Some(0));
     }
 
     #[test]
