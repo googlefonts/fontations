@@ -190,12 +190,12 @@ impl<T: Domain<T>> IntSet<T> {
         }
     }
 
-    /// Returns the smallest member of this set if there is one.
+    /// Returns first element in the set, if any. This element is always the minimum of all elements in the set.
     pub fn first(&self) -> Option<T> {
         return self.iter().next();
     }
 
-    /// Returns the smallest member of this set if there is one.
+    /// Returns the last element in the set, if any. This element is always the maximum of all elements in the set.
     pub fn last(&self) -> Option<T> {
         return self.iter().next_back();
     }
