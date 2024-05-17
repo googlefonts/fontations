@@ -191,12 +191,12 @@ impl<T: Domain<T>> IntSet<T> {
     }
 
     /// Returns the smallest member of this set if there is one.
-    pub fn min(&self) -> Option<T> {
+    pub fn first(&self) -> Option<T> {
         return self.iter().next();
     }
 
     /// Returns the smallest member of this set if there is one.
-    pub fn max(&self) -> Option<T> {
+    pub fn last(&self) -> Option<T> {
         return self.iter().next_back();
     }
 
@@ -617,61 +617,61 @@ mod test {
     }
 
     #[test]
-    fn min() {
+    fn first() {
         let set = IntSet::<u16>::empty();
-        assert_eq!(set.min(), None);
+        assert_eq!(set.first(), None);
 
         let set = IntSet::<u16>::all();
-        assert_eq!(set.min(), Some(0));
+        assert_eq!(set.first(), Some(0));
 
         let mut set = IntSet::<u16>::empty();
         set.extend([0]);
-        assert_eq!(set.min(), Some(0));
+        assert_eq!(set.first(), Some(0));
 
         let mut set = IntSet::<u16>::empty();
         set.extend([u16::MAX]);
-        assert_eq!(set.min(), Some(u16::MAX));
+        assert_eq!(set.first(), Some(u16::MAX));
 
         let mut set = IntSet::<u16>::empty();
         set.extend([100, 1000, 10000]);
-        assert_eq!(set.min(), Some(100));
+        assert_eq!(set.first(), Some(100));
 
         set.invert();
-        assert_eq!(set.min(), Some(0));
+        assert_eq!(set.first(), Some(0));
 
         set.remove_range(0..=100);
-        assert_eq!(set.min(), Some(101));
+        assert_eq!(set.first(), Some(101));
     }
 
     #[test]
-    fn max() {
+    fn last() {
         let set = IntSet::<u16>::empty();
-        assert_eq!(set.max(), None);
+        assert_eq!(set.last(), None);
 
         let set = IntSet::<u16>::all();
-        assert_eq!(set.max(), Some(u16::MAX));
+        assert_eq!(set.last(), Some(u16::MAX));
 
         let mut set = IntSet::<u16>::empty();
         set.extend([0]);
-        assert_eq!(set.max(), Some(0));
+        assert_eq!(set.last(), Some(0));
 
         let mut set = IntSet::<u16>::empty();
         set.extend([u16::MAX]);
-        assert_eq!(set.max(), Some(u16::MAX));
+        assert_eq!(set.last(), Some(u16::MAX));
 
         let mut set = IntSet::<u16>::empty();
         set.extend([5, 7, 8]);
-        assert_eq!(set.max(), Some(8));
+        assert_eq!(set.last(), Some(8));
 
         let mut set = IntSet::<u16>::empty();
         set.extend([100, 1000, 10000]);
-        assert_eq!(set.max(), Some(10000));
+        assert_eq!(set.last(), Some(10000));
 
         set.invert();
-        assert_eq!(set.max(), Some(u16::MAX));
+        assert_eq!(set.last(), Some(u16::MAX));
 
         set.remove_range(u16::MAX - 10..=u16::MAX);
-        assert_eq!(set.max(), Some(u16::MAX - 11));
+        assert_eq!(set.last(), Some(u16::MAX - 11));
     }
 
     #[test]
