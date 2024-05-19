@@ -43,9 +43,6 @@ pub struct Post {
     /// Maximum memory usage when an OpenType font is downloaded as a
     /// Type 1 font.
     pub max_mem_type1: u32,
-    /// Number of glyphs (this should be the same as numGlyphs in
-    /// 'maxp' table).
-    pub num_glyphs: Option<u16>,
     /// Array of indices into the string data. See below for details.
     pub glyph_name_index: Option<Vec<u16>>,
     /// Storage for the string data.
@@ -60,11 +57,10 @@ impl Default for Post {
             underline_position: Default::default(),
             underline_thickness: Default::default(),
             is_fixed_pitch: Default::default(),
-            min_mem_type42: Default::default(),
-            max_mem_type42: Default::default(),
-            min_mem_type1: Default::default(),
-            max_mem_type1: Default::default(),
-            num_glyphs: Default::default(),
+            min_mem_type42: 0,
+            max_mem_type42: 0,
+            min_mem_type1: 0,
+            max_mem_type1: 0,
             glyph_name_index: Default::default(),
             string_data: Default::default(),
         }
@@ -73,32 +69,24 @@ impl Default for Post {
 
 impl Post {
     /// Construct a new `Post`
-    #[allow(clippy::too_many_arguments)]
     pub fn new(
         italic_angle: Fixed,
         underline_position: FWord,
         underline_thickness: FWord,
         is_fixed_pitch: u32,
-        min_mem_type42: u32,
-        max_mem_type42: u32,
-        min_mem_type1: u32,
-        max_mem_type1: u32,
     ) -> Self {
         Self {
             italic_angle,
             underline_position,
             underline_thickness,
             is_fixed_pitch,
-            min_mem_type42,
-            max_mem_type42,
-            min_mem_type1,
-            max_mem_type1,
             ..Default::default()
         }
     }
 }
 
 impl FontWrite for Post {
+    #[allow(clippy::unnecessary_cast)]
     fn write_into(&self, writer: &mut TableWriter) {
         let version = self.version;
         version.write_into(writer);
@@ -110,12 +98,9 @@ impl FontWrite for Post {
         self.max_mem_type42.write_into(writer);
         self.min_mem_type1.write_into(writer);
         self.max_mem_type1.write_into(writer);
-        version.compatible((2, 0)).then(|| {
-            self.num_glyphs
-                .as_ref()
-                .expect("missing versioned field should have failed validation")
-                .write_into(writer)
-        });
+        version
+            .compatible((2, 0))
+            .then(|| (self.compute_num_glyphs() as u16).write_into(writer));
         version.compatible((2, 0)).then(|| {
             self.glyph_name_index
                 .as_ref()
@@ -138,11 +123,6 @@ impl Validate for Post {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Post", |ctx| {
             let version = self.version;
-            ctx.in_field("num_glyphs", |ctx| {
-                if version.compatible((2, 0)) && self.num_glyphs.is_none() {
-                    ctx.report(format!("field must be present for version {version}"));
-                }
-            });
             ctx.in_field("glyph_name_index", |ctx| {
                 if version.compatible((2, 0)) && self.glyph_name_index.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
@@ -174,7 +154,6 @@ impl<'a> FromObjRef<read_fonts::tables::post::Post<'a>> for Post {
             max_mem_type42: obj.max_mem_type42(),
             min_mem_type1: obj.min_mem_type1(),
             max_mem_type1: obj.max_mem_type1(),
-            num_glyphs: obj.num_glyphs(),
             glyph_name_index: obj.glyph_name_index().to_owned_obj(offset_data),
             string_data: obj.string_data().map(|obj| {
                 obj.iter()
