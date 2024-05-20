@@ -115,9 +115,12 @@ out_path = os.path.join(out_dir, os.path.splitext(
 
 try:
     face = freetype.Face(font_path)
+    # make sure we have scalable outlines
+    assert(face.is_scalable)
 except:
     # some of our fonts are not complete (e.g. missing hhea table) and will fail to
     # load in FreeType
+    print("Skipping outline extraction for \"%s\"" % font_path)
     exit(0)
 
 print("Extracting glyphs from \"%s\" to \"%s\"..." % (font_path, out_path))
