@@ -3,6 +3,7 @@
 use super::bitpage::BitPage;
 use super::bitpage::PAGE_BITS;
 use std::cell::Cell;
+use std::cmp::Ordering;
 use std::hash::Hash;
 use std::ops::RangeInclusive;
 
@@ -153,6 +154,26 @@ impl BitSet {
         self.len.get()
     }
 
+    /// Sets the members of this set to the union of self and other.
+    pub(crate) fn union(&mut self, other: &BitSet) {
+        self.process(BitPage::union, other);
+    }
+
+    /// Sets the members of this set to the intersection of self and other.
+    pub(crate) fn intersect(&mut self, other: &BitSet) {
+        self.process(BitPage::intersect, other);
+    }
+
+    /// Sets the members of this set to self - other.
+    pub(crate) fn subtract(&mut self, other: &BitSet) {
+        self.process(BitPage::subtract, other);
+    }
+
+    /// Sets the members of this set to other - self.
+    pub(crate) fn reversed_subtract(&mut self, other: &BitSet) {
+        self.process(|a, b| BitPage::subtract(b, a), other);
+    }
+
     pub(crate) fn iter(&self) -> impl DoubleEndedIterator<Item = u32> + '_ {
         self.iter_non_empty_pages().flat_map(|(major, page)| {
             let base = self.major_start(major);
@@ -170,6 +191,196 @@ impl BitSet {
 
     fn iter_non_empty_pages(&self) -> impl DoubleEndedIterator<Item = (u32, &BitPage)> + '_ {
         self.iter_pages().filter(|(_, page)| !page.is_empty())
+    }
+
+    fn process<Op>(&mut self, op: Op, other: &BitSet)
+    where
+        Op: Fn(&BitPage, &BitPage) -> BitPage,
+    {
+        let mut one: BitPage = BitPage::new_zeroes();
+        one.insert(0);
+        let zero: BitPage = BitPage::new_zeroes();
+
+        // Determine the passthrough behaviour of the operator. The passthrough behaviour
+        // is what happens to a page on one side of the operation if the other side is 0.
+        // For example union passes through both left and right sides since it preserves
+        // the left or right side when the other side is 0. Knowing this lets us optimize
+        // some cases when only one page is present on one side.
+        let passthrough_left: bool = op(&one, &zero).contains(0);
+        let passthrough_right: bool = op(&zero, &one).contains(0);
+
+        self.mark_dirty();
+
+        let mut len_a = self.pages.len();
+        let len_b = other.pages.len();
+        let mut idx_a = 0;
+        let mut idx_b = 0;
+        let mut count = 0;
+        let mut write_idx = 0;
+
+        // Step 1: Estimate the new size of this set (in number of pages) after processing, and remove left side
+        //         pages that won't be needed.
+        while idx_a < len_a && idx_b < len_b {
+            let a_major = self.page_map[idx_a].major_value;
+            let b_major = other.page_map[idx_b].major_value;
+
+            match a_major.cmp(&b_major) {
+                Ordering::Equal => {
+                    if !passthrough_left {
+                        // If we don't passthrough the left side, then the only case where we
+                        // keep a page from the left is when there is also a page at the same major
+                        // on the right side. In this case move page_map entries that we're keeping
+                        // on the left side set to the front of the page_map vector. Otherwise if
+                        // we do passthrough left, then we we keep all left hand side pages and this
+                        // isn't necessary.
+                        if write_idx < idx_a {
+                            self.page_map[write_idx] = self.page_map[idx_a];
+                        }
+                        write_idx += 1;
+                    }
+
+                    count += 1;
+                    idx_a += 1;
+                    idx_b += 1;
+                }
+                Ordering::Less => {
+                    if passthrough_left {
+                        count += 1;
+                    }
+                    idx_a += 1;
+                }
+                Ordering::Greater => {
+                    if passthrough_right {
+                        count += 1;
+                    }
+                    idx_b += 1;
+                }
+            }
+        }
+
+        if passthrough_left {
+            count += len_a - idx_a;
+        }
+
+        if passthrough_right {
+            count += len_b - idx_b;
+        }
+
+        // Step 2: compact and resize for the new estimated left side size.
+        let mut next_page = len_a;
+        if !passthrough_left {
+            len_a = write_idx;
+            next_page = write_idx;
+            self.compact(write_idx);
+        }
+
+        self.resize(count);
+        let new_count = count;
+
+        // Step 3: process and apply op in-place from the last to first page.
+        idx_a = len_a;
+        idx_b = len_b;
+        while idx_a > 0 && idx_b > 0 {
+            match self.page_map[idx_a - 1]
+                .major_value
+                .cmp(&other.page_map[idx_b - 1].major_value)
+            {
+                Ordering::Equal => {
+                    idx_a -= 1;
+                    idx_b -= 1;
+                    count -= 1;
+                    self.page_map[count] = self.page_map[idx_a];
+                    *self.page_for_index_mut(count).unwrap() = op(
+                        self.page_for_index(idx_a).unwrap(),
+                        other.page_for_index(idx_b).unwrap(),
+                    );
+                }
+                Ordering::Greater => {
+                    idx_a -= 1;
+                    if passthrough_left {
+                        count -= 1;
+                        self.page_map[count] = self.page_map[idx_a];
+                    }
+                }
+                Ordering::Less => {
+                    idx_b -= 1;
+                    if passthrough_right {
+                        count -= 1;
+                        self.page_map[count].major_value = other.page_map[idx_b].major_value;
+                        self.page_map[count].index = next_page as u32;
+                        next_page += 1;
+                        *self.page_for_index_mut(count).unwrap() =
+                            other.page_for_index(idx_b).unwrap().clone();
+                    }
+                }
+            }
+        }
+
+        // Step 4: there are only pages left on one side now, finish processing them if the appropriate passthrough is
+        //         enabled.
+        if passthrough_left {
+            while idx_a > 0 {
+                idx_a -= 1;
+                count -= 1;
+                self.page_map[count] = self.page_map[idx_a];
+            }
+        }
+
+        if passthrough_right {
+            while idx_b > 0 {
+                idx_b -= 1;
+                count -= 1;
+                self.page_map[count].major_value = other.page_map[idx_b].major_value;
+                self.page_map[count].index = next_page as u32;
+                next_page += 1;
+                *self.page_for_index_mut(count).unwrap() =
+                    other.page_for_index(idx_b).unwrap().clone();
+            }
+        }
+
+        self.resize(new_count);
+    }
+
+    fn compact(&mut self, new_len: usize) {
+        let mut old_index_to_page_map_index = Vec::<usize>::with_capacity(self.pages.len());
+        old_index_to_page_map_index.resize(self.pages.len(), usize::MAX);
+
+        for i in 0usize..new_len {
+            old_index_to_page_map_index[self.page_map[i].index as usize] = i;
+        }
+
+        self.compact_pages(old_index_to_page_map_index);
+    }
+
+    fn compact_pages(&mut self, old_index_to_page_map_index: Vec<usize>) {
+        let mut write_index = 0;
+        for (i, page_map_index) in old_index_to_page_map_index
+            .iter()
+            .enumerate()
+            .take(self.pages.len())
+        {
+            if *page_map_index == usize::MAX {
+                continue;
+            }
+
+            if write_index < i {
+                self.pages[write_index] = self.pages[i].clone();
+            }
+
+            self.page_map[*page_map_index].index = write_index as u32;
+            write_index += 1;
+        }
+    }
+
+    fn resize(&mut self, new_len: usize) {
+        self.page_map.resize(
+            new_len,
+            PageInfo {
+                major_value: 0,
+                index: 0,
+            },
+        );
+        self.pages.resize(new_len, BitPage::new_zeroes());
     }
 
     fn mark_dirty(&mut self) {
@@ -252,6 +463,23 @@ impl BitSet {
         let page_index = self.ensure_page_index_for_major(major_value);
         self.pages.get_mut(page_index).unwrap()
     }
+
+    // Return the mutable page at a given index
+    fn page_for_index_mut(&mut self, index: usize) -> Option<&mut BitPage> {
+        if let Some(page_info) = self.page_map.get(index) {
+            self.pages.get_mut(page_info.index as usize)
+        } else {
+            None
+        }
+    }
+
+    fn page_for_index(&self, index: usize) -> Option<&BitPage> {
+        if let Some(page_info) = self.page_map.get(index) {
+            self.pages.get(page_info.index as usize)
+        } else {
+            None
+        }
+    }
 }
 
 impl Extend<u32> for BitSet {
@@ -324,6 +552,14 @@ impl std::cmp::PartialOrd for PageInfo {
 mod test {
     use super::*;
     use std::collections::HashSet;
+
+    impl BitSet {
+        fn from<U: IntoIterator<Item = u32>>(iter: U) -> BitSet {
+            let mut out = BitSet::empty();
+            out.extend(iter);
+            out
+        }
+    }
 
     #[test]
     fn len() {
@@ -501,6 +737,58 @@ mod test {
         assert!(bitset.contains(u32::MAX));
         assert!(!bitset.contains(u32::MAX - 1));
         assert_eq!(bitset.len(), 1);
+    }
+
+    fn check_process<A, B, C, Op>(a: A, b: B, expected: C, op: Op)
+    where
+        A: IntoIterator<Item = u32>,
+        B: IntoIterator<Item = u32>,
+        C: IntoIterator<Item = u32>,
+        Op: Fn(&mut BitSet, &BitSet),
+    {
+        let mut result = BitSet::from(a);
+        let b_set = BitSet::from(b);
+        let expected_set = BitSet::from(expected);
+        result.len();
+
+        op(&mut result, &b_set);
+        assert_eq!(result, expected_set);
+        assert_eq!(result.len(), expected_set.len());
+    }
+
+    #[test]
+    fn union() {
+        check_process([], [5], [5], |a, b| a.union(b));
+        check_process([128], [5], [128, 5], |a, b| a.union(b));
+        check_process([128], [], [128], |a, b| a.union(b));
+        check_process([1280], [5], [5, 1280], |a, b| a.union(b));
+        check_process([5], [1280], [5, 1280], |a, b| a.union(b));
+    }
+
+    #[test]
+    fn intersect() {
+        check_process([], [5], [], |a, b| a.intersect(b));
+        check_process([5], [], [], |a, b| a.intersect(b));
+        check_process([1, 5, 9], [5, 7], [5], |a, b| a.intersect(b));
+        check_process([1, 1000, 2000], [1000], [1000], |a, b| a.intersect(b));
+        check_process([1000], [1, 1000, 2000], [1000], |a, b| a.intersect(b));
+        check_process([1, 1000, 2000], [1000, 5000], [1000], |a, b| a.intersect(b));
+    }
+
+    #[test]
+    fn subtract() {
+        check_process([], [5], [], |a, b| a.subtract(b));
+        check_process([5], [], [5], |a, b| a.subtract(b));
+        check_process([5, 1000], [1000], [5], |a, b| a.subtract(b));
+        check_process([5, 1000], [5], [1000], |a, b| a.subtract(b));
+    }
+
+    #[test]
+    fn reversed_subtract() {
+        check_process([], [5], [5], |a, b| a.reversed_subtract(b));
+        check_process([5], [], [], |a, b| a.reversed_subtract(b));
+        check_process([1000], [5, 1000], [5], |a, b| a.reversed_subtract(b));
+        check_process([5], [5, 1000], [1000], |a, b| a.reversed_subtract(b));
     }
 
     fn set_for_range(first: u32, last: u32) -> BitSet {

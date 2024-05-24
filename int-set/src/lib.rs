@@ -190,6 +190,32 @@ impl<T: Domain<T>> IntSet<T> {
         }
     }
 
+    /// Sets the members of this set to the union of self and other.
+    pub fn union(&mut self, other: &IntSet<T>) {
+        match (&mut self.0, &other.0) {
+            (Membership::Inclusive(a), Membership::Inclusive(b)) => a.union(b),
+            (Membership::Inclusive(a), Membership::Exclusive(b)) => {
+                a.reversed_subtract(b);
+                self.invert();
+            }
+            (Membership::Exclusive(a), Membership::Inclusive(b)) => a.subtract(b),
+            (Membership::Exclusive(a), Membership::Exclusive(b)) => a.intersect(b),
+        }
+    }
+
+    /// Sets the members of this set to the intersection of self and other.
+    pub fn intersect(&mut self, other: &IntSet<T>) {
+        match (&mut self.0, &other.0) {
+            (Membership::Inclusive(a), Membership::Inclusive(b)) => a.intersect(b),
+            (Membership::Inclusive(a), Membership::Exclusive(b)) => a.subtract(b),
+            (Membership::Exclusive(a), Membership::Inclusive(b)) => {
+                a.reversed_subtract(b);
+                self.invert();
+            }
+            (Membership::Exclusive(a), Membership::Exclusive(b)) => a.union(b),
+        }
+    }
+
     /// Returns first element in the set, if any. This element is always the minimum of all elements in the set.
     pub fn first(&self) -> Option<T> {
         return self.iter().next();
@@ -935,6 +961,122 @@ mod test {
         assert!(!all.contains(2));
         assert!(!all.contains(3));
         assert!(all.contains(4));
+    }
+
+    struct SetOpInput {
+        has_x: bool,
+        inverted: bool,
+        has_page: bool,
+    }
+
+    impl SetOpInput {
+        fn get_all_inputs() -> Vec<SetOpInput> {
+            let mut result: Vec<SetOpInput> = vec![];
+            for has_x in [true, false] {
+                for inverted in [true, false] {
+                    result.push(SetOpInput {
+                        has_x,
+                        inverted,
+                        has_page: false,
+                    });
+                    let can_have_empty_page = has_x == inverted;
+                    if can_have_empty_page {
+                        result.push(SetOpInput {
+                            has_x,
+                            inverted,
+                            has_page: true,
+                        });
+                    }
+                }
+            }
+            result
+        }
+
+        fn to_set(&self, x: u32) -> IntSet<u32> {
+            let mut s = IntSet::<u32>::empty();
+            if self.inverted {
+                s.invert();
+            }
+            if self.has_page {
+                // Ensure a page exists for x.
+                if self.inverted {
+                    s.remove(x);
+                } else {
+                    s.insert(x);
+                }
+            }
+            if self.has_x {
+                s.insert(x);
+            } else {
+                s.remove(x);
+            }
+            s
+        }
+    }
+
+    fn set_operation_test_message(
+        a: &SetOpInput,
+        b: &SetOpInput,
+        op_name: &str,
+        should_contain_x: bool,
+    ) -> String {
+        format!(
+            "{}{}{} {} {}{}{} failed. {}",
+            if a.inverted { "i" } else { "" },
+            if a.has_page { "p" } else { "" },
+            if a.has_x { "13" } else { "" },
+            op_name,
+            if b.inverted { "i" } else { "" },
+            if b.has_page { "p" } else { "" },
+            if b.has_x { "13" } else { "" },
+            if should_contain_x {
+                "Result did not have 13."
+            } else {
+                "Result should not have 13."
+            }
+        )
+    }
+
+    fn check_union(a: &SetOpInput, b: &SetOpInput) {
+        let x = 13;
+        let mut set_a = a.to_set(x);
+        let set_b = b.to_set(x);
+
+        let should_contain_x = a.has_x || b.has_x;
+        set_a.union(&set_b);
+
+        assert_eq!(
+            set_a.contains(x),
+            should_contain_x,
+            "{}",
+            set_operation_test_message(a, b, "union", should_contain_x)
+        );
+    }
+
+    fn check_intersect(a: &SetOpInput, b: &SetOpInput) {
+        let x = 13;
+        let mut set_a = a.to_set(x);
+        let set_b = b.to_set(x);
+
+        let should_contain_x = a.has_x && b.has_x;
+        set_a.intersect(&set_b);
+
+        assert_eq!(
+            set_a.contains(x),
+            should_contain_x,
+            "{}",
+            set_operation_test_message(a, b, "intersect", should_contain_x)
+        );
+    }
+
+    #[test]
+    fn set_operations() {
+        for a in SetOpInput::get_all_inputs() {
+            for b in SetOpInput::get_all_inputs() {
+                check_union(&a, &b);
+                check_intersect(&a, &b);
+            }
+        }
     }
 
     #[test]
