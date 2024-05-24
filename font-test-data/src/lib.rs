@@ -48,6 +48,9 @@ pub static COLRV0V1: &[u8] = include_bytes!("../test_data/ttf/test_glyphs-glyf_c
 pub static COLRV0V1_VARIABLE: &[u8] =
     include_bytes!("../test_data/ttf/test_glyphs-glyf_colr_1_variable.ttf");
 
+pub static COLRV1_NO_CLIPLIST: &[u8] =
+    include_bytes!("../test_data/ttf/test_glyphs-glyf_colr_1_no_cliplist.subset.ttf");
+
 pub static CVAR: &[u8] = include_bytes!("../test_data/ttf/cvar.ttf");
 
 pub static STARTING_OFF_CURVE: &[u8] = include_bytes!("../test_data/ttf/starts_off_curve.ttf");
