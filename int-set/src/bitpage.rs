@@ -135,6 +135,30 @@ impl BitPage {
         (*self.element(val) & elem_index_bit_mask(val)) != 0
     }
 
+    pub(crate) fn union(a: &BitPage, b: &BitPage) -> BitPage {
+        BitPage::process(a, b, |a, b| a | b)
+    }
+
+    pub(crate) fn intersect(a: &BitPage, b: &BitPage) -> BitPage {
+        BitPage::process(a, b, |a, b| a & b)
+    }
+
+    pub(crate) fn subtract(a: &BitPage, b: &BitPage) -> BitPage {
+        BitPage::process(a, b, |a, b| a & !b)
+    }
+
+    fn process<Op>(a: &BitPage, b: &BitPage, op: Op) -> BitPage
+    where
+        Op: Fn(&Element, &Element) -> Element,
+    {
+        let mut out = BitPage::new_zeroes();
+        out.mark_dirty();
+        for i in 0usize..(PAGE_SIZE as usize) {
+            out.storage[i] = op(&a.storage[i], &b.storage[i]);
+        }
+        out
+    }
+
     fn mark_dirty(&mut self) {
         self.len.set(u32::MAX);
     }
@@ -248,11 +272,19 @@ mod test {
 
     impl BitPage {
         /// Create a new page with all bits set.
-        pub(crate) fn new_ones() -> Self {
+        fn new_ones() -> Self {
             Self {
                 storage: [Element::MAX; PAGE_SIZE as usize],
                 len: Cell::new(PAGE_SIZE * ELEM_BITS),
             }
+        }
+
+        fn from<U: IntoIterator<Item = u32>>(iter: U) -> BitPage {
+            let mut out = BitPage::new_zeroes();
+            for v in iter {
+                out.insert(v);
+            }
+            out
         }
     }
 
@@ -459,6 +491,46 @@ mod test {
 
         let items: Vec<_> = page.iter().collect();
         assert_eq!(items, vec![0, 12, 13, 23, 63, 64, 78, 400, 511,])
+    }
+
+    #[test]
+    fn union() {
+        let a = BitPage::new_zeroes();
+        let b = BitPage::from([32, 400]);
+        let c = BitPage::from([32, 200]);
+        let d = BitPage::from([32, 200, 400]);
+
+        assert_eq!(BitPage::union(&a, &b), b);
+        assert_eq!(BitPage::union(&b, &a), b);
+        assert_eq!(BitPage::union(&b, &c), d);
+        assert_eq!(BitPage::union(&c, &b), d);
+    }
+
+    #[test]
+    fn intersect() {
+        let a = BitPage::new_zeroes();
+        let b = BitPage::from([32, 400]);
+        let c = BitPage::from([32, 200]);
+        let d = BitPage::from([32]);
+
+        assert_eq!(BitPage::intersect(&a, &b), a);
+        assert_eq!(BitPage::intersect(&b, &a), a);
+        assert_eq!(BitPage::intersect(&b, &c), d);
+        assert_eq!(BitPage::intersect(&c, &b), d);
+    }
+
+    #[test]
+    fn subtract() {
+        let a = BitPage::new_zeroes();
+        let b = BitPage::from([32, 400]);
+        let c = BitPage::from([32, 200]);
+        let d = BitPage::from([400]);
+        let e = BitPage::from([200]);
+
+        assert_eq!(BitPage::subtract(&a, &b), a);
+        assert_eq!(BitPage::subtract(&b, &a), b);
+        assert_eq!(BitPage::subtract(&b, &c), d);
+        assert_eq!(BitPage::subtract(&c, &b), e);
     }
 
     #[test]
