@@ -17,7 +17,7 @@ default = ["traversal"]
 serde = ["dep:serde", "font-types/serde"]
 
 [dependencies]
-font-types = { version = "0.5.3", path = "../font-types", features = ["bytemuck"] }
+font-types = { version = "0.5.4", path = "../font-types", features = ["bytemuck"] }
 serde = { version = "1.0", features = ["derive"], optional = true }
 bytemuck = { workspace = true }
 
