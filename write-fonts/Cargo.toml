@@ -1,6 +1,6 @@
 [package]
 name = "write-fonts"
-version = "0.26.0"
+version = "0.26.1"
 edition = "2021"
 license = "MIT/Apache-2.0"
 description = "Writing font files."
@@ -14,7 +14,7 @@ read = []
 serde = ["dep:serde", "font-types/serde", "read-fonts/serde"]
 
 [dependencies]
-font-types = { version = "0.5.3", path = "../font-types" }
+font-types = { version = "0.5.4", path = "../font-types" }
 read-fonts = { version = "0.19.1", path = "../read-fonts" }
 log = "0.4"
 kurbo.workspace = true
