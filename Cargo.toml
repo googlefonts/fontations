@@ -12,6 +12,7 @@ members = [
     "fauntlet",
     "klippa",
     "int-set",
+    "fuzz",
 ]
 
 [workspace.dependencies]
