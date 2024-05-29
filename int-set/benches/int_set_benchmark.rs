@@ -138,8 +138,7 @@ pub fn iteration_benchmark(c: &mut Criterion) {
             &set,
             |b, s: &IntSet<u32>| {
                 b.iter(|| {
-                    let mut it = s.iter();
-                    while let Some(v) = it.next() {
+                    for v in s.iter() {
                         black_box(v);
                     }
                 })
