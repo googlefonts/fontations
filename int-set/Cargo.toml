@@ -6,4 +6,4 @@ license = "MIT/Apache-2.0"
 description = "A fast sparse and invertible bit set for u32's. Port of harfbuzz's hb_set_t."
 
 [dependencies]
-font-types = { version = "0.5.4", path = "../font-types"}
+font-types = { version = "0.5.5", path = "../font-types"}
