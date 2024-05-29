@@ -44,7 +44,7 @@ fn set_parameters() -> Vec<SetTest> {
 }
 
 pub fn insert_benchmark(c: &mut Criterion) {
-    let num_inserts = 1000u32;
+    const NUM_INSERTS: u32 = 1000;
     let inputs = set_parameters();
 
     for input in inputs {
@@ -56,7 +56,7 @@ pub fn insert_benchmark(c: &mut Criterion) {
                 b.iter_batched(
                     || set.clone(),
                     |mut s| {
-                        for i in 0..num_inserts {
+                        for i in 0..NUM_INSERTS {
                             let v: u32 = i.wrapping_mul(2_654_435_761) % p.max_value();
                             s.insert(v);
                         }
