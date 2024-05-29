@@ -1,0 +1,18 @@
+[package]
+name = "fuzz"
+version = "0.0.0"
+publish = false
+edition = "2021"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+skrifa = { path="../skrifa" }
+
+[[bin]]
+name = "fuzz_skrifa"
+path = "fuzz_targets/fuzz_skrifa.rs"
+test = false
+doc = false
