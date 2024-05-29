@@ -8,6 +8,9 @@ repository = "https://github.com/googlefonts/fontations"
 readme = "README.md"
 categories = ["text-processing"]
 
+[features]
+std = []
+
 [dependencies]
 # note: bytemuck version must be available in all deployment environments
 bytemuck = { workspace = true,  features = ["derive", "min_const_generics"], optional = true }
