@@ -193,7 +193,12 @@ impl BitSet {
         self.iter_pages().filter(|(_, page)| !page.is_empty())
     }
 
-    fn process<Op>(&mut self, op: Op, other: &BitSet)
+    /// Determine the passthrough behaviour of the operator.
+    ///
+    /// The passthrough behaviour is what happens to a page on one side of the operation if the other side is 0.
+    /// For example union passes through both left and right sides since it preserves the left or right side when
+    /// the other side is 0. Knowing this lets us optimize some cases when only one page is present on one side.
+    fn passthrough_behavior<Op>(op: &Op) -> (bool, bool)
     where
         Op: Fn(&BitPage, &BitPage) -> BitPage,
     {
@@ -201,13 +206,17 @@ impl BitSet {
         one.insert(0);
         let zero: BitPage = BitPage::new_zeroes();
 
-        // Determine the passthrough behaviour of the operator. The passthrough behaviour
-        // is what happens to a page on one side of the operation if the other side is 0.
-        // For example union passes through both left and right sides since it preserves
-        // the left or right side when the other side is 0. Knowing this lets us optimize
-        // some cases when only one page is present on one side.
         let passthrough_left: bool = op(&one, &zero).contains(0);
         let passthrough_right: bool = op(&zero, &one).contains(0);
+
+        (passthrough_left, passthrough_right)
+    }
+
+    fn process<Op>(&mut self, op: Op, other: &BitSet)
+    where
+        Op: Fn(&BitPage, &BitPage) -> BitPage,
+    {
+        let (passthrough_left, passthrough_right) = BitSet::passthrough_behavior(&op);
 
         self.mark_dirty();
 
@@ -466,19 +475,15 @@ impl BitSet {
 
     // Return the mutable page at a given index
     fn page_for_index_mut(&mut self, index: usize) -> Option<&mut BitPage> {
-        if let Some(page_info) = self.page_map.get(index) {
-            self.pages.get_mut(page_info.index as usize)
-        } else {
-            None
-        }
+        self.page_map
+            .get(index)
+            .and_then(|info| self.pages.get_mut(info.index as usize))
     }
 
     fn page_for_index(&self, index: usize) -> Option<&BitPage> {
-        if let Some(page_info) = self.page_map.get(index) {
-            self.pages.get(page_info.index as usize)
-        } else {
-            None
-        }
+        self.page_map
+            .get(index)
+            .and_then(|info| self.pages.get(info.index as usize))
     }
 }
 
@@ -553,8 +558,8 @@ mod test {
     use super::*;
     use std::collections::HashSet;
 
-    impl BitSet {
-        fn from<U: IntoIterator<Item = u32>>(iter: U) -> BitSet {
+    impl FromIterator<u32> for BitSet {
+        fn from_iter<I: IntoIterator<Item = u32>>(iter: I) -> Self {
             let mut out = BitSet::empty();
             out.extend(iter);
             out
@@ -746,9 +751,9 @@ mod test {
         C: IntoIterator<Item = u32>,
         Op: Fn(&mut BitSet, &BitSet),
     {
-        let mut result = BitSet::from(a);
-        let b_set = BitSet::from(b);
-        let expected_set = BitSet::from(expected);
+        let mut result = BitSet::from_iter(a);
+        let b_set = BitSet::from_iter(b);
+        let expected_set = BitSet::from_iter(expected);
         result.len();
 
         op(&mut result, &b_set);
