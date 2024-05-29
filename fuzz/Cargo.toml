@@ -7,6 +7,10 @@ edition = "2021"
 [package.metadata]
 cargo-fuzz = true
 
+# cargo-release settings
+[package.metadata.release]
+release = false
+
 [dependencies]
 libfuzzer-sys = "0.4"
 skrifa = { path="../skrifa" }
