@@ -56,7 +56,7 @@ pub enum GvarInputError {
     UnexpectedAxisCount {
         gid: GlyphId,
         expected: u16,
-        got: u16,
+        actual: u16,
     },
     /// A single glyph contains variations with inconsistent axis counts
     InconsistentGlyphAxisCount(GlyphId),
@@ -99,16 +99,15 @@ impl Gvar {
             var.validate()?;
         }
 
-        for var in &variations {
-            if let Some(x) = var.axis_count() {
-                if x != axis_count {
-                    return Err(GvarInputError::UnexpectedAxisCount {
-                        gid: var.gid,
-                        expected: axis_count,
-                        got: x,
-                    });
-                }
-            }
+        if let Some(bad_var) = variations
+            .iter()
+            .find(|var| var.axis_count().is_some() && var.axis_count().unwrap() != axis_count)
+        {
+            return Err(GvarInputError::UnexpectedAxisCount {
+                gid: bad_var.gid,
+                expected: axis_count,
+                actual: bad_var.axis_count().unwrap(),
+            });
         }
 
         let shared = compute_shared_peak_tuples(&variations);
@@ -643,11 +642,15 @@ impl FontWrite for TupleVariationCount {
 impl std::fmt::Display for GvarInputError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GvarInputError::UnexpectedAxisCount { gid, expected, got } => {
+            GvarInputError::UnexpectedAxisCount {
+                gid,
+                expected,
+                actual,
+            } => {
                 write!(
                     f,
                     "Expected {} axes for glyph {}, got {}",
-                    expected, gid, got
+                    expected, gid, actual
                 )
             }
             GvarInputError::InconsistentGlyphAxisCount(gid) => write!(
@@ -1321,7 +1324,7 @@ mod tests {
             Err(GvarInputError::UnexpectedAxisCount {
                 gid: GlyphId::NOTDEF,
                 expected: 2,
-                got: 1
+                actual: 1
             })
         ));
     }
