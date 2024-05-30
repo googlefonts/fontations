@@ -7,3 +7,11 @@ description = "A fast sparse and invertible bit set for u32's. Port of harfbuzz'
 
 [dependencies]
 font-types = { version = "0.5.5", path = "../font-types"}
+
+[dev-dependencies]
+criterion = "0.5.1"
+rand = "0.8.5"
+
+[[bench]]
+name = "int_set_benchmark"
+harness = false
