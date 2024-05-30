@@ -467,6 +467,10 @@ impl FromIterator<(GlyphId, u16)> for ClassDef {
 
 impl ClassDefBuilder {
     fn prefer_format_1(&self) -> bool {
+        // format 2 is the most efficient way to represent an empty classdef
+        if self.items.is_empty() {
+            return false;
+        }
         // calculate our format2 size:
         let first = self.items.keys().next().map(|g| g.to_u16());
         let last = self.items.keys().next_back().map(|g| g.to_u16());
@@ -774,5 +778,20 @@ mod tests {
         assert!(class.get_raw(GlyphId::new(4)).is_none());
         assert_eq!(class.get_raw(GlyphId::new(5)), Some(1));
         assert!(class.get_raw(GlyphId::new(100)).is_none());
+    }
+
+    // https://github.com/googlefonts/fontations/issues/923
+    // an empty classdef should always be format 2
+    #[test]
+    fn class_def_builder_empty() {
+        let builder = ClassDefBuilder::from_iter([]);
+        let built = builder.build();
+
+        assert_eq!(
+            built,
+            ClassDef::Format2(ClassDefFormat2 {
+                class_range_records: vec![]
+            })
+        )
     }
 }
