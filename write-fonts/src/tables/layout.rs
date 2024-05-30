@@ -467,15 +467,21 @@ impl FromIterator<(GlyphId, u16)> for ClassDef {
 
 impl ClassDefBuilder {
     fn prefer_format_1(&self) -> bool {
+        const U16_LEN: usize = std::mem::size_of::<u16>();
+        const FORMAT1_HEADER_LEN: usize = U16_LEN * 3;
+        const FORMAT2_HEADER_LEN: usize = U16_LEN * 2;
+        const CLASS_RANGE_RECORD_LEN: usize = U16_LEN * 3;
         // format 2 is the most efficient way to represent an empty classdef
         if self.items.is_empty() {
             return false;
         }
         // calculate our format2 size:
-        let first = self.items.keys().next().map(|g| g.to_u16());
-        let last = self.items.keys().next_back().map(|g| g.to_u16());
-        let len_format1 = 3 + ((last.unwrap_or_default() - first.unwrap_or_default()) * 2) as usize;
-        let len_format2 = 4 + iter_class_ranges(&self.items).count() * 6;
+        let first = self.items.keys().next().map(|g| g.to_u16()).unwrap();
+        let last = self.items.keys().next_back().map(|g| g.to_u16()).unwrap();
+        let format1_array_len = (last - first) as usize + 1;
+        let len_format1 = FORMAT1_HEADER_LEN + format1_array_len * U16_LEN;
+        let len_format2 =
+            FORMAT2_HEADER_LEN + iter_class_ranges(&self.items).count() * CLASS_RANGE_RECORD_LEN;
 
         len_format1 < len_format2
     }
@@ -763,17 +769,17 @@ mod tests {
         assert_eq!(coverage.glyphs, make_glyph_vec([1, 2, 3, 6, 9]));
     }
 
+    fn make_class<const N: usize>(gid_class_pairs: [(u16, u16); N]) -> ClassDef {
+        gid_class_pairs
+            .iter()
+            .map(|(gid, cls)| (GlyphId::new(*gid), *cls))
+            .collect::<ClassDefBuilder>()
+            .build()
+    }
+
     #[test]
     fn class_def_builder_zero() {
         // even if class 0 is provided, we don't need to assign explicit entries for it
-        fn make_class<const N: usize>(gid_class_pairs: [(u16, u16); N]) -> ClassDef {
-            gid_class_pairs
-                .iter()
-                .map(|(gid, cls)| (GlyphId::new(*gid), *cls))
-                .collect::<ClassDefBuilder>()
-                .build()
-        }
-
         let class = make_class([(4, 0), (5, 1)]);
         assert!(class.get_raw(GlyphId::new(4)).is_none());
         assert_eq!(class.get_raw(GlyphId::new(5)), Some(1));
@@ -791,6 +797,22 @@ mod tests {
             built,
             ClassDef::Format2(ClassDefFormat2 {
                 class_range_records: vec![]
+            })
+        )
+    }
+
+    #[test]
+    fn class_def_small() {
+        let class = make_class([(1, 1), (2, 1), (3, 1)]);
+
+        assert_eq!(
+            class,
+            ClassDef::Format2(ClassDefFormat2 {
+                class_range_records: vec![ClassRangeRecord {
+                    start_glyph_id: GlyphId::new(1),
+                    end_glyph_id: GlyphId::new(3),
+                    class: 1
+                }]
             })
         )
     }
