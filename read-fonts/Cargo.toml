@@ -9,7 +9,7 @@ readme = "README.md"
 categories = ["text-processing", "parsing", "graphics"]
 
 [features]
-std = []
+std = ["font-types/std"]
 codegen_test = []
 scaler_test = []
 traversal = ["std"]
