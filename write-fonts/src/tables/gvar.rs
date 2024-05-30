@@ -52,8 +52,12 @@ pub struct GlyphDelta {
 /// An error representing invalid input when building a gvar table
 #[derive(Clone, Debug)]
 pub enum GvarInputError {
-    /// Glyphs do not have a consistent axis count
-    InconsistentAxisCount,
+    /// Glyph variations do not have the expected axis count
+    UnexpectedAxisCount {
+        gid: GlyphId,
+        expected: u16,
+        actual: u16,
+    },
     /// A single glyph contains variations with inconsistent axis counts
     InconsistentGlyphAxisCount(GlyphId),
     /// A single glyph contains variations with different delta counts
@@ -64,30 +68,15 @@ pub enum GvarInputError {
 }
 
 impl Gvar {
-    /// Construct a gvar table from a vector of per-glyph variations.
+    /// Construct a gvar table from a vector of per-glyph variations and the axis count.
     ///
     /// Variations must be present for each glyph, but may be empty.
-    pub fn new(mut variations: Vec<GlyphVariations>) -> Result<Self, GvarInputError> {
-        // a helper that handles input validation, and returns axis count
-        fn validate_variations(variations: &[GlyphVariations]) -> Result<u16, GvarInputError> {
-            for var in variations {
-                var.validate()?;
-            }
-
-            let axis_count = variations
-                .iter()
-                .find_map(GlyphVariations::axis_count)
-                .unwrap_or_default();
-            if variations
-                .iter()
-                .filter_map(GlyphVariations::axis_count)
-                .any(|x| x != axis_count)
-            {
-                return Err(GvarInputError::InconsistentAxisCount);
-            }
-            Ok(axis_count)
-        }
-
+    /// For non-empty variations, the axis count must be equal to the provided
+    /// axis count, as specified by the 'fvar' table.
+    pub fn new(
+        mut variations: Vec<GlyphVariations>,
+        axis_count: u16,
+    ) -> Result<Self, GvarInputError> {
         fn compute_shared_peak_tuples(glyphs: &[GlyphVariations]) -> Vec<Tuple> {
             const MAX_SHARED_TUPLES: usize = 4095;
             let mut peak_tuple_counts = IndexMap::new();
@@ -106,7 +95,20 @@ impl Gvar {
             to_share.into_iter().map(|(t, _)| t.to_owned()).collect()
         }
 
-        let axis_count = validate_variations(&variations)?;
+        for var in &variations {
+            var.validate()?;
+        }
+
+        if let Some(bad_var) = variations
+            .iter()
+            .find(|var| var.axis_count().is_some() && var.axis_count().unwrap() != axis_count)
+        {
+            return Err(GvarInputError::UnexpectedAxisCount {
+                gid: bad_var.gid,
+                expected: axis_count,
+                actual: bad_var.axis_count().unwrap(),
+            });
+        }
 
         let shared = compute_shared_peak_tuples(&variations);
         let shared_idx_map = shared
@@ -640,8 +642,16 @@ impl FontWrite for TupleVariationCount {
 impl std::fmt::Display for GvarInputError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            GvarInputError::InconsistentAxisCount => {
-                write!(f, "Glyphs do not have a consistent axis count")
+            GvarInputError::UnexpectedAxisCount {
+                gid,
+                expected,
+                actual,
+            } => {
+                write!(
+                    f,
+                    "Expected {} axes for glyph {}, got {}",
+                    expected, gid, actual
+                )
             }
             GvarInputError::InconsistentGlyphAxisCount(gid) => write!(
                 f,
@@ -667,50 +677,53 @@ mod tests {
     #[test]
     fn gvar_smoke_test() {
         let _ = env_logger::builder().is_test(true).try_init();
-        let table = Gvar::new(vec![
-            GlyphVariations::new(GlyphId::new(0), vec![]),
-            GlyphVariations::new(
-                GlyphId::new(1),
-                vec![GlyphDeltas::new(
-                    Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
-                    vec![
-                        GlyphDelta::required(30, 31),
-                        GlyphDelta::required(40, 41),
-                        GlyphDelta::required(-50, -49),
-                        GlyphDelta::required(101, 102),
-                        GlyphDelta::required(10, 11),
-                    ],
-                    None,
-                )],
-            ),
-            GlyphVariations::new(
-                GlyphId::new(2),
-                vec![
-                    GlyphDeltas::new(
+        let table = Gvar::new(
+            vec![
+                GlyphVariations::new(GlyphId::new(0), vec![]),
+                GlyphVariations::new(
+                    GlyphId::new(1),
+                    vec![GlyphDeltas::new(
                         Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
                         vec![
-                            GlyphDelta::required(11, -20),
-                            GlyphDelta::required(69, -41),
-                            GlyphDelta::required(-69, 49),
-                            GlyphDelta::required(168, 101),
-                            GlyphDelta::required(1, 2),
+                            GlyphDelta::required(30, 31),
+                            GlyphDelta::required(40, 41),
+                            GlyphDelta::required(-50, -49),
+                            GlyphDelta::required(101, 102),
+                            GlyphDelta::required(10, 11),
                         ],
                         None,
-                    ),
-                    GlyphDeltas::new(
-                        Tuple::new(vec![F2Dot14::from_f32(0.8), F2Dot14::from_f32(1.0)]),
-                        vec![
-                            GlyphDelta::required(3, -200),
-                            GlyphDelta::required(4, -500),
-                            GlyphDelta::required(5, -800),
-                            GlyphDelta::required(6, -1200),
-                            GlyphDelta::required(7, -1500),
-                        ],
-                        None,
-                    ),
-                ],
-            ),
-        ])
+                    )],
+                ),
+                GlyphVariations::new(
+                    GlyphId::new(2),
+                    vec![
+                        GlyphDeltas::new(
+                            Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                            vec![
+                                GlyphDelta::required(11, -20),
+                                GlyphDelta::required(69, -41),
+                                GlyphDelta::required(-69, 49),
+                                GlyphDelta::required(168, 101),
+                                GlyphDelta::required(1, 2),
+                            ],
+                            None,
+                        ),
+                        GlyphDeltas::new(
+                            Tuple::new(vec![F2Dot14::from_f32(0.8), F2Dot14::from_f32(1.0)]),
+                            vec![
+                                GlyphDelta::required(3, -200),
+                                GlyphDelta::required(4, -500),
+                                GlyphDelta::required(5, -800),
+                                GlyphDelta::required(6, -1200),
+                                GlyphDelta::required(7, -1500),
+                            ],
+                            None,
+                        ),
+                    ],
+                ),
+            ],
+            2,
+        )
         .unwrap();
         let g2 = &table.glyph_variation_data_offsets[1];
         let computed = g2.compute_size();
@@ -750,21 +763,24 @@ mod tests {
         // IFF iup provides space savings, we should prefer it.
         let _ = env_logger::builder().is_test(true).try_init();
         let gid = GlyphId::new(0);
-        let table = Gvar::new(vec![GlyphVariations::new(
-            gid,
-            vec![GlyphDeltas::new(
-                Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
-                vec![
-                    GlyphDelta::required(30, 31),
-                    GlyphDelta::optional(30, 31),
-                    GlyphDelta::optional(30, 31),
-                    GlyphDelta::required(101, 102),
-                    GlyphDelta::required(10, 11),
-                    GlyphDelta::optional(10, 11),
-                ],
-                None,
+        let table = Gvar::new(
+            vec![GlyphVariations::new(
+                gid,
+                vec![GlyphDeltas::new(
+                    Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                    vec![
+                        GlyphDelta::required(30, 31),
+                        GlyphDelta::optional(30, 31),
+                        GlyphDelta::optional(30, 31),
+                        GlyphDelta::required(101, 102),
+                        GlyphDelta::required(10, 11),
+                        GlyphDelta::optional(10, 11),
+                    ],
+                    None,
+                )],
             )],
-        )])
+            2,
+        )
         .unwrap();
 
         let bytes = crate::dump_table(&table).unwrap();
@@ -803,14 +819,17 @@ mod tests {
             GlyphDelta::required(7, 8),
         ];
         let gid = GlyphId::new(0);
-        let table = Gvar::new(vec![GlyphVariations::new(
-            gid,
-            vec![GlyphDeltas::new(
-                Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
-                points,
-                None,
+        let table = Gvar::new(
+            vec![GlyphVariations::new(
+                gid,
+                vec![GlyphDeltas::new(
+                    Tuple::new(vec![F2Dot14::from_f32(1.0), F2Dot14::from_f32(1.0)]),
+                    points,
+                    None,
+                )],
             )],
-        )])
+            2,
+        )
         .unwrap();
         let bytes = crate::dump_table(&table).unwrap();
         let gvar = read_fonts::tables::gvar::Gvar::read(FontData::new(&bytes)).unwrap();
@@ -1201,7 +1220,7 @@ mod tests {
             .map(|i| GlyphVariations::new(GlyphId::new(i), test_data.clone()))
             .collect();
 
-        let gvar = Gvar::new(a_small_number_of_variations).unwrap();
+        let gvar = Gvar::new(a_small_number_of_variations, 2).unwrap();
         assert_eq!(gvar.compute_flags(), expected_flags);
 
         let writer = gvar.compile_variation_data();
@@ -1265,7 +1284,7 @@ mod tests {
             ))
         }
         for _ in 0..10 {
-            let table = Gvar::new(variations.clone()).unwrap();
+            let table = Gvar::new(variations.clone(), 1).unwrap();
             let bytes = crate::dump_table(&table).unwrap();
             let gvar = read_fonts::tables::gvar::Gvar::read(FontData::new(&bytes)).unwrap();
 
@@ -1280,5 +1299,40 @@ mod tests {
                 vec![vec![F2Dot14::from_f32(1.0)], vec![F2Dot14::from_f32(-1.0)]]
             );
         }
+    }
+
+    #[test]
+    fn unexpected_axis_count() {
+        let variations = GlyphVariations::new(
+            GlyphId::NOTDEF,
+            vec![
+                GlyphDeltas::new(
+                    Tuple::new(vec![F2Dot14::from_f32(1.0)]),
+                    vec![GlyphDelta::required(1, 2)],
+                    None,
+                ),
+                GlyphDeltas::new(
+                    Tuple::new(vec![F2Dot14::from_f32(1.0)]),
+                    vec![GlyphDelta::required(1, 2)],
+                    None,
+                ),
+            ],
+        );
+        let gvar = Gvar::new(vec![variations], 2);
+        assert!(matches!(
+            gvar,
+            Err(GvarInputError::UnexpectedAxisCount {
+                gid: GlyphId::NOTDEF,
+                expected: 2,
+                actual: 1
+            })
+        ));
+    }
+
+    #[test]
+    fn empty_gvar_has_expected_axis_count() {
+        let variations = GlyphVariations::new(GlyphId::NOTDEF, vec![]);
+        let gvar = Gvar::new(vec![variations], 2).unwrap();
+        assert_eq!(gvar.axis_count, 2);
     }
 }
