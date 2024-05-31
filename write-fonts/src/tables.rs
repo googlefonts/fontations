@@ -16,6 +16,7 @@ pub mod head;
 pub mod hhea;
 pub mod hmtx;
 pub mod hvar;
+pub mod ift;
 pub mod layout;
 pub mod loca;
 pub mod maxp;
@@ -57,6 +58,7 @@ fn do_we_even_serde() {
         stat: stat::Stat,
         vhea: vhea::Vhea,
         vmtx: vmtx::Vmtx,
+        ift: ift::Ift,
     }
     let tables = AllTables::default();
     let dumped = bincode::serialize(&tables).unwrap();
