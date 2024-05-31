@@ -290,6 +290,8 @@ pub(crate) enum CountTransform {
     TupleLen,
     /// only ItemVariationStore: requires item_count, word_delta_count, region_index_count
     ItemVariationDataLen,
+    /// Number of bytes to hold a bitmap of N items
+    Bitmap,
 }
 
 /// Attributes for specifying how to compile a field
@@ -1402,6 +1404,7 @@ static TRANSFORM_IDENTS: &[(CountTransform, &str)] = &[
         CountTransform::ItemVariationDataLen,
         "item_variation_data_len",
     ),
+    (CountTransform::Bitmap, "bitmap"),
 ];
 
 impl FromStr for CountTransform {
@@ -1435,6 +1438,7 @@ impl CountTransform {
             CountTransform::DeltaSetIndexData => 2,
             CountTransform::TupleLen => 3,
             CountTransform::ItemVariationDataLen => 3,
+            CountTransform::Bitmap => 1,
         }
     }
 }
@@ -1570,6 +1574,9 @@ impl Count {
                 }
                 (CountTransform::ItemVariationDataLen, [a, b, c]) => {
                     quote!(ItemVariationData::delta_sets_len(#a, #b, #c))
+                }
+                (CountTransform::Bitmap, [a]) => {
+                    quote!(transforms::bitmap(#a))
                 }
                 _ => unreachable!("validated before now"),
             },

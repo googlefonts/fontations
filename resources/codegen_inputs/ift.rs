@@ -1,0 +1,82 @@
+#![parse_module(read_fonts::tables::ift)]
+
+#[tag = "IFT "]
+#[tag = "IFTX"]
+format u16 Ift {
+  Format1(PatchMapFormat1),
+  Format2(PatchMapFormat2),
+}
+
+/// [Patch Map Format Format 1](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
+table PatchMapFormat1 {
+  /// Format identifier: format = 1
+  #[format = 1]
+  format: u16,
+
+  #[skip_getter]
+  #[compile(0)]
+  _reserved: u32,
+
+  /// Unique ID that identifies compatible patches.
+  // TODO(garretrieger): better way to do this?
+  #[count(4)]
+  compatibility_id: [u32],
+
+  /// Number of entries and glyphs that are mapped.
+  entry_count: u32,
+  glyph_count: u32,
+
+  /// Sub table that maps glyph ids to entry indices.
+  #[read_offset_with($entry_count, $glyph_count)]
+  glyph_map_offset: Offset32<GlyphMap>,
+
+  /// Sub table that maps feature and glyph ids to entry indices.
+  feature_map_offset: Offset32<FeatureMap>,
+
+  #[count(bitmap($entry_count))]
+  applied_entries_bitmap: [u8],
+
+  // URI Template String (UTF-8 Encoded)
+  uri_template_length: u16,
+  #[count($uri_template_length)]
+  uri_template: [u8],
+
+  /// Patch format number for patches referenced by this mapping.
+  patch_encoding: u8,
+}
+
+#[read_args(entry_count: u16, glyph_count: u16)]
+table GlyphMap {
+  first_mapped_glyph: u16,
+
+  // TODO(garretrieger): this is a variable sized field (u8 or u16 depending on entry count).
+  #[count(subtract($glyph_count, $first_mapped_glyph))]
+  entry_index: [u8],
+}
+
+table FeatureMap {
+  feature_count: u16,
+  // TODO(garretrieger): write me.
+}
+
+table FeatureRecord {
+  // TODO(garretrieger): write me.
+}
+
+table EntryMapRecord {
+  // TODO(garretrieger): write me.
+}
+
+/// [Patch Map Format Format 2](https://w3c.github.io/IFT/Overview.html#patch-map-format-1)
+table PatchMapFormat2 {
+  /// Format identifier: format = 2
+  #[format = 2]
+  format: u16,
+
+  #[skip_getter]
+  #[compile(0)]
+  _reserved: u32,
+
+  // TODO(garretrieger): write me.
+  
+}
