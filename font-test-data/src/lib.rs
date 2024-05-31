@@ -217,3 +217,35 @@ pub mod colrv1_json {
         }
     }
 }
+
+pub mod ift {
+    // Format specification: https://w3c.github.io/IFT/Overview.html#patch-map-format-1
+    #[rustfmt::skip]
+    pub static SIMPLE_FORMAT1: &[u8] = &[
+        0x01,                    // 0: format
+
+        0x00, 0x00, 0x00, 0x00,  // 1: reserved
+
+        0x00, 0x00, 0x00, 0x01,  // 5: compat id [0]
+        0x00, 0x00, 0x00, 0x02,  // 9: compat id [1]
+        0x00, 0x00, 0x00, 0x03,  // 13: compat id [2]
+        0x00, 0x00, 0x00, 0x04,  // 17: compat id [3]
+
+        0x00, 0x00, 0x00, 0x02,  // 21: entry count
+        0x00, 0x00, 0x00, 0x04,  // 25: glyph count
+        0x00, 0x00, 0x00, 0x31,  // 29: glyph map offset (0x31 = 49)
+        0x00, 0x00, 0x00, 0x00,  // 33: feature map offset
+
+        0x02,                    // 37: applied entry bitmap (glyph 2)
+
+        0x00, 0x08,              // 38: uriTemplateLength
+        b'A', b'B', b'C', b'D',
+        b'E', b'F', 0xc9, 0xa4,  // 40: uriTemplate[8]
+
+        0x04,                    // 48: patch encoding = glyph keyed
+
+        // ## Glyph Map ##
+        0x00, 0x01,              // 49: first mapped glyph
+        0x00, 0x01, 0x00,        // 51: entryIndex[1..3]
+    ];
+}
