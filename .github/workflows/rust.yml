@@ -71,6 +71,11 @@ jobs:
       - name: cargo test skrifa
         run: cargo test -p skrifa --all-targets --all-features
 
+      - name: cargo test klippa
+        run: |
+          pip install -r resources/scripts/klippa_ci_requirements.txt
+          cargo test -p klippa --all-targets --all-features
+
   ensure-clean-codegen:
     name: check codegen is up-to-date
     runs-on: ubuntu-latest
