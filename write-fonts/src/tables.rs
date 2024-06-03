@@ -58,6 +58,7 @@ fn do_we_even_serde() {
         stat: stat::Stat,
         vhea: vhea::Vhea,
         vmtx: vmtx::Vmtx,
+        ift: ift::Ift,
     }
     let tables = AllTables::default();
     let dumped = bincode::serialize(&tables).unwrap();

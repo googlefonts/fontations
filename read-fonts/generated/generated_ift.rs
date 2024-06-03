@@ -5,6 +5,94 @@
 #[allow(unused_imports)]
 use crate::codegen_prelude::*;
 
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct IFTMarker {}
+
+impl IFTMarker {}
+
+impl TopLevelTable for IFT<'_> {
+    /// `IFT `
+    const TAG: Tag = Tag::new(b"IFT ");
+}
+
+impl<'a> FontRead<'a> for IFT<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let cursor = data.cursor();
+        cursor.finish(IFTMarker {})
+    }
+}
+
+pub type IFT<'a> = TableRef<'a, IFTMarker>;
+
+impl<'a> IFT<'a> {}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for IFT<'a> {
+    fn type_name(&self) -> &str {
+        "IFT"
+    }
+
+    #[allow(unused_variables)]
+    #[allow(clippy::match_single_binding)]
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for IFT<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct IFTXMarker {}
+
+impl IFTXMarker {}
+
+impl TopLevelTable for IFTX<'_> {
+    /// `IFTX`
+    const TAG: Tag = Tag::new(b"IFTX");
+}
+
+impl<'a> FontRead<'a> for IFTX<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let cursor = data.cursor();
+        cursor.finish(IFTXMarker {})
+    }
+}
+
+pub type IFTX<'a> = TableRef<'a, IFTXMarker>;
+
+impl<'a> IFTX<'a> {}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for IFTX<'a> {
+    fn type_name(&self) -> &str {
+        "IFTX"
+    }
+
+    #[allow(unused_variables)]
+    #[allow(clippy::match_single_binding)]
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for IFTX<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
 #[derive(Clone)]
 pub enum Ift<'a> {
     Format1(PatchMapFormat1<'a>),
@@ -277,11 +365,11 @@ impl GlyphMapMarker {
 }
 
 impl ReadArgs for GlyphMap<'_> {
-    type Args = (u16, u16);
+    type Args = (u32, u32);
 }
 
 impl<'a> FontReadWithArgs<'a> for GlyphMap<'a> {
-    fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
+    fn read_with_args(data: FontData<'a>, args: &(u32, u32)) -> Result<Self, ReadError> {
         let (entry_count, glyph_count) = *args;
         let mut cursor = data.cursor();
         let first_mapped_glyph: u16 = cursor.read()?;
@@ -299,7 +387,7 @@ impl<'a> GlyphMap<'a> {
     ///
     /// This type requires some external state in order to be
     /// parsed.
-    pub fn read(data: FontData<'a>, entry_count: u16, glyph_count: u16) -> Result<Self, ReadError> {
+    pub fn read(data: FontData<'a>, entry_count: u32, glyph_count: u32) -> Result<Self, ReadError> {
         let args = (entry_count, glyph_count);
         Self::read_with_args(data, &args)
     }

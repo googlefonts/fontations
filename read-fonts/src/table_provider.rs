@@ -169,8 +169,14 @@ pub trait TableProvider<'a> {
         self.expect_table()
     }
 
-    fn ift(&self) -> Result<tables::ift::Ift, ReadError> {
-        self.expect_table()
+    fn ift(&self) -> Result<tables::ift::Ift<'a>, ReadError> {
+        self.expect_data_for_tag(tables::ift::IFT::TAG)
+            .and_then(FontRead::read)
+    }
+
+    fn iftx(&self) -> Result<tables::ift::Ift<'a>, ReadError> {
+        self.expect_data_for_tag(tables::ift::IFTX::TAG)
+            .and_then(FontRead::read)
     }
 }
 

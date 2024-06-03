@@ -1,7 +1,16 @@
 #![parse_module(read_fonts::tables::ift)]
 
+
+
 #[tag = "IFT "]
+table IFT {
+}
+
 #[tag = "IFTX"]
+table IFTX {
+}
+
+
 format u16 Ift {
   Format1(PatchMapFormat1),
   Format2(PatchMapFormat2),
@@ -45,7 +54,7 @@ table PatchMapFormat1 {
   patch_encoding: u8,
 }
 
-#[read_args(entry_count: u16, glyph_count: u16)]
+#[read_args(entry_count: u32, glyph_count: u32)]
 table GlyphMap {
   first_mapped_glyph: u16,
 
