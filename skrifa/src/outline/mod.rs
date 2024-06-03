@@ -84,6 +84,8 @@ mod hint;
 
 pub mod error;
 
+use core::fmt::Debug;
+
 use raw::tables::glyf::ToPathStyle;
 use read_fonts::{types::GlyphId, TableProvider};
 
@@ -415,8 +417,21 @@ enum OutlineKind<'a> {
     Cff(cff::Outlines<'a>, GlyphId, u32),
 }
 
+impl Debug for OutlineKind<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Glyf(_, outline) => f.debug_tuple("Glyf").field(&outline.glyph_id).finish(),
+            Self::Cff(_, gid, subfont_index) => f
+                .debug_tuple("Cff")
+                .field(gid)
+                .field(subfont_index)
+                .finish(),
+        }
+    }
+}
+
 /// Collection of scalable glyph outlines.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct OutlineGlyphCollection<'a> {
     kind: OutlineCollectionKind<'a>,
 }
@@ -500,6 +515,16 @@ enum OutlineCollectionKind<'a> {
     None,
     Glyf(glyf::Outlines<'a>),
     Cff(cff::Outlines<'a>),
+}
+
+impl Debug for OutlineCollectionKind<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::None => write!(f, "None"),
+            Self::Glyf(..) => f.debug_tuple("Glyf").finish(),
+            Self::Cff(..) => f.debug_tuple("Cff").finish(),
+        }
+    }
 }
 
 /// Arbitrarily chosen smallish size for stack allocation to avoid the heap
@@ -1206,6 +1231,29 @@ mod tests {
             Location::default(),
             ToPathStyle::HarfBuzz,
             &[PathEl::MoveTo((704.97, -340.0).into())],
+        );
+    }
+
+    const CUBIC_GLYPH: GlyphId = GlyphId::new(2);
+
+    #[test]
+    fn draw_cubic() {
+        let font = FontRef::new(font_test_data::CUBIC_GLYF).unwrap();
+        assert_glyph_path_start_with(
+            &font,
+            CUBIC_GLYPH,
+            Location::default(),
+            ToPathStyle::FreeType,
+            &[
+                PathEl::MoveTo((278.0, -710.0).into()),
+                PathEl::LineTo((278.0, -470.0).into()),
+                PathEl::CurveTo(
+                    (300.0, -500.0).into(),
+                    (800.0, -500.0).into(),
+                    (998.0, -470.0).into(),
+                ),
+                PathEl::LineTo((998.0, -710.0).into()),
+            ],
         );
     }
 }

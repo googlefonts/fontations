@@ -135,8 +135,11 @@ flags u8 SimpleGlyphFlags {
     /// for the glyph. See additional details below.
     OVERLAP_SIMPLE = 0x40,
 
-    ///// Bit 7 is reserved: set to zero.
-    //Reserved = 0x80,
+    /// Bit 7: Off-curve point belongs to a cubic-Bezier segment
+    /// 
+    /// * [Spec](https://github.com/harfbuzz/boring-expansion-spec/blob/main/glyf1-cubicOutlines.md)
+    /// * [harfbuzz](https://github.com/harfbuzz/harfbuzz/blob/c1ca46e4ebb6457dfe00a5441d52a4a66134ac58/src/OT/glyf/SimpleGlyph.hh#L23)
+    CUBIC = 0x80,
 }
 
 /// [CompositeGlyph](https://docs.microsoft.com/en-us/typography/opentype/spec/glyf#glyph-headers)
