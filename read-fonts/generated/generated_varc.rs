@@ -31,7 +31,7 @@ impl TopLevelTable for Varc<'_> {
 impl<'a> FontRead<'a> for Varc<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
-        let version: MajorMinor = cursor.read()?;
+        cursor.advance::<MajorMinor>();
         cursor.advance::<Offset32>();
         cursor.finish(VarcMarker {})
     }
@@ -43,7 +43,7 @@ impl<'a> FontRead<'a> for Varc<'a> {
 pub type Varc<'a> = TableRef<'a, VarcMarker>;
 
 impl<'a> Varc<'a> {
-    /// Major/minor version number. Set to 1.0.
+    /// Major/minor version number. Set to 1.0. Do not annotate version as that produces unused var warnings.
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -67,7 +67,6 @@ impl<'a> SomeTable<'a> for Varc<'a> {
         "Varc"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        let version = self.version();
         match idx {
             0usize => Some(Field::new("version", self.version())),
             1usize => Some(Field::new(

@@ -5,8 +5,7 @@
 /// [FontTools VARC](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3459-L3476)
 #[tag = "VARC"]
 table Varc {
-    /// Major/minor version number. Set to 1.0.
-    #[version]
+    /// Major/minor version number. Set to 1.0. Do not annotate version as that produces unused var warnings.
     #[compile(MajorMinor::VERSION_1_0)]
     version: MajorMinor,
 
