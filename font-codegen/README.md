@@ -169,8 +169,7 @@ The following annotations are supported on top-level objects:
   as well as validation and compilation code.
 - `#[since_version(version)]`: indicates that a field only exists in a given version
   of the table. The `version` may be either a single integer literal
-  (`#[since_version(1)]`), or a comma-separated pair of integer literals
-  (`#[since_version(1,1)]`).
+  (`#[since_version(1)]`), or a major.minor pair (`#[since_version(1.1)]`).
 - `#[skip_getter]`: if present, we will not generate a getter for this field.
   Used on things like padding fields.
 - `#[offset_getter(method name)]`: only allowed on offsets or arrays of offsets.

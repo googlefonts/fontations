@@ -234,20 +234,26 @@ impl<'a> FontRead<'a> for TTCHeader<'a> {
         let table_directory_offsets_byte_len = num_fonts as usize * u32::RAW_BYTE_LEN;
         cursor.advance_by(table_directory_offsets_byte_len);
         let dsig_tag_byte_start = version
-            .compatible((2, 0))
+            .compatible((2u16, 0u16))
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible((2, 0)).then(|| cursor.advance::<u32>());
+        version
+            .compatible((2u16, 0u16))
+            .then(|| cursor.advance::<u32>());
         let dsig_length_byte_start = version
-            .compatible((2, 0))
+            .compatible((2u16, 0u16))
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible((2, 0)).then(|| cursor.advance::<u32>());
+        version
+            .compatible((2u16, 0u16))
+            .then(|| cursor.advance::<u32>());
         let dsig_offset_byte_start = version
-            .compatible((2, 0))
+            .compatible((2u16, 0u16))
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible((2, 0)).then(|| cursor.advance::<u32>());
+        version
+            .compatible((2u16, 0u16))
+            .then(|| cursor.advance::<u32>());
         cursor.finish(TTCHeaderMarker {
             table_directory_offsets_byte_len,
             dsig_tag_byte_start,
@@ -319,13 +325,13 @@ impl<'a> SomeTable<'a> for TTCHeader<'a> {
                 "table_directory_offsets",
                 self.table_directory_offsets(),
             )),
-            4usize if version.compatible((2, 0)) => {
+            4usize if version.compatible((2u16, 0u16)) => {
                 Some(Field::new("dsig_tag", self.dsig_tag().unwrap()))
             }
-            5usize if version.compatible((2, 0)) => {
+            5usize if version.compatible((2u16, 0u16)) => {
                 Some(Field::new("dsig_length", self.dsig_length().unwrap()))
             }
-            6usize if version.compatible((2, 0)) => {
+            6usize if version.compatible((2u16, 0u16)) => {
                 Some(Field::new("dsig_offset", self.dsig_offset().unwrap()))
             }
             _ => None,

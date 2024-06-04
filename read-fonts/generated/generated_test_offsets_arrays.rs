@@ -62,25 +62,25 @@ impl<'a> FontRead<'a> for KindsOfOffsets<'a> {
         cursor.advance::<Offset16>();
         cursor.advance::<Offset16>();
         let versioned_nullable_record_array_offset_byte_start = version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| cursor.position())
             .transpose()?;
         version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| cursor.advance::<Offset16>());
         let versioned_nonnullable_offset_byte_start = version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| cursor.position())
             .transpose()?;
         version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| cursor.advance::<Offset16>());
         let versioned_nullable_offset_byte_start = version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| cursor.position())
             .transpose()?;
         version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| cursor.advance::<Offset32>());
         cursor.finish(KindsOfOffsetsMarker {
             versioned_nullable_record_array_offset_byte_start,
@@ -227,7 +227,7 @@ impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
                     self.offset_data(),
                 ),
             )),
-            6usize if version.compatible((1, 1)) => Some(Field::new(
+            6usize if version.compatible((1u16, 1u16)) => Some(Field::new(
                 "versioned_nullable_record_array_offset",
                 traversal::FieldType::offset_to_array_of_records(
                     self.versioned_nullable_record_array_offset().unwrap(),
@@ -236,14 +236,14 @@ impl<'a> SomeTable<'a> for KindsOfOffsets<'a> {
                     self.offset_data(),
                 ),
             )),
-            7usize if version.compatible((1, 1)) => Some(Field::new(
+            7usize if version.compatible((1u16, 1u16)) => Some(Field::new(
                 "versioned_nonnullable_offset",
                 FieldType::offset(
                     self.versioned_nonnullable_offset().unwrap(),
                     self.versioned_nonnullable().unwrap(),
                 ),
             )),
-            8usize if version.compatible((1, 1)) => Some(Field::new(
+            8usize if version.compatible((1u16, 1u16)) => Some(Field::new(
                 "versioned_nullable_offset",
                 FieldType::offset(
                     self.versioned_nullable_offset().unwrap(),
@@ -310,21 +310,21 @@ impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
         let nullable_offsets_byte_len = count as usize * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(nullable_offsets_byte_len);
         let versioned_nonnullable_offsets_byte_start = version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| cursor.position())
             .transpose()?;
         let versioned_nonnullable_offsets_byte_len = version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then_some(count as usize * Offset16::RAW_BYTE_LEN);
         if let Some(value) = versioned_nonnullable_offsets_byte_len {
             cursor.advance_by(value);
         }
         let versioned_nullable_offsets_byte_start = version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| cursor.position())
             .transpose()?;
         let versioned_nullable_offsets_byte_len = version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then_some(count as usize * Offset16::RAW_BYTE_LEN);
         if let Some(value) = versioned_nullable_offsets_byte_len {
             cursor.advance_by(value);
@@ -446,7 +446,7 @@ impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
                     ),
                 )
             }),
-            4usize if version.compatible((1, 1)) => Some({
+            4usize if version.compatible((1u16, 1u16)) => Some({
                 let data = self.data;
                 Field::new(
                     "versioned_nonnullable_offsets",
@@ -460,7 +460,7 @@ impl<'a> SomeTable<'a> for KindsOfArraysOfOffsets<'a> {
                     ),
                 )
             }),
-            5usize if version.compatible((1, 1)) => Some({
+            5usize if version.compatible((1u16, 1u16)) => Some({
                 let data = self.data;
                 Field::new(
                     "versioned_nullable_offsets",
@@ -534,21 +534,21 @@ impl<'a> FontRead<'a> for KindsOfArrays<'a> {
         let records_byte_len = count as usize * Shmecord::RAW_BYTE_LEN;
         cursor.advance_by(records_byte_len);
         let versioned_scalars_byte_start = version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
         let versioned_scalars_byte_len = version
-            .compatible(1)
+            .compatible(1u16)
             .then_some(count as usize * u16::RAW_BYTE_LEN);
         if let Some(value) = versioned_scalars_byte_len {
             cursor.advance_by(value);
         }
         let versioned_records_byte_start = version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
         let versioned_records_byte_len = version
-            .compatible(1)
+            .compatible(1u16)
             .then_some(count as usize * Shmecord::RAW_BYTE_LEN);
         if let Some(value) = versioned_records_byte_len {
             cursor.advance_by(value);
@@ -622,11 +622,11 @@ impl<'a> SomeTable<'a> for KindsOfArrays<'a> {
                     self.offset_data(),
                 ),
             )),
-            4usize if version.compatible(1) => Some(Field::new(
+            4usize if version.compatible(1u16) => Some(Field::new(
                 "versioned_scalars",
                 self.versioned_scalars().unwrap(),
             )),
-            5usize if version.compatible(1) => Some(Field::new(
+            5usize if version.compatible(1u16) => Some(Field::new(
                 "versioned_records",
                 traversal::FieldType::array_of_records(
                     stringify!(Shmecord),

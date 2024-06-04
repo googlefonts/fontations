@@ -80,13 +80,13 @@ impl FontWrite for Cpal {
         self.color_records_array.write_into(writer);
         self.color_record_indices.write_into(writer);
         version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| self.palette_types_array.write_into(writer));
         version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| self.palette_labels_array.write_into(writer));
         version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| self.palette_entry_labels_array.write_into(writer));
     }
     fn table_type(&self) -> TableType {

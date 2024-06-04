@@ -48,11 +48,11 @@ impl<'a> FontRead<'a> for Gsub<'a> {
         cursor.advance::<Offset16>();
         cursor.advance::<Offset16>();
         let feature_variations_offset_byte_start = version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| cursor.position())
             .transpose()?;
         version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| cursor.advance::<Offset32>());
         cursor.finish(GsubMarker {
             feature_variations_offset_byte_start,
@@ -141,7 +141,7 @@ impl<'a> SomeTable<'a> for Gsub<'a> {
                 "lookup_list_offset",
                 FieldType::offset(self.lookup_list_offset(), self.lookup_list()),
             )),
-            4usize if version.compatible((1, 1)) => Some(Field::new(
+            4usize if version.compatible((1u16, 1u16)) => Some(Field::new(
                 "feature_variations_offset",
                 FieldType::offset(
                     self.feature_variations_offset().unwrap(),

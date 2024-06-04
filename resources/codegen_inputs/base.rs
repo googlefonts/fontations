@@ -14,7 +14,7 @@ table Base {
     #[nullable]
     vert_axis_offset: Offset16<Axis>,
     /// Offset to Item Variation Store table, from beginning of BASE table (may be null)
-    #[since_version(1,1)]
+    #[since_version(1.1)]
     #[nullable]
     item_var_store_offset: Offset32<ItemVariationStore>,
 }

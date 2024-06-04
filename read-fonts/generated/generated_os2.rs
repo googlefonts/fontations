@@ -573,50 +573,50 @@ impl<'a> FontRead<'a> for Os2<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         let ul_code_page_range_1_byte_start = version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(1).then(|| cursor.advance::<u32>());
+        version.compatible(1u16).then(|| cursor.advance::<u32>());
         let ul_code_page_range_2_byte_start = version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(1).then(|| cursor.advance::<u32>());
+        version.compatible(1u16).then(|| cursor.advance::<u32>());
         let sx_height_byte_start = version
-            .compatible(2)
+            .compatible(2u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(2).then(|| cursor.advance::<i16>());
+        version.compatible(2u16).then(|| cursor.advance::<i16>());
         let s_cap_height_byte_start = version
-            .compatible(2)
+            .compatible(2u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(2).then(|| cursor.advance::<i16>());
+        version.compatible(2u16).then(|| cursor.advance::<i16>());
         let us_default_char_byte_start = version
-            .compatible(2)
+            .compatible(2u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(2).then(|| cursor.advance::<u16>());
+        version.compatible(2u16).then(|| cursor.advance::<u16>());
         let us_break_char_byte_start = version
-            .compatible(2)
+            .compatible(2u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(2).then(|| cursor.advance::<u16>());
+        version.compatible(2u16).then(|| cursor.advance::<u16>());
         let us_max_context_byte_start = version
-            .compatible(2)
+            .compatible(2u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(2).then(|| cursor.advance::<u16>());
+        version.compatible(2u16).then(|| cursor.advance::<u16>());
         let us_lower_optical_point_size_byte_start = version
-            .compatible(5)
+            .compatible(5u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(5).then(|| cursor.advance::<u16>());
+        version.compatible(5u16).then(|| cursor.advance::<u16>());
         let us_upper_optical_point_size_byte_start = version
-            .compatible(5)
+            .compatible(5u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(5).then(|| cursor.advance::<u16>());
+        version.compatible(5u16).then(|| cursor.advance::<u16>());
         cursor.finish(Os2Marker {
             panose_10_byte_len,
             ul_code_page_range_1_byte_start,
@@ -973,35 +973,35 @@ impl<'a> SomeTable<'a> for Os2<'a> {
             27usize => Some(Field::new("s_typo_line_gap", self.s_typo_line_gap())),
             28usize => Some(Field::new("us_win_ascent", self.us_win_ascent())),
             29usize => Some(Field::new("us_win_descent", self.us_win_descent())),
-            30usize if version.compatible(1) => Some(Field::new(
+            30usize if version.compatible(1u16) => Some(Field::new(
                 "ul_code_page_range_1",
                 self.ul_code_page_range_1().unwrap(),
             )),
-            31usize if version.compatible(1) => Some(Field::new(
+            31usize if version.compatible(1u16) => Some(Field::new(
                 "ul_code_page_range_2",
                 self.ul_code_page_range_2().unwrap(),
             )),
-            32usize if version.compatible(2) => {
+            32usize if version.compatible(2u16) => {
                 Some(Field::new("sx_height", self.sx_height().unwrap()))
             }
-            33usize if version.compatible(2) => {
+            33usize if version.compatible(2u16) => {
                 Some(Field::new("s_cap_height", self.s_cap_height().unwrap()))
             }
-            34usize if version.compatible(2) => Some(Field::new(
+            34usize if version.compatible(2u16) => Some(Field::new(
                 "us_default_char",
                 self.us_default_char().unwrap(),
             )),
-            35usize if version.compatible(2) => {
+            35usize if version.compatible(2u16) => {
                 Some(Field::new("us_break_char", self.us_break_char().unwrap()))
             }
-            36usize if version.compatible(2) => {
+            36usize if version.compatible(2u16) => {
                 Some(Field::new("us_max_context", self.us_max_context().unwrap()))
             }
-            37usize if version.compatible(5) => Some(Field::new(
+            37usize if version.compatible(5u16) => Some(Field::new(
                 "us_lower_optical_point_size",
                 self.us_lower_optical_point_size().unwrap(),
             )),
-            38usize if version.compatible(5) => Some(Field::new(
+            38usize if version.compatible(5u16) => Some(Field::new(
                 "us_upper_optical_point_size",
                 self.us_upper_optical_point_size().unwrap(),
             )),
