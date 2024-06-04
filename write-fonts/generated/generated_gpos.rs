@@ -46,7 +46,7 @@ impl FontWrite for Gpos {
         self.feature_list.write_into(writer);
         self.lookup_list.write_into(writer);
         version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| self.feature_variations.write_into(writer));
     }
     fn table_type(&self) -> TableType {

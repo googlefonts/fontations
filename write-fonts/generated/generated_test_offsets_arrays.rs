@@ -52,16 +52,16 @@ impl FontWrite for KindsOfOffsets {
         self.array.write_into(writer);
         self.record_array.write_into(writer);
         version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| self.versioned_nullable_record_array.write_into(writer));
-        version.compatible((1, 1)).then(|| {
+        version.compatible((1u16, 1u16)).then(|| {
             self.versioned_nonnullable
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
         version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| self.versioned_nullable.write_into(writer));
     }
     fn table_type(&self) -> TableType {
@@ -86,7 +86,7 @@ impl Validate for KindsOfOffsets {
                 self.versioned_nullable_record_array.validate_impl(ctx);
             });
             ctx.in_field("versioned_nonnullable", |ctx| {
-                if version.compatible((1, 1)) && self.versioned_nonnullable.is_none() {
+                if version.compatible((1u16, 1u16)) && self.versioned_nonnullable.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 self.versioned_nonnullable.validate_impl(ctx);
@@ -154,13 +154,13 @@ impl FontWrite for KindsOfArraysOfOffsets {
         (array_len(&self.nonnullables).unwrap() as u16).write_into(writer);
         self.nonnullables.write_into(writer);
         self.nullables.write_into(writer);
-        version.compatible((1, 1)).then(|| {
+        version.compatible((1u16, 1u16)).then(|| {
             self.versioned_nonnullables
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible((1, 1)).then(|| {
+        version.compatible((1u16, 1u16)).then(|| {
             self.versioned_nullables
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
@@ -189,7 +189,7 @@ impl Validate for KindsOfArraysOfOffsets {
                 self.nullables.validate_impl(ctx);
             });
             ctx.in_field("versioned_nonnullables", |ctx| {
-                if version.compatible((1, 1)) && self.versioned_nonnullables.is_none() {
+                if version.compatible((1u16, 1u16)) && self.versioned_nonnullables.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.versioned_nonnullables.is_some()
@@ -200,7 +200,7 @@ impl Validate for KindsOfArraysOfOffsets {
                 self.versioned_nonnullables.validate_impl(ctx);
             });
             ctx.in_field("versioned_nullables", |ctx| {
-                if version.compatible((1, 1)) && self.versioned_nullables.is_none() {
+                if version.compatible((1u16, 1u16)) && self.versioned_nullables.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.versioned_nullables.is_some()
@@ -276,13 +276,13 @@ impl FontWrite for KindsOfArrays {
         (array_len(&self.scalars).unwrap() as u16).write_into(writer);
         self.scalars.write_into(writer);
         self.records.write_into(writer);
-        version.compatible(1).then(|| {
+        version.compatible(1u16).then(|| {
             self.versioned_scalars
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
                 .write_into(writer)
         });
-        version.compatible(1).then(|| {
+        version.compatible(1u16).then(|| {
             self.versioned_records
                 .as_ref()
                 .expect("missing versioned field should have failed validation")
@@ -310,7 +310,7 @@ impl Validate for KindsOfArrays {
                 self.records.validate_impl(ctx);
             });
             ctx.in_field("versioned_scalars", |ctx| {
-                if version.compatible(1) && self.versioned_scalars.is_none() {
+                if version.compatible(1u16) && self.versioned_scalars.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.versioned_scalars.is_some()
@@ -320,7 +320,7 @@ impl Validate for KindsOfArrays {
                 }
             });
             ctx.in_field("versioned_records", |ctx| {
-                if version.compatible(1) && self.versioned_records.is_none() {
+                if version.compatible(1u16) && self.versioned_records.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.versioned_records.is_some()

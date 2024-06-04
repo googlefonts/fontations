@@ -181,7 +181,7 @@ pub(crate) struct Field {
 pub(crate) struct FieldAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) nullable: Option<syn::Path>,
-    pub(crate) since_version: Option<Attr<SinceVersion>>,
+    pub(crate) since_version: Option<Attr<VersionSpec>>,
     pub(crate) skip_getter: Option<syn::Path>,
     /// specify that an offset getter has a custom impl
     pub(crate) offset_getter: Option<Attr<syn::Ident>>,
@@ -244,9 +244,9 @@ pub(crate) struct FieldReadArgs {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct SinceVersion {
-    major: syn::LitInt,
-    minor: Option<syn::LitInt>,
+pub(crate) struct VersionSpec {
+    major: u16,
+    minor: Option<u16>,
 }
 
 /// Annotations for how to calculate the count of an array.
@@ -1448,21 +1448,34 @@ impl ToTokens for CountArg {
     }
 }
 
-impl Parse for SinceVersion {
+impl Parse for VersionSpec {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let major = input.parse()?;
-        input
-            .peek(Token![,])
-            .then(|| {
-                input.parse::<Token![,]>()?;
-                input.parse::<syn::LitInt>()
+        let fork = input.fork();
+        if fork.parse::<syn::LitInt>().is_ok() && fork.is_empty() {
+            let major = input.parse::<syn::LitInt>()?;
+            let major: u16 = major.base10_parse()?;
+            return Ok(VersionSpec { major, minor: None });
+        }
+
+        let version = input.parse::<syn::LitFloat>()?;
+        let Some((major, minor)) = version.base10_digits().split_once('.') else {
+            return Err(syn::Error::new(version.span(), "version should be single integer major or major.minor (e.g. '1', '4', '1.1', '2.5')"));
+        };
+        let major = major.parse::<u16>();
+        let minor = minor.parse::<u16>();
+
+        major
+            .and_then(|major| {
+                minor.map(|minor| VersionSpec {
+                    major,
+                    minor: Some(minor),
+                })
             })
-            .transpose()
-            .map(|minor| Self { major, minor })
+            .map_err(|_| syn::Error::new(version.span(), "could not parse major/minor version"))
     }
 }
 
-impl ToTokens for SinceVersion {
+impl ToTokens for VersionSpec {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let major = &self.major;
         if let Some(minor) = &self.minor {
@@ -1852,21 +1865,18 @@ mod tests {
     }
 
     #[test]
-    fn parse_available() {
-        fn parse(s: &str) -> Result<SinceVersion, syn::Error> {
+    fn parse_version() {
+        fn parse(s: &str) -> Result<VersionSpec, syn::Error> {
             syn::parse_str(s)
         }
 
         assert!(parse("32").unwrap().minor.is_none());
-        assert_eq!(
-            parse("32").unwrap().major.base10_parse::<u16>().unwrap(),
-            32
-        );
+        assert_eq!(parse("32").unwrap().major, 32);
         assert!(parse("ab").is_err());
         assert!(parse("MajorMinor::VERSION_1_0").is_err());
-        assert!(parse("1, 3").unwrap().minor.is_some());
-        assert!(parse("1, 2, 3").is_err());
-        assert!(parse("1, 'b'").is_err());
+        assert!(parse("1.3").unwrap().minor.is_some());
+        assert!(parse("1.2.3").is_err());
+        assert!(parse("1.'b'").is_err());
     }
 
     fn parse_format_group(s: &str) -> Result<TableFormat, syn::Error> {

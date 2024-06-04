@@ -85,30 +85,30 @@ impl<'a> FontRead<'a> for Post<'a> {
         cursor.advance::<u32>();
         cursor.advance::<u32>();
         let num_glyphs_byte_start = version
-            .compatible((2, 0))
+            .compatible((2u16, 0u16))
             .then(|| cursor.position())
             .transpose()?;
         let num_glyphs = version
-            .compatible((2, 0))
+            .compatible((2u16, 0u16))
             .then(|| cursor.read::<u16>())
             .transpose()?
             .unwrap_or(0);
         let glyph_name_index_byte_start = version
-            .compatible((2, 0))
+            .compatible((2u16, 0u16))
             .then(|| cursor.position())
             .transpose()?;
         let glyph_name_index_byte_len = version
-            .compatible((2, 0))
+            .compatible((2u16, 0u16))
             .then_some(num_glyphs as usize * u16::RAW_BYTE_LEN);
         if let Some(value) = glyph_name_index_byte_len {
             cursor.advance_by(value);
         }
         let string_data_byte_start = version
-            .compatible((2, 0))
+            .compatible((2u16, 0u16))
             .then(|| cursor.position())
             .transpose()?;
         let string_data_byte_len = version
-            .compatible((2, 0))
+            .compatible((2u16, 0u16))
             .then_some(cursor.remaining_bytes());
         if let Some(value) = string_data_byte_len {
             cursor.advance_by(value);
@@ -237,14 +237,14 @@ impl<'a> SomeTable<'a> for Post<'a> {
             6usize => Some(Field::new("max_mem_type42", self.max_mem_type42())),
             7usize => Some(Field::new("min_mem_type1", self.min_mem_type1())),
             8usize => Some(Field::new("max_mem_type1", self.max_mem_type1())),
-            9usize if version.compatible((2, 0)) => {
+            9usize if version.compatible((2u16, 0u16)) => {
                 Some(Field::new("num_glyphs", self.num_glyphs().unwrap()))
             }
-            10usize if version.compatible((2, 0)) => Some(Field::new(
+            10usize if version.compatible((2u16, 0u16)) => Some(Field::new(
                 "glyph_name_index",
                 self.glyph_name_index().unwrap(),
             )),
-            11usize if version.compatible((2, 0)) => {
+            11usize if version.compatible((2u16, 0u16)) => {
                 Some(Field::new("string_data", self.traverse_string_data()))
             }
             _ => None,
