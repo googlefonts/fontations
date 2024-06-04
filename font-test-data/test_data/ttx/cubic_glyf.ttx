@@ -170,7 +170,7 @@
       <contour>
         <pt x="278" y="710" on="1"/>
         <pt x="278" y="470" on="1"/>
-        <!-- cubic, not implicit on-curve cubic -->
+        <!-- cubic, not quad with implicit on-curve -->
         <!-- as best I can tell you have to read the FontTools glyf toXML implementation to find this -->
         <pt x="300" y="500" on="0" cubic="1"/>
         <pt x="800" y="500" on="0" cubic="1"/>
