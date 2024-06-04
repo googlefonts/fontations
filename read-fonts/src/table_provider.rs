@@ -168,6 +168,10 @@ pub trait TableProvider<'a> {
     fn stat(&self) -> Result<tables::stat::Stat<'a>, ReadError> {
         self.expect_table()
     }
+
+    fn varc(&self) -> Result<tables::varc::Varc<'a>, ReadError> {
+        self.expect_table()
+    }
 }
 
 #[cfg(test)]

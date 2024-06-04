@@ -64,6 +64,10 @@ pub static MATERIAL_SYMBOLS_SUBSET: &[u8] =
 
 pub static GLYF_COMPONENTS: &[u8] = include_bytes!("../test_data/ttf/glyf_components.ttf");
 
+pub mod varc {
+    pub static CJK_6868: &[u8] = include_bytes!("../test_data/ttf/varc-6868.ttf");
+}
+
 pub mod closure {
     pub static SIMPLE: &[u8] = include_bytes!("../test_data/ttf/simple_closure.ttf");
     pub static SIMPLE_GLYPHS: &str = include_str!("../test_data/fea/simple_closure_glyphs.txt");
