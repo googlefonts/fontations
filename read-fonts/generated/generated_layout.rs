@@ -4063,7 +4063,7 @@ impl<'a> ConditionSet<'a> {
     }
 
     /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
-    pub fn conditions(&self) -> ArrayOfOffsets<'a, ConditionFormat1<'a>, Offset32> {
+    pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset32> {
         let data = self.data;
         let offsets = self.condition_offsets();
         ArrayOfOffsets::new(offsets, data, ())
@@ -4083,10 +4083,10 @@ impl<'a> SomeTable<'a> for ConditionSet<'a> {
                 Field::new(
                     "condition_offsets",
                     FieldType::array_of_offsets(
-                        better_type_name::<ConditionFormat1>(),
+                        better_type_name::<Condition>(),
                         self.condition_offsets(),
                         move |off| {
-                            let target = off.get().resolve::<ConditionFormat1>(data);
+                            let target = off.get().resolve::<Condition>(data);
                             FieldType::offset(off.get(), target)
                         },
                     ),
@@ -4101,6 +4101,76 @@ impl<'a> SomeTable<'a> for ConditionSet<'a> {
 impl<'a> std::fmt::Debug for ConditionSet<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+/// [Condition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table)
+///
+/// Formats 2..5 are implementations of specification changes currently under debate at ISO for an OFF
+/// update. For the time being the specification is <https://github.com/harfbuzz/boring-expansion-spec/blob/main/ConditionTree.md>.
+#[derive(Clone)]
+pub enum Condition<'a> {
+    Format1AxisRange(ConditionFormat1<'a>),
+    Format2VariableValue(ConditionFormat2<'a>),
+    Format3And(ConditionFormat3<'a>),
+    Format4Or(ConditionFormat4<'a>),
+    Format5Negate(ConditionFormat5<'a>),
+}
+
+impl<'a> Condition<'a> {
+    /// Format, = 1
+    pub fn format(&self) -> u16 {
+        match self {
+            Self::Format1AxisRange(item) => item.format(),
+            Self::Format2VariableValue(item) => item.format(),
+            Self::Format3And(item) => item.format(),
+            Self::Format4Or(item) => item.format(),
+            Self::Format5Negate(item) => item.format(),
+        }
+    }
+}
+
+impl<'a> FontRead<'a> for Condition<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let format: u16 = data.read_at(0usize)?;
+        match format {
+            ConditionFormat1Marker::FORMAT => Ok(Self::Format1AxisRange(FontRead::read(data)?)),
+            ConditionFormat2Marker::FORMAT => Ok(Self::Format2VariableValue(FontRead::read(data)?)),
+            ConditionFormat3Marker::FORMAT => Ok(Self::Format3And(FontRead::read(data)?)),
+            ConditionFormat4Marker::FORMAT => Ok(Self::Format4Or(FontRead::read(data)?)),
+            ConditionFormat5Marker::FORMAT => Ok(Self::Format5Negate(FontRead::read(data)?)),
+            other => Err(ReadError::InvalidFormat(other.into())),
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> Condition<'a> {
+    fn dyn_inner<'b>(&'b self) -> &'b dyn SomeTable<'a> {
+        match self {
+            Self::Format1AxisRange(table) => table,
+            Self::Format2VariableValue(table) => table,
+            Self::Format3And(table) => table,
+            Self::Format4Or(table) => table,
+            Self::Format5Negate(table) => table,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for Condition<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        self.dyn_inner().fmt(f)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for Condition<'a> {
+    fn type_name(&self) -> &str {
+        self.dyn_inner().type_name()
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        self.dyn_inner().get_field(idx)
     }
 }
 
@@ -4199,6 +4269,369 @@ impl<'a> SomeTable<'a> for ConditionFormat1<'a> {
 
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for ConditionFormat1<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl Format<u16> for ConditionFormat2Marker {
+    const FORMAT: u16 = 2;
+}
+
+/// [Condition Table Format 2](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3237-L3255): Variation index
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ConditionFormat2Marker {}
+
+impl ConditionFormat2Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn default_value_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + i16::RAW_BYTE_LEN
+    }
+    fn var_index_byte_range(&self) -> Range<usize> {
+        let start = self.default_value_byte_range().end;
+        start..start + u32::RAW_BYTE_LEN
+    }
+}
+
+impl<'a> FontRead<'a> for ConditionFormat2<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<i16>();
+        cursor.advance::<u32>();
+        cursor.finish(ConditionFormat2Marker {})
+    }
+}
+
+/// [Condition Table Format 2](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3237-L3255): Variation index
+pub type ConditionFormat2<'a> = TableRef<'a, ConditionFormat2Marker>;
+
+impl<'a> ConditionFormat2<'a> {
+    /// Format, = 2
+    pub fn format(&self) -> u16 {
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Value at default instance.
+    pub fn default_value(&self) -> i16 {
+        let range = self.shape.default_value_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Variation index to vary the value based on current designspace location.
+    pub fn var_index(&self) -> u32 {
+        let range = self.shape.var_index_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ConditionFormat2<'a> {
+    fn type_name(&self) -> &str {
+        "ConditionFormat2"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("default_value", self.default_value())),
+            2usize => Some(Field::new("var_index", self.var_index())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ConditionFormat2<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl Format<u16> for ConditionFormat3Marker {
+    const FORMAT: u16 = 3;
+}
+
+/// [Condition Table Format 3](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3257-L3275): AND
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ConditionFormat3Marker {
+    condition_offsets_byte_len: usize,
+}
+
+impl ConditionFormat3Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn condition_count_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u8::RAW_BYTE_LEN
+    }
+    fn condition_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.condition_count_byte_range().end;
+        start..start + self.condition_offsets_byte_len
+    }
+}
+
+impl<'a> FontRead<'a> for ConditionFormat3<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        let condition_count: u8 = cursor.read()?;
+        let condition_offsets_byte_len = condition_count as usize * Offset24::RAW_BYTE_LEN;
+        cursor.advance_by(condition_offsets_byte_len);
+        cursor.finish(ConditionFormat3Marker {
+            condition_offsets_byte_len,
+        })
+    }
+}
+
+/// [Condition Table Format 3](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3257-L3275): AND
+pub type ConditionFormat3<'a> = TableRef<'a, ConditionFormat3Marker>;
+
+impl<'a> ConditionFormat3<'a> {
+    /// Format, = 3
+    pub fn format(&self) -> u16 {
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Number of conditions.
+    pub fn condition_count(&self) -> u8 {
+        let range = self.shape.condition_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Array of condition tables for this conjunction (AND) expression.
+    pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.shape.condition_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
+    pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset24> {
+        let data = self.data;
+        let offsets = self.condition_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ConditionFormat3<'a> {
+    fn type_name(&self) -> &str {
+        "ConditionFormat3"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("condition_count", self.condition_count())),
+            2usize => Some({
+                let data = self.data;
+                Field::new(
+                    "condition_offsets",
+                    FieldType::array_of_offsets(
+                        better_type_name::<Condition>(),
+                        self.condition_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<Condition>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
+                )
+            }),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ConditionFormat3<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl Format<u16> for ConditionFormat4Marker {
+    const FORMAT: u16 = 4;
+}
+
+/// [Condition Table Format 4](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3276-L3295): OR
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ConditionFormat4Marker {
+    condition_offsets_byte_len: usize,
+}
+
+impl ConditionFormat4Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn condition_count_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u8::RAW_BYTE_LEN
+    }
+    fn condition_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.condition_count_byte_range().end;
+        start..start + self.condition_offsets_byte_len
+    }
+}
+
+impl<'a> FontRead<'a> for ConditionFormat4<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        let condition_count: u8 = cursor.read()?;
+        let condition_offsets_byte_len = condition_count as usize * Offset24::RAW_BYTE_LEN;
+        cursor.advance_by(condition_offsets_byte_len);
+        cursor.finish(ConditionFormat4Marker {
+            condition_offsets_byte_len,
+        })
+    }
+}
+
+/// [Condition Table Format 4](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3276-L3295): OR
+pub type ConditionFormat4<'a> = TableRef<'a, ConditionFormat4Marker>;
+
+impl<'a> ConditionFormat4<'a> {
+    /// Format, = 4
+    pub fn format(&self) -> u16 {
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Number of conditions.
+    pub fn condition_count(&self) -> u8 {
+        let range = self.shape.condition_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Array of condition tables for this disjunction (OR) expression.
+    pub fn condition_offsets(&self) -> &'a [BigEndian<Offset24>] {
+        let range = self.shape.condition_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
+    pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset24> {
+        let data = self.data;
+        let offsets = self.condition_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ConditionFormat4<'a> {
+    fn type_name(&self) -> &str {
+        "ConditionFormat4"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("condition_count", self.condition_count())),
+            2usize => Some({
+                let data = self.data;
+                Field::new(
+                    "condition_offsets",
+                    FieldType::array_of_offsets(
+                        better_type_name::<Condition>(),
+                        self.condition_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<Condition>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
+                )
+            }),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ConditionFormat4<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+impl Format<u16> for ConditionFormat5Marker {
+    const FORMAT: u16 = 5;
+}
+
+/// [Condition Table Format 5](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3296-L3308): NOT
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ConditionFormat5Marker {}
+
+impl ConditionFormat5Marker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn condition_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + Offset24::RAW_BYTE_LEN
+    }
+}
+
+impl<'a> FontRead<'a> for ConditionFormat5<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset24>();
+        cursor.finish(ConditionFormat5Marker {})
+    }
+}
+
+/// [Condition Table Format 5](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3296-L3308): NOT
+pub type ConditionFormat5<'a> = TableRef<'a, ConditionFormat5Marker>;
+
+impl<'a> ConditionFormat5<'a> {
+    /// Format, = 5
+    pub fn format(&self) -> u16 {
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Condition to negate.
+    pub fn condition_offset(&self) -> Offset24 {
+        let range = self.shape.condition_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`condition_offset`][Self::condition_offset].
+    pub fn condition(&self) -> Result<Condition<'a>, ReadError> {
+        let data = self.data;
+        self.condition_offset().resolve(data)
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ConditionFormat5<'a> {
+    fn type_name(&self) -> &str {
+        "ConditionFormat5"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new(
+                "condition_offset",
+                FieldType::offset(self.condition_offset(), self.condition()),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ConditionFormat5<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }

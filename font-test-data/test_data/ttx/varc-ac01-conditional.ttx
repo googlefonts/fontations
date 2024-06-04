@@ -303,11 +303,52 @@
       </MultiVarData>
     </MultiVarStore>
     <ConditionList>
-      <!-- ConditionCount=1 -->
+      <!-- ConditionCount=5 -->
       <ConditionTable index="0" Format="1">
         <AxisIndex value="0"/>
         <FilterRangeMinValue value="0.5"/>
         <FilterRangeMaxValue value="1.0"/>
+      </ConditionTable>
+      <ConditionTable index="1" Format="2">
+        <DefaultValue value="1"/>
+        <VarIdx value="2"/>
+      </ConditionTable>
+
+      <!-- AND of the first two conditions -->
+      <ConditionTable index="2" Format="3">
+        <!-- ConditionCount=2 -->
+        <ConditionTable index="0" Format="1">
+          <AxisIndex value="0"/>
+          <FilterRangeMinValue value="0.5"/>
+          <FilterRangeMaxValue value="1.0"/>
+        </ConditionTable>
+        <ConditionTable index="1" Format="2">
+          <DefaultValue value="1"/>
+          <VarIdx value="2"/>
+        </ConditionTable>
+      </ConditionTable>
+
+      <!-- OR of the first two conditions -->
+      <ConditionTable index="3" Format="4">
+        <!-- ConditionCount=2 -->
+        <ConditionTable index="0" Format="1">
+          <AxisIndex value="0"/>
+          <FilterRangeMinValue value="0.5"/>
+          <FilterRangeMaxValue value="1.0"/>
+        </ConditionTable>
+        <ConditionTable index="4" Format="2">
+          <DefaultValue value="1"/>
+          <VarIdx value="2"/>
+        </ConditionTable>
+      </ConditionTable>
+
+      <!-- NOT the first condition -->
+      <ConditionTable index="3" Format="5">
+        <ConditionTable index="0" Format="1">
+          <AxisIndex value="0"/>
+          <FilterRangeMinValue value="0.5"/>
+          <FilterRangeMaxValue value="1.0"/>
+        </ConditionTable>
       </ConditionTable>
     </ConditionList>
     <AxisIndicesList>

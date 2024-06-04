@@ -611,14 +611,20 @@ table ConditionSet {
     /// Array of offsets to condition tables, from beginning of the
     /// ConditionSet table.
     #[count($condition_count)]
-    condition_offsets: [Offset32<ConditionFormat1>],
+    condition_offsets: [Offset32<Condition>],
 }
 
-///// [Condition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table)
-//Condition {
-    ///// FIXME: make an enum
-    //no_field: fake,
-//}
+/// [Condition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table)
+/// 
+/// Formats 2..5 are implementations of specification changes currently under debate at ISO for an OFF
+/// update. For the time being the specification is <https://github.com/harfbuzz/boring-expansion-spec/blob/main/ConditionTree.md>.
+format u16 Condition {
+    Format1AxisRange(ConditionFormat1),
+    Format2VariableValue(ConditionFormat2),
+    Format3And(ConditionFormat3),
+    Format4Or(ConditionFormat4),
+    Format5Negate(ConditionFormat5),
+}
 
 /// [Condition Table Format 1](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table-format-1-font-variation-axis-range): Font Variation Axis Range
 table ConditionFormat1 {
@@ -634,6 +640,50 @@ table ConditionFormat1 {
     /// Maximum value of the font variation instances that satisfy this
     /// condition.
     filter_range_max_value: F2Dot14,
+}
+
+/// [Condition Table Format 2](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3237-L3255): Variation index
+table ConditionFormat2 {
+    /// Format, = 2
+    #[format = 2]
+    format: u16,
+    /// Value at default instance.
+    default_value: i16,
+    /// Variation index to vary the value based on current designspace location.
+    var_index: u32,
+}
+
+/// [Condition Table Format 3](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3257-L3275): AND
+table ConditionFormat3 {
+    /// Format, = 3
+    #[format = 3]
+    format: u16,
+    /// Number of conditions.
+    condition_count: u8,
+    /// Array of condition tables for this conjunction (AND) expression.
+    #[count($condition_count)]
+    condition_offsets: [Offset24<Condition>],
+}
+
+/// [Condition Table Format 4](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3276-L3295): OR
+table ConditionFormat4 {
+    /// Format, = 4
+    #[format = 4]
+    format: u16,
+    /// Number of conditions.
+    condition_count: u8,
+    /// Array of condition tables for this disjunction (OR) expression.
+    #[count($condition_count)]
+    condition_offsets: [Offset24<Condition>],
+}
+
+/// [Condition Table Format 5](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3296-L3308): NOT
+table ConditionFormat5 {
+    /// Format, = 5
+    #[format = 5]
+    format: u16,
+    /// Condition to negate.
+    condition_offset: Offset24<Condition>,
 }
 
 /// [FeatureTableSubstitution Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#featuretablesubstitution-table)

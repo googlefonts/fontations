@@ -2896,12 +2896,12 @@ impl FromObjRef<read_fonts::tables::layout::FeatureVariationRecord> for FeatureV
 pub struct ConditionSet {
     /// Array of offsets to condition tables, from beginning of the
     /// ConditionSet table.
-    pub conditions: Vec<OffsetMarker<ConditionFormat1, WIDTH_32>>,
+    pub conditions: Vec<OffsetMarker<Condition, WIDTH_32>>,
 }
 
 impl ConditionSet {
     /// Construct a new `ConditionSet`
-    pub fn new(conditions: Vec<ConditionFormat1>) -> Self {
+    pub fn new(conditions: Vec<Condition>) -> Self {
         Self {
             conditions: conditions.into_iter().map(Into::into).collect(),
         }
@@ -2946,6 +2946,149 @@ impl<'a> FontRead<'a> for ConditionSet {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ConditionSet as FontRead>::read(data)
             .map(|x| x.to_owned_table())
+    }
+}
+
+/// [Condition Table](https://docs.microsoft.com/en-us/typography/opentype/spec/chapter2#condition-table)
+///
+/// Formats 2..5 are implementations of specification changes currently under debate at ISO for an OFF
+/// update. For the time being the specification is <https://github.com/harfbuzz/boring-expansion-spec/blob/main/ConditionTree.md>.
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub enum Condition {
+    Format1AxisRange(ConditionFormat1),
+    Format2VariableValue(ConditionFormat2),
+    Format3And(ConditionFormat3),
+    Format4Or(ConditionFormat4),
+    Format5Negate(ConditionFormat5),
+}
+
+impl Condition {
+    /// Construct a new `ConditionFormat1` subtable
+    pub fn format_1_axis_range(
+        axis_index: u16,
+        filter_range_min_value: F2Dot14,
+        filter_range_max_value: F2Dot14,
+    ) -> Self {
+        Self::Format1AxisRange(ConditionFormat1::new(
+            axis_index,
+            filter_range_min_value,
+            filter_range_max_value,
+        ))
+    }
+
+    /// Construct a new `ConditionFormat2` subtable
+    pub fn format_2_variable_value(default_value: i16, var_index: u32) -> Self {
+        Self::Format2VariableValue(ConditionFormat2::new(default_value, var_index))
+    }
+
+    /// Construct a new `ConditionFormat3` subtable
+    pub fn format_3_and(condition_count: u8, conditions: Vec<Condition>) -> Self {
+        Self::Format3And(ConditionFormat3::new(condition_count, conditions))
+    }
+
+    /// Construct a new `ConditionFormat4` subtable
+    pub fn format_4_or(condition_count: u8, conditions: Vec<Condition>) -> Self {
+        Self::Format4Or(ConditionFormat4::new(condition_count, conditions))
+    }
+
+    /// Construct a new `ConditionFormat5` subtable
+    pub fn format_5_negate(condition: Condition) -> Self {
+        Self::Format5Negate(ConditionFormat5::new(condition))
+    }
+}
+
+impl Default for Condition {
+    fn default() -> Self {
+        Self::Format1AxisRange(Default::default())
+    }
+}
+
+impl FontWrite for Condition {
+    fn write_into(&self, writer: &mut TableWriter) {
+        match self {
+            Self::Format1AxisRange(item) => item.write_into(writer),
+            Self::Format2VariableValue(item) => item.write_into(writer),
+            Self::Format3And(item) => item.write_into(writer),
+            Self::Format4Or(item) => item.write_into(writer),
+            Self::Format5Negate(item) => item.write_into(writer),
+        }
+    }
+    fn table_type(&self) -> TableType {
+        match self {
+            Self::Format1AxisRange(item) => item.table_type(),
+            Self::Format2VariableValue(item) => item.table_type(),
+            Self::Format3And(item) => item.table_type(),
+            Self::Format4Or(item) => item.table_type(),
+            Self::Format5Negate(item) => item.table_type(),
+        }
+    }
+}
+
+impl Validate for Condition {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        match self {
+            Self::Format1AxisRange(item) => item.validate_impl(ctx),
+            Self::Format2VariableValue(item) => item.validate_impl(ctx),
+            Self::Format3And(item) => item.validate_impl(ctx),
+            Self::Format4Or(item) => item.validate_impl(ctx),
+            Self::Format5Negate(item) => item.validate_impl(ctx),
+        }
+    }
+}
+
+impl FromObjRef<read_fonts::tables::layout::Condition<'_>> for Condition {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::Condition, _: FontData) -> Self {
+        use read_fonts::tables::layout::Condition as ObjRefType;
+        match obj {
+            ObjRefType::Format1AxisRange(item) => {
+                Condition::Format1AxisRange(item.to_owned_table())
+            }
+            ObjRefType::Format2VariableValue(item) => {
+                Condition::Format2VariableValue(item.to_owned_table())
+            }
+            ObjRefType::Format3And(item) => Condition::Format3And(item.to_owned_table()),
+            ObjRefType::Format4Or(item) => Condition::Format4Or(item.to_owned_table()),
+            ObjRefType::Format5Negate(item) => Condition::Format5Negate(item.to_owned_table()),
+        }
+    }
+}
+
+impl FromTableRef<read_fonts::tables::layout::Condition<'_>> for Condition {}
+
+impl<'a> FontRead<'a> for Condition {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::Condition as FontRead>::read(data).map(|x| x.to_owned_table())
+    }
+}
+
+impl From<ConditionFormat1> for Condition {
+    fn from(src: ConditionFormat1) -> Condition {
+        Condition::Format1AxisRange(src)
+    }
+}
+
+impl From<ConditionFormat2> for Condition {
+    fn from(src: ConditionFormat2) -> Condition {
+        Condition::Format2VariableValue(src)
+    }
+}
+
+impl From<ConditionFormat3> for Condition {
+    fn from(src: ConditionFormat3) -> Condition {
+        Condition::Format3And(src)
+    }
+}
+
+impl From<ConditionFormat4> for Condition {
+    fn from(src: ConditionFormat4) -> Condition {
+        Condition::Format4Or(src)
+    }
+}
+
+impl From<ConditionFormat5> for Condition {
+    fn from(src: ConditionFormat5) -> Condition {
+        Condition::Format5Negate(src)
     }
 }
 
@@ -3011,6 +3154,241 @@ impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat1<'a>> for Cond
 impl<'a> FontRead<'a> for ConditionFormat1 {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         <read_fonts::tables::layout::ConditionFormat1 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// [Condition Table Format 2](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3237-L3255): Variation index
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ConditionFormat2 {
+    /// Value at default instance.
+    pub default_value: i16,
+    /// Variation index to vary the value based on current designspace location.
+    pub var_index: u32,
+}
+
+impl ConditionFormat2 {
+    /// Construct a new `ConditionFormat2`
+    pub fn new(default_value: i16, var_index: u32) -> Self {
+        Self {
+            default_value,
+            var_index,
+        }
+    }
+}
+
+impl FontWrite for ConditionFormat2 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (2 as u16).write_into(writer);
+        self.default_value.write_into(writer);
+        self.var_index.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ConditionFormat2")
+    }
+}
+
+impl Validate for ConditionFormat2 {
+    fn validate_impl(&self, _ctx: &mut ValidationCtx) {}
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::ConditionFormat2<'a>> for ConditionFormat2 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ConditionFormat2<'a>, _: FontData) -> Self {
+        ConditionFormat2 {
+            default_value: obj.default_value(),
+            var_index: obj.var_index(),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat2<'a>> for ConditionFormat2 {}
+
+impl<'a> FontRead<'a> for ConditionFormat2 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::ConditionFormat2 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// [Condition Table Format 3](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3257-L3275): AND
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ConditionFormat3 {
+    /// Number of conditions.
+    pub condition_count: u8,
+    /// Array of condition tables for this conjunction (AND) expression.
+    pub conditions: Vec<OffsetMarker<Condition, WIDTH_24>>,
+}
+
+impl ConditionFormat3 {
+    /// Construct a new `ConditionFormat3`
+    pub fn new(condition_count: u8, conditions: Vec<Condition>) -> Self {
+        Self {
+            condition_count,
+            conditions: conditions.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for ConditionFormat3 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (3 as u16).write_into(writer);
+        self.condition_count.write_into(writer);
+        self.conditions.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ConditionFormat3")
+    }
+}
+
+impl Validate for ConditionFormat3 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ConditionFormat3", |ctx| {
+            ctx.in_field("conditions", |ctx| {
+                if self.conditions.len() > (u8::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
+                self.conditions.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::ConditionFormat3<'a>> for ConditionFormat3 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ConditionFormat3<'a>, _: FontData) -> Self {
+        ConditionFormat3 {
+            condition_count: obj.condition_count(),
+            conditions: obj.conditions().to_owned_table(),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat3<'a>> for ConditionFormat3 {}
+
+impl<'a> FontRead<'a> for ConditionFormat3 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::ConditionFormat3 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// [Condition Table Format 4](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3276-L3295): OR
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ConditionFormat4 {
+    /// Number of conditions.
+    pub condition_count: u8,
+    /// Array of condition tables for this disjunction (OR) expression.
+    pub conditions: Vec<OffsetMarker<Condition, WIDTH_24>>,
+}
+
+impl ConditionFormat4 {
+    /// Construct a new `ConditionFormat4`
+    pub fn new(condition_count: u8, conditions: Vec<Condition>) -> Self {
+        Self {
+            condition_count,
+            conditions: conditions.into_iter().map(Into::into).collect(),
+        }
+    }
+}
+
+impl FontWrite for ConditionFormat4 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (4 as u16).write_into(writer);
+        self.condition_count.write_into(writer);
+        self.conditions.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ConditionFormat4")
+    }
+}
+
+impl Validate for ConditionFormat4 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ConditionFormat4", |ctx| {
+            ctx.in_field("conditions", |ctx| {
+                if self.conditions.len() > (u8::MAX as usize) {
+                    ctx.report("array exceeds max length");
+                }
+                self.conditions.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::ConditionFormat4<'a>> for ConditionFormat4 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ConditionFormat4<'a>, _: FontData) -> Self {
+        ConditionFormat4 {
+            condition_count: obj.condition_count(),
+            conditions: obj.conditions().to_owned_table(),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat4<'a>> for ConditionFormat4 {}
+
+impl<'a> FontRead<'a> for ConditionFormat4 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::ConditionFormat4 as FontRead>::read(data)
+            .map(|x| x.to_owned_table())
+    }
+}
+
+/// [Condition Table Format 5](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3296-L3308): NOT
+#[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct ConditionFormat5 {
+    /// Condition to negate.
+    pub condition: OffsetMarker<Condition, WIDTH_24>,
+}
+
+impl ConditionFormat5 {
+    /// Construct a new `ConditionFormat5`
+    pub fn new(condition: Condition) -> Self {
+        Self {
+            condition: condition.into(),
+        }
+    }
+}
+
+impl FontWrite for ConditionFormat5 {
+    #[allow(clippy::unnecessary_cast)]
+    fn write_into(&self, writer: &mut TableWriter) {
+        (5 as u16).write_into(writer);
+        self.condition.write_into(writer);
+    }
+    fn table_type(&self) -> TableType {
+        TableType::Named("ConditionFormat5")
+    }
+}
+
+impl Validate for ConditionFormat5 {
+    fn validate_impl(&self, ctx: &mut ValidationCtx) {
+        ctx.in_table("ConditionFormat5", |ctx| {
+            ctx.in_field("condition", |ctx| {
+                self.condition.validate_impl(ctx);
+            });
+        })
+    }
+}
+
+impl<'a> FromObjRef<read_fonts::tables::layout::ConditionFormat5<'a>> for ConditionFormat5 {
+    fn from_obj_ref(obj: &read_fonts::tables::layout::ConditionFormat5<'a>, _: FontData) -> Self {
+        ConditionFormat5 {
+            condition: obj.condition().to_owned_table(),
+        }
+    }
+}
+
+impl<'a> FromTableRef<read_fonts::tables::layout::ConditionFormat5<'a>> for ConditionFormat5 {}
+
+impl<'a> FontRead<'a> for ConditionFormat5 {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        <read_fonts::tables::layout::ConditionFormat5 as FontRead>::read(data)
             .map(|x| x.to_owned_table())
     }
 }
