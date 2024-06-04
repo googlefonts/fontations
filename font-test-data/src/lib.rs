@@ -23,6 +23,8 @@ pub static VAZIRMATN_VAR_GLYPHS: &str =
 
 pub static SIMPLE_GLYF: &[u8] = include_bytes!("../test_data/ttf/simple_glyf.ttf");
 
+pub static CUBIC_GLYF: &[u8] = include_bytes!("../test_data/ttf/cubic_glyf.ttf");
+
 pub static NOTO_SERIF_DISPLAY_TRIMMED: &[u8] =
     include_bytes!("../test_data/ttf/noto_serif_display_trimmed.ttf");
 
