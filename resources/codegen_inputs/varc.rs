@@ -5,9 +5,32 @@
 /// [FontTools VARC](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3459-L3476)
 #[tag = "VARC"]
 table Varc {
-    /// Major/minor version number. Set to 1.0. Do not annotate version as that produces unused var warnings.
+    /// Major/minor version number. Set to 1.0.
+    // Do not annotate #[version] as that produces unused var warnings.
     #[compile(MajorMinor::VERSION_1_0)]
     version: MajorMinor,
 
     coverage_offset: Offset32<CoverageTable>,
+    multi_var_store_offset: Offset32<MultiItemVariationStore>,
+    condition_list_offset: Offset32<ConditionList>,
+    axis_indices_list_offset: Offset32<AxisIndicesList>,
+    var_composite_glyphs_offset: Offset32<VarCompositeGlyphs>,
+}
+
+table MultiItemVariationStore {
+    // TODO(rsheeter) Doing VARC incrementally, haven't got here yet.
+}
+
+table ConditionList {
+    condition_count: u32,
+    #[count($condition_count)]
+    condition_offsets: [Offset32<Condition>],
+}
+
+table AxisIndicesList {
+    // TODO(rsheeter) Doing VARC incrementally, haven't got here yet.
+}
+
+table VarCompositeGlyphs {
+    // TODO(rsheeter) Doing VARC incrementally, haven't got here yet.
 }

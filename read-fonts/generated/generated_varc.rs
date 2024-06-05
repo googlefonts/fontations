@@ -21,6 +21,22 @@ impl VarcMarker {
         let start = self.version_byte_range().end;
         start..start + Offset32::RAW_BYTE_LEN
     }
+    fn multi_var_store_offset_byte_range(&self) -> Range<usize> {
+        let start = self.coverage_offset_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+    fn condition_list_offset_byte_range(&self) -> Range<usize> {
+        let start = self.multi_var_store_offset_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+    fn axis_indices_list_offset_byte_range(&self) -> Range<usize> {
+        let start = self.condition_list_offset_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+    fn var_composite_glyphs_offset_byte_range(&self) -> Range<usize> {
+        let start = self.axis_indices_list_offset_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
 }
 
 impl TopLevelTable for Varc<'_> {
@@ -33,6 +49,10 @@ impl<'a> FontRead<'a> for Varc<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<MajorMinor>();
         cursor.advance::<Offset32>();
+        cursor.advance::<Offset32>();
+        cursor.advance::<Offset32>();
+        cursor.advance::<Offset32>();
+        cursor.advance::<Offset32>();
         cursor.finish(VarcMarker {})
     }
 }
@@ -43,7 +63,7 @@ impl<'a> FontRead<'a> for Varc<'a> {
 pub type Varc<'a> = TableRef<'a, VarcMarker>;
 
 impl<'a> Varc<'a> {
-    /// Major/minor version number. Set to 1.0. Do not annotate version as that produces unused var warnings.
+    /// Major/minor version number. Set to 1.0.
     pub fn version(&self) -> MajorMinor {
         let range = self.shape.version_byte_range();
         self.data.read_at(range.start).unwrap()
@@ -59,6 +79,50 @@ impl<'a> Varc<'a> {
         let data = self.data;
         self.coverage_offset().resolve(data)
     }
+
+    pub fn multi_var_store_offset(&self) -> Offset32 {
+        let range = self.shape.multi_var_store_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`multi_var_store_offset`][Self::multi_var_store_offset].
+    pub fn multi_var_store(&self) -> Result<MultiItemVariationStore<'a>, ReadError> {
+        let data = self.data;
+        self.multi_var_store_offset().resolve(data)
+    }
+
+    pub fn condition_list_offset(&self) -> Offset32 {
+        let range = self.shape.condition_list_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`condition_list_offset`][Self::condition_list_offset].
+    pub fn condition_list(&self) -> Result<ConditionList<'a>, ReadError> {
+        let data = self.data;
+        self.condition_list_offset().resolve(data)
+    }
+
+    pub fn axis_indices_list_offset(&self) -> Offset32 {
+        let range = self.shape.axis_indices_list_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`axis_indices_list_offset`][Self::axis_indices_list_offset].
+    pub fn axis_indices_list(&self) -> Result<AxisIndicesList<'a>, ReadError> {
+        let data = self.data;
+        self.axis_indices_list_offset().resolve(data)
+    }
+
+    pub fn var_composite_glyphs_offset(&self) -> Offset32 {
+        let range = self.shape.var_composite_glyphs_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`var_composite_glyphs_offset`][Self::var_composite_glyphs_offset].
+    pub fn var_composite_glyphs(&self) -> Result<VarCompositeGlyphs<'a>, ReadError> {
+        let data = self.data;
+        self.var_composite_glyphs_offset().resolve(data)
+    }
 }
 
 #[cfg(feature = "traversal")]
@@ -73,6 +137,25 @@ impl<'a> SomeTable<'a> for Varc<'a> {
                 "coverage_offset",
                 FieldType::offset(self.coverage_offset(), self.coverage()),
             )),
+            2usize => Some(Field::new(
+                "multi_var_store_offset",
+                FieldType::offset(self.multi_var_store_offset(), self.multi_var_store()),
+            )),
+            3usize => Some(Field::new(
+                "condition_list_offset",
+                FieldType::offset(self.condition_list_offset(), self.condition_list()),
+            )),
+            4usize => Some(Field::new(
+                "axis_indices_list_offset",
+                FieldType::offset(self.axis_indices_list_offset(), self.axis_indices_list()),
+            )),
+            5usize => Some(Field::new(
+                "var_composite_glyphs_offset",
+                FieldType::offset(
+                    self.var_composite_glyphs_offset(),
+                    self.var_composite_glyphs(),
+                ),
+            )),
             _ => None,
         }
     }
@@ -80,6 +163,207 @@ impl<'a> SomeTable<'a> for Varc<'a> {
 
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for Varc<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct MultiItemVariationStoreMarker {}
+
+impl MultiItemVariationStoreMarker {}
+
+impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let cursor = data.cursor();
+        cursor.finish(MultiItemVariationStoreMarker {})
+    }
+}
+
+pub type MultiItemVariationStore<'a> = TableRef<'a, MultiItemVariationStoreMarker>;
+
+impl<'a> MultiItemVariationStore<'a> {}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for MultiItemVariationStore<'a> {
+    fn type_name(&self) -> &str {
+        "MultiItemVariationStore"
+    }
+
+    #[allow(unused_variables)]
+    #[allow(clippy::match_single_binding)]
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for MultiItemVariationStore<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct ConditionListMarker {
+    condition_offsets_byte_len: usize,
+}
+
+impl ConditionListMarker {
+    fn condition_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u32::RAW_BYTE_LEN
+    }
+    fn condition_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.condition_count_byte_range().end;
+        start..start + self.condition_offsets_byte_len
+    }
+}
+
+impl<'a> FontRead<'a> for ConditionList<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let condition_count: u32 = cursor.read()?;
+        let condition_offsets_byte_len = condition_count as usize * Offset32::RAW_BYTE_LEN;
+        cursor.advance_by(condition_offsets_byte_len);
+        cursor.finish(ConditionListMarker {
+            condition_offsets_byte_len,
+        })
+    }
+}
+
+pub type ConditionList<'a> = TableRef<'a, ConditionListMarker>;
+
+impl<'a> ConditionList<'a> {
+    pub fn condition_count(&self) -> u32 {
+        let range = self.shape.condition_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn condition_offsets(&self) -> &'a [BigEndian<Offset32>] {
+        let range = self.shape.condition_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    /// A dynamically resolving wrapper for [`condition_offsets`][Self::condition_offsets].
+    pub fn conditions(&self) -> ArrayOfOffsets<'a, Condition<'a>, Offset32> {
+        let data = self.data;
+        let offsets = self.condition_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for ConditionList<'a> {
+    fn type_name(&self) -> &str {
+        "ConditionList"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("condition_count", self.condition_count())),
+            1usize => Some({
+                let data = self.data;
+                Field::new(
+                    "condition_offsets",
+                    FieldType::array_of_offsets(
+                        better_type_name::<Condition>(),
+                        self.condition_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<Condition>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
+                )
+            }),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for ConditionList<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct AxisIndicesListMarker {}
+
+impl AxisIndicesListMarker {}
+
+impl<'a> FontRead<'a> for AxisIndicesList<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let cursor = data.cursor();
+        cursor.finish(AxisIndicesListMarker {})
+    }
+}
+
+pub type AxisIndicesList<'a> = TableRef<'a, AxisIndicesListMarker>;
+
+impl<'a> AxisIndicesList<'a> {}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for AxisIndicesList<'a> {
+    fn type_name(&self) -> &str {
+        "AxisIndicesList"
+    }
+
+    #[allow(unused_variables)]
+    #[allow(clippy::match_single_binding)]
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for AxisIndicesList<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct VarCompositeGlyphsMarker {}
+
+impl VarCompositeGlyphsMarker {}
+
+impl<'a> FontRead<'a> for VarCompositeGlyphs<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let cursor = data.cursor();
+        cursor.finish(VarCompositeGlyphsMarker {})
+    }
+}
+
+pub type VarCompositeGlyphs<'a> = TableRef<'a, VarCompositeGlyphsMarker>;
+
+impl<'a> VarCompositeGlyphs<'a> {}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for VarCompositeGlyphs<'a> {
+    fn type_name(&self) -> &str {
+        "VarCompositeGlyphs"
+    }
+
+    #[allow(unused_variables)]
+    #[allow(clippy::match_single_binding)]
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for VarCompositeGlyphs<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }
