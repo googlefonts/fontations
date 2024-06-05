@@ -18,7 +18,7 @@ pub const WIDTH_32: usize = 4;
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct OffsetMarker<T, const N: usize = 2> {
-    obj: T,
+    obj: Box<T>,
 }
 
 /// An offset subtable which may be null.
@@ -27,7 +27,7 @@ pub struct OffsetMarker<T, const N: usize = 2> {
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct NullableOffsetMarker<T, const N: usize = 2> {
-    obj: Option<T>,
+    obj: Option<Box<T>>,
 }
 
 impl<T, const N: usize> std::ops::Deref for OffsetMarker<T, N> {
@@ -44,7 +44,7 @@ impl<T, const N: usize> std::ops::DerefMut for OffsetMarker<T, N> {
 }
 
 impl<T, const N: usize> std::ops::Deref for NullableOffsetMarker<T, N> {
-    type Target = Option<T>;
+    type Target = Option<Box<T>>;
     fn deref(&self) -> &Self::Target {
         &self.obj
     }
@@ -74,24 +74,26 @@ impl<T, const N: usize> AsMut<T> for OffsetMarker<T, N> {
 impl<const N: usize, T> OffsetMarker<T, N> {
     /// Create a new marker.
     pub fn new(obj: T) -> Self {
-        OffsetMarker { obj }
+        OffsetMarker { obj: Box::new(obj) }
     }
 
     /// Set the contents of the marker, replacing any existing contents.
     pub fn set(&mut self, obj: impl Into<T>) {
-        self.obj = obj.into();
+        self.obj = Box::new(obj.into());
     }
 
     /// Convert into the inner type
     pub fn into_inner(self) -> T {
-        self.obj
+        *self.obj
     }
 }
 
 impl<const N: usize, T> NullableOffsetMarker<T, N> {
     /// Create a new marker.
     pub fn new(obj: Option<T>) -> Self {
-        NullableOffsetMarker { obj }
+        NullableOffsetMarker {
+            obj: obj.map(|t| Box::new(t)),
+        }
     }
 
     /// Set the contents of the marker, replacing any existing contents.
@@ -101,7 +103,7 @@ impl<const N: usize, T> NullableOffsetMarker<T, N> {
     ///
     /// [`clear`]: Self::clear
     pub fn set(&mut self, obj: impl Into<T>) {
-        self.obj = Some(obj.into())
+        self.obj = Some(Box::new(obj.into()))
     }
 
     /// Clear the contents of the marker.
@@ -111,13 +113,27 @@ impl<const N: usize, T> NullableOffsetMarker<T, N> {
 
     /// Convert into the inner type
     pub fn into_inner(self) -> Option<T> {
-        self.obj
+        self.obj.map(|b| *b)
+    }
+
+    pub fn as_ref(&self) -> Option<&T> {
+        match &self.obj {
+            Some(obj) => Some(obj.as_ref()),
+            None => None,
+        }
+    }
+
+    pub fn as_mut(&mut self) -> Option<&mut T> {
+        match &mut self.obj {
+            Some(obj) => Some(&mut *obj),
+            None => None,
+        }
     }
 }
 
 impl<const N: usize, T: FontWrite> FontWrite for OffsetMarker<T, N> {
     fn write_into(&self, writer: &mut TableWriter) {
-        writer.write_offset(&self.obj, N);
+        writer.write_offset(self.obj.as_ref(), N);
     }
 
     fn table_type(&self) -> crate::table_type::TableType {
@@ -128,7 +144,7 @@ impl<const N: usize, T: FontWrite> FontWrite for OffsetMarker<T, N> {
 impl<const N: usize, T: FontWrite> FontWrite for NullableOffsetMarker<T, N> {
     fn write_into(&self, writer: &mut TableWriter) {
         match self.obj.as_ref() {
-            Some(obj) => writer.write_offset(obj, N),
+            Some(obj) => writer.write_offset(obj.as_ref(), N),
             None => writer.write_slice([0u8; N].as_slice()),
         }
     }
