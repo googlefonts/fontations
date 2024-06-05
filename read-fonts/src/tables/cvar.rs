@@ -77,13 +77,13 @@ pub struct CvtDelta {
     /// The index in the CVT.
     pub position: u16,
     /// The delta to apply to the value in the CVT.
-    pub value: i16,
+    pub value: i32,
 }
 
 impl CvtDelta {
     /// Applies a tuple scalar to this delta.
     pub fn apply_scalar(self, scalar: Fixed) -> Fixed {
-        Fixed::from_i32(self.value as i32) * scalar
+        Fixed::from_i32(self.value) * scalar
     }
 }
 
@@ -92,7 +92,7 @@ impl TupleDelta for CvtDelta {
         false
     }
 
-    fn new(position: u16, x: i16, _y: i16) -> Self {
+    fn new(position: u16, x: i32, _y: i32) -> Self {
         Self { position, value: x }
     }
 }

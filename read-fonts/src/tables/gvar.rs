@@ -116,16 +116,16 @@ pub struct GlyphDelta {
     /// The point or component index.
     pub position: u16,
     /// The x delta.
-    pub x_delta: i16,
+    pub x_delta: i32,
     /// The y delta.
-    pub y_delta: i16,
+    pub y_delta: i32,
 }
 
 impl GlyphDelta {
     /// Applies a tuple scalar to this delta.
     pub fn apply_scalar<D: PointCoord>(self, scalar: Fixed) -> Point<D> {
         let scalar = D::from_fixed(scalar);
-        Point::new(self.x_delta as i32, self.y_delta as i32).map(D::from_i32) * scalar
+        Point::new(self.x_delta, self.y_delta).map(D::from_i32) * scalar
     }
 }
 
@@ -134,7 +134,7 @@ impl TupleDelta for GlyphDelta {
         true
     }
 
-    fn new(position: u16, x: i16, y: i16) -> Self {
+    fn new(position: u16, x: i32, y: i32) -> Self {
         Self {
             position,
             x_delta: x,
@@ -231,7 +231,7 @@ mod tests {
             .deltas()
             .collect::<Vec<_>>();
         assert_eq!(deltas.len(), 18);
-        static EXPECTED: &[(i16, i16)] = &[
+        static EXPECTED: &[(i32, i32)] = &[
             (257, 0),
             (-127, 0),
             (-128, 58),

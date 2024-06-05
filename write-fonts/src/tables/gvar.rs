@@ -323,10 +323,6 @@ impl GlyphDelta {
     pub fn optional(x: i16, y: i16) -> Self {
         Self::new(x, y, false)
     }
-
-    fn to_tuple(self) -> (i16, i16) {
-        (self.x, self.y)
-    }
 }
 
 impl GlyphDeltas {
@@ -382,7 +378,10 @@ impl GlyphDeltas {
     }
 
     fn build_non_sparse_data(deltas: &[GlyphDelta]) -> GlyphTupleVariationData {
-        let (x_deltas, y_deltas) = deltas.iter().map(|delta| (delta.x, delta.y)).unzip();
+        let (x_deltas, y_deltas) = deltas
+            .iter()
+            .map(|delta| (delta.x as i32, delta.y as i32))
+            .unzip();
         GlyphTupleVariationData {
             private_point_numbers: Some(PackedPointNumbers::All),
             x_deltas: PackedDeltas::new(x_deltas),
@@ -393,7 +392,7 @@ impl GlyphDeltas {
     fn build_sparse_data(deltas: &[GlyphDelta]) -> GlyphTupleVariationData {
         let (x_deltas, y_deltas) = deltas
             .iter()
-            .filter_map(|delta| delta.required.then_some((delta.x, delta.y)))
+            .filter_map(|delta| delta.required.then_some((delta.x as i32, delta.y as i32)))
             .unzip();
         let point_numbers = deltas
             .iter()
@@ -429,10 +428,13 @@ impl GlyphDeltas {
 
         let has_private_points = Some(&point_numbers) != shared_points;
         let (x_deltas, y_deltas) = match &point_numbers {
-            PackedPointNumbers::All => deltas.iter().map(|d| (d.x, d.y)).unzip(),
+            PackedPointNumbers::All => deltas.iter().map(|d| (d.x as i32, d.y as i32)).unzip(),
             PackedPointNumbers::Some(pts) => pts
                 .iter()
-                .map(|idx| deltas[*idx as usize].to_tuple())
+                .map(|idx| {
+                    let delta = deltas[*idx as usize];
+                    (delta.x as i32, delta.y as i32)
+                })
                 .unzip(),
         };
 
