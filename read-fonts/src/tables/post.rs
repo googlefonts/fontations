@@ -122,6 +122,8 @@ pub static DEFAULT_GLYPH_NAMES: [&str; 258] = [
 
 #[cfg(test)]
 mod tests {
+    use crate::test_helpers::BeBuffer;
+
     use super::*;
     use font_test_data::post as test_data;
 
@@ -135,5 +137,25 @@ mod tests {
         assert_eq!(table.glyph_name(GlyphId::new(7)), Some("hello"));
         assert_eq!(table.glyph_name(GlyphId::new(8)), Some("hi"));
         assert_eq!(table.glyph_name(GlyphId::new(9)), Some("hola"));
+    }
+
+    #[test]
+    fn parse_versioned_fields() {
+        fn make_basic_post(version: Version16Dot16) -> BeBuffer {
+            BeBuffer::new()
+                .push(version)
+                .push(Fixed::from_i32(5))
+                .extend([FWord::new(6), FWord::new(7)]) //underline pos/thickness
+                .push(0u32) // isFixedPitch
+                .extend([7u32, 8, 9, 10]) // min/max mem x
+        }
+
+        // basic table should not parse in v2.0, because that adds another field:
+        let buf = make_basic_post(Version16Dot16::VERSION_2_0);
+        assert!(Post::read(buf.font_data()).is_err());
+
+        // but it should be fine on version 3.0, which does not require any extra fields:
+        let buf = make_basic_post(Version16Dot16::VERSION_3_0);
+        assert!(Post::read(buf.font_data()).is_ok());
     }
 }
