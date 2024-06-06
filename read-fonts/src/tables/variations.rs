@@ -411,12 +411,45 @@ impl<'a> PackedDeltas<'a> {
     }
 }
 
+/// Flag indicating that this run contains no data,
+/// and that the deltas for this run are all zero.
+const DELTAS_ARE_ZERO: u8 = 0x80;
+/// Flag indicating the data type for delta values in the run.
+const DELTAS_ARE_WORDS: u8 = 0x40;
+/// Mask for the low 6 bits to provide the number of delta values in the run, minus one.
+const DELTA_RUN_COUNT_MASK: u8 = 0x3F;
+
+/// The type of values for a given delta run (influences the number of bytes per delta)
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum DeltaRunType {
+    Zero,
+    I8,
+    I16,
+    I32,
+}
+
+impl DeltaRunType {
+    /// The run type for a given control byte
+    pub fn new(control: u8) -> Self {
+        // if the top two bits of the control byte (DELTAS_ARE_ZERO and DELTAS_ARE_WORDS) are both set,
+        // then the following values are 32-bit.
+        // <https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md#tuplevalues>
+        let are_zero = (control & DELTAS_ARE_ZERO) != 0;
+        let are_words = (control & DELTAS_ARE_WORDS) != 0;
+        match (are_zero, are_words) {
+            (false, false) => Self::I8,
+            (false, true) => Self::I16,
+            (true, false) => Self::Zero,
+            (true, true) => Self::I32,
+        }
+    }
+}
+
 /// Implements the logic for iterating over the individual runs
 #[derive(Clone, Debug)]
 pub struct DeltaRunIter<'a> {
     remaining: u8,
-    two_bytes: bool,
-    are_zero: bool,
+    value_type: DeltaRunType,
     cursor: Cursor<'a>,
 }
 
@@ -424,43 +457,32 @@ impl<'a> DeltaRunIter<'a> {
     fn new(cursor: Cursor<'a>) -> Self {
         DeltaRunIter {
             remaining: 0,
-            two_bytes: false,
-            are_zero: false,
+            value_type: DeltaRunType::I8,
             cursor,
         }
     }
 }
 
 impl Iterator for DeltaRunIter<'_> {
-    type Item = i16;
+    type Item = i32;
 
     fn next(&mut self) -> Option<Self::Item> {
-        /// Flag indicating that this run contains no data,
-        /// and that the deltas for this run are all zero.
-        const DELTAS_ARE_ZERO: u8 = 0x80;
-        /// Flag indicating the data type for delta values in the run.
-        const DELTAS_ARE_WORDS: u8 = 0x40;
-        /// Mask for the low 6 bits to provide the number of delta values in the run, minus one.
-        const DELTA_RUN_COUNT_MASK: u8 = 0x3F;
-
         // if no items remain in this run, start the next one.
         // NOTE: we use `while` so we can sanely handle the case where some
         // run in the middle of the data has an explicit zero length
         //TODO: create a font with data of this shape and go crash some font parsers
         while self.remaining == 0 {
             let control: u8 = self.cursor.read().ok()?;
-            self.are_zero = (control & DELTAS_ARE_ZERO) != 0;
-            self.two_bytes = (control & DELTAS_ARE_WORDS) != 0;
+            self.value_type = DeltaRunType::new(control);
             self.remaining = (control & DELTA_RUN_COUNT_MASK) + 1;
         }
 
         self.remaining -= 1;
-        if self.are_zero {
-            Some(0)
-        } else if self.two_bytes {
-            self.cursor.read().ok()
-        } else {
-            self.cursor.read::<i8>().ok().map(|v| v as i16)
+        match self.value_type {
+            DeltaRunType::Zero => Some(0),
+            DeltaRunType::I8 => self.cursor.read::<i8>().ok().map(|v| v as i32),
+            DeltaRunType::I16 => self.cursor.read::<i16>().ok().map(|v| v as i32),
+            DeltaRunType::I32 => self.cursor.read().ok(),
         }
     }
 }
@@ -790,7 +812,7 @@ pub trait TupleDelta: Sized + Copy {
 
     /// Creates a new delta for the given position and coordinates. If
     /// the delta is not a point, the y value will always be zero.
-    fn new(position: u16, x: i16, y: i16) -> Self;
+    fn new(position: u16, x: i32, y: i32) -> Self;
 }
 
 impl<'a, T> Iterator for TupleDeltaIter<'a, T>
@@ -1253,7 +1275,7 @@ mod tests {
         static INPUT: FontData = FontData::new(&[
             0x03, 0x0A, 0x97, 0x00, 0xC6, 0x87, 0x41, 0x10, 0x22, 0xFB, 0x34,
         ]);
-        static EXPECTED: &[i16] = &[10, -105, 0, -58, 0, 0, 0, 0, 0, 0, 0, 0, 4130, -1228];
+        static EXPECTED: &[i32] = &[10, -105, 0, -58, 0, 0, 0, 0, 0, 0, 0, 0, 4130, -1228];
 
         let deltas = PackedDeltas::new(INPUT);
         assert_eq!(deltas.count, EXPECTED.len());
