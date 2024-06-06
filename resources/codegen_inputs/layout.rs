@@ -130,6 +130,7 @@ table Lookup {
     /// Index (base 0) into GDEF mark glyph sets structure. This field
     /// is only present if the USE_MARK_FILTERING_SET lookup flag is
     /// set.
+    #[if_flag($lookup_flag, LookupFlag::USE_MARK_FILTERING_SET)]
     mark_filtering_set: u16,
 }
 

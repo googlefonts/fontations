@@ -392,7 +392,7 @@ mod tests {
         let base_array = make_base_array(N_BASES, MARK_CLASS_COUNT, false);
 
         let table = MarkBasePosFormat1::new(mark_coverage, base_coverage, mark_array, base_array);
-        let lookup = Lookup::new(LookupFlag::empty(), vec![table], 0);
+        let lookup = Lookup::new(LookupFlag::empty(), vec![table]);
         let mut graph = TableWriter::make_graph(&lookup);
         let id = graph.root;
         assert!(graph.objects[&id].type_.is_promotable());
@@ -522,7 +522,7 @@ mod tests {
         let base_array = make_base_array(N_BASES, MARK_CLASS_COUNT, true);
 
         let table = MarkBasePosFormat1::new(mark_coverage, base_coverage, mark_array, base_array);
-        let lookup = Lookup::new(LookupFlag::empty(), vec![table], 0);
+        let lookup = Lookup::new(LookupFlag::empty(), vec![table]);
         let lookup_list = LookupList::new(vec![lookup]);
         let bytes = crate::dump_table(&lookup_list).unwrap();
         let read_back = rgpos::PositionLookupList::read(bytes.as_slice().into()).unwrap();
