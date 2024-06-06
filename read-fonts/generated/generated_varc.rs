@@ -80,35 +80,35 @@ impl<'a> Varc<'a> {
         self.coverage_offset().resolve(data)
     }
 
-    pub fn multi_var_store_offset(&self) -> Offset32 {
+    pub fn multi_var_store_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.multi_var_store_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Attempt to resolve [`multi_var_store_offset`][Self::multi_var_store_offset].
-    pub fn multi_var_store(&self) -> Result<MultiItemVariationStore<'a>, ReadError> {
+    pub fn multi_var_store(&self) -> Option<Result<MultiItemVariationStore<'a>, ReadError>> {
         let data = self.data;
         self.multi_var_store_offset().resolve(data)
     }
 
-    pub fn condition_list_offset(&self) -> Offset32 {
+    pub fn condition_list_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.condition_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Attempt to resolve [`condition_list_offset`][Self::condition_list_offset].
-    pub fn condition_list(&self) -> Result<ConditionList<'a>, ReadError> {
+    pub fn condition_list(&self) -> Option<Result<ConditionList<'a>, ReadError>> {
         let data = self.data;
         self.condition_list_offset().resolve(data)
     }
 
-    pub fn axis_indices_list_offset(&self) -> Offset32 {
+    pub fn axis_indices_list_offset(&self) -> Nullable<Offset32> {
         let range = self.shape.axis_indices_list_offset_byte_range();
         self.data.read_at(range.start).unwrap()
     }
 
     /// Attempt to resolve [`axis_indices_list_offset`][Self::axis_indices_list_offset].
-    pub fn axis_indices_list(&self) -> Result<AxisIndicesList<'a>, ReadError> {
+    pub fn axis_indices_list(&self) -> Option<Result<AxisIndicesList<'a>, ReadError>> {
         let data = self.data;
         self.axis_indices_list_offset().resolve(data)
     }
