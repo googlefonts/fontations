@@ -555,7 +555,7 @@ mod tests {
         }
 
         let table = make_pair_pos(pairs);
-        let lookup = wlayout::Lookup::new(LookupFlag::empty(), vec![table], 0);
+        let lookup = wlayout::Lookup::new(LookupFlag::empty(), vec![table]);
         let mut graph = TableWriter::make_graph(&lookup);
 
         let id = graph.root;
@@ -638,7 +638,7 @@ mod tests {
         // works as expected
 
         let table = make_pairpos_f1_with_device_tables(G1_COUNT, G2_COUNT);
-        let lookup = wlayout::Lookup::new(LookupFlag::empty(), vec![table], 0);
+        let lookup = wlayout::Lookup::new(LookupFlag::empty(), vec![table]);
         let mut graph = TableWriter::make_graph(&lookup);
 
         assert!(lookup.table_type().is_splittable());
@@ -663,7 +663,7 @@ mod tests {
         const G2_COUNT: u16 = 100;
 
         let table = make_pairpos_f1_with_device_tables(G1_COUNT, G2_COUNT);
-        let lookup = wlayout::Lookup::new(LookupFlag::empty(), vec![table], 0);
+        let lookup = wlayout::Lookup::new(LookupFlag::empty(), vec![table]);
         let lookuplist = wlayout::LookupList::new(vec![lookup]);
         assert!(crate::dump_table(&lookuplist).is_ok());
     }
@@ -751,7 +751,7 @@ mod tests {
 
         let table = PairPos::format_2(coverage, class_def1, class_def2, class1recs);
 
-        let lookup = wlayout::Lookup::new(LookupFlag::empty(), vec![table], 0);
+        let lookup = wlayout::Lookup::new(LookupFlag::empty(), vec![table]);
         PositionLookup::Pair(lookup)
     }
 

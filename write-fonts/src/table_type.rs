@@ -148,7 +148,7 @@ mod tests {
     #[test]
     fn gpos_type() {
         let pairpos = gpos::PairPos::Format1(Default::default());
-        let lookup = gpos::PositionLookup::Pair(Lookup::new(LookupFlag::empty(), vec![pairpos], 0));
+        let lookup = gpos::PositionLookup::Pair(Lookup::new(LookupFlag::empty(), vec![pairpos]));
         assert_eq!(lookup.table_type(), TableType::GposLookup(2));
     }
 }
