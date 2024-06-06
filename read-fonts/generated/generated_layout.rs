@@ -758,6 +758,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> std::fmt::Debug for LookupList<'a
 #[doc(hidden)]
 pub struct LookupMarker<T = ()> {
     subtable_offsets_byte_len: usize,
+    mark_filtering_set_byte_start: Option<usize>,
     offset_type: std::marker::PhantomData<*const T>,
 }
 
@@ -778,9 +779,9 @@ impl<T> LookupMarker<T> {
         let start = self.sub_table_count_byte_range().end;
         start..start + self.subtable_offsets_byte_len
     }
-    fn mark_filtering_set_byte_range(&self) -> Range<usize> {
-        let start = self.subtable_offsets_byte_range().end;
-        start..start + u16::RAW_BYTE_LEN
+    fn mark_filtering_set_byte_range(&self) -> Option<Range<usize>> {
+        let start = self.mark_filtering_set_byte_start?;
+        Some(start..start + u16::RAW_BYTE_LEN)
     }
 }
 
@@ -796,13 +797,20 @@ impl<'a, T> FontRead<'a> for Lookup<'a, T> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
-        cursor.advance::<LookupFlag>();
+        let lookup_flag: LookupFlag = cursor.read()?;
         let sub_table_count: u16 = cursor.read()?;
         let subtable_offsets_byte_len = sub_table_count as usize * Offset16::RAW_BYTE_LEN;
         cursor.advance_by(subtable_offsets_byte_len);
-        cursor.advance::<u16>();
+        let mark_filtering_set_byte_start = lookup_flag
+            .contains(LookupFlag::USE_MARK_FILTERING_SET)
+            .then(|| cursor.position())
+            .transpose()?;
+        lookup_flag
+            .contains(LookupFlag::USE_MARK_FILTERING_SET)
+            .then(|| cursor.advance::<u16>());
         cursor.finish(LookupMarker {
             subtable_offsets_byte_len,
+            mark_filtering_set_byte_start,
             offset_type: std::marker::PhantomData,
         })
     }
@@ -815,6 +823,7 @@ impl<'a> Lookup<'a, ()> {
         TableRef {
             shape: LookupMarker {
                 subtable_offsets_byte_len: shape.subtable_offsets_byte_len,
+                mark_filtering_set_byte_start: shape.mark_filtering_set_byte_start,
                 offset_type: std::marker::PhantomData,
             },
             data,
@@ -830,6 +839,7 @@ impl<'a, T> Lookup<'a, T> {
         TableRef {
             shape: LookupMarker {
                 subtable_offsets_byte_len: shape.subtable_offsets_byte_len,
+                mark_filtering_set_byte_start: shape.mark_filtering_set_byte_start,
                 offset_type: std::marker::PhantomData,
             },
             data: *data,
@@ -879,9 +889,9 @@ impl<'a, T> Lookup<'a, T> {
     /// Index (base 0) into GDEF mark glyph sets structure. This field
     /// is only present if the USE_MARK_FILTERING_SET lookup flag is
     /// set.
-    pub fn mark_filtering_set(&self) -> u16 {
-        let range = self.shape.mark_filtering_set_byte_range();
-        self.data.read_at(range.start).unwrap()
+    pub fn mark_filtering_set(&self) -> Option<u16> {
+        let range = self.shape.mark_filtering_set_byte_range()?;
+        Some(self.data.read_at(range.start).unwrap())
     }
 }
 
@@ -891,6 +901,7 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
         "Lookup"
     }
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        let lookup_flag = self.lookup_flag();
         match idx {
             0usize => Some(Field::new("lookup_type", self.lookup_type())),
             1usize => Some(Field::new("lookup_flag", self.traverse_lookup_flag())),
@@ -909,7 +920,10 @@ impl<'a, T: FontRead<'a> + SomeTable<'a> + 'a> SomeTable<'a> for Lookup<'a, T> {
                     ),
                 )
             }),
-            4usize => Some(Field::new("mark_filtering_set", self.mark_filtering_set())),
+            4usize if lookup_flag.contains(LookupFlag::USE_MARK_FILTERING_SET) => Some(Field::new(
+                "mark_filtering_set",
+                self.mark_filtering_set().unwrap(),
+            )),
             _ => None,
         }
     }
