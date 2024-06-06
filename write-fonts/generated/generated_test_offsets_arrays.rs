@@ -57,7 +57,7 @@ impl FontWrite for KindsOfOffsets {
         version.compatible((1u16, 1u16)).then(|| {
             self.versioned_nonnullable
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version
@@ -157,13 +157,13 @@ impl FontWrite for KindsOfArraysOfOffsets {
         version.compatible((1u16, 1u16)).then(|| {
             self.versioned_nonnullables
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible((1u16, 1u16)).then(|| {
             self.versioned_nullables
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
     }
@@ -279,13 +279,13 @@ impl FontWrite for KindsOfArrays {
         version.compatible(1u16).then(|| {
             self.versioned_scalars
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible(1u16).then(|| {
             self.versioned_records
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
     }

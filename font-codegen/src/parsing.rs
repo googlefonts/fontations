@@ -181,7 +181,7 @@ pub(crate) struct Field {
 pub(crate) struct FieldAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) nullable: Option<syn::Path>,
-    pub(crate) since_version: Option<Attr<VersionSpec>>,
+    pub(crate) conditional: Option<Attr<Condition>>,
     pub(crate) skip_getter: Option<syn::Path>,
     /// specify that an offset getter has a custom impl
     pub(crate) offset_getter: Option<Attr<syn::Ident>>,
@@ -241,6 +241,12 @@ impl<T: ToTokens> ToTokens for Attr<T> {
 #[derive(Debug, Clone)]
 pub(crate) struct FieldReadArgs {
     pub(crate) inputs: Vec<syn::Ident>,
+}
+
+#[derive(Clone, Debug)]
+pub(crate) enum Condition {
+    SinceVersion(VersionSpec),
+    IfFlag { field: syn::Ident, flag: syn::Path },
 }
 
 #[derive(Clone, Debug)]
@@ -982,11 +988,34 @@ impl Parse for VariantAttrs {
     }
 }
 
+impl FieldAttrs {
+    // returns an error if multiple condition attributes are present, which I hope
+    // to not need to support
+    fn checked_set_condition(
+        &mut self,
+        ident: &syn::Ident,
+        condition: Condition,
+    ) -> syn::Result<()> {
+        if let Some(existing) = &self.conditional {
+            return Err(syn::Error::new(
+                ident.span(),
+                format!(
+                    "condition conflicts with existing condition {}",
+                    existing.name
+                ),
+            ));
+        }
+        self.conditional = Some(Attr::new(ident.clone(), condition));
+        Ok(())
+    }
+}
+
 static DOC: &str = "doc";
 static NULLABLE: &str = "nullable";
 static SKIP_GETTER: &str = "skip_getter";
 static COUNT: &str = "count";
 static SINCE_VERSION: &str = "since_version";
+static IF_FLAG: &str = "if_flag";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
 static OFFSET_GETTER: &str = "offset_getter";
@@ -1044,7 +1073,11 @@ impl Parse for FieldAttrs {
             } else if ident == TO_OWNED {
                 this.to_owned = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == SINCE_VERSION {
-                this.since_version = Some(Attr::new(ident.clone(), attr.parse_args()?));
+                let spec = attr.parse_args()?;
+                this.checked_set_condition(ident, Condition::SinceVersion(spec))?;
+            } else if ident == IF_FLAG {
+                let condition = parse_if_flag(&attr)?;
+                this.checked_set_condition(ident, condition)?;
             } else if ident == READ_WITH {
                 this.read_with_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_OFFSET_WITH {
@@ -1723,6 +1756,28 @@ fn parse_attr_eq_value<T: Parse>(attr: &syn::Attribute) -> syn::Result<T> {
     }
     let tokens = attr.meta.require_name_value()?.value.to_token_stream();
     syn::parse2::<T>(tokens).map_err(|err| syn::Error::new(attr.meta.span(), err.to_string()))
+}
+
+fn parse_if_flag(attr: &syn::Attribute) -> syn::Result<Condition> {
+    struct IfFlag(syn::Ident, syn::Path);
+    impl Parse for IfFlag {
+        fn parse(input: ParseStream) -> syn::Result<Self> {
+            input.parse::<Token![$]>()?;
+            let ident = input.parse::<syn::Ident>()?;
+            input.parse::<Token![,]>()?;
+            let path = input.parse::<syn::Path>()?;
+            Ok(IfFlag(ident, path))
+        }
+    }
+
+    attr.parse_args::<IfFlag>()
+        .map(|IfFlag(field, flag)| Condition::IfFlag { field, flag })
+        .map_err(|e| {
+            syn::Error::new(
+                e.span(),
+                format!("expected #[if_flag($field_name, FlagType::SOME_FLAG)]: '{e}'"),
+            )
+        })
 }
 
 fn validate_ident(ident: &syn::Ident, expected: &[&str], error: &str) -> Result<(), syn::Error> {

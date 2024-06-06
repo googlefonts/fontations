@@ -297,6 +297,11 @@ fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
         let name = &fld.name;
         quote!(let version = self.#name();)
     });
+    let condition_inputs = item
+        .fields
+        .conditional_input_idents()
+        .into_iter()
+        .map(|fld| quote!( let #fld = self.#fld(); ));
     let field_arms = item.fields.iter_field_traversal_match_arms(false);
     let attrs = item.fields.fields.is_empty().then(|| {
         quote! {
@@ -315,6 +320,7 @@ fn generate_debug(item: &Table) -> syn::Result<TokenStream> {
             #attrs
             fn get_field(&self, idx: usize) -> Option<Field<'a>> {
                 #version
+                #( #condition_inputs )*
                 match idx {
                     #( #field_arms, )*
                     _ => None,
@@ -866,7 +872,7 @@ impl Table {
             let len_expr = field.shape_len_expr();
 
             // versioned fields have a different signature
-            if field.attrs.since_version.is_some() {
+            if field.attrs.conditional.is_some() {
                 prev_field_end_expr = quote!(compile_error!(
                     "non-version dependent field cannot follow version-dependent field"
                 ));
@@ -916,7 +922,7 @@ impl Table {
         }
 
         for next in self.fields.iter() {
-            let is_versioned = next.attrs.since_version.is_some();
+            let is_versioned = next.attrs.conditional.is_some();
             let has_computed_len = next.has_computed_len();
             if !(is_versioned || has_computed_len) {
                 continue;
