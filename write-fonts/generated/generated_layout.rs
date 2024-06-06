@@ -550,16 +550,16 @@ pub struct Lookup<T> {
     /// Index (base 0) into GDEF mark glyph sets structure. This field
     /// is only present if the USE_MARK_FILTERING_SET lookup flag is
     /// set.
-    pub mark_filtering_set: u16,
+    pub mark_filtering_set: Option<u16>,
 }
 
 impl<T: Default> Lookup<T> {
     /// Construct a new `Lookup`
-    pub fn new(lookup_flag: LookupFlag, subtables: Vec<T>, mark_filtering_set: u16) -> Self {
+    pub fn new(lookup_flag: LookupFlag, subtables: Vec<T>) -> Self {
         Self {
             lookup_flag,
             subtables: subtables.into_iter().map(Into::into).collect(),
-            mark_filtering_set,
+            ..Default::default()
         }
     }
 }
@@ -567,11 +567,24 @@ impl<T: Default> Lookup<T> {
 impl<T: Validate> Validate for Lookup<T> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
         ctx.in_table("Lookup", |ctx| {
+            let lookup_flag = self.lookup_flag;
             ctx.in_field("subtables", |ctx| {
                 if self.subtables.len() > (u16::MAX as usize) {
                     ctx.report("array exceeds max length");
                 }
                 self.subtables.validate_impl(ctx);
+            });
+            ctx.in_field("mark_filtering_set", |ctx| {
+                if !(lookup_flag.contains(LookupFlag::USE_MARK_FILTERING_SET))
+                    && self.mark_filtering_set.is_some()
+                {
+                    ctx.report("'mark_filtering_set' is present but USE_MARK_FILTERING_SET not set")
+                }
+                if (lookup_flag.contains(LookupFlag::USE_MARK_FILTERING_SET))
+                    && self.mark_filtering_set.is_none()
+                {
+                    ctx.report("USE_MARK_FILTERING_SET is set but 'mark_filtering_set' is None")
+                }
             });
         })
     }

@@ -84,7 +84,7 @@ impl<'a> PositionLookup<'a> {
         self.of_unit_type().lookup_type()
     }
 
-    pub fn mark_filtering_set(&self) -> u16 {
+    pub fn mark_filtering_set(&self) -> Option<u16> {
         self.of_unit_type().mark_filtering_set()
     }
 

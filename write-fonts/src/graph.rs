@@ -1636,7 +1636,6 @@ mod tests {
             gsub::SubstitutionLookup::Reverse(layout::Lookup::new(
                 layout::LookupFlag::empty(),
                 rsub_rules,
-                0,
             )),
         ]);
         let table = gsub::Gsub::new(Default::default(), Default::default(), list);
@@ -1647,9 +1646,8 @@ mod tests {
             "simple sorting should not resovle this graph"
         );
 
-        const BASE_LEN: usize = 10 // header len
-           + 2 // scriptlist table
-           + 2 // featurelist
+        const BASE_LEN: usize = 10 // GPOS header len
+           + 2 // scriptlist table + featurelist (both empty, get deduped)
            + 4 // lookup list, one offset
            + 6; // lookup table (no offsets)
         const RSUB_LEN: usize = 16 // base table len
@@ -1699,7 +1697,6 @@ mod tests {
             gpos::PositionLookup::Pair(layout::Lookup::new(
                 layout::LookupFlag::empty(),
                 vec![gpos::PairPos::format_1(coverage, pair_sets)],
-                0,
             ))
         }
 
