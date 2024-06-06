@@ -40,7 +40,7 @@ impl FontWrite for Stat {
         version.compatible((1u16, 1u16)).then(|| {
             self.elided_fallback_name_id
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
     }

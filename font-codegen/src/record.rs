@@ -175,7 +175,7 @@ pub(crate) fn generate_compile_impl(
     // a 'version' binding at the top of our validation block
     let needs_version_decl = fields
         .iter()
-        .any(|fld| fld.attrs.since_version.is_some() && fld.attrs.nullable.is_none());
+        .any(|fld| fld.attrs.conditional.is_some() && fld.attrs.nullable.is_none());
 
     let version_decl = fields
         .version_field()
@@ -192,6 +192,11 @@ pub(crate) fn generate_compile_impl(
                 None => quote! { let version = self.#name; },
             }
         });
+
+    let conditional_inputs = fields
+        .conditional_input_idents()
+        .into_iter()
+        .map(|fld| quote!(let #fld = self.#fld;));
 
     let write_stmts = fields.iter_compile_write_stmts();
     let write_impl_params = generic_param.map(|t| quote! { <#t: FontWrite> });
@@ -213,6 +218,7 @@ pub(crate) fn generate_compile_impl(
             fn validate_impl(&self, ctx: &mut ValidationCtx) {
                 ctx.in_table(#name_string, |ctx| {
                     #version_decl
+                    #( #conditional_inputs )*
                     #( #validation_stmts)*
                 })
             }
@@ -301,7 +307,7 @@ pub(crate) fn generate_compile_impl(
             .any(|info| info.manual_compile_type))
         .then(|| quote!( #[allow(clippy::useless_conversion)] ));
         quote! {
-            impl <#generic_param> #name <#generic_param> {
+            impl #default_impl_params #name <#generic_param> {
                 #[doc = #docstring]
                 #too_many_args
                 #useless_conversion

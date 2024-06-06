@@ -43,7 +43,7 @@ impl FontWrite for Name {
             version.compatible(1u16).then(|| {
                 self.lang_tag_record
                     .as_ref()
-                    .expect("missing versioned field should have failed validation")
+                    .expect("missing conditional field should have failed validation")
                     .write_into(writer)
             });
         });

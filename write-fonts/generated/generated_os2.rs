@@ -218,55 +218,55 @@ impl FontWrite for Os2 {
         version.compatible(1u16).then(|| {
             self.ul_code_page_range_1
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible(1u16).then(|| {
             self.ul_code_page_range_2
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible(2u16).then(|| {
             self.sx_height
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible(2u16).then(|| {
             self.s_cap_height
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible(2u16).then(|| {
             self.us_default_char
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible(2u16).then(|| {
             self.us_break_char
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible(2u16).then(|| {
             self.us_max_context
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible(5u16).then(|| {
             self.us_lower_optical_point_size
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible(5u16).then(|| {
             self.us_upper_optical_point_size
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
     }
