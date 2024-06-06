@@ -2062,7 +2062,7 @@ pub struct ExtensionPosFormat1<T> {
     pub extension: OffsetMarker<T, WIDTH_32>,
 }
 
-impl<T> ExtensionPosFormat1<T> {
+impl<T: Default> ExtensionPosFormat1<T> {
     /// Construct a new `ExtensionPosFormat1`
     pub fn new(extension_lookup_type: u16, extension: T) -> Self {
         Self {

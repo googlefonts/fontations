@@ -83,3 +83,22 @@ mod enums {
         assert_eq!(MyEnum2::ItsAThree, rec.my_enum2);
     }
 }
+
+pub mod conditions {
+    include!("../generated/generated_test_conditions.rs");
+
+    #[test]
+    #[should_panic(expected = "'foo' is present but FOO not set")]
+    fn field_present_flag_missing() {
+        let mut flags_are_wrong = FlagDay::new(42, GotFlags::empty());
+        flags_are_wrong.foo = Some(0xf00);
+        crate::dump_table(&flags_are_wrong).unwrap();
+    }
+
+    #[test]
+    #[should_panic(expected = "FOO is set but 'foo' is None")]
+    fn flag_present_field_missing() {
+        let flags_are_wrong = FlagDay::new(42, GotFlags::FOO);
+        crate::dump_table(&flags_are_wrong).unwrap();
+    }
+}

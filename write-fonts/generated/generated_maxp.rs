@@ -62,79 +62,79 @@ impl FontWrite for Maxp {
         version.compatible((1u16, 0u16)).then(|| {
             self.max_points
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible((1u16, 0u16)).then(|| {
             self.max_contours
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible((1u16, 0u16)).then(|| {
             self.max_composite_points
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible((1u16, 0u16)).then(|| {
             self.max_composite_contours
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible((1u16, 0u16)).then(|| {
             self.max_zones
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible((1u16, 0u16)).then(|| {
             self.max_twilight_points
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible((1u16, 0u16)).then(|| {
             self.max_storage
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible((1u16, 0u16)).then(|| {
             self.max_function_defs
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible((1u16, 0u16)).then(|| {
             self.max_instruction_defs
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible((1u16, 0u16)).then(|| {
             self.max_stack_elements
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible((1u16, 0u16)).then(|| {
             self.max_size_of_instructions
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible((1u16, 0u16)).then(|| {
             self.max_component_elements
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible((1u16, 0u16)).then(|| {
             self.max_component_depth
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
     }

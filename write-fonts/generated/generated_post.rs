@@ -113,19 +113,19 @@ impl FontWrite for Post {
         version.compatible((2u16, 0u16)).then(|| {
             self.num_glyphs
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible((2u16, 0u16)).then(|| {
             self.glyph_name_index
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
         version.compatible((2u16, 0u16)).then(|| {
             self.string_data
                 .as_ref()
-                .expect("missing versioned field should have failed validation")
+                .expect("missing conditional field should have failed validation")
                 .write_into(writer)
         });
     }

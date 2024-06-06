@@ -170,6 +170,9 @@ The following annotations are supported on top-level objects:
 - `#[since_version(version)]`: indicates that a field only exists in a given version
   of the table. The `version` may be either a single integer literal
   (`#[since_version(1)]`), or a major.minor pair (`#[since_version(1.1)]`).
+- `#[if_flag($field, Flags::SOME_FLAG)]`: indicates that a given field is only
+  present if a particular flag is set on the named field. The field is expected
+  to be a bitset with a `contains` method.
 - `#[skip_getter]`: if present, we will not generate a getter for this field.
   Used on things like padding fields.
 - `#[offset_getter(method name)]`: only allowed on offsets or arrays of offsets.

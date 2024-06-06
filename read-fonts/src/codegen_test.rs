@@ -96,3 +96,95 @@ pub mod count_all {
         assert_eq!(count32.remainder().len(), remainder_len / 4);
     }
 }
+
+pub mod conditions {
+    use font_types::MajorMinor;
+
+    include!("../generated/generated_test_conditions.rs");
+
+    #[test]
+    fn majorminor_1() {
+        let bytes = crate::test_helpers::BeBuffer::new()
+            .push(MajorMinor::VERSION_1_0)
+            .push(0u16);
+        let table = MajorMinorVersion::read(bytes.font_data()).unwrap();
+        assert_eq!(table.always_present(), 0);
+    }
+
+    #[test]
+    fn majorminor_1_1() {
+        let bytes = crate::test_helpers::BeBuffer::new()
+            .push(MajorMinor::VERSION_1_1)
+            .push(0u16);
+        // shouldn't parse, we're missing a field
+        assert!(MajorMinorVersion::read(bytes.font_data()).is_err());
+
+        let bytes = crate::test_helpers::BeBuffer::new()
+            .push(MajorMinor::VERSION_1_1)
+            .push(0u16)
+            .push(1u16);
+        let table = MajorMinorVersion::read(bytes.font_data()).unwrap();
+        assert_eq!(table.if_11(), Some(1));
+    }
+
+    #[test]
+    fn major_minor_2() {
+        let bytes = crate::test_helpers::BeBuffer::new()
+            .push(MajorMinor::VERSION_2_0)
+            .push(0u16);
+        // shouldn't parse, we're missing a field
+        assert!(MajorMinorVersion::read(bytes.font_data()).is_err());
+
+        let bytes = crate::test_helpers::BeBuffer::new()
+            .push(MajorMinor::VERSION_2_0)
+            .push(0u16)
+            .push(2u32);
+        let table = MajorMinorVersion::read(bytes.font_data()).unwrap();
+        assert_eq!(table.if_11(), None);
+        assert_eq!(table.if_20(), Some(2));
+    }
+
+    #[cfg(test)]
+    fn make_flag_data(flags: GotFlags) -> crate::test_helpers::BeBuffer {
+        let mut buf = crate::test_helpers::BeBuffer::new().push(42u16).push(flags);
+        if flags.contains(GotFlags::FOO) {
+            buf = buf.push(0xf00_u16);
+        }
+        if flags.contains(GotFlags::BAR) {
+            buf = buf.push(0xba4_u16);
+        }
+        buf
+    }
+
+    #[test]
+    fn flags_none() {
+        let data = make_flag_data(GotFlags::empty());
+        let table = FlagDay::read(data.font_data()).unwrap();
+        assert!(table.foo().is_none());
+        assert!(table.bar().is_none());
+    }
+
+    #[test]
+    fn flags_foo() {
+        let data = make_flag_data(GotFlags::FOO);
+        let table = FlagDay::read(data.font_data()).unwrap();
+        assert_eq!(table.foo(), Some(0xf00));
+        assert!(table.bar().is_none());
+    }
+
+    #[test]
+    fn flags_bar() {
+        let data = make_flag_data(GotFlags::BAR);
+        let table = FlagDay::read(data.font_data()).unwrap();
+        assert!(table.foo().is_none());
+        assert_eq!(table.bar(), Some(0xba4));
+    }
+
+    #[test]
+    fn flags_foobar() {
+        let data = make_flag_data(GotFlags::BAR | GotFlags::FOO);
+        let table = FlagDay::read(data.font_data()).unwrap();
+        assert_eq!(table.foo(), Some(0xf00));
+        assert_eq!(table.bar(), Some(0xba4));
+    }
+}
