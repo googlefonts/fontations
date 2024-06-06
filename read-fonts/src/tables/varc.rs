@@ -13,7 +13,8 @@ mod tests {
     impl Varc<'_> {
         fn conditions(&self) -> impl Iterator<Item = Condition<'_>> {
             self.condition_list()
-                .expect("A condition list")
+                .expect("A condition list is present")
+                .expect("We could read the condition list")
                 .conditions()
                 .iter()
                 .enumerate()

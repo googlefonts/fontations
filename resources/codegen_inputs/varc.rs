@@ -11,8 +11,11 @@ table Varc {
     version: MajorMinor,
 
     coverage_offset: Offset32<CoverageTable>,
+    #[nullable]
     multi_var_store_offset: Offset32<MultiItemVariationStore>,
+    #[nullable]
     condition_list_offset: Offset32<ConditionList>,
+    #[nullable]
     axis_indices_list_offset: Offset32<AxisIndicesList>,
     var_composite_glyphs_offset: Offset32<VarCompositeGlyphs>,
 }
