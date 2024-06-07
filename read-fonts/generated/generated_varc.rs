@@ -108,7 +108,7 @@ impl<'a> Varc<'a> {
     }
 
     /// Attempt to resolve [`axis_indices_list_offset`][Self::axis_indices_list_offset].
-    pub fn axis_indices_list(&self) -> Option<Result<AxisIndicesList<'a>, ReadError>> {
+    pub fn axis_indices_list(&self) -> Option<Result<Index2<'a>, ReadError>> {
         let data = self.data;
         self.axis_indices_list_offset().resolve(data)
     }
@@ -286,45 +286,6 @@ impl<'a> SomeTable<'a> for ConditionList<'a> {
 
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for ConditionList<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct AxisIndicesListMarker {}
-
-impl AxisIndicesListMarker {}
-
-impl<'a> FontRead<'a> for AxisIndicesList<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let cursor = data.cursor();
-        cursor.finish(AxisIndicesListMarker {})
-    }
-}
-
-pub type AxisIndicesList<'a> = TableRef<'a, AxisIndicesListMarker>;
-
-impl<'a> AxisIndicesList<'a> {}
-
-#[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for AxisIndicesList<'a> {
-    fn type_name(&self) -> &str {
-        "AxisIndicesList"
-    }
-
-    #[allow(unused_variables)]
-    #[allow(clippy::match_single_binding)]
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            _ => None,
-        }
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for AxisIndicesList<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }

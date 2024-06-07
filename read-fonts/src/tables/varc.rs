@@ -1,12 +1,29 @@
 //! the [VARC (Variable Composite/Component)](https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md) table
 
-pub use super::layout::{Condition, CoverageTable};
+use super::variations::PackedDeltas;
+pub use super::{
+    layout::{Condition, CoverageTable},
+    postscript::Index2,
+};
 
 include!("../../generated/generated_varc.rs");
 
+impl<'a> Varc<'a> {
+    pub fn axis_indices(&self, nth: usize) -> Result<PackedDeltas, ReadError> {
+        let Some(axis_indices_list) = self.axis_indices_list() else {
+            return Err(ReadError::InvalidCollectionIndex(nth as u32));
+        };
+        let axis_indices_list = axis_indices_list?;
+        let raw = axis_indices_list
+            .get(nth)
+            .map_err(|_| ReadError::OutOfBounds)?;
+        Ok(PackedDeltas::new(raw.into()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use crate::{FontRef, TableProvider};
+    use crate::{FontRef, ReadError, TableProvider};
 
     use super::{Condition, Varc};
 
@@ -19,6 +36,14 @@ mod tests {
                 .iter()
                 .enumerate()
                 .map(|(i, c)| c.unwrap_or_else(|e| panic!("condition {i} {e}")))
+        }
+
+        fn axis_indices_count(&self) -> Result<usize, ReadError> {
+            let Some(axis_indices_list) = self.axis_indices_list() else {
+                return Ok(0);
+            };
+            let axis_indices_list = axis_indices_list?;
+            Ok(axis_indices_list.count() as usize)
         }
     }
 
@@ -126,5 +151,16 @@ mod tests {
 
         // Should reference a format 1
         assert_eq!(1, condition.condition().unwrap().format(),);
+    }
+
+    #[test]
+    fn read_axis_indices_list() {
+        let font = FontRef::new(font_test_data::varc::CONDITIONALS).unwrap();
+        let table = font.varc().unwrap();
+        assert_eq!(table.axis_indices_count().unwrap(), 2);
+        assert_eq!(
+            vec![2, 3, 4, 5, 6],
+            table.axis_indices(1).unwrap().iter().collect::<Vec<_>>()
+        );
     }
 }
