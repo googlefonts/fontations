@@ -1,3 +1,8 @@
+[![CI Build Status](https://github.com/googlefonts/fontations/workflows/Continuous%20integration/badge.svg?branch=main)](https://github.com/googlefonts/fontations/actions/workflows/rust.yml?query=workflow%3AContinuous+integration+branch%3Amain)
+[![Fuzzing Status](https://oss-fuzz-build-logs.storage.googleapis.com/badges/fontations.svg)](https://bugs.chromium.org/p/oss-fuzz/issues/list?sort=-opened&can=1&q=proj:fontations)
+
+
+
 # Fontations
 
 This repo contains a number of foundational crates for reading and
@@ -76,6 +81,15 @@ automatically. Code generation is performed by the `font-codegen` crate. For an
 overview of what we generate and how it works, see the [codegen-tour][]. For an
 overview of how to use the `font-codegen` crate, see the readme at
 [`font-codegen/README.md`][codegen-readme].
+
+## Fuzzing
+
+* Coverage can be viewed at https://oss-fuzz.com/, and search for "fontations"
+* The `fuzz/` crate in this repo contains our fuzzers
+* [oss-fuzz](https://github.com/google/oss-fuzz) configuration lives in https://github.com/google/oss-fuzz/tree/master/projects/fontations
+   * [build.sh](https://github.com/google/oss-fuzz/blob/master/projects/fontations/build.sh) looks for `target/x86_64-unknown-linux-gnu/release/fuzz_*`
+   * ^ is meant to mean we can add additional fuzzers to fontations without having to touch oss-fuzz every time
+   * `build.sh` also controls the test corpus, look for the `git clone` lines
 
 ## contributing
 
