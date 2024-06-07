@@ -308,6 +308,22 @@ impl Transform for [f64; 6] {
     }
 }
 
+impl<'a> MultiItemVariationData<'a> {
+    /// An [Index2] where each item is a [PackedDeltas]
+    pub fn delta_sets(&self) -> Result<Index2<'a>, ReadError> {
+        Index2::read(self.raw_delta_sets().into())
+    }
+
+    /// Read a specific delta set.
+    ///
+    /// Equivalent to calling [Self::delta_sets], fetching item i, and parsing as [PackedDeltas]
+    pub fn delta_set(&self, i: usize) -> Result<PackedDeltas<'a>, ReadError> {
+        let index = self.delta_sets()?;
+        let raw_deltas = index.get(i).map_err(|_| ReadError::OutOfBounds)?;
+        Ok(PackedDeltas::consume_all(raw_deltas.into()))
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use types::GlyphId;
@@ -618,5 +634,39 @@ mod tests {
             .matrix()
             .round_for_test()
         );
+    }
+
+    #[test]
+    fn read_multivar_store_fields() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let table = font.varc().unwrap();
+        let varstore = table.multi_var_store().unwrap().unwrap();
+        assert_eq!(
+            (39, 4),
+            (
+                varstore.region_list().unwrap().region_count(),
+                varstore.variation_data_count()
+            )
+        );
+        assert_eq!(
+            vec![(3, 6), (33, 6), (10, 5), (25, 8),],
+            varstore
+                .variation_data()
+                .iter()
+                .map(|d| d.unwrap())
+                .map(|d| (d.region_index_count(), d.delta_sets().unwrap().count()))
+                .collect::<Vec<_>>()
+        );
+        assert_eq!(
+            vec![-1, 33, 0, 0, 0, 0],
+            varstore
+                .variation_data()
+                .get(0)
+                .unwrap()
+                .delta_set(5)
+                .unwrap()
+                .iter()
+                .collect::<Vec<_>>()
+        )
     }
 }
