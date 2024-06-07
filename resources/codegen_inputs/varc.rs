@@ -16,7 +16,7 @@ table Varc {
     #[nullable]
     condition_list_offset: Offset32<ConditionList>,
     #[nullable]
-    axis_indices_list_offset: Offset32<AxisIndicesList>,
+    axis_indices_list_offset: Offset32<Index2>,
     var_composite_glyphs_offset: Offset32<VarCompositeGlyphs>,
 }
 
@@ -28,10 +28,6 @@ table ConditionList {
     condition_count: u32,
     #[count($condition_count)]
     condition_offsets: [Offset32<Condition>],
-}
-
-table AxisIndicesList {
-    // TODO(rsheeter) Doing VARC incrementally, haven't got here yet.
 }
 
 table VarCompositeGlyphs {
