@@ -8,23 +8,24 @@ pub use super::{
 
 include!("../../generated/generated_varc.rs");
 
-/// Let's us call self.something().get(i) instead of get(self.something(), i)
-trait Get<'a> {
-    fn get(self, nth: usize) -> Result<&'a [u8], ReadError>;
+trait RawNth<'a> {
+    fn nth(self, nth: usize) -> Result<&'a [u8], ReadError>;
 }
 
-impl<'a> Get<'a> for Option<Result<Index2<'a>, ReadError>> {
-    fn get(self, nth: usize) -> Result<&'a [u8], ReadError> {
-        self.transpose()?
-            .ok_or(ReadError::NullOffset)
-            .and_then(|index| index.get(nth).map_err(|_| ReadError::OutOfBounds))
+impl<'a> RawNth<'a> for Option<Result<Index2<'a>, ReadError>> {
+    fn nth(self, nth: usize) -> Result<&'a [u8], ReadError> {
+        let Some(index) = self else {
+            return Err(ReadError::InvalidCollectionIndex(nth as u32));
+        };
+        let index = index?;
+        index.get(nth).map_err(|_| ReadError::OutOfBounds)
     }
 }
 
 impl<'a> Varc<'a> {
     /// Friendlier accessor than directly using raw data via [Index2]
     pub fn axis_indices(&self, nth: usize) -> Result<PackedDeltas, ReadError> {
-        let raw = self.axis_indices_list().get(nth)?;
+        let raw = self.axis_indices_list().nth(nth)?;
         Ok(PackedDeltas::consume_all(raw.into()))
     }
 
@@ -32,7 +33,7 @@ impl<'a> Varc<'a> {
     ///
     /// nth would typically be obtained by looking up a [GlyphId] in [Self::coverage].
     pub fn glyph(&self, nth: usize) -> Result<VarcGlyph<'_>, ReadError> {
-        let raw = Some(self.var_composite_glyphs()).get(nth)?;
+        let raw = Some(self.var_composite_glyphs()).nth(nth)?;
         Ok(VarcGlyph {
             table: self,
             data: raw.into(),
@@ -40,9 +41,7 @@ impl<'a> Varc<'a> {
     }
 }
 
-/// A VARC glyph doesn't have any root level attributes, it's just a list of components
-///
-/// <https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md#variable-composite-description>
+/// I'm just a happy little blob full of components
 pub struct VarcGlyph<'a> {
     table: &'a Varc<'a>,
     data: FontData<'a>,
@@ -106,7 +105,7 @@ impl<'a> VarcComponent<'a> {
 
         // This is a GlyphID16 if GID_IS_24BIT bit of flags is clear, else GlyphID24.
         let gid = if flags.contains(VarcFlags::GID_IS_24BIT) {
-            let gid = cursor.read::<Uint24>()?.to_u32();
+            let gid = cursor.read_be::<Uint24>()?.get().to_u32();
             if gid > u16::MAX as u32 {
                 return Err(ReadError::BigGlyphIdsNotSupported(gid));
             }
