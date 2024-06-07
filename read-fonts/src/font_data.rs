@@ -179,6 +179,25 @@ impl<'a> Cursor<'a> {
         self.pos += n_bytes;
     }
 
+    /// Read a variable length u32 and advance the cursor
+    pub(crate) fn read_u32_var(&mut self) -> Result<u32, ReadError> {
+        let mut next = || self.read::<u8>().map(|v| v as u32);
+        let b0 = next()?;
+        // TODO this feels possible to simplify, e.g. compute length, loop taking one and shifting and or'ing
+        let result = match b0 {
+            _ if b0 < 0x80 => b0,
+            _ if b0 < 0xC0 => (b0 - 0x80) << 8 | next()?,
+            _ if b0 < 0xE0 => (b0 - 0xC0) << 16 | next()? << 8 | next()?,
+            _ if b0 < 0xF0 => (b0 - 0xE0) << 24 | next()? << 16 | next()? << 8 | next()?,
+            _ => {
+                // TODO: << 32 doesn't make sense. (b0 - 0xF0) << 32
+                next()? << 24 | next()? << 16 | next()? << 8 | next()?
+            }
+        };
+
+        Ok(result)
+    }
+
     /// Read a scalar and advance the cursor.
     pub(crate) fn read<T: Scalar>(&mut self) -> Result<T, ReadError> {
         let temp = self.data.read_at(self.pos);
@@ -261,6 +280,14 @@ impl<'a> Cursor<'a> {
     // end of a table.
     pub(crate) fn remaining_bytes(&self) -> usize {
         self.data.len().saturating_sub(self.pos)
+    }
+
+    pub(crate) fn remaining(self) -> Option<FontData<'a>> {
+        self.data.split_off(self.pos)
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.pos >= self.data.len()
     }
 
     pub(crate) fn finish<T>(self, shape: T) -> Result<TableRef<'a, T>, ReadError> {

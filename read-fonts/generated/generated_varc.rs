@@ -119,7 +119,7 @@ impl<'a> Varc<'a> {
     }
 
     /// Attempt to resolve [`var_composite_glyphs_offset`][Self::var_composite_glyphs_offset].
-    pub fn var_composite_glyphs(&self) -> Result<VarCompositeGlyphs<'a>, ReadError> {
+    pub fn var_composite_glyphs(&self) -> Result<Index2<'a>, ReadError> {
         let data = self.data;
         self.var_composite_glyphs_offset().resolve(data)
     }
@@ -291,41 +291,400 @@ impl<'a> std::fmt::Debug for ConditionList<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct VarCompositeGlyphsMarker {}
-
-impl VarCompositeGlyphsMarker {}
-
-impl<'a> FontRead<'a> for VarCompositeGlyphs<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let cursor = data.cursor();
-        cursor.finish(VarCompositeGlyphsMarker {})
-    }
+/// Flags used in the [VarcComponent] byte stream
+///
+/// <https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md#variable-component-flags>
+#[derive(Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, bytemuck :: AnyBitPattern)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[repr(transparent)]
+pub struct VarcFlags {
+    bits: u32,
 }
 
-pub type VarCompositeGlyphs<'a> = TableRef<'a, VarCompositeGlyphsMarker>;
+impl VarcFlags {
+    pub const RESET_UNSPECIFIED_AXES: Self = Self {
+        bits: 0b0000_0000_0000_0001,
+    };
 
-impl<'a> VarCompositeGlyphs<'a> {}
+    pub const HAVE_AXES: Self = Self {
+        bits: 0b0000_0000_0000_0010,
+    };
 
-#[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for VarCompositeGlyphs<'a> {
-    fn type_name(&self) -> &str {
-        "VarCompositeGlyphs"
+    pub const AXIS_VALUES_HAVE_VARIATION: Self = Self {
+        bits: 0b0000_0000_0000_0100,
+    };
+
+    pub const TRANSFORM_HAS_VARIATION: Self = Self {
+        bits: 0b0000_0000_0000_1000,
+    };
+
+    pub const HAVE_TRANSLATE_X: Self = Self {
+        bits: 0b0000_0000_0001_0000,
+    };
+
+    pub const HAVE_TRANSLATE_Y: Self = Self {
+        bits: 0b0000_0000_0010_0000,
+    };
+
+    pub const HAVE_ROTATION: Self = Self {
+        bits: 0b0000_0000_0100_0000,
+    };
+
+    pub const HAVE_CONDITION: Self = Self {
+        bits: 0b0000_0000_1000_0000,
+    };
+
+    pub const HAVE_SCALE_X: Self = Self {
+        bits: 0b0000_0001_0000_0000,
+    };
+
+    pub const HAVE_SCALE_Y: Self = Self {
+        bits: 0b0000_0010_0000_0000,
+    };
+
+    pub const HAVE_TCENTER_X: Self = Self {
+        bits: 0b0000_0100_0000_0000,
+    };
+
+    pub const HAVE_TCENTER_Y: Self = Self {
+        bits: 0b0000_1000_0000_0000,
+    };
+
+    pub const GID_IS_24BIT: Self = Self {
+        bits: 0b0001_0000_0000_0000,
+    };
+
+    pub const HAVE_SKEW_X: Self = Self {
+        bits: 0b0010_0000_0000_0000,
+    };
+
+    pub const HAVE_SKEW_Y: Self = Self {
+        bits: 0b0100_0000_0000_0000,
+    };
+
+    pub const RESERVED_MASK: Self = Self { bits: 0xFFFF8000 };
+}
+
+impl VarcFlags {
+    ///  Returns an empty set of flags.
+    #[inline]
+    pub const fn empty() -> Self {
+        Self { bits: 0 }
     }
 
-    #[allow(unused_variables)]
-    #[allow(clippy::match_single_binding)]
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            _ => None,
+    /// Returns the set containing all flags.
+    #[inline]
+    pub const fn all() -> Self {
+        Self {
+            bits: Self::RESET_UNSPECIFIED_AXES.bits
+                | Self::HAVE_AXES.bits
+                | Self::AXIS_VALUES_HAVE_VARIATION.bits
+                | Self::TRANSFORM_HAS_VARIATION.bits
+                | Self::HAVE_TRANSLATE_X.bits
+                | Self::HAVE_TRANSLATE_Y.bits
+                | Self::HAVE_ROTATION.bits
+                | Self::HAVE_CONDITION.bits
+                | Self::HAVE_SCALE_X.bits
+                | Self::HAVE_SCALE_Y.bits
+                | Self::HAVE_TCENTER_X.bits
+                | Self::HAVE_TCENTER_Y.bits
+                | Self::GID_IS_24BIT.bits
+                | Self::HAVE_SKEW_X.bits
+                | Self::HAVE_SKEW_Y.bits
+                | Self::RESERVED_MASK.bits,
+        }
+    }
+
+    /// Returns the raw value of the flags currently stored.
+    #[inline]
+    pub const fn bits(&self) -> u32 {
+        self.bits
+    }
+
+    /// Convert from underlying bit representation, unless that
+    /// representation contains bits that do not correspond to a flag.
+    #[inline]
+    pub const fn from_bits(bits: u32) -> Option<Self> {
+        if (bits & !Self::all().bits()) == 0 {
+            Some(Self { bits })
+        } else {
+            None
+        }
+    }
+
+    /// Convert from underlying bit representation, dropping any bits
+    /// that do not correspond to flags.
+    #[inline]
+    pub const fn from_bits_truncate(bits: u32) -> Self {
+        Self {
+            bits: bits & Self::all().bits,
+        }
+    }
+
+    /// Returns `true` if no flags are currently stored.
+    #[inline]
+    pub const fn is_empty(&self) -> bool {
+        self.bits() == Self::empty().bits()
+    }
+
+    /// Returns `true` if there are flags common to both `self` and `other`.
+    #[inline]
+    pub const fn intersects(&self, other: Self) -> bool {
+        !(Self {
+            bits: self.bits & other.bits,
+        })
+        .is_empty()
+    }
+
+    /// Returns `true` if all of the flags in `other` are contained within `self`.
+    #[inline]
+    pub const fn contains(&self, other: Self) -> bool {
+        (self.bits & other.bits) == other.bits
+    }
+
+    /// Inserts the specified flags in-place.
+    #[inline]
+    pub fn insert(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+
+    /// Removes the specified flags in-place.
+    #[inline]
+    pub fn remove(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+
+    /// Toggles the specified flags in-place.
+    #[inline]
+    pub fn toggle(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+
+    /// Returns the intersection between the flags in `self` and
+    /// `other`.
+    ///
+    /// Specifically, the returned set contains only the flags which are
+    /// present in *both* `self` *and* `other`.
+    ///
+    /// This is equivalent to using the `&` operator (e.g.
+    /// [`ops::BitAnd`]), as in `flags & other`.
+    ///
+    /// [`ops::BitAnd`]: https://doc.rust-lang.org/std/ops/trait.BitAnd.html
+    #[inline]
+    #[must_use]
+    pub const fn intersection(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+
+    /// Returns the union of between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags which are
+    /// present in *either* `self` *or* `other`, including any which are
+    /// present in both.
+    ///
+    /// This is equivalent to using the `|` operator (e.g.
+    /// [`ops::BitOr`]), as in `flags | other`.
+    ///
+    /// [`ops::BitOr`]: https://doc.rust-lang.org/std/ops/trait.BitOr.html
+    #[inline]
+    #[must_use]
+    pub const fn union(self, other: Self) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+
+    /// Returns the difference between the flags in `self` and `other`.
+    ///
+    /// Specifically, the returned set contains all flags present in
+    /// `self`, except for the ones present in `other`.
+    ///
+    /// It is also conceptually equivalent to the "bit-clear" operation:
+    /// `flags & !other` (and this syntax is also supported).
+    ///
+    /// This is equivalent to using the `-` operator (e.g.
+    /// [`ops::Sub`]), as in `flags - other`.
+    ///
+    /// [`ops::Sub`]: https://doc.rust-lang.org/std/ops/trait.Sub.html
+    #[inline]
+    #[must_use]
+    pub const fn difference(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
         }
     }
 }
 
+impl std::ops::BitOr for VarcFlags {
+    type Output = Self;
+
+    /// Returns the union of the two sets of flags.
+    #[inline]
+    fn bitor(self, other: VarcFlags) -> Self {
+        Self {
+            bits: self.bits | other.bits,
+        }
+    }
+}
+
+impl std::ops::BitOrAssign for VarcFlags {
+    /// Adds the set of flags.
+    #[inline]
+    fn bitor_assign(&mut self, other: Self) {
+        self.bits |= other.bits;
+    }
+}
+
+impl std::ops::BitXor for VarcFlags {
+    type Output = Self;
+
+    /// Returns the left flags, but with all the right flags toggled.
+    #[inline]
+    fn bitxor(self, other: Self) -> Self {
+        Self {
+            bits: self.bits ^ other.bits,
+        }
+    }
+}
+
+impl std::ops::BitXorAssign for VarcFlags {
+    /// Toggles the set of flags.
+    #[inline]
+    fn bitxor_assign(&mut self, other: Self) {
+        self.bits ^= other.bits;
+    }
+}
+
+impl std::ops::BitAnd for VarcFlags {
+    type Output = Self;
+
+    /// Returns the intersection between the two sets of flags.
+    #[inline]
+    fn bitand(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & other.bits,
+        }
+    }
+}
+
+impl std::ops::BitAndAssign for VarcFlags {
+    /// Disables all flags disabled in the set.
+    #[inline]
+    fn bitand_assign(&mut self, other: Self) {
+        self.bits &= other.bits;
+    }
+}
+
+impl std::ops::Sub for VarcFlags {
+    type Output = Self;
+
+    /// Returns the set difference of the two sets of flags.
+    #[inline]
+    fn sub(self, other: Self) -> Self {
+        Self {
+            bits: self.bits & !other.bits,
+        }
+    }
+}
+
+impl std::ops::SubAssign for VarcFlags {
+    /// Disables all flags enabled in the set.
+    #[inline]
+    fn sub_assign(&mut self, other: Self) {
+        self.bits &= !other.bits;
+    }
+}
+
+impl std::ops::Not for VarcFlags {
+    type Output = Self;
+
+    /// Returns the complement of this set of flags.
+    #[inline]
+    fn not(self) -> Self {
+        Self { bits: !self.bits } & Self::all()
+    }
+}
+
+impl std::fmt::Debug for VarcFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        let members: &[(&str, Self)] = &[
+            ("RESET_UNSPECIFIED_AXES", Self::RESET_UNSPECIFIED_AXES),
+            ("HAVE_AXES", Self::HAVE_AXES),
+            (
+                "AXIS_VALUES_HAVE_VARIATION",
+                Self::AXIS_VALUES_HAVE_VARIATION,
+            ),
+            ("TRANSFORM_HAS_VARIATION", Self::TRANSFORM_HAS_VARIATION),
+            ("HAVE_TRANSLATE_X", Self::HAVE_TRANSLATE_X),
+            ("HAVE_TRANSLATE_Y", Self::HAVE_TRANSLATE_Y),
+            ("HAVE_ROTATION", Self::HAVE_ROTATION),
+            ("HAVE_CONDITION", Self::HAVE_CONDITION),
+            ("HAVE_SCALE_X", Self::HAVE_SCALE_X),
+            ("HAVE_SCALE_Y", Self::HAVE_SCALE_Y),
+            ("HAVE_TCENTER_X", Self::HAVE_TCENTER_X),
+            ("HAVE_TCENTER_Y", Self::HAVE_TCENTER_Y),
+            ("GID_IS_24BIT", Self::GID_IS_24BIT),
+            ("HAVE_SKEW_X", Self::HAVE_SKEW_X),
+            ("HAVE_SKEW_Y", Self::HAVE_SKEW_Y),
+            ("RESERVED_MASK", Self::RESERVED_MASK),
+        ];
+        let mut first = true;
+        for (name, value) in members {
+            if self.contains(*value) {
+                if !first {
+                    f.write_str(" | ")?;
+                }
+                first = false;
+                f.write_str(name)?;
+            }
+        }
+        if first {
+            f.write_str("(empty)")?;
+        }
+        Ok(())
+    }
+}
+
+impl std::fmt::Binary for VarcFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Binary::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::Octal for VarcFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::Octal::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::LowerHex for VarcFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::LowerHex::fmt(&self.bits, f)
+    }
+}
+
+impl std::fmt::UpperHex for VarcFlags {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        std::fmt::UpperHex::fmt(&self.bits, f)
+    }
+}
+
+impl font_types::Scalar for VarcFlags {
+    type Raw = <u32 as font_types::Scalar>::Raw;
+    fn to_raw(self) -> Self::Raw {
+        self.bits().to_raw()
+    }
+    fn from_raw(raw: Self::Raw) -> Self {
+        let t = <u32>::from_raw(raw);
+        Self::from_bits_truncate(t)
+    }
+}
+
 #[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for VarCompositeGlyphs<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
+impl<'a> From<VarcFlags> for FieldType<'a> {
+    fn from(src: VarcFlags) -> FieldType<'a> {
+        src.bits().into()
     }
 }
