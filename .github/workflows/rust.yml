@@ -106,7 +106,7 @@ jobs:
         run: cargo check --manifest-path=font-types/Cargo.toml --no-default-features
 
       - name: cargo check read-fonts
-        run: cargo check --manifest-path=read-fonts/Cargo.toml --no-default-features
+        run: cargo check --manifest-path=read-fonts/Cargo.toml --no-default-features --features=libm
 
       - name: cargo check skrifa
         run: cargo check --manifest-path=skrifa/Cargo.toml --no-default-features --features=libm

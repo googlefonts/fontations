@@ -12,11 +12,11 @@ categories = ["text-processing", "parsing", "graphics"]
 default = ["traversal"]
 std = ["read-fonts/std"]
 traversal = ["std", "read-fonts/traversal"]
-libm = ["dep:core_maths"]
+libm = ["dep:core_maths", "read-fonts/libm"]
 
 [dependencies]
 read-fonts = { version = "0.19.3", path = "../read-fonts", default-features = false }
-core_maths = { version = "0.1", optional = true }
+core_maths = { workspace = true, optional = true }
 bytemuck = { workspace = true }
 
 [dev-dependencies]
