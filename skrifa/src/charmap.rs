@@ -1,4 +1,8 @@
-//! Mapping of characters to nominal glyph identifiers.
+//! Mapping of characters (codepoints, not graphemes) to nominal glyph identifiers.
+//!
+//! If you have never run into character to glyph mapping before
+//! [Glyph IDs and the 'cmap' table](https://rsheeter.github.io/font101/#glyph-ids-and-the-cmap-table)
+//! might be informative.
 //!
 //! The functionality in this module provides a 1-to-1 mapping from Unicode
 //! characters (or [Unicode variation sequences](http://unicode.org/faq/vs.html)) to
@@ -25,6 +29,10 @@ pub use read_fonts::tables::cmap::MapVariant;
 ///
 /// The mappings are derived from the [cmap](https://learn.microsoft.com/en-us/typography/opentype/spec/cmap)
 /// table.
+///
+/// ## Obtaining a Charmap
+///
+/// Typically a Charmap is aquired by calling [crate::MetadataProvider::charmap] on a [crate::FontRef]
 ///
 /// ## Selection strategy
 ///

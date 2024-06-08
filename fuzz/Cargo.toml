@@ -16,7 +16,7 @@ libfuzzer-sys = "0.4"
 skrifa = { path="../skrifa" }
 
 [[bin]]
-name = "fuzz_skrifa"
-path = "fuzz_targets/fuzz_skrifa.rs"
+name = "fuzz_skrifa_charmap"
+path = "fuzz_targets/fuzz_skrifa_charmap.rs"
 test = false
 doc = false
