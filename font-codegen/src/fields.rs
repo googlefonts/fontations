@@ -206,15 +206,24 @@ impl Fields {
                             }
                         },
                         Condition::IfFlag { flag, .. } => {
-                            let flag = stringify_path(flag);
-                            let flag_missing = format!("'{name}' is present but {flag} not set",);
-                            let field_missing = format!("{flag} is set but '{name}' is None",);
-                            quote! {
-                                if !(#condition) && self.#name.is_some() {
-                                    ctx.report(#flag_missing)
+                            if let Some(flag) = flag.end_ident() {
+                                let flag_missing =
+                                    format!("'{name}' is present but {flag} not set",);
+                                let field_missing = format!("{flag} is set but '{name}' is None",);
+                                quote! {
+                                    if !(#condition) && self.#name.is_some() {
+                                        ctx.report(#flag_missing)
+                                    }
+                                    if (#condition) && self.#name.is_none() {
+                                        ctx.report(#field_missing)
+                                    }
                                 }
-                                if (#condition) && self.#name.is_none() {
-                                    ctx.report(#field_missing)
+                            } else {
+                                let error = format!(
+                                    "'{name}' is present but {flag:?} does not end in an Ident",
+                                );
+                                quote! {
+                                    ctx.report(#error)
                                 }
                             }
                         }
@@ -1521,12 +1530,16 @@ fn width_for_offset(offset: &syn::Ident) -> Option<syn::Ident> {
     }
 }
 
-/// turn a syn path like 'std :: hmm :: Thing' into "Thing"
-fn stringify_path(path: &syn::Path) -> String {
-    let s = path.to_token_stream().to_string();
-    s.rsplit_once(' ')
-        .map(|(_, end)| end.to_string())
-        .unwrap_or(s)
+trait EndIdent {
+    /// Ident "Thing" from a [syn::Path] like std::hmm::Thing
+    fn end_ident(&self) -> Option<syn::Ident>;
+}
+
+impl EndIdent for syn::Path {
+    fn end_ident(&self) -> Option<syn::Ident> {
+        let last = self.segments.last()?;
+        Some(last.ident.clone())
+    }
 }
 
 impl FieldReadArgs {
@@ -1542,5 +1555,19 @@ impl FieldReadArgs {
             [arg] => arg.to_token_stream(),
             args => quote!( ( #( #args ),* ) ),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::fields::EndIdent;
+
+    #[test]
+    fn end_ident() {
+        let path = syn::parse_str::<syn::Path>("std::hmm::Thing").unwrap();
+        assert_eq!(
+            syn::parse_str::<syn::Ident>("Thing").unwrap(),
+            path.end_ident().unwrap()
+        );
     }
 }
