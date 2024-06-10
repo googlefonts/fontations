@@ -31,7 +31,7 @@ mod version;
 mod serde_test;
 
 pub use bbox::BoundingBox;
-pub use fixed::{F26Dot6, F2Dot14, Fixed};
+pub use fixed::{F26Dot6, F2Dot14, F4Dot12, F6Dot10, Fixed};
 pub use fword::{FWord, UfWord};
 pub use glyph_id::GlyphId;
 pub use longdatetime::LongDateTime;

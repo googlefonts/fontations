@@ -2,7 +2,7 @@
 
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Neg, Sub, SubAssign};
 
-// shared between Fixed, F26Dot6 and F2Dot14
+// shared between Fixed, F26Dot6, F2Dot14, F4Dot12, F6Dot10
 macro_rules! fixed_impl {
     ($name:ident, $bits:literal, $fract_bits:literal, $ty:ty) => {
         #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Default)]
@@ -274,14 +274,20 @@ macro_rules! float_conv {
 }
 
 fixed_impl!(F2Dot14, 16, 14, i16);
+fixed_impl!(F4Dot12, 16, 12, i16);
+fixed_impl!(F6Dot10, 16, 10, i16);
 fixed_impl!(Fixed, 32, 16, i32);
 fixed_impl!(F26Dot6, 32, 6, i32);
 fixed_mul_div!(Fixed);
 fixed_mul_div!(F26Dot6);
 float_conv!(F2Dot14, to_f32, from_f32, f32);
+float_conv!(F4Dot12, to_f32, from_f32, f32);
+float_conv!(F6Dot10, to_f32, from_f32, f32);
 float_conv!(Fixed, to_f64, from_f64, f64);
 float_conv!(F26Dot6, to_f64, from_f64, f64);
 crate::newtype_scalar!(F2Dot14, [u8; 2]);
+crate::newtype_scalar!(F4Dot12, [u8; 2]);
+crate::newtype_scalar!(F6Dot10, [u8; 2]);
 crate::newtype_scalar!(Fixed, [u8; 4]);
 
 impl Fixed {

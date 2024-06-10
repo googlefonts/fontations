@@ -557,7 +557,7 @@ mod tests {
         let deltas = PackedDeltas::new(vec![10, -105, 0, -58, 0, 0, 0, 0, 0, 0, 0, 0, 4130, -1228]);
         let bytes = crate::dump_table(&deltas).unwrap();
         assert_eq!(bytes, PACKED_DELTA_BYTES);
-        let read = read_fonts::tables::variations::PackedDeltas::new(FontData::new(&bytes));
+        let read = read_fonts::tables::variations::PackedDeltas::consume_all(FontData::new(&bytes));
         let decoded = read.iter().collect::<Vec<_>>();
         assert_eq!(deltas.deltas.len(), decoded.len());
         assert_eq!(deltas.deltas, decoded);

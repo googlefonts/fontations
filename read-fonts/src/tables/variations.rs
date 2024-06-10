@@ -390,14 +390,19 @@ impl<'a> ExactSizeIterator for PackedPointNumbersIter<'a> {}
 #[derive(Clone, Debug)]
 pub struct PackedDeltas<'a> {
     data: FontData<'a>,
+    // How many values we expect
     count: usize,
 }
 
 impl<'a> PackedDeltas<'a> {
+    pub(crate) fn new(data: FontData<'a>, count: usize) -> Self {
+        Self { data, count }
+    }
+
     /// NOTE: this is unbounded, and assumes all of data is deltas.
     #[doc(hidden)] // used by tests in write-fonts
-    pub fn new(data: FontData<'a>) -> Self {
-        let count = DeltaRunIter::new(data.cursor()).count();
+    pub fn consume_all(data: FontData<'a>) -> Self {
+        let count = DeltaRunIter::new(data.cursor(), None).count();
         Self { data, count }
     }
 
@@ -405,9 +410,8 @@ impl<'a> PackedDeltas<'a> {
         self.count
     }
 
-    #[doc(hidden)] // used by tests in write-fonts
     pub fn iter(&self) -> DeltaRunIter<'a> {
-        DeltaRunIter::new(self.data.cursor())
+        DeltaRunIter::new(self.data.cursor(), Some(self.count))
     }
 }
 
@@ -448,18 +452,25 @@ impl DeltaRunType {
 /// Implements the logic for iterating over the individual runs
 #[derive(Clone, Debug)]
 pub struct DeltaRunIter<'a> {
-    remaining: u8,
+    limit: Option<usize>, // when None, consume all available data
+    remaining_in_run: u8,
     value_type: DeltaRunType,
     cursor: Cursor<'a>,
 }
 
 impl<'a> DeltaRunIter<'a> {
-    fn new(cursor: Cursor<'a>) -> Self {
+    fn new(cursor: Cursor<'a>, limit: Option<usize>) -> Self {
         DeltaRunIter {
-            remaining: 0,
+            limit,
+            remaining_in_run: 0,
             value_type: DeltaRunType::I8,
             cursor,
         }
+    }
+
+    pub(crate) fn end(mut self) -> Cursor<'a> {
+        while self.next().is_some() {}
+        self.cursor
     }
 }
 
@@ -467,17 +478,23 @@ impl Iterator for DeltaRunIter<'_> {
     type Item = i32;
 
     fn next(&mut self) -> Option<Self::Item> {
+        if let Some(limit) = self.limit {
+            if limit == 0 {
+                return None;
+            }
+            self.limit = Some(limit - 1);
+        }
         // if no items remain in this run, start the next one.
         // NOTE: we use `while` so we can sanely handle the case where some
         // run in the middle of the data has an explicit zero length
         //TODO: create a font with data of this shape and go crash some font parsers
-        while self.remaining == 0 {
+        while self.remaining_in_run == 0 {
             let control: u8 = self.cursor.read().ok()?;
             self.value_type = DeltaRunType::new(control);
-            self.remaining = (control & DELTA_RUN_COUNT_MASK) + 1;
+            self.remaining_in_run = (control & DELTA_RUN_COUNT_MASK) + 1;
         }
 
-        self.remaining -= 1;
+        self.remaining_in_run -= 1;
         match self.value_type {
             DeltaRunType::Zero => Some(0),
             DeltaRunType::I8 => self.cursor.read::<i8>().ok().map(|v| v as i32),
@@ -606,7 +623,7 @@ where
             axis_count: self.parent.axis_count,
             header,
             shared_tuples: self.parent.shared_tuples.clone(),
-            packed_deltas: PackedDeltas::new(packed_deltas),
+            packed_deltas: PackedDeltas::consume_all(packed_deltas),
             point_numbers,
             _marker: std::marker::PhantomData,
         })
@@ -1254,7 +1271,7 @@ mod tests {
     fn packed_deltas() {
         static INPUT: FontData = FontData::new(&[0x83, 0x40, 0x01, 0x02, 0x01, 0x81, 0x80]);
 
-        let deltas = PackedDeltas::new(INPUT);
+        let deltas = PackedDeltas::consume_all(INPUT);
         assert_eq!(deltas.count, 7);
         assert_eq!(
             deltas.iter().collect::<Vec<_>>(),
@@ -1262,7 +1279,7 @@ mod tests {
         );
 
         assert_eq!(
-            PackedDeltas::new(FontData::new(&[0x81]))
+            PackedDeltas::consume_all(FontData::new(&[0x81]))
                 .iter()
                 .collect::<Vec<_>>(),
             &[0, 0,]
@@ -1277,7 +1294,7 @@ mod tests {
         ]);
         static EXPECTED: &[i32] = &[10, -105, 0, -58, 0, 0, 0, 0, 0, 0, 0, 0, 4130, -1228];
 
-        let deltas = PackedDeltas::new(INPUT);
+        let deltas = PackedDeltas::consume_all(INPUT);
         assert_eq!(deltas.count, EXPECTED.len());
         assert_eq!(deltas.iter().collect::<Vec<_>>(), EXPECTED);
     }
