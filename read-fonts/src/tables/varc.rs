@@ -6,6 +6,10 @@ pub use super::{
     postscript::Index2,
 };
 
+#[cfg(feature = "libm")]
+#[allow(unused_imports)]
+use core_maths::*;
+
 include!("../../generated/generated_varc.rs");
 
 /// Let's us call self.something().get(i) instead of get(self.something(), i)
@@ -83,15 +87,7 @@ pub struct VarcComponent<'a> {
     axis_values: Option<PackedDeltas<'a>>,
     axis_values_var_index: Option<u32>,
     transform_var_index: Option<u32>,
-    dx: i16,
-    dy: i16,
-    rotation: f32,
-    sx: f32,
-    sy: f32,
-    skewx: f32,
-    skewy: f32,
-    center_x: i16,
-    center_y: i16,
+    transform: DecomposedTransform,
 }
 
 impl<'a> VarcComponent<'a> {
@@ -112,7 +108,7 @@ impl<'a> VarcComponent<'a> {
             }
             GlyphId::new(gid as u16)
         } else {
-            GlyphId::new(cursor.read_be::<u16>()?.get())
+            GlyphId::new(cursor.read::<u16>()?)
         };
 
         let condition_index = if flags.contains(VarcFlags::HAVE_CONDITION) {
@@ -152,55 +148,36 @@ impl<'a> VarcComponent<'a> {
             None
         };
 
-        let dx = if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
-            cursor.read::<FWord>()?.to_i16()
+        let mut transform = DecomposedTransform::default();
+        if flags.contains(VarcFlags::HAVE_TRANSLATE_X) {
+            transform.translate_x = cursor.read::<FWord>()?.to_i16() as f64
+        }
+        if flags.contains(VarcFlags::HAVE_TRANSLATE_Y) {
+            transform.translate_y = cursor.read::<FWord>()?.to_i16() as f64
+        }
+        if flags.contains(VarcFlags::HAVE_ROTATION) {
+            transform.rotation = cursor.read::<F4Dot12>()?.to_f32() as f64
+        }
+        if flags.contains(VarcFlags::HAVE_SCALE_X) {
+            transform.scale_x = cursor.read::<F6Dot10>()?.to_f32() as f64
+        }
+        transform.scale_y = if flags.contains(VarcFlags::HAVE_SCALE_Y) {
+            cursor.read::<F6Dot10>()?.to_f32() as f64
         } else {
-            0
+            transform.scale_x
         };
-        let dy = if flags.contains(VarcFlags::HAVE_TRANSLATE_Y) {
-            cursor.read::<FWord>()?.to_i16()
-        } else {
-            0
-        };
-
-        let rotation = if flags.contains(VarcFlags::HAVE_ROTATION) {
-            cursor.read::<F4Dot12>()?.to_f32()
-        } else {
-            0.0
-        };
-
-        let sx = if flags.contains(VarcFlags::HAVE_SCALE_X) {
-            cursor.read::<F6Dot10>()?.to_f32()
-        } else {
-            1.0
-        };
-        let sy = if flags.contains(VarcFlags::HAVE_SCALE_Y) {
-            cursor.read::<F6Dot10>()?.to_f32()
-        } else {
-            sx
-        };
-
-        let skewx = if flags.contains(VarcFlags::HAVE_SKEW_X) {
-            cursor.read::<F4Dot12>()?.to_f32()
-        } else {
-            0.0
-        };
-        let skewy = if flags.contains(VarcFlags::HAVE_SKEW_Y) {
-            cursor.read::<F4Dot12>()?.to_f32()
-        } else {
-            0.0
-        };
-
-        let center_x = if flags.contains(VarcFlags::HAVE_TCENTER_X) {
-            cursor.read::<FWord>()?.to_i16()
-        } else {
-            0
-        };
-        let center_y = if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
-            cursor.read::<FWord>()?.to_i16()
-        } else {
-            0
-        };
+        if flags.contains(VarcFlags::HAVE_SKEW_X) {
+            transform.skew_x = cursor.read::<F4Dot12>()?.to_f32() as f64
+        }
+        if flags.contains(VarcFlags::HAVE_SKEW_Y) {
+            transform.skew_y = cursor.read::<F4Dot12>()?.to_f32() as f64
+        }
+        if flags.contains(VarcFlags::HAVE_TCENTER_X) {
+            transform.center_x = cursor.read::<FWord>()?.to_i16() as f64
+        }
+        if flags.contains(VarcFlags::HAVE_TCENTER_Y) {
+            transform.center_y = cursor.read::<FWord>()?.to_i16() as f64
+        }
 
         // Optional, process and discard one uint32var per each set bit in RESERVED_MASK.
         let num_reserved = (raw_flags & VarcFlags::RESERVED_MASK.bits).count_ones();
@@ -215,16 +192,119 @@ impl<'a> VarcComponent<'a> {
             axis_values,
             axis_values_var_index,
             transform_var_index,
-            dx,
-            dy,
-            rotation,
-            sx,
-            sy,
-            skewx,
-            skewy,
-            center_x,
-            center_y,
+            transform,
         })
+    }
+}
+
+/// <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/misc/transform.py#L410>
+pub struct DecomposedTransform {
+    translate_x: f64,
+    translate_y: f64,
+    rotation: f64, // degrees, counter-clockwise
+    scale_x: f64,
+    scale_y: f64,
+    skew_x: f64,
+    skew_y: f64,
+    center_x: f64,
+    center_y: f64,
+}
+
+impl Default for DecomposedTransform {
+    fn default() -> Self {
+        Self {
+            translate_x: 0.0,
+            translate_y: 0.0,
+            rotation: 0.0,
+            scale_x: 1.0,
+            scale_y: 1.0,
+            skew_x: 0.0,
+            skew_y: 0.0,
+            center_x: 0.0,
+            center_y: 0.0,
+        }
+    }
+}
+
+impl DecomposedTransform {
+    /// Convert decomposed form to 2x3 matrix form.
+    ///
+    /// The first two values are x,y x-basis vector,
+    /// the second 2 values are x,y y-basis vector, and the third 2 are translation.
+    ///
+    /// In augmented matrix
+    /// form, if this method returns `[a, b, c, d, e, f]` that is taken as:
+    ///
+    /// ```text
+    /// | a c e |
+    /// | b d f |
+    /// | 0 0 1 |
+    /// ```
+    ///
+    /// References:
+    /// * FontTools Python implementation <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/misc/transform.py#L484-L500>
+    /// * Wikipedia [affine transformation](https://en.wikipedia.org/wiki/Affine_transformation)
+    pub fn matrix(&self) -> [f64; 6] {
+        // Python: t.translate(self.translateX + self.tCenterX, self.translateY + self.tCenterY)
+        let mut transform = [
+            1.0,
+            0.0,
+            0.0,
+            1.0,
+            self.translate_x + self.center_x,
+            self.translate_y + self.center_y,
+        ];
+
+        // TODO: this produces very small floats for rotations, e.g. 90 degree rotation a basic scale
+        // puts 1.2246467991473532e-16 into [0]. Should we special case? Round?
+
+        // Python: t = t.rotate(math.radians(self.rotation))
+        if self.rotation != 0.0 {
+            let (s, c) = (self.rotation).to_radians().sin_cos();
+            transform = transform.transform([c, s, -s, c, 0.0, 0.0]);
+        }
+
+        // Python: t = t.scale(self.scaleX, self.scaleY)
+        if (self.scale_x, self.scale_y) != (1.0, 1.0) {
+            transform = transform.transform([self.scale_x, 0.0, 0.0, self.scale_y, 0.0, 0.0]);
+        }
+
+        // Python: t = t.skew(math.radians(self.skewX), math.radians(self.skewY))
+        if (self.skew_x, self.skew_y) != (0.0, 0.0) {
+            transform = transform.transform([
+                1.0,
+                self.skew_y.to_radians().tan(),
+                self.skew_x.to_radians().tan(),
+                1.0,
+                0.0,
+                0.0,
+            ])
+        }
+
+        // Python: t = t.translate(-self.tCenterX, -self.tCenterY)
+        if (self.center_x, self.center_y) != (0.0, 0.0) {
+            transform = transform.transform([1.0, 0.0, 0.0, 1.0, -self.center_x, -self.center_y]);
+        }
+
+        transform
+    }
+}
+
+trait Transform {
+    fn transform(self, other: Self) -> Self;
+}
+
+impl Transform for [f64; 6] {
+    fn transform(self, other: Self) -> Self {
+        // Shamelessly copied from kurbo Affine Mul
+        [
+            self[0] * other[0] + self[2] * other[1],
+            self[1] * other[0] + self[3] * other[1],
+            self[0] * other[2] + self[2] * other[3],
+            self[1] * other[2] + self[3] * other[3],
+            self[0] * other[4] + self[2] * other[5] + self[4],
+            self[1] * other[4] + self[3] * other[5] + self[5],
+        ]
     }
 }
 
@@ -234,7 +314,7 @@ mod tests {
 
     use crate::{FontRef, ReadError, TableProvider};
 
-    use super::{Condition, Varc};
+    use super::{Condition, DecomposedTransform, Varc};
 
     impl Varc<'_> {
         fn conditions(&self) -> impl Iterator<Item = Condition<'_>> {
@@ -253,6 +333,27 @@ mod tests {
             };
             let axis_indices_list = axis_indices_list?;
             Ok(axis_indices_list.count() as usize)
+        }
+    }
+
+    fn round6(v: f64) -> f64 {
+        (v * 1_000_000.0).round() / 1_000_000.0
+    }
+
+    trait Round {
+        fn round_for_test(self) -> Self;
+    }
+
+    impl Round for [f64; 6] {
+        fn round_for_test(self) -> Self {
+            [
+                round6(self[0]),
+                round6(self[1]),
+                round6(self[2]),
+                round6(self[3]),
+                round6(self[4]),
+                round6(self[5]),
+            ]
         }
     }
 
@@ -387,6 +488,135 @@ mod tests {
                 .components()
                 .map(|c| c.unwrap().gid)
                 .collect::<Vec<_>>()
+        );
+    }
+
+    // Expected created using the Python DecomposedTransform
+    #[test]
+    fn decomposed_scale_to_matrix() {
+        let scale_x = 2.0;
+        let scale_y = 3.0;
+        assert_eq!(
+            [scale_x, 0.0, 0.0, scale_y, 0.0, 0.0],
+            DecomposedTransform {
+                scale_x,
+                scale_y,
+                ..Default::default()
+            }
+            .matrix()
+            .round_for_test()
+        );
+    }
+
+    // Expected created using the Python DecomposedTransform
+    #[test]
+    fn decomposed_rotate_to_matrix() {
+        assert_eq!(
+            [0.0, 1.0, -1.0, 0.0, 0.0, 0.0],
+            DecomposedTransform {
+                rotation: 90.0,
+                ..Default::default()
+            }
+            .matrix()
+            .round_for_test()
+        );
+    }
+
+    // Expected created using the Python DecomposedTransform
+    #[test]
+    fn decomposed_skew_to_matrix() {
+        let skew_x: f64 = 30.0;
+        let skew_y: f64 = -60.0;
+        assert_eq!(
+            [
+                1.0,
+                round6(skew_y.to_radians().tan()),
+                round6(skew_x.to_radians().tan()),
+                1.0,
+                0.0,
+                0.0
+            ],
+            DecomposedTransform {
+                skew_x,
+                skew_y,
+                ..Default::default()
+            }
+            .matrix()
+            .round_for_test()
+        );
+    }
+
+    // Expected created using the Python DecomposedTransform
+    #[test]
+    fn decomposed_scale_rotate_to_matrix() {
+        let scale_x = 2.0;
+        let scale_y = 3.0;
+        assert_eq!(
+            [0.0, scale_x, -scale_y, 0.0, 0.0, 0.0],
+            DecomposedTransform {
+                scale_x,
+                scale_y,
+                rotation: 90.0,
+                ..Default::default()
+            }
+            .matrix()
+            .round_for_test()
+        );
+    }
+
+    // Expected created using the Python DecomposedTransform
+    #[test]
+    fn decomposed_scale_rotate_translate_to_matrix() {
+        assert_eq!(
+            [0.0, 2.0, -1.0, 0.0, 10.0, 20.0],
+            DecomposedTransform {
+                scale_x: 2.0,
+                rotation: 90.0,
+                translate_x: 10.0,
+                translate_y: 20.0,
+                ..Default::default()
+            }
+            .matrix()
+            .round_for_test()
+        );
+    }
+
+    // Expected created using the Python DecomposedTransform
+    #[test]
+    fn decomposed_scale_skew_translate_to_matrix() {
+        assert_eq!(
+            [-0.866025, 5.5, -0.5, 3.175426, 10.0, 20.0],
+            DecomposedTransform {
+                scale_x: 2.0,
+                scale_y: 3.0,
+                rotation: 30.0,
+                skew_x: 30.0,
+                skew_y: 60.0,
+                translate_x: 10.0,
+                translate_y: 20.0,
+                ..Default::default()
+            }
+            .matrix()
+            .round_for_test()
+        );
+    }
+
+    // Expected created using the Python DecomposedTransform
+    #[test]
+    fn decomposed_rotate_around_to_matrix() {
+        assert_eq!(
+            [1.732051, 1.0, -0.5, 0.866025, 10.267949, 19.267949],
+            DecomposedTransform {
+                scale_x: 2.0,
+                rotation: 30.0,
+                translate_x: 10.0,
+                translate_y: 20.0,
+                center_x: 1.0,
+                center_y: 2.0,
+                ..Default::default()
+            }
+            .matrix()
+            .round_for_test()
         );
     }
 }
