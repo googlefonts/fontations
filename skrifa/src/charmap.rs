@@ -32,7 +32,7 @@ pub use read_fonts::tables::cmap::MapVariant;
 ///
 /// ## Obtaining a Charmap
 ///
-/// Typically a Charmap is aquired by calling [crate::MetadataProvider::charmap] on a [crate::FontRef]
+/// Typically a Charmap is acquired by calling [charmap](crate::MetadataProvider::charmap) on a [FontRef](crate::FontRef).
 ///
 /// ## Selection strategy
 ///
