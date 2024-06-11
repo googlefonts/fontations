@@ -501,6 +501,7 @@ mod tests {
 
     // oss-fuzz detected integer addition overflow in Cmap12::group()
     // ref: https://oss-fuzz.com/testcase-detail/5141969742397440
+    // and https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=69547
     //
     // test case slightly modified so that it runs in reasonable time
     #[test]
@@ -511,7 +512,7 @@ mod tests {
             99, 109, 97, 112, 32, 32, 32, 32, 0, 0, 0, 33, 0, 0, 0, 84, 32, 32, 32, 32, 32, 32, 0,
             12, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 0, 0, 0, 2, 32, 32, 32, 32, 32, 32, 32, 32,
             // original data for following row:
-            // 32, 32, 32, 32, 32, 32, 32, 32, 255, 255, 255, 255, 255, 255, 255, 32, 32, 32, 32, 0,
+            // 32, 32, 32, 32, 32, 32, 32, 32, 255, 255, 255, 255, 255, 255, 255, 32, 32, 32, 32,
             32, 32, 32, 32, 254, 255, 255, 254, 255, 255, 255, 255, 255, 255, 255, 32, 32, 32, 32,
             0, 0, 32, 32, 0, 0, 0, 33,
         ];
