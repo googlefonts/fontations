@@ -400,7 +400,8 @@ impl<'a> FontRead<'a> for SparseVariationRegion<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let region_axis_count: u16 = cursor.read()?;
-        let region_axis_offsets_byte_len = region_axis_count as usize * Offset32::RAW_BYTE_LEN;
+        let region_axis_offsets_byte_len =
+            region_axis_count as usize * SparseRegionAxisCoordinates::RAW_BYTE_LEN;
         cursor.advance_by(region_axis_offsets_byte_len);
         cursor.finish(SparseVariationRegionMarker {
             region_axis_offsets_byte_len,
@@ -416,16 +417,9 @@ impl<'a> SparseVariationRegion<'a> {
         self.data.read_at(range.start).unwrap()
     }
 
-    pub fn region_axis_offsets(&self) -> &'a [BigEndian<Offset32>] {
+    pub fn region_axis_offsets(&self) -> &'a [SparseRegionAxisCoordinates] {
         let range = self.shape.region_axis_offsets_byte_range();
         self.data.read_array(range).unwrap()
-    }
-
-    /// A dynamically resolving wrapper for [`region_axis_offsets`][Self::region_axis_offsets].
-    pub fn region_axiss(&self) -> ArrayOfOffsets<'a, SparseRegionAxisCoordinates<'a>, Offset32> {
-        let data = self.data;
-        let offsets = self.region_axis_offsets();
-        ArrayOfOffsets::new(offsets, data, ())
     }
 }
 
@@ -437,20 +431,14 @@ impl<'a> SomeTable<'a> for SparseVariationRegion<'a> {
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
             0usize => Some(Field::new("region_axis_count", self.region_axis_count())),
-            1usize => Some({
-                let data = self.data;
-                Field::new(
-                    "region_axis_offsets",
-                    FieldType::array_of_offsets(
-                        better_type_name::<SparseRegionAxisCoordinates>(),
-                        self.region_axis_offsets(),
-                        move |off| {
-                            let target = off.get().resolve::<SparseRegionAxisCoordinates>(data);
-                            FieldType::offset(off.get(), target)
-                        },
-                    ),
-                )
-            }),
+            1usize => Some(Field::new(
+                "region_axis_offsets",
+                traversal::FieldType::array_of_records(
+                    stringify!(SparseRegionAxisCoordinates),
+                    self.region_axis_offsets(),
+                    self.offset_data(),
+                ),
+            )),
             _ => None,
         }
     }
@@ -463,84 +451,53 @@ impl<'a> std::fmt::Debug for SparseVariationRegion<'a> {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
-#[doc(hidden)]
-pub struct SparseRegionAxisCoordinatesMarker {}
-
-impl SparseRegionAxisCoordinatesMarker {
-    fn axis_index_byte_range(&self) -> Range<usize> {
-        let start = 0;
-        start..start + u16::RAW_BYTE_LEN
-    }
-    fn start_byte_range(&self) -> Range<usize> {
-        let start = self.axis_index_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-    fn peak_byte_range(&self) -> Range<usize> {
-        let start = self.start_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
-    fn end_byte_range(&self) -> Range<usize> {
-        let start = self.peak_byte_range().end;
-        start..start + F2Dot14::RAW_BYTE_LEN
-    }
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SparseRegionAxisCoordinates {
+    pub axis_index: BigEndian<u16>,
+    pub start: BigEndian<F2Dot14>,
+    pub peak: BigEndian<F2Dot14>,
+    pub end: BigEndian<F2Dot14>,
 }
 
-impl<'a> FontRead<'a> for SparseRegionAxisCoordinates<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let mut cursor = data.cursor();
-        cursor.advance::<u16>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.advance::<F2Dot14>();
-        cursor.finish(SparseRegionAxisCoordinatesMarker {})
-    }
-}
-
-pub type SparseRegionAxisCoordinates<'a> = TableRef<'a, SparseRegionAxisCoordinatesMarker>;
-
-impl<'a> SparseRegionAxisCoordinates<'a> {
+impl SparseRegionAxisCoordinates {
     pub fn axis_index(&self) -> u16 {
-        let range = self.shape.axis_index_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.axis_index.get()
     }
 
     pub fn start(&self) -> F2Dot14 {
-        let range = self.shape.start_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.start.get()
     }
 
     pub fn peak(&self) -> F2Dot14 {
-        let range = self.shape.peak_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.peak.get()
     }
 
     pub fn end(&self) -> F2Dot14 {
-        let range = self.shape.end_byte_range();
-        self.data.read_at(range.start).unwrap()
+        self.end.get()
     }
 }
 
+impl FixedSize for SparseRegionAxisCoordinates {
+    const RAW_BYTE_LEN: usize =
+        u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
+}
+
 #[cfg(feature = "traversal")]
-impl<'a> SomeTable<'a> for SparseRegionAxisCoordinates<'a> {
-    fn type_name(&self) -> &str {
-        "SparseRegionAxisCoordinates"
-    }
-    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
-        match idx {
-            0usize => Some(Field::new("axis_index", self.axis_index())),
-            1usize => Some(Field::new("start", self.start())),
-            2usize => Some(Field::new("peak", self.peak())),
-            3usize => Some(Field::new("end", self.end())),
-            _ => None,
+impl<'a> SomeRecord<'a> for SparseRegionAxisCoordinates {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "SparseRegionAxisCoordinates",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("axis_index", self.axis_index())),
+                1usize => Some(Field::new("start", self.start())),
+                2usize => Some(Field::new("peak", self.peak())),
+                3usize => Some(Field::new("end", self.end())),
+                _ => None,
+            }),
+            data,
         }
-    }
-}
-
-#[cfg(feature = "traversal")]
-impl<'a> std::fmt::Debug for SparseRegionAxisCoordinates<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        (self as &dyn SomeTable<'a>).fmt(f)
     }
 }
 

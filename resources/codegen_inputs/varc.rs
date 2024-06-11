@@ -42,10 +42,10 @@ table SparseVariationRegionList {
 table SparseVariationRegion {
     region_axis_count: u16,
     #[count($region_axis_count)]
-    region_axis_offsets: [Offset32<SparseRegionAxisCoordinates>],
+    region_axis_offsets: [SparseRegionAxisCoordinates],
 }
 
-table SparseRegionAxisCoordinates
+record SparseRegionAxisCoordinates
 {
   axis_index: u16,
   start: F2Dot14,

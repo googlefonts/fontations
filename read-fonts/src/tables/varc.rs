@@ -637,17 +637,49 @@ mod tests {
     }
 
     #[test]
-    fn read_multivar_store_fields() {
+    fn read_multivar_store_region_list() {
         let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
         let table = font.varc().unwrap();
         let varstore = table.multi_var_store().unwrap().unwrap();
+        let regions = varstore.region_list().unwrap().regions();
+
+        let sparse_regions = regions
+            .iter()
+            .map(|r| {
+                r.unwrap()
+                    .region_axis_offsets()
+                    .iter()
+                    .map(|a| {
+                        (
+                            a.axis_index(),
+                            a.start().to_f32(),
+                            a.peak().to_f32(),
+                            a.end().to_f32(),
+                        )
+                    })
+                    .collect::<Vec<_>>()
+            })
+            .collect::<Vec<_>>();
+
+        // Check a sampling of the regions
         assert_eq!(
-            (39, 4),
-            (
-                varstore.region_list().unwrap().region_count(),
-                varstore.variation_data_count()
-            )
+            vec![
+                vec![(0, 0.0, 1.0, 1.0),],
+                vec![(0, 0.0, 1.0, 1.0), (1, 0.0, 1.0, 1.0),],
+                vec![(6, -1.0, -1.0, 0.0),],
+            ],
+            [0, 2, 38]
+                .into_iter()
+                .map(|i| sparse_regions[i].clone())
+                .collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn read_multivar_store_delta_sets() {
+        let font = FontRef::new(font_test_data::varc::CJK_6868).unwrap();
+        let table = font.varc().unwrap();
+        let varstore = table.multi_var_store().unwrap().unwrap();
         assert_eq!(
             vec![(3, 6), (33, 6), (10, 5), (25, 8),],
             varstore
