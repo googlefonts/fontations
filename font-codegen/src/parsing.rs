@@ -1207,7 +1207,7 @@ fn resolve_ident<'a>(
     } else {
         Err(logged_syn_error(
             field_type.span(),
-            "Error: undeclared type",
+            "Error: undeclared type. Missing a record, table, extern table, or extern record?",
         ))
     }
 }

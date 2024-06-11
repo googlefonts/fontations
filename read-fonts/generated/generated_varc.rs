@@ -168,33 +168,121 @@ impl<'a> std::fmt::Debug for Varc<'a> {
     }
 }
 
+impl Format<u16> for MultiItemVariationStoreMarker {
+    const FORMAT: u16 = 1;
+}
+
+/// * <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3451-L3457>
+/// * <https://github.com/harfbuzz/harfbuzz/blob/7be12b33e3f07067c159d8f516eb31df58c75876/src/hb-ot-layout-common.hh#L3517-L3520C3>
 #[derive(Debug, Clone, Copy)]
 #[doc(hidden)]
-pub struct MultiItemVariationStoreMarker {}
+pub struct MultiItemVariationStoreMarker {
+    variation_data_offsets_byte_len: usize,
+}
 
-impl MultiItemVariationStoreMarker {}
-
-impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
-    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
-        let cursor = data.cursor();
-        cursor.finish(MultiItemVariationStoreMarker {})
+impl MultiItemVariationStoreMarker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn region_list_offset_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + Offset32::RAW_BYTE_LEN
+    }
+    fn variation_data_count_byte_range(&self) -> Range<usize> {
+        let start = self.region_list_offset_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn variation_data_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.variation_data_count_byte_range().end;
+        start..start + self.variation_data_offsets_byte_len
     }
 }
 
+impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u16>();
+        cursor.advance::<Offset32>();
+        let variation_data_count: u16 = cursor.read()?;
+        let variation_data_offsets_byte_len =
+            variation_data_count as usize * Offset32::RAW_BYTE_LEN;
+        cursor.advance_by(variation_data_offsets_byte_len);
+        cursor.finish(MultiItemVariationStoreMarker {
+            variation_data_offsets_byte_len,
+        })
+    }
+}
+
+/// * <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3451-L3457>
+/// * <https://github.com/harfbuzz/harfbuzz/blob/7be12b33e3f07067c159d8f516eb31df58c75876/src/hb-ot-layout-common.hh#L3517-L3520C3>
 pub type MultiItemVariationStore<'a> = TableRef<'a, MultiItemVariationStoreMarker>;
 
-impl<'a> MultiItemVariationStore<'a> {}
+impl<'a> MultiItemVariationStore<'a> {
+    pub fn format(&self) -> u16 {
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn region_list_offset(&self) -> Offset32 {
+        let range = self.shape.region_list_offset_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    /// Attempt to resolve [`region_list_offset`][Self::region_list_offset].
+    pub fn region_list(&self) -> Result<SparseVariationRegionList<'a>, ReadError> {
+        let data = self.data;
+        self.region_list_offset().resolve(data)
+    }
+
+    pub fn variation_data_count(&self) -> u16 {
+        let range = self.shape.variation_data_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn variation_data_offsets(&self) -> &'a [BigEndian<Offset32>] {
+        let range = self.shape.variation_data_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    /// A dynamically resolving wrapper for [`variation_data_offsets`][Self::variation_data_offsets].
+    pub fn variation_data(&self) -> ArrayOfOffsets<'a, MultiItemVariationData<'a>, Offset32> {
+        let data = self.data;
+        let offsets = self.variation_data_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+}
 
 #[cfg(feature = "traversal")]
 impl<'a> SomeTable<'a> for MultiItemVariationStore<'a> {
     fn type_name(&self) -> &str {
         "MultiItemVariationStore"
     }
-
-    #[allow(unused_variables)]
-    #[allow(clippy::match_single_binding)]
     fn get_field(&self, idx: usize) -> Option<Field<'a>> {
         match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new(
+                "region_list_offset",
+                FieldType::offset(self.region_list_offset(), self.region_list()),
+            )),
+            2usize => Some(Field::new(
+                "variation_data_count",
+                self.variation_data_count(),
+            )),
+            3usize => Some({
+                let data = self.data;
+                Field::new(
+                    "variation_data_offsets",
+                    FieldType::array_of_offsets(
+                        better_type_name::<MultiItemVariationData>(),
+                        self.variation_data_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<MultiItemVariationData>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
+                )
+            }),
             _ => None,
         }
     }
@@ -202,6 +290,306 @@ impl<'a> SomeTable<'a> for MultiItemVariationStore<'a> {
 
 #[cfg(feature = "traversal")]
 impl<'a> std::fmt::Debug for MultiItemVariationStore<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct SparseVariationRegionListMarker {
+    region_offsets_byte_len: usize,
+}
+
+impl SparseVariationRegionListMarker {
+    fn region_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn region_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.region_count_byte_range().end;
+        start..start + self.region_offsets_byte_len
+    }
+}
+
+impl<'a> FontRead<'a> for SparseVariationRegionList<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let region_count: u16 = cursor.read()?;
+        let region_offsets_byte_len = region_count as usize * Offset32::RAW_BYTE_LEN;
+        cursor.advance_by(region_offsets_byte_len);
+        cursor.finish(SparseVariationRegionListMarker {
+            region_offsets_byte_len,
+        })
+    }
+}
+
+pub type SparseVariationRegionList<'a> = TableRef<'a, SparseVariationRegionListMarker>;
+
+impl<'a> SparseVariationRegionList<'a> {
+    pub fn region_count(&self) -> u16 {
+        let range = self.shape.region_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn region_offsets(&self) -> &'a [BigEndian<Offset32>] {
+        let range = self.shape.region_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    /// A dynamically resolving wrapper for [`region_offsets`][Self::region_offsets].
+    pub fn regions(&self) -> ArrayOfOffsets<'a, SparseVariationRegion<'a>, Offset32> {
+        let data = self.data;
+        let offsets = self.region_offsets();
+        ArrayOfOffsets::new(offsets, data, ())
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for SparseVariationRegionList<'a> {
+    fn type_name(&self) -> &str {
+        "SparseVariationRegionList"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("region_count", self.region_count())),
+            1usize => Some({
+                let data = self.data;
+                Field::new(
+                    "region_offsets",
+                    FieldType::array_of_offsets(
+                        better_type_name::<SparseVariationRegion>(),
+                        self.region_offsets(),
+                        move |off| {
+                            let target = off.get().resolve::<SparseVariationRegion>(data);
+                            FieldType::offset(off.get(), target)
+                        },
+                    ),
+                )
+            }),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for SparseVariationRegionList<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct SparseVariationRegionMarker {
+    region_axis_offsets_byte_len: usize,
+}
+
+impl SparseVariationRegionMarker {
+    fn region_axis_count_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn region_axis_offsets_byte_range(&self) -> Range<usize> {
+        let start = self.region_axis_count_byte_range().end;
+        start..start + self.region_axis_offsets_byte_len
+    }
+}
+
+impl<'a> FontRead<'a> for SparseVariationRegion<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        let region_axis_count: u16 = cursor.read()?;
+        let region_axis_offsets_byte_len =
+            region_axis_count as usize * SparseRegionAxisCoordinates::RAW_BYTE_LEN;
+        cursor.advance_by(region_axis_offsets_byte_len);
+        cursor.finish(SparseVariationRegionMarker {
+            region_axis_offsets_byte_len,
+        })
+    }
+}
+
+pub type SparseVariationRegion<'a> = TableRef<'a, SparseVariationRegionMarker>;
+
+impl<'a> SparseVariationRegion<'a> {
+    pub fn region_axis_count(&self) -> u16 {
+        let range = self.shape.region_axis_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn region_axis_offsets(&self) -> &'a [SparseRegionAxisCoordinates] {
+        let range = self.shape.region_axis_offsets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for SparseVariationRegion<'a> {
+    fn type_name(&self) -> &str {
+        "SparseVariationRegion"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("region_axis_count", self.region_axis_count())),
+            1usize => Some(Field::new(
+                "region_axis_offsets",
+                traversal::FieldType::array_of_records(
+                    stringify!(SparseRegionAxisCoordinates),
+                    self.region_axis_offsets(),
+                    self.offset_data(),
+                ),
+            )),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for SparseVariationRegion<'a> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        (self as &dyn SomeTable<'a>).fmt(f)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash, Copy, bytemuck :: AnyBitPattern)]
+#[repr(C)]
+#[repr(packed)]
+pub struct SparseRegionAxisCoordinates {
+    pub axis_index: BigEndian<u16>,
+    pub start: BigEndian<F2Dot14>,
+    pub peak: BigEndian<F2Dot14>,
+    pub end: BigEndian<F2Dot14>,
+}
+
+impl SparseRegionAxisCoordinates {
+    pub fn axis_index(&self) -> u16 {
+        self.axis_index.get()
+    }
+
+    pub fn start(&self) -> F2Dot14 {
+        self.start.get()
+    }
+
+    pub fn peak(&self) -> F2Dot14 {
+        self.peak.get()
+    }
+
+    pub fn end(&self) -> F2Dot14 {
+        self.end.get()
+    }
+}
+
+impl FixedSize for SparseRegionAxisCoordinates {
+    const RAW_BYTE_LEN: usize =
+        u16::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN + F2Dot14::RAW_BYTE_LEN;
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeRecord<'a> for SparseRegionAxisCoordinates {
+    fn traverse(self, data: FontData<'a>) -> RecordResolver<'a> {
+        RecordResolver {
+            name: "SparseRegionAxisCoordinates",
+            get_field: Box::new(move |idx, _data| match idx {
+                0usize => Some(Field::new("axis_index", self.axis_index())),
+                1usize => Some(Field::new("start", self.start())),
+                2usize => Some(Field::new("peak", self.peak())),
+                3usize => Some(Field::new("end", self.end())),
+                _ => None,
+            }),
+            data,
+        }
+    }
+}
+
+impl Format<u8> for MultiItemVariationDataMarker {
+    const FORMAT: u8 = 1;
+}
+
+#[derive(Debug, Clone, Copy)]
+#[doc(hidden)]
+pub struct MultiItemVariationDataMarker {
+    region_indices_byte_len: usize,
+    raw_delta_sets_byte_len: usize,
+}
+
+impl MultiItemVariationDataMarker {
+    fn format_byte_range(&self) -> Range<usize> {
+        let start = 0;
+        start..start + u8::RAW_BYTE_LEN
+    }
+    fn region_index_count_byte_range(&self) -> Range<usize> {
+        let start = self.format_byte_range().end;
+        start..start + u16::RAW_BYTE_LEN
+    }
+    fn region_indices_byte_range(&self) -> Range<usize> {
+        let start = self.region_index_count_byte_range().end;
+        start..start + self.region_indices_byte_len
+    }
+    fn raw_delta_sets_byte_range(&self) -> Range<usize> {
+        let start = self.region_indices_byte_range().end;
+        start..start + self.raw_delta_sets_byte_len
+    }
+}
+
+impl<'a> FontRead<'a> for MultiItemVariationData<'a> {
+    fn read(data: FontData<'a>) -> Result<Self, ReadError> {
+        let mut cursor = data.cursor();
+        cursor.advance::<u8>();
+        let region_index_count: u16 = cursor.read()?;
+        let region_indices_byte_len = region_index_count as usize * u16::RAW_BYTE_LEN;
+        cursor.advance_by(region_indices_byte_len);
+        let raw_delta_sets_byte_len =
+            cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
+        cursor.advance_by(raw_delta_sets_byte_len);
+        cursor.finish(MultiItemVariationDataMarker {
+            region_indices_byte_len,
+            raw_delta_sets_byte_len,
+        })
+    }
+}
+
+pub type MultiItemVariationData<'a> = TableRef<'a, MultiItemVariationDataMarker>;
+
+impl<'a> MultiItemVariationData<'a> {
+    pub fn format(&self) -> u8 {
+        let range = self.shape.format_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn region_index_count(&self) -> u16 {
+        let range = self.shape.region_index_count_byte_range();
+        self.data.read_at(range.start).unwrap()
+    }
+
+    pub fn region_indices(&self) -> &'a [BigEndian<u16>] {
+        let range = self.shape.region_indices_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+
+    pub fn raw_delta_sets(&self) -> &'a [u8] {
+        let range = self.shape.raw_delta_sets_byte_range();
+        self.data.read_array(range).unwrap()
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> SomeTable<'a> for MultiItemVariationData<'a> {
+    fn type_name(&self) -> &str {
+        "MultiItemVariationData"
+    }
+    fn get_field(&self, idx: usize) -> Option<Field<'a>> {
+        match idx {
+            0usize => Some(Field::new("format", self.format())),
+            1usize => Some(Field::new("region_index_count", self.region_index_count())),
+            2usize => Some(Field::new("region_indices", self.region_indices())),
+            3usize => Some(Field::new("raw_delta_sets", self.raw_delta_sets())),
+            _ => None,
+        }
+    }
+}
+
+#[cfg(feature = "traversal")]
+impl<'a> std::fmt::Debug for MultiItemVariationData<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         (self as &dyn SomeTable<'a>).fmt(f)
     }

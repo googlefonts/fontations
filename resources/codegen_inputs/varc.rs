@@ -1,5 +1,7 @@
 #![parse_module(read_fonts::tables::varc)]
 
+extern record Index2;
+
 /// [VARC](https://github.com/harfbuzz/boring-expansion-spec/blob/main/VARC.md) (Variable Composites / Components Table)
 /// 
 /// [FontTools VARC](https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3459-L3476)
@@ -20,8 +22,45 @@ table Varc {
     var_composite_glyphs_offset: Offset32<Index2>,
 }
 
+/// * <https://github.com/fonttools/fonttools/blob/5e6b12d12fa08abafbeb7570f47707fbedf69a45/Lib/fontTools/ttLib/tables/otData.py#L3451-L3457>
+/// * <https://github.com/harfbuzz/harfbuzz/blob/7be12b33e3f07067c159d8f516eb31df58c75876/src/hb-ot-layout-common.hh#L3517-L3520C3>
 table MultiItemVariationStore {
-    // TODO(rsheeter) Doing VARC incrementally, haven't got here yet.
+    #[format = 1]
+    format: u16,
+    region_list_offset: Offset32<SparseVariationRegionList>,
+    variation_data_count: u16,
+    #[count($variation_data_count)]
+    variation_data_offsets: [Offset32<MultiItemVariationData>],
+}
+
+table SparseVariationRegionList {
+  region_count: u16,
+  #[count($region_count)]
+  region_offsets: [Offset32<SparseVariationRegion>],
+}
+
+table SparseVariationRegion {
+    region_axis_count: u16,
+    #[count($region_axis_count)]
+    region_axis_offsets: [SparseRegionAxisCoordinates],
+}
+
+record SparseRegionAxisCoordinates
+{
+  axis_index: u16,
+  start: F2Dot14,
+  peak: F2Dot14,
+  end: F2Dot14,
+}
+
+table MultiItemVariationData {
+    #[format = 1]
+    format: u8,
+    region_index_count: u16,
+    #[count($region_index_count)]
+    region_indices: [u16],
+    #[count(..)]
+    raw_delta_sets: [u8],    
 }
 
 table ConditionList {
