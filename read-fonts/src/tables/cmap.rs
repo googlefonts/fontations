@@ -2,6 +2,8 @@
 
 include!("../../generated/generated_cmap.rs");
 
+use std::ops::{Range, RangeInclusive};
+
 /// Result of mapping a codepoint with a variation selector.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum MapVariant {
@@ -104,7 +106,7 @@ impl<'a> Cmap4<'a> {
 #[derive(Clone)]
 pub struct Cmap4Iter<'a> {
     subtable: Cmap4<'a>,
-    cur_range: std::ops::Range<u32>,
+    cur_range: Range<u32>,
     cur_start_code: u16,
     cur_range_ix: usize,
 }
@@ -195,14 +197,22 @@ impl<'a> Cmap12<'a> {
 
     /// Returns the codepoint range and start glyph id for the group
     /// at the given index.
-    fn group(&self, index: usize) -> Option<(Range<u32>, u32)> {
+    fn group(&self, index: usize) -> Option<Cmap12Group> {
         let group = self.groups().get(index)?;
-        Some((
-            // Use + 1 here because the group range is inclusive
-            group.start_char_code()..group.end_char_code() + 1,
-            group.start_glyph_id(),
-        ))
+        let start_code = group.start_char_code();
+        Some(Cmap12Group {
+            range: start_code..=group.end_char_code(),
+            start_code,
+            start_glyph_id: group.start_glyph_id(),
+        })
     }
+}
+
+#[derive(Clone)]
+struct Cmap12Group {
+    range: RangeInclusive<u32>,
+    start_code: u32,
+    start_glyph_id: u32,
 }
 
 /// Iterator over all (codepoint, glyph identifier) pairs in
@@ -210,22 +220,17 @@ impl<'a> Cmap12<'a> {
 #[derive(Clone)]
 pub struct Cmap12Iter<'a> {
     subtable: Cmap12<'a>,
-    cur_range: Range<u32>,
-    cur_start_code: u32,
-    cur_start_glyph_id: u32,
-    cur_range_ix: usize,
+    cur_group: Option<Cmap12Group>,
+    cur_group_ix: usize,
 }
 
 impl<'a> Cmap12Iter<'a> {
     fn new(subtable: Cmap12<'a>) -> Self {
-        let (cur_range, cur_start_glyph_id) = subtable.group(0).unwrap_or_default();
-        let cur_start_code = cur_range.start;
+        let cur_group = subtable.group(0);
         Self {
             subtable,
-            cur_range,
-            cur_start_code,
-            cur_start_glyph_id,
-            cur_range_ix: 0,
+            cur_group,
+            cur_group_ix: 0,
         }
     }
 }
@@ -235,11 +240,12 @@ impl<'a> Iterator for Cmap12Iter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if let Some(codepoint) = self.cur_range.next() {
+            let group = self.cur_group.as_mut()?;
+            if let Some(codepoint) = group.range.next() {
                 let glyph_id = self.subtable.lookup_glyph_id(
                     codepoint,
-                    self.cur_start_code,
-                    self.cur_start_glyph_id,
+                    group.start_code,
+                    group.start_glyph_id,
                 );
                 // The table might explicitly map some codepoints to 0. Avoid
                 // returning those here.
@@ -248,10 +254,8 @@ impl<'a> Iterator for Cmap12Iter<'a> {
                 }
                 return Some((codepoint, glyph_id));
             } else {
-                self.cur_range_ix += 1;
-                (self.cur_range, self.cur_start_glyph_id) =
-                    self.subtable.group(self.cur_range_ix)?;
-                self.cur_start_code = self.cur_range.start;
+                self.cur_group_ix += 1;
+                self.cur_group = self.subtable.group(self.cur_group_ix);
             }
         }
     }
