@@ -20,3 +20,15 @@ name = "fuzz_skrifa_charmap"
 path = "fuzz_targets/fuzz_skrifa_charmap.rs"
 test = false
 doc = false
+
+[[bin]]
+name = "fuzz_basic_metadata"
+path = "fuzz_targets/fuzz_basic_metadata.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_name"
+path = "fuzz_targets/fuzz_name.rs"
+test = false
+doc = false
