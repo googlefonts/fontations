@@ -709,6 +709,8 @@ impl fmt::Display for ToPathError {
 
 /// The order to process points in a glyf point stream is ambiguous when the first point is
 /// off-curve. Major implementations differ. Which one would you like to match?
+///
+/// **If you add a new one make sure to update the fuzzer**
 #[derive(Debug, Default, Copy, Clone)]
 pub enum ToPathStyle {
     /// If the first point is off-curve, check if the last is on-curve
