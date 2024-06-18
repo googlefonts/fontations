@@ -7,7 +7,7 @@ use libfuzzer_sys::{
 };
 use skrifa::{
     instance::Size,
-    outline::{DrawError, DrawSettings, HintingInstance, HintingMode, OutlinePen},
+    outline::{DrawError, DrawSettings, HintingInstance, HintingMode, LcdLayout, OutlinePen},
     raw::tables::glyf::ToPathStyle,
     FontRef, MetadataProvider,
 };
@@ -37,6 +37,37 @@ impl OutlinePen for NopPen {
     }
 }
 
+/// Each entry represents a set of options for [HintingMode]
+///
+/// Exists to fulfill [Arbitrary]
+#[derive(Arbitrary, Debug)]
+enum FuzzerHintingMode {
+    Strong,
+    Smooth {
+        vertical_lcd: Option<bool>,
+        preserve_linear_metrics: bool,
+    },
+}
+
+impl From<FuzzerHintingMode> for HintingMode {
+    fn from(value: FuzzerHintingMode) -> Self {
+        match value {
+            FuzzerHintingMode::Strong => HintingMode::Strong,
+            FuzzerHintingMode::Smooth {
+                vertical_lcd,
+                preserve_linear_metrics,
+            } => HintingMode::Smooth {
+                lcd_subpixel: match vertical_lcd {
+                    None => None,
+                    Some(true) => Some(LcdLayout::Vertical),
+                    Some(false) => Some(LcdLayout::Horizontal),
+                },
+                preserve_linear_metrics,
+            },
+        }
+    }
+}
+
 /// Drawing glyph outlines is fun and flexible! Try to test lots of options.
 ///
 /// See
@@ -49,6 +80,7 @@ struct OutlineRequest {
     axis_positions: Vec<f32>,
     hinted: bool,
     hinted_pedantic: bool,
+    hinting_mode: FuzzerHintingMode,
     with_memory: bool, // ~half tests should be with memory, half not
     memory_size: u16, // if we do test with_memory, how much of it? u16 to avoid asking for huge chunks.
     harfbuzz_pathstyle: bool,
@@ -87,8 +119,13 @@ fn do_glyf_things(outline_request: OutlineRequest, data: &[u8]) -> Result<(), Bo
     );
     let hinting_instance = if outline_request.hinted {
         Some(
-            HintingInstance::new(&outlines, size, &location, HintingMode::default())
-                .map_err(DrawErrorWrapper)?,
+            HintingInstance::new(
+                &outlines,
+                size,
+                &location,
+                outline_request.hinting_mode.into(),
+            )
+            .map_err(DrawErrorWrapper)?,
         )
     } else {
         None
