@@ -19,6 +19,8 @@
 
 mod bitpage;
 mod bitset;
+mod input_bit_stream;
+mod sparse_bit_set;
 
 use bitset::BitSet;
 use font_types::GlyphId;
@@ -95,6 +97,16 @@ impl InDomain {
 impl<T: Domain<T>> Default for IntSet<T> {
     fn default() -> IntSet<T> {
         IntSet::empty()
+    }
+}
+
+impl IntSet<u32> {
+    pub fn from_sparse_bit_set(data: &[u8]) -> Result<IntSet<u32>, sparse_bit_set::DecodingError> {
+        sparse_bit_set::from_sparse_bit_set(data)
+    }
+
+    pub fn to_sparse_bit_set(&self) -> Vec<u8> {
+        sparse_bit_set::to_sparse_bit_set(self)
     }
 }
 
@@ -589,6 +601,18 @@ mod test {
             Self::ordered_values()
                 .filter(move |v| *v >= range.start().to_u32() && *v <= range.end().to_u32())
         }
+    }
+
+    #[test]
+    fn from_sparse_set() {
+        let bytes = [0b00001101, 0b00000011, 0b00110001];
+
+        let set = IntSet::<u32>::from_sparse_bit_set(&bytes).unwrap();
+
+        let mut expected: IntSet<u32> = IntSet::<u32>::empty();
+        expected.insert_range(0..=17);
+
+        assert_eq!(set, expected);
     }
 
     #[test]
