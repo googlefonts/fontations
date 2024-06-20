@@ -27,6 +27,9 @@ impl<'a> Strike<'a> {
 mod tests {
     use crate::{FontRef, TableProvider};
 
+    // Test must not panic in 32bit build.
+    // $ cargo test --target=i686-unknown-linux-gnu "sbix_strikes_count_overflow"
+    // See https://github.com/googlefonts/fontations/issues/959
     #[test]
     fn sbix_strikes_count_overflow() {
         // Contains an invalid `num_strikes` values which would move the cursor outside the able.
@@ -57,6 +60,6 @@ mod tests {
             6, 0, 0, 104, 2, 0, 101,
         ];
         let font = FontRef::new(test_case).unwrap();
-        let _sbix = font.sbix().unwrap();
+        assert!(font.sbix().is_err());
     }
 }

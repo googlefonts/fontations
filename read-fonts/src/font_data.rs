@@ -1,5 +1,6 @@
 //! raw font bytes
 
+use core::num::Saturating;
 use std::ops::{Range, RangeBounds};
 
 use bytemuck::AnyBitPattern;
@@ -28,7 +29,7 @@ pub struct FontData<'a> {
 /// call `finish` when you're done to ensure you're in bounds
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Cursor<'a> {
-    pos: usize,
+    pos: Saturating<usize>,
     data: FontData<'a>,
 }
 
@@ -159,7 +160,7 @@ impl<'a> FontData<'a> {
 
     pub(crate) fn cursor(&self) -> Cursor<'a> {
         Cursor {
-            pos: 0,
+            pos: Saturating(0),
             data: *self,
         }
     }
@@ -172,7 +173,7 @@ impl<'a> FontData<'a> {
 
 impl<'a> Cursor<'a> {
     pub(crate) fn advance<T: Scalar>(&mut self) {
-        self.pos += T::RAW_BYTE_LEN
+        self.pos += T::RAW_BYTE_LEN;
     }
 
     pub(crate) fn advance_by(&mut self, n_bytes: usize) {
@@ -200,14 +201,14 @@ impl<'a> Cursor<'a> {
 
     /// Read a scalar and advance the cursor.
     pub(crate) fn read<T: Scalar>(&mut self) -> Result<T, ReadError> {
-        let temp = self.data.read_at(self.pos);
+        let temp = self.data.read_at(self.pos.0);
         self.pos += T::RAW_BYTE_LEN;
         temp
     }
 
     /// Read a big-endian value and advance the cursor.
     pub(crate) fn read_be<T: Scalar>(&mut self) -> Result<BigEndian<T>, ReadError> {
-        let temp = self.data.read_be_at(self.pos);
+        let temp = self.data.read_be_at(self.pos.0);
         self.pos += T::RAW_BYTE_LEN;
         temp
     }
@@ -217,7 +218,9 @@ impl<'a> Cursor<'a> {
         T: FontReadWithArgs<'a> + ComputeSize,
     {
         let len = T::compute_size(args);
-        let temp = self.data.read_with_args(self.pos..self.pos + len, args);
+        let end = self.pos + Saturating(len);
+        let read_range = self.pos.0..end.0;
+        let temp = self.data.read_with_args(read_range, args);
         self.pos += len;
         temp
     }
@@ -232,7 +235,9 @@ impl<'a> Cursor<'a> {
         T: FontReadWithArgs<'a> + ComputeSize,
     {
         let len = len * T::compute_size(args);
-        let temp = self.data.read_with_args(self.pos..self.pos + len, args);
+        let end = self.pos + Saturating(len);
+        let read_range = self.pos.0..end.0;
+        let temp = self.data.read_with_args(read_range, args);
         self.pos += len;
         temp
     }
@@ -241,8 +246,10 @@ impl<'a> Cursor<'a> {
         &mut self,
         n_elem: usize,
     ) -> Result<&'a [T], ReadError> {
-        let len = n_elem * T::RAW_BYTE_LEN;
-        let temp = self.data.read_array(self.pos..self.pos + len);
+        let len = Saturating(n_elem) * Saturating(T::RAW_BYTE_LEN);
+        let end = self.pos + len;
+        let read_range = self.pos.0..end.0;
+        let temp = self.data.read_array(read_range);
         self.pos += len;
         temp
     }
@@ -273,26 +280,26 @@ impl<'a> Cursor<'a> {
 
     /// return the current position, or an error if we are out of bounds
     pub(crate) fn position(&self) -> Result<usize, ReadError> {
-        self.data.check_in_bounds(self.pos).map(|_| self.pos)
+        self.data.check_in_bounds(self.pos.0).map(|_| self.pos.0)
     }
 
     // used when handling fields with an implicit length, which must be at the
     // end of a table.
     pub(crate) fn remaining_bytes(&self) -> usize {
-        self.data.len().saturating_sub(self.pos)
+        self.data.len().saturating_sub(self.pos.0)
     }
 
     pub(crate) fn remaining(self) -> Option<FontData<'a>> {
-        self.data.split_off(self.pos)
+        self.data.split_off(self.pos.0)
     }
 
     pub fn is_empty(&self) -> bool {
-        self.pos >= self.data.len()
+        self.pos.0 >= self.data.len()
     }
 
     pub(crate) fn finish<T>(self, shape: T) -> Result<TableRef<'a, T>, ReadError> {
         let data = self.data;
-        data.check_in_bounds(self.pos)?;
+        data.check_in_bounds(self.pos.0)?;
         Ok(TableRef { data, shape })
     }
 }
