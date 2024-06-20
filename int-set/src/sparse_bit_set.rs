@@ -23,6 +23,10 @@ pub(crate) enum BranchFactor {
 }
 
 impl IntSet<u32> {
+    /// Populate this set with the values obtained from decoding the provided sparse bit set bytes.
+    ///
+    /// Sparse bit sets are a specialized, compact encoding of bit sets defined in the IFT specification:
+    /// https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
     pub fn from_sparse_bit_set(data: &[u8]) -> Result<IntSet<u32>, DecodingError> {
         // This is a direct port of the decoding algorithm from:
         // https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
@@ -85,6 +89,10 @@ impl IntSet<u32> {
         Ok(out)
     }
 
+    /// Encode this set as a sparse bit set byte encoding.
+    ///
+    /// Sparse bit sets are a specialized, compact encoding of bit sets defined in the IFT specification:
+    /// https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
     pub fn to_sparse_bit_set(&self) -> Vec<u8> {
         // TODO(garretrieger): use the heuristic approach from the incxfer
         // implementation to guess the optimal size. Building the set 4 times
@@ -125,7 +133,7 @@ fn to_sparse_bit_set_with_bf<const BF: u8>(set: &IntSet<u32>) -> Vec<u8> {
     let mut os = OutputBitStream::new(branch_factor, height);
     let mut nodes: Vec<Node> = vec![];
 
-    // We built the nodes that will comprise the bit stream in reverse order
+    // We build the nodes that will comprise the bit stream in reverse order
     // from the last value in the last layer up to the first layer. Then
     // when generating the final stream the order is reversed.
     // The reverse order construction is needed since nodes at the lower layer
