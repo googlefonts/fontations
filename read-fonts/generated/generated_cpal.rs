@@ -67,7 +67,8 @@ impl<'a> FontRead<'a> for Cpal<'a> {
         let num_palettes: u16 = cursor.read()?;
         cursor.advance::<u16>();
         cursor.advance::<Offset32>();
-        let color_record_indices_byte_len = num_palettes as usize * u16::RAW_BYTE_LEN;
+        let color_record_indices_byte_len =
+            (num_palettes as usize).saturating_mul(u16::RAW_BYTE_LEN);
         cursor.advance_by(color_record_indices_byte_len);
         let palette_types_array_offset_byte_start = version
             .compatible(1u16)

@@ -265,7 +265,8 @@ impl<'a> FontReadWithArgs<'a> for AxisValueArray<'a> {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
         let axis_value_count = *args;
         let mut cursor = data.cursor();
-        let axis_value_offsets_byte_len = axis_value_count as usize * Offset16::RAW_BYTE_LEN;
+        let axis_value_offsets_byte_len =
+            (axis_value_count as usize).saturating_mul(Offset16::RAW_BYTE_LEN);
         cursor.advance_by(axis_value_offsets_byte_len);
         cursor.finish(AxisValueArrayMarker {
             axis_value_offsets_byte_len,
@@ -817,7 +818,8 @@ impl<'a> FontRead<'a> for AxisValueFormat4<'a> {
         let axis_count: u16 = cursor.read()?;
         cursor.advance::<AxisValueTableFlags>();
         cursor.advance::<NameId>();
-        let axis_values_byte_len = axis_count as usize * AxisValueRecord::RAW_BYTE_LEN;
+        let axis_values_byte_len =
+            (axis_count as usize).saturating_mul(AxisValueRecord::RAW_BYTE_LEN);
         cursor.advance_by(axis_values_byte_len);
         cursor.finish(AxisValueFormat4Marker {
             axis_values_byte_len,

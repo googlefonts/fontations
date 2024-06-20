@@ -32,7 +32,7 @@ impl<'a> FontRead<'a> for Gasp<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let num_ranges: u16 = cursor.read()?;
-        let gasp_ranges_byte_len = num_ranges as usize * GaspRange::RAW_BYTE_LEN;
+        let gasp_ranges_byte_len = (num_ranges as usize).saturating_mul(GaspRange::RAW_BYTE_LEN);
         cursor.advance_by(gasp_ranges_byte_len);
         cursor.finish(GaspMarker {
             gasp_ranges_byte_len,

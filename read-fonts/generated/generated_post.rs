@@ -99,7 +99,7 @@ impl<'a> FontRead<'a> for Post<'a> {
             .transpose()?;
         let glyph_name_index_byte_len = version
             .compatible((2u16, 0u16))
-            .then_some(num_glyphs as usize * u16::RAW_BYTE_LEN);
+            .then_some((num_glyphs as usize).saturating_mul(u16::RAW_BYTE_LEN));
         if let Some(value) = glyph_name_index_byte_len {
             cursor.advance_by(value);
         }

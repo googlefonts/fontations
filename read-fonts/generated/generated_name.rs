@@ -53,7 +53,7 @@ impl<'a> FontRead<'a> for Name<'a> {
         let version: u16 = cursor.read()?;
         let count: u16 = cursor.read()?;
         cursor.advance::<u16>();
-        let name_record_byte_len = count as usize * NameRecord::RAW_BYTE_LEN;
+        let name_record_byte_len = (count as usize).saturating_mul(NameRecord::RAW_BYTE_LEN);
         cursor.advance_by(name_record_byte_len);
         let lang_tag_count_byte_start = version
             .compatible(1u16)
@@ -70,7 +70,7 @@ impl<'a> FontRead<'a> for Name<'a> {
             .transpose()?;
         let lang_tag_record_byte_len = version
             .compatible(1u16)
-            .then_some(lang_tag_count as usize * LangTagRecord::RAW_BYTE_LEN);
+            .then_some((lang_tag_count as usize).saturating_mul(LangTagRecord::RAW_BYTE_LEN));
         if let Some(value) = lang_tag_record_byte_len {
             cursor.advance_by(value);
         }

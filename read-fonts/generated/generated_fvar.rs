@@ -175,10 +175,11 @@ impl<'a> FontReadWithArgs<'a> for AxisInstanceArrays<'a> {
     fn read_with_args(data: FontData<'a>, args: &(u16, u16, u16)) -> Result<Self, ReadError> {
         let (axis_count, instance_count, instance_size) = *args;
         let mut cursor = data.cursor();
-        let axes_byte_len = axis_count as usize * VariationAxisRecord::RAW_BYTE_LEN;
+        let axes_byte_len = (axis_count as usize).saturating_mul(VariationAxisRecord::RAW_BYTE_LEN);
         cursor.advance_by(axes_byte_len);
-        let instances_byte_len = instance_count as usize
-            * <InstanceRecord as ComputeSize>::compute_size(&(axis_count, instance_size));
+        let instances_byte_len = (instance_count as usize).saturating_mul(
+            <InstanceRecord as ComputeSize>::compute_size(&(axis_count, instance_size)),
+        );
         cursor.advance_by(instances_byte_len);
         cursor.finish(AxisInstanceArraysMarker {
             axis_count,

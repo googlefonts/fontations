@@ -52,9 +52,10 @@ impl<'a> FontRead<'a> for Cff2Header<'a> {
         cursor.advance::<u8>();
         let header_size: u8 = cursor.read()?;
         let top_dict_length: u16 = cursor.read()?;
-        let _padding_byte_len = transforms::subtract(header_size, 5_usize) * u8::RAW_BYTE_LEN;
+        let _padding_byte_len =
+            (transforms::subtract(header_size, 5_usize)).saturating_mul(u8::RAW_BYTE_LEN);
         cursor.advance_by(_padding_byte_len);
-        let top_dict_data_byte_len = top_dict_length as usize * u8::RAW_BYTE_LEN;
+        let top_dict_data_byte_len = (top_dict_length as usize).saturating_mul(u8::RAW_BYTE_LEN);
         cursor.advance_by(top_dict_data_byte_len);
         let trailing_data_byte_len = cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
         cursor.advance_by(trailing_data_byte_len);

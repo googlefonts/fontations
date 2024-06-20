@@ -62,8 +62,8 @@ impl<'a> FontRead<'a> for Gvar<'a> {
         let glyph_count: u16 = cursor.read()?;
         let flags: GvarFlags = cursor.read()?;
         cursor.advance::<u32>();
-        let glyph_variation_data_offsets_byte_len =
-            transforms::add(glyph_count, 1_usize) * <U16Or32 as ComputeSize>::compute_size(&flags);
+        let glyph_variation_data_offsets_byte_len = (transforms::add(glyph_count, 1_usize))
+            .saturating_mul(<U16Or32 as ComputeSize>::compute_size(&flags));
         cursor.advance_by(glyph_variation_data_offsets_byte_len);
         cursor.finish(GvarMarker {
             glyph_variation_data_offsets_byte_len,
@@ -500,8 +500,8 @@ impl<'a> FontReadWithArgs<'a> for SharedTuples<'a> {
     fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
         let (shared_tuple_count, axis_count) = *args;
         let mut cursor = data.cursor();
-        let tuples_byte_len =
-            shared_tuple_count as usize * <Tuple as ComputeSize>::compute_size(&axis_count);
+        let tuples_byte_len = (shared_tuple_count as usize)
+            .saturating_mul(<Tuple as ComputeSize>::compute_size(&axis_count));
         cursor.advance_by(tuples_byte_len);
         cursor.finish(SharedTuplesMarker {
             axis_count,

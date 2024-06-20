@@ -37,7 +37,8 @@ impl<'a> FontRead<'a> for Cmap<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let num_tables: u16 = cursor.read()?;
-        let encoding_records_byte_len = num_tables as usize * EncodingRecord::RAW_BYTE_LEN;
+        let encoding_records_byte_len =
+            (num_tables as usize).saturating_mul(EncodingRecord::RAW_BYTE_LEN);
         cursor.advance_by(encoding_records_byte_len);
         cursor.finish(CmapMarker {
             encoding_records_byte_len,
@@ -331,7 +332,7 @@ impl<'a> FontRead<'a> for Cmap0<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        let glyph_id_array_byte_len = 256_usize * u8::RAW_BYTE_LEN;
+        let glyph_id_array_byte_len = (256_usize).saturating_mul(u8::RAW_BYTE_LEN);
         cursor.advance_by(glyph_id_array_byte_len);
         cursor.finish(Cmap0Marker {
             glyph_id_array_byte_len,
@@ -428,7 +429,7 @@ impl<'a> FontRead<'a> for Cmap2<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        let sub_header_keys_byte_len = 256_usize * u16::RAW_BYTE_LEN;
+        let sub_header_keys_byte_len = (256_usize).saturating_mul(u16::RAW_BYTE_LEN);
         cursor.advance_by(sub_header_keys_byte_len);
         cursor.finish(Cmap2Marker {
             sub_header_keys_byte_len,
@@ -629,14 +630,16 @@ impl<'a> FontRead<'a> for Cmap4<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        let end_code_byte_len = transforms::half(seg_count_x2) * u16::RAW_BYTE_LEN;
+        let end_code_byte_len = (transforms::half(seg_count_x2)).saturating_mul(u16::RAW_BYTE_LEN);
         cursor.advance_by(end_code_byte_len);
         cursor.advance::<u16>();
-        let start_code_byte_len = transforms::half(seg_count_x2) * u16::RAW_BYTE_LEN;
+        let start_code_byte_len =
+            (transforms::half(seg_count_x2)).saturating_mul(u16::RAW_BYTE_LEN);
         cursor.advance_by(start_code_byte_len);
-        let id_delta_byte_len = transforms::half(seg_count_x2) * i16::RAW_BYTE_LEN;
+        let id_delta_byte_len = (transforms::half(seg_count_x2)).saturating_mul(i16::RAW_BYTE_LEN);
         cursor.advance_by(id_delta_byte_len);
-        let id_range_offsets_byte_len = transforms::half(seg_count_x2) * u16::RAW_BYTE_LEN;
+        let id_range_offsets_byte_len =
+            (transforms::half(seg_count_x2)).saturating_mul(u16::RAW_BYTE_LEN);
         cursor.advance_by(id_range_offsets_byte_len);
         let glyph_id_array_byte_len =
             cursor.remaining_bytes() / u16::RAW_BYTE_LEN * u16::RAW_BYTE_LEN;
@@ -810,7 +813,7 @@ impl<'a> FontRead<'a> for Cmap6<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         let entry_count: u16 = cursor.read()?;
-        let glyph_id_array_byte_len = entry_count as usize * u16::RAW_BYTE_LEN;
+        let glyph_id_array_byte_len = (entry_count as usize).saturating_mul(u16::RAW_BYTE_LEN);
         cursor.advance_by(glyph_id_array_byte_len);
         cursor.finish(Cmap6Marker {
             glyph_id_array_byte_len,
@@ -935,10 +938,11 @@ impl<'a> FontRead<'a> for Cmap8<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u32>();
         cursor.advance::<u32>();
-        let is32_byte_len = 8192_usize * u8::RAW_BYTE_LEN;
+        let is32_byte_len = (8192_usize).saturating_mul(u8::RAW_BYTE_LEN);
         cursor.advance_by(is32_byte_len);
         let num_groups: u32 = cursor.read()?;
-        let groups_byte_len = num_groups as usize * SequentialMapGroup::RAW_BYTE_LEN;
+        let groups_byte_len =
+            (num_groups as usize).saturating_mul(SequentialMapGroup::RAW_BYTE_LEN);
         cursor.advance_by(groups_byte_len);
         cursor.finish(Cmap8Marker {
             is32_byte_len,
@@ -1254,7 +1258,8 @@ impl<'a> FontRead<'a> for Cmap12<'a> {
         cursor.advance::<u32>();
         cursor.advance::<u32>();
         let num_groups: u32 = cursor.read()?;
-        let groups_byte_len = num_groups as usize * SequentialMapGroup::RAW_BYTE_LEN;
+        let groups_byte_len =
+            (num_groups as usize).saturating_mul(SequentialMapGroup::RAW_BYTE_LEN);
         cursor.advance_by(groups_byte_len);
         cursor.finish(Cmap12Marker { groups_byte_len })
     }
@@ -1373,7 +1378,7 @@ impl<'a> FontRead<'a> for Cmap13<'a> {
         cursor.advance::<u32>();
         cursor.advance::<u32>();
         let num_groups: u32 = cursor.read()?;
-        let groups_byte_len = num_groups as usize * ConstantMapGroup::RAW_BYTE_LEN;
+        let groups_byte_len = (num_groups as usize).saturating_mul(ConstantMapGroup::RAW_BYTE_LEN);
         cursor.advance_by(groups_byte_len);
         cursor.finish(Cmap13Marker { groups_byte_len })
     }
@@ -1535,7 +1540,7 @@ impl<'a> FontRead<'a> for Cmap14<'a> {
         cursor.advance::<u32>();
         let num_var_selector_records: u32 = cursor.read()?;
         let var_selector_byte_len =
-            num_var_selector_records as usize * VariationSelector::RAW_BYTE_LEN;
+            (num_var_selector_records as usize).saturating_mul(VariationSelector::RAW_BYTE_LEN);
         cursor.advance_by(var_selector_byte_len);
         cursor.finish(Cmap14Marker {
             var_selector_byte_len,
@@ -1709,7 +1714,8 @@ impl<'a> FontRead<'a> for DefaultUvs<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let num_unicode_value_ranges: u32 = cursor.read()?;
-        let ranges_byte_len = num_unicode_value_ranges as usize * UnicodeRange::RAW_BYTE_LEN;
+        let ranges_byte_len =
+            (num_unicode_value_ranges as usize).saturating_mul(UnicodeRange::RAW_BYTE_LEN);
         cursor.advance_by(ranges_byte_len);
         cursor.finish(DefaultUvsMarker { ranges_byte_len })
     }
@@ -1785,7 +1791,8 @@ impl<'a> FontRead<'a> for NonDefaultUvs<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let num_uvs_mappings: u32 = cursor.read()?;
-        let uvs_mapping_byte_len = num_uvs_mappings as usize * UvsMapping::RAW_BYTE_LEN;
+        let uvs_mapping_byte_len =
+            (num_uvs_mappings as usize).saturating_mul(UvsMapping::RAW_BYTE_LEN);
         cursor.advance_by(uvs_mapping_byte_len);
         cursor.finish(NonDefaultUvsMarker {
             uvs_mapping_byte_len,

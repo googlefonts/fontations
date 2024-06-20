@@ -419,7 +419,7 @@ impl<'a> FontRead<'a> for BaseGlyphList<'a> {
         let mut cursor = data.cursor();
         let num_base_glyph_paint_records: u32 = cursor.read()?;
         let base_glyph_paint_records_byte_len =
-            num_base_glyph_paint_records as usize * BaseGlyphPaint::RAW_BYTE_LEN;
+            (num_base_glyph_paint_records as usize).saturating_mul(BaseGlyphPaint::RAW_BYTE_LEN);
         cursor.advance_by(base_glyph_paint_records_byte_len);
         cursor.finish(BaseGlyphListMarker {
             base_glyph_paint_records_byte_len,
@@ -548,7 +548,7 @@ impl<'a> FontRead<'a> for LayerList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let num_layers: u32 = cursor.read()?;
-        let paint_offsets_byte_len = num_layers as usize * Offset32::RAW_BYTE_LEN;
+        let paint_offsets_byte_len = (num_layers as usize).saturating_mul(Offset32::RAW_BYTE_LEN);
         cursor.advance_by(paint_offsets_byte_len);
         cursor.finish(LayerListMarker {
             paint_offsets_byte_len,
@@ -640,7 +640,7 @@ impl<'a> FontRead<'a> for ClipList<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
         let num_clips: u32 = cursor.read()?;
-        let clips_byte_len = num_clips as usize * Clip::RAW_BYTE_LEN;
+        let clips_byte_len = (num_clips as usize).saturating_mul(Clip::RAW_BYTE_LEN);
         cursor.advance_by(clips_byte_len);
         cursor.finish(ClipListMarker { clips_byte_len })
     }
@@ -1293,7 +1293,7 @@ impl<'a> FontRead<'a> for ColorLine<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<Extend>();
         let num_stops: u16 = cursor.read()?;
-        let color_stops_byte_len = num_stops as usize * ColorStop::RAW_BYTE_LEN;
+        let color_stops_byte_len = (num_stops as usize).saturating_mul(ColorStop::RAW_BYTE_LEN);
         cursor.advance_by(color_stops_byte_len);
         cursor.finish(ColorLineMarker {
             color_stops_byte_len,
@@ -1379,7 +1379,7 @@ impl<'a> FontRead<'a> for VarColorLine<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<Extend>();
         let num_stops: u16 = cursor.read()?;
-        let color_stops_byte_len = num_stops as usize * VarColorStop::RAW_BYTE_LEN;
+        let color_stops_byte_len = (num_stops as usize).saturating_mul(VarColorStop::RAW_BYTE_LEN);
         cursor.advance_by(color_stops_byte_len);
         cursor.finish(VarColorLineMarker {
             color_stops_byte_len,

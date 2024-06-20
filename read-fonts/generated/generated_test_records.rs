@@ -39,12 +39,14 @@ impl<'a> FontRead<'a> for BasicTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let simple_count: u16 = cursor.read()?;
-        let simple_records_byte_len = simple_count as usize * SimpleRecord::RAW_BYTE_LEN;
+        let simple_records_byte_len =
+            (simple_count as usize).saturating_mul(SimpleRecord::RAW_BYTE_LEN);
         cursor.advance_by(simple_records_byte_len);
         let arrays_inner_count: u16 = cursor.read()?;
         let array_records_count: u32 = cursor.read()?;
-        let array_records_byte_len = array_records_count as usize
-            * <ContainsArrays as ComputeSize>::compute_size(&arrays_inner_count);
+        let array_records_byte_len = (array_records_count as usize).saturating_mul(
+            <ContainsArrays as ComputeSize>::compute_size(&arrays_inner_count),
+        );
         cursor.advance_by(array_records_byte_len);
         cursor.finish(BasicTableMarker {
             simple_records_byte_len,
@@ -185,7 +187,8 @@ impl ReadArgs for ContainsArrays<'_> {
 impl ComputeSize for ContainsArrays<'_> {
     fn compute_size(args: &u16) -> usize {
         let array_len = *args;
-        array_len as usize * u16::RAW_BYTE_LEN + array_len as usize * SimpleRecord::RAW_BYTE_LEN
+        (array_len as usize).saturating_mul(u16::RAW_BYTE_LEN)
+            + (array_len as usize).saturating_mul(SimpleRecord::RAW_BYTE_LEN)
     }
 }
 
