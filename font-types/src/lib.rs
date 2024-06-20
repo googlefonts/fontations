@@ -49,5 +49,7 @@ pub const TTC_HEADER_TAG: Tag = Tag::new(b"ttcf");
 
 /// The SFNT version for fonts containing TrueType outlines.
 pub const TT_SFNT_VERSION: u32 = 0x00010000;
+/// The SFNT version for legacy Apple fonts containing TrueType outlines.
+pub const TRUE_SFNT_VERSION: u32 = 0x74727565;
 /// The SFNT version for fonts containing CFF outlines.
 pub const CFF_SFTN_VERSION: u32 = 0x4F54544F;
