@@ -15,40 +15,104 @@ use thiserror::Error;
 pub struct DecodingError();
 
 #[derive(Copy, Clone)]
-pub enum BranchFactor {
+pub(crate) enum BranchFactor {
     Two,
     Four,
     Eight,
     ThirtyTwo,
 }
 
-pub(crate) fn to_sparse_bit_set(set: &IntSet<u32>) -> Vec<u8> {
-    // TODO(garretrieger): use the heuristic approach from the incxfer
-    // implementation to guess the optimal size. Building the set 4 times
-    // is costly.
-    let mut candidates: Vec<Vec<u8>> = vec![];
+impl IntSet<u32> {
+    pub fn from_sparse_bit_set(data: &[u8]) -> Result<IntSet<u32>, DecodingError> {
+        // This is a direct port of the decoding algorithm from:
+        // https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
+        let mut bits = InputBitStream::from(data);
 
-    let Some(max_value) = set.last() else {
-        return OutputBitStream::new(BranchFactor::Two, 0).into_bytes();
-    };
+        let Some(branch_factor) = bits.read_branch_factor() else {
+            return Err(DecodingError());
+        };
 
-    if BranchFactor::Two.tree_height_for(max_value) <= OutputBitStream::MAX_HEIGHT {
-        candidates.push(to_sparse_bit_set_with_bf::<2>(set));
+        let Some(height) = bits.read_height() else {
+            return Err(DecodingError());
+        };
+
+        let mut out = IntSet::<u32>::empty();
+        if height == 0 {
+            return Ok(out);
+        }
+
+        // Bit 8 of header byte is ignored.
+        bits.skip_bit();
+
+        let mut queue = VecDeque::<NextNode>::new(); // TODO(garretrieger): estimate initial capacity?
+        queue.push_back(NextNode { start: 0, depth: 1 });
+
+        while let Some(next) = queue.pop_front() {
+            let mut has_a_one = false;
+            for index in 0..branch_factor as u32 {
+                let Some(bit) = bits.read_bit() else {
+                    return Err(DecodingError());
+                };
+
+                if !bit {
+                    continue;
+                }
+
+                // TODO(garretrieger): use two while loops (one for non-leaf and one for leaf nodes)
+                //                     to avoid having to branch on each iteration.
+                has_a_one = true;
+                if next.depth == height as u32 {
+                    // TODO(garretrieger): optimize insertion speed by using the bulk sorted insert
+                    // (rewrite this to be an iterator) or even directly writing groups of bits to the pages.
+                    out.insert(next.start + index);
+                } else {
+                    let exp = height as u32 - next.depth;
+                    queue.push_back(NextNode {
+                        start: next.start + index * (branch_factor as u32).pow(exp),
+                        depth: next.depth + 1,
+                    });
+                }
+            }
+
+            if !has_a_one {
+                // all bits were zeroes which is a special command to completely fill in
+                // all integers covered by this node.
+                let exp = (height as u32) - next.depth + 1;
+                out.insert_range(next.start..=next.start + (branch_factor as u32).pow(exp) - 1);
+            }
+        }
+
+        Ok(out)
     }
 
-    if BranchFactor::Four.tree_height_for(max_value) <= OutputBitStream::MAX_HEIGHT {
-        candidates.push(to_sparse_bit_set_with_bf::<4>(set));
-    }
+    pub fn to_sparse_bit_set(&self) -> Vec<u8> {
+        // TODO(garretrieger): use the heuristic approach from the incxfer
+        // implementation to guess the optimal size. Building the set 4 times
+        // is costly.
+        let mut candidates: Vec<Vec<u8>> = vec![];
 
-    if BranchFactor::Eight.tree_height_for(max_value) <= OutputBitStream::MAX_HEIGHT {
-        candidates.push(to_sparse_bit_set_with_bf::<8>(set));
-    }
+        let Some(max_value) = self.last() else {
+            return OutputBitStream::new(BranchFactor::Two, 0).into_bytes();
+        };
 
-    if BranchFactor::ThirtyTwo.tree_height_for(max_value) <= OutputBitStream::MAX_HEIGHT {
-        candidates.push(to_sparse_bit_set_with_bf::<32>(set));
-    }
+        if BranchFactor::Two.tree_height_for(max_value) < OutputBitStream::MAX_HEIGHT {
+            candidates.push(to_sparse_bit_set_with_bf::<2>(self));
+        }
 
-    candidates.into_iter().min_by_key(|f| f.len()).unwrap()
+        if BranchFactor::Four.tree_height_for(max_value) < OutputBitStream::MAX_HEIGHT {
+            candidates.push(to_sparse_bit_set_with_bf::<4>(self));
+        }
+
+        if BranchFactor::Eight.tree_height_for(max_value) < OutputBitStream::MAX_HEIGHT {
+            candidates.push(to_sparse_bit_set_with_bf::<8>(self));
+        }
+
+        if BranchFactor::ThirtyTwo.tree_height_for(max_value) < OutputBitStream::MAX_HEIGHT {
+            candidates.push(to_sparse_bit_set_with_bf::<32>(self));
+        }
+
+        candidates.into_iter().min_by_key(|f| f.len()).unwrap()
+    }
 }
 
 fn to_sparse_bit_set_with_bf<const BF: u8>(set: &IntSet<u32>) -> Vec<u8> {
@@ -174,68 +238,6 @@ struct NextNode {
     depth: u32,
 }
 
-pub(crate) fn from_sparse_bit_set(data: &[u8]) -> Result<IntSet<u32>, DecodingError> {
-    // This is a direct port of the decoding algorithm from:
-    // https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
-    let mut bits = InputBitStream::from(data);
-
-    let Some(branch_factor) = bits.read_branch_factor() else {
-        return Err(DecodingError());
-    };
-
-    let Some(height) = bits.read_height() else {
-        return Err(DecodingError());
-    };
-
-    let mut out = IntSet::<u32>::empty();
-    if height == 0 {
-        return Ok(out);
-    }
-
-    // Bit 8 of header byte is ignored.
-    bits.skip_bit();
-
-    let mut queue = VecDeque::<NextNode>::new(); // TODO(garretrieger): estimate initial capacity?
-    queue.push_back(NextNode { start: 0, depth: 1 });
-
-    while let Some(next) = queue.pop_front() {
-        let mut has_a_one = false;
-        for index in 0..branch_factor as u32 {
-            let Some(bit) = bits.read_bit() else {
-                return Err(DecodingError());
-            };
-
-            if !bit {
-                continue;
-            }
-
-            // TODO(garretrieger): use two while loops (one for non-leaf and one for leaf nodes)
-            //                     to avoid having to branch on each iteration.
-            has_a_one = true;
-            if next.depth == height as u32 {
-                // TODO(garretrieger): optimize insertion speed by using the bulk sorted insert
-                // (rewrite this to be an iterator) or even directly writing groups of bits to the pages.
-                out.insert(next.start + index);
-            } else {
-                let exp = height as u32 - next.depth;
-                queue.push_back(NextNode {
-                    start: next.start + index * (branch_factor as u32).pow(exp),
-                    depth: next.depth + 1,
-                });
-            }
-        }
-
-        if !has_a_one {
-            // all bits were zeroes which is a special command to completely fill in
-            // all integers covered by this node.
-            let exp = (height as u32) - next.depth + 1;
-            out.insert_range(next.start..=next.start + (branch_factor as u32).pow(exp) - 1);
-        }
-    }
-
-    Ok(out)
-}
-
 #[cfg(test)]
 #[allow(clippy::unusual_byte_groupings)]
 mod test {
@@ -249,7 +251,7 @@ mod test {
             0b00001110, 0b00100001, 0b00010001, 0b00000001, 0b00000100, 0b00000010, 0b00001000,
         ];
 
-        let set = from_sparse_bit_set(&bytes).unwrap();
+        let set = IntSet::<u32>::from_sparse_bit_set(&bytes).unwrap();
         let expected: IntSet<u32> = [2, 33, 323].iter().copied().collect();
         assert_eq!(set, expected);
     }
@@ -260,7 +262,7 @@ mod test {
         // See: https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
         let bytes = [0b00000000];
 
-        let set = from_sparse_bit_set(&bytes).unwrap();
+        let set = IntSet::<u32>::from_sparse_bit_set(&bytes).unwrap();
         let expected: IntSet<u32> = [].iter().copied().collect();
         assert_eq!(set, expected);
     }
@@ -271,7 +273,7 @@ mod test {
         // See: https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
         let bytes = [0b00001101, 0b00000011, 0b00110001];
 
-        let set = from_sparse_bit_set(&bytes).unwrap();
+        let set = IntSet::<u32>::from_sparse_bit_set(&bytes).unwrap();
 
         let mut expected: IntSet<u32> = IntSet::<u32>::empty();
         expected.insert_range(0..=17);
@@ -285,7 +287,7 @@ mod test {
         let bytes = [
             0b00001110, 0b00100001, 0b00010001, 0b00000001, 0b00000100, 0b00000010,
         ];
-        assert!(from_sparse_bit_set(&bytes).is_err());
+        assert!(IntSet::<u32>::from_sparse_bit_set(&bytes).is_err());
     }
 
     #[test]
@@ -341,6 +343,13 @@ mod test {
     }
 
     #[test]
+    fn encode_one_level() {
+        let actual_bytes = to_sparse_bit_set_with_bf::<8>(&[2, 6].iter().copied().collect());
+        let expected_bytes = [0b0_00001_10, 0b01000100];
+        assert_eq!(actual_bytes, expected_bytes);
+    }
+
+    #[test]
     fn encode_bf32() {
         let actual_bytes = to_sparse_bit_set_with_bf::<32>(&[2, 31, 323].iter().copied().collect());
         let expected_bytes = [
@@ -384,14 +393,14 @@ mod test {
 
     fn check_round_trip<const BF: u8>(s: &IntSet<u32>) {
         let bytes = to_sparse_bit_set_with_bf::<BF>(s);
-        let s_prime = from_sparse_bit_set(&bytes).unwrap();
+        let s_prime = IntSet::<u32>::from_sparse_bit_set(&bytes).unwrap();
         assert_eq!(*s, s_prime);
     }
 
     #[test]
     fn find_smallest_bf() {
         let s: IntSet<u32> = [11, 74, 9358].iter().copied().collect();
-        let bytes = to_sparse_bit_set(&s);
+        let bytes = s.to_sparse_bit_set();
         // BF4
         assert_eq!(vec![0b0_00111_01], bytes[0..1]);
 
@@ -401,8 +410,16 @@ mod test {
         .iter()
         .copied()
         .collect();
-        let bytes = to_sparse_bit_set(&s);
+        let bytes = s.to_sparse_bit_set();
         // BF32
         assert_eq!(vec![0b0_00001_11], bytes[0..1]);
+    }
+
+    #[test]
+    fn encode_maxu32() {
+        let s: IntSet<u32> = [1, u32::MAX].iter().copied().collect();
+        let bytes = s.to_sparse_bit_set();
+        let s_prime = IntSet::<u32>::from_sparse_bit_set(&bytes);
+        assert_eq!(s, s_prime.unwrap());
     }
 }

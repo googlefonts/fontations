@@ -21,7 +21,7 @@ mod bitpage;
 mod bitset;
 mod input_bit_stream;
 mod output_bit_stream;
-mod sparse_bit_set;
+pub mod sparse_bit_set;
 
 use bitset::BitSet;
 use font_types::GlyphId;
@@ -98,19 +98,6 @@ impl InDomain {
 impl<T: Domain<T>> Default for IntSet<T> {
     fn default() -> IntSet<T> {
         IntSet::empty()
-    }
-}
-
-impl IntSet<u32> {
-    // TODO move this into sparse_bit_set.rs
-    // TODO don't expose the specified BF option as it can panic with
-    //      too large a value.
-    pub fn from_sparse_bit_set(data: &[u8]) -> Result<IntSet<u32>, sparse_bit_set::DecodingError> {
-        sparse_bit_set::from_sparse_bit_set(data)
-    }
-
-    pub fn to_sparse_bit_set(&self) -> Vec<u8> {
-        sparse_bit_set::to_sparse_bit_set(self)
     }
 }
 
