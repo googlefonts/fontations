@@ -17,7 +17,7 @@ impl OutputBitStream {
             sub_index: 0,
             branch_factor,
         };
-        if height >= 32 {
+        if height >= OutputBitStream::MAX_HEIGHT {
             panic!("Height value exceeds 5 bits.");
         }
         out.write_header(height);
