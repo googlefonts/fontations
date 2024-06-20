@@ -1132,7 +1132,7 @@ impl Field {
                         // Prevent identity-op clippy error with `1 * size`
                         size_expr
                     }
-                    _ => quote!(  #count_expr .saturating_mul( #size_expr ) ),
+                    _ => quote!( (#count_expr).saturating_mul(#size_expr) ),
                 }
             }
             None => quote!(compile_error!("missing count attribute?")),
