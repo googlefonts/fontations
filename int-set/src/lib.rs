@@ -25,7 +25,6 @@ mod sparse_bit_set;
 
 use bitset::BitSet;
 use font_types::GlyphId;
-use sparse_bit_set::BranchFactor;
 use std::hash::Hash;
 use std::marker::PhantomData;
 use std::ops::RangeInclusive;
@@ -112,10 +111,6 @@ impl IntSet<u32> {
 
     pub fn to_sparse_bit_set(&self) -> Vec<u8> {
         sparse_bit_set::to_sparse_bit_set(self)
-    }
-
-    pub fn to_sparse_bit_set_with_bf(&self, branch_factor: BranchFactor) -> Vec<u8> {
-        sparse_bit_set::to_sparse_bit_set_with_bf(self, branch_factor)
     }
 }
 
