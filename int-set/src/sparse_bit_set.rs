@@ -14,6 +14,7 @@ use thiserror::Error;
 #[error("The input data stream was too short to be a valid sparse bit set.")]
 pub struct DecodingError();
 
+#[derive(Copy, Clone)]
 pub enum BranchFactor {
     Two,
     Four,
@@ -21,41 +22,43 @@ pub enum BranchFactor {
     ThirtyTwo,
 }
 
-// TODO eliminate cases of explicitly provding BF (eg. ::<2>)
-
 pub(crate) fn to_sparse_bit_set(set: &IntSet<u32>) -> Vec<u8> {
     // TODO(garretrieger): use the heuristic approach from the incxfer
     // implementation to guess the optimal size. Building the set 4 times
     // is costly.
-    // TODO: skip BF's that can't be used due to exceeding max height.
-    // TODO: for loop?
-    // TODO: const array with all of the valid BF values.
-    let candidates: Vec<Vec<u8>> = vec![
-        to_sparse_bit_set_internal::<2>(set),
-        to_sparse_bit_set_internal::<4>(set),
-        to_sparse_bit_set_internal::<8>(set),
-        to_sparse_bit_set_internal::<32>(set),
-    ];
+    let mut candidates: Vec<Vec<u8>> = vec![];
+
+    let Some(max_value) = set.last() else {
+        return OutputBitStream::new(BranchFactor::Two, 0).into_bytes();
+    };
+
+    if BranchFactor::Two.tree_height_for(max_value) <= OutputBitStream::MAX_HEIGHT {
+        candidates.push(to_sparse_bit_set_with_bf::<2>(set));
+    }
+
+    if BranchFactor::Four.tree_height_for(max_value) <= OutputBitStream::MAX_HEIGHT {
+        candidates.push(to_sparse_bit_set_with_bf::<4>(set));
+    }
+
+    if BranchFactor::Eight.tree_height_for(max_value) <= OutputBitStream::MAX_HEIGHT {
+        candidates.push(to_sparse_bit_set_with_bf::<8>(set));
+    }
+
+    if BranchFactor::ThirtyTwo.tree_height_for(max_value) <= OutputBitStream::MAX_HEIGHT {
+        candidates.push(to_sparse_bit_set_with_bf::<32>(set));
+    }
 
     candidates.into_iter().min_by_key(|f| f.len()).unwrap()
 }
 
-pub(crate) fn to_sparse_bit_set_with_bf(set: &IntSet<u32>, branch_factor: BranchFactor) -> Vec<u8> {
-    match branch_factor {
-        BranchFactor::Two => to_sparse_bit_set_internal::<2>(set),
-        BranchFactor::Four => to_sparse_bit_set_internal::<4>(set),
-        BranchFactor::Eight => to_sparse_bit_set_internal::<8>(set),
-        BranchFactor::ThirtyTwo => to_sparse_bit_set_internal::<32>(set),
-    }
-}
-
-fn to_sparse_bit_set_internal<const BF: u32>(set: &IntSet<u32>) -> Vec<u8> {
+fn to_sparse_bit_set_with_bf<const BF: u8>(set: &IntSet<u32>) -> Vec<u8> {
     // TODO(garretrieger): implement detection of filled nodes (ie. zero nodes)
+    let branch_factor = BranchFactor::from_val(BF);
     let Some(max_value) = set.last() else {
-        return OutputBitStream::<BF>::new(0).into_bytes();
+        return OutputBitStream::new(branch_factor, 0).into_bytes();
     };
-    let mut height = tree_height_for(BF, max_value);
-    let mut os = OutputBitStream::<BF>::new(height);
+    let mut height = branch_factor.tree_height_for(max_value);
+    let mut os = OutputBitStream::new(branch_factor, height);
     let mut nodes: Vec<Node> = vec![];
 
     // We built the nodes that will comprise the bit stream in reverse order
@@ -65,7 +68,7 @@ fn to_sparse_bit_set_internal<const BF: u32>(set: &IntSet<u32>) -> Vec<u8> {
     // affect the values in the parent layers.
     let mut indices = set.clone();
     while height > 0 {
-        indices = create_layer(BF, indices.iter(), &mut nodes);
+        indices = create_layer(branch_factor, indices.iter(), &mut nodes);
         height -= 1;
     }
 
@@ -84,7 +87,7 @@ fn to_sparse_bit_set_internal<const BF: u32>(set: &IntSet<u32>) -> Vec<u8> {
 ///
 /// Returns the set of indices for the layer above.
 fn create_layer<T: DoubleEndedIterator<Item = u32>>(
-    branch_factor: u32,
+    branch_factor: BranchFactor,
     iter: T,
     nodes: &mut Vec<Node>,
 ) -> IntSet<u32> {
@@ -93,7 +96,7 @@ fn create_layer<T: DoubleEndedIterator<Item = u32>>(
     // The nodes array is produced in reverse order and then reversed before final output.
     let mut current_node: Option<Node> = None;
     for v in iter.rev() {
-        let parent_index = v / branch_factor;
+        let parent_index = v / branch_factor.value();
         let prev_parent_index = current_node
             .as_ref()
             .map_or(parent_index, |node| node.parent_index);
@@ -107,7 +110,7 @@ fn create_layer<T: DoubleEndedIterator<Item = u32>>(
             parent_index,
         });
 
-        current_node.bits |= 0b1 << (v % branch_factor);
+        current_node.bits |= 0b1 << (v % branch_factor.value());
     }
     if let Some(node) = current_node {
         next_indices.insert(node.parent_index);
@@ -122,28 +125,47 @@ struct Node {
     parent_index: u32,
 }
 
-fn tree_height_for(branch_factor: u32, max_value: u32) -> u8 {
-    // height H, can represent up to (BF^height) - 1
-    let mut height: u32 = 0;
-    let mut max_value = max_value;
-    loop {
-        height += 1;
-        max_value >>= branch_factor_node_size_log2(branch_factor);
-        if max_value == 0 {
-            break height as u8;
+impl BranchFactor {
+    pub(crate) fn value(&self) -> u32 {
+        match self {
+            BranchFactor::Two => 2,
+            BranchFactor::Four => 4,
+            BranchFactor::Eight => 8,
+            BranchFactor::ThirtyTwo => 32,
         }
     }
-}
 
-fn branch_factor_node_size_log2(branch_factor: u32) -> u32 {
-    match branch_factor {
-        2 => 1,
-        4 => 2,
-        8 => 3,
-        32 => 5,
-        // TODO(garretrieger): convert the int constant to an enum value and
-        //   match on that, then panic is only needed during the conversion.
-        _ => panic!("Invalid branch factor."),
+    fn tree_height_for(&self, max_value: u32) -> u8 {
+        // height H, can represent up to (BF^height) - 1
+        let mut height: u32 = 0;
+        let mut max_value = max_value;
+        loop {
+            height += 1;
+            max_value >>= self.node_size_log2();
+            if max_value == 0 {
+                break height as u8;
+            }
+        }
+    }
+
+    fn from_val(val: u8) -> BranchFactor {
+        match val {
+            2 => BranchFactor::Two,
+            4 => BranchFactor::Four,
+            8 => BranchFactor::Eight,
+            32 => BranchFactor::ThirtyTwo,
+            // This should never happen as this is only used internally.
+            _ => panic!("Invalid branch factor."),
+        }
+    }
+
+    fn node_size_log2(&self) -> u32 {
+        match self {
+            BranchFactor::Two => 1,
+            BranchFactor::Four => 2,
+            BranchFactor::Eight => 3,
+            BranchFactor::ThirtyTwo => 5,
+        }
     }
 }
 
@@ -268,28 +290,28 @@ mod test {
 
     #[test]
     fn test_tree_height_for() {
-        assert_eq!(tree_height_for(2, 0), 1);
-        assert_eq!(tree_height_for(2, 1), 1);
-        assert_eq!(tree_height_for(2, 2), 2);
-        assert_eq!(tree_height_for(2, 117), 7);
+        assert_eq!(BranchFactor::Two.tree_height_for(0), 1);
+        assert_eq!(BranchFactor::Two.tree_height_for(1), 1);
+        assert_eq!(BranchFactor::Two.tree_height_for(2), 2);
+        assert_eq!(BranchFactor::Two.tree_height_for(117), 7);
 
-        assert_eq!(tree_height_for(4, 0), 1);
-        assert_eq!(tree_height_for(4, 3), 1);
-        assert_eq!(tree_height_for(4, 4), 2);
-        assert_eq!(tree_height_for(4, 63), 3);
-        assert_eq!(tree_height_for(4, 64), 4);
+        assert_eq!(BranchFactor::Four.tree_height_for(0), 1);
+        assert_eq!(BranchFactor::Four.tree_height_for(3), 1);
+        assert_eq!(BranchFactor::Four.tree_height_for(4), 2);
+        assert_eq!(BranchFactor::Four.tree_height_for(63), 3);
+        assert_eq!(BranchFactor::Four.tree_height_for(64), 4);
 
-        assert_eq!(tree_height_for(8, 0), 1);
-        assert_eq!(tree_height_for(8, 7), 1);
-        assert_eq!(tree_height_for(8, 8), 2);
-        assert_eq!(tree_height_for(8, 32767), 5);
-        assert_eq!(tree_height_for(8, 32768), 6);
+        assert_eq!(BranchFactor::Eight.tree_height_for(0), 1);
+        assert_eq!(BranchFactor::Eight.tree_height_for(7), 1);
+        assert_eq!(BranchFactor::Eight.tree_height_for(8), 2);
+        assert_eq!(BranchFactor::Eight.tree_height_for(32767), 5);
+        assert_eq!(BranchFactor::Eight.tree_height_for(32768), 6);
 
-        assert_eq!(tree_height_for(32, 0), 1);
-        assert_eq!(tree_height_for(32, 31), 1);
-        assert_eq!(tree_height_for(32, 32), 2);
-        assert_eq!(tree_height_for(32, 1_048_575), 4);
-        assert_eq!(tree_height_for(32, 1_048_576), 5);
+        assert_eq!(BranchFactor::ThirtyTwo.tree_height_for(0), 1);
+        assert_eq!(BranchFactor::ThirtyTwo.tree_height_for(31), 1);
+        assert_eq!(BranchFactor::ThirtyTwo.tree_height_for(32), 2);
+        assert_eq!(BranchFactor::ThirtyTwo.tree_height_for(1_048_575), 4);
+        assert_eq!(BranchFactor::ThirtyTwo.tree_height_for(1_048_576), 5);
     }
 
     #[test]
@@ -298,8 +320,7 @@ mod test {
         // in the specification. See:
         // https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
 
-        let actual_bytes =
-            to_sparse_bit_set_with_bf(&[2, 33, 323].iter().copied().collect(), BranchFactor::Eight);
+        let actual_bytes = to_sparse_bit_set_with_bf::<8>(&[2, 33, 323].iter().copied().collect());
         let expected_bytes = [
             0b00001110, 0b00100001, 0b00010001, 0b00000001, 0b00000100, 0b00000010, 0b00001000,
         ];
@@ -313,7 +334,7 @@ mod test {
         // in the specification. See:
         // https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
 
-        let actual_bytes = to_sparse_bit_set_with_bf(&IntSet::<u32>::empty(), BranchFactor::Two);
+        let actual_bytes = to_sparse_bit_set_with_bf::<2>(&IntSet::<u32>::empty());
         let expected_bytes = [0b00000000];
 
         assert_eq!(actual_bytes, expected_bytes);
@@ -321,10 +342,7 @@ mod test {
 
     #[test]
     fn encode_bf32() {
-        let actual_bytes = to_sparse_bit_set_with_bf(
-            &[2, 31, 323].iter().copied().collect(),
-            BranchFactor::ThirtyTwo,
-        );
+        let actual_bytes = to_sparse_bit_set_with_bf::<32>(&[2, 31, 323].iter().copied().collect());
         let expected_bytes = [
             0b0_00010_11,
             // node 0
@@ -353,19 +371,19 @@ mod test {
         let mut s2: IntSet<u32> = s1.clone();
         s2.insert_range(67..=412);
 
-        check_round_trip(&s1, BranchFactor::Two);
-        check_round_trip(&s1, BranchFactor::Four);
-        check_round_trip(&s1, BranchFactor::Eight);
-        check_round_trip(&s1, BranchFactor::ThirtyTwo);
+        check_round_trip::<2>(&s1);
+        check_round_trip::<4>(&s1);
+        check_round_trip::<8>(&s1);
+        check_round_trip::<32>(&s1);
 
-        check_round_trip(&s2, BranchFactor::Two);
-        check_round_trip(&s2, BranchFactor::Four);
-        check_round_trip(&s2, BranchFactor::Eight);
-        check_round_trip(&s2, BranchFactor::ThirtyTwo);
+        check_round_trip::<2>(&s2);
+        check_round_trip::<4>(&s2);
+        check_round_trip::<8>(&s2);
+        check_round_trip::<32>(&s2);
     }
 
-    fn check_round_trip(s: &IntSet<u32>, branch_factor: BranchFactor) {
-        let bytes = to_sparse_bit_set_with_bf(s, branch_factor);
+    fn check_round_trip<const BF: u8>(s: &IntSet<u32>) {
+        let bytes = to_sparse_bit_set_with_bf::<BF>(s);
         let s_prime = from_sparse_bit_set(&bytes).unwrap();
         assert_eq!(*s, s_prime);
     }

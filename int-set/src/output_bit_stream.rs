@@ -1,15 +1,21 @@
 //! Writes individual bits to a vector of bytes.
 
-pub(crate) struct OutputBitStream<const BF: u32> {
+use crate::sparse_bit_set::BranchFactor;
+
+pub(crate) struct OutputBitStream {
     data: Vec<u8>,
     sub_index: u32,
+    branch_factor: BranchFactor,
 }
 
-impl<const BF: u32> OutputBitStream<BF> {
-    pub(crate) fn new(height: u8) -> OutputBitStream<BF> {
+impl OutputBitStream {
+    pub(crate) const MAX_HEIGHT: u8 = 32;
+
+    pub(crate) fn new(branch_factor: BranchFactor, height: u8) -> OutputBitStream {
         let mut out = OutputBitStream {
             data: vec![],
             sub_index: 0,
+            branch_factor,
         };
         if height >= 32 {
             panic!("Height value exceeds 5 bits.");
@@ -26,17 +32,17 @@ impl<const BF: u32> OutputBitStream<BF> {
     ///
     /// branch_factor controls the node size.
     pub fn write_node(&mut self, bits: u32) {
-        for byte_index in 0..bytes_per_node(BF) {
-            if nodes_per_byte(BF) == 1 || self.sub_index == 0 {
+        for byte_index in 0..self.branch_factor.bytes_per_node() {
+            if self.branch_factor.nodes_per_byte() == 1 || self.sub_index == 0 {
                 self.data.push(0);
             }
 
-            let bits = (bits >> (byte_index * 8)) & byte_mask(BF);
-            let bits = (bits << (self.sub_index * BF)) as u8;
+            let bits = (bits >> (byte_index * 8)) & self.branch_factor.byte_mask();
+            let bits = (bits << (self.sub_index * self.branch_factor.value())) as u8;
             *self.data.last_mut().unwrap() |= bits;
 
-            if nodes_per_byte(BF) > 1 {
-                self.sub_index = (self.sub_index + 1) % nodes_per_byte(BF);
+            if self.branch_factor.nodes_per_byte() > 1 {
+                self.sub_index = (self.sub_index + 1) % self.branch_factor.nodes_per_byte();
             }
         }
     }
@@ -46,45 +52,46 @@ impl<const BF: u32> OutputBitStream<BF> {
     /// See: https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
     fn write_header(&mut self, height: u8) {
         let byte = (height & 0b00011111) << 2;
-        let byte = byte
-            | match BF {
-                2 => 0b00,
-                4 => 0b01,
-                8 => 0b10,
-                32 => 0b11,
-                _ => panic!("Invalid branch factor"),
-            };
+        let byte = byte | self.branch_factor.bit_id();
         self.data.push(byte);
     }
 }
 
-fn nodes_per_byte(branch_factor: u32) -> u32 {
-    match branch_factor {
-        2 => 4,
-        4 => 2,
-        8 => 1,
-        32 => 1,
-        _ => panic!("Invalid branch factor"),
+impl BranchFactor {
+    fn nodes_per_byte(&self) -> u32 {
+        match self {
+            BranchFactor::Two => 4,
+            BranchFactor::Four => 2,
+            BranchFactor::Eight => 1,
+            BranchFactor::ThirtyTwo => 1,
+        }
     }
-}
 
-fn bytes_per_node(branch_factor: u32) -> u32 {
-    match branch_factor {
-        2 => 1,
-        4 => 1,
-        8 => 1,
-        32 => 4,
-        _ => panic!("Invalid branch factor"),
+    fn bytes_per_node(&self) -> u32 {
+        match self {
+            BranchFactor::Two => 1,
+            BranchFactor::Four => 1,
+            BranchFactor::Eight => 1,
+            BranchFactor::ThirtyTwo => 4,
+        }
     }
-}
 
-fn byte_mask(branch_factor: u32) -> u32 {
-    match branch_factor {
-        2 => 0b00000011,
-        4 => 0b00001111,
-        8 => 0b11111111,
-        32 => 0b11111111,
-        _ => panic!("Invalid branch factor"),
+    fn bit_id(&self) -> u8 {
+        match self {
+            BranchFactor::Two => 0b00,
+            BranchFactor::Four => 0b01,
+            BranchFactor::Eight => 0b10,
+            BranchFactor::ThirtyTwo => 0b11,
+        }
+    }
+
+    fn byte_mask(&self) -> u32 {
+        match self {
+            BranchFactor::Two => 0b00000011,
+            BranchFactor::Four => 0b00001111,
+            BranchFactor::Eight => 0b11111111,
+            BranchFactor::ThirtyTwo => 0b11111111,
+        }
     }
 }
 
@@ -95,22 +102,22 @@ mod test {
 
     #[test]
     fn init() {
-        let os = OutputBitStream::<2>::new(13);
+        let os = OutputBitStream::new(BranchFactor::Two, 13);
         assert_eq!(os.into_bytes(), vec![0b0_01101_00]);
 
-        let os = OutputBitStream::<4>::new(23);
+        let os = OutputBitStream::new(BranchFactor::Four, 23);
         assert_eq!(os.into_bytes(), vec![0b0_10111_01]);
 
-        let os = OutputBitStream::<8>::new(1);
+        let os = OutputBitStream::new(BranchFactor::Eight, 1);
         assert_eq!(os.into_bytes(), vec![0b0_00001_10]);
 
-        let os = OutputBitStream::<32>::new(31);
+        let os = OutputBitStream::new(BranchFactor::ThirtyTwo, 31);
         assert_eq!(os.into_bytes(), vec![0b0_11111_11]);
     }
 
     #[test]
     fn bf2() {
-        let mut os = OutputBitStream::<2>::new(13);
+        let mut os = OutputBitStream::new(BranchFactor::Two, 13);
 
         os.write_node(0b10);
         os.write_node(0b00);
@@ -128,7 +135,7 @@ mod test {
 
     #[test]
     fn bf4() {
-        let mut os = OutputBitStream::<4>::new(23);
+        let mut os = OutputBitStream::new(BranchFactor::Four, 23);
 
         os.write_node(0b0010);
         os.write_node(0b0111);
@@ -143,7 +150,7 @@ mod test {
 
     #[test]
     fn bf8() {
-        let mut os = OutputBitStream::<8>::new(1);
+        let mut os = OutputBitStream::new(BranchFactor::Eight, 1);
 
         os.write_node(0b01110010);
         os.write_node(0b00001101);
@@ -153,7 +160,7 @@ mod test {
 
     #[test]
     fn bf32() {
-        let mut os = OutputBitStream::<32>::new(31);
+        let mut os = OutputBitStream::new(BranchFactor::ThirtyTwo, 31);
 
         os.write_node(0b10000000_00000000_00001101_01110010);
 
@@ -165,7 +172,7 @@ mod test {
 
     #[test]
     fn truncating() {
-        let mut os = OutputBitStream::<4>::new(23);
+        let mut os = OutputBitStream::new(BranchFactor::Four, 23);
 
         os.write_node(0b11110010);
 
