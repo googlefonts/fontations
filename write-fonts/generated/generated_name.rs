@@ -37,13 +37,13 @@ impl FontWrite for Name {
             self.name_record.write_into(writer);
         });
         version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| (array_len(&self.lang_tag_record).unwrap() as u16).write_into(writer));
         writer.adjust_offsets(self.compute_storage_offset() as u32, |writer| {
-            version.compatible(1).then(|| {
+            version.compatible(1u16).then(|| {
                 self.lang_tag_record
                     .as_ref()
-                    .expect("missing versioned field should have failed validation")
+                    .expect("missing conditional field should have failed validation")
                     .write_into(writer)
             });
         });
@@ -64,7 +64,7 @@ impl Validate for Name {
                 self.name_record.validate_impl(ctx);
             });
             ctx.in_field("lang_tag_record", |ctx| {
-                if version.compatible(1) && self.lang_tag_record.is_none() {
+                if version.compatible(1u16) && self.lang_tag_record.is_none() {
                     ctx.report(format!("field must be present for version {version}"));
                 }
                 if self.lang_tag_record.is_some()

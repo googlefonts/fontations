@@ -46,7 +46,7 @@ impl FontWrite for Gpos {
         self.feature_list.write_into(writer);
         self.lookup_list.write_into(writer);
         version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| self.feature_variations.write_into(writer));
     }
     fn table_type(&self) -> TableType {
@@ -2062,7 +2062,7 @@ pub struct ExtensionPosFormat1<T> {
     pub extension: OffsetMarker<T, WIDTH_32>,
 }
 
-impl<T> ExtensionPosFormat1<T> {
+impl<T: Default> ExtensionPosFormat1<T> {
     /// Construct a new `ExtensionPosFormat1`
     pub fn new(extension_lookup_type: u16, extension: T) -> Self {
         Self {

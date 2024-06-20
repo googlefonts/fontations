@@ -10,46 +10,46 @@ table Maxp {
     /// The number of glyphs in the font.
     num_glyphs: u16,
     /// Maximum points in a non-composite glyph.
-    #[since_version(1,0)]
+    #[since_version(1.0)]
     max_points: u16,
     /// Maximum contours in a non-composite glyph.
-    #[since_version(1,0)]
+    #[since_version(1.0)]
     max_contours: u16,
     /// Maximum points in a composite glyph.
-    #[since_version(1,0)]
+    #[since_version(1.0)]
     max_composite_points: u16,
     /// Maximum contours in a composite glyph.
-    #[since_version(1,0)]
+    #[since_version(1.0)]
     max_composite_contours: u16,
     /// 1 if instructions do not use the twilight zone (Z0), or 2 if
     /// instructions do use Z0; should be set to 2 in most cases.
-    #[since_version(1,0)]
+    #[since_version(1.0)]
     max_zones: u16,
     /// Maximum points used in Z0.
-    #[since_version(1,0)]
+    #[since_version(1.0)]
     max_twilight_points: u16,
     /// Number of Storage Area locations.
-    #[since_version(1,0)]
+    #[since_version(1.0)]
     max_storage: u16,
     /// Number of FDEFs, equal to the highest function number + 1.
-    #[since_version(1,0)]
+    #[since_version(1.0)]
     max_function_defs: u16,
     /// Number of IDEFs.
-    #[since_version(1,0)]
+    #[since_version(1.0)]
     max_instruction_defs: u16,
     /// Maximum stack depth across Font Program ('fpgm' table), CVT
     /// Program ('prep' table) and all glyph instructions (in the
     /// 'glyf' table).
-    #[since_version(1,0)]
+    #[since_version(1.0)]
     max_stack_elements: u16,
     /// Maximum byte count for glyph instructions.
-    #[since_version(1,0)]
+    #[since_version(1.0)]
     max_size_of_instructions: u16,
     /// Maximum number of components referenced at “top level” for
     /// any composite glyph.
-    #[since_version(1,0)]
+    #[since_version(1.0)]
     max_component_elements: u16,
     /// Maximum levels of recursion; 1 for simple components.
-    #[since_version(1,0)]
+    #[since_version(1.0)]
     max_component_depth: u16,
 }

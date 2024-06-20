@@ -181,7 +181,7 @@ pub(crate) struct Field {
 pub(crate) struct FieldAttrs {
     pub(crate) docs: Vec<syn::Attribute>,
     pub(crate) nullable: Option<syn::Path>,
-    pub(crate) since_version: Option<Attr<SinceVersion>>,
+    pub(crate) conditional: Option<Attr<Condition>>,
     pub(crate) skip_getter: Option<syn::Path>,
     /// specify that an offset getter has a custom impl
     pub(crate) offset_getter: Option<Attr<syn::Ident>>,
@@ -244,9 +244,15 @@ pub(crate) struct FieldReadArgs {
 }
 
 #[derive(Clone, Debug)]
-pub(crate) struct SinceVersion {
-    major: syn::LitInt,
-    minor: Option<syn::LitInt>,
+pub(crate) enum Condition {
+    SinceVersion(VersionSpec),
+    IfFlag { field: syn::Ident, flag: syn::Path },
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct VersionSpec {
+    major: u16,
+    minor: Option<u16>,
 }
 
 /// Annotations for how to calculate the count of an array.
@@ -982,11 +988,34 @@ impl Parse for VariantAttrs {
     }
 }
 
+impl FieldAttrs {
+    // returns an error if multiple condition attributes are present, which I hope
+    // to not need to support
+    fn checked_set_condition(
+        &mut self,
+        ident: &syn::Ident,
+        condition: Condition,
+    ) -> syn::Result<()> {
+        if let Some(existing) = &self.conditional {
+            return Err(syn::Error::new(
+                ident.span(),
+                format!(
+                    "condition conflicts with existing condition {}",
+                    existing.name
+                ),
+            ));
+        }
+        self.conditional = Some(Attr::new(ident.clone(), condition));
+        Ok(())
+    }
+}
+
 static DOC: &str = "doc";
 static NULLABLE: &str = "nullable";
 static SKIP_GETTER: &str = "skip_getter";
 static COUNT: &str = "count";
 static SINCE_VERSION: &str = "since_version";
+static IF_FLAG: &str = "if_flag";
 static FORMAT: &str = "format";
 static VERSION: &str = "version";
 static OFFSET_GETTER: &str = "offset_getter";
@@ -1044,7 +1073,11 @@ impl Parse for FieldAttrs {
             } else if ident == TO_OWNED {
                 this.to_owned = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == SINCE_VERSION {
-                this.since_version = Some(Attr::new(ident.clone(), attr.parse_args()?));
+                let spec = attr.parse_args()?;
+                this.checked_set_condition(ident, Condition::SinceVersion(spec))?;
+            } else if ident == IF_FLAG {
+                let condition = parse_if_flag(&attr)?;
+                this.checked_set_condition(ident, condition)?;
             } else if ident == READ_WITH {
                 this.read_with_args = Some(Attr::new(ident.clone(), attr.parse_args()?));
             } else if ident == READ_OFFSET_WITH {
@@ -1174,7 +1207,7 @@ fn resolve_ident<'a>(
     } else {
         Err(logged_syn_error(
             field_type.span(),
-            "Error: undeclared type",
+            "Error: undeclared type. Missing a record, table, extern table, or extern record?",
         ))
     }
 }
@@ -1448,21 +1481,34 @@ impl ToTokens for CountArg {
     }
 }
 
-impl Parse for SinceVersion {
+impl Parse for VersionSpec {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let major = input.parse()?;
-        input
-            .peek(Token![,])
-            .then(|| {
-                input.parse::<Token![,]>()?;
-                input.parse::<syn::LitInt>()
+        let fork = input.fork();
+        if fork.parse::<syn::LitInt>().is_ok() && fork.is_empty() {
+            let major = input.parse::<syn::LitInt>()?;
+            let major: u16 = major.base10_parse()?;
+            return Ok(VersionSpec { major, minor: None });
+        }
+
+        let version = input.parse::<syn::LitFloat>()?;
+        let Some((major, minor)) = version.base10_digits().split_once('.') else {
+            return Err(syn::Error::new(version.span(), "version should be single integer major or major.minor (e.g. '1', '4', '1.1', '2.5')"));
+        };
+        let major = major.parse::<u16>();
+        let minor = minor.parse::<u16>();
+
+        major
+            .and_then(|major| {
+                minor.map(|minor| VersionSpec {
+                    major,
+                    minor: Some(minor),
+                })
             })
-            .transpose()
-            .map(|minor| Self { major, minor })
+            .map_err(|_| syn::Error::new(version.span(), "could not parse major/minor version"))
     }
 }
 
-impl ToTokens for SinceVersion {
+impl ToTokens for VersionSpec {
     fn to_tokens(&self, tokens: &mut TokenStream) {
         let major = &self.major;
         if let Some(minor) = &self.minor {
@@ -1712,6 +1758,28 @@ fn parse_attr_eq_value<T: Parse>(attr: &syn::Attribute) -> syn::Result<T> {
     syn::parse2::<T>(tokens).map_err(|err| syn::Error::new(attr.meta.span(), err.to_string()))
 }
 
+fn parse_if_flag(attr: &syn::Attribute) -> syn::Result<Condition> {
+    struct IfFlag(syn::Ident, syn::Path);
+    impl Parse for IfFlag {
+        fn parse(input: ParseStream) -> syn::Result<Self> {
+            input.parse::<Token![$]>()?;
+            let ident = input.parse::<syn::Ident>()?;
+            input.parse::<Token![,]>()?;
+            let path = input.parse::<syn::Path>()?;
+            Ok(IfFlag(ident, path))
+        }
+    }
+
+    attr.parse_args::<IfFlag>()
+        .map(|IfFlag(field, flag)| Condition::IfFlag { field, flag })
+        .map_err(|e| {
+            syn::Error::new(
+                e.span(),
+                format!("expected #[if_flag($field_name, FlagType::SOME_FLAG)]: '{e}'"),
+            )
+        })
+}
+
 fn validate_ident(ident: &syn::Ident, expected: &[&str], error: &str) -> Result<(), syn::Error> {
     if !expected.iter().any(|exp| ident == exp) {
         return Err(logged_syn_error(ident.span(), error));
@@ -1852,21 +1920,18 @@ mod tests {
     }
 
     #[test]
-    fn parse_available() {
-        fn parse(s: &str) -> Result<SinceVersion, syn::Error> {
+    fn parse_version() {
+        fn parse(s: &str) -> Result<VersionSpec, syn::Error> {
             syn::parse_str(s)
         }
 
         assert!(parse("32").unwrap().minor.is_none());
-        assert_eq!(
-            parse("32").unwrap().major.base10_parse::<u16>().unwrap(),
-            32
-        );
+        assert_eq!(parse("32").unwrap().major, 32);
         assert!(parse("ab").is_err());
         assert!(parse("MajorMinor::VERSION_1_0").is_err());
-        assert!(parse("1, 3").unwrap().minor.is_some());
-        assert!(parse("1, 2, 3").is_err());
-        assert!(parse("1, 'b'").is_err());
+        assert!(parse("1.3").unwrap().minor.is_some());
+        assert!(parse("1.2.3").is_err());
+        assert!(parse("1.'b'").is_err());
     }
 
     fn parse_format_group(s: &str) -> Result<TableFormat, syn::Error> {

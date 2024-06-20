@@ -12,11 +12,29 @@ cargo-fuzz = true
 release = false
 
 [dependencies]
-libfuzzer-sys = "0.4"
+libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
 skrifa = { path="../skrifa" }
 
 [[bin]]
-name = "fuzz_skrifa"
-path = "fuzz_targets/fuzz_skrifa.rs"
+name = "fuzz_skrifa_charmap"
+path = "fuzz_targets/fuzz_skrifa_charmap.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_basic_metadata"
+path = "fuzz_targets/fuzz_basic_metadata.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_name"
+path = "fuzz_targets/fuzz_name.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_skrifa_outline"
+path = "fuzz_targets/fuzz_skrifa_outline.rs"
 test = false
 doc = false

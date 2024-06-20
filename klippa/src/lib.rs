@@ -3,14 +3,19 @@
 mod hhea;
 mod hmtx;
 mod maxp;
+mod parsing_util;
+pub use parsing_util::{parse_unicodes, populate_gids};
 
 use int_set::IntSet;
 use std::collections::BTreeSet;
+use std::path::PathBuf;
 use thiserror::Error;
-use write_fonts::read::{FontRef, TableProvider};
+use write_fonts::read::{FontRef, TableProvider, TopLevelTable};
 use write_fonts::types::GlyphId;
 use write_fonts::types::Tag;
-use write_fonts::{from_obj::FromTableRef, tables::hmtx::Hmtx, tables::maxp::Maxp};
+use write_fonts::{
+    from_obj::FromTableRef, tables::hhea::Hhea, tables::hmtx::Hmtx, tables::maxp::Maxp, FontBuilder,
+};
 pub struct Plan {
     glyph_ids: IntSet<GlyphId>,
     num_h_metrics: u16,
@@ -95,6 +100,18 @@ fn compute_new_num_h_metrics(hmtx_table: &Hmtx, glyph_ids: &IntSet<GlyphId>) -> 
 
 #[derive(Debug, Error)]
 pub enum SubsetError {
+    #[error("Invalid input gid {0}")]
+    InvalidGid(String),
+
+    #[error("Invalid gid range {start}-{end}")]
+    InvalidGidRange { start: u16, end: u16 },
+
+    #[error("Invalid input unicode {0}")]
+    InvalidUnicode(String),
+
+    #[error("Invalid unicode range {start}-{end}")]
+    InvalidUnicodeRange { start: u32, end: u32 },
+
     #[error("Subsetting table '{0}' failed")]
     SubsetTableError(Tag),
 }
@@ -102,4 +119,30 @@ pub enum SubsetError {
 pub trait Subset {
     /// Subset this object. Returns `true` if the object should be retained.
     fn subset(&mut self, plan: &Plan) -> Result<bool, SubsetError>;
+}
+
+pub fn subset_font(font: FontRef, plan: &Plan, output_file: &PathBuf) {
+    let hmtx = font.hmtx().expect("Error reading hmtx table");
+    let mut hmtx = Hmtx::from_table_ref(&hmtx);
+    hmtx.subset(plan).expect("SUbsetting failed");
+    let hmtx_bytes = write_fonts::dump_table(&hmtx).unwrap();
+
+    let hhea = font.hhea().expect("Error reading hhea table");
+    let mut hhea = Hhea::from_table_ref(&hhea);
+    hhea.subset(plan).expect("Subsetting failed");
+    let hhea_bytes = write_fonts::dump_table(&hhea).unwrap();
+
+    let maxp = font.maxp().expect("Error reading maxp table");
+    let mut maxp = Maxp::from_table_ref(&maxp);
+    maxp.subset(plan).expect("Subsetting failed");
+    let maxp_bytes = write_fonts::dump_table(&maxp).unwrap();
+
+    let mut builder = FontBuilder::default();
+    builder.add_raw(Hmtx::TAG, hmtx_bytes);
+    builder.add_raw(Hhea::TAG, hhea_bytes);
+    builder.add_raw(Maxp::TAG, maxp_bytes);
+
+    builder.copy_missing_tables(font);
+
+    std::fs::write(output_file, builder.build()).unwrap();
 }

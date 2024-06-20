@@ -70,20 +70,26 @@ impl<'a> FontRead<'a> for Cpal<'a> {
         let color_record_indices_byte_len = num_palettes as usize * u16::RAW_BYTE_LEN;
         cursor.advance_by(color_record_indices_byte_len);
         let palette_types_array_offset_byte_start = version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(1).then(|| cursor.advance::<Offset32>());
+        version
+            .compatible(1u16)
+            .then(|| cursor.advance::<Offset32>());
         let palette_labels_array_offset_byte_start = version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(1).then(|| cursor.advance::<Offset32>());
+        version
+            .compatible(1u16)
+            .then(|| cursor.advance::<Offset32>());
         let palette_entry_labels_array_offset_byte_start = version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(1).then(|| cursor.advance::<Offset32>());
+        version
+            .compatible(1u16)
+            .then(|| cursor.advance::<Offset32>());
         cursor.finish(CpalMarker {
             color_record_indices_byte_len,
             palette_types_array_offset_byte_start,
@@ -232,21 +238,21 @@ impl<'a> SomeTable<'a> for Cpal<'a> {
                 "color_record_indices",
                 self.color_record_indices(),
             )),
-            6usize if version.compatible(1) => Some(Field::new(
+            6usize if version.compatible(1u16) => Some(Field::new(
                 "palette_types_array_offset",
                 FieldType::offset_to_array_of_scalars(
                     self.palette_types_array_offset().unwrap(),
                     self.palette_types_array().unwrap(),
                 ),
             )),
-            7usize if version.compatible(1) => Some(Field::new(
+            7usize if version.compatible(1u16) => Some(Field::new(
                 "palette_labels_array_offset",
                 FieldType::offset_to_array_of_scalars(
                     self.palette_labels_array_offset().unwrap(),
                     self.palette_labels_array().unwrap(),
                 ),
             )),
-            8usize if version.compatible(1) => Some(Field::new(
+            8usize if version.compatible(1u16) => Some(Field::new(
                 "palette_entry_labels_array_offset",
                 FieldType::offset_to_array_of_scalars(
                     self.palette_entry_labels_array_offset().unwrap(),

@@ -15,10 +15,12 @@ scaler_test = []
 traversal = ["std"]
 default = ["traversal"]
 serde = ["dep:serde", "font-types/serde"]
+libm = ["dep:core_maths"]
 
 [dependencies]
 font-types = { version = "0.5.5", path = "../font-types", features = ["bytemuck"] }
 serde = { version = "1.0", features = ["derive"], optional = true }
+core_maths = { workspace = true, optional = true }
 bytemuck = { workspace = true }
 
 [dev-dependencies]

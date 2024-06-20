@@ -296,6 +296,12 @@ impl SimpleGlyphFlags {
     /// platforms.) When used, it must be set on the first flag byte
     /// for the glyph. See additional details below.
     pub const OVERLAP_SIMPLE: Self = Self { bits: 0x40 };
+
+    /// Bit 7: Off-curve point belongs to a cubic-Bezier segment
+    ///
+    /// * [Spec](https://github.com/harfbuzz/boring-expansion-spec/blob/main/glyf1-cubicOutlines.md)
+    /// * [harfbuzz](https://github.com/harfbuzz/harfbuzz/blob/c1ca46e4ebb6457dfe00a5441d52a4a66134ac58/src/OT/glyf/SimpleGlyph.hh#L23)
+    pub const CUBIC: Self = Self { bits: 0x80 };
 }
 
 impl SimpleGlyphFlags {
@@ -315,7 +321,8 @@ impl SimpleGlyphFlags {
                 | Self::REPEAT_FLAG.bits
                 | Self::X_IS_SAME_OR_POSITIVE_X_SHORT_VECTOR.bits
                 | Self::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR.bits
-                | Self::OVERLAP_SIMPLE.bits,
+                | Self::OVERLAP_SIMPLE.bits
+                | Self::CUBIC.bits,
         }
     }
 
@@ -547,6 +554,7 @@ impl std::fmt::Debug for SimpleGlyphFlags {
                 Self::Y_IS_SAME_OR_POSITIVE_Y_SHORT_VECTOR,
             ),
             ("OVERLAP_SIMPLE", Self::OVERLAP_SIMPLE),
+            ("CUBIC", Self::CUBIC),
         ];
         let mut first = true;
         for (name, value) in members {

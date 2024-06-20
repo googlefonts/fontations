@@ -16,3 +16,8 @@ int-set = { path = "../int-set" }
 regex = "1.10.4"
 thiserror = "1.0.58"
 write-fonts = { path = "../write-fonts", features = ["read"] }
+
+
+[dev-dependencies]
+diff = "0.1.13"
+tempdir = "0.3.7"

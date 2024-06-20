@@ -46,8 +46,8 @@ pub struct PointFlags(u8);
 impl PointFlags {
     // Note: OFF_CURVE_QUAD is signified by the absence of both ON_CURVE
     // and OFF_CURVE_CUBIC bits, per FreeType and TrueType convention.
-    const ON_CURVE: u8 = 0x1;
-    const OFF_CURVE_CUBIC: u8 = 0x8;
+    const ON_CURVE: u8 = SimpleGlyphFlags::ON_CURVE_POINT.bits;
+    const OFF_CURVE_CUBIC: u8 = SimpleGlyphFlags::CUBIC.bits;
     const CURVE_MASK: u8 = Self::ON_CURVE | Self::OFF_CURVE_CUBIC;
 
     /// Creates a new on curve point flag.
@@ -233,8 +233,7 @@ impl<'a> SimpleGlyph<'a> {
             }
             y = y.wrapping_add(delta);
             point.y = C::from_i32(y);
-            // Only keep the on-curve bit
-            point_flags.0 &= 1;
+            *point_flags = PointFlags::from_bits(point_flags.0);
         }
         Ok(())
     }
@@ -710,6 +709,8 @@ impl fmt::Display for ToPathError {
 
 /// The order to process points in a glyf point stream is ambiguous when the first point is
 /// off-curve. Major implementations differ. Which one would you like to match?
+///
+/// **If you add a new one make sure to update the fuzzer**
 #[derive(Debug, Default, Copy, Clone)]
 pub enum ToPathStyle {
     /// If the first point is off-curve, check if the last is on-curve
@@ -898,7 +899,6 @@ where
             self.points_pending -= 1;
             self.ix += 1;
             let (flag, curr) = (self.contour.flags[ix], self.contour.points[ix]);
-
             if flag.is_off_curve_quad() {
                 // quads can have 0 or 1 buffered point. If there is one draw a quad to the implicit oncurve.
                 if self.off_curve_pending > 0 {
@@ -1358,5 +1358,33 @@ mod tests {
                 assert_eq!(a & b, 0);
             }
         }
+    }
+
+    #[test]
+    fn cubic_glyf() {
+        let font = FontRef::new(font_test_data::CUBIC_GLYF).unwrap();
+        let loca = font.loca(None).unwrap();
+        let glyf = font.glyf().unwrap();
+        let glyph = loca.get_glyf(GlyphId::new(2), &glyf).unwrap().unwrap();
+        assert_eq!(glyph.number_of_contours(), 1);
+        let simple_glyph = if let Glyph::Simple(simple) = glyph {
+            simple
+        } else {
+            panic!("expected simple glyph");
+        };
+        assert_eq!(
+            simple_glyph
+                .points()
+                .map(|pt| (pt.x, pt.y, pt.on_curve))
+                .collect::<Vec<_>>(),
+            &[
+                (278, 710, true),
+                (278, 470, true),
+                (300, 500, false),
+                (800, 500, false),
+                (998, 470, true),
+                (998, 710, true),
+            ]
+        );
     }
 }

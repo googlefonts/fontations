@@ -45,7 +45,7 @@ impl FontWrite for Gsub {
         self.feature_list.write_into(writer);
         self.lookup_list.write_into(writer);
         version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| self.feature_variations.write_into(writer));
     }
     fn table_type(&self) -> TableType {
@@ -855,7 +855,7 @@ pub struct ExtensionSubstFormat1<T> {
     pub extension: OffsetMarker<T, WIDTH_32>,
 }
 
-impl<T> ExtensionSubstFormat1<T> {
+impl<T: Default> ExtensionSubstFormat1<T> {
     /// Construct a new `ExtensionSubstFormat1`
     pub fn new(extension_lookup_type: u16, extension: T) -> Self {
         Self {

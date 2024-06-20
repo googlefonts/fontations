@@ -732,7 +732,7 @@ the size and contents of the array:
   table Post {
       // some fields omited
       #[count(..)]
-      #[since_version(2,0)]
+      #[since_version(2.0)]
       string_data: VarLenArray<PString<'a>>,
   }
   ```

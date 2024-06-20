@@ -7,8 +7,8 @@ use quote::{quote, ToTokens};
 use syn::spanned::Spanned;
 
 use super::parsing::{
-    logged_syn_error, Attr, Count, CountArg, CustomCompile, Field, FieldReadArgs, FieldType,
-    FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record, ReferencedFields,
+    logged_syn_error, Attr, Condition, Count, CountArg, CustomCompile, Field, FieldReadArgs,
+    FieldType, FieldValidation, Fields, NeededWhen, OffsetTarget, Phase, Record, ReferencedFields,
 };
 
 impl Fields {
@@ -97,6 +97,24 @@ impl Fields {
         self.fields.iter().filter_map(Field::compile_default_init)
     }
 
+    /// return the names of any fields that are the inputs of a conditional statement
+    /// on another field.
+    pub(crate) fn conditional_input_idents(&self) -> Vec<syn::Ident> {
+        let mut result = self
+            .fields
+            .iter()
+            .flat_map(|fld| {
+                fld.attrs
+                    .conditional
+                    .as_ref()
+                    .and_then(|cond| cond.input_field())
+            })
+            .collect::<Vec<_>>();
+        result.sort();
+        result.dedup();
+        result
+    }
+
     pub(crate) fn iter_constructor_info(&self) -> impl Iterator<Item = FieldConstructorInfo> + '_ {
         self.fields.iter().filter_map(|fld| {
             fld.compile_constructor_arg_type()
@@ -174,27 +192,40 @@ impl Fields {
             };
 
             let is_single_nullable_offset = field.is_nullable() && !field.is_array();
-            let required_by_version = field
+            let is_conditional = field
                 .attrs
-                .since_version
+                .conditional
                 .as_ref()
                 .filter(|_| !is_single_nullable_offset)
                 .map(|attr| {
-                    let since_version = &attr.attr;
-                    quote! {
-                        if version.compatible(#since_version) && self.#name.is_none() {
-                            ctx.report(format!("field must be present for version {version}"));
+                    let condition = attr.condition_tokens_for_read();
+                    match &attr.attr {
+                        Condition::SinceVersion(_) => quote! {
+                            if #condition && self.#name.is_none() {
+                                ctx.report(format!("field must be present for version {version}"));
+                            }
+                        },
+                        Condition::IfFlag { flag, .. } => {
+                            let flag = stringify_path(flag);
+                            let flag_missing = format!("'{name}' is present but {flag} not set",);
+                            let field_missing = format!("{flag} is set but '{name}' is None",);
+                            quote! {
+                                if !(#condition) && self.#name.is_some() {
+                                    ctx.report(#flag_missing)
+                                }
+                                if (#condition) && self.#name.is_none() {
+                                    ctx.report(#field_missing)
+                                }
+                            }
                         }
                     }
                 });
 
             // this all deals with the case where we have an optional field.
-            let maybe_check_is_some = required_by_version
+            let maybe_check_is_some = is_conditional
                 .is_some()
                 .then(|| quote!(self.#name.is_some() &&));
-            let maybe_unwrap = required_by_version
-                .is_some()
-                .then(|| quote!(.as_ref().unwrap()));
+            let maybe_unwrap = is_conditional.is_some().then(|| quote!(.as_ref().unwrap()));
 
             let array_len_check = if let Some(ident) =
                 field.attrs.count.as_deref().and_then(Count::single_field)
@@ -209,13 +240,10 @@ impl Fields {
                 None
             };
 
-            if validation_call.is_some()
-                || array_len_check.is_some()
-                || required_by_version.is_some()
-            {
+            if validation_call.is_some() || array_len_check.is_some() || is_conditional.is_some() {
                 stmts.push(quote! {
                     ctx.in_field(#name_str, |ctx| {
-                        #required_by_version
+                        #is_conditional
                         #array_len_check
                         #validation_call
                     });
@@ -252,12 +280,38 @@ impl Fields {
             .map(move |(i, fld)| {
                 let condition = fld
                     .attrs
-                    .since_version
+                    .conditional
                     .as_ref()
-                    .map(|v| quote!(if version.compatible(#v)));
+                    .map(|v| v.condition_tokens_for_read())
+                    .map(|cond| quote!( if #cond ));
                 let rhs = traversal_arm_for_field(fld, in_record, pass_data.as_ref());
                 quote!( #i #condition => Some(#rhs) )
             })
+    }
+}
+
+impl Condition {
+    fn condition_tokens_for_read(&self) -> TokenStream {
+        match self {
+            Condition::SinceVersion(version) => quote!(version.compatible(#version)),
+            Condition::IfFlag { field, flag } => quote!(#field.contains(#flag)),
+        }
+    }
+
+    fn condition_tokens_for_write(&self) -> TokenStream {
+        match self {
+            Condition::SinceVersion(version) => quote!(version.compatible(#version)),
+            Condition::IfFlag { field, flag } => quote!(self.#field.contains(#flag)),
+        }
+    }
+
+    /// the name of any fields that need to be instantiated to determine this condition
+    fn input_field(&self) -> Option<syn::Ident> {
+        match self {
+            // special case, we always treat a version field as input
+            Condition::SinceVersion(_) => None,
+            Condition::IfFlag { field, .. } => Some(field.clone()),
+        }
     }
 }
 
@@ -285,7 +339,7 @@ fn traversal_arm_for_field(
 ) -> TokenStream {
     let name_str = &fld.name.to_string();
     let name = &fld.name;
-    let maybe_unwrap = fld.attrs.since_version.is_some().then(|| quote!(.unwrap()));
+    let maybe_unwrap = fld.attrs.conditional.is_some().then(|| quote!(.unwrap()));
     if let Some(traverse_with) = &fld.attrs.traverse_with {
         let traverse_fn = &traverse_with.attr;
         if traverse_fn == "skip" {
@@ -504,8 +558,8 @@ impl Field {
         self.attrs.count.is_some() || self.attrs.read_with_args.is_some()
     }
 
-    pub(crate) fn is_version_dependent(&self) -> bool {
-        self.attrs.since_version.is_some()
+    pub(crate) fn is_conditional(&self) -> bool {
+        self.attrs.conditional.is_some()
     }
 
     /// Sanity check we are in a sane state for the end of phase
@@ -563,6 +617,15 @@ impl Field {
             }
         }
 
+        if self.attrs.version.is_some() && self.name != "version" {
+            // this seems to be always true and it simplifies our lives; if not
+            // we will need to handle custom idents in more places.
+            return Err(logged_syn_error(
+                self.attrs.version.as_ref().unwrap().span(),
+                "#[version] attribute expects to be on field named 'version",
+            ));
+        }
+
         Ok(())
     }
 
@@ -596,7 +659,7 @@ impl Field {
             | FieldType::ComputedArray { .. }
             | FieldType::VarLenArray(_) => {
                 let len_field = self.shape_byte_len_field_name();
-                let try_op = self.is_version_dependent().then(|| quote!(?));
+                let try_op = self.is_conditional().then(|| quote!(?));
                 quote!(self.#len_field #try_op)
             }
             FieldType::PendingResolution { .. } => panic!("Should have resolved {self:?}"),
@@ -605,36 +668,41 @@ impl Field {
 
     /// iterate the names of fields that are required for parsing or instantiating
     /// this field.
-    fn input_fields(&self) -> impl Iterator<Item = (syn::Ident, NeededWhen)> + '_ {
-        self.attrs
-            .count
-            .as_ref()
-            .into_iter()
-            .flat_map(|count| {
+    fn input_fields(&self) -> Vec<(syn::Ident, NeededWhen)> {
+        let mut result = Vec::new();
+        if let Some(count) = self.attrs.count.as_ref() {
+            result.extend(
                 count
                     .iter_referenced_fields()
-                    .cloned()
-                    .map(|fld| (fld, NeededWhen::Parse))
-            })
-            .chain(
-                self.attrs
-                    .read_with_args
-                    .as_ref()
-                    .into_iter()
-                    .flat_map(|args| args.inputs.iter().map(|x| (x.clone(), NeededWhen::Both))),
-            )
-            .chain(
-                self.attrs
-                    .read_offset_args
-                    .as_ref()
-                    .into_iter()
-                    .flat_map(|args| {
-                        args.inputs
-                            .iter()
-                            .cloned()
-                            .map(|arg| (arg, NeededWhen::Runtime))
-                    }),
-            )
+                    .map(|fld| (fld.clone(), NeededWhen::Parse)),
+            );
+        }
+        if let Some(fld) = self
+            .attrs
+            .conditional
+            .as_ref()
+            .and_then(|c| c.input_field())
+        {
+            result.push((fld, NeededWhen::Parse))
+        }
+
+        if let Some(read_with) = self.attrs.read_with_args.as_ref() {
+            result.extend(
+                read_with
+                    .inputs
+                    .iter()
+                    .map(|fld| (fld.clone(), NeededWhen::Both)),
+            );
+        }
+        if let Some(read_offset) = self.attrs.read_offset_args.as_ref() {
+            result.extend(
+                read_offset
+                    .inputs
+                    .iter()
+                    .map(|fld| (fld.clone(), NeededWhen::Runtime)),
+            );
+        }
+        result
     }
 
     /// 'raw' as in this does not include handling offset resolution
@@ -676,7 +744,7 @@ impl Field {
         let type_tokens = self.typ.compile_type_tokens(self.is_nullable());
 
         // if this is versioned, we wrap in `Option``
-        if self.is_version_dependent() {
+        if self.is_conditional() {
             // UNLESS this is a NullableOffsetMarker, where is already basically an Option
             if !(self.is_nullable() && matches!(self.typ, FieldType::Offset { .. })) {
                 return quote!(Option<#type_tokens>);
@@ -690,7 +758,7 @@ impl Field {
             return None;
         }
         let return_type = self.raw_getter_return_type();
-        if self.is_version_dependent() {
+        if self.is_conditional() {
             Some(quote!(Option<#return_type>))
         } else {
             Some(return_type)
@@ -701,7 +769,7 @@ impl Field {
         let name = &self.name;
         let is_array = self.is_array();
         let is_var_array = self.is_var_array();
-        let is_versioned = self.is_version_dependent();
+        let is_versioned = self.is_conditional();
 
         let range_stmt = self.getter_range_stmt();
         let mut read_stmt = if let Some(args) = &self.attrs.read_with_args {
@@ -778,7 +846,7 @@ impl Field {
 
     fn getter_range_stmt(&self) -> TokenStream {
         let shape_range_fn_name = self.shape_byte_range_fn_name();
-        let try_op = self.is_version_dependent().then(|| quote!(?));
+        let try_op = self.is_conditional().then(|| quote!(?));
         quote!( self.shape.#shape_range_fn_name() #try_op )
     }
 
@@ -859,7 +927,7 @@ impl Field {
             let mut return_type =
                 quote!( #array_type<'a, #target_ident #target_lifetime, #offset_type> );
             let mut body = quote!(#array_type::new(offsets, data, #args_token));
-            if self.is_version_dependent() {
+            if self.is_conditional() {
                 return_type = quote!( Option< #return_type > );
                 body = quote!( offsets.map(|offsets| #body ) );
             }
@@ -877,14 +945,14 @@ impl Field {
             })
         } else {
             let mut return_type = target.getter_return_type(target_is_generic);
-            if self.is_nullable() || self.attrs.since_version.is_some() {
+            if self.is_nullable() || self.attrs.conditional.is_some() {
                 return_type = quote!(Option<#return_type>);
             }
             let resolve = match self.attrs.read_offset_args.as_deref() {
                 None => quote!(resolve(data)),
                 Some(_) => quote!(resolve_with_args(data, &args)),
             };
-            let getter_impl = if self.is_version_dependent() {
+            let getter_impl = if self.is_conditional() {
                 // if this is nullable *and* version dependent we add a `?`
                 // to avoid returning Option<Option<_>>
                 let try_op = self.is_nullable().then(|| quote!(?));
@@ -957,43 +1025,48 @@ impl Field {
         if !self.read_at_parse_time
             && !self.has_computed_len()
             && !self.validate_at_parse()
-            && !self.is_version_dependent()
+            && !self.is_conditional()
         {
             let typ = self.typ.cooked_type_tokens();
             return quote!( cursor.advance::<#typ>(); );
         }
 
-        let versioned_field_start = self.attrs.since_version.as_ref().map(|since_version|{
+        let conditional_field_start = self.attrs.conditional.as_ref().map(|condition| {
             let field_start_name = self.shape_byte_start_field_name();
-            quote! ( let #field_start_name = version.compatible(#since_version).then(|| cursor.position()).transpose()?; )
+            let condition = condition.condition_tokens_for_read();
+            quote! ( let #field_start_name = #condition.then(|| cursor.position()).transpose()?; )
         });
 
         let other_stuff = if self.has_computed_len() {
             let len_expr = self.computed_len_expr().unwrap();
             let len_field_name = self.shape_byte_len_field_name();
 
-            match &self.attrs.since_version {
-                Some(version) => quote! {
-                    let #len_field_name = version.compatible(#version).then_some(#len_expr);
-                    if let Some(value) = #len_field_name {
-                        cursor.advance_by(value);
+            match &self.attrs.conditional {
+                Some(condition) => {
+                    let condition = condition.condition_tokens_for_read();
+                    quote! {
+                        let #len_field_name = #condition.then_some(#len_expr);
+                        if let Some(value) = #len_field_name {
+                            cursor.advance_by(value);
+                        }
                     }
-                },
+                }
                 None => quote! {
                     let #len_field_name = #len_expr;
                     cursor.advance_by(#len_field_name);
                 },
             }
-        } else if let Some(since_version) = &self.attrs.since_version {
+        } else if let Some(condition) = &self.attrs.conditional {
             assert!(!self.is_array());
             let typ = self.typ.cooked_type_tokens();
+            let condition = condition.condition_tokens_for_read();
             if self.read_at_parse_time {
                 quote! {
-                    let #name = version.compatible(#since_version).then(|| cursor.read::<#typ>()).transpose()?.unwrap_or(0);
+                    let #name = #condition.then(|| cursor.read::<#typ>()).transpose()?.unwrap_or(0);
                 }
             } else {
                 quote! {
-                    version.compatible(#since_version).then(|| cursor.advance::<#typ>());
+                    #condition.then(|| cursor.advance::<#typ>());
                 }
             }
         } else if self.read_at_parse_time {
@@ -1004,7 +1077,7 @@ impl Field {
         };
 
         quote! {
-            #versioned_field_start
+            #conditional_field_start
             #other_stuff
         }
     }
@@ -1155,7 +1228,7 @@ impl Field {
     }
 
     pub(crate) fn skipped_in_constructor(&self) -> bool {
-        self.attrs.default.is_some() || self.is_version_dependent()
+        self.attrs.default.is_some() || self.is_conditional()
     }
     /// If this field should be part of a generated constructor, returns the type to use.
     ///
@@ -1215,13 +1288,14 @@ impl Field {
                 value_expr
             };
 
-            if let Some(avail) = self.attrs.since_version.as_ref() {
+            if let Some(condition) = self.attrs.conditional.as_ref() {
                 let needs_unwrap =
                     !(self.is_computed() || (self.attrs.nullable.is_some() && !self.is_array()));
                 let expect = needs_unwrap.then(
-                    || quote!(.as_ref().expect("missing versioned field should have failed validation")),
+                    || quote!(.as_ref().expect("missing conditional field should have failed validation")),
                 );
-                quote!(version.compatible(#avail).then(|| #value_expr #expect .write_into(writer)))
+                let condition = condition.condition_tokens_for_write();
+                quote!(#condition.then(|| #value_expr #expect .write_into(writer)))
             } else {
                 quote!(#value_expr.write_into(writer))
             }
@@ -1316,7 +1390,7 @@ impl Field {
                     let offset_getter = self.offset_getter_name().unwrap();
                     let getter = quote!(obj.#offset_getter(#pass_offset_data));
                     let converter = quote!( .to_owned_table() );
-                    if self.attrs.since_version.is_some() {
+                    if self.attrs.conditional.is_some() {
                         quote!(#getter.map(|obj| obj #converter))
                     } else {
                         quote!(#getter #converter)
@@ -1329,7 +1403,7 @@ impl Field {
             FieldType::ComputedArray(_) | FieldType::VarLenArray(_) => {
                 let getter = quote!(obj.#name());
                 let converter = quote!( .iter().filter_map(|x| x.map(|x| FromObjRef::from_obj_ref(&x, offset_data)).ok()).collect() );
-                if self.attrs.since_version.is_some() {
+                if self.attrs.conditional.is_some() {
                     quote!(#getter.map(|obj| obj #converter))
                 } else {
                     quote!(#getter #converter)
@@ -1445,6 +1519,15 @@ fn width_for_offset(offset: &syn::Ident) -> Option<syn::Ident> {
     } else {
         panic!("not an offset: {offset}")
     }
+}
+
+/// turn a syn path like 'std :: hmm :: Thing' into "Thing", for shorter diagnostic
+/// messages.
+fn stringify_path(path: &syn::Path) -> String {
+    let s = path.to_token_stream().to_string();
+    s.rsplit_once(' ')
+        .map(|(_, end)| end.to_string())
+        .unwrap_or(s)
 }
 
 impl FieldReadArgs {

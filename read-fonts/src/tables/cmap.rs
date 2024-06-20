@@ -2,6 +2,8 @@
 
 include!("../../generated/generated_cmap.rs");
 
+use std::ops::{Range, RangeInclusive};
+
 /// Result of mapping a codepoint with a variation selector.
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum MapVariant {
@@ -104,7 +106,7 @@ impl<'a> Cmap4<'a> {
 #[derive(Clone)]
 pub struct Cmap4Iter<'a> {
     subtable: Cmap4<'a>,
-    cur_range: std::ops::Range<u32>,
+    cur_range: Range<u32>,
     cur_start_code: u16,
     cur_range_ix: usize,
 }
@@ -195,14 +197,25 @@ impl<'a> Cmap12<'a> {
 
     /// Returns the codepoint range and start glyph id for the group
     /// at the given index.
-    fn group(&self, index: usize) -> Option<(Range<u32>, u32)> {
+    fn group(&self, index: usize) -> Option<Cmap12Group> {
         let group = self.groups().get(index)?;
-        Some((
-            // Use + 1 here because the group range is inclusive
-            group.start_char_code()..group.end_char_code() + 1,
-            group.start_glyph_id(),
-        ))
+        let start_code = group.start_char_code();
+        // Limit to the valid range of Unicode characters
+        // per https://github.com/googlefonts/fontations/issues/952#issuecomment-2161510184
+        let end_code = group.end_char_code().min(char::MAX as u32);
+        Some(Cmap12Group {
+            range: start_code..=end_code,
+            start_code,
+            start_glyph_id: group.start_glyph_id(),
+        })
     }
+}
+
+#[derive(Clone)]
+struct Cmap12Group {
+    range: RangeInclusive<u32>,
+    start_code: u32,
+    start_glyph_id: u32,
 }
 
 /// Iterator over all (codepoint, glyph identifier) pairs in
@@ -210,22 +223,17 @@ impl<'a> Cmap12<'a> {
 #[derive(Clone)]
 pub struct Cmap12Iter<'a> {
     subtable: Cmap12<'a>,
-    cur_range: Range<u32>,
-    cur_start_code: u32,
-    cur_start_glyph_id: u32,
-    cur_range_ix: usize,
+    cur_group: Option<Cmap12Group>,
+    cur_group_ix: usize,
 }
 
 impl<'a> Cmap12Iter<'a> {
     fn new(subtable: Cmap12<'a>) -> Self {
-        let (cur_range, cur_start_glyph_id) = subtable.group(0).unwrap_or_default();
-        let cur_start_code = cur_range.start;
+        let cur_group = subtable.group(0);
         Self {
             subtable,
-            cur_range,
-            cur_start_code,
-            cur_start_glyph_id,
-            cur_range_ix: 0,
+            cur_group,
+            cur_group_ix: 0,
         }
     }
 }
@@ -235,11 +243,12 @@ impl<'a> Iterator for Cmap12Iter<'a> {
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
-            if let Some(codepoint) = self.cur_range.next() {
+            let group = self.cur_group.as_mut()?;
+            if let Some(codepoint) = group.range.next() {
                 let glyph_id = self.subtable.lookup_glyph_id(
                     codepoint,
-                    self.cur_start_code,
-                    self.cur_start_glyph_id,
+                    group.start_code,
+                    group.start_glyph_id,
                 );
                 // The table might explicitly map some codepoints to 0. Avoid
                 // returning those here.
@@ -248,10 +257,17 @@ impl<'a> Iterator for Cmap12Iter<'a> {
                 }
                 return Some((codepoint, glyph_id));
             } else {
-                self.cur_range_ix += 1;
-                (self.cur_range, self.cur_start_glyph_id) =
-                    self.subtable.group(self.cur_range_ix)?;
-                self.cur_start_code = self.cur_range.start;
+                self.cur_group_ix += 1;
+                let mut next_group = self.subtable.group(self.cur_group_ix)?;
+                // Groups should be in order and non-overlapping so make sure
+                // that the start code of next group is at least
+                // current_end + 1.
+                // This ensures we only ever generate a maximum of
+                // 0..=char::MAX results.
+                if next_group.range.start() <= group.range.end() {
+                    next_group.range = *group.range.end() + 1..=*next_group.range.end();
+                }
+                self.cur_group = Some(next_group);
             }
         }
     }
@@ -566,6 +582,74 @@ mod tests {
             count += 1;
         }
         assert_eq!(count, 10);
+    }
+
+    // oss-fuzz: detected integer addition overflow in Cmap12::group()
+    // ref: https://oss-fuzz.com/testcase-detail/5141969742397440
+    // and https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=69547
+    #[test]
+    fn cmap12_iter_avoid_overflow() {
+        let test_case = &[
+            79, 84, 84, 79, 0, 5, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,
+            32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 0, 10, 32, 32, 32, 32, 32, 32, 32,
+            99, 109, 97, 112, 32, 32, 32, 32, 0, 0, 0, 33, 0, 0, 0, 84, 32, 32, 32, 32, 32, 32, 0,
+            12, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 0, 0, 0, 2, 32, 32, 32, 32, 32, 32, 32, 32,
+            32, 32, 32, 32, 32, 32, 32, 32, 255, 255, 255, 255, 255, 255, 255, 32, 32, 32, 32, 0,
+            0, 32, 32, 0, 0, 0, 33,
+        ];
+        let font = FontRef::new(test_case).unwrap();
+        let cmap = font.cmap().unwrap();
+        let cmap12 = find_cmap12(&cmap).unwrap();
+        let _ = cmap12.iter().count();
+    }
+
+    // oss-fuzz: timeout in Cmap12Iter
+    // ref: https://oss-fuzz.com/testcase-detail/4628971063934976
+    // and https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=69540
+    #[test]
+    fn cmap12_iter_avoid_timeout() {
+        let test_case = &[
+            0, 1, 0, 0, 0, 5, 0, 1, 0, 0, 5, 0, 0, 0, 0, 0, 0, 0, 0, 48, 0, 93, 0, 0, 3, 8, 0, 0,
+            151, 3, 0, 0, 0, 0, 0, 0, 0, 64, 255, 103, 5, 7, 221, 0, 99, 109, 97, 112, 0, 0, 3, 0,
+            0, 0, 0, 2, 0, 0, 0, 97, 97, 97, 159, 158, 158, 149, 0, 12, 255, 255, 249, 2, 0, 1, 0,
+            0, 0, 23, 0, 0, 0, 1, 0, 0, 0, 170, 79, 84, 84, 79, 0, 5, 5, 0, 1, 0, 0, 5, 5, 5, 5,
+            48, 5, 5, 5, 5, 0, 4, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 255, 255, 255, 255, 0, 0, 33, 0, 5,
+            3, 5, 5, 5, 5, 74, 5, 255, 255, 32, 1, 5, 44, 0, 0, 10, 116, 0, 33, 0, 0, 0, 102, 0, 0,
+            0, 0, 0, 0, 0, 0, 78, 0, 0, 0, 0, 0, 0, 0, 0, 0, 33, 0, 0, 87, 250, 181, 250, 250, 159,
+            0, 4, 0, 0, 0, 0, 0, 99, 109, 97, 112, 4, 64, 138, 0, 0, 0, 0, 33, 0, 0, 3, 0, 0, 0,
+            102, 0, 0, 0, 0, 0, 0, 0, 0, 78, 0, 0, 0, 0, 0, 255, 255, 96, 0, 0, 0, 12, 32, 0, 1, 0,
+            0, 5, 5, 97, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 149, 97, 0, 0, 4, 0, 0,
+            128, 5, 53, 37, 5, 5, 44, 5, 5, 0, 3, 5,
+        ];
+        let font = FontRef::new(test_case).unwrap();
+        let cmap = font.cmap().unwrap();
+        // ranges: [SequentialMapGroup { start_char_code: 170, end_char_code: 1330926671, start_glyph_id: 328960 }]
+        let cmap12 = find_cmap12(&cmap).unwrap();
+        assert!(cmap12.iter().count() <= char::MAX as usize);
+    }
+
+    #[test]
+    fn cmap12_iter_range_clamping() {
+        let test_case = &[
+            79, 84, 84, 79, 0, 5, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,
+            32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 0, 10, 32, 32, 32, 32, 32, 32, 32,
+            99, 109, 97, 112, 32, 32, 32, 32, 0, 0, 0, 33, 0, 0, 0, 84, 32, 32, 32, 32, 32, 32, 0,
+            12, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 0, 0, 0, 2, 0, 0, 0, 0, 0, 255, 255, 255,
+            32, 32, 32, 32, 0, 0, 0, 255, 255, 255, 255, 255, 255, 255, 255, 32, 32, 32, 32, 0, 0,
+            32, 32, 0, 0, 0, 33,
+        ];
+        let font = FontRef::new(test_case).unwrap();
+        let cmap = font.cmap().unwrap();
+        let cmap12 = find_cmap12(&cmap).unwrap();
+        let ranges = cmap12
+            .groups()
+            .iter()
+            .map(|group| (group.start_char_code(), group.end_char_code()))
+            .collect::<Vec<_>>();
+        // These groups overlap and extend to the whole u32 range
+        assert_eq!(ranges, &[(0, 16777215), (255, u32::MAX)]);
+        // But we produce fewer than char::MAX results (some codepoints map to 0)
+        assert!(cmap12.iter().count() < char::MAX as usize);
     }
 
     #[test]

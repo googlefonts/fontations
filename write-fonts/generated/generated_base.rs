@@ -36,7 +36,7 @@ impl FontWrite for Base {
         self.horiz_axis.write_into(writer);
         self.vert_axis.write_into(writer);
         version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| self.item_var_store.write_into(writer));
     }
     fn table_type(&self) -> TableType {

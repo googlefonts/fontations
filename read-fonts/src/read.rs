@@ -109,6 +109,7 @@ pub enum ReadError {
     TableIsMissing(Tag),
     MetricIsMissing(Tag),
     MalformedData(&'static str),
+    BigGlyphIdsNotSupported(u32),
 }
 
 impl std::fmt::Display for ReadError {
@@ -129,6 +130,9 @@ impl std::fmt::Display for ReadError {
             ReadError::TableIsMissing(tag) => write!(f, "the {tag} table is missing"),
             ReadError::MetricIsMissing(tag) => write!(f, "the {tag} metric is missing"),
             ReadError::MalformedData(msg) => write!(f, "Malformed data: '{msg}'"),
+            ReadError::BigGlyphIdsNotSupported(gid) => {
+                write!(f, "{gid} is too big! Implement fontations#784")
+            }
         }
     }
 }

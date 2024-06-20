@@ -23,6 +23,8 @@ pub static VAZIRMATN_VAR_GLYPHS: &str =
 
 pub static SIMPLE_GLYF: &[u8] = include_bytes!("../test_data/ttf/simple_glyf.ttf");
 
+pub static CUBIC_GLYF: &[u8] = include_bytes!("../test_data/ttf/cubic_glyf.ttf");
+
 pub static NOTO_SERIF_DISPLAY_TRIMMED: &[u8] =
     include_bytes!("../test_data/ttf/noto_serif_display_trimmed.ttf");
 
@@ -65,6 +67,11 @@ pub static MATERIAL_SYMBOLS_SUBSET: &[u8] =
 pub static GLYF_COMPONENTS: &[u8] = include_bytes!("../test_data/ttf/glyf_components.ttf");
 
 pub static AUTOHINT_CMAP: &[u8] = include_bytes!("../test_data/ttf/autohint_cmap.ttf");
+
+pub mod varc {
+    pub static CJK_6868: &[u8] = include_bytes!("../test_data/ttf/varc-6868.ttf");
+    pub static CONDITIONALS: &[u8] = include_bytes!("../test_data/ttf/varc-ac01-conditional.ttf");
+}
 
 pub mod closure {
     pub static SIMPLE: &[u8] = include_bytes!("../test_data/ttf/simple_closure.ttf");

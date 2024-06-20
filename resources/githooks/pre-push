@@ -17,7 +17,8 @@ RUSTDOCFLAGS="-D warnings" cargo doc --all-features --document-private-items
 
 # ensure we at least compile without default features
 cargo check --manifest-path=font-types/Cargo.toml --no-default-features
-cargo check --manifest-path=read-fonts/Cargo.toml --no-default-features
+cargo check --manifest-path=read-fonts/Cargo.toml --no-default-features --features libm
+cargo check --manifest-path=skrifa/Cargo.toml --no-default-features --features libm
 
 cargo clippy --all-features --all-targets -- -D warnings
 

@@ -43,11 +43,11 @@ impl<'a> FontRead<'a> for Base<'a> {
         cursor.advance::<Offset16>();
         cursor.advance::<Offset16>();
         let item_var_store_offset_byte_start = version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| cursor.position())
             .transpose()?;
         version
-            .compatible((1, 1))
+            .compatible((1u16, 1u16))
             .then(|| cursor.advance::<Offset32>());
         cursor.finish(BaseMarker {
             item_var_store_offset_byte_start,
@@ -119,7 +119,7 @@ impl<'a> SomeTable<'a> for Base<'a> {
                 "vert_axis_offset",
                 FieldType::offset(self.vert_axis_offset(), self.vert_axis()),
             )),
-            3usize if version.compatible((1, 1)) => Some(Field::new(
+            3usize if version.compatible((1u16, 1u16)) => Some(Field::new(
                 "item_var_store_offset",
                 FieldType::offset(
                     self.item_var_store_offset().unwrap(),

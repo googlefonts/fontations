@@ -2,7 +2,7 @@
 
 include!("../../generated/generated_variations.rs");
 
-pub use read_fonts::tables::variations::{TupleIndex, TupleVariationCount};
+pub use read_fonts::tables::variations::{DeltaRunType, TupleIndex, TupleVariationCount};
 
 pub mod ivs_builder;
 
@@ -66,7 +66,7 @@ pub enum PackedPointNumbers {
 #[derive(Clone, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct PackedDeltas {
-    deltas: Vec<i16>,
+    deltas: Vec<i32>,
 }
 
 impl Validate for PackedDeltas {
@@ -83,7 +83,7 @@ impl FontWrite for PackedDeltas {
 
 impl PackedDeltas {
     /// Construct a `PackedDeltas` from a vector of raw delta values.
-    pub fn new(deltas: Vec<i16>) -> Self {
+    pub fn new(deltas: Vec<i32>) -> Self {
         Self { deltas }
     }
 
@@ -98,13 +98,16 @@ impl PackedDeltas {
         // 6 bits for length per https://learn.microsoft.com/en-us/typography/opentype/spec/otvarcommonformats#packed-deltas
         const MAX_POINTS_PER_RUN: usize = 64;
 
-        fn in_i8_range(val: i16) -> bool {
-            const MIN: i16 = i8::MIN as i16;
-            const MAX: i16 = i8::MAX as i16;
-            (MIN..=MAX).contains(&val)
+        // Value type when encoded in a delta run that started with a non-zero value
+        fn non_zero_value_type(v: i32) -> DeltaRunType {
+            match v {
+                _ if v > i16::MAX as i32 || v < i16::MIN as i32 => DeltaRunType::I32,
+                _ if v > i8::MAX as i32 || v < i8::MIN as i32 => DeltaRunType::I16,
+                _ => DeltaRunType::I8,
+            }
         }
 
-        fn count_leading_zeros(slice: &[i16]) -> u8 {
+        fn count_leading_zeros(slice: &[i32]) -> u8 {
             slice
                 .iter()
                 .take(MAX_POINTS_PER_RUN)
@@ -112,11 +115,11 @@ impl PackedDeltas {
                 .count() as u8
         }
 
-        /// compute the number of deltas in the next run, and whether they are i8s or not
-        fn next_run_len(slice: &[i16]) -> (usize, bool) {
+        /// compute the number of deltas in the next run, and the value type
+        fn next_run_len(slice: &[i32]) -> (usize, DeltaRunType) {
             let first = *slice.first().expect("bounds checked before here");
-            debug_assert!(first != 0);
-            let is_1_byte = in_i8_range(first);
+            debug_assert!(first != 0, "Zeroes are supposed to be handled separately");
+            let value_type = non_zero_value_type(first);
 
             let mut idx = 1;
             while idx < MAX_POINTS_PER_RUN && idx < slice.len() {
@@ -124,32 +127,35 @@ impl PackedDeltas {
 
                 // Any reason to stop?
                 let two_zeros = cur == 0 && slice.get(idx + 1) == Some(&0);
-                let different_enc_len = in_i8_range(cur) != is_1_byte;
-                if two_zeros || different_enc_len {
+                if two_zeros || non_zero_value_type(cur) != value_type {
                     break;
                 }
 
                 idx += 1;
             }
-            (idx, is_1_byte)
+            (idx, value_type)
         }
 
         let mut deltas = self.deltas.as_slice();
 
         std::iter::from_fn(move || {
-            if *deltas.first()? == 0 {
+            let run_start = *deltas.first()?;
+            if run_start == 0 {
                 let n_zeros = count_leading_zeros(deltas);
                 deltas = &deltas[n_zeros as usize..];
                 Some(PackedDeltaRun::Zeros(n_zeros))
             } else {
-                let (len, is_i8) = next_run_len(deltas);
+                let (len, value_type) = next_run_len(deltas);
                 let (head, tail) = deltas.split_at(len);
                 deltas = tail;
-                if is_i8 {
-                    Some(PackedDeltaRun::OneByte(head))
-                } else {
-                    Some(PackedDeltaRun::TwoBytes(head))
-                }
+                Some(match value_type {
+                    DeltaRunType::I32 => PackedDeltaRun::FourBytes(head),
+                    DeltaRunType::I16 => PackedDeltaRun::TwoBytes(head),
+                    DeltaRunType::I8 => PackedDeltaRun::OneByte(head),
+                    _ => {
+                        unreachable!("We should have taken the other branch for first={run_start}")
+                    }
+                })
             }
         })
     }
@@ -158,8 +164,9 @@ impl PackedDeltas {
 #[derive(Clone, Debug, PartialEq, Eq)]
 enum PackedDeltaRun<'a> {
     Zeros(u8),
-    OneByte(&'a [i16]),
-    TwoBytes(&'a [i16]),
+    OneByte(&'a [i32]),
+    TwoBytes(&'a [i32]),
+    FourBytes(&'a [i32]),
 }
 
 impl PackedDeltaRun<'_> {
@@ -174,6 +181,9 @@ impl PackedDeltaRun<'_> {
             PackedDeltaRun::Zeros(count) => (count - 1) | DELTAS_ARE_ZERO,
             PackedDeltaRun::OneByte(deltas) => deltas.len() as u8 - 1,
             PackedDeltaRun::TwoBytes(deltas) => (deltas.len() as u8 - 1) | DELTAS_ARE_WORDS,
+            PackedDeltaRun::FourBytes(deltas) => {
+                (deltas.len() as u8 - 1) | DELTAS_ARE_WORDS | DELTAS_ARE_ZERO
+            }
         }
     }
 
@@ -182,6 +192,7 @@ impl PackedDeltaRun<'_> {
             PackedDeltaRun::Zeros(_) => 1,
             PackedDeltaRun::OneByte(vals) => vals.len() as u16 + 1,
             PackedDeltaRun::TwoBytes(vals) => vals.len() as u16 * 2 + 1,
+            PackedDeltaRun::FourBytes(vals) => vals.len() as u16 * 4 + 1,
         }
     }
 }
@@ -194,7 +205,10 @@ impl FontWrite for PackedDeltaRun<'_> {
             PackedDeltaRun::OneByte(deltas) => {
                 deltas.iter().for_each(|v| (*v as i8).write_into(writer))
             }
-            PackedDeltaRun::TwoBytes(deltas) => deltas.iter().for_each(|v| v.write_into(writer)),
+            PackedDeltaRun::TwoBytes(deltas) => {
+                deltas.iter().for_each(|v| (*v as i16).write_into(writer))
+            }
+            PackedDeltaRun::FourBytes(deltas) => deltas.iter().for_each(|v| v.write_into(writer)),
         }
     }
 }
@@ -528,10 +542,14 @@ mod tests {
     fn packed_deltas_spec_runs() {
         let deltas = PackedDeltas::new(vec![10, -105, 0, -58, 0, 0, 0, 0, 0, 0, 0, 0, 4130, -1228]);
         let runs = deltas.iter_runs().collect::<Vec<_>>();
-        assert_eq!(runs[0], PackedDeltaRun::OneByte(&[10, -105, 0, -58]));
-        assert_eq!(runs[1], PackedDeltaRun::Zeros(8));
-        assert_eq!(runs[2], PackedDeltaRun::TwoBytes(&[4130, -1228]));
-        assert!(runs.get(3).is_none());
+        assert_eq!(
+            runs,
+            vec![
+                PackedDeltaRun::OneByte(&[10, -105, 0, -58]),
+                PackedDeltaRun::Zeros(8),
+                PackedDeltaRun::TwoBytes(&[4130, -1228]),
+            ]
+        );
     }
 
     #[test]
@@ -539,7 +557,7 @@ mod tests {
         let deltas = PackedDeltas::new(vec![10, -105, 0, -58, 0, 0, 0, 0, 0, 0, 0, 0, 4130, -1228]);
         let bytes = crate::dump_table(&deltas).unwrap();
         assert_eq!(bytes, PACKED_DELTA_BYTES);
-        let read = read_fonts::tables::variations::PackedDeltas::new(FontData::new(&bytes));
+        let read = read_fonts::tables::variations::PackedDeltas::consume_all(FontData::new(&bytes));
         let decoded = read.iter().collect::<Vec<_>>();
         assert_eq!(deltas.deltas.len(), decoded.len());
         assert_eq!(deltas.deltas, decoded);
@@ -565,18 +583,28 @@ mod tests {
 
     #[test]
     fn respect_my_run_length_authority() {
-        let values = (1..201).collect::<Vec<_>>();
+        let mut values = (1..196).collect::<Vec<_>>();
+        values.extend([0, 0, 0]);
+        values.push(i16::MAX as i32 + 1);
+        values.push(i16::MIN as i32 - 1);
+        values.push(i16::MAX as i32 * 2);
         let deltas = PackedDeltas::new(values);
         assert_eq!(
             vec![
                 // 64 entries per run please and thank you
-                PackedDeltaRun::OneByte(&(1..65).collect::<Vec<i16>>()),
+                PackedDeltaRun::OneByte(&(1..65).collect::<Vec<i32>>()),
                 // 63 entries this time because at 128 we switch to 2 bytes
-                PackedDeltaRun::OneByte(&(65..128).collect::<Vec<i16>>()),
+                PackedDeltaRun::OneByte(&(65..128).collect::<Vec<i32>>()),
                 // 64 per run again
-                PackedDeltaRun::TwoBytes(&(128..192).collect::<Vec<i16>>()),
+                PackedDeltaRun::TwoBytes(&(128..192).collect::<Vec<i32>>()),
                 // tail
-                PackedDeltaRun::TwoBytes(&(192..=200).collect::<Vec<i16>>()),
+                PackedDeltaRun::TwoBytes(&(192..=195).collect::<Vec<i32>>()),
+                PackedDeltaRun::Zeros(3),
+                PackedDeltaRun::FourBytes(&[
+                    i16::MAX as i32 + 1,
+                    i16::MIN as i32 - 1,
+                    i16::MAX as i32 * 2
+                ]),
             ],
             deltas.iter_runs().collect::<Vec<_>>()
         )

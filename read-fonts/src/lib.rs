@@ -306,7 +306,9 @@ impl<'a> FontRef<'a> {
         data: FontData<'a>,
         table_directory: TableDirectory<'a>,
     ) -> Result<Self, ReadError> {
-        if [TT_SFNT_VERSION, CFF_SFTN_VERSION].contains(&table_directory.sfnt_version()) {
+        if [TT_SFNT_VERSION, CFF_SFTN_VERSION, TRUE_SFNT_VERSION]
+            .contains(&table_directory.sfnt_version())
+        {
             Ok(FontRef {
                 data,
                 table_directory,

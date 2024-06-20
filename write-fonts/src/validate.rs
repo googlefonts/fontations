@@ -203,7 +203,9 @@ impl<const N: usize, T: Validate> Validate for OffsetMarker<T, N> {
 
 impl<const N: usize, T: Validate> Validate for NullableOffsetMarker<T, N> {
     fn validate_impl(&self, ctx: &mut ValidationCtx) {
-        self.deref().validate_impl(ctx)
+        if let Some(b) = self.as_ref() {
+            b.validate_impl(ctx);
+        }
     }
 }
 

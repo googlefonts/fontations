@@ -73,30 +73,40 @@ impl<'a> FontRead<'a> for Colr<'a> {
         cursor.advance::<Offset32>();
         cursor.advance::<u16>();
         let base_glyph_list_offset_byte_start = version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(1).then(|| cursor.advance::<Offset32>());
+        version
+            .compatible(1u16)
+            .then(|| cursor.advance::<Offset32>());
         let layer_list_offset_byte_start = version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(1).then(|| cursor.advance::<Offset32>());
+        version
+            .compatible(1u16)
+            .then(|| cursor.advance::<Offset32>());
         let clip_list_offset_byte_start = version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(1).then(|| cursor.advance::<Offset32>());
+        version
+            .compatible(1u16)
+            .then(|| cursor.advance::<Offset32>());
         let var_index_map_offset_byte_start = version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(1).then(|| cursor.advance::<Offset32>());
+        version
+            .compatible(1u16)
+            .then(|| cursor.advance::<Offset32>());
         let item_variation_store_offset_byte_start = version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
-        version.compatible(1).then(|| cursor.advance::<Offset32>());
+        version
+            .compatible(1u16)
+            .then(|| cursor.advance::<Offset32>());
         cursor.finish(ColrMarker {
             base_glyph_list_offset_byte_start,
             layer_list_offset_byte_start,
@@ -250,32 +260,32 @@ impl<'a> SomeTable<'a> for Colr<'a> {
                 ),
             )),
             4usize => Some(Field::new("num_layer_records", self.num_layer_records())),
-            5usize if version.compatible(1) => Some(Field::new(
+            5usize if version.compatible(1u16) => Some(Field::new(
                 "base_glyph_list_offset",
                 FieldType::offset(
                     self.base_glyph_list_offset().unwrap(),
                     self.base_glyph_list().unwrap(),
                 ),
             )),
-            6usize if version.compatible(1) => Some(Field::new(
+            6usize if version.compatible(1u16) => Some(Field::new(
                 "layer_list_offset",
                 FieldType::offset(
                     self.layer_list_offset().unwrap(),
                     self.layer_list().unwrap(),
                 ),
             )),
-            7usize if version.compatible(1) => Some(Field::new(
+            7usize if version.compatible(1u16) => Some(Field::new(
                 "clip_list_offset",
                 FieldType::offset(self.clip_list_offset().unwrap(), self.clip_list().unwrap()),
             )),
-            8usize if version.compatible(1) => Some(Field::new(
+            8usize if version.compatible(1u16) => Some(Field::new(
                 "var_index_map_offset",
                 FieldType::offset(
                     self.var_index_map_offset().unwrap(),
                     self.var_index_map().unwrap(),
                 ),
             )),
-            9usize if version.compatible(1) => Some(Field::new(
+            9usize if version.compatible(1u16) => Some(Field::new(
                 "item_variation_store_offset",
                 FieldType::offset(
                     self.item_variation_store_offset().unwrap(),

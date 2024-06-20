@@ -56,20 +56,20 @@ impl<'a> FontRead<'a> for Name<'a> {
         let name_record_byte_len = count as usize * NameRecord::RAW_BYTE_LEN;
         cursor.advance_by(name_record_byte_len);
         let lang_tag_count_byte_start = version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
         let lang_tag_count = version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| cursor.read::<u16>())
             .transpose()?
             .unwrap_or(0);
         let lang_tag_record_byte_start = version
-            .compatible(1)
+            .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
         let lang_tag_record_byte_len = version
-            .compatible(1)
+            .compatible(1u16)
             .then_some(lang_tag_count as usize * LangTagRecord::RAW_BYTE_LEN);
         if let Some(value) = lang_tag_record_byte_len {
             cursor.advance_by(value);
@@ -143,10 +143,10 @@ impl<'a> SomeTable<'a> for Name<'a> {
                     self.string_data(),
                 ),
             )),
-            4usize if version.compatible(1) => {
+            4usize if version.compatible(1u16) => {
                 Some(Field::new("lang_tag_count", self.lang_tag_count().unwrap()))
             }
-            5usize if version.compatible(1) => Some(Field::new(
+            5usize if version.compatible(1u16) => Some(Field::new(
                 "lang_tag_record",
                 traversal::FieldType::array_of_records(
                     stringify!(LangTagRecord),
