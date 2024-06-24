@@ -4,15 +4,26 @@
 //! <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
 
 use std::collections::VecDeque;
+use std::error::Error;
+use std::fmt;
 
 use crate::input_bit_stream::InputBitStream;
 use crate::output_bit_stream::OutputBitStream;
 use crate::IntSet;
-use thiserror::Error;
 
-#[derive(Error, Debug)]
-#[error("The input data stream was too short to be a valid sparse bit set.")]
-pub struct DecodingError();
+#[derive(Debug)]
+pub struct DecodingError;
+
+impl Error for DecodingError {}
+
+impl fmt::Display for DecodingError {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(
+            f,
+            "The input data stream was too short to be a valid sparse bit set."
+        )
+    }
+}
 
 #[derive(Copy, Clone)]
 pub(crate) enum BranchFactor {
@@ -33,11 +44,11 @@ impl IntSet<u32> {
         let mut bits = InputBitStream::from(data);
 
         let Some(branch_factor) = bits.read_branch_factor() else {
-            return Err(DecodingError());
+            return Err(DecodingError);
         };
 
         let Some(height) = bits.read_height() else {
-            return Err(DecodingError());
+            return Err(DecodingError);
         };
 
         let mut out = IntSet::<u32>::empty();
@@ -55,7 +66,7 @@ impl IntSet<u32> {
             let mut has_a_one = false;
             for index in 0..branch_factor as u32 {
                 let Some(bit) = bits.read_bit() else {
-                    return Err(DecodingError());
+                    return Err(DecodingError);
                 };
 
                 if !bit {
