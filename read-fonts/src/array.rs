@@ -1,5 +1,7 @@
 //! Custom array types
 
+#![deny(clippy::arithmetic_side_effects)]
+
 use bytemuck::AnyBitPattern;
 use font_types::FixedSize;
 
@@ -75,15 +77,17 @@ where
             if i == len {
                 return None;
             }
-            let item_start = item_len * i;
-            i += 1;
+            let item_start = item_len.checked_mul(i)?;
+            i = i.checked_add(1)?;
             let data = data.split_off(item_start)?;
             Some(T::read_with_args(data, &args))
         })
     }
 
     pub fn get(&self, idx: usize) -> Result<T, ReadError> {
-        let item_start = idx * self.item_len;
+        let item_start = idx
+            .checked_mul(self.item_len)
+            .ok_or(ReadError::OutOfBounds)?;
         self.data
             .split_off(item_start)
             .ok_or(ReadError::OutOfBounds)
@@ -113,9 +117,9 @@ impl<'a, T: FontRead<'a> + VarSize> VarLenArray<'a, T> {
     ///
     /// This performs a linear search.
     pub fn get(&self, idx: usize) -> Option<Result<T, ReadError>> {
-        let mut pos = 0;
+        let mut pos = 0usize;
         for _ in 0..idx {
-            pos += T::read_len_at(self.data, pos)?;
+            pos = pos.checked_add(T::read_len_at(self.data, pos)?)?;
         }
         self.data.split_off(pos).map(T::read)
     }
@@ -151,7 +155,9 @@ impl<'a, T: AnyBitPattern> ReadArgs for &'a [T] {
 
 impl<'a, T: AnyBitPattern + FixedSize> FontReadWithArgs<'a> for &'a [T] {
     fn read_with_args(data: FontData<'a>, args: &u16) -> Result<Self, ReadError> {
-        let len = *args as usize * T::RAW_BYTE_LEN;
+        let len = (*args as usize)
+            .checked_mul(T::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         data.read_array(0..len)
     }
 }
