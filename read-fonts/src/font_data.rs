@@ -1,5 +1,6 @@
 //! raw font bytes
 
+use core::num::Saturating;
 use std::ops::{Range, RangeBounds};
 
 use bytemuck::AnyBitPattern;
@@ -28,7 +29,7 @@ pub struct FontData<'a> {
 /// call `finish` when you're done to ensure you're in bounds
 #[derive(Debug, Default, Clone, Copy)]
 pub struct Cursor<'a> {
-    pos: usize,
+    pos: Saturating<u32>,
     data: FontData<'a>,
 }
 
@@ -47,6 +48,11 @@ impl<'a> FontData<'a> {
     /// The length of the data, in bytes
     pub fn len(&self) -> usize {
         self.bytes.len()
+    }
+
+    /// The length of the data, in bytes
+    pub fn len_u32(&self) -> u32 {
+        self.bytes.len().try_into().unwrap_or(0)
     }
 
     /// `true` if the data has a length of zero bytes.
@@ -106,6 +112,11 @@ impl<'a> FontData<'a> {
             .map(|_| ())
     }
 
+    fn check_in_bounds_u32(&self, offset: u32) -> Result<(), ReadError> {
+        let offset: usize = offset.try_into().or(Err(ReadError::OutOfBounds))?;
+        self.check_in_bounds(offset)
+    }
+
     /// Interpret the bytes at the provided offset as a reference to `T`.
     ///
     /// Returns an error if the slice `offset..` is shorter than `T::RAW_BYTE_LEN`.
@@ -159,7 +170,7 @@ impl<'a> FontData<'a> {
 
     pub(crate) fn cursor(&self) -> Cursor<'a> {
         Cursor {
-            pos: 0,
+            pos: Saturating(0),
             data: *self,
         }
     }
@@ -172,11 +183,13 @@ impl<'a> FontData<'a> {
 
 impl<'a> Cursor<'a> {
     pub(crate) fn advance<T: Scalar>(&mut self) {
-        self.pos += T::RAW_BYTE_LEN
+        let advance_bytes = Saturating(T::RAW_BYTE_LEN.try_into().unwrap_or(u32::MAX));
+        self.pos += advance_bytes;
     }
 
     pub(crate) fn advance_by(&mut self, n_bytes: usize) {
-        self.pos += n_bytes;
+        let advance_bytes = Saturating(n_bytes.try_into().unwrap_or(u32::MAX));
+        self.pos += advance_bytes;
     }
 
     /// Read a variable length u32 and advance the cursor
@@ -200,15 +213,17 @@ impl<'a> Cursor<'a> {
 
     /// Read a scalar and advance the cursor.
     pub(crate) fn read<T: Scalar>(&mut self) -> Result<T, ReadError> {
-        let temp = self.data.read_at(self.pos);
-        self.pos += T::RAW_BYTE_LEN;
+        let offset: usize = self.pos.0.try_into().or(Err(ReadError::OutOfBounds))?;
+        let temp = self.data.read_at(offset);
+        self.pos += Saturating(T::RAW_BYTE_LEN.try_into().unwrap());
         temp
     }
 
     /// Read a big-endian value and advance the cursor.
     pub(crate) fn read_be<T: Scalar>(&mut self) -> Result<BigEndian<T>, ReadError> {
-        let temp = self.data.read_be_at(self.pos);
-        self.pos += T::RAW_BYTE_LEN;
+        let offset: usize = self.pos.0.try_into().or(Err(ReadError::OutOfBounds))?;
+        let temp = self.data.read_be_at(offset);
+        self.pos += Saturating(T::RAW_BYTE_LEN.try_into().unwrap());
         temp
     }
 
@@ -217,8 +232,11 @@ impl<'a> Cursor<'a> {
         T: FontReadWithArgs<'a> + ComputeSize,
     {
         let len = T::compute_size(args);
-        let temp = self.data.read_with_args(self.pos..self.pos + len, args);
-        self.pos += len;
+        let start: usize = self.pos.0.try_into().or(Err(ReadError::OutOfBounds))?;
+        let end: usize = start + len;
+        let new_pos = Saturating(end.try_into().or(Err(ReadError::OutOfBounds))?);
+        let temp = self.data.read_with_args(start..end, args);
+        self.pos = new_pos;
         temp
     }
 
@@ -232,8 +250,11 @@ impl<'a> Cursor<'a> {
         T: FontReadWithArgs<'a> + ComputeSize,
     {
         let len = len * T::compute_size(args);
-        let temp = self.data.read_with_args(self.pos..self.pos + len, args);
-        self.pos += len;
+        let start: usize = self.pos.0.try_into().or(Err(ReadError::OutOfBounds))?;
+        let end: usize = start + len;
+        let new_pos = Saturating(end.try_into().or(Err(ReadError::OutOfBounds))?);
+        let temp = self.data.read_with_args(start..end, args);
+        self.pos = new_pos;
         temp
     }
 
@@ -242,8 +263,11 @@ impl<'a> Cursor<'a> {
         n_elem: usize,
     ) -> Result<&'a [T], ReadError> {
         let len = n_elem * T::RAW_BYTE_LEN;
-        let temp = self.data.read_array(self.pos..self.pos + len);
-        self.pos += len;
+        let start: usize = self.pos.0.try_into().or(Err(ReadError::OutOfBounds))?;
+        let end: usize = start + len;
+        let new_pos = Saturating(end.try_into().or(Err(ReadError::OutOfBounds))?);
+        let temp = self.data.read_array(start..end);
+        self.pos = new_pos;
         temp
     }
 
@@ -273,26 +297,36 @@ impl<'a> Cursor<'a> {
 
     /// return the current position, or an error if we are out of bounds
     pub(crate) fn position(&self) -> Result<usize, ReadError> {
-        self.data.check_in_bounds(self.pos).map(|_| self.pos)
+        self.data
+            .check_in_bounds_u32(self.pos.0)
+            .map(|_| self.pos.0 as usize)
     }
 
     // used when handling fields with an implicit length, which must be at the
     // end of a table.
     pub(crate) fn remaining_bytes(&self) -> usize {
-        self.data.len().saturating_sub(self.pos)
+        self.data
+            .len_u32()
+            .saturating_sub(self.pos.0)
+            .try_into()
+            .unwrap_or_default()
     }
 
     pub(crate) fn remaining(self) -> Option<FontData<'a>> {
-        self.data.split_off(self.pos)
+        let pos = self.pos.0.try_into();
+        match pos {
+            Err(_) => None,
+            Ok(offset) => self.data.split_off(offset),
+        }
     }
 
     pub fn is_empty(&self) -> bool {
-        self.pos >= self.data.len()
+        self.pos.0 >= self.data.len_u32()
     }
 
     pub(crate) fn finish<T>(self, shape: T) -> Result<TableRef<'a, T>, ReadError> {
         let data = self.data;
-        data.check_in_bounds(self.pos)?;
+        data.check_in_bounds_u32(self.pos.0)?;
         Ok(TableRef { data, shape })
     }
 }
