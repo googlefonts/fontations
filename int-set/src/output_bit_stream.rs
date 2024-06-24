@@ -49,7 +49,7 @@ impl OutputBitStream {
 
     /// Writes the header byte for a sparse bit set.
     ///
-    /// See: https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
+    /// See: <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
     fn write_header(&mut self, height: u8) {
         let byte = (height & 0b00011111) << 2;
         let byte = byte | self.branch_factor.bit_id();

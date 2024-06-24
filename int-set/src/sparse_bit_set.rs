@@ -1,7 +1,7 @@
 //! Provides serialization of IntSet's to a highly compact bitset format as defined in the
 //! IFT specification:
 //!
-//! https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
+//! <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
 
 use std::collections::VecDeque;
 
@@ -26,10 +26,10 @@ impl IntSet<u32> {
     /// Populate this set with the values obtained from decoding the provided sparse bit set bytes.
     ///
     /// Sparse bit sets are a specialized, compact encoding of bit sets defined in the IFT specification:
-    /// https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
+    /// <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
     pub fn from_sparse_bit_set(data: &[u8]) -> Result<IntSet<u32>, DecodingError> {
         // This is a direct port of the decoding algorithm from:
-        // https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
+        // <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
         let mut bits = InputBitStream::from(data);
 
         let Some(branch_factor) = bits.read_branch_factor() else {
@@ -89,10 +89,10 @@ impl IntSet<u32> {
         Ok(out)
     }
 
-    /// Encode this set as a sparse bit set byte encoding.
+    /// Encodeg this set as a sparse bit set byte encoding.
     ///
     /// Sparse bit sets are a specialized, compact encoding of bit sets defined in the IFT specification:
-    /// https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
+    /// <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
     pub fn to_sparse_bit_set(&self) -> Vec<u8> {
         // TODO(garretrieger): use the heuristic approach from the incxfer
         // implementation to guess the optimal size. Building the set 4 times
@@ -254,7 +254,7 @@ mod test {
     #[test]
     fn spec_example_2() {
         // Test of decoding the example 2 given in the specification.
-        // See: https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
+        // See: <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
         let bytes = [
             0b00001110, 0b00100001, 0b00010001, 0b00000001, 0b00000100, 0b00000010, 0b00001000,
         ];
@@ -267,7 +267,7 @@ mod test {
     #[test]
     fn spec_example_3() {
         // Test of decoding the example 3 given in the specification.
-        // See: https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
+        // See: <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
         let bytes = [0b00000000];
 
         let set = IntSet::<u32>::from_sparse_bit_set(&bytes).unwrap();
@@ -278,7 +278,7 @@ mod test {
     #[test]
     fn spec_example_4() {
         // Test of decoding the example 4 given in the specification.
-        // See: https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
+        // See: <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
         let bytes = [0b00001101, 0b00000011, 0b00110001];
 
         let set = IntSet::<u32>::from_sparse_bit_set(&bytes).unwrap();
@@ -328,7 +328,7 @@ mod test {
     fn generate_spec_example_2() {
         // Test of reproducing the encoding of example 2 given
         // in the specification. See:
-        // https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
+        // <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
 
         let actual_bytes = to_sparse_bit_set_with_bf::<8>(&[2, 33, 323].iter().copied().collect());
         let expected_bytes = [
@@ -342,7 +342,7 @@ mod test {
     fn generate_spec_example_3() {
         // Test of reproducing the encoding of example 3 given
         // in the specification. See:
-        // https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
+        // <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
 
         let actual_bytes = to_sparse_bit_set_with_bf::<2>(&IntSet::<u32>::empty());
         let expected_bytes = [0b00000000];

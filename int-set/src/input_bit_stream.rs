@@ -17,7 +17,7 @@ impl<'a> InputBitStream<'a> {
 
     /// Reads the next two bits and returns the corresponding branch factor.
     ///
-    /// See: https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
+    /// See: <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
     /// Returns None if the stream does not have enough remaining bits.
     pub fn read_branch_factor(&mut self) -> Option<u8> {
         let bit_0 = self.read_bit()?;
@@ -33,7 +33,7 @@ impl<'a> InputBitStream<'a> {
 
     /// Reads the next 5 bits and returns the corresponding height value.
     ///
-    /// See: https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding
+    /// See: <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
     /// Returns None if the stream does not have enough remaining bits.
     pub fn read_height(&mut self) -> Option<u8> {
         let mut val = 0u8;
