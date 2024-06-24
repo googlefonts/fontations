@@ -216,7 +216,7 @@ impl<'a> Cursor<'a> {
     where
         T: FontReadWithArgs<'a> + ComputeSize,
     {
-        let len = T::compute_size(args);
+        let len = T::compute_size(args)?;
         let temp = self.data.read_with_args(self.pos..self.pos + len, args);
         self.pos += len;
         temp
@@ -231,7 +231,7 @@ impl<'a> Cursor<'a> {
     where
         T: FontReadWithArgs<'a> + ComputeSize,
     {
-        let len = len * T::compute_size(args);
+        let len = len * T::compute_size(args)?;
         let temp = self.data.read_with_args(self.pos..self.pos + len, args);
         self.pos += len;
         temp

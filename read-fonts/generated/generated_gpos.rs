@@ -1197,7 +1197,7 @@ impl<'a> FontRead<'a> for SinglePosFormat1<'a> {
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let value_format: ValueFormat = cursor.read()?;
-        let value_record_byte_len = <ValueRecord as ComputeSize>::compute_size(&value_format);
+        let value_record_byte_len = <ValueRecord as ComputeSize>::compute_size(&value_format)?;
         cursor.advance_by(value_record_byte_len);
         cursor.finish(SinglePosFormat1Marker {
             value_record_byte_len,
@@ -1314,7 +1314,7 @@ impl<'a> FontRead<'a> for SinglePosFormat2<'a> {
         let value_format: ValueFormat = cursor.read()?;
         let value_count: u16 = cursor.read()?;
         let value_records_byte_len =
-            value_count as usize * <ValueRecord as ComputeSize>::compute_size(&value_format);
+            value_count as usize * <ValueRecord as ComputeSize>::compute_size(&value_format)?;
         cursor.advance_by(value_records_byte_len);
         cursor.finish(SinglePosFormat2Marker {
             value_records_byte_len,
@@ -1668,7 +1668,7 @@ impl<'a> FontReadWithArgs<'a> for PairSet<'a> {
         let mut cursor = data.cursor();
         let pair_value_count: u16 = cursor.read()?;
         let pair_value_records_byte_len = pair_value_count as usize
-            * <PairValueRecord as ComputeSize>::compute_size(&(value_format1, value_format2));
+            * <PairValueRecord as ComputeSize>::compute_size(&(value_format1, value_format2))?;
         cursor.advance_by(pair_value_records_byte_len);
         cursor.finish(PairSetMarker {
             value_format1,
@@ -1784,11 +1784,11 @@ impl ReadArgs for PairValueRecord {
 }
 
 impl ComputeSize for PairValueRecord {
-    fn compute_size(args: &(ValueFormat, ValueFormat)) -> usize {
+    fn compute_size(args: &(ValueFormat, ValueFormat)) -> Result<usize, ReadError> {
         let (value_format1, value_format2) = *args;
-        GlyphId::RAW_BYTE_LEN
-            + <ValueRecord as ComputeSize>::compute_size(&value_format1)
-            + <ValueRecord as ComputeSize>::compute_size(&value_format2)
+        Ok(GlyphId::RAW_BYTE_LEN
+            + <ValueRecord as ComputeSize>::compute_size(&value_format1)?
+            + <ValueRecord as ComputeSize>::compute_size(&value_format2)?)
     }
 }
 
@@ -1910,7 +1910,7 @@ impl<'a> FontRead<'a> for PairPosFormat2<'a> {
                 class2_count,
                 value_format1,
                 value_format2,
-            ));
+            ))?;
         cursor.advance_by(class1_records_byte_len);
         cursor.finish(PairPosFormat2Marker {
             class1_records_byte_len,
@@ -2071,10 +2071,10 @@ impl ReadArgs for Class1Record<'_> {
 }
 
 impl ComputeSize for Class1Record<'_> {
-    fn compute_size(args: &(u16, ValueFormat, ValueFormat)) -> usize {
+    fn compute_size(args: &(u16, ValueFormat, ValueFormat)) -> Result<usize, ReadError> {
         let (class2_count, value_format1, value_format2) = *args;
-        class2_count as usize
-            * <Class2Record as ComputeSize>::compute_size(&(value_format1, value_format2))
+        Ok(class2_count as usize
+            * <Class2Record as ComputeSize>::compute_size(&(value_format1, value_format2))?)
     }
 }
 
@@ -2155,10 +2155,10 @@ impl ReadArgs for Class2Record {
 }
 
 impl ComputeSize for Class2Record {
-    fn compute_size(args: &(ValueFormat, ValueFormat)) -> usize {
+    fn compute_size(args: &(ValueFormat, ValueFormat)) -> Result<usize, ReadError> {
         let (value_format1, value_format2) = *args;
-        <ValueRecord as ComputeSize>::compute_size(&value_format1)
-            + <ValueRecord as ComputeSize>::compute_size(&value_format2)
+        Ok(<ValueRecord as ComputeSize>::compute_size(&value_format1)?
+            + <ValueRecord as ComputeSize>::compute_size(&value_format2)?)
     }
 }
 
@@ -2585,7 +2585,7 @@ impl<'a> FontReadWithArgs<'a> for BaseArray<'a> {
         let mut cursor = data.cursor();
         let base_count: u16 = cursor.read()?;
         let base_records_byte_len =
-            base_count as usize * <BaseRecord as ComputeSize>::compute_size(&mark_class_count);
+            base_count as usize * <BaseRecord as ComputeSize>::compute_size(&mark_class_count)?;
         cursor.advance_by(base_records_byte_len);
         cursor.finish(BaseArrayMarker {
             mark_class_count,
@@ -2693,9 +2693,9 @@ impl ReadArgs for BaseRecord<'_> {
 }
 
 impl ComputeSize for BaseRecord<'_> {
-    fn compute_size(args: &u16) -> usize {
+    fn compute_size(args: &u16) -> Result<usize, ReadError> {
         let mark_class_count = *args;
-        mark_class_count as usize * Offset16::RAW_BYTE_LEN
+        Ok(mark_class_count as usize * Offset16::RAW_BYTE_LEN)
     }
 }
 
@@ -3045,7 +3045,7 @@ impl<'a> FontReadWithArgs<'a> for LigatureAttach<'a> {
         let mut cursor = data.cursor();
         let component_count: u16 = cursor.read()?;
         let component_records_byte_len = component_count as usize
-            * <ComponentRecord as ComputeSize>::compute_size(&mark_class_count);
+            * <ComponentRecord as ComputeSize>::compute_size(&mark_class_count)?;
         cursor.advance_by(component_records_byte_len);
         cursor.finish(LigatureAttachMarker {
             mark_class_count,
@@ -3153,9 +3153,9 @@ impl ReadArgs for ComponentRecord<'_> {
 }
 
 impl ComputeSize for ComponentRecord<'_> {
-    fn compute_size(args: &u16) -> usize {
+    fn compute_size(args: &u16) -> Result<usize, ReadError> {
         let mark_class_count = *args;
-        mark_class_count as usize * Offset16::RAW_BYTE_LEN
+        Ok(mark_class_count as usize * Offset16::RAW_BYTE_LEN)
     }
 }
 
@@ -3391,7 +3391,7 @@ impl<'a> FontReadWithArgs<'a> for Mark2Array<'a> {
         let mut cursor = data.cursor();
         let mark2_count: u16 = cursor.read()?;
         let mark2_records_byte_len =
-            mark2_count as usize * <Mark2Record as ComputeSize>::compute_size(&mark_class_count);
+            mark2_count as usize * <Mark2Record as ComputeSize>::compute_size(&mark_class_count)?;
         cursor.advance_by(mark2_records_byte_len);
         cursor.finish(Mark2ArrayMarker {
             mark_class_count,
@@ -3499,9 +3499,9 @@ impl ReadArgs for Mark2Record<'_> {
 }
 
 impl ComputeSize for Mark2Record<'_> {
-    fn compute_size(args: &u16) -> usize {
+    fn compute_size(args: &u16) -> Result<usize, ReadError> {
         let mark_class_count = *args;
-        mark_class_count as usize * Offset16::RAW_BYTE_LEN
+        Ok(mark_class_count as usize * Offset16::RAW_BYTE_LEN)
     }
 }
 

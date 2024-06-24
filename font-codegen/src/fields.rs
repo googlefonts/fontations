@@ -1023,7 +1023,7 @@ impl Field {
             .map(FieldReadArgs::to_tokens_for_validation);
 
         if let FieldType::Struct { typ } = &self.typ {
-            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args)));
+            return Some(quote!( <#typ as ComputeSize>::compute_size(&#read_args)? ));
         }
         if let FieldType::PendingResolution { .. } = &self.typ {
             panic!("Should have resolved {self:?}")
@@ -1050,7 +1050,7 @@ impl Field {
                     }
                     FieldType::ComputedArray(array) => {
                         let inner = array.raw_inner_type();
-                        quote!( <#inner as ComputeSize>::compute_size(&#read_args) )
+                        quote!( <#inner as ComputeSize>::compute_size(&#read_args)? )
                     }
                     _ => unreachable!("count not valid here"),
                 };

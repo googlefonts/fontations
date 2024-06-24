@@ -90,9 +90,9 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
         }
 
         impl ComputeSize for #name #anon_lifetime {
-            fn compute_size(args: &#args_type) -> usize {
+            fn compute_size(args: &#args_type) -> Result<usize, ReadError> {
                 let #destructure_pattern = *args;
-                #( #field_size_expr )+*
+               Ok( #( #field_size_expr )+* )
             }
         }
 
