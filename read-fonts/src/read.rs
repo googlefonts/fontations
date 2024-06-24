@@ -71,7 +71,7 @@ pub trait Format<T> {
 /// for types which store their size inline, see [`VarSize`].
 pub trait ComputeSize: ReadArgs {
     /// Compute the number of bytes required to represent this type.
-    fn compute_size(args: &Self::Args) -> usize;
+    fn compute_size(args: &Self::Args) -> Result<usize, ReadError>;
 }
 
 /// A trait for types that have variable length.

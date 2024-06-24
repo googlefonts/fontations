@@ -24,15 +24,15 @@ pub struct ComputedArray<'a, T: ReadArgs> {
 }
 
 impl<'a, T: ComputeSize> ComputedArray<'a, T> {
-    pub fn new(data: FontData<'a>, args: T::Args) -> Self {
-        let item_len = T::compute_size(&args);
+    pub fn new(data: FontData<'a>, args: T::Args) -> Result<Self, ReadError> {
+        let item_len = T::compute_size(&args)?;
         let len = data.len().checked_div(item_len).unwrap_or(0);
-        ComputedArray {
+        Ok(ComputedArray {
             item_len,
             len,
             data,
             args,
-        }
+        })
     }
 
     /// The number of items in the array
@@ -55,7 +55,7 @@ where
     T::Args: Copy,
 {
     fn read_with_args(data: FontData<'a>, args: &Self::Args) -> Result<Self, ReadError> {
-        Ok(Self::new(data, *args))
+        Self::new(data, *args)
     }
 }
 

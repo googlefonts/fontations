@@ -147,9 +147,9 @@ impl ReadArgs for Tuple<'_> {
 }
 
 impl ComputeSize for Tuple<'_> {
-    fn compute_size(args: &u16) -> usize {
+    fn compute_size(args: &u16) -> Result<usize, ReadError> {
         let axis_count = *args;
-        axis_count as usize * F2Dot14::RAW_BYTE_LEN
+        Ok(axis_count as usize * F2Dot14::RAW_BYTE_LEN)
     }
 }
 
@@ -789,7 +789,7 @@ impl<'a> FontRead<'a> for VariationRegionList<'a> {
         let axis_count: u16 = cursor.read()?;
         let region_count: u16 = cursor.read()?;
         let variation_regions_byte_len =
-            region_count as usize * <VariationRegion as ComputeSize>::compute_size(&axis_count);
+            region_count as usize * <VariationRegion as ComputeSize>::compute_size(&axis_count)?;
         cursor.advance_by(variation_regions_byte_len);
         cursor.finish(VariationRegionListMarker {
             variation_regions_byte_len,
@@ -872,9 +872,9 @@ impl ReadArgs for VariationRegion<'_> {
 }
 
 impl ComputeSize for VariationRegion<'_> {
-    fn compute_size(args: &u16) -> usize {
+    fn compute_size(args: &u16) -> Result<usize, ReadError> {
         let axis_count = *args;
-        axis_count as usize * RegionAxisCoordinates::RAW_BYTE_LEN
+        Ok(axis_count as usize * RegionAxisCoordinates::RAW_BYTE_LEN)
     }
 }
 

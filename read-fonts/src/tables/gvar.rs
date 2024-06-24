@@ -22,12 +22,12 @@ impl ReadArgs for U16Or32 {
 }
 
 impl ComputeSize for U16Or32 {
-    fn compute_size(args: &GvarFlags) -> usize {
-        if args.contains(GvarFlags::LONG_OFFSETS) {
+    fn compute_size(args: &GvarFlags) -> Result<usize, ReadError> {
+        Ok(if args.contains(GvarFlags::LONG_OFFSETS) {
             4
         } else {
             2
-        }
+        })
     }
 }
 
