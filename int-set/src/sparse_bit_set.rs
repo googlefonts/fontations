@@ -162,6 +162,23 @@ fn to_sparse_bit_set_with_bf<const BF: u8>(set: &IntSet<u32>) -> Vec<u8> {
     os.into_bytes()
 }
 
+struct CreateLayerState<'a> {
+    next_indices: IntSet<u32>,
+    current_node: Option<Node>,
+    nodes: &'a mut Vec<Node>,
+}
+
+impl<'a> CreateLayerState<'a> {
+    fn commit_current_node(self: &mut Self) {
+        let Some(node) = self.current_node.take() else {
+            // noop if there isn't a node to commit.
+            return;
+        };
+        self.next_indices.insert(node.parent_index);
+        self.nodes.push(node);
+    }
+}
+
 /// Compute the nodes for a layer of the sparse bit set.
 ///
 /// Computes the nodes needed for the layer which contains the indices in
@@ -174,33 +191,33 @@ fn create_layer<T: DoubleEndedIterator<Item = u32>>(
     iter: T,
     nodes: &mut Vec<Node>,
 ) -> IntSet<u32> {
-    let mut next_indices = IntSet::<u32>::empty();
+    let mut state = CreateLayerState {
+        next_indices: IntSet::<u32>::empty(),
+        current_node: None,
+        nodes,
+    };
 
     // The nodes array is produced in reverse order and then reversed before final output.
-    let mut current_node: Option<Node> = None;
     for v in iter.rev() {
         let parent_index = v / branch_factor.value();
-        let prev_parent_index = current_node
+        let prev_parent_index = state
+            .current_node
             .as_ref()
             .map_or(parent_index, |node| node.parent_index);
         if prev_parent_index != parent_index {
-            nodes.push(current_node.take().unwrap());
-            next_indices.insert(prev_parent_index);
+            state.commit_current_node();
         }
 
-        let current_node = current_node.get_or_insert(Node {
+        let current_node = state.current_node.get_or_insert(Node {
             bits: 0,
             parent_index,
         });
 
         current_node.bits |= 0b1 << (v % branch_factor.value());
     }
-    if let Some(node) = current_node {
-        next_indices.insert(node.parent_index);
-        nodes.push(node);
-    }
 
-    next_indices
+    state.commit_current_node();
+    state.next_indices
 }
 
 struct Node {
