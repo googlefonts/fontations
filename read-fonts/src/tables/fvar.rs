@@ -29,8 +29,12 @@ impl VariationAxisRecord {
         let max_value = self.max_value().max(min_value);
         value = value.clamp(min_value, max_value);
         value = match value.cmp(&default_value) {
-            Less => -((default_value - value) / (default_value - min_value)),
-            Greater => (value - default_value) / (max_value - default_value),
+            Less => {
+                -((default_value.saturating_sub(value)) / (default_value.saturating_sub(min_value)))
+            }
+            Greater => {
+                (value.saturating_sub(default_value)) / (max_value.saturating_sub(default_value))
+            }
             Equal => Fixed::ZERO,
         };
         value.clamp(-Fixed::ONE, Fixed::ONE)
@@ -91,5 +95,26 @@ mod tests {
                 Fixed::from_f64(expected)
             );
         }
+    }
+
+    #[test]
+    fn normalize_overflow() {
+        // From: https://bugs.chromium.org/p/oss-fuzz/issues/detail?id=69787
+        // & https://oss-fuzz.com/testcase?key=6159008335986688
+        // fvar entry triggering overflow:
+        // min: -26335.87451171875 def 8224.12548828125 max 8224.12548828125
+        let test_case = &[
+            79, 84, 84, 79, 0, 1, 32, 32, 255, 32, 32, 32, 102, 118, 97, 114, 32, 32, 32, 32, 0, 0,
+            0, 28, 0, 0, 0, 41, 32, 0, 0, 0, 0, 1, 32, 32, 0, 2, 32, 32, 32, 32, 0, 0, 32, 32, 32,
+            32, 32, 0, 0, 0, 0, 153, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32, 32,
+        ];
+        let font = FontRef::new(test_case).unwrap();
+        let fvar = font.fvar().unwrap();
+        let axis = fvar.axes().unwrap()[1];
+        // Should not panic with "attempt to subtract with overflow".
+        assert_eq!(
+            axis.normalize(Fixed::from_f64(0.0)),
+            Fixed::from_f64(-0.2509765625)
+        );
     }
 }
