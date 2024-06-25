@@ -79,10 +79,22 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
     let args = item.attrs.read_args.as_ref().unwrap();
     let args_type = args.args_type();
     let destructure_pattern = args.destructure_pattern();
-    let field_size_expr = item.fields.iter().map(Field::record_len_expr);
+    let field_size_expr: Vec<_> = item.fields.iter().map(Field::record_len_expr).collect();
     let field_inits = item.fields.iter().map(Field::record_init_stmt);
     let constructor_args = args.constructor_args();
     let args_from_constructor_args = args.read_args_from_constructor_args();
+
+    let comp_size_expr = match field_size_expr.as_slice() {
+        [] => panic!("should never be empty"),
+        [one_expr] => quote!( Ok(#one_expr) ),
+        exprs => {
+            quote! {
+                let mut result = 0usize;
+                #( result = result.checked_add(#exprs).ok_or(ReadError::OutOfBounds)?; )*
+                Ok(result)
+            }
+        }
+    };
 
     quote! {
         impl ReadArgs for #name #anon_lifetime {
@@ -90,9 +102,10 @@ fn generate_read_with_args(item: &Record) -> TokenStream {
         }
 
         impl ComputeSize for #name #anon_lifetime {
+            #[allow(clippy::needless_question_mark)]
             fn compute_size(args: &#args_type) -> Result<usize, ReadError> {
                 let #destructure_pattern = *args;
-               Ok( #( #field_size_expr )+* )
+                #comp_size_expr
             }
         }
 

@@ -557,7 +557,9 @@ impl<'a> FontRead<'a> for Os2<'a> {
         cursor.advance::<i16>();
         cursor.advance::<i16>();
         cursor.advance::<i16>();
-        let panose_10_byte_len = 10_usize * u8::RAW_BYTE_LEN;
+        let panose_10_byte_len = (10_usize)
+            .checked_mul(u8::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(panose_10_byte_len);
         cursor.advance::<u32>();
         cursor.advance::<u32>();

@@ -52,7 +52,9 @@ impl<'a> FontRead<'a> for Mvar<'a> {
         cursor.advance::<u16>();
         let value_record_count: u16 = cursor.read()?;
         cursor.advance::<Offset16>();
-        let value_records_byte_len = value_record_count as usize * ValueRecord::RAW_BYTE_LEN;
+        let value_records_byte_len = (value_record_count as usize)
+            .checked_mul(ValueRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(value_records_byte_len);
         cursor.finish(MvarMarker {
             value_records_byte_len,

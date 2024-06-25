@@ -39,12 +39,17 @@ impl<'a> FontRead<'a> for BasicTable<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let simple_count: u16 = cursor.read()?;
-        let simple_records_byte_len = simple_count as usize * SimpleRecord::RAW_BYTE_LEN;
+        let simple_records_byte_len = (simple_count as usize)
+            .checked_mul(SimpleRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(simple_records_byte_len);
         let arrays_inner_count: u16 = cursor.read()?;
         let array_records_count: u32 = cursor.read()?;
-        let array_records_byte_len = array_records_count as usize
-            * <ContainsArrays as ComputeSize>::compute_size(&arrays_inner_count)?;
+        let array_records_byte_len = (array_records_count as usize)
+            .checked_mul(<ContainsArrays as ComputeSize>::compute_size(
+                &arrays_inner_count,
+            )?)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(array_records_byte_len);
         cursor.finish(BasicTableMarker {
             simple_records_byte_len,
@@ -183,12 +188,25 @@ impl ReadArgs for ContainsArrays<'_> {
 }
 
 impl ComputeSize for ContainsArrays<'_> {
+    #[allow(clippy::needless_question_mark)]
     fn compute_size(args: &u16) -> Result<usize, ReadError> {
         let array_len = *args;
-        Ok(
-            array_len as usize * u16::RAW_BYTE_LEN
-                + array_len as usize * SimpleRecord::RAW_BYTE_LEN,
-        )
+        let mut result = 0usize;
+        result = result
+            .checked_add(
+                (array_len as usize)
+                    .checked_mul(u16::RAW_BYTE_LEN)
+                    .ok_or(ReadError::OutOfBounds)?,
+            )
+            .ok_or(ReadError::OutOfBounds)?;
+        result = result
+            .checked_add(
+                (array_len as usize)
+                    .checked_mul(SimpleRecord::RAW_BYTE_LEN)
+                    .ok_or(ReadError::OutOfBounds)?,
+            )
+            .ok_or(ReadError::OutOfBounds)?;
+        Ok(result)
     }
 }
 

@@ -1132,7 +1132,9 @@ impl Field {
                         // Prevent identity-op clippy error with `1 * size`
                         size_expr
                     }
-                    _ => quote!(  #count_expr * #size_expr ),
+                    _ => {
+                        quote!(  (#count_expr).checked_mul(#size_expr).ok_or(ReadError::OutOfBounds)? )
+                    }
                 }
             }
             None => quote!(compile_error!("missing count attribute?")),
