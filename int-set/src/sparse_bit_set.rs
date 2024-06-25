@@ -135,7 +135,6 @@ impl IntSet<u32> {
 }
 
 fn to_sparse_bit_set_with_bf<const BF: u8>(set: &IntSet<u32>) -> Vec<u8> {
-    // TODO(garretrieger): implement detection of filled nodes (ie. zero nodes)
     let branch_factor = BranchFactor::from_val(BF);
     let Some(max_value) = set.last() else {
         return OutputBitStream::new(branch_factor, 0).into_bytes();
@@ -150,32 +149,71 @@ fn to_sparse_bit_set_with_bf<const BF: u8>(set: &IntSet<u32>) -> Vec<u8> {
     // The reverse order construction is needed since nodes at the lower layer
     // affect the values in the parent layers.
     let mut indices = set.clone();
+    let mut filled_indices = IntSet::<u32>::all();
     while height > 0 {
-        indices = create_layer(branch_factor, indices.iter(), &mut nodes);
+        (indices, filled_indices) =
+            create_layer(branch_factor, indices, filled_indices, &mut nodes);
         height -= 1;
     }
 
     for node in nodes.iter().rev() {
-        os.write_node(node.bits);
+        match node.node_type {
+            NodeType::Standard => os.write_node(node.bits),
+            NodeType::Filled => os.write_node(0),
+            NodeType::Skip => {}
+        };
     }
 
     os.into_bytes()
 }
 
 struct CreateLayerState<'a> {
-    next_indices: IntSet<u32>,
+    // This is the set of indices which are to be set in the layer above this one
+    upper_indices: IntSet<u32>,
+    // Similarily, this is the set of indices in the layer above this one which are fully filled.
+    upper_filled_indices: IntSet<u32>,
+
     current_node: Option<Node>,
+    current_node_filled_bits: u32,
     nodes: &'a mut Vec<Node>,
+    child_count: usize,
+    nodes_init_length: usize,
+    branch_factor: BranchFactor,
 }
 
 impl<'a> CreateLayerState<'a> {
-    fn commit_current_node(self: &mut Self) {
-        let Some(node) = self.current_node.take() else {
+    fn commit_current_node(&mut self) {
+        let Some(mut node) = self.current_node.take() else {
             // noop if there isn't a node to commit.
             return;
         };
-        self.next_indices.insert(node.parent_index);
+        self.upper_indices.insert(node.parent_index);
+
+        if self.current_node_filled_bits == self.branch_factor.u32_mask() {
+            // This node is filled and can thus be represented by a node that is '0'.
+            // It's index is recorded so that the parent node can also check if they are filled.
+            self.upper_filled_indices.insert(node.parent_index);
+            node.node_type = NodeType::Filled;
+
+            if self.nodes_init_length >= self.child_count {
+                // Since this node is filled, find all nodes which are children and set them to be skipped in
+                // the encoding.
+                let children_start_index = self.nodes_init_length.saturating_sub(self.child_count);
+                let children_end_index = self.nodes_init_length;
+                // TODO(garretrieger): this scans all nodes of the previous layer to find those which are children,
+                //   but we can likely limit it to just the children of this node with some extra book keeping.
+                for child in &mut self.nodes[children_start_index..children_end_index] {
+                    if child.parent_index >= node.parent_index * self.branch_factor.value()
+                        && child.parent_index < (node.parent_index + 1) * self.branch_factor.value()
+                    {
+                        child.node_type = NodeType::Skip;
+                    }
+                }
+            }
+        }
+
         self.nodes.push(node);
+        self.current_node_filled_bits = 0;
     }
 }
 
@@ -186,19 +224,25 @@ impl<'a> CreateLayerState<'a> {
 /// in ascending order.
 ///
 /// Returns the set of indices for the layer above.
-fn create_layer<T: DoubleEndedIterator<Item = u32>>(
+fn create_layer(
     branch_factor: BranchFactor,
-    iter: T,
+    values: IntSet<u32>,
+    filled_values: IntSet<u32>,
     nodes: &mut Vec<Node>,
-) -> IntSet<u32> {
+) -> (IntSet<u32>, IntSet<u32>) {
     let mut state = CreateLayerState {
-        next_indices: IntSet::<u32>::empty(),
+        upper_indices: IntSet::<u32>::empty(),
+        upper_filled_indices: IntSet::<u32>::empty(),
         current_node: None,
+        current_node_filled_bits: 0,
+        child_count: values.len(),
+        nodes_init_length: nodes.len(),
         nodes,
+        branch_factor,
     };
 
     // The nodes array is produced in reverse order and then reversed before final output.
-    for v in iter.rev() {
+    for v in values.iter().rev() {
         let parent_index = v / branch_factor.value();
         let prev_parent_index = state
             .current_node
@@ -211,18 +255,30 @@ fn create_layer<T: DoubleEndedIterator<Item = u32>>(
         let current_node = state.current_node.get_or_insert(Node {
             bits: 0,
             parent_index,
+            node_type: NodeType::Standard,
         });
 
-        current_node.bits |= 0b1 << (v % branch_factor.value());
+        let mask = 0b1 << (v % branch_factor.value());
+        current_node.bits |= mask;
+        if filled_values.contains(v) {
+            state.current_node_filled_bits |= mask;
+        }
     }
 
     state.commit_current_node();
-    state.next_indices
+    (state.upper_indices, state.upper_filled_indices)
+}
+
+enum NodeType {
+    Standard,
+    Filled,
+    Skip,
 }
 
 struct Node {
     bits: u32,
     parent_index: u32,
+    node_type: NodeType,
 }
 
 impl BranchFactor {
@@ -265,6 +321,24 @@ impl BranchFactor {
             BranchFactor::Four => 2,
             BranchFactor::Eight => 3,
             BranchFactor::ThirtyTwo => 5,
+        }
+    }
+
+    pub(crate) fn byte_mask(&self) -> u32 {
+        match self {
+            BranchFactor::Two => 0b00000011,
+            BranchFactor::Four => 0b00001111,
+            BranchFactor::Eight => 0b11111111,
+            BranchFactor::ThirtyTwo => 0b11111111,
+        }
+    }
+
+    fn u32_mask(&self) -> u32 {
+        match self {
+            BranchFactor::Two => 0b00000000_00000000_00000000_00000011,
+            BranchFactor::Four => 0b00000000_00000000_00000000_00001111,
+            BranchFactor::Eight => 0b00000000_00000000_00000000_11111111,
+            BranchFactor::ThirtyTwo => 0b11111111_11111111_11111111_11111111,
         }
     }
 }
@@ -379,9 +453,68 @@ mod test {
     }
 
     #[test]
+    fn generate_spec_example_4() {
+        // Test of reproducing the encoding of example 3 given
+        // in the specification. See:
+        // <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
+
+        let actual_bytes = to_sparse_bit_set_with_bf::<4>(&(0..=17).collect());
+        let expected_bytes = [0b00001101, 0b0000_0011, 0b0011_0001];
+
+        assert_eq!(actual_bytes, expected_bytes);
+    }
+
+    #[test]
     fn encode_one_level() {
         let actual_bytes = to_sparse_bit_set_with_bf::<8>(&[2, 6].iter().copied().collect());
         let expected_bytes = [0b0_00001_10, 0b01000100];
+        assert_eq!(actual_bytes, expected_bytes);
+    }
+
+    #[test]
+    fn encode_one_level_filled() {
+        let actual_bytes = to_sparse_bit_set_with_bf::<8>(&(0..=7).collect());
+        let expected_bytes = [0b0_00001_10, 0b00000000];
+        assert_eq!(actual_bytes, expected_bytes);
+    }
+
+    #[test]
+    fn encode_two_level_filled() {
+        let actual_bytes = to_sparse_bit_set_with_bf::<8>(&(3..=21).collect());
+        let expected_bytes = [0b0_00010_10, 0b00000111, 0b11111000, 0b00000000, 0b00111111];
+        assert_eq!(actual_bytes, expected_bytes);
+    }
+
+    #[test]
+    fn encode_two_level_not_filled() {
+        let actual_bytes = to_sparse_bit_set_with_bf::<4>(&[0, 4, 8, 12].iter().copied().collect());
+        let expected_bytes = [0b0_00010_01, 0b0001_1111, 0b0001_0001, 0b0000_0001];
+        assert_eq!(actual_bytes, expected_bytes);
+    }
+
+    #[test]
+    fn encode_four_level_filled() {
+        let mut s = IntSet::<u32>::empty();
+        s.insert_range(64..=127); // Filled node on level 3
+        s.insert_range(512..=1023); // Filled node on level 2
+        s.insert(4000);
+
+        let actual_bytes = to_sparse_bit_set_with_bf::<8>(&s);
+        let expected_bytes = [
+            // Header
+            0b0_00100_10,
+            // L1
+            0b10000011,
+            // L2
+            0b00000010,
+            0b00000000,
+            0b01000000,
+            // L3,
+            0b00000000,
+            0b00010000,
+            // L4
+            0b00000001,
+        ];
         assert_eq!(actual_bytes, expected_bytes);
     }
 

@@ -84,15 +84,6 @@ impl BranchFactor {
             BranchFactor::ThirtyTwo => 0b11,
         }
     }
-
-    fn byte_mask(&self) -> u32 {
-        match self {
-            BranchFactor::Two => 0b00000011,
-            BranchFactor::Four => 0b00001111,
-            BranchFactor::Eight => 0b11111111,
-            BranchFactor::ThirtyTwo => 0b11111111,
-        }
-    }
 }
 
 #[cfg(test)]
