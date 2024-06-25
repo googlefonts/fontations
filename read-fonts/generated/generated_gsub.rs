@@ -430,7 +430,9 @@ impl<'a> FontRead<'a> for SingleSubstFormat2<'a> {
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let glyph_count: u16 = cursor.read()?;
-        let substitute_glyph_ids_byte_len = glyph_count as usize * GlyphId::RAW_BYTE_LEN;
+        let substitute_glyph_ids_byte_len = (glyph_count as usize)
+            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(substitute_glyph_ids_byte_len);
         cursor.finish(SingleSubstFormat2Marker {
             substitute_glyph_ids_byte_len,
@@ -539,7 +541,9 @@ impl<'a> FontRead<'a> for MultipleSubstFormat1<'a> {
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let sequence_count: u16 = cursor.read()?;
-        let sequence_offsets_byte_len = sequence_count as usize * Offset16::RAW_BYTE_LEN;
+        let sequence_offsets_byte_len = (sequence_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(sequence_offsets_byte_len);
         cursor.finish(MultipleSubstFormat1Marker {
             sequence_offsets_byte_len,
@@ -652,7 +656,9 @@ impl<'a> FontRead<'a> for Sequence<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
-        let substitute_glyph_ids_byte_len = glyph_count as usize * GlyphId::RAW_BYTE_LEN;
+        let substitute_glyph_ids_byte_len = (glyph_count as usize)
+            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(substitute_glyph_ids_byte_len);
         cursor.finish(SequenceMarker {
             substitute_glyph_ids_byte_len,
@@ -738,7 +744,9 @@ impl<'a> FontRead<'a> for AlternateSubstFormat1<'a> {
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let alternate_set_count: u16 = cursor.read()?;
-        let alternate_set_offsets_byte_len = alternate_set_count as usize * Offset16::RAW_BYTE_LEN;
+        let alternate_set_offsets_byte_len = (alternate_set_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(alternate_set_offsets_byte_len);
         cursor.finish(AlternateSubstFormat1Marker {
             alternate_set_offsets_byte_len,
@@ -854,7 +862,9 @@ impl<'a> FontRead<'a> for AlternateSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let glyph_count: u16 = cursor.read()?;
-        let alternate_glyph_ids_byte_len = glyph_count as usize * GlyphId::RAW_BYTE_LEN;
+        let alternate_glyph_ids_byte_len = (glyph_count as usize)
+            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(alternate_glyph_ids_byte_len);
         cursor.finish(AlternateSetMarker {
             alternate_glyph_ids_byte_len,
@@ -939,7 +949,9 @@ impl<'a> FontRead<'a> for LigatureSubstFormat1<'a> {
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let ligature_set_count: u16 = cursor.read()?;
-        let ligature_set_offsets_byte_len = ligature_set_count as usize * Offset16::RAW_BYTE_LEN;
+        let ligature_set_offsets_byte_len = (ligature_set_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(ligature_set_offsets_byte_len);
         cursor.finish(LigatureSubstFormat1Marker {
             ligature_set_offsets_byte_len,
@@ -1052,7 +1064,9 @@ impl<'a> FontRead<'a> for LigatureSet<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let ligature_count: u16 = cursor.read()?;
-        let ligature_offsets_byte_len = ligature_count as usize * Offset16::RAW_BYTE_LEN;
+        let ligature_offsets_byte_len = (ligature_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(ligature_offsets_byte_len);
         cursor.finish(LigatureSetMarker {
             ligature_offsets_byte_len,
@@ -1146,8 +1160,9 @@ impl<'a> FontRead<'a> for Ligature<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<GlyphId>();
         let component_count: u16 = cursor.read()?;
-        let component_glyph_ids_byte_len =
-            transforms::subtract(component_count, 1_usize) * GlyphId::RAW_BYTE_LEN;
+        let component_glyph_ids_byte_len = (transforms::subtract(component_count, 1_usize))
+            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(component_glyph_ids_byte_len);
         cursor.finish(LigatureMarker {
             component_glyph_ids_byte_len,
@@ -1471,15 +1486,19 @@ impl<'a> FontRead<'a> for ReverseChainSingleSubstFormat1<'a> {
         cursor.advance::<u16>();
         cursor.advance::<Offset16>();
         let backtrack_glyph_count: u16 = cursor.read()?;
-        let backtrack_coverage_offsets_byte_len =
-            backtrack_glyph_count as usize * Offset16::RAW_BYTE_LEN;
+        let backtrack_coverage_offsets_byte_len = (backtrack_glyph_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(backtrack_coverage_offsets_byte_len);
         let lookahead_glyph_count: u16 = cursor.read()?;
-        let lookahead_coverage_offsets_byte_len =
-            lookahead_glyph_count as usize * Offset16::RAW_BYTE_LEN;
+        let lookahead_coverage_offsets_byte_len = (lookahead_glyph_count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(lookahead_coverage_offsets_byte_len);
         let glyph_count: u16 = cursor.read()?;
-        let substitute_glyph_ids_byte_len = glyph_count as usize * GlyphId::RAW_BYTE_LEN;
+        let substitute_glyph_ids_byte_len = (glyph_count as usize)
+            .checked_mul(GlyphId::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(substitute_glyph_ids_byte_len);
         cursor.finish(ReverseChainSingleSubstFormat1Marker {
             backtrack_coverage_offsets_byte_len,

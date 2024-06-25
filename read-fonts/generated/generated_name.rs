@@ -53,7 +53,9 @@ impl<'a> FontRead<'a> for Name<'a> {
         let version: u16 = cursor.read()?;
         let count: u16 = cursor.read()?;
         cursor.advance::<u16>();
-        let name_record_byte_len = count as usize * NameRecord::RAW_BYTE_LEN;
+        let name_record_byte_len = (count as usize)
+            .checked_mul(NameRecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(name_record_byte_len);
         let lang_tag_count_byte_start = version
             .compatible(1u16)
@@ -68,9 +70,11 @@ impl<'a> FontRead<'a> for Name<'a> {
             .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
-        let lang_tag_record_byte_len = version
-            .compatible(1u16)
-            .then_some(lang_tag_count as usize * LangTagRecord::RAW_BYTE_LEN);
+        let lang_tag_record_byte_len = version.compatible(1u16).then_some(
+            (lang_tag_count as usize)
+                .checked_mul(LangTagRecord::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?,
+        );
         if let Some(value) = lang_tag_record_byte_len {
             cursor.advance_by(value);
         }

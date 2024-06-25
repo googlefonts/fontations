@@ -205,8 +205,9 @@ impl<'a> FontRead<'a> for MultiItemVariationStore<'a> {
         cursor.advance::<u16>();
         cursor.advance::<Offset32>();
         let variation_data_count: u16 = cursor.read()?;
-        let variation_data_offsets_byte_len =
-            variation_data_count as usize * Offset32::RAW_BYTE_LEN;
+        let variation_data_offsets_byte_len = (variation_data_count as usize)
+            .checked_mul(Offset32::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(variation_data_offsets_byte_len);
         cursor.finish(MultiItemVariationStoreMarker {
             variation_data_offsets_byte_len,
@@ -316,7 +317,9 @@ impl<'a> FontRead<'a> for SparseVariationRegionList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let region_count: u16 = cursor.read()?;
-        let region_offsets_byte_len = region_count as usize * Offset32::RAW_BYTE_LEN;
+        let region_offsets_byte_len = (region_count as usize)
+            .checked_mul(Offset32::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(region_offsets_byte_len);
         cursor.finish(SparseVariationRegionListMarker {
             region_offsets_byte_len,
@@ -400,8 +403,9 @@ impl<'a> FontRead<'a> for SparseVariationRegion<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let region_axis_count: u16 = cursor.read()?;
-        let region_axis_offsets_byte_len =
-            region_axis_count as usize * SparseRegionAxisCoordinates::RAW_BYTE_LEN;
+        let region_axis_offsets_byte_len = (region_axis_count as usize)
+            .checked_mul(SparseRegionAxisCoordinates::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(region_axis_offsets_byte_len);
         cursor.finish(SparseVariationRegionMarker {
             region_axis_offsets_byte_len,
@@ -536,7 +540,9 @@ impl<'a> FontRead<'a> for MultiItemVariationData<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u8>();
         let region_index_count: u16 = cursor.read()?;
-        let region_indices_byte_len = region_index_count as usize * u16::RAW_BYTE_LEN;
+        let region_indices_byte_len = (region_index_count as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(region_indices_byte_len);
         let raw_delta_sets_byte_len =
             cursor.remaining_bytes() / u8::RAW_BYTE_LEN * u8::RAW_BYTE_LEN;
@@ -616,7 +622,9 @@ impl<'a> FontRead<'a> for ConditionList<'a> {
     fn read(data: FontData<'a>) -> Result<Self, ReadError> {
         let mut cursor = data.cursor();
         let condition_count: u32 = cursor.read()?;
-        let condition_offsets_byte_len = condition_count as usize * Offset32::RAW_BYTE_LEN;
+        let condition_offsets_byte_len = (condition_count as usize)
+            .checked_mul(Offset32::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(condition_offsets_byte_len);
         cursor.finish(ConditionListMarker {
             condition_offsets_byte_len,

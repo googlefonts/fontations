@@ -47,14 +47,19 @@ impl<'a> FontReadWithArgs<'a> for TupleVariationHeader<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let tuple_index: TupleIndex = cursor.read()?;
-        let peak_tuple_byte_len =
-            TupleIndex::tuple_len(tuple_index, axis_count, 0_usize) * F2Dot14::RAW_BYTE_LEN;
+        let peak_tuple_byte_len = (TupleIndex::tuple_len(tuple_index, axis_count, 0_usize))
+            .checked_mul(F2Dot14::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(peak_tuple_byte_len);
         let intermediate_start_tuple_byte_len =
-            TupleIndex::tuple_len(tuple_index, axis_count, 1_usize) * F2Dot14::RAW_BYTE_LEN;
+            (TupleIndex::tuple_len(tuple_index, axis_count, 1_usize))
+                .checked_mul(F2Dot14::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(intermediate_start_tuple_byte_len);
         let intermediate_end_tuple_byte_len =
-            TupleIndex::tuple_len(tuple_index, axis_count, 1_usize) * F2Dot14::RAW_BYTE_LEN;
+            (TupleIndex::tuple_len(tuple_index, axis_count, 1_usize))
+                .checked_mul(F2Dot14::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(intermediate_end_tuple_byte_len);
         cursor.finish(TupleVariationHeaderMarker {
             peak_tuple_byte_len,
@@ -147,9 +152,12 @@ impl ReadArgs for Tuple<'_> {
 }
 
 impl ComputeSize for Tuple<'_> {
+    #[allow(clippy::needless_question_mark)]
     fn compute_size(args: &u16) -> Result<usize, ReadError> {
         let axis_count = *args;
-        Ok(axis_count as usize * F2Dot14::RAW_BYTE_LEN)
+        Ok((axis_count as usize)
+            .checked_mul(F2Dot14::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?)
     }
 }
 
@@ -224,7 +232,9 @@ impl<'a> FontRead<'a> for DeltaSetIndexMapFormat0<'a> {
         cursor.advance::<u8>();
         let entry_format: EntryFormat = cursor.read()?;
         let map_count: u16 = cursor.read()?;
-        let map_data_byte_len = EntryFormat::map_size(entry_format, map_count) * u8::RAW_BYTE_LEN;
+        let map_data_byte_len = (EntryFormat::map_size(entry_format, map_count))
+            .checked_mul(u8::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(map_data_byte_len);
         cursor.finish(DeltaSetIndexMapFormat0Marker { map_data_byte_len })
     }
@@ -319,7 +329,9 @@ impl<'a> FontRead<'a> for DeltaSetIndexMapFormat1<'a> {
         cursor.advance::<u8>();
         let entry_format: EntryFormat = cursor.read()?;
         let map_count: u32 = cursor.read()?;
-        let map_data_byte_len = EntryFormat::map_size(entry_format, map_count) * u8::RAW_BYTE_LEN;
+        let map_data_byte_len = (EntryFormat::map_size(entry_format, map_count))
+            .checked_mul(u8::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(map_data_byte_len);
         cursor.finish(DeltaSetIndexMapFormat1Marker { map_data_byte_len })
     }
@@ -788,8 +800,9 @@ impl<'a> FontRead<'a> for VariationRegionList<'a> {
         let mut cursor = data.cursor();
         let axis_count: u16 = cursor.read()?;
         let region_count: u16 = cursor.read()?;
-        let variation_regions_byte_len =
-            region_count as usize * <VariationRegion as ComputeSize>::compute_size(&axis_count)?;
+        let variation_regions_byte_len = (region_count as usize)
+            .checked_mul(<VariationRegion as ComputeSize>::compute_size(&axis_count)?)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(variation_regions_byte_len);
         cursor.finish(VariationRegionListMarker {
             variation_regions_byte_len,
@@ -872,9 +885,12 @@ impl ReadArgs for VariationRegion<'_> {
 }
 
 impl ComputeSize for VariationRegion<'_> {
+    #[allow(clippy::needless_question_mark)]
     fn compute_size(args: &u16) -> Result<usize, ReadError> {
         let axis_count = *args;
-        Ok(axis_count as usize * RegionAxisCoordinates::RAW_BYTE_LEN)
+        Ok((axis_count as usize)
+            .checked_mul(RegionAxisCoordinates::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?)
     }
 }
 
@@ -1003,8 +1019,9 @@ impl<'a> FontRead<'a> for ItemVariationStore<'a> {
         cursor.advance::<u16>();
         cursor.advance::<Offset32>();
         let item_variation_data_count: u16 = cursor.read()?;
-        let item_variation_data_offsets_byte_len =
-            item_variation_data_count as usize * Offset32::RAW_BYTE_LEN;
+        let item_variation_data_offsets_byte_len = (item_variation_data_count as usize)
+            .checked_mul(Offset32::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(item_variation_data_offsets_byte_len);
         cursor.finish(ItemVariationStoreMarker {
             item_variation_data_offsets_byte_len,
@@ -1140,11 +1157,14 @@ impl<'a> FontRead<'a> for ItemVariationData<'a> {
         let item_count: u16 = cursor.read()?;
         let word_delta_count: u16 = cursor.read()?;
         let region_index_count: u16 = cursor.read()?;
-        let region_indexes_byte_len = region_index_count as usize * u16::RAW_BYTE_LEN;
+        let region_indexes_byte_len = (region_index_count as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(region_indexes_byte_len);
         let delta_sets_byte_len =
-            ItemVariationData::delta_sets_len(item_count, word_delta_count, region_index_count)
-                * u8::RAW_BYTE_LEN;
+            (ItemVariationData::delta_sets_len(item_count, word_delta_count, region_index_count))
+                .checked_mul(u8::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(delta_sets_byte_len);
         cursor.finish(ItemVariationDataMarker {
             region_indexes_byte_len,
