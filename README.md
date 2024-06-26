@@ -86,6 +86,7 @@ overview of how to use the `font-codegen` crate, see the readme at
 
 * Coverage can be viewed at https://oss-fuzz.com/, and search for "fontations"
 * The `fuzz/` crate in this repo contains our fuzzers
+* fuzzers are implemented using the [`cargo-fuzz`](https://rust-fuzz.github.io/book/cargo-fuzz.html) crate
 * [oss-fuzz](https://github.com/google/oss-fuzz) configuration lives in https://github.com/google/oss-fuzz/tree/master/projects/fontations
    * [build.sh](https://github.com/google/oss-fuzz/blob/master/projects/fontations/build.sh) looks for `target/x86_64-unknown-linux-gnu/release/fuzz_*`
    * ^ is meant to mean we can add additional fuzzers to fontations without having to touch oss-fuzz every time
