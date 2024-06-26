@@ -1,137 +1,161 @@
 //! Reads individual bits from a array of bytes.
 
-pub(crate) struct InputBitStream<'a> {
+use crate::sparse_bit_set::BranchFactor;
+
+pub(crate) struct InputBitStream<'a, const BF: u8> {
     data: &'a [u8],
     byte_index: usize,
-    bit_index: u8,
+    sub_index: u32,
 }
 
-impl<'a> InputBitStream<'a> {
-    pub fn from(data: &'a [u8]) -> InputBitStream {
+impl<'a, const BF: u8> Iterator for InputBitStream<'a, BF> {
+    type Item = u32;
+    fn next(&mut self) -> Option<Self::Item> {
+        match BF {
+            2 | 4 => {
+                let mask = (1 << BF) - 1;
+                let byte = self.data.get(self.byte_index)?;
+                let val = (*byte as u32 & (mask << self.sub_index)) >> self.sub_index;
+                self.sub_index = (self.sub_index + BF as u32) % 8;
+                if self.sub_index == 0 {
+                    self.byte_index += 1;
+                }
+                Some(val)
+            }
+            8 => {
+                let r = self.data.get(self.byte_index).map(|v| *v as u32)?;
+                self.byte_index += 1;
+                Some(r)
+            }
+
+            32 => {
+                let b1 = self.data.get(self.byte_index).map(|v| *v as u32)?;
+                let b2 = self.data.get(self.byte_index + 1).map(|v| *v as u32)?;
+                let b3 = self.data.get(self.byte_index + 2).map(|v| *v as u32)?;
+                let b4 = self.data.get(self.byte_index + 3).map(|v| *v as u32)?;
+                self.byte_index += 4;
+                Some(b1 | (b2 << 8) | (b3 << 16) | (b4 << 24))
+            }
+            _ => panic!("Unsupported branch factor."),
+        }
+    }
+}
+
+impl<'a, const BF: u8> InputBitStream<'a, BF> {
+    /// Decodes and returns the branch factor and height encoded in the header byte.
+    ///
+    /// See: <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
+    /// Returns None if the stream does not have enough remaining bits.
+    #[allow(clippy::unusual_byte_groupings)]
+    pub(crate) fn decode_header(data: &'a [u8]) -> Option<(BranchFactor, u8)> {
+        let first_byte = data.first()?;
+        let bf_bits = 0b0_00000_11 & first_byte;
+        let depth_bits = (0b0_11111_00 & first_byte) >> 2;
+
+        let branch_factor = match bf_bits {
+            0b00 => BranchFactor::Two,
+            0b01 => BranchFactor::Four,
+            0b10 => BranchFactor::Eight,
+            0b11 => BranchFactor::ThirtyTwo,
+            _ => panic!("Invalid branch factor encoding."),
+        };
+
+        Some((branch_factor, depth_bits))
+    }
+
+    pub(crate) fn from(data: &'a [u8]) -> InputBitStream<BF> {
         InputBitStream {
             data,
-            byte_index: 0,
-            bit_index: 0,
-        }
-    }
-
-    /// Reads the next two bits and returns the corresponding branch factor.
-    ///
-    /// See: <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
-    /// Returns None if the stream does not have enough remaining bits.
-    pub fn read_branch_factor(&mut self) -> Option<u8> {
-        let bit_0 = self.read_bit()?;
-        let bit_1 = self.read_bit()?;
-
-        match (bit_1, bit_0) {
-            (false, false) => Some(2),
-            (false, true) => Some(4),
-            (true, false) => Some(8),
-            (true, true) => Some(32),
-        }
-    }
-
-    /// Reads the next 5 bits and returns the corresponding height value.
-    ///
-    /// See: <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
-    /// Returns None if the stream does not have enough remaining bits.
-    pub fn read_height(&mut self) -> Option<u8> {
-        let mut val = 0u8;
-        for index in 0..5 {
-            if self.read_bit()? {
-                val |= 1u8 << index;
-            }
-        }
-
-        Some(val)
-    }
-
-    /// Returns the value of the next bit, or None if there are no more bits left.
-    ///
-    /// Bits are read from least signifcant to most in the current byte.
-    pub fn read_bit(&mut self) -> Option<bool> {
-        let byte = self.data.get(self.byte_index)?;
-        let mask = 1u8 << self.bit_index;
-        let bit_value = byte & mask != 0;
-
-        self.move_to_next();
-
-        Some(bit_value)
-    }
-
-    /// Skips the next bit in the stream.
-    pub fn skip_bit(&mut self) {
-        self.move_to_next();
-    }
-
-    fn move_to_next(&mut self) {
-        self.bit_index = (self.bit_index + 1) % 8;
-        if self.bit_index == 0 {
-            self.byte_index += 1;
+            byte_index: 1,
+            sub_index: 0,
         }
     }
 }
 
 #[cfg(test)]
+#[allow(clippy::unusual_byte_groupings)]
 mod test {
     use super::*;
 
     #[test]
-    fn read_bit() {
-        let data = [0b00110010u8, 0b00000010u8];
-        let mut stream = InputBitStream::from(&data);
+    fn read_header() {
+        assert_eq!(
+            Some((BranchFactor::Two, 25u8)),
+            InputBitStream::<2>::decode_header(&[0b1_11001_00u8])
+        );
 
-        for bit in [0, 1, 0, 0, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0] {
-            assert_eq!(stream.read_bit(), Some(bit != 0));
-        }
+        assert_eq!(
+            Some((BranchFactor::Four, 0u8)),
+            InputBitStream::<2>::decode_header(&[0b1_00000_01u8])
+        );
 
-        assert_eq!(stream.read_bit(), None);
+        assert_eq!(
+            Some((BranchFactor::Eight, 31u8)),
+            InputBitStream::<2>::decode_header(&[0b1_11111_10u8])
+        );
+
+        assert_eq!(
+            Some((BranchFactor::ThirtyTwo, 9u8)),
+            InputBitStream::<2>::decode_header(&[0b1_01001_11u8])
+        );
     }
 
     #[test]
-    fn read_branch_factor() {
-        let data = [0b11100100u8];
-        let mut stream = InputBitStream::from(&data);
+    fn read_2() {
+        let mut stream = InputBitStream::<2>::from(&[0b00000000, 0b11_10_01_00, 0b00_01_10_11]);
+        assert_eq!(stream.next(), Some(0b00));
+        assert_eq!(stream.next(), Some(0b01));
+        assert_eq!(stream.next(), Some(0b10));
+        assert_eq!(stream.next(), Some(0b11));
+        assert_eq!(stream.next(), Some(0b11));
+        assert_eq!(stream.next(), Some(0b10));
+        assert_eq!(stream.next(), Some(0b01));
+        assert_eq!(stream.next(), Some(0b00));
+        assert_eq!(stream.next(), None);
 
-        assert_eq!(Some(2), stream.read_branch_factor());
-        assert_eq!(Some(4), stream.read_branch_factor());
-        assert_eq!(Some(8), stream.read_branch_factor());
-        assert_eq!(Some(32), stream.read_branch_factor());
-        assert_eq!(None, stream.read_branch_factor());
+        let mut stream = InputBitStream::<2>::from(&[]);
+        assert_eq!(stream.next(), None);
     }
 
     #[test]
-    #[allow(clippy::unusual_byte_groupings)]
-    fn read_height() {
-        let data = [0b0_00011_10u8, 0b0000_0001u8];
-        let mut stream = InputBitStream::from(&data);
+    fn read_4() {
+        let mut stream = InputBitStream::<4>::from(&[0b00000000, 0b1110_0100, 0b0001_1011]);
+        assert_eq!(stream.next(), Some(0b0100));
+        assert_eq!(stream.next(), Some(0b1110));
+        assert_eq!(stream.next(), Some(0b1011));
+        assert_eq!(stream.next(), Some(0b0001));
+        assert_eq!(stream.next(), None);
 
-        stream.skip_bit();
-        stream.skip_bit();
-
-        assert_eq!(Some(3), stream.read_height());
-        assert_eq!(Some(2), stream.read_height());
-        assert_eq!(None, stream.read_height());
+        let mut stream = InputBitStream::<4>::from(&[]);
+        assert_eq!(stream.next(), None);
     }
 
     #[test]
-    fn skip() {
-        let data = [0b00110010u8];
-        let mut stream = InputBitStream::from(&data);
+    fn read_8() {
+        let mut stream = InputBitStream::<8>::from(&[0b00000000, 0b11100100, 0b00011011]);
+        assert_eq!(stream.next(), Some(0b11100100));
+        assert_eq!(stream.next(), Some(0b00011011));
+        assert_eq!(stream.next(), None);
 
-        stream.skip_bit();
-        assert_eq!(stream.read_bit(), Some(true));
-        assert_eq!(stream.read_bit(), Some(false));
-        stream.skip_bit();
-        stream.skip_bit();
-        stream.skip_bit();
-        stream.skip_bit();
-        assert_eq!(stream.read_bit(), Some(false));
-        assert_eq!(stream.read_bit(), None);
+        let mut stream = InputBitStream::<8>::from(&[]);
+        assert_eq!(stream.next(), None);
+    }
 
-        // Skipping after the end has been reached.
-        stream.skip_bit();
-        stream.skip_bit();
-        assert_eq!(stream.read_bit(), None);
+    #[test]
+    fn read_32() {
+        let mut stream = InputBitStream::<32>::from(&[
+            0b00000000, 0b00000000, 0b11111111, 0b11100100, 0b00011011,
+        ]);
+        assert_eq!(stream.next(), Some(0b00011011_11100100_11111111_00000000));
+        assert_eq!(stream.next(), None);
+
+        let mut stream = InputBitStream::<32>::from(&[
+            0b00000000, 0b00000000, 0b11111111, 0b11100100, 0b00011011, 0b00000001,
+        ]);
+        assert_eq!(stream.next(), Some(0b00011011_11100100_11111111_00000000));
+        assert_eq!(stream.next(), None);
+
+        let mut stream = InputBitStream::<32>::from(&[]);
+        assert_eq!(stream.next(), None);
     }
 }
