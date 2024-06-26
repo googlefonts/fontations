@@ -162,23 +162,17 @@ fn hinting_modes(hinted: bool) -> Vec<HintingMode> {
     ]
 }
 
-fuzz_target!(|data: &[u8]| {
-    // data from corpus is likely to be a font. If we chope off the head to make an outline request
-    // it is likely data is no longer a font. So, take the cross product of likely values for various options
-    // If a lot of values are possible choose randomly with rng seeded from data to ensure reproducible results.
-    let Ok(font) = FontRef::new(data) else {
-        return;
-    };
-    let mut requests = vec![OutlineRequest::default()];
-    requests = requests
+// To avoid consuming corpus data that is likely a font just build the cross product of likely values
+// for various options
+fn create_request_scenarios(font: &FontRef) -> Vec<OutlineRequest> {
+    fuzz_sizes()
         .into_iter()
-        .flat_map(|r| {
-            fuzz_sizes()
-                .into_iter()
-                .map(move |size| OutlineRequest { size, ..r.clone() })
+        .map(move |size| OutlineRequest {
+            size,
+            ..Default::default()
         })
         .flat_map(|r| {
-            fuzz_locations(&font)
+            fuzz_locations(font)
                 .into_iter()
                 .map(move |location| OutlineRequest {
                     location,
@@ -219,9 +213,14 @@ fuzz_target!(|data: &[u8]| {
                 ..r.clone()
             })
         })
-        .collect();
+        .collect::<Vec<_>>()
+}
 
-    for request in requests {
+fuzz_target!(|data: &[u8]| {
+    let Ok(font) = FontRef::new(data) else {
+        return;
+    };
+    for request in create_request_scenarios(&font) {
         let _ = do_glyf_things(request, data);
     }
 });
