@@ -14,8 +14,6 @@ release = false
 [dependencies]
 libfuzzer-sys = { version = "0.4", features = ["arbitrary-derive"] }
 skrifa = { path="../skrifa" }
-rand = "0.8"
-rand_chacha = "0.3"
 
 [[bin]]
 name = "fuzz_skrifa_charmap"
@@ -38,5 +36,11 @@ doc = false
 [[bin]]
 name = "fuzz_skrifa_outline"
 path = "fuzz_targets/fuzz_skrifa_outline.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_skrifa_color"
+path = "fuzz_targets/fuzz_skrifa_color.rs"
 test = false
 doc = false
