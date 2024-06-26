@@ -8,7 +8,7 @@ use libfuzzer_sys::{
 use skrifa::{
     instance::Size,
     outline::{DrawError, DrawSettings, HintingInstance, HintingMode, LcdLayout, OutlinePen},
-    raw::tables::glyf::ToPathStyle,
+    raw::{tables::glyf::ToPathStyle, TableProvider},
     FontRef, MetadataProvider,
 };
 
@@ -97,8 +97,17 @@ impl Display for DrawErrorWrapper {
     }
 }
 
-fn do_glyf_things(outline_request: OutlineRequest, data: &[u8]) -> Result<(), Box<dyn Error>> {
+fn do_glyf_things(data: &[u8]) -> Result<(), Box<dyn Error>> {
     let font = FontRef::new(data)?;
+
+    // we use the bytes of the os2 table, (which are otherwise irrelevant in this test case)
+    // to construct the `OutlineRequest`; this lets the fuzzer modify the request by
+    // mutating those bytes
+    let os2 = font.os2()?;
+    let os2bytes = os2.offset_data();
+    let mut unstructured = Unstructured::new(os2bytes.as_bytes());
+    let outline_request: OutlineRequest = unstructured.arbitrary()?;
+
     let outlines = font.outline_glyphs();
     let size = outline_request
         .size
@@ -155,10 +164,5 @@ fn do_glyf_things(outline_request: OutlineRequest, data: &[u8]) -> Result<(), Bo
 }
 
 fuzz_target!(|data: &[u8]| {
-    let mut unstructured = Unstructured::new(data);
-    let Ok(outline_request) = unstructured.arbitrary() else {
-        return;
-    };
-    let data = unstructured.take_rest();
-    let _ = do_glyf_things(outline_request, data);
+    let _ = do_glyf_things(data);
 });
