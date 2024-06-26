@@ -2,14 +2,17 @@
 use std::{error::Error, fmt::Display};
 
 use libfuzzer_sys::fuzz_target;
-use rand::{Rng, SeedableRng};
-use rand_chacha::ChaCha8Rng;
+use rand::Rng;
 use skrifa::{
     instance::Size,
     outline::{DrawError, DrawSettings, HintingInstance, HintingMode, LcdLayout, OutlinePen},
     raw::tables::glyf::ToPathStyle,
     FontRef, MetadataProvider,
 };
+
+mod helpers;
+
+use helpers::*;
 
 /// The pen for when you don't really care what gets drawn
 struct NopPen;
@@ -41,10 +44,10 @@ impl OutlinePen for NopPen {
 /// See
 /// * <https://rust-fuzz.github.io/book/cargo-fuzz/structure-aware-fuzzing.html>
 /// * <https://docs.rs/skrifa/latest/skrifa/outline/index.html>
-#[derive(Default, Debug, Clone)]
+#[derive(Debug, Clone)]
 struct OutlineRequest {
     /// None => unscaled
-    size: Option<f32>,
+    size: Size,
     axis_positions: Vec<f32>,
     hinted: bool,
     hinted_pedantic: bool,
@@ -52,6 +55,21 @@ struct OutlineRequest {
     with_memory: bool, // ~half tests should be with memory, half not
     memory_size: u16, // if we do test with_memory, how much of it? u16 to avoid asking for huge chunks.
     harfbuzz_pathstyle: bool,
+}
+
+impl Default for OutlineRequest {
+    fn default() -> Self {
+        Self {
+            size: Size::unscaled(),
+            axis_positions: Default::default(),
+            hinted: Default::default(),
+            hinted_pedantic: Default::default(),
+            hinting_mode: Default::default(),
+            with_memory: Default::default(),
+            memory_size: Default::default(),
+            harfbuzz_pathstyle: Default::default(),
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -68,17 +86,8 @@ impl Display for DrawErrorWrapper {
 fn do_glyf_things(outline_request: OutlineRequest, data: &[u8]) -> Result<(), Box<dyn Error>> {
     let font = FontRef::new(data)?;
     let outlines = font.outline_glyphs();
-    let size = outline_request
-        .size
-        .map(Size::new)
-        .unwrap_or_else(Size::unscaled);
-    let raw_location = font
-        .axes()
-        .iter()
-        .zip(&outline_request.axis_positions)
-        .map(|(axis, pos)| (axis.tag(), *pos))
-        .collect::<Vec<_>>();
-    let location = font.axes().location(raw_location);
+    let size = outline_request.size;
+    let location = create_location(&font, &outline_request.axis_positions);
     let mut buf: Vec<u8> = Vec::with_capacity(
         outline_request
             .with_memory
@@ -115,14 +124,6 @@ fn do_glyf_things(outline_request: OutlineRequest, data: &[u8]) -> Result<(), Bo
     }
 
     Ok(())
-}
-
-fn create_rng(data: &[u8]) -> ChaCha8Rng {
-    let mut seed = [0u8; 32];
-    for (i, entry) in seed.iter_mut().enumerate() {
-        *entry = data.get(i).copied().unwrap_or_default();
-    }
-    ChaCha8Rng::from_seed(seed)
 }
 
 fn hinting_modes(hinted: bool) -> Vec<HintingMode> {
@@ -163,16 +164,14 @@ fuzz_target!(|data: &[u8]| {
     // it is likely data is no longer a font. So, take the cross product of likely values for various options
     // If a lot of values are possible choose randomly with rng seeded from data to ensure reproducible results.
     let mut rng = create_rng(data);
-    let random_position = (0..8)
-        .map(|_| rng.gen_range(-1000.0..1000.0))
-        .collect::<Vec<_>>();
+    let random_position = create_axis_location(&mut rng);
     let memory_sizes = vec![4096, 16384, rng.gen::<u16>(), rng.gen::<u16>()];
 
     let mut requests = vec![OutlineRequest::default()];
     requests = requests
         .into_iter()
         .flat_map(|r| {
-            [None, Some(64.0), Some(512.0)]
+            fuzz_sizes()
                 .into_iter()
                 .map(move |size| OutlineRequest { size, ..r.clone() })
         })
