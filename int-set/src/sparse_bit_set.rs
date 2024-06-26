@@ -25,7 +25,7 @@ impl fmt::Display for DecodingError {
     }
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub(crate) enum BranchFactor {
     Two,
     Four,
@@ -41,66 +41,71 @@ impl IntSet<u32> {
     pub fn from_sparse_bit_set(data: &[u8]) -> Result<IntSet<u32>, DecodingError> {
         // This is a direct port of the decoding algorithm from:
         // <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
-        let mut bits = InputBitStream::from(data);
-
-        let Some(branch_factor) = bits.read_branch_factor() else {
+        let Some((branch_factor, height)) = InputBitStream::<0>::decode_header(data) else {
             return Err(DecodingError);
         };
 
-        let Some(height) = bits.read_height() else {
-            return Err(DecodingError);
-        };
+        match branch_factor {
+            BranchFactor::Two => Self::decode_sparse_bit_set_nodes::<2>(data, height),
+            BranchFactor::Four => Self::decode_sparse_bit_set_nodes::<4>(data, height),
+            BranchFactor::Eight => Self::decode_sparse_bit_set_nodes::<8>(data, height),
+            BranchFactor::ThirtyTwo => Self::decode_sparse_bit_set_nodes::<32>(data, height),
+        }
+    }
+
+    fn decode_sparse_bit_set_nodes<const BF: u8>(
+        data: &[u8],
+        height: u8,
+    ) -> Result<IntSet<u32>, DecodingError> {
+        let mut bits = InputBitStream::<BF>::from(data);
 
         let mut out = IntSet::<u32>::empty();
         if height == 0 {
             return Ok(out);
         }
 
-        // Bit 8 of header byte is ignored.
-        bits.skip_bit();
-
         let mut queue = VecDeque::<NextNode>::new(); // TODO(garretrieger): estimate initial capacity?
         queue.push_back(NextNode { start: 0, depth: 1 });
 
         while let Some(next) = queue.pop_front() {
-            let mut has_a_one = false;
-            for index in 0..branch_factor as u32 {
-                let Some(bit) = bits.read_bit() else {
-                    return Err(DecodingError);
-                };
+            let Some(mut bits) = bits.next() else {
+                return Err(DecodingError);
+            };
 
-                if !bit {
-                    continue;
-                }
-
-                // TODO(garretrieger): use two while loops (one for non-leaf and one for leaf nodes)
-                //                     to avoid having to branch on each iteration.
-                has_a_one = true;
-                if next.depth == height as u32 {
-                    // TODO(garretrieger): optimize insertion speed by using the bulk sorted insert
-                    // (rewrite this to be an iterator) or even directly writing groups of bits to the pages.
-                    out.insert(next.start + index);
-                } else {
-                    let exp = height as u32 - next.depth;
-                    queue.push_back(NextNode {
-                        start: next.start + index * (branch_factor as u32).pow(exp),
-                        depth: next.depth + 1,
-                    });
-                }
-            }
-
-            if !has_a_one {
+            if bits == 0 {
                 // all bits were zeroes which is a special command to completely fill in
                 // all integers covered by this node.
                 let exp = (height as u32) - next.depth + 1;
-                out.insert_range(next.start..=next.start + (branch_factor as u32).pow(exp) - 1);
+                out.insert_range(next.start..=next.start + (BF as u32).pow(exp) - 1);
+                continue;
+            }
+
+            loop {
+                let bit_index = bits.trailing_zeros();
+                if bit_index == 32 {
+                    break;
+                }
+
+                if next.depth == height as u32 {
+                    // TODO(garretrieger): optimize insertion speed by using the bulk sorted insert
+                    // (rewrite this to be an iterator) or even directly writing groups of bits to the pages.
+                    out.insert(next.start + bit_index);
+                } else {
+                    let exp = height as u32 - next.depth;
+                    queue.push_back(NextNode {
+                        start: next.start + bit_index * (BF as u32).pow(exp),
+                        depth: next.depth + 1,
+                    });
+                }
+
+                bits &= !(1 << bit_index); // clear the bit that was just read.
             }
         }
 
         Ok(out)
     }
 
-    /// Encodeg this set as a sparse bit set byte encoding.
+    /// Encode this set as a sparse bit set byte encoding.
     ///
     /// Sparse bit sets are a specialized, compact encoding of bit sets defined in the IFT specification:
     /// <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
@@ -134,7 +139,14 @@ impl IntSet<u32> {
     }
 }
 
-fn to_sparse_bit_set_with_bf<const BF: u8>(set: &IntSet<u32>) -> Vec<u8> {
+/// Encode this set as a sparse bit set byte encoding with a specified branch factor.
+///
+/// Branch factor can be 2, 4, 8 or 32. It's a compile time constant so that optimized decoding implementations
+/// can be generated by the compiler.
+///
+/// Sparse bit sets are a specialized, compact encoding of bit sets defined in the IFT specification:
+/// <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
+pub fn to_sparse_bit_set_with_bf<const BF: u8>(set: &IntSet<u32>) -> Vec<u8> {
     let branch_factor = BranchFactor::from_val(BF);
     let Some(max_value) = set.last() else {
         return OutputBitStream::new(branch_factor, 0).into_bytes();
