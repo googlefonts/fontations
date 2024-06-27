@@ -5,6 +5,8 @@ use skrifa::{
     FontRef, MetadataProvider,
 };
 
+const AXIS_LIMIT: usize = 5; // 3 options per axis * up to 5 axes
+
 pub(crate) fn fuzz_sizes() -> Vec<Size> {
     vec![Size::unscaled(), Size::new(64.0), Size::new(512.0)]
 }
@@ -14,7 +16,7 @@ pub(crate) fn fuzz_locations(font: &FontRef) -> Vec<Location> {
     let mut locations = vec![Vec::new()];
 
     // Cross unique min,default,max on every axis
-    for axis in axes.iter() {
+    for axis in axes.iter().take(AXIS_LIMIT) {
         let mut values = vec![axis.default_value()];
         if axis.min_value() != axis.default_value() {
             values.push(axis.min_value());
