@@ -91,6 +91,14 @@ overview of how to use the `font-codegen` crate, see the readme at
    * [build.sh](https://github.com/google/oss-fuzz/blob/master/projects/fontations/build.sh) looks for `target/x86_64-unknown-linux-gnu/release/fuzz_*`
    * ^ is meant to mean we can add additional fuzzers to fontations without having to touch oss-fuzz every time
    * `build.sh` also controls the test corpus, look for the `git clone` lines
+ 
+To reproduce a fuzzer issue:
+
+1. Download the file from the testcase, e.g. https://oss-fuzz.com/testcase-detail/6213391169945600
+1. Build the fuzzers
+   * `cargo +nightly  fuzz build -O --debug-assertions`
+1. Pass the repro file to the fuzzer
+   * `target/x86_64-unknown-linux-gnu/release/fuzz_skrifa_outline ~/Downloads/clusterfuzz-testcase-minimized-fuzz_skrifa_outline-6213391169945600`
 
 ## contributing
 
