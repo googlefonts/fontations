@@ -6,7 +6,7 @@ use write_fonts::tables::{hmtx::Hmtx, hmtx::LongMetric};
 
 impl Subset for Hmtx {
     fn subset(&mut self, plan: &Plan) -> Result<bool, SubsetError> {
-        let gids = &plan.glyph_ids;
+        let gids = &plan.glyphset;
         if gids.is_empty() {
             return Err(SubsetError::SubsetTableError(Hmtx::TAG));
         }
