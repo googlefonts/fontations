@@ -181,6 +181,14 @@ impl BitSet {
         })
     }
 
+    pub(crate) fn iter_ranges(&self) -> impl Iterator<Item = RangeInclusive<u32>> + '_ {
+        self.iter_non_empty_pages().flat_map(|(major, page)| {
+            let base = self.major_start(major);
+            page.iter_ranges()
+                .map(move |r| (base + r.start())..=(base + r.end()))
+        })
+    }
+
     fn iter_pages(&self) -> impl DoubleEndedIterator<Item = (u32, &BitPage)> + '_ {
         self.page_map.iter().flat_map(|info| {
             self.pages
@@ -586,6 +594,29 @@ mod test {
 
         let v: Vec<u32> = bitset.iter().collect();
         assert_eq!(v, vec![3, 8, 534, 700, 10000, 10001, 10002]);
+    }
+
+    fn check_iter_ranges(ranges: Vec<RangeInclusive<u32>>) {
+        let mut set = BitSet::empty();
+        for range in ranges.iter() {
+            set.insert_range(*range.start()..=*range.end());
+        }
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, ranges);
+    }
+
+    #[test]
+    fn iter_ranges() {
+        check_iter_ranges(vec![0..=0]);
+        check_iter_ranges(vec![4578..=4578]);
+
+        check_iter_ranges(vec![0..=10, 4578..=4583]);
+        check_iter_ranges(vec![0..=700]);
+        check_iter_ranges(vec![353..=737]);
+
+        check_iter_ranges(vec![u32::MAX..=u32::MAX]);
+        check_iter_ranges(vec![(u32::MAX - 10)..=u32::MAX]);
+        check_iter_ranges(vec![0..=5, (u32::MAX - 5)..=u32::MAX]);
     }
 
     #[test]
