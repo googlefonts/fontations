@@ -14,6 +14,7 @@ categories = ["text-processing"]
 clap = { version = "4.5.4", features = ["derive"] }
 int-set = { path = "../int-set" }
 regex = "1.10.4"
+skrifa = { version = "0.19.3", path = "../skrifa" }
 thiserror = "1.0.58"
 write-fonts = { path = "../write-fonts", features = ["read"] }
 
@@ -21,3 +22,4 @@ write-fonts = { path = "../write-fonts", features = ["read"] }
 [dev-dependencies]
 diff = "0.1.13"
 tempdir = "0.3.7"
+font-test-data = { path = "../font-test-data" }
