@@ -65,7 +65,7 @@ impl BitPage {
     }
 
     /// Iterator over the ranges in this page.
-    pub(crate) fn iter_ranges(&self) -> impl Iterator<Item = RangeInclusive<u32>> + '_ {
+    pub(crate) fn iter_ranges(&self) -> RangeIter<'_> {
         return RangeIter {
             page: self,
             next_value_to_check: 0,
@@ -245,7 +245,7 @@ impl DoubleEndedIterator for Iter {
     }
 }
 
-struct RangeIter<'a> {
+pub(crate) struct RangeIter<'a> {
     page: &'a BitPage,
     next_value_to_check: u32,
 }
