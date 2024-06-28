@@ -66,6 +66,8 @@ pub static MATERIAL_SYMBOLS_SUBSET: &[u8] =
 
 pub static GLYF_COMPONENTS: &[u8] = include_bytes!("../test_data/ttf/glyf_components.ttf");
 
+pub static AUTOHINT_CMAP: &[u8] = include_bytes!("../test_data/ttf/autohint_cmap.ttf");
+
 pub mod varc {
     pub static CJK_6868: &[u8] = include_bytes!("../test_data/ttf/varc-6868.ttf");
     pub static CONDITIONALS: &[u8] = include_bytes!("../test_data/ttf/varc-ac01-conditional.ttf");

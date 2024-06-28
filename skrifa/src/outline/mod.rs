@@ -78,6 +78,7 @@
 //! # }
 //! ```
 
+mod autohint;
 mod cff;
 mod glyf;
 mod hint;
