@@ -7,8 +7,8 @@ use skrifa::{
     FontRef, MetadataProvider,
 };
 
-const COLOR_EMOJI_SELECTOR: u32 = 0xFE0F;
-const TEXT_EMOJI_SELECTOR: u32 = 0xFE0E;
+const CJK_VARIATION_1: u32 = 0xFE00;
+const CJK_VARIATION_2: u32 = 0xFE01;
 
 fn do_charmap_things(charmap: Charmap<'_>) {
     let _ = charmap.has_map();
@@ -17,8 +17,8 @@ fn do_charmap_things(charmap: Charmap<'_>) {
 
     for (cp, _) in charmap.mappings() {
         let _ = charmap.map(cp);
-        let _ = charmap.map_variant(cp, COLOR_EMOJI_SELECTOR);
-        let _ = charmap.map_variant(cp, TEXT_EMOJI_SELECTOR);
+        let _ = charmap.map_variant(cp, CJK_VARIATION_1);
+        let _ = charmap.map_variant(cp, CJK_VARIATION_2);
     }
     let _ = charmap.variant_mappings().count();
 }
