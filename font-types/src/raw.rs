@@ -159,6 +159,10 @@ impl<T: Scalar> FixedSize for BigEndian<T> {
     const RAW_BYTE_LEN: usize = T::RAW_BYTE_LEN;
 }
 
+impl FixedSize for () {
+    const RAW_BYTE_LEN: usize = 0;
+}
+
 /// An internal macro for implementing the `RawType` trait.
 #[macro_export]
 macro_rules! newtype_scalar {

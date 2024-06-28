@@ -1,5 +1,6 @@
 //! The various font tables
 
+pub mod aat;
 pub mod avar;
 pub mod base;
 pub mod bitmap;
