@@ -82,6 +82,7 @@ mod autohint;
 mod cff;
 mod glyf;
 mod hint;
+mod unscaled;
 
 pub mod error;
 
@@ -406,6 +407,55 @@ impl<'a> OutlineGlyph<'a> {
                 let subfont = cff.subfont(*subfont_ix, ppem, coords)?;
                 cff.draw(&subfont, *glyph_id, coords, false, pen)?;
                 Ok(AdjustedMetrics::default())
+            }
+        }
+    }
+
+    /// Internal drawing API for autohinting that offers unified compact
+    /// storage for unscaled outlines.
+    #[allow(dead_code)]
+    fn draw_unscaled(
+        &self,
+        location: impl Into<LocationRef<'a>>,
+        user_memory: Option<&mut [u8]>,
+        sink: &mut impl unscaled::UnscaledOutlineSink,
+    ) -> Result<(), DrawError> {
+        let coords = location.into().coords();
+        let ppem = None;
+        match &self.kind {
+            OutlineKind::Glyf(glyf, outline) => {
+                with_glyf_memory(outline, Hinting::None, user_memory, |buf| {
+                    let outline =
+                        FreeTypeScaler::unhinted(glyf.clone(), outline, buf, ppem, coords)?
+                            .scale(&outline.glyph, outline.glyph_id)?;
+                    sink.try_reserve(outline.points.len())?;
+                    let mut contour_start = 0;
+                    for contour_end in outline.contours.iter().map(|contour| *contour as usize) {
+                        if contour_end > contour_start {
+                            if let Some(points) = outline.points.get(contour_start..=contour_end) {
+                                let flags = &outline.flags[contour_start..=contour_end];
+                                sink.extend(points.iter().zip(flags).enumerate().map(
+                                    |(ix, (point, flags))| {
+                                        unscaled::UnscaledPoint::from_glyf_point(
+                                            *point,
+                                            *flags,
+                                            ix == 0,
+                                        )
+                                    },
+                                ))?;
+                            }
+                        }
+                        contour_start = contour_end + 1;
+                    }
+                    Ok(())
+                })
+            }
+            OutlineKind::Cff(cff, glyph_id, subfont_ix) => {
+                let subfont = cff.subfont(*subfont_ix, ppem, coords)?;
+                let mut adapter = unscaled::UnscaledPenAdapter::new(sink);
+                cff.draw(&subfont, *glyph_id, coords, false, &mut adapter)?;
+                adapter.finish()?;
+                Ok(())
             }
         }
     }
