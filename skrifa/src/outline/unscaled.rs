@@ -385,13 +385,13 @@ mod tests {
         glyph
             .draw_unscaled(LocationRef::default(), None, &mut inline_outline)
             .unwrap();
-        assert_eq!(inline_outline.use_heap, false);
+        assert!(!inline_outline.use_heap);
         // Force overflow to heap
         let mut heap_outline = UnscaledOutlineBuf::<8>::new();
         glyph
             .draw_unscaled(LocationRef::default(), None, &mut heap_outline)
             .unwrap();
-        assert_eq!(heap_outline.use_heap, true);
+        assert!(heap_outline.use_heap);
     }
 
     #[test]
