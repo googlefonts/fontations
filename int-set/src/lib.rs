@@ -121,6 +121,32 @@ impl<T: Domain<T>> IntSet<T> {
         u32_iter.map(|v| T::from_u32(InDomain(v)))
     }
 
+    pub fn iter_ranges(&self) -> impl Iterator<Item = RangeInclusive<T>> + '_ {
+        let u32_iter = match &self.0 {
+            Membership::Inclusive(s) => RangeIter {
+                ranges: s.iter_ranges(),
+                min: 0,
+                max: 0,
+                inverted: false,
+                done: false,
+            },
+            Membership::Exclusive(s) => {
+                if !T::is_continous() {
+                    panic!("Exclusive range interation is not available for discontinous domains.");
+                }
+                RangeIter {
+                    ranges: s.iter_ranges(),
+                    min: T::ordered_values().next().unwrap(),
+                    max: T::ordered_values().next_back().unwrap(),
+                    inverted: true,
+                    done: false,
+                }
+            }
+        };
+
+        u32_iter.map(|r| T::from_u32(InDomain(*r.start()))..=T::from_u32(InDomain(*r.end())))
+    }
+
     /// Adds a value to the set.
     ///
     /// Returns `true` if the value was newly inserted.
@@ -461,6 +487,62 @@ where
                 break;
             }
         }
+        None
+    }
+}
+
+struct RangeIter<Iter>
+where
+    Iter: Iterator<Item = RangeInclusive<u32>>,
+{
+    ranges: Iter,
+    min: u32,
+    max: u32,
+    inverted: bool,
+    done: bool,
+}
+
+impl<Iter> Iterator for RangeIter<Iter>
+where
+    Iter: Iterator<Item = RangeInclusive<u32>>,
+{
+    type Item = RangeInclusive<u32>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if !self.inverted {
+            return self.ranges.next();
+        }
+
+        if self.done {
+            return None;
+        }
+
+        loop {
+            let next_range = self.ranges.next();
+
+            let Some(next_range) = next_range else {
+                self.done = true;
+                return Some(self.min..=self.max);
+            };
+
+            if next_range.contains(&self.min) {
+                if *next_range.end() >= self.max {
+                    break;
+                }
+                self.min = next_range.end() + 1;
+                continue;
+            }
+
+            let result = self.min..=(next_range.start() - 1);
+            if *next_range.end() < self.max {
+                self.min = next_range.end() + 1;
+            } else {
+                self.done = true;
+            }
+            return Some(result);
+        }
+
+        self.done = true;
         None
     }
 }
@@ -879,6 +961,60 @@ mod test {
 
         let mut iter = set.iter();
         assert_eq!(iter.next_back(), Some(199));
+    }
+
+    #[test]
+    fn iter_ranges_inclusive() {
+        let mut set = IntSet::<u32>::empty();
+        set.insert_range(200..=700);
+        set.insert(5);
+
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![5..=5, 200..=700]);
+    }
+
+    #[test]
+    fn iter_ranges_exclusive() {
+        let mut set = IntSet::<u32>::all();
+        set.remove_range(200..=700);
+        set.remove(5);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![0..=4, 6..=199, 701..=u32::MAX]);
+
+        let mut set = IntSet::<u32>::all();
+        set.remove_range(0..=700);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![701..=u32::MAX]);
+
+        // TODO
+        let mut set = IntSet::<u32>::all();
+        set.remove_range(u32::MAX - 10..=u32::MAX);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![0..=u32::MAX - 11]);
+
+        let mut set = IntSet::<u16>::all();
+        set.remove_range(0..=u16::MAX);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![]);
+
+        let mut set = IntSet::<u16>::all();
+        set.remove_range(0..=u16::MAX - 1);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![u16::MAX..=u16::MAX]);
+
+        let mut set = IntSet::<u16>::all();
+        set.remove_range(1..=u16::MAX);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![0..=0]);
+    }
+
+    #[test]
+    #[should_panic]
+    fn iter_ranges_exclusive_discontinous() {
+        let mut set = IntSet::<EvenInts>::all();
+        set.remove_range(EvenInts(200)..=EvenInts(700));
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert!(!items.is_empty());
     }
 
     #[test]
