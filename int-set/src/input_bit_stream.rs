@@ -46,7 +46,7 @@ impl<'a, const BF: u8> InputBitStream<'a, BF> {
     ///
     /// See: <https://w3c.github.io/IFT/Overview.html#sparse-bit-set-decoding>
     /// Returns None if the stream does not have enough remaining bits.
-    #[allow(clippy::unusual_byte_groupings)]
+    #[allow(clippy::unusual_byte_groupings)] // Used to separate bit values into units used in the set encoding.
     pub(crate) fn decode_header(data: &'a [u8]) -> Option<(BranchFactor, u8)> {
         let first_byte = data.first()?;
         let bf_bits = 0b0_00000_11 & first_byte;
