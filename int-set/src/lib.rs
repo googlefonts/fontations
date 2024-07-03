@@ -1105,11 +1105,25 @@ mod test {
     #[test]
     fn iter_ranges_inclusive() {
         let mut set = IntSet::<u32>::empty();
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![]);
+
         set.insert_range(200..=700);
         set.insert(5);
-
         let items: Vec<_> = set.iter_ranges().collect();
         assert_eq!(items, vec![5..=5, 200..=700]);
+
+        let mut set = IntSet::<u32>::empty();
+        set.insert_range(0..=0);
+        set.insert_range(u32::MAX..=u32::MAX);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![0..=0, u32::MAX..=u32::MAX]);
+
+        let mut set = IntSet::<u32>::empty();
+        set.insert_range(0..=5);
+        set.insert_range(u32::MAX - 5..=u32::MAX);
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![0..=5, u32::MAX - 5..=u32::MAX]);
     }
 
     #[test]
@@ -1144,6 +1158,10 @@ mod test {
         set.remove_range(1..=u16::MAX);
         let items: Vec<_> = set.iter_ranges().collect();
         assert_eq!(items, vec![0..=0]);
+
+        let set = IntSet::<u32>::all();
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![0..=u32::MAX]);
     }
 
     #[test]
