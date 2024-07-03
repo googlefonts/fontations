@@ -68,9 +68,7 @@ impl IntSet<u32> {
         queue.push_back(NextNode { start: 0, depth: 1 });
 
         while let Some(next) = queue.pop_front() {
-            let Some(mut bits) = bits.next() else {
-                return Err(DecodingError);
-            };
+            let mut bits = bits.next().ok_or(DecodingError)?;
 
             if bits == 0 {
                 // all bits were zeroes which is a special command to completely fill in
