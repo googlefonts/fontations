@@ -883,7 +883,7 @@ mod test {
 
     #[test]
     fn from_iterator() {
-        let s: IntSet<u32> = [3, 8, 12, 589].iter().copied().collect();
+        let s: IntSet<u32> = [3, 8, 12, 589].into_iter().collect();
         let mut expected = IntSet::<u32>::empty();
         expected.insert(3);
         expected.insert(8);
@@ -895,7 +895,7 @@ mod test {
 
     #[test]
     fn from_int_set_iterator() {
-        let s1: IntSet<u32> = [3, 8, 12, 589].iter().copied().collect();
+        let s1: IntSet<u32> = [3, 8, 12, 589].into_iter().collect();
         let s2: IntSet<u32> = s1.iter().collect();
         assert_eq!(s1, s2);
     }
@@ -903,8 +903,8 @@ mod test {
     #[test]
     fn extend() {
         let mut s = IntSet::<u32>::empty();
-        s.extend([3, 12].iter().copied());
-        s.extend([8, 10, 589].iter().copied());
+        s.extend([3, 12]);
+        s.extend([8, 10, 589]);
 
         let mut expected = IntSet::<u32>::empty();
         expected.insert(3);
@@ -923,7 +923,7 @@ mod test {
             s.remove(i);
         }
 
-        s.extend([12, 17, 18].iter().copied());
+        s.extend([12, 17, 18]);
 
         assert!(!s.contains(11));
         assert!(s.contains(12));
