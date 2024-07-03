@@ -6,6 +6,7 @@ use super::gvar::SharedTuples;
 
 use std::iter::Skip;
 
+pub const NO_VARIATION_INDEX: u32 = 0xFFFFFFFF;
 /// Outer and inner indices for reading from an [ItemVariationStore].
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct DeltaSetIndex {

@@ -34,6 +34,7 @@ const MAX_GID: GlyphId = GlyphId::new(0xFFFFFF);
 pub struct Plan {
     unicodes: IntSet<u32>,
     glyphset_gsub: IntSet<GlyphId>,
+    glyphset_colred: IntSet<GlyphId>,
     glyphset: IntSet<GlyphId>,
     num_h_metrics: u16,
     num_output_glyphs: u16,
@@ -135,16 +136,17 @@ impl Plan {
         remove_invalid_gids(&mut self.glyphset_gsub, self.font_num_glyphs);
 
         //skip glyph closure for MATH table, it's not supported yet
+
         //glyph closure for COLR
-        //TODO: colr_closure;
-        //remove_invalid_gids(glyphset_colr, font_num_glyphs);
+        self.colr_closure(font);
+        remove_invalid_gids(&mut self.glyphset_colred, self.font_num_glyphs);
 
         /* Populate a full set of glyphs to retain by adding all referenced composite glyphs. */
         let loca = font.loca(None).expect("Error reading loca table");
         let glyf = font.glyf().expect("Error reading glyf table");
         let operation_count =
             self.glyphset_gsub.len() * (MAX_COMPOSITE_OPERATIONS_PER_GLYPH as usize);
-        for gid in self.glyphset_gsub.iter() {
+        for gid in self.glyphset_colred.iter() {
             glyf_closure_glyphs(
                 &loca,
                 &glyf,
@@ -155,6 +157,29 @@ impl Plan {
             );
         }
         remove_invalid_gids(&mut self.glyphset, self.font_num_glyphs);
+    }
+
+    fn colr_closure(&mut self, font: &FontRef) {
+        if let Ok(colr) = font.colr() {
+            colr.v0_closure_glyphs(&self.glyphset_gsub, &mut self.glyphset_colred);
+            let mut layer_indices = IntSet::empty();
+            let mut palette_indices = IntSet::empty();
+            let mut variation_indices = IntSet::empty();
+            let mut delta_set_indices = IntSet::empty();
+            colr.v1_closure(
+                &mut self.glyphset_colred,
+                &mut layer_indices,
+                &mut palette_indices,
+                &mut variation_indices,
+                &mut delta_set_indices,
+            );
+            colr.v0_closure_palette_indices(&self.glyphset_colred, &mut palette_indices);
+
+            //TODO: remap layer_indices and palette_indices
+            //TODO: generate varstore innermaps or something similar
+        } else {
+            self.glyphset_colred.union(&self.glyphset_gsub);
+        }
     }
 }
 
