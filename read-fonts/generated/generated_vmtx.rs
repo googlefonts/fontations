@@ -37,10 +37,14 @@ impl<'a> FontReadWithArgs<'a> for Vmtx<'a> {
     fn read_with_args(data: FontData<'a>, args: &(u16, u16)) -> Result<Self, ReadError> {
         let (number_of_long_ver_metrics, num_glyphs) = *args;
         let mut cursor = data.cursor();
-        let v_metrics_byte_len = number_of_long_ver_metrics as usize * LongMetric::RAW_BYTE_LEN;
+        let v_metrics_byte_len = (number_of_long_ver_metrics as usize)
+            .checked_mul(LongMetric::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(v_metrics_byte_len);
         let top_side_bearings_byte_len =
-            transforms::subtract(num_glyphs, number_of_long_ver_metrics) * i16::RAW_BYTE_LEN;
+            (transforms::subtract(num_glyphs, number_of_long_ver_metrics))
+                .checked_mul(i16::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(top_side_bearings_byte_len);
         cursor.finish(VmtxMarker {
             v_metrics_byte_len,

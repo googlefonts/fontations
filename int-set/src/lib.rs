@@ -19,6 +19,9 @@
 
 mod bitpage;
 mod bitset;
+mod input_bit_stream;
+mod output_bit_stream;
+pub mod sparse_bit_set;
 
 use bitset::BitSet;
 use font_types::GlyphId;
@@ -589,6 +592,18 @@ mod test {
             Self::ordered_values()
                 .filter(move |v| *v >= range.start().to_u32() && *v <= range.end().to_u32())
         }
+    }
+
+    #[test]
+    fn from_sparse_set() {
+        let bytes = [0b00001101, 0b00000011, 0b00110001];
+
+        let set = IntSet::<u32>::from_sparse_bit_set(&bytes).unwrap();
+
+        let mut expected: IntSet<u32> = IntSet::<u32>::empty();
+        expected.insert_range(0..=17);
+
+        assert_eq!(set, expected);
     }
 
     #[test]

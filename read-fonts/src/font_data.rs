@@ -1,5 +1,6 @@
 //! raw font bytes
 
+#![deny(clippy::arithmetic_side_effects)]
 use std::ops::{Range, RangeBounds};
 
 use bytemuck::AnyBitPattern;
@@ -76,16 +77,22 @@ impl<'a> FontData<'a> {
 
     /// Read a scalar at the provided location in the data.
     pub fn read_at<T: Scalar>(&self, offset: usize) -> Result<T, ReadError> {
+        let end = offset
+            .checked_add(T::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         self.bytes
-            .get(offset..offset + T::RAW_BYTE_LEN)
+            .get(offset..end)
             .and_then(T::read)
             .ok_or(ReadError::OutOfBounds)
     }
 
     /// Read a big-endian value at the provided location in the data.
     pub fn read_be_at<T: Scalar>(&self, offset: usize) -> Result<BigEndian<T>, ReadError> {
+        let end = offset
+            .checked_add(T::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         self.bytes
-            .get(offset..offset + T::RAW_BYTE_LEN)
+            .get(offset..end)
             .and_then(BigEndian::from_slice)
             .ok_or(ReadError::OutOfBounds)
     }
@@ -123,8 +130,11 @@ impl<'a> FontData<'a> {
         &self,
         offset: usize,
     ) -> Result<&'a T, ReadError> {
+        let end = offset
+            .checked_add(T::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         self.bytes
-            .get(offset..offset + T::RAW_BYTE_LEN)
+            .get(offset..end)
             .ok_or(ReadError::OutOfBounds)
             .map(bytemuck::from_bytes)
     }
@@ -151,7 +161,12 @@ impl<'a> FontData<'a> {
             .bytes
             .get(range.clone())
             .ok_or(ReadError::OutOfBounds)?;
-        if bytes.len() % std::mem::size_of::<T>() != 0 {
+        if bytes
+            .len()
+            .checked_rem(std::mem::size_of::<T>())
+            .unwrap_or(1) // definitely != 0
+            != 0
+        {
             return Err(ReadError::InvalidArrayLen);
         };
         Ok(bytemuck::cast_slice(bytes))
@@ -172,11 +187,11 @@ impl<'a> FontData<'a> {
 
 impl<'a> Cursor<'a> {
     pub(crate) fn advance<T: Scalar>(&mut self) {
-        self.pos += T::RAW_BYTE_LEN
+        self.pos = self.pos.saturating_add(T::RAW_BYTE_LEN);
     }
 
     pub(crate) fn advance_by(&mut self, n_bytes: usize) {
-        self.pos += n_bytes;
+        self.pos = self.pos.saturating_add(n_bytes);
     }
 
     /// Read a variable length u32 and advance the cursor
@@ -184,6 +199,7 @@ impl<'a> Cursor<'a> {
         let mut next = || self.read::<u8>().map(|v| v as u32);
         let b0 = next()?;
         // TODO this feels possible to simplify, e.g. compute length, loop taking one and shifting and or'ing
+        #[allow(clippy::arithmetic_side_effects)] // these are all checked
         let result = match b0 {
             _ if b0 < 0x80 => b0,
             _ if b0 < 0xC0 => (b0 - 0x80) << 8 | next()?,
@@ -201,14 +217,14 @@ impl<'a> Cursor<'a> {
     /// Read a scalar and advance the cursor.
     pub(crate) fn read<T: Scalar>(&mut self) -> Result<T, ReadError> {
         let temp = self.data.read_at(self.pos);
-        self.pos += T::RAW_BYTE_LEN;
+        self.advance::<T>();
         temp
     }
 
     /// Read a big-endian value and advance the cursor.
     pub(crate) fn read_be<T: Scalar>(&mut self) -> Result<BigEndian<T>, ReadError> {
         let temp = self.data.read_be_at(self.pos);
-        self.pos += T::RAW_BYTE_LEN;
+        self.advance::<T>();
         temp
     }
 
@@ -216,9 +232,10 @@ impl<'a> Cursor<'a> {
     where
         T: FontReadWithArgs<'a> + ComputeSize,
     {
-        let len = T::compute_size(args);
-        let temp = self.data.read_with_args(self.pos..self.pos + len, args);
-        self.pos += len;
+        let len = T::compute_size(args)?;
+        let range_end = self.pos.checked_add(len).ok_or(ReadError::OutOfBounds)?;
+        let temp = self.data.read_with_args(self.pos..range_end, args);
+        self.advance_by(len);
         temp
     }
 
@@ -231,9 +248,12 @@ impl<'a> Cursor<'a> {
     where
         T: FontReadWithArgs<'a> + ComputeSize,
     {
-        let len = len * T::compute_size(args);
-        let temp = self.data.read_with_args(self.pos..self.pos + len, args);
-        self.pos += len;
+        let len = len
+            .checked_mul(T::compute_size(args)?)
+            .ok_or(ReadError::OutOfBounds)?;
+        let range_end = self.pos.checked_add(len).ok_or(ReadError::OutOfBounds)?;
+        let temp = self.data.read_with_args(self.pos..range_end, args);
+        self.advance_by(len);
         temp
     }
 
@@ -241,9 +261,12 @@ impl<'a> Cursor<'a> {
         &mut self,
         n_elem: usize,
     ) -> Result<&'a [T], ReadError> {
-        let len = n_elem * T::RAW_BYTE_LEN;
-        let temp = self.data.read_array(self.pos..self.pos + len);
-        self.pos += len;
+        let len = n_elem
+            .checked_mul(T::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
+        let end = self.pos.checked_add(len).ok_or(ReadError::OutOfBounds)?;
+        let temp = self.data.read_array(self.pos..end);
+        self.advance_by(len);
         temp
     }
 

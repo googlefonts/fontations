@@ -305,17 +305,23 @@ impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
         let mut cursor = data.cursor();
         let version: MajorMinor = cursor.read()?;
         let count: u16 = cursor.read()?;
-        let nonnullable_offsets_byte_len = count as usize * Offset16::RAW_BYTE_LEN;
+        let nonnullable_offsets_byte_len = (count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(nonnullable_offsets_byte_len);
-        let nullable_offsets_byte_len = count as usize * Offset16::RAW_BYTE_LEN;
+        let nullable_offsets_byte_len = (count as usize)
+            .checked_mul(Offset16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(nullable_offsets_byte_len);
         let versioned_nonnullable_offsets_byte_start = version
             .compatible((1u16, 1u16))
             .then(|| cursor.position())
             .transpose()?;
-        let versioned_nonnullable_offsets_byte_len = version
-            .compatible((1u16, 1u16))
-            .then_some(count as usize * Offset16::RAW_BYTE_LEN);
+        let versioned_nonnullable_offsets_byte_len = version.compatible((1u16, 1u16)).then_some(
+            (count as usize)
+                .checked_mul(Offset16::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?,
+        );
         if let Some(value) = versioned_nonnullable_offsets_byte_len {
             cursor.advance_by(value);
         }
@@ -323,9 +329,11 @@ impl<'a> FontRead<'a> for KindsOfArraysOfOffsets<'a> {
             .compatible((1u16, 1u16))
             .then(|| cursor.position())
             .transpose()?;
-        let versioned_nullable_offsets_byte_len = version
-            .compatible((1u16, 1u16))
-            .then_some(count as usize * Offset16::RAW_BYTE_LEN);
+        let versioned_nullable_offsets_byte_len = version.compatible((1u16, 1u16)).then_some(
+            (count as usize)
+                .checked_mul(Offset16::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?,
+        );
         if let Some(value) = versioned_nullable_offsets_byte_len {
             cursor.advance_by(value);
         }
@@ -529,17 +537,23 @@ impl<'a> FontRead<'a> for KindsOfArrays<'a> {
         let mut cursor = data.cursor();
         let version: u16 = cursor.read()?;
         let count: u16 = cursor.read()?;
-        let scalars_byte_len = count as usize * u16::RAW_BYTE_LEN;
+        let scalars_byte_len = (count as usize)
+            .checked_mul(u16::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(scalars_byte_len);
-        let records_byte_len = count as usize * Shmecord::RAW_BYTE_LEN;
+        let records_byte_len = (count as usize)
+            .checked_mul(Shmecord::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(records_byte_len);
         let versioned_scalars_byte_start = version
             .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
-        let versioned_scalars_byte_len = version
-            .compatible(1u16)
-            .then_some(count as usize * u16::RAW_BYTE_LEN);
+        let versioned_scalars_byte_len = version.compatible(1u16).then_some(
+            (count as usize)
+                .checked_mul(u16::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?,
+        );
         if let Some(value) = versioned_scalars_byte_len {
             cursor.advance_by(value);
         }
@@ -547,9 +561,11 @@ impl<'a> FontRead<'a> for KindsOfArrays<'a> {
             .compatible(1u16)
             .then(|| cursor.position())
             .transpose()?;
-        let versioned_records_byte_len = version
-            .compatible(1u16)
-            .then_some(count as usize * Shmecord::RAW_BYTE_LEN);
+        let versioned_records_byte_len = version.compatible(1u16).then_some(
+            (count as usize)
+                .checked_mul(Shmecord::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?,
+        );
         if let Some(value) = versioned_records_byte_len {
             cursor.advance_by(value);
         }

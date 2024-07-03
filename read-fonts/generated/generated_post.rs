@@ -97,9 +97,11 @@ impl<'a> FontRead<'a> for Post<'a> {
             .compatible((2u16, 0u16))
             .then(|| cursor.position())
             .transpose()?;
-        let glyph_name_index_byte_len = version
-            .compatible((2u16, 0u16))
-            .then_some(num_glyphs as usize * u16::RAW_BYTE_LEN);
+        let glyph_name_index_byte_len = version.compatible((2u16, 0u16)).then_some(
+            (num_glyphs as usize)
+                .checked_mul(u16::RAW_BYTE_LEN)
+                .ok_or(ReadError::OutOfBounds)?,
+        );
         if let Some(value) = glyph_name_index_byte_len {
             cursor.advance_by(value);
         }
