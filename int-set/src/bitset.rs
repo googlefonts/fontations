@@ -610,9 +610,7 @@ impl<'a> Iterator for BitSetRangeIter<'a> {
     type Item = RangeInclusive<u32>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.page_iter.is_none() {
-            return None;
-        }
+        self.page_iter.as_ref()?;
 
         let mut current_range = self.next_range();
         loop {

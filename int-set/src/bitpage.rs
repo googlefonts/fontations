@@ -66,10 +66,10 @@ impl BitPage {
 
     /// Iterator over the ranges in this page.
     pub(crate) fn iter_ranges(&self) -> RangeIter<'_> {
-        return RangeIter {
+        RangeIter {
             page: self,
             next_value_to_check: 0,
-        };
+        }
     }
 
     /// Marks (val % page width) a member of this set and returns true if it is newly added.
@@ -306,7 +306,7 @@ impl<'a> Iterator for RangeIter<'a> {
             break;
         }
 
-        return current_range;
+        current_range
     }
 }
 

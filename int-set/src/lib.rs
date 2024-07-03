@@ -125,21 +125,37 @@ impl<T: Domain<T>> IntSet<T> {
         let u32_iter = match &self.0 {
             Membership::Inclusive(s) => RangeIter {
                 ranges: s.iter_ranges(),
+                all_values: None,
+                set: s,
                 min: 0,
                 max: 0,
+                next_value: None,
                 inverted: false,
                 done: false,
             },
             Membership::Exclusive(s) => {
-                if !T::is_continous() {
-                    panic!("Exclusive range interation is not available for discontinous domains.");
-                }
-                RangeIter {
-                    ranges: s.iter_ranges(),
-                    min: T::ordered_values().next().unwrap(),
-                    max: T::ordered_values().next_back().unwrap(),
-                    inverted: true,
-                    done: false,
+                if T::is_continous() {
+                    RangeIter {
+                        ranges: s.iter_ranges(),
+                        all_values: None,
+                        set: s,
+                        min: T::ordered_values().next().unwrap(),
+                        max: T::ordered_values().next_back().unwrap(),
+                        next_value: None,
+                        inverted: true,
+                        done: false,
+                    }
+                } else {
+                    RangeIter {
+                        ranges: s.iter_ranges(),
+                        all_values: Some(T::ordered_values()),
+                        set: s,
+                        min: T::ordered_values().next().unwrap(),
+                        max: T::ordered_values().next_back().unwrap(),
+                        next_value: None,
+                        inverted: true,
+                        done: false,
+                    }
                 }
             }
         };
@@ -491,20 +507,27 @@ where
     }
 }
 
-struct RangeIter<Iter>
+struct RangeIter<'a, InclusiveRangeIter, AllValuesIter>
 where
-    Iter: Iterator<Item = RangeInclusive<u32>>,
+    InclusiveRangeIter: Iterator<Item = RangeInclusive<u32>>,
+    AllValuesIter: Iterator<Item = u32>,
 {
-    ranges: Iter,
+    // TODO XXXXX make this an enum so each version can have it's own fields.
+    ranges: InclusiveRangeIter,
+    all_values: Option<AllValuesIter>,
+    set: &'a BitSet,
     min: u32,
     max: u32,
+    next_value: Option<u32>,
     inverted: bool,
     done: bool,
 }
 
-impl<Iter> Iterator for RangeIter<Iter>
+impl<'a, InclusiveRangeIter, AllValuesIter> Iterator
+    for RangeIter<'a, InclusiveRangeIter, AllValuesIter>
 where
-    Iter: Iterator<Item = RangeInclusive<u32>>,
+    InclusiveRangeIter: Iterator<Item = RangeInclusive<u32>>,
+    AllValuesIter: Iterator<Item = u32>,
 {
     type Item = RangeInclusive<u32>;
 
@@ -513,6 +536,12 @@ where
             return self.ranges.next();
         }
 
+        if self.all_values.is_some() {
+            // Call specialization for exclusive iteration over a discontinous domain.
+            return self.next_discontinous();
+        }
+
+        // Implementation below is a specialization for exlusive iteration over a continous domain
         if self.done {
             return None;
         }
@@ -544,6 +573,46 @@ where
 
         self.done = true;
         None
+    }
+}
+
+impl<'a, InclusiveRangeIter, AllValuesIter> RangeIter<'a, InclusiveRangeIter, AllValuesIter>
+where
+    InclusiveRangeIter: Iterator<Item = RangeInclusive<u32>>,
+    AllValuesIter: Iterator<Item = u32>,
+{
+    fn next_discontinous(&mut self) -> Option<RangeInclusive<u32>> {
+        let all_values_iter = self.all_values.as_mut().unwrap();
+
+        let mut current_range: Option<RangeInclusive<u32>> = None;
+        loop {
+            let next = self.next_value.take().or_else(|| all_values_iter.next());
+            let Some(next) = next else {
+                // No more values, so the current range is over, return it.
+                return current_range;
+            };
+
+            if self.set.contains(next) {
+                if let Some(range) = current_range {
+                    // current range has ended, return it. No need to save 'next' as it's not in the set.
+                    return Some(range);
+                }
+                continue;
+            }
+
+            let Some(range) = current_range.as_ref() else {
+                current_range = Some(next..=next);
+                continue;
+            };
+
+            if range.end() + 1 == next {
+                current_range = Some(*range.start()..=next);
+                continue;
+            }
+
+            self.next_value = Some(next);
+            return Some(range.clone());
+        }
     }
 }
 
@@ -670,6 +739,64 @@ mod test {
 
         fn ordered_values_range(
             range: RangeInclusive<EvenInts>,
+        ) -> impl DoubleEndedIterator<Item = u32> {
+            Self::ordered_values()
+                .filter(move |v| *v >= range.start().to_u32() && *v <= range.end().to_u32())
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord)]
+    struct TwoParts(u16);
+
+    impl Domain<TwoParts> for TwoParts {
+        fn to_u32(&self) -> u32 {
+            self.0 as u32
+        }
+
+        fn from_u32(member: InDomain) -> TwoParts {
+            TwoParts(member.0 as u16)
+        }
+
+        fn is_continous() -> bool {
+            false
+        }
+
+        fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
+            [2..=5, 8..=16].into_iter().flat_map(|it| it.into_iter())
+        }
+
+        fn ordered_values_range(
+            range: RangeInclusive<TwoParts>,
+        ) -> impl DoubleEndedIterator<Item = u32> {
+            Self::ordered_values()
+                .filter(move |v| *v >= range.start().to_u32() && *v <= range.end().to_u32())
+        }
+    }
+
+    #[derive(PartialEq, Eq, Debug, PartialOrd, Ord)]
+    struct TwoPartsBounds(u32);
+
+    impl Domain<TwoPartsBounds> for TwoPartsBounds {
+        fn to_u32(&self) -> u32 {
+            self.0
+        }
+
+        fn from_u32(member: InDomain) -> TwoPartsBounds {
+            TwoPartsBounds(member.0)
+        }
+
+        fn is_continous() -> bool {
+            false
+        }
+
+        fn ordered_values() -> impl DoubleEndedIterator<Item = u32> {
+            [0..=1, u32::MAX - 1..=u32::MAX]
+                .into_iter()
+                .flat_map(|it| it.into_iter())
+        }
+
+        fn ordered_values_range(
+            range: RangeInclusive<TwoPartsBounds>,
         ) -> impl DoubleEndedIterator<Item = u32> {
             Self::ordered_values()
                 .filter(move |v| *v >= range.start().to_u32() && *v <= range.end().to_u32())
@@ -1009,12 +1136,57 @@ mod test {
     }
 
     #[test]
-    #[should_panic]
     fn iter_ranges_exclusive_discontinous() {
         let mut set = IntSet::<EvenInts>::all();
-        set.remove_range(EvenInts(200)..=EvenInts(700));
+        set.remove_range(EvenInts(0)..=EvenInts(8));
+        set.remove_range(EvenInts(16)..=EvenInts(u16::MAX - 1));
         let items: Vec<_> = set.iter_ranges().collect();
-        assert!(!items.is_empty());
+        assert_eq!(
+            items,
+            vec![
+                EvenInts(10)..=EvenInts(10),
+                EvenInts(12)..=EvenInts(12),
+                EvenInts(14)..=EvenInts(14)
+            ]
+        );
+
+        let mut set = IntSet::<TwoParts>::all();
+        set.remove_range(TwoParts(11)..=TwoParts(13));
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(
+            items,
+            vec![
+                TwoParts(2)..=TwoParts(5),
+                TwoParts(8)..=TwoParts(10),
+                TwoParts(14)..=TwoParts(16),
+            ]
+        );
+
+        let mut set = IntSet::<TwoParts>::all();
+        set.remove_range(TwoParts(2)..=TwoParts(16));
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![]);
+
+        let mut set = IntSet::<TwoParts>::all();
+        set.remove_range(TwoParts(2)..=TwoParts(5));
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![TwoParts(8)..=TwoParts(16),]);
+
+        let mut set = IntSet::<TwoParts>::all();
+        set.remove_range(TwoParts(6)..=TwoParts(16));
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(items, vec![TwoParts(2)..=TwoParts(5),]);
+
+        // Check we can safely iterate to the limits of u32.
+        let set = IntSet::<TwoPartsBounds>::all();
+        let items: Vec<_> = set.iter_ranges().collect();
+        assert_eq!(
+            items,
+            vec![
+                TwoPartsBounds(0)..=TwoPartsBounds(1),
+                TwoPartsBounds(u32::MAX - 1)..=TwoPartsBounds(u32::MAX),
+            ]
+        );
     }
 
     #[test]
