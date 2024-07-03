@@ -123,38 +123,22 @@ impl<T: Domain<T>> IntSet<T> {
 
     pub fn iter_ranges(&self) -> impl Iterator<Item = RangeInclusive<T>> + '_ {
         let u32_iter = match &self.0 {
-            Membership::Inclusive(s) => RangeIter {
+            Membership::Inclusive(s) => RangeIter::Inclusive {
                 ranges: s.iter_ranges(),
-                all_values: None,
-                set: s,
-                min: 0,
-                max: 0,
-                next_value: None,
-                inverted: false,
-                done: false,
             },
             Membership::Exclusive(s) => {
                 if T::is_continous() {
-                    RangeIter {
+                    RangeIter::Exclusive {
                         ranges: s.iter_ranges(),
-                        all_values: None,
-                        set: s,
                         min: T::ordered_values().next().unwrap(),
                         max: T::ordered_values().next_back().unwrap(),
-                        next_value: None,
-                        inverted: true,
                         done: false,
                     }
                 } else {
-                    RangeIter {
-                        ranges: s.iter_ranges(),
+                    RangeIter::ExclusiveDiscontinous {
                         all_values: Some(T::ordered_values()),
                         set: s,
-                        min: T::ordered_values().next().unwrap(),
-                        max: T::ordered_values().next_back().unwrap(),
                         next_value: None,
-                        inverted: true,
-                        done: false,
                     }
                 }
             }
@@ -507,20 +491,25 @@ where
     }
 }
 
-struct RangeIter<'a, InclusiveRangeIter, AllValuesIter>
+enum RangeIter<'a, InclusiveRangeIter, AllValuesIter>
 where
     InclusiveRangeIter: Iterator<Item = RangeInclusive<u32>>,
     AllValuesIter: Iterator<Item = u32>,
 {
-    // TODO XXXXX make this an enum so each version can have it's own fields.
-    ranges: InclusiveRangeIter,
-    all_values: Option<AllValuesIter>,
-    set: &'a BitSet,
-    min: u32,
-    max: u32,
-    next_value: Option<u32>,
-    inverted: bool,
-    done: bool,
+    Inclusive {
+        ranges: InclusiveRangeIter,
+    },
+    Exclusive {
+        ranges: InclusiveRangeIter,
+        min: u32,
+        max: u32,
+        done: bool,
+    },
+    ExclusiveDiscontinous {
+        all_values: Option<AllValuesIter>,
+        set: &'a BitSet,
+        next_value: Option<u32>,
+    },
 }
 
 impl<'a, InclusiveRangeIter, AllValuesIter> Iterator
@@ -532,47 +521,24 @@ where
     type Item = RangeInclusive<u32>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if !self.inverted {
-            return self.ranges.next();
+        match self {
+            RangeIter::Inclusive { ranges } => ranges.next(),
+            RangeIter::Exclusive {
+                ranges,
+                min,
+                max,
+                done,
+            } => RangeIter::<InclusiveRangeIter, AllValuesIter>::next_exclusive(
+                ranges, min, max, done,
+            ),
+            RangeIter::ExclusiveDiscontinous {
+                all_values,
+                set,
+                next_value,
+            } => RangeIter::<InclusiveRangeIter, AllValuesIter>::next_discontinous(
+                all_values, set, next_value,
+            ),
         }
-
-        if self.all_values.is_some() {
-            // Call specialization for exclusive iteration over a discontinous domain.
-            return self.next_discontinous();
-        }
-
-        // Implementation below is a specialization for exlusive iteration over a continous domain
-        if self.done {
-            return None;
-        }
-
-        loop {
-            let next_range = self.ranges.next();
-
-            let Some(next_range) = next_range else {
-                self.done = true;
-                return Some(self.min..=self.max);
-            };
-
-            if next_range.contains(&self.min) {
-                if *next_range.end() >= self.max {
-                    break;
-                }
-                self.min = next_range.end() + 1;
-                continue;
-            }
-
-            let result = self.min..=(next_range.start() - 1);
-            if *next_range.end() < self.max {
-                self.min = next_range.end() + 1;
-            } else {
-                self.done = true;
-            }
-            return Some(result);
-        }
-
-        self.done = true;
-        None
     }
 }
 
@@ -581,18 +547,63 @@ where
     InclusiveRangeIter: Iterator<Item = RangeInclusive<u32>>,
     AllValuesIter: Iterator<Item = u32>,
 {
-    fn next_discontinous(&mut self) -> Option<RangeInclusive<u32>> {
-        let all_values_iter = self.all_values.as_mut().unwrap();
+    /// Iterate the ranges of an exclusive set where the domain is continous.
+    fn next_exclusive(
+        ranges: &mut InclusiveRangeIter,
+        min: &mut u32,
+        max: &mut u32,
+        done: &mut bool,
+    ) -> Option<RangeInclusive<u32>> {
+        if *done {
+            return None;
+        }
+
+        loop {
+            let next_range = ranges.next();
+
+            let Some(next_range) = next_range else {
+                *done = true;
+                return Some(*min..=*max);
+            };
+
+            if next_range.contains(min) {
+                if *next_range.end() >= *max {
+                    break;
+                }
+                *min = next_range.end() + 1;
+                continue;
+            }
+
+            let result = *min..=(next_range.start() - 1);
+            if *next_range.end() < *max {
+                *min = next_range.end() + 1;
+            } else {
+                *done = true;
+            }
+            return Some(result);
+        }
+
+        *done = true;
+        None
+    }
+
+    /// Iterate the ranges of an exclusive set where the domain is discontinous.
+    fn next_discontinous(
+        all_values: &mut Option<AllValuesIter>,
+        set: &'a BitSet,
+        next_value: &mut Option<u32>,
+    ) -> Option<RangeInclusive<u32>> {
+        let all_values_iter = all_values.as_mut().unwrap();
 
         let mut current_range: Option<RangeInclusive<u32>> = None;
         loop {
-            let next = self.next_value.take().or_else(|| all_values_iter.next());
+            let next = next_value.take().or_else(|| all_values_iter.next());
             let Some(next) = next else {
                 // No more values, so the current range is over, return it.
                 return current_range;
             };
 
-            if self.set.contains(next) {
+            if set.contains(next) {
                 if let Some(range) = current_range {
                     // current range has ended, return it. No need to save 'next' as it's not in the set.
                     return Some(range);
@@ -610,7 +621,7 @@ where
                 continue;
             }
 
-            self.next_value = Some(next);
+            *next_value = Some(next);
             return Some(range.clone());
         }
     }
@@ -1113,7 +1124,6 @@ mod test {
         let items: Vec<_> = set.iter_ranges().collect();
         assert_eq!(items, vec![701..=u32::MAX]);
 
-        // TODO
         let mut set = IntSet::<u32>::all();
         set.remove_range(u32::MAX - 10..=u32::MAX);
         let items: Vec<_> = set.iter_ranges().collect();
