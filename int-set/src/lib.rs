@@ -109,7 +109,7 @@ impl<T: Domain<T>> IntSet<T> {
     // - Intersects range and intersects iter.
     // - min()/max()
 
-    /// Returns an iterator over all members of the set.
+    /// Returns an iterator over all members of the set in sorted ascending order.
     ///
     /// Note: iteration of inverted sets can be extremely slow due to the very large number of members in the set
     /// care should be taken when using .iter() in combination with an inverted set.
@@ -121,6 +121,7 @@ impl<T: Domain<T>> IntSet<T> {
         u32_iter.map(|v| T::from_u32(InDomain(v)))
     }
 
+    /// Returns an iterator over all disjoint ranges of values within the set in sorted ascending order.
     pub fn iter_ranges(&self) -> impl Iterator<Item = RangeInclusive<T>> + '_ {
         let u32_iter = match &self.0 {
             Membership::Inclusive(s) => RangeIter::Inclusive {
