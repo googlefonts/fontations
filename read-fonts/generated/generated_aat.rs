@@ -204,8 +204,9 @@ impl<'a> FontRead<'a> for Lookup2<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        let segments_data_byte_len =
-            transforms::add_multiply(unit_size, 0_usize, n_units) * u8::RAW_BYTE_LEN;
+        let segments_data_byte_len = (transforms::add_multiply(unit_size, 0_usize, n_units))
+            .checked_mul(u8::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(segments_data_byte_len);
         cursor.finish(Lookup2Marker {
             segments_data_byte_len,
@@ -341,7 +342,9 @@ impl<'a> FontRead<'a> for Lookup4<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        let segments_byte_len = n_units as usize * LookupSegment4::RAW_BYTE_LEN;
+        let segments_byte_len = (n_units as usize)
+            .checked_mul(LookupSegment4::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(segments_byte_len);
         cursor.finish(Lookup4Marker { segments_byte_len })
     }
@@ -531,8 +534,9 @@ impl<'a> FontRead<'a> for Lookup6<'a> {
         cursor.advance::<u16>();
         cursor.advance::<u16>();
         cursor.advance::<u16>();
-        let entries_data_byte_len =
-            transforms::add_multiply(unit_size, 0_usize, n_units) * u8::RAW_BYTE_LEN;
+        let entries_data_byte_len = (transforms::add_multiply(unit_size, 0_usize, n_units))
+            .checked_mul(u8::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(entries_data_byte_len);
         cursor.finish(Lookup6Marker {
             entries_data_byte_len,
@@ -969,7 +973,9 @@ impl<'a> FontRead<'a> for ClassSubtable<'a> {
         let mut cursor = data.cursor();
         cursor.advance::<u16>();
         let n_glyphs: u16 = cursor.read()?;
-        let class_array_byte_len = n_glyphs as usize * u8::RAW_BYTE_LEN;
+        let class_array_byte_len = (n_glyphs as usize)
+            .checked_mul(u8::RAW_BYTE_LEN)
+            .ok_or(ReadError::OutOfBounds)?;
         cursor.advance_by(class_array_byte_len);
         cursor.finish(ClassSubtableMarker {
             class_array_byte_len,
