@@ -266,6 +266,12 @@ impl<T: Domain<T>> IntSet<T> {
     }
 }
 
+impl IntSet<u32> {
+    pub(crate) fn from_bitset(set: BitSet) -> IntSet<u32> {
+        IntSet(Membership::Inclusive(set), PhantomData::<u32>)
+    }
+}
+
 impl<T> IntSet<T> {
     /// Create a new empty set (inclusive).
     pub fn empty() -> IntSet<T> {

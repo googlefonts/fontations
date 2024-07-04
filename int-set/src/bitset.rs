@@ -498,22 +498,45 @@ impl BitSet {
 
 impl Extend<u32> for BitSet {
     fn extend<U: IntoIterator<Item = u32>>(&mut self, iter: U) {
+        let mut builder = BitSetBuilder::start(self);
+        for val in iter {
+            builder.insert(val);
+        }
+        builder.finish();
+    }
+}
+
+pub(crate) struct BitSetBuilder<'a> {
+    pub(crate) set: &'a mut BitSet,
+    last_page_index: usize,
+    last_major_value: u32,
+}
+
+impl<'a> BitSetBuilder<'a> {
+    pub(crate) fn start(set: &'a mut BitSet) -> BitSetBuilder {
+        BitSetBuilder {
+            set,
+            last_page_index: usize::MAX,
+            last_major_value: u32::MAX,
+        }
+    }
+
+    pub(crate) fn insert(&mut self, val: u32) {
         // TODO(garretrieger): additional optimization ideas:
         // - Assuming data is sorted accumulate a single element mask and only commit it to the element
         //   once the next value passes the end of the element.
-        let mut last_page_index = usize::MAX;
-        let mut last_major_value = u32::MAX;
-        for val in iter {
-            let major_value = self.get_major_value(val);
-            if major_value != last_major_value {
-                last_page_index = self.ensure_page_index_for_major(major_value);
-                last_major_value = major_value;
-            };
-            if let Some(page) = self.pages.get_mut(last_page_index) {
-                page.insert_no_return(val);
-            }
+        let major_value = self.set.get_major_value(val);
+        if major_value != self.last_major_value {
+            self.last_page_index = self.set.ensure_page_index_for_major(major_value);
+            self.last_major_value = major_value;
+        };
+        if let Some(page) = self.set.pages.get_mut(self.last_page_index) {
+            page.insert_no_return(val);
         }
-        self.mark_dirty();
+    }
+
+    pub(crate) fn finish(&mut self) {
+        self.set.mark_dirty();
     }
 }
 

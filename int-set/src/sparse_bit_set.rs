@@ -7,8 +7,10 @@ use std::collections::VecDeque;
 use std::error::Error;
 use std::fmt;
 
+use crate::bitset::BitSetBuilder;
 use crate::input_bit_stream::InputBitStream;
 use crate::output_bit_stream::OutputBitStream;
+use crate::BitSet;
 use crate::IntSet;
 
 #[derive(Debug)]
@@ -45,26 +47,29 @@ impl IntSet<u32> {
             return Err(DecodingError);
         };
 
-        match branch_factor {
+        let result = match branch_factor {
             BranchFactor::Two => Self::decode_sparse_bit_set_nodes::<2>(data, height),
             BranchFactor::Four => Self::decode_sparse_bit_set_nodes::<4>(data, height),
             BranchFactor::Eight => Self::decode_sparse_bit_set_nodes::<8>(data, height),
             BranchFactor::ThirtyTwo => Self::decode_sparse_bit_set_nodes::<32>(data, height),
-        }
+        };
+
+        result.map(|set| IntSet::<u32>::from_bitset(set))
     }
 
     fn decode_sparse_bit_set_nodes<const BF: u8>(
         data: &[u8],
         height: u8,
-    ) -> Result<IntSet<u32>, DecodingError> {
-        let mut bits = InputBitStream::<BF>::from(data);
-
-        let mut out = IntSet::<u32>::empty();
+    ) -> Result<BitSet, DecodingError> {
+        let mut out = BitSet::empty();
         if height == 0 {
             return Ok(out);
         }
 
-        let mut queue = VecDeque::<NextNode>::new(); // TODO(garretrieger): estimate initial capacity?
+        let mut builder = BitSetBuilder::start(&mut out);
+        let mut bits = InputBitStream::<BF>::from(data);
+        // TODO(garretrieger): estimate initial capacity (maximum is a function of the number of nodes in the bit stream).
+        let mut queue = VecDeque::<NextNode>::new();
         queue.push_back(NextNode { start: 0, depth: 1 });
 
         while let Some(next) = queue.pop_front() {
@@ -74,7 +79,10 @@ impl IntSet<u32> {
                 // all bits were zeroes which is a special command to completely fill in
                 // all integers covered by this node.
                 let exp = (height as u32) - next.depth + 1;
-                out.insert_range(next.start..=next.start + (BF as u32).pow(exp) - 1);
+                // TODO(garretrieger): implement special insert_range on the builder as well.
+                builder
+                    .set
+                    .insert_range(next.start..=next.start + (BF as u32).pow(exp) - 1);
                 continue;
             }
 
@@ -85,9 +93,8 @@ impl IntSet<u32> {
                 }
 
                 if next.depth == height as u32 {
-                    // TODO(garretrieger): optimize insertion speed by using the bulk sorted insert
-                    // (rewrite this to be an iterator) or even directly writing groups of bits to the pages.
-                    out.insert(next.start + bit_index);
+                    // TODO(garretrieger): further optimize by inserting entire nodes at once (as a bit field).
+                    builder.insert(next.start + bit_index);
                 } else {
                     let exp = height as u32 - next.depth;
                     queue.push_back(NextNode {
@@ -99,6 +106,8 @@ impl IntSet<u32> {
                 bits &= !(1 << bit_index); // clear the bit that was just read.
             }
         }
+
+        builder.finish();
 
         Ok(out)
     }
